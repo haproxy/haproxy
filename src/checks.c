@@ -2426,7 +2426,7 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
 static void tcpcheck_main(struct connection *conn)
 {
 	char *contentptr, *comment;
-	struct tcpcheck_rule *cur, *next;
+	struct tcpcheck_rule *next;
 	int done = 0, ret = 0, step = 0;
 	struct check *check = conn->owner;
 	struct server *s = check->server;
@@ -2483,14 +2483,10 @@ static void tcpcheck_main(struct connection *conn)
 		check->bo->o = 0;
 		check->bi->p = check->bi->data;
 		check->bi->i = 0;
-		cur = check->current_step = LIST_ELEM(head->n, struct tcpcheck_rule *, list);
+		check->current_step = LIST_ELEM(head->n, struct tcpcheck_rule *, list);
 		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 		if (s->proxy->timeout.check)
 			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
-	}
-	/* keep on processing step */
-	else {
-		cur = check->current_step;
 	}
 
 	/* It's only the rules which will enable send/recv */
@@ -2501,7 +2497,7 @@ static void tcpcheck_main(struct connection *conn)
 		 * or if we're about to send a string that does not fit in the remaining space.
 		 */
 		if (check->bo->o &&
-		    (&cur->list == head ||
+		    (&check->current_step->list == head ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
@@ -2516,14 +2512,16 @@ static void tcpcheck_main(struct connection *conn)
 		}
 
 		/* did we reach the end ? If so, let's check that everything was sent */
-		if (&cur->list == head) {
+		if (&check->current_step->list == head) {
 			if (check->bo->o)
 				goto out_need_io;
 			break;
 		}
 
-		/* have 'next' point to the next rule or NULL if we're on the last one */
-		next = (struct tcpcheck_rule *)cur->list.n;
+		/* have 'next' point to the next rule or NULL if we're on the
+		 * last one, connect() needs this.
+		 */
+		next = (struct tcpcheck_rule *)check->current_step->list.n;
 
 		/* bypass all comment rules */
 		while (next->action == TCPCHK_ACT_COMMENT)
@@ -2637,13 +2635,11 @@ static void tcpcheck_main(struct connection *conn)
 			}
 
 			/* allow next rule */
-			cur = (struct tcpcheck_rule *)cur->list.n;
+			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 			/* bypass all comment rules */
-			while (cur->action == TCPCHK_ACT_COMMENT)
-				cur = (struct tcpcheck_rule *)cur->list.n;
-
-			check->current_step = cur;
+			while (check->current_step->action == TCPCHK_ACT_COMMENT)
+				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 			/* don't do anything until the connection is established */
 			if (!(conn->flags & CO_FL_CONNECTED)) {
@@ -2697,13 +2693,11 @@ static void tcpcheck_main(struct connection *conn)
 			*check->bo->p = '\0'; /* to make gdb output easier to read */
 
 			/* go to next rule and try to send */
-			cur = (struct tcpcheck_rule *)cur->list.n;
+			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 			/* bypass all comment rules */
-			while (cur->action == TCPCHK_ACT_COMMENT)
-				cur = (struct tcpcheck_rule *)cur->list.n;
-
-			check->current_step = cur;
+			while (check->current_step->action == TCPCHK_ACT_COMMENT)
+				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			if (unlikely(check->result == CHK_RES_FAILED))
@@ -2759,14 +2753,14 @@ static void tcpcheck_main(struct connection *conn)
 				goto out_end_tcpcheck;
 			}
 
-			if (!done && (cur->string != NULL) && (check->bi->i < cur->string_len) )
+			if (!done && (check->current_step->string != NULL) && (check->bi->i < check->current_step->string_len) )
 				continue; /* try to read more */
 
 		tcpcheck_expect:
-			if (cur->string != NULL)
-				ret = my_memmem(contentptr, check->bi->i, cur->string, cur->string_len) != NULL;
-			else if (cur->expect_regex != NULL)
-				ret = regex_exec(cur->expect_regex, contentptr);
+			if (check->current_step->string != NULL)
+				ret = my_memmem(contentptr, check->bi->i, check->current_step->string, check->current_step->string_len) != NULL;
+			else if (check->current_step->expect_regex != NULL)
+				ret = regex_exec(check->current_step->expect_regex, contentptr);
 
 			if (!ret && !done)
 				continue; /* try to read more */
@@ -2775,11 +2769,11 @@ static void tcpcheck_main(struct connection *conn)
 			step = tcpcheck_get_step_id(check);
 			if (ret) {
 				/* matched but we did not want to => ERROR */
-				if (cur->inverse) {
+				if (check->current_step->inverse) {
 					/* we were looking for a string */
-					if (cur->string != NULL) {
+					if (check->current_step->string != NULL) {
 						chunk_printf(&trash, "TCPCHK matched unwanted content '%s' at step %d",
-								cur->string, step);
+						             check->current_step->string, step);
 					}
 					else {
 					/* we were looking for a regex */
@@ -2794,13 +2788,11 @@ static void tcpcheck_main(struct connection *conn)
 				/* matched and was supposed to => OK, next step */
 				else {
 					/* allow next rule */
-					cur = (struct tcpcheck_rule *)cur->list.n;
+					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					/* bypass all comment rules */
-					while (cur->action == TCPCHK_ACT_COMMENT)
-						cur = (struct tcpcheck_rule *)cur->list.n;
-
-					check->current_step = cur;
+					while (check->current_step->action == TCPCHK_ACT_COMMENT)
+						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
@@ -2810,15 +2802,13 @@ static void tcpcheck_main(struct connection *conn)
 			else {
 			/* not matched */
 				/* not matched and was not supposed to => OK, next step */
-				if (cur->inverse) {
+				if (check->current_step->inverse) {
 					/* allow next rule */
-					cur = (struct tcpcheck_rule *)cur->list.n;
+					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					/* bypass all comment rules */
-					while (cur->action == TCPCHK_ACT_COMMENT)
-						cur = (struct tcpcheck_rule *)cur->list.n;
-
-					check->current_step = cur;
+					while (check->current_step->action == TCPCHK_ACT_COMMENT)
+						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
@@ -2827,9 +2817,9 @@ static void tcpcheck_main(struct connection *conn)
 				/* not matched but was supposed to => ERROR */
 				else {
 					/* we were looking for a string */
-					if (cur->string != NULL) {
+					if (check->current_step->string != NULL) {
 						chunk_printf(&trash, "TCPCHK did not match content '%s' at step %d",
-								cur->string, step);
+						             check->current_step->string, step);
 					}
 					else {
 					/* we were looking for a regex */
