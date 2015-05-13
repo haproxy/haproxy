@@ -2455,8 +2455,14 @@ static void tcpcheck_main(struct connection *conn)
 	 * wait for a connection to complete unless we're before and existing
 	 * step 1.
 	 */
+
+	/* find first rule and skip comments */
+	next = LIST_NEXT(head, struct tcpcheck_rule *, list);
+	while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
+		next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
+
 	if ((!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE)) &&
-	    (check->current_step || LIST_ISEMPTY(head))) {
+	    (check->current_step || &next->list == head)) {
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
@@ -2474,7 +2480,7 @@ static void tcpcheck_main(struct connection *conn)
 	}
 
 	/* special case: option tcp-check with no rule, a connect is enough */
-	if (LIST_ISEMPTY(head)) {
+	if (&next->list == head) {
 		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 		goto out_end_tcpcheck;
 	}
@@ -2486,7 +2492,7 @@ static void tcpcheck_main(struct connection *conn)
 		check->bo->o = 0;
 		check->bi->p = check->bi->data;
 		check->bi->i = 0;
-		check->current_step = LIST_ELEM(head->n, struct tcpcheck_rule *, list);
+		check->current_step = next;
 		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 		if (s->proxy->timeout.check)
 			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
