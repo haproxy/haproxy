@@ -1476,7 +1476,10 @@ static int connect_conn_chk(struct task *t)
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
 
 	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(check->tcpcheck_rules)) {
-		struct tcpcheck_rule *r = (struct tcpcheck_rule *) check->tcpcheck_rules->n;
+		struct tcpcheck_rule *r;
+
+		r = LIST_NEXT(check->tcpcheck_rules, struct tcpcheck_rule *, list);
+
 		/* if first step is a 'connect', then tcpcheck_main must run it */
 		if (r->action == TCPCHK_ACT_CONNECT) {
 			tcpcheck_main(conn);
@@ -2519,11 +2522,11 @@ static void tcpcheck_main(struct connection *conn)
 		/* have 'next' point to the next rule or NULL if we're on the
 		 * last one, connect() needs this.
 		 */
-		next = (struct tcpcheck_rule *)check->current_step->list.n;
+		next = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 		/* bypass all comment rules */
 		while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
-			next = (struct tcpcheck_rule *)next->list.n;
+			next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
 
 		/* NULL if we're on the last rule */
 		if (&next->list == head)
@@ -2633,12 +2636,12 @@ static void tcpcheck_main(struct connection *conn)
 			}
 
 			/* allow next rule */
-			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			/* bypass all comment rules */
 			while (&check->current_step->list != head &&
 				check->current_step->action == TCPCHK_ACT_COMMENT)
-				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			if (&check->current_step->list == head)
 				break;
@@ -2695,12 +2698,12 @@ static void tcpcheck_main(struct connection *conn)
 			*check->bo->p = '\0'; /* to make gdb output easier to read */
 
 			/* go to next rule and try to send */
-			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			/* bypass all comment rules */
 			while (&check->current_step->list != head &&
 				check->current_step->action == TCPCHK_ACT_COMMENT)
-				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			if (&check->current_step->list == head)
 				break;
@@ -2794,12 +2797,12 @@ static void tcpcheck_main(struct connection *conn)
 				/* matched and was supposed to => OK, next step */
 				else {
 					/* allow next rule */
-					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+					check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 					/* bypass all comment rules */
 					while (&check->current_step->list != head &&
 					       check->current_step->action == TCPCHK_ACT_COMMENT)
-						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+						check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 					if (&check->current_step->list == head)
 						break;
@@ -2814,12 +2817,12 @@ static void tcpcheck_main(struct connection *conn)
 				/* not matched and was not supposed to => OK, next step */
 				if (check->current_step->inverse) {
 					/* allow next rule */
-					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+					check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 					/* bypass all comment rules */
 					while (&check->current_step->list != head &&
 					       check->current_step->action == TCPCHK_ACT_COMMENT)
-						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+						check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 					if (&check->current_step->list == head)
 						break;
