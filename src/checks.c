@@ -2840,10 +2840,12 @@ static void tcpcheck_main(struct connection *conn)
 	goto out_end_tcpcheck;
 
  out_need_io:
+	/* warning, current_step may now point to the head */
 	if (check->bo->o)
 		__conn_data_want_send(conn);
 
-	if (check->current_step->action == TCPCHK_ACT_EXPECT)
+	if (&check->current_step->list != head &&
+	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__conn_data_want_recv(conn);
 	return;
 
@@ -2859,7 +2861,6 @@ static void tcpcheck_main(struct connection *conn)
 		conn->flags |= CO_FL_ERROR;
 
 	__conn_data_stop_both(conn);
-
 	return;
 }
 
