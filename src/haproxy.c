@@ -1231,6 +1231,7 @@ void deinit(void)
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
 	struct bind_conf *bind_conf, *bind_back;
+	struct _51d_property_names *_51d_prop_name, *_51d_prop_nameb;
 	int i;
 
 	deinit_signals();
@@ -1484,6 +1485,15 @@ void deinit(void)
 
 #if defined(USE_DEVICEATLAS)
 	deinit_deviceatlas();
+#endif
+
+#ifdef USE_51DEGREES
+	fiftyoneDegreesDestroy(&global._51d_data_set);
+	free(global._51d_data_file_path); global._51d_data_file_path = NULL;
+	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global._51d_property_names, list) {
+		LIST_DEL(&_51d_prop_name->list);
+		free(_51d_prop_name);
+	}
 #endif
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
