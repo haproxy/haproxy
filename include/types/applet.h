@@ -110,6 +110,9 @@ struct appctx {
 			struct list wake_on_read;
 			struct list wake_on_write;
 		} hlua;
+		struct {
+			struct dns_resolvers *ptr;
+		} resolvers;
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 

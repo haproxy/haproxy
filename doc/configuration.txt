@@ -15257,6 +15257,23 @@ show stat [<iid> <type> <sid>]
     A similar empty line appears at the end of the second block (stats) so that
     the reader knows the output has not been truncated.
 
+show stat resolvers <resolvers section id>
+  Dump statistics for the given resolvers section.
+  For each name server, the following counters are reported:
+    sent: number of DNS requests sent to this server
+    valid: number of DNS valid responses received from this server
+    update: number of DNS responses used to update the server's IP address
+    cname: number of CNAME responses
+    cname_error: CNAME errors encountered with this server
+    any_err: number of empty response (IE: server does not support ANY type)
+    nx: non existent domain response received from this server
+    timeout: how many time this server did not answer in time
+    refused: number of requests refused by this server
+    other: any other DNS errors
+    invalid: invalid DNS response (from a protocol point of view)
+    too_big: too big response
+    outdated: number of response arrived too late (after an other name server)
+
 show table
   Dump general information on all known stick-tables. Their name is returned
   (the name of the proxy which holds them), their type (currently zero, always
