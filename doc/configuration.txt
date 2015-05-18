@@ -537,6 +537,9 @@ The following keywords are supported in the "global" section :
    - node
    - description
    - unix-bind
+   - 51degrees-data-file
+   - 51degrees-property-name-list
+   - 51degrees-property-seperator
 
  * Performance tuning
    - max-spread-checks
@@ -859,6 +862,28 @@ description <text>
   Please note that it is required to escape certain characters (# for example)
   and this text is inserted into a html page so you should avoid using
   "<" and ">" characters.
+
+51degrees-data-file <file path>
+  The path of the 51Degrees data file to provide device detection services. The
+  file should be unzipped and accessible by HAProxy with relevavnt permissions.
+
+  Please note that this options is only available when haproxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-property-name-list [<string>]
+  A list of 51Degrees property names to be load from the dataset. A full list
+  of names is available on the 51Degrees website:
+  https://51degrees.com/resources/property-dictionary
+
+  Please note that this options is only available when haproxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-property-seperator <char>
+  A char that will be appended to every property value in a response header
+  containing 51Degrees results. If not set that will be set as ','.
+
+  Please note that this options is only available when haproxy has been
+  compiled with USE_51DEGREES.
 
 
 3.2. Performance tuning
