@@ -3716,6 +3716,19 @@ smp_fetch_ssl_fc_has_sni(const struct arg *args, struct sample *smp, const char 
 #endif
 }
 
+/* boolean, returns true if client session has been resumed */
+static int
+smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = objt_conn(smp->sess->origin);
+
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = (conn && conn->xprt == &ssl_sock) &&
+		conn->xprt_ctx &&
+		SSL_session_reused(conn->xprt_ctx);
+	return 1;
+}
+
 /* string, returns the used cipher if front conn. transport layer is SSL.
  * This function is also usable on backend conn if the fetch keyword 5th
  * char is 'b'.
@@ -4876,6 +4889,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
+	{ "ssl_fc_is_resumed",      smp_fetch_ssl_fc_is_resumed,  0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             smp_fetch_ssl_fc_npn,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif

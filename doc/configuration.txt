@@ -11962,6 +11962,10 @@ ssl_fc_has_sni : boolean
   that the SSL library is build with support for TLS extensions enabled (check
   haproxy -vv).
 
+ssl_fc_is_resumed: boolean
+  Returns true if the SSL/TLS session has been resumed through the use of
+  SSL session cache or TLS tickets.
+
 ssl_fc_npn : string
   This extracts the Next Protocol Negotiation field from an incoming connection
   made via a TLS transport layer and locally deciphered by haproxy. The result
