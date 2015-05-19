@@ -585,6 +585,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "ca-base")) {
 #ifdef USE_OPENSSL
+		if(alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.ca_base != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -604,6 +606,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "crt-base")) {
 #ifdef USE_OPENSSL
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.crt_base != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -622,30 +626,48 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #endif
 	}
 	else if (!strcmp(args[0], "daemon")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.mode |= MODE_DAEMON;
 	}
 	else if (!strcmp(args[0], "debug")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.mode |= MODE_DEBUG;
 	}
 	else if (!strcmp(args[0], "noepoll")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.options &= ~GTUNE_USE_EPOLL;
 	}
 	else if (!strcmp(args[0], "nokqueue")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.options &= ~GTUNE_USE_KQUEUE;
 	}
 	else if (!strcmp(args[0], "nopoll")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.options &= ~GTUNE_USE_POLL;
 	}
 	else if (!strcmp(args[0], "nosplice")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.options &= ~GTUNE_USE_SPLICE;
 	}
 	else if (!strcmp(args[0], "nogetaddrinfo")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.options &= ~GTUNE_USE_GAI;
 	}
 	else if (!strcmp(args[0], "quiet")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.mode |= MODE_QUIET;
 	}
 	else if (!strcmp(args[0], "tune.maxpollevents")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.maxpollevents != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -659,6 +681,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.maxpollevents = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.maxaccept")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.maxaccept != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -672,6 +696,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.maxaccept = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.chksize")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -681,9 +707,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 #ifdef USE_OPENSSL
 	else if (!strcmp(args[0], "tune.ssl.force-private-cache")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.tune.sslprivatecache = 1;
 	}
 	else if (!strcmp(args[0], "tune.ssl.cachesize")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -695,6 +725,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		unsigned int ssllifetime;
 		const char *res;
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects ssl sessions <lifetime> in seconds as argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -712,6 +744,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.ssllifetime = ssllifetime;
 	}
 	else if (!strcmp(args[0], "tune.ssl.maxrecord")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -720,6 +754,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.ssl_max_record = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.ssl.default-dh-param")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -734,6 +770,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 #endif
 	else if (!strcmp(args[0], "tune.buffers.limit")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -748,6 +786,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "tune.buffers.reserve")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -760,6 +800,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			global.tune.buf_limit = global.tune.reserved_bufs + 1;
 	}
 	else if (!strcmp(args[0], "tune.bufsize")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -772,6 +814,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		alloc_trash_buffers(global.tune.bufsize);
 	}
 	else if (!strcmp(args[0], "tune.maxrewrite")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -785,6 +829,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		unsigned int idle;
 		const char *res;
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a timer value between 0 and 65535 ms.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -807,6 +853,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.idle_timer = idle;
 	}
 	else if (!strcmp(args[0], "tune.rcvbuf.client")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.client_rcvbuf != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -820,6 +868,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.client_rcvbuf = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.rcvbuf.server")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.server_rcvbuf != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -833,6 +883,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.server_rcvbuf = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.sndbuf.client")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.client_sndbuf != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -846,6 +898,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.client_sndbuf = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.sndbuf.server")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.tune.server_sndbuf != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -859,6 +913,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.server_sndbuf = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.pipesize")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -867,6 +923,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.pipesize = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.http.cookielen")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -875,6 +933,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.cookie_len = atol(args[1]) + 1;
 	}
 	else if (!strcmp(args[0], "tune.http.maxhdr")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -884,6 +944,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "tune.zlib.memlevel")) {
 #ifdef USE_ZLIB
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*args[1]) {
 			global.tune.zlibmemlevel = atoi(args[1]);
 			if (global.tune.zlibmemlevel < 1 || global.tune.zlibmemlevel > 9) {
@@ -906,6 +968,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "tune.zlib.windowsize")) {
 #ifdef USE_ZLIB
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*args[1]) {
 			global.tune.zlibwindowsize = atoi(args[1]);
 			if (global.tune.zlibwindowsize < 8 || global.tune.zlibwindowsize > 15) {
@@ -927,6 +991,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #endif
 	}
 	else if (!strcmp(args[0], "tune.comp.maxlevel")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*args[1]) {
 			global.tune.comp_maxlevel = atoi(args[1]);
 			if (global.tune.comp_maxlevel < 1 || global.tune.comp_maxlevel > 9) {
@@ -959,6 +1025,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "uid")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
@@ -972,6 +1040,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.uid = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "gid")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.gid != 0) {
 			Alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
@@ -985,11 +1055,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.gid = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "external-check")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.external_check = 1;
 	}
 	/* user/group name handling */
 	else if (!strcmp(args[0], "user")) {
 		struct passwd *ha_user;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
@@ -1007,6 +1081,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "group")) {
 		struct group *ha_group;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.gid != 0) {
 			Alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
@@ -1024,6 +1100,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	/* end of user/group name handling*/
 	else if (!strcmp(args[0], "nbproc")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1038,6 +1116,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "maxconn")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.maxconn != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1059,6 +1139,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "maxsslconn")) {
 #ifdef USE_OPENSSL
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1073,6 +1155,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "ssl-default-bind-ciphers")) {
 #ifdef USE_OPENSSL
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a cipher suite as an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1088,6 +1172,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "ssl-default-server-ciphers")) {
 #ifdef USE_OPENSSL
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a cipher suite as an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1102,6 +1188,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #endif
 	}
 	else if (!strcmp(args[0], "ssl-server-verify")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1118,6 +1206,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "maxconnrate")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.cps_lim != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1131,6 +1221,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.cps_lim = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxsessrate")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.sps_lim != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1144,6 +1236,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.sps_lim = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxsslrate")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.ssl_lim != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1157,6 +1251,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.ssl_lim = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxcomprate")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument in kb/s.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1165,6 +1261,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.comp_rate_lim = atoi(args[1]) * 1024;
 	}
 	else if (!strcmp(args[0], "maxpipes")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.maxpipes != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1178,6 +1276,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.maxpipes = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxzlibmem")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1186,6 +1286,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
 	}
 	else if (!strcmp(args[0], "maxcompcpuusage")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1197,9 +1299,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-}
+	}
 
 	else if (!strcmp(args[0], "ulimit-n")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.rlimit_nofile != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1213,6 +1317,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.rlimit_nofile = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "chroot")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.chroot != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1252,6 +1358,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		int i;
 		char c;
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
 		for (i=0; args[1][i]; i++) {
 			c = args[1][i];
 			if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
@@ -1273,6 +1382,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.node = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "pidfile")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.pidfile != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -1388,6 +1499,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		int arg = 0;
 		int len = 0;
 
+		if (alertif_too_many_args(8, file, linenum, args, &err_code)) /* does not strictly check optional arguments */
+			goto out;
+
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <address> and <facility> as arguments.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1417,6 +1531,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			global.max_syslog_len = logsrv->maxlen;
 			logline = realloc(logline, global.max_syslog_len + 1);
 		}
+
+		if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code))
+			goto out;
 
 		logsrv->facility = get_log_facility(args[arg+2]);
 		if (logsrv->facility < 0) {
@@ -1493,6 +1610,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		snprintf(global.log_send_hostname, len + 2, "%s ", name);
 	}
 	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1502,6 +1621,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.log_tag = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (global.spread_checks != 0) {
 			Alert("parsing [%s:%d]: spread-checks already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
@@ -1522,7 +1643,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		const char *err;
 		unsigned int val;
 
-
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3149,6 +3271,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
+			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
+				goto out;
+
 			if (*(args[4]) == 0) {
 				Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
 				      file, linenum, args[0]);
@@ -3169,6 +3294,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
+				goto out;
 
 			if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
 				Alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
@@ -3195,6 +3323,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
+				goto out;
 
 			if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
 				Alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
