@@ -11651,6 +11651,62 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 	return smp_fetch_param(delim, name, name_len, args, smp, kw, private);
 }
 
+/* This function iterates over each parameter of the body. This requires
+ * that the body has been waited for using http-buffer-request. It uses
+ * ctx->a[0] and ctx->a[1] to store the beginning and end of the current
+ * parameter. An optional parameter name is passed in args[0], otherwise
+ * any parameter is considered.
+ */
+static int
+smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_txn *txn = smp->strm->txn;
+	struct http_msg *msg;
+	unsigned long len;
+	unsigned long block1;
+	char *body;
+	const char *name;
+	int name_len;
+
+	if (!args || (args[0].type && args[0].type != ARGT_STR))
+		return 0;
+
+	name = "";
+	name_len = 0;
+	if (args[0].type == ARGT_STR) {
+		name     = args[0].data.str.str;
+		name_len = args[0].data.str.len;
+	}
+
+	if (!smp->ctx.a[0]) { // first call, find the query string
+		CHECK_HTTP_MESSAGE_FIRST();
+
+		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+			msg = &txn->req;
+		else
+			msg = &txn->rsp;
+
+		len  = http_body_bytes(msg);
+		body = b_ptr(msg->chn->buf, -http_data_rewind(msg));
+
+		block1 = len;
+		if (block1 > msg->chn->buf->data + msg->chn->buf->size - body)
+			block1 = msg->chn->buf->data + msg->chn->buf->size - body;
+
+		if (block1 == len) {
+			/* buffer is not wrapped (or empty) */
+			smp->ctx.a[0] = body;
+			smp->ctx.a[1] = body + len;
+		}
+		else {
+			/* buffer is wrapped, we need to defragment it */
+			smp->ctx.a[0] = body;
+			smp->ctx.a[1] = body + block1;
+		}
+	}
+	return smp_fetch_param('&', name, name_len, args, smp, kw, private);
+}
+
 /* Return the signed integer value for the specified url parameter (see url_param
  * above).
  */
@@ -12471,6 +12527,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.body",        smp_fetch_body,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.body_len",    smp_fetch_body_len,       0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.body_size",   smp_fetch_body_size,      0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
+	{ "req.body_param",  smp_fetch_body_param,     ARG1(0,STR),      NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
 	/* HTTP version on the response path */
 	{ "res.ver",         smp_fetch_stver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
