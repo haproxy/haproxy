@@ -11575,47 +11575,18 @@ find_next_url_param(char* query_string, char *qs_end,
 	return value_end != value_start;
 }
 
+/* This scans a URL-encoded query string. It relies on ctx->a[0] to point to
+ * the beginning of the string and ctx->a[1] to point to the end. The string
+ * must be contigous. The pointers are updated for next iteration before
+ * leaving.
+ */
 static int
-smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_param(char delim, const char *name, int name_len, const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	char delim = '?';
-	struct http_msg *msg;
 	char *query_string, *qs_end;
-	const char *name;
-	int name_len;
-
-	if (!args ||
-	    (args[0].type && args[0].type != ARGT_STR) ||
-	    (args[1].type && args[1].type != ARGT_STR))
-		return 0;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	msg = &smp->strm->txn->req;
-
-	if (args[1].type)
-		delim = *args[1].data.str.str;
 
 	query_string = smp->ctx.a[0];
 	qs_end = smp->ctx.a[1];
-
-	if (!query_string) { // first call, find the query string
-		query_string = find_param_list(msg->chn->buf->p + msg->sl.rq.u,
-		                               msg->sl.rq.u_l, delim);
-		if (!query_string)
-			return 0;
-
-		qs_end = msg->chn->buf->p + msg->sl.rq.u + msg->sl.rq.u_l;
-		smp->ctx.a[0] = query_string;
-		smp->ctx.a[1] = qs_end;
-	}
-
-	name = "";
-	name_len = 0;
-	if (args->type == ARGT_STR) {
-		name     = args->data.str.str;
-		name_len = args->data.str.len;
-	}
 
 	if (!find_next_url_param(query_string, qs_end,
                                  name, name_len,
@@ -11633,6 +11604,51 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 		smp->flags |= SMP_F_NOT_LAST;
 
 	return 1;
+}
+
+/* This function iterates over each parameter of the query string. It uses
+ * ctx->a[0] and ctx->a[1] to store the beginning and end of the current
+ * parameter. An optional parameter name is passed in args[0], otherwise
+ * any parameter is considered. It supports an optional delimiter argument
+ * for the beginning of the string in args[1], which defaults to "?".
+ */
+static int
+smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_msg *msg;
+	char delim = '?';
+	const char *name;
+	int name_len;
+
+	if (!smp->ctx.a[0]) { // first call, find the query string
+		if (!args ||
+		    (args[0].type && args[0].type != ARGT_STR) ||
+		    (args[1].type && args[1].type != ARGT_STR))
+			return 0;
+
+		if (args[1].type)
+			delim = *args[1].data.str.str;
+
+		name = "";
+		name_len = 0;
+		if (args->type == ARGT_STR) {
+			name     = args->data.str.str;
+			name_len = args->data.str.len;
+		}
+
+		CHECK_HTTP_MESSAGE_FIRST();
+
+		msg = &smp->strm->txn->req;
+
+		smp->ctx.a[0] = find_param_list(msg->chn->buf->p + msg->sl.rq.u,
+		                                msg->sl.rq.u_l, delim);
+		if (!smp->ctx.a[0])
+			return 0;
+
+		smp->ctx.a[1] = msg->chn->buf->p + msg->sl.rq.u + msg->sl.rq.u_l;
+	}
+
+	return smp_fetch_param(delim, name, name_len, args, smp, kw, private);
 }
 
 /* Return the signed integer value for the specified url parameter (see url_param
