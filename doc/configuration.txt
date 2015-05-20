@@ -12327,6 +12327,18 @@ req.body : binary
   "option http-buffer-request". In case of chunked-encoded body, currently only
   the first chunk is analyzed.
 
+req.body_param([<name>) : string
+  This fetch assumes that the body of the POST request is url-encoded. The user
+  can check if the "content-type" contains the value
+  "application/x-www-form-urlencoded". This extracts the first occurrence of the
+  parameter <name> in the body, which ends before '&'. The parameter name is
+  case-sensitive. If no name is given, any parameter will match, and the first
+  one will be returned. The result is a string corresponding to the value of the
+  parameter <name> as presented in the request body (no URL decoding is
+  performed). Note that the ACL version of this fetch iterates over multiple
+  parameters and will iteratively report all parameters values if no name is
+  given.
+
 req.body_len : integer
   This returns the length of the HTTP request's available body in bytes. It may
   be lower than the advertised length if the body is larger than the buffer. It
