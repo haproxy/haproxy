@@ -11503,31 +11503,108 @@ static inline int is_param_delimiter(char c, char delim)
 	return c == '&' || c == ';' || c == delim;
 }
 
+/* after increasing a pointer value, it can exceed the first buffer
+ * size. This function transform the value of <ptr> according with
+ * the expected position. <chunks> is an array of the one or two
+ * avalaible chunks. The first value is the start of the first chunk,
+ * the second value if the end+1 of the first chunks. The third value
+ * is NULL or the start of the second chunk and the fourth value is
+ * the end+1 of the second chunk. The function returns 1 if does a
+ * wrap, else returns 0.
+ */
+static inline int fix_pointer_if_wrap(const char **chunks, const char **ptr)
+{
+	if (*ptr < chunks[1])
+		return 0;
+	if (!chunks[2])
+		return 0;
+	*ptr = chunks[2] + ( *ptr - chunks[1] );
+	return 1;
+}
+
 /*
  * Given a url parameter, find the starting position of the first occurence,
  * or NULL if the parameter is not found.
  *
  * Example: if query_string is "yo=mama;ye=daddy" and url_param_name is "ye",
  * the function will return query_string+8.
+ *
+ * Warning:this function returns a pointer that can be point to the first chunk
+ * or the second chunk. The caller must be check the position before using the
+ * result.
  */
-static char*
-find_url_param_pos(char* query_string, size_t query_string_l,
+static const char *
+find_url_param_pos(const char **chunks,
                    const char* url_param_name, size_t url_param_name_l,
                    char delim)
 {
-	char *pos, *last;
+	const char *pos, *last, *equal;
+	const char **bufs = chunks;
+	int l1, l2;
 
-	pos  = query_string;
-	last = query_string + query_string_l - url_param_name_l - 1;
 
+	pos  = bufs[0];
+	last = bufs[1];
 	while (pos <= last) {
-		if (pos[url_param_name_l] == '=') {
-			if (memcmp(pos, url_param_name, url_param_name_l) == 0)
-				return pos;
-			pos += url_param_name_l + 1;
+		/* Check the equal. */
+		equal = pos + url_param_name_l;
+		if (fix_pointer_if_wrap(chunks, &equal)) {
+			if (equal >= chunks[3])
+				return NULL;
+		} else {
+			if (equal >= chunks[1])
+				return NULL;
 		}
-		while (pos <= last && !is_param_delimiter(*pos, delim))
-			pos++;
+		if (*equal == '=') {
+			if (pos + url_param_name_l > last) {
+				/* process wrap case, we detect a wrap. In this case, the
+				 * comparison is performed in two parts.
+				 */
+
+				/* This is the end, we dont have any other chunk. */
+				if (bufs != chunks || !bufs[2])
+					return NULL;
+
+				/* Compute the length of each part of the comparison. */
+				l1 = last - pos;
+				l2 = url_param_name_l - l1;
+
+				/* The second buffer is too short to contain the compared string. */
+				if (bufs[2] + l2 > bufs[3])
+					return NULL;
+
+				if (memcmp(pos,     url_param_name,    l1) == 0 &&
+				    memcmp(bufs[2], url_param_name+l1, l2) == 0)
+					return pos;
+
+				/* Perform wrapping and jump the string who fail the comparison. */
+				bufs += 2;
+				pos = bufs[0] + l2;
+				last = bufs[1];
+
+			} else {
+				/* process a simple comparison. */
+				if (memcmp(pos, url_param_name, url_param_name_l) == 0) {
+					return pos; }
+				pos += url_param_name_l + 1;
+				if (fix_pointer_if_wrap(chunks, &pos))
+					last = bufs[2];
+			}
+		}
+
+		while (1) {
+			/* Look for the next delimiter. */
+			while (pos <= last && !is_param_delimiter(*pos, delim))
+				pos++;
+			if (pos < last)
+				break;
+			/* process buffer wrapping. */
+			if (bufs != chunks || !bufs[2])
+				return NULL;
+			bufs += 2;
+			pos = bufs[0];
+			last = bufs[1];
+		}
 		pos++;
 	}
 	return NULL;
@@ -11540,67 +11617,131 @@ find_url_param_pos(char* query_string, size_t query_string_l,
  * not found, zero is returned and value/value_l are not touched.
  */
 static int
-find_next_url_param(char* query_string, char *qs_end,
+find_next_url_param(const char **chunks,
                     const char* url_param_name, size_t url_param_name_l,
-                    char** value, int* value_l, char delim)
+                    const char **vstart, const char **vend, char delim)
 {
-	char *arg_start;
-	char *value_start, *value_end;
+	const char *arg_start, *qs_end;
+	const char *value_start, *value_end;
 
-	arg_start = query_string;
+	arg_start = chunks[0];
+	qs_end = chunks[1];
 	if (url_param_name_l) {
-		arg_start = find_url_param_pos(query_string, qs_end - query_string,
+		/* Looks for an argument name. */
+		arg_start = find_url_param_pos(chunks,
 		                               url_param_name, url_param_name_l,
 		                               delim);
+		/* Check for wrapping. */
+		if (arg_start > qs_end)
+			qs_end = chunks[3];
 	}
 	if (!arg_start)
 		return 0;
 
 	if (!url_param_name_l) {
-		value_start = memchr(arg_start, '=', qs_end - arg_start);
-		if (!value_start)
-			return 0;
+		while (1) {
+			/* looks for the first argument. */
+			value_start = memchr(arg_start, '=', qs_end - arg_start);
+			if (!value_start) {
+
+				/* Check for wrapping. */
+				if (arg_start >= chunks[0] &&
+				    arg_start <= chunks[1] &&
+				    chunks[2]) {
+					arg_start = chunks[2];
+					qs_end = chunks[3];
+					continue;
+				}
+				return 0;
+			}
+			break;
+		}
 		value_start++;
 	}
-	else
+	else {
+		/* Jump the argument length. */
 		value_start = arg_start + url_param_name_l + 1;
+
+		/* Check for pointer wrapping. */
+		if (fix_pointer_if_wrap(chunks, &value_start)) {
+			/* Update the end pointer. */
+			qs_end = chunks[3];
+
+			/* Check for overflow. */
+			if (value_start > qs_end)
+				return 0;
+		}
+	}
 
 	value_end = value_start;
 
-	while ((value_end < qs_end) && !is_param_delimiter(*value_end, delim))
-		value_end++;
+	while (1) {
+		while ((value_end < qs_end) && !is_param_delimiter(*value_end, delim))
+			value_end++;
+		if (value_end < qs_end)
+			break;
+		/* process buffer wrapping. */
+		if (value_end >= chunks[0] &&
+		    value_end <= chunks[1] &&
+		    chunks[2]) {
+			value_end = chunks[2];
+			qs_end = chunks[3];
+			continue;
+		}
+		break;
+	}
 
-	*value = value_start;
-	*value_l = value_end - value_start;
+	*vstart = value_start;
+	*vend = value_end;
 	return value_end != value_start;
 }
 
-/* This scans a URL-encoded query string. It relies on ctx->a[0] to point to
- * the beginning of the string and ctx->a[1] to point to the end. The string
- * must be contigous. The pointers are updated for next iteration before
- * leaving.
+/* This scans a URL-encoded query string. It takes an optionally wrapping
+ * string whose first contigous chunk has its beginning in ctx->a[0] and end
+ * in ctx->a[1], and the optional second part in (ctx->a[2]..ctx->a[3]). The
+ * pointers are updated for next iteration before leaving.
  */
 static int
 smp_fetch_param(char delim, const char *name, int name_len, const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	char *query_string, *qs_end;
+	const char *vstart, *vend;
+	struct chunk *temp;
+	const char **chunks = (const char **)smp->ctx.a;
 
-	query_string = smp->ctx.a[0];
-	qs_end = smp->ctx.a[1];
-
-	if (!find_next_url_param(query_string, qs_end,
+	if (!find_next_url_param(chunks,
 	                         name, name_len,
-	                         &smp->data.str.str, &smp->data.str.len,
+	                         &vstart, &vend,
 	                         delim))
 		return 0;
 
-	query_string = smp->data.str.str + smp->data.str.len + 1;
-	smp->ctx.a[0] = query_string;
-
+	/* Create sample. If the value is contiguous, return the pointer as CONST,
+	 * if the value is wrapped, copy-it in a buffer.
+	 */
 	smp->type = SMP_T_STR;
-	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
+	if (chunks[2] &&
+	    vstart >= chunks[0] && vstart <= chunks[1] &&
+	    vend >= chunks[2] && vend <= chunks[3]) {
+		/* Wrapped case. */
+		temp = get_trash_chunk();
+		memcpy(temp->str, vstart, chunks[1] - vstart);
+		memcpy(temp->str + ( chunks[1] - vstart ), chunks[2], vend - chunks[2]);
+		smp->data.str.str = temp->str;
+		smp->data.str.len = ( chunks[1] - vstart ) + ( vend - chunks[2] );
+	} else {
+		/* Contiguous case. */
+		smp->data.str.str = (char *)vstart;
+		smp->data.str.len = vend - vstart;
+		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
+	}
 
-	if (query_string < qs_end)
+	/* Update context, check wrapping. */
+	chunks[0] = vend;
+	if (chunks[2] && vend >= chunks[2] && vend <= chunks[3]) {
+		chunks[1] = chunks[3];
+		chunks[2] = NULL;
+	}
+
+	if (chunks[0] < chunks[1])
 		smp->flags |= SMP_F_NOT_LAST;
 
 	return 1;
@@ -11608,9 +11749,10 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 
 /* This function iterates over each parameter of the query string. It uses
  * ctx->a[0] and ctx->a[1] to store the beginning and end of the current
- * parameter. An optional parameter name is passed in args[0], otherwise
- * any parameter is considered. It supports an optional delimiter argument
- * for the beginning of the string in args[1], which defaults to "?".
+ * parameter. Since it uses smp_fetch_param(), ctx->a[2..3] are both NULL.
+ * An optional parameter name is passed in args[0], otherwise any parameter is
+ * considered. It supports an optional delimiter argument for the beginning of
+ * the string in args[1], which defaults to "?".
  */
 static int
 smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -11646,6 +11788,12 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 			return 0;
 
 		smp->ctx.a[1] = msg->chn->buf->p + msg->sl.rq.u + msg->sl.rq.u_l;
+
+		/* Assume that the context is filled with NULL pointer
+		 * before the first call.
+		 * smp->ctx.a[2] = NULL;
+		 * smp->ctx.a[3] = NULL;
+		 */
 	}
 
 	return smp_fetch_param(delim, name, name_len, args, smp, kw, private);
@@ -11653,9 +11801,10 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 
 /* This function iterates over each parameter of the body. This requires
  * that the body has been waited for using http-buffer-request. It uses
- * ctx->a[0] and ctx->a[1] to store the beginning and end of the current
- * parameter. An optional parameter name is passed in args[0], otherwise
- * any parameter is considered.
+ * ctx->a[0] and ctx->a[1] to store the beginning and end of the first
+ * contigous part of the body, and optionally ctx->a[2..3] to reference the
+ * optional second part if the body wraps at the end of the buffer. An optional
+ * parameter name is passed in args[0], otherwise any parameter is considered.
  */
 static int
 smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -11697,11 +11846,19 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 			/* buffer is not wrapped (or empty) */
 			smp->ctx.a[0] = body;
 			smp->ctx.a[1] = body + len;
+
+			/* Assume that the context is filled with NULL pointer
+			 * before the first call.
+			 * smp->ctx.a[2] = NULL;
+			 * smp->ctx.a[3] = NULL;
+			*/
 		}
 		else {
 			/* buffer is wrapped, we need to defragment it */
 			smp->ctx.a[0] = body;
 			smp->ctx.a[1] = body + block1;
+			smp->ctx.a[2] = msg->chn->buf->data;
+			smp->ctx.a[3] = msg->chn->buf->data + ( len - block1 );
 		}
 	}
 	return smp_fetch_param('&', name, name_len, args, smp, kw, private);
