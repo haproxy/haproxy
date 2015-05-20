@@ -1065,6 +1065,7 @@ static struct applet peer_applet = {
 static void peer_session_forceshutdown(struct stream * stream)
 {
 	struct appctx *appctx = NULL;
+	struct peer_session *ps;
 	int i;
 
 	for (i = 0; i <= 1; i++) {
@@ -1078,6 +1079,14 @@ static void peer_session_forceshutdown(struct stream * stream)
 
 	if (!appctx)
 		return;
+
+	ps = (struct peer_session *)appctx->ctx.peers.ptr;
+	/* we're killing a connection, we must apply a random delay before
+	 * retrying otherwise the other end will do the same and we can loop
+	 * for a while.
+	 */
+	if (ps)
+		ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
 
 	/* call release to reinit resync states if needed */
 	peer_session_release(appctx);
@@ -1238,8 +1247,8 @@ static struct task *process_peer_sync(struct task * task)
 				if (!ps->stream) {
 					/* no active stream */
 					if (ps->statuscode == 0 ||
-					    ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
 					    ((ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
+					      ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
 					      ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) &&
 					     tick_is_expired(ps->reconnect, now_ms))) {
 						/* connection never tried
@@ -1250,8 +1259,7 @@ static struct task *process_peer_sync(struct task * task)
 						/* retry a connect */
 						ps->stream = peer_session_create(ps->peer, ps);
 					}
-					else if (ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
-						 ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) {
+					else if (!tick_is_expired(ps->reconnect, now_ms)) {
 						/* If previous session failed during connection
 						 * but reconnection timer is not expired */
 
