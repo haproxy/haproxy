@@ -11589,9 +11589,9 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 	qs_end = smp->ctx.a[1];
 
 	if (!find_next_url_param(query_string, qs_end,
-                                 name, name_len,
-                                 &smp->data.str.str, &smp->data.str.len,
-                                 delim))
+	                         name, name_len,
+	                         &smp->data.str.str, &smp->data.str.len,
+	                         delim))
 		return 0;
 
 	query_string = smp->data.str.str + smp->data.str.len + 1;
