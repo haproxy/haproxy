@@ -3903,7 +3903,8 @@ resume_execution:
  */
 static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
-	struct http_msg *msg = &txn->req;
+	struct http_msg *req = &txn->req;
+	struct http_msg *res = &txn->rsp;
 	const char *msg_fmt;
 	const char *location;
 
@@ -3943,7 +3944,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		host = "";
 		hostlen = 0;
 		ctx.idx = 0;
-		if (http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
+		if (http_find_header2("Host", 4, req->chn->buf->p, &txn->hdr_idx, &ctx)) {
 			host = ctx.line + ctx.val;
 			hostlen = ctx.vlen;
 		}
@@ -3951,7 +3952,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		path = http_get_path(txn);
 		/* build message using path */
 		if (path) {
-			pathlen = txn->req.sl.rq.u_l + (txn->req.chn->buf->p + txn->req.sl.rq.u) - path;
+			pathlen = req->sl.rq.u_l + (req->chn->buf->p + req->sl.rq.u) - path;
 			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
 				int qs = 0;
 				while (qs < pathlen) {
@@ -4014,7 +4015,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		path = http_get_path(txn);
 		/* build message using path */
 		if (path) {
-			pathlen = txn->req.sl.rq.u_l + (txn->req.chn->buf->p + txn->req.sl.rq.u) - path;
+			pathlen = req->sl.rq.u_l + (req->chn->buf->p + req->sl.rq.u) - path;
 			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
 				int qs = 0;
 				while (qs < pathlen) {
@@ -4107,12 +4108,12 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	s->logs.tv_request = now;
 
 	if (*location == '/' &&
-	    (msg->flags & HTTP_MSGF_XFER_LEN) &&
-	    !(msg->flags & HTTP_MSGF_TE_CHNK) && !txn->req.body_len &&
+	    (req->flags & HTTP_MSGF_XFER_LEN) &&
+	    !(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len &&
 	    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 	     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 		/* keep-alive possible */
-		if (!(msg->flags & HTTP_MSGF_VER_11)) {
+		if (!(req->flags & HTTP_MSGF_VER_11)) {
 			if (unlikely(txn->flags & TX_USE_PX_CONN)) {
 				memcpy(trash.str + trash.len, "\r\nProxy-Connection: keep-alive", 30);
 				trash.len += 30;
@@ -4123,15 +4124,15 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		}
 		memcpy(trash.str + trash.len, "\r\n\r\n", 4);
 		trash.len += 4;
-		bo_inject(txn->rsp.chn, trash.str, trash.len);
+		bo_inject(res->chn, trash.str, trash.len);
 		/* "eat" the request */
-		bi_fast_delete(txn->req.chn->buf, msg->sov);
-		msg->next -= msg->sov;
-		msg->sov = 0;
-		txn->req.chn->analysers = AN_REQ_HTTP_XFER_BODY;
+		bi_fast_delete(req->chn->buf, req->sov);
+		req->next -= req->sov;
+		req->sov = 0;
+		s->req.analysers = AN_REQ_HTTP_XFER_BODY;
 		s->res.analysers = AN_RES_HTTP_XFER_BODY;
-		txn->req.msg_state = HTTP_MSG_CLOSED;
-		txn->rsp.msg_state = HTTP_MSG_DONE;
+		req->msg_state = HTTP_MSG_CLOSED;
+		res->msg_state = HTTP_MSG_DONE;
 	} else {
 		/* keep-alive not possible */
 		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
@@ -4142,7 +4143,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			trash.len += 23;
 		}
 		stream_int_retnclose(&s->si[0], &trash);
-		txn->req.chn->analysers = 0;
+		req->chn->analysers = 0;
 	}
 
 	if (!(s->flags & SF_ERR_MASK))
