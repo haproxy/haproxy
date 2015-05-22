@@ -3680,13 +3680,15 @@ resume_execution:
 }
 
 
-/* Executes the http-response rules <rules> for stream <s>, proxy <px> and
- * transaction <txn>. Returns 3 states: HTTP_RULE_RES_CONT, HTTP_RULE_RES_YIELD
- * or HTTP_RULE_RES_STOP. If *CONT is returned, the process can continue the
- * evaluation of next rule list. If *STOP is returned, the process must stop
- * the evaluation. It may set the TX_SVDENY on txn->flags if it encounters a deny
- * rule. If *YIELD is returned, the czller must call again the function with
- * the same context.
+/* Executes the http-response rules <rules> for stream <s> and proxy <px>. It
+ * returns one of 5 possible statuses: HTTP_RULE_RES_CONT, HTTP_RULE_RES_STOP,
+ * HTTP_RULE_RES_DONE, HTTP_RULE_RES_YIELD, or HTTP_RULE_RES_BADREQ. If *CONT
+ * is returned, the process can continue the evaluation of next rule list. If
+ * *STOP or *DONE is returned, the process must stop the evaluation. If *BADREQ
+ * is returned, it means the operation could not be processed and a server error
+ * must be returned. It may set the TX_SVDENY on txn->flags if it encounters a
+ * deny rule. If *YIELD is returned, the caller must call again the function
+ * with the same context.
  */
 static enum rule_result
 http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s)
@@ -3878,6 +3880,11 @@ resume_execution:
 
 			break;
 			}
+
+		case HTTP_RES_ACT_REDIR:
+			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
+				return HTTP_RULE_RES_BADREQ;
+			return HTTP_RULE_RES_DONE;
 
 		case HTTP_RES_ACT_CUSTOM_CONT:
 			if (!rule->action_ptr(rule, px, s)) {
@@ -4133,6 +4140,9 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		s->res.analysers = AN_RES_HTTP_XFER_BODY;
 		req->msg_state = HTTP_MSG_CLOSED;
 		res->msg_state = HTTP_MSG_DONE;
+		/* Trim any possible response */
+		res->chn->buf->i = 0;
+		res->next = res->sov = 0;
 	} else {
 		/* keep-alive not possible */
 		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
@@ -6491,8 +6501,18 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		struct proxy *rule_set = cur_proxy;
 
 		/* evaluate http-response rules */
-		if (ret == HTTP_RULE_RES_CONT)
+		if (ret == HTTP_RULE_RES_CONT) {
 			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
+
+			if (ret == HTTP_RULE_RES_BADREQ)
+				goto return_srv_prx_502;
+
+			if (ret == HTTP_RULE_RES_DONE) {
+				rep->analysers &= ~an_bit;
+				rep->analyse_exp = TICK_ETERNITY;
+				return 1;
+			}
+		}
 
 		/* we need to be called again. */
 		if (ret == HTTP_RULE_RES_YIELD) {
@@ -9837,6 +9857,25 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.lfs_line = proxy->conf.args.line;
 
 		cur_arg += 2;
+	} else if (strcmp(args[0], "redirect") == 0) {
+		struct redirect_rule *redir;
+		char *errmsg = NULL;
+
+		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1, 1)) == NULL) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			goto out_err;
+		}
+
+		/* this redirect rule might already contain a parsed condition which
+		 * we'll pass to the http-request rule.
+		 */
+		rule->action = HTTP_RES_ACT_REDIR;
+		rule->arg.redir = redir;
+		rule->cond = redir->cond;
+		redir->cond = NULL;
+		cur_arg = 2;
+		return rule;
 	} else if (((custom = action_http_res_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
 		cur_arg = 1;

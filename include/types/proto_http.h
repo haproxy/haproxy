@@ -286,6 +286,7 @@ enum {
 	HTTP_RES_ACT_DEL_ACL,
 	HTTP_RES_ACT_DEL_MAP,
 	HTTP_RES_ACT_SET_MAP,
+	HTTP_RES_ACT_REDIR,
 	HTTP_RES_ACT_CUSTOM_STOP,  /* used for module keywords */
 	HTTP_RES_ACT_CUSTOM_CONT,  /* used for module keywords */
 	HTTP_RES_ACT_MAX /* must always be last */
@@ -467,6 +468,7 @@ struct http_res_rule {
 			struct list fmt;       /* log-format compatible expression */
 			struct my_regex re;    /* used by replace-header and replace-value */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
+		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		int nice;                      /* nice value for HTTP_RES_ACT_SET_NICE */
 		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_RES_ACT_SET_TOS */

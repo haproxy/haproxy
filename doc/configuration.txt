@@ -3612,7 +3612,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
-                capture <sample> id <id> |
+                capture <sample> id <id> | redirect <rule> |
                 set-header <name> <fmt> | del-header <name> |
                 replace-header <name> <regex-match> <replace-fmt> |
                 replace-value <name> <regex-match> <replace-fmt> |
@@ -3787,6 +3787,13 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       This is useful to run captures in backends. The slot id can be declared by
       a previous directive "http-response capture" or with the "declare capture"
       keyword.
+
+    - "redirect" : this performs an HTTP redirection based on a redirect rule.
+      This supports a format string similarly to "http-request redirect" rules,
+      with the exception that only the "location" type of redirect is possible
+      on the response. See the "redirect" keyword for the rule's syntax. When
+      a redirect rule is applied during a response, connections to the server
+      are closed so that no data can be forwarded from the server to the client.
 
   There is no limit to the number of http-response statements per instance.
 
