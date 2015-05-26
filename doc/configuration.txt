@@ -3278,7 +3278,7 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
-              capture <sample> len <length> |
+              capture <sample> [ len <length> | id <id> ] |
               del-header <name> | set-nice <nice> | set-log-level <level> |
               replace-header <name> <match-regex> <replace-fmt> |
               replace-value <name> <match-regex> <replace-fmt> |
@@ -3497,7 +3497,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       with large lists! It is the equivalent of the "set map" command from the
       stats socket, but can be triggered by an HTTP request.
 
-    - capture <sample> len <length> :
+    - capture <sample> [ len <length> | id <id> ] :
       captures sample expression <sample> from the request buffer, and converts
       it to a string of at most <len> characters. The resulting string is
       stored into the next request "capture" slot, so it will possibly appear
@@ -3507,6 +3507,11 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       that this size will be allocated for each capture during the whole
       session life. Please check section 7.3 (Fetching samples) and "capture
       request header" for more information.
+
+      If the keyword "id" is used instead of "len", the action tries to store
+      the captured string in a previously declared capture slot. This is useful
+      to run captures in backends. The slot id can be declared by a previous
+      directive "http-request capture" or with the "declare capture" keyword.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current request. These rules
