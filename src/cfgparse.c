@@ -2114,8 +2114,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_NONE;
 
 	if (rc != PR_CAP_NONE) {  /* new proxy */
-		struct ebpt_node *node;
-
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects an <id> argument and\n"
 			      "  optionnally supports [addr1]:port1[-end1]{,[addr]:port[-end]}...\n",
@@ -2131,30 +2129,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		for (node = ebis_lookup(&proxy_by_name, args[1]); node; node = ebpt_next(node)) {
-			curproxy = container_of(node, struct proxy, conf.by_name);
-
-			if (strcmp(curproxy->id, args[1]) != 0)
-				break;
-
-			/*
-			 * If there are two proxies with the same name only following
-			 * combinations are allowed:
-			 *
-			 *			listen backend frontend ruleset
-			 *	listen             -      -       -        -
-			 *	backend            -      -       OK       -
-			 *	frontend           -      OK      -        -
-			 *	ruleset            -      -       -        -
-			 */
-
-			if ((rc != (PR_CAP_FE|PR_CAP_RS) || curproxy->cap != (PR_CAP_BE|PR_CAP_RS)) &&
-			    (rc != (PR_CAP_BE|PR_CAP_RS) || curproxy->cap != (PR_CAP_FE|PR_CAP_RS))) {
-				Alert("Parsing [%s:%d]: %s '%s' has the same name as another %s declared at %s:%d.\n",
-					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
-					curproxy->conf.file, curproxy->conf.line);
+		curproxy = (rc & PR_CAP_FE) ? proxy_fe_by_name(args[1]) : proxy_be_by_name(args[1]);
+		if (curproxy) {
+			Alert("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d.\n",
+			      file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
+			      curproxy->id, curproxy->conf.file, curproxy->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
-			}
 		}
 
 		if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
