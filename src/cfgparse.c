@@ -1777,9 +1777,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 * combinations are allowed:
 			 */
 			if (strcmp(curpeers->id, args[1]) == 0) {
-				Warning("Parsing [%s:%d]: peers '%s' has same name as another peers (declared at %s:%d).\n",
+				Alert("Parsing [%s:%d]: peers section '%s' has the same name as another peers section declared at %s:%d.\n",
 					file, linenum, args[1], curpeers->conf.file, curpeers->conf.line);
-				err_code |= ERR_WARN;
+				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 		}
 
@@ -1978,9 +1978,9 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 			 * combinations are allowed:
 			 */
 			if (strcmp(curmailers->id, args[1]) == 0) {
-				Warning("Parsing [%s:%d]: mailers '%s' has same name as another mailers (declared at %s:%d).\n",
+				Alert("Parsing [%s:%d]: mailers section '%s' has the same name as another mailers section declared at %s:%d.\n",
 					file, linenum, args[1], curmailers->conf.file, curmailers->conf.line);
-				err_code |= ERR_WARN;
+				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 		}
 
@@ -2150,10 +2150,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if ((rc != (PR_CAP_FE|PR_CAP_RS) || curproxy->cap != (PR_CAP_BE|PR_CAP_RS)) &&
 			    (rc != (PR_CAP_BE|PR_CAP_RS) || curproxy->cap != (PR_CAP_FE|PR_CAP_RS))) {
-				Warning("Parsing [%s:%d]: %s '%s' has same name as another %s (declared at %s:%d).\n",
+				Alert("Parsing [%s:%d]: %s '%s' has the same name as another %s declared at %s:%d.\n",
 					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 					curproxy->conf.file, curproxy->conf.line);
-				err_code |= ERR_WARN;
+				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 		}
 
