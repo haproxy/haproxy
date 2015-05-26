@@ -28,6 +28,7 @@
 #include <eb32tree.h>
 #include <ebistree.h>
 
+#include <types/capture.h>
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
@@ -335,6 +336,106 @@ static int proxy_parse_max_ka_queue(char **args, int section, struct proxy *prox
 	/* we store <val+1> so that a user-facing value of -1 is stored as zero (default) */
 	proxy->max_ka_queue = val + 1;
 	return retval;
+}
+
+/* This function parses a "declare" statement in a proxy section. It returns -1
+ * if there is any error, 1 for warning, otherwise 0. If it does not return zero,
+ * it will write an error or warning message into a preallocated buffer returned
+ * at <err>. The function must be called with <args> pointing to the first command
+ * line word, with <proxy> pointing to the proxy being parsed, and <defpx> to the
+ * default proxy or NULL.
+ */
+static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
+                               struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	/* Capture keyword wannot be declared in a default proxy. */
+	if (curpx == defpx) {
+		memprintf(err, "'%s' not avalaible in default section", args[0]);
+		return -1;
+	}
+
+	/* Capture keywork is only avalaible in frontend. */
+	if (!(curpx->cap & PR_CAP_FE)) {
+		memprintf(err, "'%s' only avalaible in frontend or listen section", args[0]);
+		return -1;
+	}
+
+	/* Check mandatory second keyword. */
+	if (!args[1] || !*args[1]) {
+		memprintf(err, "'%s' needs a second keyword that specify the type of declaration ('capture')", args[0]);
+		return -1;
+	}
+
+	/* Actually, declare is only avalaible for declaring capture
+	 * slot, but in the future it can declare maps or variables.
+	 * So, this section permits to check and switch acording with
+	 * the second keyword.
+	 */
+	if (strcmp(args[1], "capture") == 0) {
+		char *error = NULL;
+		long len;
+		struct cap_hdr *hdr;
+
+		/* Check the next keyword. */
+		if (!args[2] || !*args[2] ||
+		    (strcmp(args[2], "response") != 0 &&
+		     strcmp(args[2], "request") != 0)) {
+			memprintf(err, "'%s %s' requires a direction ('request' or 'response')", args[0], args[1]);
+			return -1;
+		}
+
+		/* Check the 'len' keyword. */
+		if (!args[3] || !*args[3] || strcmp(args[3], "len") != 0) {
+			memprintf(err, "'%s %s' requires a capture length ('len')", args[0], args[1]);
+			return -1;
+		}
+
+		/* Check the length value. */
+		if (!args[4] || !*args[4]) {
+			memprintf(err, "'%s %s': 'len' requires a numeric value that represents the "
+			               "capture length",
+			          args[0], args[1]);
+			return -1;
+		}
+
+		/* convert the length value. */
+		len = strtol(args[4], &error, 10);
+		if (*error != '\0') {
+			memprintf(err, "'%s %s': cannot parse the length '%s'.",
+			          args[0], args[1], args[3]);
+			return -1;
+		}
+
+		/* check length. */
+		if (len <= 0) {
+			memprintf(err, "length must be > 0");
+			return -1;
+		}
+
+		/* register the capture. */
+		hdr = calloc(sizeof(struct cap_hdr), 1);
+		hdr->name = NULL; /* not a header capture */
+		hdr->namelen = 0;
+		hdr->len = len;
+		hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+
+		if (strcmp(args[2], "request") == 0) {
+			hdr->next = curpx->req_cap;
+			hdr->index = curpx->nb_req_cap++;
+			curpx->req_cap = hdr;
+		}
+		if (strcmp(args[2], "response") == 0) {
+			hdr->next = curpx->rsp_cap;
+			hdr->index = curpx->nb_rsp_cap++;
+			curpx->rsp_cap = hdr;
+		}
+		return 0;
+	}
+	else {
+		memprintf(err, "unknown declaration type '%s' (supports 'capture')", args[1]);
+		return -1;
+	}
 }
 
 /* This function inserts proxy <px> into the tree of known proxies. The proxy's
@@ -1093,6 +1194,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "srvtimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "rate-limit", proxy_parse_rate_limit },
 	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
+	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ 0, NULL, NULL },
 }};
 

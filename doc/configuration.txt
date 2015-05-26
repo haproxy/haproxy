@@ -1504,6 +1504,7 @@ clitimeout                  (deprecated)  X          X         X         -
 compression                               X          X         X         X
 contimeout                  (deprecated)  X          -         X         X
 cookie                                    X          -         X         X
+declare capture                           -          X         X         -
 default-server                            X          -         X         X
 default_backend                           X          X         X         -
 description                               -          X         X         X
@@ -2617,6 +2618,22 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
   See also : "appsession", "balance source", "capture cookie", "server"
              and "ignore-persist".
+
+
+declare capture [ request | response ] len <length>
+  Declares a capture slot.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+  Arguments:
+    <length> is the length allowed for the capture.
+
+  This declaration is only available in the frontend or listen section, but the
+  reserved slot can be used in the backends. The "request" keyword allocates a
+  capture slot for use in the request, and "response" allocates a capture slot
+  for use in the response.
+
+  See also: "capture-req", "capture-res" (sample converters),
+            "http-request capture" and "http-response capture".
 
 
 default-server [param*]
