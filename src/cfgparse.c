@@ -6942,7 +6942,7 @@ int check_config_validity()
 		if (curproxy->defbe.name) {
 			struct proxy *target;
 
-			target = findproxy_mode(curproxy->defbe.name, curproxy->mode, PR_CAP_BE);
+			target = proxy_be_by_name(curproxy->defbe.name);
 			if (!target) {
 				Alert("Proxy '%s': unable to find required default_backend: '%s'.\n",
 					curproxy->id, curproxy->defbe.name);
@@ -6950,6 +6950,15 @@ int check_config_validity()
 			} else if (target == curproxy) {
 				Alert("Proxy '%s': loop detected for default_backend: '%s'.\n",
 					curproxy->id, curproxy->defbe.name);
+				cfgerr++;
+			} else if (target->mode != curproxy->mode &&
+				   !(curproxy->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
+
+				Alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) as its default backend (see 'mode').\n",
+				      proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
+				      curproxy->conf.file, curproxy->conf.line,
+				      proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+				      target->conf.file, target->conf.line);
 				cfgerr++;
 			} else {
 				free(curproxy->defbe.name);
@@ -6974,7 +6983,7 @@ int check_config_validity()
 				if (exp->action != ACT_SETBE)
 					continue;
 
-				target = findproxy_mode(exp->replace, PR_MODE_HTTP, PR_CAP_BE);
+				target = proxy_be_by_name(exp->replace);
 				if (!target) {
 					Alert("Proxy '%s': unable to find required setbe: '%s'.\n",
 						curproxy->id, exp->replace);
@@ -6982,6 +6991,13 @@ int check_config_validity()
 				} else if (target == curproxy) {
 					Alert("Proxy '%s': loop detected for setbe: '%s'.\n",
 						curproxy->id, exp->replace);
+					cfgerr++;
+				} else if (target->mode != PR_MODE_HTTP) {
+					Alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'reqsetbe' rule (see 'mode').\n",
+					      proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
+					      curproxy->conf.file, curproxy->conf.line,
+					      proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+					      target->conf.file, target->conf.line);
 					cfgerr++;
 				} else {
 					free((void *)exp->replace);
@@ -7021,8 +7037,7 @@ int check_config_validity()
 			rule->dynamic = 0;
 			rule->be.name = pxname;
 
-			target = findproxy_mode(rule->be.name, curproxy->mode, PR_CAP_BE);
-
+			target = proxy_be_by_name(rule->be.name);
 			if (!target) {
 				Alert("Proxy '%s': unable to find required use_backend: '%s'.\n",
 					curproxy->id, rule->be.name);
@@ -7030,6 +7045,15 @@ int check_config_validity()
 			} else if (target == curproxy) {
 				Alert("Proxy '%s': loop detected for use_backend: '%s'.\n",
 					curproxy->id, rule->be.name);
+				cfgerr++;
+			} else if (target->mode != curproxy->mode &&
+				   !(curproxy->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
+
+				Alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'use_backend' rule (see 'mode').\n",
+				      proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
+				      curproxy->conf.file, curproxy->conf.line,
+				      proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+				      target->conf.file, target->conf.line);
 				cfgerr++;
 			} else {
 				free((void *)rule->be.name);
