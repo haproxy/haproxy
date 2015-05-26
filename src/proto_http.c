@@ -12633,6 +12633,124 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 	return 0;
 }
 
+/* This function executes the "capture" action and store the result in a
+ * capture slot if exists. It executes a fetch expression, turns the result
+ * into a string and puts it in a capture slot. It always returns 1. If an
+ * error occurs the action is cancelled, but the rule processing continues.
+ */
+int http_action_res_capture_by_id(struct http_res_rule *rule, struct proxy *px, struct stream *s)
+{
+	struct session *sess = s->sess;
+	struct sample *key;
+	struct sample_expr *expr = rule->arg.act.p[0];
+	struct cap_hdr *h;
+	int idx = (long)rule->arg.act.p[1];
+	char **cap = s->res_cap;
+	struct proxy *fe = strm_fe(s);
+	int len;
+	int i;
+
+	/* Look for the original configuration. */
+	for (h = fe->rsp_cap, i = fe->nb_rsp_cap - 1;
+	     h != NULL && i != idx ;
+	     i--, h = h->next);
+	if (!h)
+		return 1;
+
+	key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, expr);
+	if (!key)
+		return 1;
+
+	if (cap[h->index] == NULL)
+		cap[h->index] = pool_alloc2(h->pool);
+
+	if (cap[h->index] == NULL) /* no more capture memory */
+		return 1;
+
+	len = key->data.str.len;
+	if (len > h->len)
+		len = h->len;
+
+	memcpy(cap[h->index], key->data.str.str, len);
+	cap[h->index][len] = 0;
+	return 1;
+}
+
+/* parse an "http-response capture" action. It takes a single argument which is
+ * a sample fetch expression. It stores the expression into arg->act.p[0] and
+ * the allocated hdr_cap struct od the preallocated id into arg->act.p[1].
+ * It returns 0 on success, < 0 on error.
+ */
+int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, struct http_res_rule *rule, char **err)
+{
+	struct sample_expr *expr;
+	int cur_arg;
+	int id;
+	char *error;
+
+	for (cur_arg = *orig_arg; cur_arg < *orig_arg + 3 && *args[cur_arg]; cur_arg++)
+		if (strcmp(args[cur_arg], "if") == 0 ||
+		    strcmp(args[cur_arg], "unless") == 0)
+			break;
+
+	if (cur_arg < *orig_arg + 3) {
+		memprintf(err, "expects <expression> [ 'len' <length> | id <idx> ]");
+		return -1;
+	}
+
+	cur_arg = *orig_arg;
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	if (!expr)
+		return -1;
+
+	if (!(expr->fetch->val & SMP_VAL_FE_HRS_HDR)) {
+		memprintf(err,
+			  "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		free(expr);
+		return -1;
+	}
+
+	if (!args[cur_arg] || !*args[cur_arg]) {
+		memprintf(err, "expects 'len or 'id'");
+		free(expr);
+		return -1;
+	}
+
+	if (strcmp(args[cur_arg], "id") != 0) {
+		memprintf(err, "expects 'id', found '%s'", args[cur_arg]);
+		free(expr);
+		return -1;
+	}
+
+	cur_arg++;
+
+	if (!args[cur_arg]) {
+		memprintf(err, "missing id value");
+		free(expr);
+		return -1;
+	}
+
+	id = strtol(args[cur_arg], &error, 10);
+	if (*error != '\0') {
+		memprintf(err, "cannot parse id '%s'", args[cur_arg]);
+		free(expr);
+		return -1;
+	}
+	cur_arg++;
+
+	LIST_INIT((struct list *)&rule->arg.act.p[0]);
+	proxy->conf.args.ctx = ARGC_CAP;
+
+	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
+	rule->action_ptr   = http_action_res_capture_by_id;
+	rule->arg.act.p[0] = expr;
+	rule->arg.act.p[1] = (void *)(long)id;
+
+	*orig_arg = cur_arg;
+	return 0;
+}
+
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
@@ -12908,6 +13026,14 @@ struct http_req_action_kw_list http_req_actions = {
 	}
 };
 
+struct http_res_action_kw_list http_res_actions = {
+	.scope = "http",
+	.kw = {
+		{ "capture",    parse_http_res_capture },
+		{ NULL, NULL }
+	}
+};
+
 __attribute__((constructor))
 static void __http_protocol_init(void)
 {
@@ -12915,6 +13041,7 @@ static void __http_protocol_init(void)
 	sample_register_fetches(&sample_fetch_keywords);
 	sample_register_convs(&sample_conv_kws);
 	http_req_keywords_register(&http_req_actions);
+	http_res_keywords_register(&http_res_actions);
 }
 
 

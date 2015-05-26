@@ -3612,6 +3612,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
+                capture <sample> id <id> |
                 set-header <name> <fmt> | del-header <name> |
                 replace-header <name> <regex-match> <replace-fmt> |
                 replace-value <name> <regex-match> <replace-fmt> |
@@ -3771,6 +3772,21 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
     - "lua" is used to run a Lua function if the action is executed. The single
       parameter is the name of the function to run. The prototype of the
       function is documented in the API documentation.
+
+    - capture <sample> id <id> :
+      captures sample expression <sample> from the response buffer, and converts
+      it to a string. The resulting string is stored into the next request
+      "capture" slot, so it will possibly appear next to some captured HTTP
+      headers. It will then automatically appear in the logs, and it will be
+      possible to extract it using sample fetch rules to feed it into headers or
+      anything. Please check section 7.3 (Fetching samples) and "capture
+      response header" for more information.
+
+      The keyword "id" is the id of the capture slot which is used for storing
+      the string. The capture slot must be defined in an associated frontend.
+      This is useful to run captures in backends. The slot id can be declared by
+      a previous directive "http-response capture" or with the "declare capture"
+      keyword.
 
   There is no limit to the number of http-response statements per instance.
 
