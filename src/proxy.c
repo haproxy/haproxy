@@ -346,48 +346,6 @@ void proxy_store_name(struct proxy *px)
 	ebis_insert(&proxy_by_name, &px->conf.by_name);
 }
 
-/*
- * This function finds a proxy with matching name, mode and with satisfying
- * capabilities. It also checks if there are more matching proxies with
- * requested name as this often leads into unexpected situations.
- */
-
-struct proxy *findproxy_mode(const char *name, int mode, int cap) {
-
-	struct proxy *curproxy, *target = NULL;
-	struct ebpt_node *node;
-
-	for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
-		curproxy = container_of(node, struct proxy, conf.by_name);
-
-		if (strcmp(curproxy->id, name) != 0)
-			break;
-
-		if ((curproxy->cap & cap) != cap)
-			continue;
-
-		if (curproxy->mode != mode &&
-		    !(curproxy->mode == PR_MODE_HTTP && mode == PR_MODE_TCP)) {
-			Alert("Unable to use proxy '%s' with wrong mode, required: %s, has: %s.\n", 
-				name, proxy_mode_str(mode), proxy_mode_str(curproxy->mode));
-			Alert("You may want to use 'mode %s'.\n", proxy_mode_str(mode));
-			return NULL;
-		}
-
-		if (!target) {
-			target = curproxy;
-			continue;
-		}
-
-		Alert("Refusing to use duplicated proxy '%s' with overlapping capabilities: %s/%s!\n",
-			name, proxy_type_str(curproxy), proxy_type_str(target));
-
-		return NULL;
-	}
-
-	return target;
-}
-
 /* Returns a pointer to the first proxy matching either name <name>, or id
  * <name> if <name> begins with a '#'. NULL is returned if no match is found.
  * If <table> is non-zero, it only considers proxies having a table.
