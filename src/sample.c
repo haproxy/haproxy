@@ -1214,7 +1214,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGT_TAB:
 			if (arg->data.str.len) {
 				pname = arg->data.str.str;
-				px = find_stktable(pname);
+				px = proxy_tbl_by_name(pname);
 			}
 
 			if (!px) {

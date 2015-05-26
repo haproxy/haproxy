@@ -784,24 +784,6 @@ int stktable_get_data_type(char *name)
 	return -1;
 }
 
-/* Returns pointer to proxy containing table <name> or NULL if not found */
-struct proxy *find_stktable(const char *name)
-{
-	struct proxy *px;
-	struct ebpt_node *node;
-
-	for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
-		px = container_of(node, struct proxy, conf.by_name);
-
-		if (strcmp(px->id, name) != 0)
-			break;
-
-		if (px->table.size)
-			return px;
-	}
-	return NULL;
-}
-
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns true if found, false otherwise. The input
  * type is STR so that input samples are converted to string (since all types

@@ -866,7 +866,7 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, i
 	appctx->st0 = action;
 
 	if (*args[2]) {
-		appctx->ctx.table.target = find_stktable(args[2]);
+		appctx->ctx.table.target = proxy_tbl_by_name(args[2]);
 		if (!appctx->ctx.table.target) {
 			appctx->ctx.cli.msg = "No such table\n";
 			appctx->st0 = STAT_CLI_PRINT;
