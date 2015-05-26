@@ -12945,6 +12945,8 @@ send logs to different sources at the same time with different level filters :
   - per-instance external troubles (servers up/down, max connections)
   - per-instance activity (client connections), either at the establishment or
     at the termination.
+  - per-request control of log-level, eg:
+        http-request set-log-level silent if sensitive_request
 
 The ability to distribute different levels of logs to different log servers
 allow several production teams to interact and to fix their problems as soon
