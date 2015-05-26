@@ -48,6 +48,7 @@ int  stream_set_backend(struct stream *s, struct proxy *be);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 void proxy_store_name(struct proxy *px);
+struct proxy *proxy_find_by_id(int id, int cap, int table);
 struct proxy *proxy_find_by_name(const char *name, int cap, int table);
 struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);

@@ -346,6 +346,31 @@ void proxy_store_name(struct proxy *px)
 	ebis_insert(&proxy_by_name, &px->conf.by_name);
 }
 
+/* Returns a pointer to the first proxy matching capabilities <cap> and id
+ * <id>. NULL is returned if no match is found. If <table> is non-zero, it
+ * only considers proxies having a table.
+ */
+struct proxy *proxy_find_by_id(int id, int cap, int table)
+{
+	struct eb32_node *n;
+
+	for (n = eb32_lookup(&used_proxy_id, id); n; n = eb32_next(n)) {
+		struct proxy *px = container_of(n, struct proxy, conf.id);
+
+		if (px->uuid != id)
+			break;
+
+		if ((px->cap & cap) != cap)
+			continue;
+
+		if (table && !px->table.size)
+			continue;
+
+		return px;
+	}
+	return NULL;
+}
+
 /* Returns a pointer to the first proxy matching either name <name>, or id
  * <name> if <name> begins with a '#'. NULL is returned if no match is found.
  * If <table> is non-zero, it only considers proxies having a table.
@@ -353,27 +378,11 @@ void proxy_store_name(struct proxy *px)
 struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 {
 	struct proxy *curproxy;
-	int pid = -1;
 
 	if (*name == '#') {
-		struct eb32_node *node;
-
-		pid = atoi(name + 1);
-
-		for (node = eb32_lookup(&used_proxy_id, pid); node; node = eb32_next(node)) {
-			curproxy = container_of(node, struct proxy, conf.id);
-
-			if (curproxy->uuid != pid)
-				break;
-
-			if ((curproxy->cap & cap) != cap)
-				continue;
-
-			if (table && !curproxy->table.size)
-				continue;
-
+		curproxy = proxy_find_by_id(atoi(name + 1), cap, table);
+		if (curproxy)
 			return curproxy;
-		}
 	}
 	else {
 		struct ebpt_node *node;
