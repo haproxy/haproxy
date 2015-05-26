@@ -388,14 +388,13 @@ struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 	return target;
 }
 
-/* Returns a pointer to the proxy matching either name <name>, or id <name> if
- * <name> begins with a '#'. NULL is returned if no match is found, as well as
- * if multiple matches are found (eg: too large capabilities mask). If <table>
- * is non-zero, it only considers proxies having a table.
+/* Returns a pointer to the first proxy matching either name <name>, or id
+ * <name> if <name> begins with a '#'. NULL is returned if no match is found.
+ * If <table> is non-zero, it only considers proxies having a table.
  */
 struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 {
-	struct proxy *curproxy, *target = NULL;
+	struct proxy *curproxy;
 	int pid = -1;
 
 	if (*name == '#') {
@@ -415,10 +414,7 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 			if (table && !curproxy->table.size)
 				continue;
 
-			if (target)
-				return NULL;
-
-			target = curproxy;
+			return curproxy;
 		}
 	}
 	else {
@@ -436,13 +432,10 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 			if (table && !curproxy->table.size)
 				continue;
 
-			if (target)
-				return NULL;
-
-			target = curproxy;
+			return curproxy;
 		}
 	}
-	return target;
+	return NULL;
 }
 
 /*
