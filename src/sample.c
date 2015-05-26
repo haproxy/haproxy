@@ -1128,7 +1128,7 @@ int smp_resolve_args(struct proxy *p)
 				*sname++ = '\0';
 				pname = arg->data.str.str;
 
-				px = findproxy(pname, PR_CAP_BE);
+				px = proxy_be_by_name(pname);
 				if (!px) {
 					Alert("parsing [%s:%d] : unable to find proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
 					      cur->file, cur->line, pname,
@@ -1158,7 +1158,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGT_FE:
 			if (arg->data.str.len) {
 				pname = arg->data.str.str;
-				px = findproxy(pname, PR_CAP_FE);
+				px = proxy_fe_by_name(pname);
 			}
 
 			if (!px) {
@@ -1186,7 +1186,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGT_BE:
 			if (arg->data.str.len) {
 				pname = arg->data.str.str;
-				px = findproxy(pname, PR_CAP_BE);
+				px = proxy_be_by_name(pname);
 			}
 
 			if (!px) {

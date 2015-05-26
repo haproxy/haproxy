@@ -7080,7 +7080,7 @@ int check_config_validity()
 				curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = findproxy(mrule->table.name, 0);
+				target = proxy_tbl_by_name(mrule->table.name);
 			else
 				target = curproxy;
 
@@ -7113,7 +7113,7 @@ int check_config_validity()
 			curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = findproxy(mrule->table.name, 0);
+				target = proxy_tbl_by_name(mrule->table.name);
 			else
 				target = curproxy;
 
@@ -7147,7 +7147,7 @@ int check_config_validity()
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)
-				target = findproxy(trule->act_prm.trk_ctr.table.n, 0);
+				target = proxy_tbl_by_name(trule->act_prm.trk_ctr.table.n);
 			else
 				target = curproxy;
 
@@ -7186,7 +7186,7 @@ int check_config_validity()
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)
-				target = findproxy(trule->act_prm.trk_ctr.table.n, 0);
+				target = proxy_tbl_by_name(trule->act_prm.trk_ctr.table.n);
 			else
 				target = curproxy;
 
@@ -7225,7 +7225,7 @@ int check_config_validity()
 				continue;
 
 			if (hrqrule->act_prm.trk_ctr.table.n)
-				target = findproxy(hrqrule->act_prm.trk_ctr.table.n, 0);
+				target = proxy_tbl_by_name(hrqrule->act_prm.trk_ctr.table.n);
 			else
 				target = curproxy;
 
@@ -7579,7 +7579,7 @@ out_uri_auth_compat:
 				}
 
 				if (pname) {
-					px = findproxy(pname, PR_CAP_BE);
+					px = proxy_be_by_name(pname);
 					if (!px) {
 						Alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
 							proxy_type_str(curproxy), curproxy->id,

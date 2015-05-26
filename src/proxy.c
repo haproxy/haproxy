@@ -106,7 +106,7 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 	if (*sv_name == '#')
 		sid = atoi(sv_name + 1);
 
-	p = findproxy(bk_name, PR_CAP_BE);
+	p = proxy_be_by_name(bk_name);
 	if (bk)
 		*bk = p;
 	if (!p)
@@ -390,10 +390,11 @@ struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 
 /* Returns a pointer to the proxy matching either name <name>, or id <name> if
  * <name> begins with a '#'. NULL is returned if no match is found, as well as
- * if multiple matches are found (eg: too large capabilities mask).
+ * if multiple matches are found (eg: too large capabilities mask). If <table>
+ * is non-zero, it only considers proxies having a table.
  */
-struct proxy *findproxy(const char *name, int cap) {
-
+struct proxy *proxy_find_by_name(const char *name, int cap, int table)
+{
 	struct proxy *curproxy, *target = NULL;
 	int pid = -1;
 
@@ -409,6 +410,9 @@ struct proxy *findproxy(const char *name, int cap) {
 				break;
 
 			if ((curproxy->cap & cap) != cap)
+				continue;
+
+			if (table && !curproxy->table.size)
 				continue;
 
 			if (target)
@@ -427,6 +431,9 @@ struct proxy *findproxy(const char *name, int cap) {
 				break;
 
 			if ((curproxy->cap & cap) != cap)
+				continue;
+
+			if (table && !curproxy->table.size)
 				continue;
 
 			if (target)

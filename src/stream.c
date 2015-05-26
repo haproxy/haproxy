@@ -1053,7 +1053,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 					struct chunk *tmp = get_trash_chunk();
 					if (!build_logline(s, tmp->str, tmp->size, &rule->be.expr))
 						break;
-					backend = findproxy(tmp->str, PR_CAP_BE);
+					backend = proxy_be_by_name(tmp->str);
 					if (!backend)
 						break;
 				}

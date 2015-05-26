@@ -924,7 +924,7 @@ static struct proxy *expect_frontend_admin(struct stream *s, struct stream_inter
 		return NULL;
 	}
 
-	px = findproxy(arg, PR_CAP_FE);
+	px = proxy_fe_by_name(arg);
 	if (!px) {
 		appctx->ctx.cli.msg = "No such frontend.\n";
 		appctx->st0 = STAT_CLI_PRINT;
@@ -4622,7 +4622,7 @@ static int stats_process_http_post(struct stream_interface *si)
 
 			/* Now we can check the key to see what to do */
 			if (!px && (strcmp(key, "b") == 0)) {
-				if ((px = findproxy(value, PR_CAP_BE)) == NULL) {
+				if ((px = proxy_be_by_name(value)) == NULL) {
 					/* the backend name is unknown or ambiguous (duplicate names) */
 					appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
 					goto out;

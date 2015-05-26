@@ -632,7 +632,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
 			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
 			trash.str[argp[idx].data.str.len] = 0;
-			argp[idx].data.prx = findproxy(trash.str, PR_CAP_FE);
+			argp[idx].data.prx = proxy_fe_by_name(trash.str);
 			if (!argp[idx].data.prx)
 				WILL_LJMP(luaL_argerror(L, first + idx, "frontend doesn't exist"));
 			argp[idx].type = ARGT_FE;
@@ -643,7 +643,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
 			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
 			trash.str[argp[idx].data.str.len] = 0;
-			argp[idx].data.prx = findproxy(trash.str, PR_CAP_BE);
+			argp[idx].data.prx = proxy_be_by_name(trash.str);
 			if (!argp[idx].data.prx)
 				WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
 			argp[idx].type = ARGT_BE;
@@ -669,7 +669,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			if (sname) {
 				*sname++ = '\0';
 				pname = trash.str;
-				px = findproxy(pname, PR_CAP_BE);
+				px = proxy_be_by_name(pname);
 				if (!px)
 					WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
 			}
