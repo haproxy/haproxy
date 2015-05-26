@@ -5645,26 +5645,6 @@ stats_error_parsing:
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
-	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_SETBE, 0,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
-
-		if (!already_warned(WARN_REQSETBE_DEPRECATED))
-			Warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of the more efficient 'use_backend' which uses a different but more powerful syntax. Future versions will not support '%s' anymore, you should convert it now!\n", file, linenum, args[0], args[0]);
-	}
-	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_SETBE, REG_ICASE,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
-
-		if (!already_warned(WARN_REQSETBE_DEPRECATED))
-			Warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of the more efficient 'use_backend' which uses a different but more powerful syntax. Future versions will not support '%s' anymore, you should convert it now!\n", file, linenum, args[0], args[0]);
-	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
@@ -6621,7 +6601,7 @@ next_line:
  * that it is always guaranteed that a backend pointed to by a frontend is
  * bound to all of its processes. After that, if the target is a "listen"
  * instance, the function recursively descends the target's own targets along
- * default_backend, use_backend rules, and reqsetbe rules. Since the bits are
+ * default_backend and use_backend rules. Since the bits are
  * checked first to ensure that <to> is already bound to all processes of
  * <from>, there is no risk of looping and we ensure to follow the shortest
  * path to the destination.
@@ -6635,7 +6615,6 @@ next_line:
 void propagate_processes(struct proxy *from, struct proxy *to)
 {
 	struct switching_rule *rule;
-	struct hdr_exp *exp;
 
 	if (to) {
 		/* check whether we need to go down */
@@ -6668,14 +6647,6 @@ void propagate_processes(struct proxy *from, struct proxy *to)
 		if (rule->dynamic)
 			continue;
 		to = rule->be.backend;
-		propagate_processes(from, to);
-	}
-
-	/* reqsetbe */
-	for (exp = from->req_exp; exp != NULL; exp = exp->next) {
-		if (exp->action != ACT_SETBE)
-			continue;
-		to = (struct proxy *)exp->replace;
 		propagate_processes(from, to);
 	}
 }
@@ -6969,39 +6940,6 @@ int check_config_validity()
 					Warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
 						curproxy->id);
 					err_code |= ERR_WARN;
-				}
-			}
-		}
-
-		/* find the target proxy in setbe */
-		if (curproxy->mode == PR_MODE_HTTP && curproxy->req_exp != NULL) {
-			/* map jump target for ACT_SETBE in req_rep chain */ 
-			struct hdr_exp *exp;
-			for (exp = curproxy->req_exp; exp != NULL; exp = exp->next) {
-				struct proxy *target;
-
-				if (exp->action != ACT_SETBE)
-					continue;
-
-				target = proxy_be_by_name(exp->replace);
-				if (!target) {
-					Alert("Proxy '%s': unable to find required setbe: '%s'.\n",
-						curproxy->id, exp->replace);
-					cfgerr++;
-				} else if (target == curproxy) {
-					Alert("Proxy '%s': loop detected for setbe: '%s'.\n",
-						curproxy->id, exp->replace);
-					cfgerr++;
-				} else if (target->mode != PR_MODE_HTTP) {
-					Alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'reqsetbe' rule (see 'mode').\n",
-					      proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
-					      curproxy->conf.file, curproxy->conf.line,
-					      proxy_mode_str(target->mode), proxy_type_str(target), target->id,
-					      target->conf.file, target->conf.line);
-					cfgerr++;
-				} else {
-					free((void *)exp->replace);
-					exp->replace = (const char *)target;
 				}
 			}
 		}
@@ -8112,7 +8050,6 @@ out_uri_auth_compat:
 			 */
 			for (fe = proxy; fe; fe = fe->next) {
 				struct switching_rule *rule;
-				struct hdr_exp *exp;
 				int found = 0;
 
 				if (!(fe->cap & PR_CAP_FE))
@@ -8131,15 +8068,6 @@ out_uri_auth_compat:
 							found = 1;
 							break;
 						}
-					}
-				}
-
-				/* check if a "reqsetbe" rule matches */
-				for (exp = fe->req_exp; !found && exp; exp = exp->next) {
-					if (exp->action == ACT_SETBE &&
-					    (struct proxy *)exp->replace == curproxy) {
-						found = 1;
-						break;
 					}
 				}
 

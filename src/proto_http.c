@@ -7127,19 +7127,6 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 
 		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 			switch (exp->action) {
-			case ACT_SETBE:
-				/* It is not possible to jump a second time.
-				 * FIXME: should we return an HTTP/500 here so that
-				 * the admin knows there's a problem ?
-				 */
-				if (s->be != strm_fe(s))
-					break;
-
-				/* Swithing Proxy */
-				stream_set_backend(s, (struct proxy *)exp->replace);
-				last_hdr = 1;
-				break;
-
 			case ACT_ALLOW:
 				txn->flags |= TX_CLALLOW;
 				last_hdr = 1;
@@ -7228,19 +7215,6 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 
 	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 		switch (exp->action) {
-		case ACT_SETBE:
-			/* It is not possible to jump a second time.
-			 * FIXME: should we return an HTTP/500 here so that
-			 * the admin knows there's a problem ?
-			 */
-			if (s->be != strm_fe(s))
-				break;
-
-			/* Swithing Proxy */
-			stream_set_backend(s, (struct proxy *)exp->replace);
-			done = 1;
-			break;
-
 		case ACT_ALLOW:
 			txn->flags |= TX_CLALLOW;
 			done = 1;

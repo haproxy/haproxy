@@ -1608,12 +1608,10 @@ reqidel                                   -          X         X         X
 reqideny                                  -          X         X         X
 reqipass                                  -          X         X         X
 reqirep                                   -          X         X         X
-reqisetbe                                 -          X         X         X
 reqitarpit                                -          X         X         X
 reqpass                                   -          X         X         X
 reqrep                                    -          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
-reqsetbe                                  -          X         X         X
 reqtarpit                                 -          X         X         X
 retries                                   X          -         X         X
 rspadd                                    -          X         X         X
@@ -2655,7 +2653,7 @@ default_backend <backend>
         use_backend     static   if  url_css url_img extension_img
         default_backend dynamic
 
-  See also : "use_backend", "reqsetbe", "reqisetbe"
+  See also : "use_backend"
 
 
 description <string>

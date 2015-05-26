@@ -192,7 +192,7 @@ extern unsigned int warned;     /* bitfield of a few warnings to emit just once 
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001
-#define WARN_REQSETBE_DEPRECATED    0x00000002
+/* unassigned : 0x00000002 */
 #define WARN_REDISPATCH_DEPRECATED  0x00000004
 #define WARN_CLITO_DEPRECATED       0x00000008
 #define WARN_SRVTO_DEPRECATED       0x00000010

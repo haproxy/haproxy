@@ -1220,8 +1220,7 @@ void deinit(void)
 				free(exp->preg);
 			}
 
-			if (exp->replace && exp->action != ACT_SETBE)
-				free((char *)exp->replace);
+			free((char *)exp->replace);
 			expb = exp;
 			exp = exp->next;
 			free(expb);
@@ -1233,8 +1232,7 @@ void deinit(void)
 				free(exp->preg);
 			}
 
-			if (exp->replace && exp->action != ACT_SETBE)
-				free((char *)exp->replace);
+			free((char *)exp->replace);
 			expb = exp;
 			exp = exp->next;
 			free(expb);
