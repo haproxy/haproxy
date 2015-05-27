@@ -79,7 +79,7 @@ enum pr_mode {
 /* unused: 0x04, 0x08, 0x10 */
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
-/* unused: 0x00000080 */
+#define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
 #define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
