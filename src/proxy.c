@@ -405,6 +405,131 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 	return NULL;
 }
 
+/* Finds the best match for a proxy with capabilities <cap>, name <name> and id
+ * <id>. At most one of <id> or <name> may be different provided that <cap> is
+ * valid. Either <id> or <name> may be left unspecified (0). The purpose is to
+ * find a proxy based on some information from a previous configuration, across
+ * reloads or during information exchange between peers.
+ *
+ * Names are looked up first if present, then IDs are compared if present. In
+ * case of an inexact match whatever is forced in the configuration has
+ * precedence in the following order :
+ *   - 1) forced ID (proves a renaming / change of proxy type)
+ *   - 2) proxy name+type (may indicate a move if ID differs)
+ *   - 3) automatic ID+type (may indicate a renaming)
+ *
+ * Depending on what is found, we can end up in the following situations :
+ *
+ *   name id cap  | possible causes
+ *   -------------+-----------------
+ *    --  --  --  | nothing found
+ *    --  --  ok  | nothing found
+ *    --  ok  --  | proxy deleted, ID points to next one
+ *    --  ok  ok  | proxy renamed, or deleted with ID pointing to next one
+ *    ok  --  --  | proxy deleted, but other half with same name still here (before)
+ *    ok  --  ok  | proxy's ID changed (proxy moved in the config file)
+ *    ok  ok  --  | proxy deleted, but other half with same name still here (after)
+ *    ok  ok  ok  | perfect match
+ *
+ * Upon return if <diff> is not NULL, it is zeroed then filled with up to 3 bits :
+ *   - 0x01 : proxy was found but ID differs (and ID was not zero)
+ *   - 0x02 : proxy was found by ID but name differs (and name was not NULL)
+ *   - 0x04 : a proxy of different type was found with the same name and/or id
+ *
+ * Only a valid proxy is returned. If capabilities do not match, NULL is
+ * returned. The caller can check <diff> to report detailed warnings / errors,
+ * and decide whether or not to use what was found.
+ */
+struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff)
+{
+	struct proxy *byname;
+	struct proxy *byid;
+
+	if (!name && !id)
+		return NULL;
+
+	if (diff)
+		*diff = 0;
+
+	byname = byid = NULL;
+
+	if (name) {
+		byname = proxy_find_by_name(name, cap, 0);
+		if (byname && (!id || byname->uuid == id))
+			return byname;
+	}
+
+	/* remaining possiblities :
+	 *   - name not set
+	 *   - name set but not found
+	 *   - name found, but ID doesn't match.
+	 */
+	if (id) {
+		byid = proxy_find_by_id(id, cap, 0);
+		if (byid) {
+			if (byname) {
+				/* id+type found, name+type found, but not all 3.
+				 * ID wins only if forced, otherwise name wins.
+				 */
+				if (byid->options & PR_O_FORCED_ID) {
+					if (diff)
+						*diff |= 2;
+					return byid;
+				}
+				else {
+					if (diff)
+						*diff |= 1;
+					return byname;
+				}
+			}
+
+			/* remaining possiblities :
+			 *   - name not set
+			 *   - name set but not found
+			 */
+			if (name && diff)
+				*diff |= 2;
+			return byid;
+		}
+
+		/* ID not found */
+		if (byname) {
+			if (diff)
+				*diff |= 1;
+			return byname;
+		}
+	}
+
+	/* All remaining possiblities will lead to NULL. If we can report more
+	 * detailed information to the caller about changed types and/or name,
+	 * we'll do it. For example, we could detect that "listen foo" was
+	 * split into "frontend foo_ft" and "backend foo_bk" if IDs are forced.
+	 *   - name not set, ID not found
+	 *   - name not found, ID not set
+	 *   - name not found, ID not found
+	 */
+	if (!diff)
+		return NULL;
+
+	if (name) {
+		byname = proxy_find_by_name(name, 0, 0);
+		if (byname && (!id || byname->uuid == id))
+			*diff |= 4;
+	}
+
+	if (id) {
+		byid = proxy_find_by_id(id, 0, 0);
+		if (byid) {
+			if (!name)
+				*diff |= 4; /* only type changed */
+			else if (byid->options & PR_O_FORCED_ID)
+				*diff |= 2 | 4; /* name and type changed */
+			/* otherwise it's a different proxy that was returned */
+		}
+	}
+	return NULL;
+}
+
 /*
  * This function finds a server with matching name within selected proxy.
  * It also checks if there are more matching servers with
