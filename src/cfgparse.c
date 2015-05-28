@@ -4132,7 +4132,7 @@ stats_error_parsing:
 					curproxy->options2 |= PR_O2_CLFLOG;
 					logformat = clf_http_log_format;
 				} else {
-					Alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[2]);
+					Alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
