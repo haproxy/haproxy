@@ -4116,7 +4116,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 
 	if (*location == '/' &&
 	    (req->flags & HTTP_MSGF_XFER_LEN) &&
-	    !(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len &&
+	    ((!(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len) || (req->msg_state == HTTP_MSG_DONE)) &&
 	    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 	     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 		/* keep-alive possible */
