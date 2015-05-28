@@ -12182,6 +12182,88 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	return 1;
 }
 
+static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void *private)
+{
+	struct proxy *fe = strm_fe(smp->strm);
+	int idx, i;
+	struct cap_hdr *hdr;
+	int len;
+
+	if (!args || args->type != ARGT_UINT)
+		return 0;
+
+	idx = args->data.uint;
+
+	/* Check the availibity of the capture id. */
+	if (idx > fe->nb_req_cap - 1)
+		return 0;
+
+	/* Look for the original configuration. */
+	for (hdr = fe->req_cap, i = fe->nb_req_cap - 1;
+	     hdr != NULL && i != idx ;
+	     i--, hdr = hdr->next);
+	if (!hdr)
+		return 0;
+
+	/* check for the memory allocation */
+	if (smp->strm->req_cap[hdr->index] == NULL)
+		smp->strm->req_cap[hdr->index] = pool_alloc2(hdr->pool);
+	if (smp->strm->req_cap[hdr->index] == NULL)
+		return 0;
+
+	/* Check length. */
+	len = smp->data.str.len;
+	if (len > hdr->len)
+		len = hdr->len;
+
+	/* Capture input data. */
+	memcpy(smp->strm->req_cap[idx], smp->data.str.str, len);
+	smp->strm->req_cap[idx][len] = '\0';
+
+	return 1;
+}
+
+static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void *private)
+{
+	struct proxy *fe = strm_fe(smp->strm);
+	int idx, i;
+	struct cap_hdr *hdr;
+	int len;
+
+	if (!args || args->type != ARGT_UINT)
+		return 0;
+
+	idx = args->data.uint;
+
+	/* Check the availibity of the capture id. */
+	if (idx > fe->nb_rsp_cap - 1)
+		return 0;
+
+	/* Look for the original configuration. */
+	for (hdr = fe->rsp_cap, i = fe->nb_rsp_cap - 1;
+	     hdr != NULL && i != idx ;
+	     i--, hdr = hdr->next);
+	if (!hdr)
+		return 0;
+
+	/* check for the memory allocation */
+	if (smp->strm->res_cap[hdr->index] == NULL)
+		smp->strm->res_cap[hdr->index] = pool_alloc2(hdr->pool);
+	if (smp->strm->res_cap[hdr->index] == NULL)
+		return 0;
+
+	/* Check length. */
+	len = smp->data.str.len;
+	if (len > hdr->len)
+		len = hdr->len;
+
+	/* Capture input data. */
+	memcpy(smp->strm->res_cap[idx], smp->data.str.str, len);
+	smp->strm->res_cap[idx][len] = '\0';
+
+	return 1;
+}
+
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * takes the string from the variable 'replace' with length 'len', then modifies
  * the relevant part of the request line accordingly. Then it updates various
@@ -12722,9 +12804,12 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date", sample_conv_http_date,  ARG1(0,SINT),     NULL, SMP_T_UINT, SMP_T_STR},
 	{ "language",  sample_conv_q_prefered, ARG2(1,STR,STR),  NULL, SMP_T_STR,  SMP_T_STR},
+	{ "capture-req", smp_conv_req_capture, ARG1(1,UINT),     NULL, SMP_T_STR,  SMP_T_STR},
+	{ "capture-res", smp_conv_res_capture, ARG1(1,UINT),     NULL, SMP_T_STR,  SMP_T_STR},
 	{ "url_dec",   sample_conv_url_dec,    0,                NULL, SMP_T_STR,  SMP_T_STR},
 	{ NULL, NULL, 0, 0, 0 },
 }};
+
 
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */

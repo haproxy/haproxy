@@ -10919,6 +10919,22 @@ regsub(<regex>,<subst>[,<flags>])
      # output: x-path: /a/b/c/xzxyz/
      http-request set-header x-path %[hdr(x-path),regsub(/+,/,g)]
 
+capture-req(<id>)
+  Capture the string entry in the request slot <id> and returns the entry as
+  is. If the slot doesn't exist, the capture fails silently.
+
+  See also: "declare capture", "http-request capture",
+            "http-response capture", "req.hdr.capture" and
+            "res.hdr.capture" (sample fetches).
+
+capture-res(<id>)
+  Capture the string entry in the response slot <id> and returns the entry as
+  is. If the slot doesn't exist, the capture fails silently.
+
+  See also: "declare capture", "http-request capture",
+            "http-response capture", "req.hdr.capture" and
+            "res.hdr.capture" (sample fetches).
+
 sdbm([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the SDBM
   hash function. Optionally, it is possible to apply a full avalanche hash
