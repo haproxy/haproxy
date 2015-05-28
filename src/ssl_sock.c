@@ -5060,6 +5060,42 @@ static void __ssl_sock_init(void)
 #endif
 }
 
+__attribute__((destructor))
+static void __ssl_sock_deinit(void)
+{
+#ifndef OPENSSL_NO_DH
+        if (local_dh_1024) {
+                DH_free(local_dh_1024);
+                local_dh_1024 = NULL;
+        }
+
+        if (local_dh_2048) {
+                DH_free(local_dh_2048);
+                local_dh_2048 = NULL;
+        }
+
+        if (local_dh_4096) {
+                DH_free(local_dh_4096);
+                local_dh_4096 = NULL;
+        }
+
+        if (local_dh_8192) {
+                DH_free(local_dh_8192);
+                local_dh_8192 = NULL;
+        }
+#endif
+
+        ERR_remove_state(0);
+        ERR_free_strings();
+
+        EVP_cleanup();
+
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+        CRYPTO_cleanup_all_ex_data();
+#endif
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8
