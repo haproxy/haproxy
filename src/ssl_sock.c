@@ -47,6 +47,9 @@
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
 #endif
+#ifndef OPENSSL_NO_DH
+#include <openssl/dh.h>
+#endif
 
 #include <common/buffer.h>
 #include <common/compat.h>
@@ -120,6 +123,7 @@ struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
 
 #ifndef OPENSSL_NO_DH
+static int ssl_dh_ptr_index = -1;
 static DH *local_dh_1024 = NULL;
 static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
@@ -1347,10 +1351,12 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 	if (dh) {
 		ret = 1;
 		SSL_CTX_set_tmp_dh(ctx, dh);
-		/* Setting ssl default dh param to the size of the static DH params
-		   found in the file. This way we know that there is no use
-		   complaining later about ssl-default-dh-param not being set. */
-		global.tune.ssl_default_dh_param = DH_size(dh) * 8;
+
+		if (ssl_dh_ptr_index >= 0) {
+			/* store a pointer to the DH params to avoid complaining about
+			   ssl-default-dh-param not being set for this SSL_CTX */
+			SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, dh);
+		}
 	}
 	else {
 		/* Clear openssl global errors stack */
@@ -1545,6 +1551,12 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
 #ifndef OPENSSL_NO_DH
+	/* store a NULL pointer to indicate we have not yet loaded
+	   a custom DH param file */
+	if (ssl_dh_ptr_index >= 0) {
+		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
+	}
+
 	ret = ssl_sock_load_dh_params(ctx, path);
 	if (ret < 0) {
 		if (err)
@@ -1891,7 +1903,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	/* If tune.ssl.default-dh-param has not been set and
 	   no static DH params were in the certificate file. */
-	if (global.tune.ssl_default_dh_param == 0) {
+	if (global.tune.ssl_default_dh_param == 0 &&
+	    (ssl_dh_ptr_index == -1 ||
+	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
 
 		ssl = SSL_new(ctx);
 
@@ -5040,6 +5054,10 @@ static void __ssl_sock_init(void)
 
 	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
 	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
+
+#ifndef OPENSSL_NO_DH
+	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+#endif
 }
 
 /*
