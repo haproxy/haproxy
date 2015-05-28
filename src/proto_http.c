@@ -3293,10 +3293,11 @@ int http_handle_stats(struct stream *s, struct channel *req)
 	}
 
 	/* Was the status page requested with a POST ? */
-	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0 && msg->msg_state < HTTP_MSG_BODY)) {
+	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0)) {
 		if (appctx->ctx.stats.flags & STAT_ADMIN) {
 			/* we'll need the request body, possibly after sending 100-continue */
-			req->analysers |= AN_REQ_HTTP_BODY;
+			if (msg->msg_state < HTTP_MSG_CHUNK_SIZE)
+				req->analysers |= AN_REQ_HTTP_BODY;
 			appctx->st0 = STAT_HTTP_POST;
 		}
 		else {
