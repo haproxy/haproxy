@@ -1310,6 +1310,70 @@ char *encode_chunk(char *start, char *stop,
 	return start;
 }
 
+/* Check a string for using it in a CSV output format. If the string contains
+ * one of the following four char <">, <,>, CR or LF, the string is
+ * encapsulated between <"> and the <"> are escaped by a <""> sequence.
+ * <str> is the input string to be escaped. The function assumes that
+ * the input string is null-terminated.
+ *
+ * If <quote> is 0, the result is returned escaped but without double quote.
+ * Is it useful if the escaped string is used between double quotes in the
+ * format.
+ *
+ *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0));
+ *
+ * If the <quote> is 1, the converter put the quotes only if any character is
+ * escaped. If the <quote> is 2, the converter put always the quotes.
+ *
+ * <output> is a struct chunk used for storing the output string if any
+ * change will be done.
+ *
+ * The function returns the converted string on this output. If an error
+ * occurs, the function return an empty string. This type of output is useful
+ * for using the function directly as printf() argument.
+ *
+ * If the output buffer is too short to contain the input string, the result
+ * is truncated.
+ */
+const char *csv_enc(const char *str, int quote, struct chunk *output)
+{
+	char *end = output->str + output->size;
+	char *out = output->str + 1; /* +1 for reserving space for a first <"> */
+
+	while (*str && out < end - 2) { /* -2 for reserving space for <"> and \0. */
+		*out = *str;
+		if (*str == '"') {
+			if (quote == 1)
+				quote = 2;
+			out++;
+			if (out >= end - 2) {
+				out--;
+				break;
+			}
+			*out = '"';
+		}
+		if (quote == 1 && ( *str == '\r' || *str == '\n' || *str == ',') )
+			quote = 2;
+		out++;
+		str++;
+	}
+
+	if (quote == 1)
+		quote = 0;
+
+	if (!quote) {
+		*out = '\0';
+		return output->str + 1;
+	}
+
+	/* else quote == 2 */
+	*output->str = '"';
+	*out = '"';
+	out++;
+	*out = '\0';
+	return output->str;
+}
+
 /* Decode an URL-encoded string in-place. The resulting string might
  * be shorter. If some forbidden characters are found, the conversion is
  * aborted, the string is truncated before the issue and a negative value is
