@@ -9369,7 +9369,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
 
-		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1)) == NULL) {
+		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1, 0)) == NULL) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			goto out_err;
@@ -9880,10 +9880,11 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 
 /* Parses a redirect rule. Returns the redirect rule on success or NULL on error,
  * with <err> filled with the error message. If <use_fmt> is not null, builds a
- * dynamic log-format rule instead of a static string.
+ * dynamic log-format rule instead of a static string. Parameter <dir> indicates
+ * the direction of the rule, and equals 0 for request, non-zero for responses.
  */
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
-                                               const char **args, char **errmsg, int use_fmt)
+                                               const char **args, char **errmsg, int use_fmt, int dir)
 {
 	struct redirect_rule *rule;
 	int cur_arg;
@@ -9908,7 +9909,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		else if (strcmp(args[cur_arg], "prefix") == 0) {
 			if (!*args[cur_arg + 1])
 				goto missing_arg;
-
 			type = REDIRECT_TYPE_PREFIX;
 			cur_arg++;
 			destination = args[cur_arg];
@@ -9979,6 +9979,11 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		return NULL;
 	}
 
+	if (dir && type != REDIRECT_TYPE_LOCATION) {
+		memprintf(errmsg, "response only supports redirect type 'location'");
+		return NULL;
+	}
+
 	rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 	rule->cond = cond;
 	LIST_INIT(&rule->rdr_fmt);
@@ -9998,7 +10003,8 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		curproxy->conf.args.ctx = ARGC_RDR;
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
-			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			                       dir ? (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRS_HDR : SMP_VAL_BE_HRS_HDR
+			                           : (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 					       file, linenum);
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);

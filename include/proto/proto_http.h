@@ -125,7 +125,7 @@ void free_http_req_rules(struct list *r);
 void free_http_res_rules(struct list *r);
 struct chunk *http_error_message(struct stream *s, int msgnum);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
-                                               const char **args, char **errmsg, int use_fmt);
+                                               const char **args, char **errmsg, int use_fmt, int dir);
 int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private);
 int smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, void *private);
 
