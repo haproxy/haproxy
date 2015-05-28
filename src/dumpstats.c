@@ -3329,6 +3329,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
 	else { /* CSV mode */
+		struct chunk *out = get_trash_chunk();
 		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
 			[SRV_STATS_STATE_DOWN]			= "DOWN,",
 			[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent),",
@@ -3426,7 +3427,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if (sv->check.state & CHK_ST_ENABLED) {
 			/* check_status */
-			chunk_appendf(&trash, "%s,", get_check_status_info(sv->check.status));
+			chunk_appendf(&trash, "%s,", csv_enc(get_check_status_info(sv->check.status), 1, out));
 
 			/* check_code */
 			if (sv->check.status >= HCHK_STATUS_L57DATA)
@@ -3471,8 +3472,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		chunk_appendf(&trash, "%d,", srv_lastsession(sv));
 
 		/* capture of last check and agent statuses */
-		chunk_appendf(&trash, "%s,", ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? cstr(sv->check.desc) : "");
-		chunk_appendf(&trash, "%s,", ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? cstr(sv->agent.desc) : "");
+		chunk_appendf(&trash, "%s,", ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? csv_enc(cstr(sv->check.desc), 1, out) : "");
+		chunk_appendf(&trash, "%s,", ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? csv_enc(cstr(sv->agent.desc), 1, out) : "");
 
 		/* qtime, ctime, rtime, ttime, */
 		chunk_appendf(&trash, "%u,%u,%u,%u,",
