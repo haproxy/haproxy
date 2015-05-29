@@ -1221,8 +1221,10 @@ resume_execution:
 					goto missing_data;
 				}
 
-				/* otherwise accept */
-				break;
+				/* accept */
+				if (rule->action == TCP_ACT_CUSTOM)
+					break;
+				/* otherwise continue */
 			}
 		}
 	}
@@ -1342,8 +1344,10 @@ resume_execution:
 					return 0;
 				}
 
-				/* otherwise accept */
-				break;
+				/* accept */
+				if (rule->action == TCP_ACT_CUSTOM)
+					break;
+				/* otherwise continue */
 			}
 		}
 	}

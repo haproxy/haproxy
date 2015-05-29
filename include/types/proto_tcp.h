@@ -40,6 +40,7 @@ enum {
 	TCP_ACT_CLOSE, /* close at the sender's */
 	TCP_ACT_CAPTURE, /* capture a fetched sample */
 	TCP_ACT_CUSTOM, /* Use for custom registered keywords. */
+	TCP_ACT_CUSTOM_CONT, /* Use for custom registered keywords. */
 };
 
 struct capture_prm {
