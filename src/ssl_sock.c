@@ -124,6 +124,7 @@ struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 
 #ifndef OPENSSL_NO_DH
 static int ssl_dh_ptr_index = -1;
+static DH *global_dh = NULL;
 static DH *local_dh_1024 = NULL;
 static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
@@ -1332,22 +1333,44 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 	return dh;
 }
 
+static DH * ssl_sock_get_dh_from_file(const char *filename)
+{
+	DH *dh = NULL;
+	BIO *in = BIO_new(BIO_s_file());
+
+	if (in == NULL)
+		goto end;
+
+	if (BIO_read_filename(in, filename) <= 0)
+		goto end;
+
+	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
+
+end:
+        if (in)
+                BIO_free(in);
+
+	return dh;
+}
+
+int ssl_sock_load_global_dh_param_from_file(const char *filename)
+{
+	global_dh = ssl_sock_get_dh_from_file(filename);
+
+	if (global_dh) {
+		return 0;
+	}
+
+	return -1;
+}
+
 /* Loads Diffie-Hellman parameter from a file. Returns 1 if loaded, else -1
    if an error occured, and 0 if parameter not found. */
 int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 {
 	int ret = -1;
-	BIO *in;
-	DH *dh = NULL;
+	DH *dh = ssl_sock_get_dh_from_file(file);
 
-	in = BIO_new(BIO_s_file());
-	if (in == NULL)
-		goto end;
-
-	if (BIO_read_filename(in, file) <= 0)
-		goto end;
-
-	dh = PEM_read_bio_DHparams(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
 	if (dh) {
 		ret = 1;
 		SSL_CTX_set_tmp_dh(ctx, dh);
@@ -1357,6 +1380,10 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 			   ssl-default-dh-param not being set for this SSL_CTX */
 			SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, dh);
 		}
+	}
+	else if (global_dh) {
+		SSL_CTX_set_tmp_dh(ctx, global_dh);
+		ret = 0; /* DH params not found */
 	}
 	else {
 		/* Clear openssl global errors stack */
@@ -1380,9 +1407,6 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 end:
 	if (dh)
 		DH_free(dh);
-
-	if (in)
-		BIO_free(in);
 
 	return ret;
 }
@@ -1901,9 +1925,11 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		cfgerr++;
 	}
 
-	/* If tune.ssl.default-dh-param has not been set and
-	   no static DH params were in the certificate file. */
+	/* If tune.ssl.default-dh-param has not been set,
+	   neither has ssl-default-dh-file and no static DH
+	   params were in the certificate file. */
 	if (global.tune.ssl_default_dh_param == 0 &&
+	    global_dh == NULL &&
 	    (ssl_dh_ptr_index == -1 ||
 	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
 
@@ -5083,6 +5109,11 @@ static void __ssl_sock_deinit(void)
                 DH_free(local_dh_8192);
                 local_dh_8192 = NULL;
         }
+
+	if (global_dh) {
+		DH_free(global_dh);
+		global_dh = NULL;
+	}
 #endif
 
         ERR_remove_state(0);
