@@ -1752,7 +1752,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #ifdef USE_51DEGREES
 	else if (strcmp(args[0], "51degrees-data-file") == 0) {
 		if(!*(args[1])) {
-			Alert("parsing [%s:%d]: '%s' expects a filepath to a 51Degrees data file.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d]: '%s' expects a filepath to a 51Degrees trie or pattern data file.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1760,12 +1760,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "51degrees-property-seperator") == 0) {
 		if(!*(args[1])) {
-			Alert("parsing [%s:%d]: '%s' expects a ingle character.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d]: '%s' expects a single character.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 		if (strlen(args[1]) > 1) {
-			Alert("parsing [%s:%d]: '%s' expects a ingle character, got '%s'.\n", file, linenum, args[0], args[1]);
+			Alert("parsing [%s:%d]: '%s' expects a single character, got '%s'.\n", file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

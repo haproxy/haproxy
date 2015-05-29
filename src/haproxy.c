@@ -548,8 +548,8 @@ void init(int argc, char **argv)
 #ifdef USE_51DEGREES
 	int i = 0;
 	struct _51d_property_names *name;
-	fiftyoneDegreesDataSetInitStatus _51d_dataset_status;
 	char **_51d_property_list;
+	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
 #endif
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
@@ -1108,9 +1108,14 @@ void init(int argc, char **argv)
 	list_for_each_entry(name, &global._51d_property_names, list)
 		_51d_property_list[i++] = name->name;
 
+#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
+	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, _51d_property_list, i);
+#endif
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, &global._51d_data_set, _51d_property_list, i);
-	free(_51d_property_list);
+#endif
 	chunk_reset(&trash);
+
 	switch (_51d_dataset_status) {
 		case DATA_SET_INIT_STATUS_SUCCESS:
 			break;
@@ -1118,23 +1123,37 @@ void init(int argc, char **argv)
 			chunk_printf(&trash, "Insufficient memory.");
 			break;
 		case DATA_SET_INIT_STATUS_CORRUPT_DATA:
-			chunk_printf(&trash, "Corrupt data.");
+#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
+			chunk_printf(&trash, "Corrupt data file. Check that the data file provided is uncompressed and Trie data format.");
+#endif
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+			chunk_printf(&trash, "Corrupt data file. Check that the data file provided is uncompressed and Pattern data format.");
+#endif
 			break;
 		case DATA_SET_INIT_STATUS_INCORRECT_VERSION:
-			chunk_printf(&trash, "Incorrect version.");
+#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
+			chunk_printf(&trash, "Incorrect version. Check that the data file provided is uncompressed and Trie data format.");
+#endif
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+			chunk_printf(&trash, "Incorrect version. Check that the data file provided is uncompressed and Pattern data format.");
+#endif
 			break;
 		case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
 			chunk_printf(&trash, "File not found.");
 			break;
+		case DATA_SET_INIT_STATUS_NOT_SET:
+			chunk_printf(&trash, "Data set not initialised.");
+			break;
 	}
 	if (_51d_dataset_status != DATA_SET_INIT_STATUS_SUCCESS) {
 		if (trash.len)
-			Alert("51D Setup - Error reading 51Degrees data file: %s\n", trash.str);
+			Alert("51Degrees Setup - Error reading 51Degrees data file. %s\n", trash.str);
 		else
-			Alert("51D Setup - Error reading 51Degrees data file.\n");
+			Alert("51Degrees Setup - Error reading 51Degrees data file.\n");
 		exit(1);
 	}
-#endif
+	free(_51d_property_list);
+#endif // USE_51DEGREES
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)
@@ -1488,13 +1507,18 @@ void deinit(void)
 #endif
 
 #ifdef USE_51DEGREES
+#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
+	fiftyoneDegreesDestroy();
+#endif
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesDestroy(&global._51d_data_set);
+#endif
 	free(global._51d_data_file_path); global._51d_data_file_path = NULL;
 	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global._51d_property_names, list) {
 		LIST_DEL(&_51d_prop_name->list);
 		free(_51d_prop_name);
 	}
-#endif
+#endif // USE_51DEGREES
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
 	free(global.log_tag); global.log_tag = NULL;

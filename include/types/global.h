@@ -186,10 +186,13 @@ struct global {
 #endif
 
 #ifdef USE_51DEGREES
-	fiftyoneDegreesDataSet _51d_data_set;
-	char * _51d_data_file_path;       /* the path of the data file. this is taken from 51degrees-data-file in config. */
 	char _51d_property_seperator;    /* the seperator to use in the response for the values. this is taken from 51degrees-property-seperator from config. */
 	struct list _51d_property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
+	char * _51d_data_file_path;
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+	fiftyoneDegreesDataSet _51d_data_set; /* data set used with the pattern detection method. */
+#endif
+
 #endif
 };
 
