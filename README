@@ -232,6 +232,91 @@ Sample configuration :
 	http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
 
 
+1.2) 51Degrees Device Detection
+-------------------------------
+
+You can also include 51Degrees for inbuilt device detection enabling attributes
+such as screen size (physical & pixels), supported input methods, release date,
+hardware vendor and model, browser information, and device price among many
+others. Such information can be used to improve the user experience of a web
+site by tailoring the page content, layout and business processes to the
+precise characteristics of the device. Such customisations improve profit by
+making it easier for customers to get to the information or services they
+need. Theses attributes of the device making a web request can be added to HTTP
+headers as configurable parameters.
+
+In order to enable 51Degrees get the 51Degrees source code
+(https://github.com/51Degreesmobi/51Degrees-C) and then run make with
+USE_51DEGREES and 51DEGREES_INC and 51DEGREES_SRC set. Make sure to replace
+'51D_REPO_PATH' with the path to the 51Degrees repository.
+
+51Degrees provide 2 different detection algorithms.
+
+1. Pattern - balances main memory usage and CPU.
+2. Trie - a very high performance detection solution which uses more main
+   memory than Pattern.
+
+To make with 51Degrees Pattern algorithm use the following command line.
+
+    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_INC='51D_REPO_PATH'/src/pattern 51DEGREES_LIB='51D_REPO_PATH'/src/pattern
+
+To use the 51Degrees Trie algorithm use the following command line.
+
+    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_INC='51D_REPO_PATH'/src/trie 51DEGREES_LIB='51D_REPO_PATH'/src/trie
+
+A data file containing information about devices, browsers, operating systems
+and their associated signatures is then needed. 51Degrees provide a free
+database with Github repo for this purpose. These free data files are located
+in '51D_REPO_PATH'/data with the extensions .dat for Pattern data and .trie for
+Trie data.
+
+The configuration file needs to set the following parameters:
+
+    51degrees-data-file           path to the pattern or trie data file
+    51degrees-property-name-list  list of 51Degrees properties to detect
+    51degrees-property-seperator  seperator to use between values
+
+The following is an example of the settings for Pattern.
+
+    51degrees-data-file '51D_REPO_PATH'/data/51Degrees-Lite.dat
+    51degrees-property-name-list IsTablet DeviceType IsMobile
+    51degrees-property-seperator ,
+
+HAProxy needs a way to pass device information to the backend servers. This is
+done by using the 51d converter, which intercepts the User-Agent header and
+creates some new headers. This is controlled in the frontend http-in section
+
+The following is an example which adds two new HTTP headers prefixed X-51D-
+
+    frontend http-in
+        bind *:8081
+        default_backend servers
+        http-request set-header X-51D-DeviceTypeMobileTablet %[req.fhdr(User-Agent),51d(DeviceType,IsMobile,IsTablet)]
+        http-request set-header X-51D-Tablet %[req.fhdr(User-Agent),51d(IsTablet)]
+
+Here, two headers are created with 51Degrees data, X-51D-DeviceTypeMobileTablet
+and X-51D-Tablet. Any number of headers can be created this way and can be
+named anything. The User-Agent header is passed to the converter in
+req.fhdr(User-Agent). 51d( ) invokes the 51degrees converter. It can be passed
+up to five property names of values to return. Values will be returned in the
+same order, seperated by the 51-degrees-property-seperator configured earlier.
+If a property name can't be found the value 'NoData' is returned instead.
+
+The free Lite data file contains information about screen size in pixels and
+whether the device is a mobile. A full list of available properties is located
+on the 51Degrees web site at:
+
+    https://51degrees.com/resources/property-dictionary.
+
+Some properties are only available in the paid for Premium and Enterprise
+versions of 51Degrees. These data sets no only contain more properties but
+are updated weekly and daily and contain signatures for 100,000s of different
+device combinations. For more information see the data options comparison web
+page:
+
+    https://51degrees.com/compare-data-options
+
+
 2) How to install it
 --------------------
 
