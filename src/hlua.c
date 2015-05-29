@@ -4391,7 +4391,7 @@ static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct p
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
 		return 0;
-	rule->action = TCP_ACT_CUSTOM;
+	rule->action = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr = hlua_tcp_req_act_wrapper;
 	return 1;
 }
@@ -4402,7 +4402,7 @@ static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct p
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
 		return 0;
-	rule->action = TCP_ACT_CUSTOM;
+	rule->action = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr = hlua_tcp_res_act_wrapper;
 	return 1;
 }
