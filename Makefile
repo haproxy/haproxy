@@ -38,6 +38,7 @@
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
 #   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
+#   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -598,6 +599,16 @@ endif
 
 OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
 OPTIONS_OBJS    += src/hlua.o
+endif
+
+ifneq ($(USE_DEVICEATLAS),)
+DEVICEATLAS_INC =
+DEVICEATLAS_LIB =
+OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
+OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
+OPTIONS_OBJS	+= src/da.o
+OPTIONS_CFLAGS += -DUSE_DEVICEATLAS $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
+BUILD_OPTIONS  += $(call ignore_implicit,USE_DEVICEATLAS)
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
