@@ -1,5 +1,5 @@
-#ifndef MOBI_DA_DAC_HAPROXY_H
-#define MOBI_DA_DAC_HAPROXY_H
+#ifndef _IMPORT_DA_H
+#define _IMPORT_DA_H
 #ifdef USE_DEVICEATLAS
 
 #include <types/global.h>
