@@ -70,7 +70,7 @@ static da_status_t da_haproxy_seek(void *ctx, off_t off)
 static void da_haproxy_log(da_severity_t severity, da_status_t status,
 	const char *fmt, va_list args)
 {
-	if (severity <= global.deviceatlas.loglevel) {
+	if (global.deviceatlas.loglevel && severity <= global.deviceatlas.loglevel) {
 		char logbuf[256];
 		vsnprintf(logbuf, sizeof(logbuf), fmt, args);
 		Warning("deviceatlas : %s.\n", logbuf);
