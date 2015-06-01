@@ -583,10 +583,6 @@ void init(int argc, char **argv)
 
 	/* Initialise lua. */
 	hlua_init();
-#if defined(USE_DEVICEATLAS)
-	/* Register deviceatlas config keywords */
-	da_register_cfgkeywords();
-#endif
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)

@@ -5,7 +5,6 @@
 #include <types/global.h>
 #include <dac.h>
 
-void da_register_cfgkeywords(void);
 int init_deviceatlas(void);
 void deinit_deviceatlas(void);
 #endif

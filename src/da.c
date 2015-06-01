@@ -52,13 +52,6 @@ static int da_property_separator(char **args, int section_type, struct proxy *cu
 	return 0;
 }
 
-static struct cfg_kw_list dacfg_kws = {{ }, {
-	{ CFG_GLOBAL, "deviceatlas-json-file",	  da_json_file },
-	{ CFG_GLOBAL, "deviceatlas-log-level",	  da_log_level },
-	{ CFG_GLOBAL, "deviceatlas-property-separator", da_property_separator },
-	{ 0, NULL, NULL },
-}};
-
 static size_t da_haproxy_read(void *ctx, size_t len, char *buf)
 {
 	return fread(buf, 1, len, ctx);
@@ -77,11 +70,6 @@ static void da_haproxy_log(da_severity_t severity, da_status_t status,
 		vsnprintf(logbuf, sizeof(logbuf), fmt, args);
 		Warning("deviceatlas : %s.\n", logbuf);
 	}
-}
-
-void da_register_cfgkeywords(void)
-{
-	cfg_register_keywords(&dacfg_kws);
 }
 
 int init_deviceatlas(void)
@@ -231,6 +219,13 @@ static int da_haproxy(const struct arg *args, struct sample *smp, void *private)
 	return 1;
 }
 
+static struct cfg_kw_list dacfg_kws = {{ }, {
+	{ CFG_GLOBAL, "deviceatlas-json-file",	  da_json_file },
+	{ CFG_GLOBAL, "deviceatlas-log-level",	  da_log_level },
+	{ CFG_GLOBAL, "deviceatlas-property-separator", da_property_separator },
+	{ 0, NULL, NULL },
+}};
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
 	{ "da-csv", da_haproxy, ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
@@ -242,5 +237,6 @@ static void __da_init(void)
 {
 	/* register sample fetch and format conversion keywords */
 	sample_register_convs(&conv_kws);
+	cfg_register_keywords(&dacfg_kws);
 }
 #endif
