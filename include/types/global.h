@@ -26,14 +26,11 @@
 
 #include <common/config.h>
 #include <common/standard.h>
+#include <import/da.h>
 #include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/proxy.h>
 #include <types/task.h>
-
-#ifdef USE_DEVICEATLAS
-#include <dac.h>
-#endif
 
 #ifndef UNIX_MAX_PATH
 #define UNIX_MAX_PATH 108
