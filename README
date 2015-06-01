@@ -245,24 +245,28 @@ making it easier for customers to get to the information or services they
 need. Theses attributes of the device making a web request can be added to HTTP
 headers as configurable parameters.
 
-In order to enable 51Degrees get the 51Degrees source code
-(https://github.com/51Degreesmobi/51Degrees-C) and then run make with
-USE_51DEGREES and 51DEGREES_INC and 51DEGREES_SRC set. Make sure to replace
+In order to enable 51Degrees get the 51Degrees source code from the official
+github repository :
+
+    git clone https://github.com/51Degreesmobi/51Degrees-C
+
+then run 'make' with USE_51DEGREES and 51DEGREES_SRC set. Both 51DEGREES_INC
+and 51DEGREES_LIB may additionally be used to force specific different paths
+for .o and .h, but will default to 51DEGREES_SRC. Make sure to replace
 '51D_REPO_PATH' with the path to the 51Degrees repository.
 
-51Degrees provide 2 different detection algorithms.
-
-1. Pattern - balances main memory usage and CPU.
-2. Trie - a very high performance detection solution which uses more main
-   memory than Pattern.
+51Degrees provide 2 different detection algorithms :
+    1. Pattern - balances main memory usage and CPU.
+    2. Trie - a very high performance detection solution which uses more main
+       memory than Pattern.
 
 To make with 51Degrees Pattern algorithm use the following command line.
 
-    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_INC='51D_REPO_PATH'/src/pattern 51DEGREES_LIB='51D_REPO_PATH'/src/pattern
+    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/pattern
 
 To use the 51Degrees Trie algorithm use the following command line.
 
-    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_INC='51D_REPO_PATH'/src/trie 51DEGREES_LIB='51D_REPO_PATH'/src/trie
+    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/trie
 
 A data file containing information about devices, browsers, operating systems
 and their associated signatures is then needed. 51Degrees provide a free

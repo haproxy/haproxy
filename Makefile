@@ -613,9 +613,11 @@ BUILD_OPTIONS  += $(call ignore_implicit,USE_DEVICEATLAS)
 endif
 
 ifneq ($(USE_51DEGREES),)
-# Use 51DEGREES_INC and 51DEGREES_LIB to force path to 51degrees headers and libraries if needed.
-51DEGREES_INC =
-51DEGREES_LIB =
+# Use 51DEGREES_SRC and possibly 51DEGREES_INC and 51DEGREES_LIB to force path
+# to 51degrees headers and libraries if needed.
+51DEGREES_SRC =
+51DEGREES_INC = $(51DEGREES_SRC)
+51DEGREES_LIB = $(51DEGREES_SRC)
 OPTIONS_CFLAGS  += -DUSE_51DEGREES $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
 BUILD_OPTIONS   += $(call ignore_implicit,USE_51DEGREES)
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lz
