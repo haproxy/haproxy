@@ -627,6 +627,18 @@ daemon
   operation. It is equivalent to the command line "-D" argument. It can be
   disabled by the command line "-db" argument.
 
+deviceatlas-json-file <path>
+  Sets the path of the DeviceAtlas JSON data file to be loaded by the API.
+  The path must be a valid JSON data file and accessible by Haproxy process.
+
+deviceatlas-log-level <value>
+  Sets the level of informations returned by the API. This directive is
+  optional and set to 0 by default if not set.
+
+deviceatlas-separator <char>
+  Sets the character separator for the API properties results. This directive
+  is optional and set to | by default if not set.
+
 external-check
   Allows the use of an external agent to perform health checks.
   This is disabled by default as a security precaution.
