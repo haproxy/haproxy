@@ -204,6 +204,34 @@ disabled by setting USE_POLL="". For example :
     $ gmake TARGET=tiny USE_POLL="" TARGET_CFLAGS=-fomit-frame-pointer
 
 
+1.1) DeviceAtlas Device Detection
+---------------------------------
+
+In order to add DeviceAtlas Device Detection support, you would need to download
+the API source code from https://deviceatlas.com/deviceatlas-haproxy-module and
+once extracted :
+
+    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_INC=<path to the API root folder> DEVICEATLAS_LIB=<path to the API root folder>
+
+These are supported DeviceAtlas directives (see doc/configuration.txt) :
+  - deviceatlas-json-file <path to the DeviceAtlas JSON data file>.
+  - deviceatlas-log-level <number> (0 to 3, level of information returned by
+    the API, 0 by default).
+  - deviceatlas-property-separator <character> (character used to separate the
+    properties produced by the API, | by default).
+
+Sample configuration :
+
+    global
+	deviceatlas-json-file <path to json file>
+
+    ...
+    frontend
+	bind *:8881
+	default_backend servers
+	http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
+
 2) How to install it
 --------------------
 
