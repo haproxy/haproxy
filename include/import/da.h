@@ -8,6 +8,5 @@
 void da_register_cfgkeywords(void);
 int init_deviceatlas(void);
 void deinit_deviceatlas(void);
-int da_haproxy(const struct arg *, struct sample *, void *);
 #endif
 #endif

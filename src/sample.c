@@ -32,10 +32,6 @@
 #include <proto/sample.h>
 #include <proto/stick_table.h>
 
-#ifdef USE_DEVICEATLAS
-#include <import/da.h>
-#endif
-
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_BOOL] = "bool",
@@ -2282,9 +2278,6 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
 	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
 	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_UINT, SMP_T_UINT },
-#ifdef USE_DEVICEATLAS
-	{ "da-csv", da_haproxy,             ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
-#endif
 
 	{ NULL, NULL, 0, 0, 0 },
 }};

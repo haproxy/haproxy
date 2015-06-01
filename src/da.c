@@ -3,7 +3,9 @@
 #include <stdio.h>
 
 #include <common/cfgparse.h>
+#include <proto/arg.h>
 #include <proto/log.h>
+#include <proto/sample.h>
 #include <import/da.h>
 
 static int da_json_file(char **args, int section_type, struct proxy *curpx,
@@ -141,7 +143,7 @@ void deinit_deviceatlas(void)
 	da_fini();
 }
 
-int da_haproxy(const struct arg *args, struct sample *smp, void *private)
+static int da_haproxy(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *tmp;
 	da_deviceinfo_t devinfo;
@@ -229,4 +231,16 @@ int da_haproxy(const struct arg *args, struct sample *smp, void *private)
 	return 1;
 }
 
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_conv_kw_list conv_kws = {ILH, {
+	{ "da-csv", da_haproxy, ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+__attribute__((constructor))
+static void __da_init(void)
+{
+	/* register sample fetch and format conversion keywords */
+	sample_register_convs(&conv_kws);
+}
 #endif
