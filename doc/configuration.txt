@@ -10728,6 +10728,20 @@ crc32([<avalanche>])
   not be used for security purposes as a 32-bit hash is trivial to break. See
   also "djb2", "sdbm", "wt6" and the "hash-type" directive.
 
+da-csv(<prop>[,<prop>*])
+  Asks the DeviceAtlas converter to identify the User Agent string passed on
+  input, and to emit a string made of the concatenation of the properties
+  enumerated in argument, delimited by the separator defined by the global
+  keyword "deviceatlas-property-separator", or by default the pipe character
+  ('|'). There's a limit of 5 different properties imposed by the haproxy
+  configuration language.
+
+  Example:
+    frontend www
+	bind *:8881
+	default_backend servers
+	http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
 div(<value>)
   Divides the input value of type unsigned integer by <value>, and returns the
   result as an unsigned integer. If <value> is null, the largest unsigned
