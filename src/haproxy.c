@@ -111,6 +111,10 @@
 #include <proto/ssl_sock.h>
 #endif
 
+#ifdef USE_DEVICEATLAS
+#include <import/da.h>
+#endif
+
 /*********************************************************************/
 
 extern const struct comp_algo comp_algos[];
@@ -169,6 +173,14 @@ struct global global = {
 #ifdef DEFAULT_MAXSSLCONN
 	.maxsslconn = DEFAULT_MAXSSLCONN,
 #endif
+#endif
+#ifdef USE_DEVICEATLAS
+	.deviceatlas = {
+		.loglevel = DA_SEV_INFO,
+		.useragentid = 0,
+		.jsonpath = 0,
+		.separator = '|',
+	},
 #endif
 	/* others NULL OK */
 };
@@ -571,6 +583,10 @@ void init(int argc, char **argv)
 
 	/* Initialise lua. */
 	hlua_init();
+#if defined(USE_DEVICEATLAS)
+	/* Register deviceatlas config keywords */
+	da_register_cfgkeywords();
+#endif
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)
@@ -785,6 +801,9 @@ void init(int argc, char **argv)
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_buffer();
+#if defined(USE_DEVICEATLAS)
+	init_deviceatlas();
+#endif
 
 	if (have_appsession)
 		appsession_init();
@@ -1414,6 +1433,10 @@ void deinit(void)
 	userlist_free(userlist);
 
 	protocol_unbind_all();
+
+#if defined(USE_DEVICEATLAS)
+	deinit_deviceatlas();
+#endif
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
 	free(global.log_tag); global.log_tag = NULL;
