@@ -31,6 +31,10 @@
 #include <types/proxy.h>
 #include <types/task.h>
 
+#ifdef USE_DEVICEATLAS
+#include <dac.h>
+#endif
+
 #ifndef UNIX_MAX_PATH
 #define UNIX_MAX_PATH 108
 #endif
@@ -169,6 +173,16 @@ struct global {
 	unsigned long cpu_map[LONGBITS];  /* list of CPU masks for the 32/64 first processes */
 #endif
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
+#ifdef USE_DEVICEATLAS
+	struct {
+		void *atlasimgptr;
+		char *jsonpath;
+		da_atlas_t atlas;
+		da_evidence_id_t useragentid;
+		da_severity_t loglevel;
+		char separator;
+	} deviceatlas;
+#endif
 };
 
 extern struct global global;
