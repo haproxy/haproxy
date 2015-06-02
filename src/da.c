@@ -1,5 +1,3 @@
-#ifdef USE_DEVICEATLAS
-
 #include <stdio.h>
 
 #include <common/cfgparse.h>
@@ -239,4 +237,3 @@ static void __da_init(void)
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&dacfg_kws);
 }
-#endif
