@@ -1250,7 +1250,9 @@ void deinit(void)
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
 	struct bind_conf *bind_conf, *bind_back;
+#ifdef USE_51DEGREES
 	struct _51d_property_names *_51d_prop_name, *_51d_prop_nameb;
+#endif
 	int i;
 
 	deinit_signals();
