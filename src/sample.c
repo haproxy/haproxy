@@ -46,6 +46,7 @@ const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_IPV6] = "ipv6",
 	[SMP_T_STR]  = "str",
 	[SMP_T_BIN]  = "bin",
+	[SMP_T_METH] = "meth",
 };
 
 /* static sample used in sample_process() when <p> is NULL */
