@@ -38,6 +38,7 @@
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
+	[SMP_T_ANY]  = "any",
 	[SMP_T_BOOL] = "bool",
 	[SMP_T_UINT] = "uint",
 	[SMP_T_SINT] = "sint",
@@ -796,16 +797,17 @@ static int c_int2bin(struct sample *smp)
 /*****************************************************************/
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
-/*            to:  BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
-/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
-/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
-/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_sint2str, c_int2bin,  NULL,       },
-/*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
-/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
-/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
-/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
-/*        BIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
-/*       METH */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     },
+/*            to:  ANY     BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
+/* from:  ANY */ { c_none, c_none,    c_none,    c_none,    c_none,     c_none,   c_none,     c_none,     c_none,     c_none,     },
+/*       BOOL */ { c_none, c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
+/*       UINT */ { c_none, c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
+/*       SINT */ { c_none, c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_sint2str, c_int2bin,  NULL,       },
+/*       ADDR */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
+/*       IPV4 */ { c_none, NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
+/*       IPV6 */ { c_none, NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
+/*        STR */ { c_none, c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
+/*        BIN */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
+/*       METH */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     }
 };
 
 /*

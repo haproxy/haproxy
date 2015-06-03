@@ -33,7 +33,8 @@
 
 /* input and output sample types */
 enum {
-	SMP_T_BOOL = 0,  /* boolean */
+	SMP_T_ANY = 0,   /* any type */
+	SMP_T_BOOL,      /* boolean */
 	SMP_T_UINT,      /* unsigned 32bits integer type */
 	SMP_T_SINT,      /* signed 32bits integer type */
 	SMP_T_ADDR,      /* ipv4 or ipv6, only used for input type compatibility */
