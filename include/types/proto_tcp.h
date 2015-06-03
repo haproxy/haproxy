@@ -57,7 +57,7 @@ struct tcp_rule {
 	union {
 		struct track_ctr_prm trk_ctr;
 		struct capture_prm cap;
-		void *data;
+		void *data[4];
 	} act_prm;
 };
 
