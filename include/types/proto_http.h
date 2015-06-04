@@ -534,11 +534,13 @@ struct http_method_name {
 struct http_req_action_kw {
        const char *kw;
        int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_req_rule *rule, char **err);
+	int match_pfx;
 };
 
 struct http_res_action_kw {
        const char *kw;
        int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_res_rule *rule, char **err);
+	int match_pfx;
 };
 
 struct http_req_action_kw_list {

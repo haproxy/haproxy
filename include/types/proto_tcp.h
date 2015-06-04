@@ -65,6 +65,7 @@ struct tcp_action_kw {
 	const char *kw;
 	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
 	             struct tcp_rule *rule, char **err);
+	int match_pfx;
 };
 
 struct tcp_action_kw_list {

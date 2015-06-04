@@ -145,6 +145,9 @@ static struct tcp_action_kw *tcp_req_conn_action(const char *kw)
 
 	list_for_each_entry(kw_list, &tcp_req_conn_keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (kw_list->kw[i].match_pfx &&
+			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
+				return &kw_list->kw[i];
 			if (!strcmp(kw, kw_list->kw[i].kw))
 				return &kw_list->kw[i];
 		}
@@ -162,6 +165,9 @@ static struct tcp_action_kw *tcp_req_cont_action(const char *kw)
 
 	list_for_each_entry(kw_list, &tcp_req_cont_keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (kw_list->kw[i].match_pfx &&
+			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
+				return &kw_list->kw[i];
 			if (!strcmp(kw, kw_list->kw[i].kw))
 				return &kw_list->kw[i];
 		}
@@ -179,6 +185,9 @@ static struct tcp_action_kw *tcp_res_cont_action(const char *kw)
 
 	list_for_each_entry(kw_list, &tcp_res_cont_keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (kw_list->kw[i].match_pfx &&
+			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
+				return &kw_list->kw[i];
 			if (!strcmp(kw, kw_list->kw[i].kw))
 				return &kw_list->kw[i];
 		}

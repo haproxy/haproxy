@@ -12809,6 +12809,9 @@ struct http_req_action_kw *action_http_req_custom(const char *kw)
 
 		list_for_each_entry(kw_list, &http_req_keywords.list, list) {
 			for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+				if (kw_list->kw[i].match_pfx &&
+				    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
+					return &kw_list->kw[i];
 				if (!strcmp(kw, kw_list->kw[i].kw))
 					return &kw_list->kw[i];
 			}
@@ -12828,6 +12831,9 @@ struct http_res_action_kw *action_http_res_custom(const char *kw)
 
 		list_for_each_entry(kw_list, &http_res_keywords.list, list) {
 			for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+				if (kw_list->kw[i].match_pfx &&
+				    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
+					return &kw_list->kw[i];
 				if (!strcmp(kw, kw_list->kw[i].kw))
 					return &kw_list->kw[i];
 			}
