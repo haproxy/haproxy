@@ -8208,6 +8208,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - reject : the request is rejected and the connection is closed
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - lua <function>
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -8388,6 +8389,9 @@ tcp-response content <action> [{if | unless} <condition>]
         rejects the response if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
         the rules evaluation. Rejected session are immediately closed.
+
+    - lua <function>
+        Executes Lua.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
