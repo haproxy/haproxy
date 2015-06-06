@@ -408,6 +408,22 @@ char *ultoa_r(unsigned long n, char *buffer, int size)
 
 /*
  * This function simply returns a locally allocated string containing
+ * the ascii representation for signed number 'n' in decimal.
+ */
+char *sltoa_r(long n, char *buffer, int size)
+{
+	char *pos;
+
+	if (n >= 0)
+		return ultoa_r(n, buffer, size);
+
+	pos = ultoa_r(-n, buffer + 1, size - 1) - 1;
+	*pos = '-';
+	return pos;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal, formatted for
  * HTML output with tags to create visual grouping by 3 digits. The
  * output needs to support at least 171 characters.

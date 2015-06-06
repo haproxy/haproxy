@@ -105,6 +105,7 @@ extern int strlcpy2(char *dst, const char *src, int size);
  */
 extern char itoa_str[][171];
 extern char *ultoa_r(unsigned long n, char *buffer, int size);
+extern char *sltoa_r(long n, char *buffer, int size);
 extern const char *ulltoh_r(unsigned long long n, char *buffer, int size);
 static inline const char *ultoa(unsigned long n)
 {
