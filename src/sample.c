@@ -612,7 +612,24 @@ static int c_int2str(struct sample *smp)
 	char *pos;
 
 	pos = ultoa_r(smp->data.uint, trash->str, trash->size);
+	if (!pos)
+		return 0;
 
+	trash->size = trash->size - (pos - trash->str);
+	trash->str = pos;
+	trash->len = strlen(pos);
+	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+static int c_sint2str(struct sample *smp)
+{
+	struct chunk *trash = get_trash_chunk();
+	char *pos;
+
+	pos = sltoa_r(smp->data.sint, trash->str, trash->size);
 	if (!pos)
 		return 0;
 
@@ -782,7 +799,7 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*            to:  BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
 /* from: BOOL */ { c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
 /*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
-/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
+/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_sint2str, c_int2bin,  NULL,       },
 /*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
 /*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
 /*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
