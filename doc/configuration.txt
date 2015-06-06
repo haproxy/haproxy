@@ -585,6 +585,10 @@ The following keywords are supported in the "global" section :
    - tune.ssl.maxrecord
    - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
+   - tune.vars.global-max-size
+   - tune.vars.reqres-max-size
+   - tune.vars.sess-max-size
+   - tune.vars.txn-max-size
    - tune.zlib.memlevel
    - tune.zlib.windowsize
 
@@ -1287,6 +1291,21 @@ tune.ssl.ssl-ctx-cache-size <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
+
+tune.vars.global-max-size <size>
+tune.vars.reqres-max-size <size>
+tune.vars.sess-max-size <size>
+tune.vars.txn-max-size <size>
+  These four tunes helps to manage the allowed amount of memory used by the
+  variables system. "global" limits the memory for all the systems. "sess" limit
+  the memory by session, "txn" limits the memory by transaction and "reqres"
+  limits the memory for each request or response processing. during the
+  accounting, "sess" embbed "txn" and "txn" embed "reqres".
+
+  By example, we considers that "tune.vars.sess-max-size" is fixed to 100,
+  "tune.vars.txn-max-size" is fixed to 100, "tune.vars.reqres-max-size" is
+  also fixed to 100. If we create a variable "txn.var" that contains 100 bytes,
+  we cannot create any more variable in the other contexts.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
@@ -3350,6 +3369,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               del-acl(<file name>) <key fmt> |
               del-map(<file name>) <key fmt> |
               set-map(<file name>) <key fmt> <value fmt> |
+              set-var(<var name>) <expr> |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
               lua <function name>
              }
@@ -3618,6 +3638,30 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       parameter is the name of the function to run. The prototype of the
       function is documented in the API documentation.
 
+    - set-var(<var-name>) <expr> :
+      Is used to set the contents of a variable. The variable is declared
+      inline.
+
+        <var-name> The name of the variable starts by an indication about its
+                   scope. The allowed scopes are:
+                     "sess" : the variable is shared with all the session,
+                     "txn"  : the variable is shared with all the transaction
+                              (request and response)
+                     "req"  : the variable is shared only during the request
+                              processing
+                     "res"  : the variable is shared only during the response
+                              processing.
+                   This prefix is followed by a name. The separator is a '.'.
+                   The name may only contain characters 'a-z', 'A-Z', '0-9',
+                   and '_'.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         http-request set-var(req.my_var) req.fhdr(user-agent),lower
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -3683,6 +3727,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 del-acl(<file name>) <key fmt> |
                 del-map(<file name>) <key fmt> |
                 set-map(<file name>) <key fmt> <value fmt> |
+                set-var(<var-name>) <expr> |
                 lua <function name>
               }
               [ { if | unless } <condition> ]
@@ -3856,6 +3901,30 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       on the response. See the "redirect" keyword for the rule's syntax. When
       a redirect rule is applied during a response, connections to the server
       are closed so that no data can be forwarded from the server to the client.
+
+    - set-var(<var-name>) expr:
+      Is used to set the contents of a variable. The variable is declared
+      inline.
+
+        <var-name> The name of the variable starts by an indication about its
+                   scope. The allowed scopes are:
+                     "sess" : the variable is shared with all the session,
+                     "txn"  : the variable is shared with all the transaction
+                              (request and response)
+                     "req"  : the variable is shared only during the request
+                              processing
+                     "res"  : the variable is shared only during the response
+                              processing.
+                   This prefix is followed by a name. The separator is a '.'.
+                   The name may only contain characters 'a-z', 'A-Z', '0-9',
+                   and '_'.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         http-response set-var(sess.last_redir) res.hdr(location)
 
   There is no limit to the number of http-response statements per instance.
 
@@ -8209,6 +8278,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - lua <function>
+    - set-var(<var-name>) <expr>
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -8242,6 +8312,28 @@ tcp-request content <action> [{if | unless} <condition>]
   function if the action is executed. The single parameter is the name of the
   function to run. The prototype of the function is documented in the API
   documentation.
+
+  The "set-var" is used to set the content of a variable. The variable is
+  declared inline.
+
+    <var-name> The name of the variable starts by an indication about its scope.
+               The allowed scopes are:
+                 "sess" : the variable is shared with all the session,
+                 "txn"  : the variable is shared with all the transaction
+                          (request and response)
+                 "req"  : the variable is shared only during the request
+                          processing
+                 "res"  : the variable is shared only during the response
+                          processing.
+               This prefix is followed by a name. The separator is a '.'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9' and '_'.
+
+    <expr>     Is a standard HAProxy expression formed by a sample-fetch
+               followed by some converters.
+
+  Example:
+
+        tcp-request content set-var(sess.my_var) src
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
@@ -8393,6 +8485,9 @@ tcp-response content <action> [{if | unless} <condition>]
     - lua <function>
         Executes Lua.
 
+    - set-var(<var-name>) <expr>
+        Sets a variable.
+
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
   for changing the default action to a reject.
@@ -8407,6 +8502,28 @@ tcp-response content <action> [{if | unless} <condition>]
   function if the action is executed. The single parameter is the name of the
   function to run. The prototype of the function is documented in the API
   documentation.
+
+  The "set-var" is used to set the content of a variable. The variable is
+  declared inline.
+
+    <var-name> The name of the variable starts by an indication about its scope.
+               The allowed scopes are:
+                 "sess" : the variable is shared with all the session,
+                 "txn"  : the variable is shared with all the transaction
+                          (request and response)
+                 "req"  : the variable is shared only during the request
+                          processing
+                 "res"  : the variable is shared only during the response
+                          processing.
+               This prefix is followed by a name. The separator is a '.'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9' and '_'.
+
+    <expr>     Is a standard HAProxy expression formed by a sample-fetch
+               followed by some converters.
+
+  Example:
+
+        tcp-request content set-var(sess.my_var) src
 
   See section 7 about ACL usage.
 
@@ -11208,6 +11325,18 @@ sdbm([<avalanche>])
   32-bit hash is trivial to break. See also "crc32", "djb2", "wt6" and the
   "hash-type" directive.
 
+set-var(<var name>)
+  Sets a variable with the input content and return the content on the output as
+  is. The variable keep the value and the associated input type. The name of the
+  variable starts by an indication about it scope. The scope allowed are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+
 sub(<value>)
   Subtracts <value> from the input value of type unsigned integer, and returns
   the result as an unsigned integer. Note: in order to subtract the input from
@@ -11616,6 +11745,18 @@ table_cnt([<table>]) : integer
   Returns the total number of entries currently in use in the current proxy's
   stick-table or in the designated stick-table. See also src_conn_cnt and
   table_avl for other entry counting methods.
+
+var(<var-name>) : undefined
+  Returns a variable with the stored type. If the variable is not set, the
+  sample fetch fails. The name of the variable starts by an indication about its
+  scope. The scope allowed are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 
 7.3.3. Fetching samples at Layer 4

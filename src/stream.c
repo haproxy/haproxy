@@ -50,6 +50,7 @@
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/vars.h>
 
 struct pool_head *pool2_stream;
 struct list streams;
@@ -135,6 +136,13 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->req.buf = s->res.buf = NULL;
 	s->req_cap = NULL;
 	s->res_cap = NULL;
+
+	/* Initialise alle the variable context even if will not use.
+	 * This permits to prune these context without errors.
+	 */
+	vars_init(&s->vars_sess,   SCOPE_SESS);
+	vars_init(&s->vars_txn,    SCOPE_TXN);
+	vars_init(&s->vars_reqres, SCOPE_REQ);
 
 	/* this part should be common with other protocols */
 	si_reset(&s->si[0]);
@@ -292,6 +300,11 @@ static void stream_free(struct stream *s)
 		pool_free2(fe->rsp_cap_pool, s->res_cap);
 		pool_free2(fe->req_cap_pool, s->req_cap);
 	}
+
+	/* Cleanup all variable contexts. */
+	vars_prune(&s->vars_sess, s);
+	vars_prune(&s->vars_txn, s);
+	vars_prune(&s->vars_reqres, s);
 
 	stream_store_counters(s);
 
@@ -2060,6 +2073,13 @@ struct task *process_stream(struct task *t)
 	 * for completion.
 	 */
 	if (si_b->state >= SI_ST_REQ && si_b->state < SI_ST_CON) {
+
+		/* prune the request variables and swap to the response variables. */
+		if (s->vars_reqres.scope != SCOPE_RES) {
+			vars_prune(&s->vars_reqres, s);
+			vars_init(&s->vars_reqres, SCOPE_RES);
+		}
+
 		do {
 			/* nb: step 1 might switch from QUE to ASS, but we first want
 			 * to give a chance to step 2 to perform a redirect if needed.

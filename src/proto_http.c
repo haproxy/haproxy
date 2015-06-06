@@ -65,6 +65,7 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/pattern.h>
+#include <proto/vars.h>
 
 const char HTTP_100[] =
 	"HTTP/1.1 100 Continue\r\n\r\n";
@@ -9006,6 +9007,9 @@ void http_init_txn(struct stream *s)
 
 	if (txn->hdr_idx.v)
 		hdr_idx_init(&txn->hdr_idx);
+
+	vars_init(&s->vars_txn,    SCOPE_TXN);
+	vars_init(&s->vars_reqres, SCOPE_REQ);
 }
 
 /* to be used at the end of a transaction */
@@ -9047,6 +9051,8 @@ void http_end_txn(struct stream *s)
 		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
+	vars_prune(&s->vars_txn, s);
+	vars_prune(&s->vars_reqres, s);
 }
 
 /* to be used at the end of a transaction to prepare a new one */
@@ -9533,7 +9539,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'set-var', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -9888,7 +9894,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', 'set-var' but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}

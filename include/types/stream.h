@@ -43,6 +43,7 @@
 #include <types/stream_interface.h>
 #include <types/task.h>
 #include <types/stick_table.h>
+#include <types/vars.h>
 
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
@@ -143,6 +144,9 @@ struct stream {
 
 	char **req_cap;                         /* array of captures from the request (may be NULL) */
 	char **res_cap;                         /* array of captures from the response (may be NULL) */
+	struct vars vars_sess;                  /* list of variables for the session scope. */
+	struct vars vars_txn;                   /* list of variables for the txn scope. */
+	struct vars vars_reqres;                /* list of variables for the request and resp scope. */
 
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct strm_logs logs;                  /* logs for this stream */

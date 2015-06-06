@@ -1473,7 +1473,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 				return -1;
 		} else {
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'close' or 'reject' in %s '%s' (got '%s')",
+			          "'%s %s' expects 'accept', 'close', 'reject' or 'set-var' in %s '%s' (got '%s')",
 			          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
 			return -1;
 		}
@@ -1678,8 +1678,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 				return -1;
 		} else {
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d' "
-			          " in %s '%s' (got '%s')",
+			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d', "
+			          " or 'set-var' in %s '%s' (got '%s')",
 			          args[0], args[1], MAX_SESS_STKCTR-1, proxy_type_str(curpx),
 			          curpx->id, args[arg]);
 			return -1;

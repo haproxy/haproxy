@@ -28,6 +28,8 @@
 #include <common/chunk.h>
 #include <common/mini-clist.h>
 
+#include <types/vars.h>
+
 /* encoding of each arg type : up to 31 types are supported */
 #define ARGT_BITS      5
 #define ARGT_NBTYPES   (1 << ARGT_BITS)
@@ -58,6 +60,7 @@ enum {
 	ARGT_USR,      /* a pointer to a user list */
 	ARGT_MAP,      /* a pointer to a map descriptor */
 	ARGT_REG,      /* a pointer to a regex */
+	ARGT_VAR,      /* contains a variable description. */
 };
 
 /* context where arguments are used, in order to help error reporting */
@@ -94,6 +97,7 @@ union arg_data {
 	struct userlist *usr;
 	struct map_descriptor *map;
 	struct my_regex *reg;
+	struct var_desc var;
 };
 
 struct arg {
