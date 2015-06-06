@@ -11578,6 +11578,14 @@ be_sess_rate([<backend>]) : integer
             acl being_scanned be_sess_rate gt 100
             redirect location /denied.html if being_scanned
 
+bin(<hexa>) : bin
+  Returns a binary chain. The input is the hexadecimal representation
+  of the string.
+
+bool(<bool>) : bool
+  Returns a boolean value. <bool> can be 'true', 'false', '1' or '0'.
+  'false' and '0' are the same. 'true' and '1' are the same.
+
 connslots([<backend>]) : integer
   Returns an integer value corresponding to the number of connection slots
   still available in the backend, by totaling the maximum amount of
@@ -11664,6 +11672,15 @@ fe_sess_rate([<frontend>]) : integer
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
 
+ipv4(<ipv4>) : ipv4
+  Returns an ipv4.
+
+ipv6(<ipv6>) : ipv6
+  Returns an ipv6.
+
+meth(<method>) : method
+  Returns a method.
+
 nbproc : integer
   Returns an integer value corresponding to the number of processes that were
   started (it equals the global "nbproc" setting). This is useful for logging
@@ -11698,6 +11715,9 @@ rand([<range>]) : integer
   gives numbers between 0 and 4294967295. It can be useful to pass some values
   needed to take some routing decisions for example, or just for debugging
   purposes. This random must not be used for security purposes.
+
+sint(<sint>) : signed integer
+  Returns a signed integer.
 
 srv_conn([<backend>/]<server>) : integer
   Returns an integer value corresponding to the number of currently established
@@ -11737,6 +11757,9 @@ stopping : boolean
   can be useful for logging, or for relaxing certain checks or helping close
   certain connections upon graceful shutdown.
 
+str(<string>) : string
+  Returns a string.
+
 table_avl([<table>]) : integer
   Returns the total number of available entries in the current proxy's
   stick-table or in the designated stick-table. See also table_cnt.
@@ -11745,6 +11768,9 @@ table_cnt([<table>]) : integer
   Returns the total number of entries currently in use in the current proxy's
   stick-table or in the designated stick-table. See also src_conn_cnt and
   table_avl for other entry counting methods.
+
+uint(<uint>) : unsigned integer
+  Returns an unsigned integer.
 
 var(<var-name>) : undefined
   Returns a variable with the stored type. If the variable is not set, the

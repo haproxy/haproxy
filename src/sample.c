@@ -2406,6 +2406,132 @@ smp_fetch_stopping(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+static int smp_fetch_const_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags |= SMP_F_CONST;
+	smp->type = SMP_T_STR;
+	smp->data.str.str = args[0].data.str.str;
+	smp->data.str.len = args[0].data.str.len;
+	return 1;
+}
+
+static int smp_check_const_bool(struct arg *args, char **err)
+{
+	if (strcasecmp(args[0].data.str.str, "true") == 0 ||
+	    strcasecmp(args[0].data.str.str, "1") == 0) {
+		args[0].type = ARGT_UINT;
+		args[0].data.uint = 1;
+		return 1;
+	}
+	if (strcasecmp(args[0].data.str.str, "false") == 0 ||
+	    strcasecmp(args[0].data.str.str, "0") == 0) {
+		args[0].type = ARGT_UINT;
+		args[0].data.uint = 0;
+		return 1;
+	}
+	memprintf(err, "Expects 'true', 'false', '0' or '1'");
+	return 0;
+}
+
+static int smp_fetch_const_bool(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = args[0].data.uint;
+	return 1;
+}
+
+static int smp_fetch_const_uint(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_UINT;
+	smp->data.uint = args[0].data.uint;
+	return 1;
+}
+
+static int smp_fetch_const_sint(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args[0].data.sint;
+	return 1;
+}
+
+static int smp_fetch_const_ipv4(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_IPV4;
+	smp->data.ipv4 = args[0].data.ipv4;
+	return 1;
+}
+
+static int smp_fetch_const_ipv6(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_IPV6;
+	smp->data.ipv6 = args[0].data.ipv6;
+	return 1;
+}
+
+static int smp_check_const_bin(struct arg *args, char **err)
+{
+	char *binstr;
+	int binstrlen;
+
+	if (!parse_binary(args[0].data.str.str, &binstr, &binstrlen, err))
+		return 0;
+	args[0].type = ARGT_STR;
+	args[0].data.str.str = binstr;
+	args[0].data.str.len = binstrlen;
+	return 1;
+}
+
+static int smp_fetch_const_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags |= SMP_F_CONST;
+	smp->type = SMP_T_BIN;
+	smp->data.str.str = args[0].data.str.str;
+	smp->data.str.len = args[0].data.str.len;
+	return 1;
+}
+
+static int smp_check_const_meth(struct arg *args, char **err)
+{
+	enum http_meth_t meth;
+	int i;
+
+	meth = find_http_meth(args[0].data.str.str, args[0].data.str.len);
+	if (meth != HTTP_METH_OTHER) {
+		args[0].type = ARGT_UINT;
+		args[0].data.uint = meth;
+	} else {
+		/* Check method avalaibility. A methos is a token defined as :
+		 * tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
+		 *         "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+		 * token = 1*tchar
+		 */
+		for (i = 0; i < args[0].data.str.len; i++) {
+			if (!http_is_token[(unsigned char)args[0].data.str.str[i]]) {
+				memprintf(err, "expects valid method.");
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->type = SMP_T_METH;
+	if (args[0].type == ARGT_UINT) {
+		smp->flags &= ~SMP_F_CONST;
+		smp->data.meth.meth = args[0].data.uint;
+		smp->data.meth.str.str = "";
+		smp->data.meth.str.len = 0;
+	} else {
+		smp->flags |= SMP_F_CONST;
+		smp->data.meth.meth = HTTP_METH_OTHER;
+		smp->data.meth.str.str = args[0].data.str.str;
+		smp->data.meth.str.len = args[0].data.str.len;
+	}
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -2420,6 +2546,16 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_UINT, SMP_USE_INTRN },
 	{ "rand",         smp_fetch_rand,  ARG1(0,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
+
+	{ "str",  smp_fetch_const_str,  ARG1(1,STR),  NULL                , SMP_T_STR,  SMP_USE_INTRN },
+	{ "bool", smp_fetch_const_bool, ARG1(1,STR),  smp_check_const_bool, SMP_T_BOOL, SMP_USE_INTRN },
+	{ "uint", smp_fetch_const_uint, ARG1(1,UINT), NULL                , SMP_T_UINT, SMP_USE_INTRN },
+	{ "sint", smp_fetch_const_sint, ARG1(1,SINT), NULL                , SMP_T_SINT, SMP_USE_INTRN },
+	{ "ipv4", smp_fetch_const_ipv4, ARG1(1,IPV4), NULL                , SMP_T_IPV4, SMP_USE_INTRN },
+	{ "ipv6", smp_fetch_const_ipv6, ARG1(1,IPV6), NULL                , SMP_T_IPV6, SMP_USE_INTRN },
+	{ "bin",  smp_fetch_const_bin,  ARG1(1,STR),  smp_check_const_bin , SMP_T_BIN,  SMP_USE_INTRN },
+	{ "meth", smp_fetch_const_meth, ARG1(1,STR),  smp_check_const_meth, SMP_T_METH, SMP_USE_INTRN },
+
 	{ /* END */ },
 }};
 
