@@ -888,6 +888,21 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :param opaque data: The data which is stored in the transaction.
 
+.. js:function:: TXN.set_var(TXN, var, value)
+
+  Converts an Lua type in a HAProxy type and store it in a variable <var>.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string var: The variable name according with the HAProxy variable syntax.
+  :param opaque value: The data which is stored in the variable.
+
+.. js:function:: TXN.get_var(TXN, var)
+
+  Returns data stored in the variable <var> converter in Lua type.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string var: The variable name according with the HAProxy variable syntax.
+
 .. js:function:: TXN.get_headers(txn)
 
   This function returns an array of headers.

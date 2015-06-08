@@ -38,6 +38,7 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/vars.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
@@ -3322,6 +3323,52 @@ __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
 }
 
+__LJMP static int hlua_set_var(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 3, "set_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+
+	/* Converts the third argument in a sample. */
+	hlua_lua2smp(L, 3, &smp);
+
+	/* Store the sample in a variable. */
+	vars_set_by_name(name, len, htxn->s, &smp);
+	return 0;
+}
+
+__LJMP static int hlua_get_var(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "get_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+
+	if (!vars_get_by_name(name, len, htxn->s, &smp)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	return hlua_smp2lua(L, &smp);
+}
+
 __LJMP static int hlua_set_priv(lua_State *L)
 {
 	struct hlua *hlua;
@@ -4948,6 +4995,8 @@ void hlua_init(void)
 	/* Register Lua functions. */
 	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
+	hlua_class_function(gL.T, "set_var",     hlua_set_var);
+	hlua_class_function(gL.T, "get_var",     hlua_get_var);
 	hlua_class_function(gL.T, "close",       hlua_txn_close);
 	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);
 	hlua_class_function(gL.T, "set_tos",     hlua_txn_set_tos);
