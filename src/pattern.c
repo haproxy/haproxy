@@ -499,7 +499,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }
@@ -534,7 +534,7 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }
@@ -568,7 +568,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }
@@ -634,7 +634,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }
@@ -673,7 +673,7 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }
@@ -730,7 +730,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	}
  leave:
 	if (lru)
-		lru64_commit(lru, ret, expr, expr->revision);
+	    lru64_commit(lru, ret, expr, expr->revision, NULL);
 
 	return ret;
 }

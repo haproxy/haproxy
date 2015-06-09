@@ -63,9 +63,10 @@ struct lru64 {
 	void *domain;                 /* who this data belongs to */
 	unsigned long long revision;  /* data revision (to avoid use-after-free) */
 	void *data;                   /* returned value, user decides how to use this */
+	void (*free)(void *data);     /* function to release data, if needed */
 };
 
 struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru, void *domain, unsigned long long revision);
-void lru64_commit(struct lru64 *elem, void *data, void *domain, unsigned long long revision);
+void lru64_commit(struct lru64 *elem, void *data, void *domain, unsigned long long revision, void (*free)(void *));
 struct lru64_head *lru64_new(int size);
 int lru64_destroy(struct lru64_head *lru);

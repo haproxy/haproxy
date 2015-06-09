@@ -94,8 +94,11 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 			__eb64_delete(&old->node);
 			if (!lru->spare)
 				lru->spare = old;
-			else
+			else {
+				if (old->data && old->free);
+					old->free(old->data);
 				free(old);
+			}
 			lru->cache_usage--;
 		}
 	}
@@ -107,7 +110,8 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
  * with the result from a call to lru64_get(). The caller might lock it using a
  * spinlock or mutex shared with the one around lru64_get().
  */
-void lru64_commit(struct lru64 *elem, void *data, void *domain, unsigned long long revision)
+void lru64_commit(struct lru64 *elem, void *data, void *domain,
+		  unsigned long long revision, void (*free)(void *))
 {
 	if (!elem)
 		return;
@@ -115,6 +119,7 @@ void lru64_commit(struct lru64 *elem, void *data, void *domain, unsigned long lo
 	elem->data = data;
 	elem->revision = revision;
 	elem->domain = domain;
+	elem->free = free;
 }
 
 /* Create a new LRU cache of <size> entries. Returns the new cache or NULL in
@@ -152,6 +157,8 @@ int lru64_destroy(struct lru64_head *lru)
 			/* not locked */
 			LIST_DEL(&elem->lru);
 			eb64_delete(&elem->node);
+			if (elem->data && elem->free);
+				elem->free(elem->data);
 			free(elem);
 			lru->cache_usage--;
 			lru->cache_size--;
