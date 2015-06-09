@@ -28,8 +28,9 @@
 
 #include <common/chunk.h>
 #include <common/mini-clist.h>
-#include <types/arg.h>
 #include <types/proto_http.h>
+
+struct arg;
 
 /* input and output sample types */
 enum {
