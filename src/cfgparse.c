@@ -770,6 +770,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 #endif
+	else if (!strcmp(args[0], "tune.ssl.ssl-ctx-cache-size")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.ssl_ctx_cache = atoi(args[1]);
+		if (global.tune.ssl_ctx_cache < 0) {
+			Alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 #endif
 	else if (!strcmp(args[0], "tune.buffers.limit")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -8219,6 +8235,9 @@ out_uri_auth_compat:
 
 			/* initialize all certificate contexts */
 			cfgerr += ssl_sock_prepare_all_ctx(bind_conf, curproxy);
+
+			/* initialize CA variables if the certificates generation is enabled */
+			cfgerr += ssl_sock_load_ca(bind_conf, curproxy);
 		}
 #endif /* USE_OPENSSL */
 
@@ -8287,8 +8306,11 @@ out_uri_auth_compat:
 			if (bind_conf->is_ssl)
 				continue;
 #ifdef USE_OPENSSL
+			ssl_sock_free_ca(bind_conf);
 			ssl_sock_free_all_ctx(bind_conf);
 			free(bind_conf->ca_file);
+			free(bind_conf->ca_sign_file);
+			free(bind_conf->ca_sign_pass);
 			free(bind_conf->ciphers);
 			free(bind_conf->ecdhe);
 			free(bind_conf->crl_file);

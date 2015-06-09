@@ -154,6 +154,7 @@ struct global {
 		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
 		unsigned int ssl_max_record; /* SSL max record size */
 		unsigned int ssl_default_dh_param; /* SSL maximum DH parameter size */
+		int ssl_ctx_cache; /* max number of entries in the ssl_ctx cache. */
 #endif
 #ifdef USE_ZLIB
 		int zlibmemlevel;    /* zlib memlevel */

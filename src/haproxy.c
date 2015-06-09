@@ -161,6 +161,7 @@ struct global global = {
 #ifdef DEFAULT_SSL_MAX_RECORD
 		.ssl_max_record = DEFAULT_SSL_MAX_RECORD,
 #endif
+		.ssl_ctx_cache = DEFAULT_SSL_CTX_CACHE,
 #endif
 #ifdef USE_ZLIB
 		.zlibmemlevel = 8,
@@ -1456,8 +1457,11 @@ void deinit(void)
 		/* Release unused SSL configs. */
 		list_for_each_entry_safe(bind_conf, bind_back, &p->conf.bind, by_fe) {
 #ifdef USE_OPENSSL
+			ssl_sock_free_ca(bind_conf);
 			ssl_sock_free_all_ctx(bind_conf);
 			free(bind_conf->ca_file);
+			free(bind_conf->ca_sign_file);
+			free(bind_conf->ca_sign_pass);
 			free(bind_conf->ciphers);
 			free(bind_conf->ecdhe);
 			free(bind_conf->crl_file);

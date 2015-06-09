@@ -35,7 +35,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <netdb.h>
 #include <netinet/tcp.h>
 
 #include <openssl/ssl.h>
@@ -50,6 +50,9 @@
 #ifndef OPENSSL_NO_DH
 #include <openssl/dh.h>
 #endif
+
+#include <import/lru.h>
+#include <import/xxhash.h>
 
 #include <common/buffer.h>
 #include <common/compat.h>
@@ -75,6 +78,7 @@
 #include <proto/frontend.h>
 #include <proto/listener.h>
 #include <proto/pattern.h>
+#include <proto/proto_tcp.h>
 #include <proto/server.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
@@ -137,6 +141,27 @@ struct certificate_ocsp {
 	struct chunk response;
 	long expire;
 };
+
+/* X509V3 Extensions that will be added on generated certificates */
+#define X509V3_EXT_SIZE 5
+static char *x509v3_ext_names[X509V3_EXT_SIZE] = {
+	"basicConstraints",
+	"nsComment",
+	"subjectKeyIdentifier",
+	"authorityKeyIdentifier",
+	"keyUsage",
+};
+static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
+	"CA:FALSE",
+	"\"OpenSSL Generated Certificate\"",
+	"hash",
+	"keyid,issuer:always",
+	"nonRepudiation,digitalSignature,keyEncipherment"
+};
+
+/* LRU cache to store generated certificate */
+static struct lru64_head *ssl_ctx_lru_tree = NULL;
+static unsigned int       ssl_ctx_lru_seed = 0;
 
 /*
  *  This function returns the number of seconds  elapsed
@@ -978,6 +1003,134 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 }
 #endif
 
+static SSL_CTX *
+ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, EVP_PKEY *capkey)
+{
+	SSL_CTX      *ssl_ctx = NULL;
+	X509         *newcrt  = NULL;
+	EVP_PKEY     *pkey    = NULL;
+	RSA          *rsa;
+	X509_NAME    *name;
+	const EVP_MD *digest;
+	X509V3_CTX    ctx;
+	unsigned int  i;
+
+	/* Generate the public key */
+	if (!(rsa = RSA_generate_key(2048, 3, NULL, NULL)))
+		goto mkcert_error;
+	if (!(pkey = EVP_PKEY_new()))
+		goto mkcert_error;
+	if (EVP_PKEY_assign_RSA(pkey, rsa) != 1)
+		goto mkcert_error;
+
+	/* Create the certificate */
+	if (!(newcrt = X509_new()))
+		goto mkcert_error;
+
+	/* Set version number for the certificate (X509v3) and the serial
+	 * number */
+	if (X509_set_version(newcrt, 2L) != 1)
+		goto mkcert_error;
+	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), serial);
+
+	/* Set duration for the certificate */
+	if (!X509_gmtime_adj(X509_get_notBefore(newcrt), (long)-60*60*24) ||
+	    !X509_gmtime_adj(X509_get_notAfter(newcrt),(long)60*60*24*365))
+		goto mkcert_error;
+
+	/* set public key in the certificate */
+	if (X509_set_pubkey(newcrt, pkey) != 1)
+		goto mkcert_error;
+
+	/* Set issuer name from the CA */
+	if (!(name = X509_get_subject_name(cacert)))
+		goto mkcert_error;
+	if (X509_set_issuer_name(newcrt, name) != 1)
+		goto mkcert_error;
+
+	/* Set the subject name using the same, but the CN */
+	name = X509_NAME_dup(name);
+	if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+				       (const unsigned char *)servername,
+				       -1, -1, 0) != 1) {
+		X509_NAME_free(name);
+		goto mkcert_error;
+	}
+	if (X509_set_subject_name(newcrt, name) != 1) {
+		X509_NAME_free(name);
+		goto mkcert_error;
+	}
+	X509_NAME_free(name);
+
+	/* Add x509v3 extensions as specified */
+	X509V3_set_ctx(&ctx, cacert, newcrt, NULL, NULL, 0);
+	for (i = 0; i < X509V3_EXT_SIZE; i++) {
+		X509_EXTENSION *ext;
+
+		if (!(ext = X509V3_EXT_conf(NULL, &ctx, x509v3_ext_names[i], x509v3_ext_values[i])))
+			goto mkcert_error;
+		if (!X509_add_ext(newcrt, ext, -1)) {
+			X509_EXTENSION_free(ext);
+			goto mkcert_error;
+		}
+		X509_EXTENSION_free(ext);
+	}
+
+	/* Sign the certificate with the CA private key */
+	if (EVP_PKEY_type(capkey->type) == EVP_PKEY_DSA)
+		digest = EVP_dss1();
+	else if (EVP_PKEY_type (capkey->type) == EVP_PKEY_RSA)
+		digest = EVP_sha256();
+	else
+		goto mkcert_error;
+	if (!(X509_sign(newcrt, capkey, digest)))
+		goto mkcert_error;
+
+	/* Create and set the new SSL_CTX */
+	if (!(ssl_ctx = SSL_CTX_new(SSLv23_server_method())))
+		goto mkcert_error;
+	if (!SSL_CTX_use_PrivateKey(ssl_ctx, pkey))
+		goto mkcert_error;
+	if (!SSL_CTX_use_certificate(ssl_ctx, newcrt))
+		goto mkcert_error;
+	if (!SSL_CTX_check_private_key(ssl_ctx))
+		goto mkcert_error;
+
+	if (newcrt) X509_free(newcrt);
+	if (pkey)   EVP_PKEY_free(pkey);
+	return ssl_ctx;
+
+ mkcert_error:
+	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
+	if (newcrt)  X509_free(newcrt);
+	if (pkey)    EVP_PKEY_free(pkey);
+	return NULL;
+}
+
+static SSL_CTX *
+ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf)
+{
+	X509         *cacert  = bind_conf->ca_sign_cert;
+	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
+	SSL_CTX      *ssl_ctx = NULL;
+	struct lru64 *lru     = NULL;
+	unsigned int  serial;
+
+	serial = XXH32(servername, strlen(servername), ssl_ctx_lru_seed);
+	if (ssl_ctx_lru_tree) {
+		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
+		if (lru && lru->domain)
+			ssl_ctx = (SSL_CTX *)lru->data;
+	}
+
+	if (!ssl_ctx) {
+		ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
+		if (lru)
+			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
+	}
+	return ssl_ctx;
+}
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
@@ -1022,6 +1175,14 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 		node = ebst_lookup(&s->sni_w_ctx, wildp);
 	}
 	if (!node || container_of(node, struct sni_ctx, name)->neg) {
+		SSL_CTX *ctx;
+
+		if (s->generate_certs &&
+		    (ctx = ssl_sock_generate_certificate(servername, s))) {
+			/* switch ctx */
+			SSL_set_SSL_CTX(ssl, ctx);
+			return SSL_TLSEXT_ERR_OK;
+		}
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
 			SSL_TLSEXT_ERR_ALERT_WARNING);
@@ -2243,6 +2404,75 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 	}
 
 	bind_conf->default_ctx = NULL;
+}
+
+/* Load CA cert file and private key used to generate certificates */
+int
+ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px)
+{
+	FILE     *fp;
+	X509     *cacert = NULL;
+	EVP_PKEY *capkey = NULL;
+	int       err    = 0;
+
+	if (!bind_conf || !bind_conf->generate_certs)
+		return err;
+
+	if (!bind_conf->ca_sign_file) {
+		Alert("Proxy '%s': cannot enable certificate generation, "
+		      "no CA certificate File configured at [%s:%d].\n",
+		      px->id, bind_conf->file, bind_conf->line);
+		err++;
+	}
+
+	if (err)
+		goto load_error;
+
+	/* read in the CA certificate */
+	if (!(fp = fopen(bind_conf->ca_sign_file, "r"))) {
+		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
+		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		err++;
+		goto load_error;
+	}
+	if (!(cacert = PEM_read_X509(fp, NULL, NULL, NULL))) {
+		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
+		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		fclose (fp);
+		err++;
+		goto load_error;
+	}
+	if (!(capkey = PEM_read_PrivateKey(fp, NULL, NULL, bind_conf->ca_sign_pass))) {
+		Alert("Proxy '%s': Failed to read CA private key file '%s' at [%s:%d].\n",
+		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		fclose (fp);
+		err++;
+		goto load_error;
+	}
+	fclose (fp);
+
+	bind_conf->ca_sign_cert = cacert;
+	bind_conf->ca_sign_pkey = capkey;
+	return err;
+
+ load_error:
+	bind_conf->generate_certs = 0;
+	if (capkey) EVP_PKEY_free(capkey);
+	if (cacert) X509_free(cacert);
+	return err;
+}
+
+/* Release CA cert and private key used to generate certificated */
+void
+ssl_sock_free_ca(struct bind_conf *bind_conf)
+{
+	if (!bind_conf)
+		return;
+
+	if (bind_conf->ca_sign_pkey)
+		EVP_PKEY_free(bind_conf->ca_sign_pkey);
+	if (bind_conf->ca_sign_cert)
+		X509_free(bind_conf->ca_sign_cert);
 }
 
 /*
@@ -3994,6 +4224,36 @@ static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct
 	return 0;
 }
 
+/* parse the "ca-sign-file" bind keyword */
+static int bind_parse_ca_sign_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if ((*args[cur_arg + 1] != '/') && global.ca_base)
+		memprintf(&conf->ca_sign_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
+	else
+		memprintf(&conf->ca_sign_file, "%s", args[cur_arg + 1]);
+
+	return 0;
+}
+
+/* parse the ca-sign-pass bind keyword */
+
+static int bind_parse_ca_sign_pass(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing CAkey password", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	memprintf(&conf->ca_sign_pass, "%s", args[cur_arg + 1]);
+	return 0;
+}
+
 /* parse the "ciphers" bind keyword */
 static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -4323,6 +4583,18 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->xprt = &ssl_sock;
 
+	return 0;
+}
+
+/* parse the "generate-certificates" bind keyword */
+static int bind_parse_generate_certs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	conf->generate_certs = 1;
+#else
+	memprintf(err, "%sthis version of openssl cannot generate SSL certificates.\n",
+		  err && *err ? *err : "");
+#endif
 	return 0;
 }
 
@@ -4833,6 +5105,8 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "alpn",                  bind_parse_alpn,            1 }, /* set ALPN supported protocols */
 	{ "ca-file",               bind_parse_ca_file,         1 }, /* set CAfile to process verify on client cert */
 	{ "ca-ignore-err",         bind_parse_ignore_err,      1 }, /* set error IDs to ignore on verify depth > 0 */
+	{ "ca-sign-file",          bind_parse_ca_sign_file,    1 }, /* set CAFile used to generate and sign server certs */
+	{ "ca-sign-pass",          bind_parse_ca_sign_pass,    1 }, /* set CAKey passphrase */
 	{ "ciphers",               bind_parse_ciphers,         1 }, /* set SSL cipher suite */
 	{ "crl-file",              bind_parse_crl_file,        1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,             1 }, /* load SSL certificates from this location */
@@ -4843,6 +5117,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "force-tlsv10",          bind_parse_force_tlsv10,    0 }, /* force TLSv10 */
 	{ "force-tlsv11",          bind_parse_force_tlsv11,    0 }, /* force TLSv11 */
 	{ "force-tlsv12",          bind_parse_force_tlsv12,    0 }, /* force TLSv12 */
+	{ "generate-certificates", bind_parse_generate_certs,  0 }, /* enable the server certificates generation */
 	{ "no-sslv3",              bind_parse_no_sslv3,        0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             bind_parse_no_tlsv10,       0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             bind_parse_no_tlsv11,       0 }, /* disable TLSv11 */
@@ -4953,11 +5228,18 @@ static void __ssl_sock_init(void)
 #ifndef OPENSSL_NO_DH
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 #endif
+
+	/* Add a global parameter for the LRU cache size */
+	if (global.tune.ssl_ctx_cache)
+		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
+	ssl_ctx_lru_seed = (unsigned int)time(NULL);
 }
 
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
+	lru64_destroy(ssl_ctx_lru_tree);
+
 #ifndef OPENSSL_NO_DH
         if (local_dh_1024) {
                 DH_free(local_dh_1024);

@@ -581,6 +581,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.force-private-cache
    - tune.ssl.maxrecord
    - tune.ssl.default-dh-param
+   - tune.ssl.ssl-ctx-cache-size
    - tune.zlib.memlevel
    - tune.zlib.windowsize
 
@@ -1277,6 +1278,12 @@ tune.ssl.default-dh-param <number>
   1024 bits are not supported by Java 7 and earlier clients. This value is not
   used if static Diffie-Hellman parameters are supplied either directly
   in the certificate file or by using the ssl-dh-param-file parameter.
+
+tune.ssl.ssl-ctx-cache-size <number>
+  Sets the size of the cache used to store generated certificates to <number>
+  entries. This is a LRU cache. Because generating a SSL certificate
+  dynamically is expensive, they are cached. The default cache size is set to
+  1000 entries.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
@@ -9039,6 +9046,19 @@ ca-ignore-err [all|<errorID>,...]
   If set to 'all', all errors are ignored. SSL handshake is not aborted if an
   error is ignored.
 
+ca-sign-file <cafile>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a PEM file containing both the CA certificate and the CA private
+  key used to create and sign server's certificates. This is a mandatory
+  setting when the dynamic generation of certificates is enabled. See
+  'generate-certificates' for details.
+
+ca-sign-passphrase <passphrase>
+  This setting is only available when support for OpenSSL was built in. It is
+  the CA private key passphrase. This setting is optional and used only when
+  the dynamic generation of certificates is enabled. See
+  'generate-certificates' for details.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
@@ -9163,6 +9183,24 @@ force-tlsv12
   This option enforces use of TLSv1.2 only on SSL connections instantiated from
   this listener. This option is also available on global statement
   "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
+
+generate-certificates
+  This setting is only available when support for OpenSSL was built in. It
+  enables the dynamic SSL certificates generation. A CA certificate and its
+  private key are necessary (see 'ca-sign-file'). When HAProxy is configured as
+  a transparent forward proxy, SSL requests generate errors because of a common
+  name mismatch on the certificate presented to the client. With this option
+  enabled, HAProxy will try to forge a certificate using the SNI hostname
+  indicated by the client. This is done only if no certificate matches the SNI
+  hostname (see 'crt-list'). If an error occurs, the default certificate is
+  used, else the 'strict-sni' option is set.
+  It can also be used when HAProxy is configured as a reverse proxy to ease the
+  deployment of an architecture with many backends.
+
+  Creating a SSL certificate is an expensive operation, so a LRU cache is used
+  to store forged certificates (see 'tune.ssl.ssl-ctx-cache-size'). It
+  increases the HAProxy's memroy footprint to reduce latency when the same
+  certificate is used many times.
 
 gid <gid>
   Sets the group of the UNIX sockets to the designated system gid. It can also

@@ -133,8 +133,15 @@ struct bind_conf {
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 	struct tls_keys_ref *keys_ref; /* TLS ticket keys reference */
+
+	char *ca_sign_file;        /* CAFile used to generate and sign server certificates */
+	char *ca_sign_pass;        /* CAKey passphrase */
+
+	X509     *ca_sign_cert;    /* CA certificate referenced by ca_file */
+	EVP_PKEY *ca_sign_pkey;    /* CA private key referenced by ca_key */
 #endif
 	int is_ssl;                /* SSL is required for these listeners */
+	int generate_certs;        /* 1 if generate-certificates option is set, else 0 */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
 	struct {                   /* UNIX socket permissions */
 		uid_t uid;         /* -1 to leave unchanged */

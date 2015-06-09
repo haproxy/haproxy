@@ -257,6 +257,10 @@
 #define SSL_HANDSHAKE_MAX_COST (76*1024)  // measured
 #endif
 
+#ifndef DEFAULT_SSL_CTX_CACHE
+#define DEFAULT_SSL_CTX_CACHE 1000
+#endif
+
 /* approximate stream size (for maxconn estimate) */
 #ifndef STREAM_MAX_COST
 #define STREAM_MAX_COST (sizeof(struct stream) + \
