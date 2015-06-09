@@ -360,6 +360,60 @@ int vars_check_arg(struct arg *arg, char **err)
 	return 1;
 }
 
+/* This function store a sample in a variable.
+ * In error case, it fails silently.
+ */
+void vars_set_by_name(const char *name, size_t len, struct stream *strm, struct sample *smp)
+{
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, NULL);
+	if (!name)
+		return;
+
+	sample_store_stream(name, scope, strm, smp);
+}
+
+/* this function fills a sample with the
+ * variable content. Returns 1 if the sample
+ * is filled, otherwise it returns 0.
+ */
+int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct sample *smp)
+{
+	struct vars *vars;
+	struct var *var;
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, NULL);
+	if (!name)
+		return 0;
+
+	/* Select "vars" pool according with the scope. */
+	switch (scope) {
+	case SCOPE_SESS: vars = &strm->vars_sess;   break;
+	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
+	case SCOPE_REQ:
+	case SCOPE_RES:  vars = &strm->vars_reqres; break;
+	}
+
+	/* Check if the scope is avalaible a this point of processing. */
+	if (vars->scope != scope)
+		return 0;
+
+	/* Get the variable entry. */
+	var = var_get(vars, name);
+	if (!var)
+		return 0;
+
+	/* Copy sample. */
+	smp->type = var->data.type;
+	smp->flags = SMP_F_CONST;
+	memcpy(&smp->data, &var->data.data, sizeof(smp->data));
+	return 1;
+}
+
 /* Returns 0 if miss data, else returns 1. */
 static inline int action_store(struct sample_expr *expr, const char *name,
                                enum vars_scope scope, struct proxy *px,
