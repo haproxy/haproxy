@@ -186,6 +186,9 @@ struct global global = {
 		.separator = '|',
 	},
 #endif
+#ifdef USE_51DEGREES
+	._51d_property_names = LIST_HEAD_INIT(global._51d_property_names),
+#endif
 	/* others NULL OK */
 };
 
@@ -548,7 +551,7 @@ void init(int argc, char **argv)
 #ifdef USE_51DEGREES
 	int i = 0;
 	struct _51d_property_names *name;
-	char **_51d_property_list;
+	char **_51d_property_list = NULL;
 	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
 #endif
 
@@ -1099,14 +1102,16 @@ void init(int argc, char **argv)
 		exit(1);
 
 #ifdef USE_51DEGREES
-	i = 0;
-	list_for_each_entry(name, &global._51d_property_names, list)
-		++i;
-	_51d_property_list = calloc(i, sizeof(char *));
+	if (!LIST_ISEMPTY(&global._51d_property_names)) {
+		i = 0;
+		list_for_each_entry(name, &global._51d_property_names, list)
+			++i;
+		_51d_property_list = calloc(i, sizeof(char *));
 
-	i = 0;
-	list_for_each_entry(name, &global._51d_property_names, list)
-		_51d_property_list[i++] = name->name;
+		i = 0;
+		list_for_each_entry(name, &global._51d_property_names, list)
+			_51d_property_list[i++] = name->name;
+	}
 
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
 	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, _51d_property_list, i);
