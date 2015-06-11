@@ -1381,17 +1381,18 @@ user <username> [password|insecure-password <password>]
 
 3.5. Peers
 ----------
-It is possible to synchronize server entries in stick tables between several
-haproxy instances over TCP connections in a multi-master fashion. Each instance
-pushes its local updates and insertions to remote peers. Server IDs are used to
-identify servers remotely, so it is important that configurations look similar
-or at least that the same IDs are forced on each server on all participants.
-Interrupted exchanges are automatically detected and recovered from the last
-known point. In addition, during a soft restart, the old process connects to
-the new one using such a TCP connection to push all its entries before the new
-process tries to connect to other peers. That ensures very fast replication
-during a reload, it typically takes a fraction of a second even for large
-tables.
+It is possible to propagate entries of any data-types in stick-tables between
+several haproxy instances over TCP connections in a multi-master fashion. Each
+instance pushes its local updates and insertions to remote peers. The pushed
+values overwrite remote ones without aggregation. Interrupted exchanges are
+automatically detected and recovered from the last known point.
+In addition, during a soft restart, the old process connects to the new one
+using such a TCP connection to push all its entries before the new process
+tries to connect to other peers. That ensures very fast replication during a
+reload, it typically takes a fraction of a second even for large tables.
+Note that Server IDs are used to identify servers remotely, so it is important
+that configurations look similar or at least that the same IDs are forced on
+each server on all participants.
 
 peers <peersect>
   Creates a new peer list with name <peersect>. It is an independent section,
