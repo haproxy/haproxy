@@ -28,6 +28,41 @@
 #define LIST_ADD(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); })
 #define LIST_DEL(el)     ({ (el)->n->p = (el)->p; (el)->p->n = (el)->n; })
 
+
+/* Lookup key <key> in LRU cache <lru> for use with domain <domain> whose data's
+ * current version is <revision>. It differs from lru64_get as it does not
+ * create missing keys. The function returns NULL if an error or a cache miss
+ * occurs. */
+struct lru64 *lru64_lookup(unsigned long long key, struct lru64_head *lru,
+			   void *domain, unsigned long long revision)
+{
+	struct eb64_node *node;
+	struct lru64 *elem;
+
+	if (!lru->spare) {
+		if (!lru->cache_size)
+			return NULL;
+		lru->spare = malloc(sizeof(*lru->spare));
+		if (!lru->spare)
+			return NULL;
+		lru->spare->domain = NULL;
+	}
+
+	node = __eb64_lookup(&lru->keys, key);
+	elem = container_of(node, typeof(*elem), node);
+	if (elem) {
+		/* Existing entry found, check validity then move it at the
+		 * head of the LRU list.
+		 */
+		if (elem->domain == domain && elem->revision == revision) {
+			LIST_DEL(&elem->lru);
+			LIST_ADD(&lru->list, &elem->lru);
+			return elem;
+		}
+	}
+	return NULL;
+}
+
 /* Get key <key> from LRU cache <lru> for use with domain <domain> whose data's
  * current revision is <revision>. If the key doesn't exist it's first created
  * with ->domain = NULL. The caller detects this situation by checking ->domain

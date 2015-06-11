@@ -66,6 +66,8 @@ struct lru64 {
 	void (*free)(void *data);     /* function to release data, if needed */
 };
 
+
+struct lru64 *lru64_lookup(unsigned long long key, struct lru64_head *lru, void *domain, unsigned long long revision);
 struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru, void *domain, unsigned long long revision);
 void lru64_commit(struct lru64 *elem, void *data, void *domain, unsigned long long revision, void (*free)(void *));
 struct lru64_head *lru64_new(int size);
