@@ -1003,7 +1003,9 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 }
 #endif
 
-static SSL_CTX *
+/* Create a X509 certificate with the specified servername and serial. This
+ * function returns a SSL_CTX object or NULL if an error occurs. */
+SSL_CTX *
 ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, EVP_PKEY *capkey)
 {
 	SSL_CTX      *ssl_ctx = NULL;
@@ -1107,6 +1109,44 @@ ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, 
 	return NULL;
 }
 
+/* Do a lookup for a certificate in the LRU cache used to store generated
+ * certificates. */
+SSL_CTX *
+ssl_sock_get_generated_cert(unsigned int serial, X509 *cacert)
+{
+	struct lru64 *lru = NULL;
+
+	if (ssl_ctx_lru_tree) {
+		lru = lru64_lookup(serial, ssl_ctx_lru_tree, cacert, 0);
+		if (lru && lru->domain)
+			return (SSL_CTX *)lru->data;
+	}
+	return NULL;
+}
+
+/* Set a certificate int the LRU cache used to store generated certificate. */
+void
+ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, X509 *cacert)
+{
+	struct lru64 *lru = NULL;
+
+	if (ssl_ctx_lru_tree) {
+		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
+		if (!lru)
+			return;
+		if (lru->domain && lru->data)
+			lru->free((SSL_CTX *)lru->data);
+		lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
+	}
+}
+
+/* Compute the serial that will be used to create/set/get a certificate. */
+unsigned int
+ssl_sock_generated_cert_serial(void *data, size_t len)
+{
+	return XXH32(data, len, ssl_ctx_lru_seed);
+}
+
 static SSL_CTX *
 ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf)
 {
@@ -1146,6 +1186,21 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
+		struct sockaddr to;
+		int             fd;
+
+		if (s->generate_certs &&
+		    (fd = SSL_get_fd(ssl)) != -1 &&
+		    tcp_get_dst(fd, &to, sizeof(to), 0) != -1) {
+			unsigned int serial = ssl_sock_generated_cert_serial(&to, sizeof(to));
+			SSL_CTX *ctx = ssl_sock_get_generated_cert(serial, s->ca_sign_cert);
+			if (ctx) {
+				/* switch ctx */
+				SSL_set_SSL_CTX(ssl, ctx);
+				return SSL_TLSEXT_ERR_OK;
+			}
+		}
+
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
 			SSL_TLSEXT_ERR_NOACK);
