@@ -22,11 +22,13 @@
 #ifndef _COMMON_COMPAT_H
 #define _COMMON_COMPAT_H
 
+#include <limits.h>
 /* This is needed on Linux for Netfilter includes */
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #ifndef BITS_PER_INT
 #define BITS_PER_INT    (8*sizeof(int))
