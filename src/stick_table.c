@@ -251,14 +251,19 @@ struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local
 		task_queue(t->exp_task);
 	}
 
+	/* If sync is enabled and update is local */
 	if (t->sync_task && local) {
-		ts->upd.key = ++t->update;
-		t->localupdate = t->update;
-		eb32_delete(&ts->upd);
-		eb = eb32_insert(&t->updates, &ts->upd);
-		if (eb != &ts->upd)  {
-			eb32_delete(eb);
-			eb32_insert(&t->updates, &ts->upd);
+		/* If this entry was already pushed to a peer
+		   We want to push it again */
+		if ((int)(ts->upd.key - t->commitupdate) <= 0) {
+			ts->upd.key = ++t->update;
+			t->localupdate = t->update;
+			eb32_delete(&ts->upd);
+			eb = eb32_insert(&t->updates, &ts->upd);
+			if (eb != &ts->upd)  {
+				eb32_delete(eb);
+				eb32_insert(&t->updates, &ts->upd);
+			}
 		}
 		task_wakeup(t->sync_task, TASK_WOKEN_MSG);
 	}

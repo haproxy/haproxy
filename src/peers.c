@@ -1233,13 +1233,13 @@ incomplete:
 									if (!eb) {
 										eb = eb32_first(&st->table->updates);
 										if (!eb || ((int)(eb->key - st->last_pushed) <= 0)) {
-											st->last_pushed = st->table->localupdate;
+											st->table->commitupdate = st->last_pushed = st->table->localupdate;
 											break;
 										}
 									}
 
 									if ((int)(eb->key - st->table->localupdate) > 0) {
-										st->last_pushed = st->table->localupdate;
+										st->table->commitupdate = st->last_pushed = st->table->localupdate;
 										break;
 									}
 
@@ -1262,6 +1262,8 @@ incomplete:
 										goto switchstate;
 									}
 									st->last_pushed = ts->upd.key;
+									if ((int)(st->last_pushed - st->table->commitupdate) > 0)
+											st->table->commitupdate = st->last_pushed;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
 
