@@ -448,7 +448,7 @@ void stream_process_counters(struct stream *s)
 {
 	struct session *sess = s->sess;
 	unsigned long long bytes;
-	void *ptr;
+	void *ptr1,*ptr2;
 	int i;
 
 	bytes = s->req.total - s->logs.bytes_in;
@@ -473,14 +473,18 @@ void stream_process_counters(struct stream *s)
 					continue;
 			}
 
-			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
-			if (ptr)
-				stktable_data_cast(ptr, bytes_in_cnt) += bytes;
+			ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
+			if (ptr1)
+				stktable_data_cast(ptr1, bytes_in_cnt) += bytes;
 
-			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
-			if (ptr)
-				update_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+			ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
+			if (ptr2)
+				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_in_rate),
 						       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			if (ptr1 || ptr2)
+				stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
 		}
 	}
 
@@ -506,14 +510,18 @@ void stream_process_counters(struct stream *s)
 					continue;
 			}
 
-			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
-			if (ptr)
-				stktable_data_cast(ptr, bytes_out_cnt) += bytes;
+			ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
+			if (ptr1)
+				stktable_data_cast(ptr1, bytes_out_cnt) += bytes;
 
-			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
-			if (ptr)
-				update_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+			ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
+			if (ptr2)
+				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_out_rate),
 						       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			if (ptr1 || ptr2)
+				stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
 		}
 	}
 }
@@ -2688,22 +2696,25 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr;
+		void *ptr1,*ptr2;
 
 		/* First, update gpc0_rate if it's tracked. Second, update its
 		 * gpc0 if tracked. Returns gpc0's value otherwise the curr_ctr.
 		 */
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
-		if (ptr) {
-			update_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+		ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
+		if (ptr1) {
+			update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
-			smp->data.uint = (&stktable_data_cast(ptr, gpc0_rate))->curr_ctr;
+			smp->data.uint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
 		}
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
-		if (ptr)
-			smp->data.uint = ++stktable_data_cast(ptr, gpc0);
+		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		if (ptr2)
+			smp->data.uint = ++stktable_data_cast(ptr2, gpc0);
 
+		/* If data was modified, we need to touch to re-schedule sync */
+		if (ptr1 || ptr2)
+			stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
 	}
 	return 1;
 }
@@ -2729,6 +2740,8 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
 	}
 	return 1;
 }
@@ -2814,6 +2827,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 
 	smp->type = SMP_T_UINT;
 	smp->data.uint = ++stktable_data_cast(ptr, conn_cnt);
+	/* Touch was previously performed by stktable_update_key */
 	smp->flags = SMP_F_VOL_TEST;
 	return 1;
 }
