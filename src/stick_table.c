@@ -609,7 +609,8 @@ static void *k_str2int(struct sample *smp, union stktable_key_data *kdata, size_
 typedef void *(*sample_to_key_fct)(struct sample *smp, union stktable_key_data *kdata, size_t *len);
 static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
-/* patt. type: BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
+/* patt. type: ANY  */ { k_ip2ip,  k_ip2ipv6,   k_int2int, k_str2str,  k_str2str },
+/*             BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
 /*             UINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
 /*             SINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
 /*             ADDR */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
