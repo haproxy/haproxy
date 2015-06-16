@@ -205,7 +205,8 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 	case SCOPE_SESS: vars = &smp->strm->vars_sess;   break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
-	case SCOPE_RES:  vars = &smp->strm->vars_reqres; break;
+	case SCOPE_RES:
+	default:         vars = &smp->strm->vars_reqres; break;
 	}
 	if (vars->scope != var_desc->scope)
 		return 0;
@@ -320,7 +321,8 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope,
 	case SCOPE_SESS: vars = &strm->vars_sess;   break;
 	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
 	case SCOPE_REQ:
-	case SCOPE_RES:  vars = &strm->vars_reqres; break;
+	case SCOPE_RES:
+	default:         vars = &strm->vars_reqres; break;
 	}
 	if (vars->scope != scope)
 		return 0;
@@ -395,7 +397,8 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 	case SCOPE_SESS: vars = &strm->vars_sess;   break;
 	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
 	case SCOPE_REQ:
-	case SCOPE_RES:  vars = &strm->vars_reqres; break;
+	case SCOPE_RES:
+	default:         vars = &strm->vars_reqres; break;
 	}
 
 	/* Check if the scope is avalaible a this point of processing. */
