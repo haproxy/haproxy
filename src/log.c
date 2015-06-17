@@ -1535,7 +1535,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 			case LOG_FMT_HTTP_PATH: // %HP
 				uri = txn->uri ? txn->uri : "<BADREQ>";
 
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				end = uri + strlen(uri);
@@ -1566,7 +1566,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				last_isspace = 0;
@@ -1575,7 +1575,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 			case LOG_FMT_HTTP_URI: // %HU
 				uri = txn->uri ? txn->uri : "<BADREQ>";
 
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				end = uri + strlen(uri);
@@ -1606,7 +1606,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				last_isspace = 0;
@@ -1614,7 +1614,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HTTP_METHOD: // %HM
 				uri = txn->uri ? txn->uri : "<BADREQ>";
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				end = uri + strlen(uri);
@@ -1636,7 +1636,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				last_isspace = 0;
@@ -1644,7 +1644,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HTTP_VERSION: // %HV
 				uri = txn->uri ? txn->uri : "<BADREQ>";
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				end = uri + strlen(uri);
@@ -1681,7 +1681,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 
 				tmplog = ret;
-				if (tmp->options && LOG_OPT_QUOTE)
+				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
 				last_isspace = 0;
