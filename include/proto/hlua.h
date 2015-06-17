@@ -37,7 +37,7 @@ int hlua_post_init();
 /* Empty function for compilation without Lua. */
 static inline void hlua_init() { }
 static inline int hlua_post_init() { return 1; }
-static inline void hlua_ctx_destroy() { }
+static inline void hlua_ctx_destroy(struct hlua *lua) { }
 
 #endif /* USE_LUA */
 
