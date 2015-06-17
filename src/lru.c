@@ -130,7 +130,7 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 			if (!lru->spare)
 				lru->spare = old;
 			else {
-				if (old->data && old->free);
+				if (old->data && old->free)
 					old->free(old->data);
 				free(old);
 			}
@@ -192,7 +192,7 @@ int lru64_destroy(struct lru64_head *lru)
 			/* not locked */
 			LIST_DEL(&elem->lru);
 			eb64_delete(&elem->node);
-			if (elem->data && elem->free);
+			if (elem->data && elem->free)
 				elem->free(elem->data);
 			free(elem);
 			lru->cache_usage--;
