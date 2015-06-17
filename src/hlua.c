@@ -1907,9 +1907,7 @@ static int hlua_socket_send(struct lua_State *L)
 	return MAY_LJMP(hlua_socket_write_yield(L, 0, 0));
 }
 
-#define SOCKET_INFO_EXPANDED_FORM "[0000:0000:0000:0000:0000:0000:0000:0000]:12345"
-static char _socket_info_expanded_form[] = SOCKET_INFO_EXPANDED_FORM;
-#define SOCKET_INFO_MAX_LEN (sizeof(_socket_info_expanded_form))
+#define SOCKET_INFO_MAX_LEN sizeof("[0000:0000:0000:0000:0000:0000:0000:0000]:12345")
 __LJMP static inline int hlua_socket_info(struct lua_State *L, struct sockaddr_storage *addr)
 {
 	static char buffer[SOCKET_INFO_MAX_LEN];
