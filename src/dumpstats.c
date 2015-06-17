@@ -5193,7 +5193,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
 			     sess->uniq_id,
-			     strm_li(sess) && strm_li(sess)->proto->name ? strm_li(sess)->proto->name : "?");
+			     strm_li(sess) ? strm_li(sess)->proto->name : "?");
 
 		conn = objt_conn(strm_orig(sess));
 		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
