@@ -4101,7 +4101,7 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 		return 0;
 
 	smp->data.str.str = (char *)SSL_SESSION_get_id(ssl_sess, (unsigned int *)&smp->data.str.len);
-	if (!smp->data.str.str || !&smp->data.str.len)
+	if (!smp->data.str.str || !smp->data.str.len)
 		return 0;
 
 	return 1;
