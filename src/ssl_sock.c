@@ -134,14 +134,7 @@ static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
 #endif /* OPENSSL_NO_DH */
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-struct certificate_ocsp {
-	struct ebmb_node key;
-	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
-	struct chunk response;
-	long expire;
-};
-
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* X509V3 Extensions that will be added on generated certificates */
 #define X509V3_EXT_SIZE 5
 static char *x509v3_ext_names[X509V3_EXT_SIZE] = {
@@ -162,6 +155,15 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 /* LRU cache to store generated certificate */
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
+#endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
+
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+struct certificate_ocsp {
+	struct ebmb_node key;
+	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
+	struct chunk response;
+	long expire;
+};
 
 /*
  *  This function returns the number of seconds  elapsed
@@ -1003,6 +1005,7 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 }
 #endif
 
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
 SSL_CTX *
@@ -1171,7 +1174,6 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 	return ssl_ctx;
 }
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
  * will keep being used.
@@ -5284,16 +5286,20 @@ static void __ssl_sock_init(void)
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 #endif
 
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	/* Add a global parameter for the LRU cache size */
 	if (global.tune.ssl_ctx_cache)
 		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
+#endif
 }
 
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	lru64_destroy(ssl_ctx_lru_tree);
+#endif
 
 #ifndef OPENSSL_NO_DH
         if (local_dh_1024) {
