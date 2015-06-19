@@ -10,6 +10,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
+#include <proto/vars.h>
 
 /* This contains a pool of struct vars */
 static struct pool_head *var_pool = NULL;
@@ -93,7 +94,33 @@ void vars_prune(struct vars *vars, struct stream *strm)
 		pool_free2(var_pool, var);
 		size += sizeof(struct var);
 	}
-	var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -size);
+	var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -size);
+}
+
+/* This function frees all the memory used by all the session variables in the
+ * list starting at <vars>.
+ */
+void vars_prune_per_sess(struct vars *vars)
+{
+	struct var *var, *tmp;
+	unsigned int size = 0;
+
+	list_for_each_entry_safe(var, tmp, &vars->head, l) {
+		if (var->data.type == SMP_T_STR ||
+		    var->data.type == SMP_T_BIN) {
+			free(var->data.data.str.str);
+			size += var->data.data.str.len;
+		}
+		else if (var->data.type == SMP_T_METH) {
+			free(var->data.data.meth.str.str);
+			size += var->data.data.meth.str.len;
+		}
+		LIST_DEL(&var->l);
+		pool_free2(var_pool, var);
+		size += sizeof(struct var);
+	}
+	vars->size      -= size;
+	var_global_size -= size;
 }
 
 /* This function init a list of variabes. */
@@ -207,7 +234,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 
 	/* Check the availibity of the variable. */
 	switch (var_desc->scope) {
-	case SCOPE_SESS: vars = &smp->strm->vars_sess;   break;
+	case SCOPE_SESS: vars = &smp->strm->sess->vars;  break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
@@ -245,16 +272,16 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
 			free(var->data.data.str.str);
-			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -var->data.data.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -var->data.data.str.len);
 		}
 		else if (var->data.type == SMP_T_METH) {
 			free(var->data.data.meth.str.str);
-			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -var->data.data.meth.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -var->data.data.meth.str.len);
 		}
 	} else {
 
 		/* Check memory avalaible. */
-		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, sizeof(struct var)))
+		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, sizeof(struct var)))
 			return 0;
 
 		/* Create new entry. */
@@ -283,13 +310,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
-		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, smp->data.str.len)) {
+		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.data.str.str = malloc(smp->data.str.len);
 		if (!var->data.data.str.str) {
-			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -smp->data.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
@@ -297,13 +324,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		memcpy(var->data.data.str.str, smp->data.str.str, var->data.data.str.len);
 		break;
 	case SMP_T_METH:
-		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, smp->data.meth.str.len)) {
+		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.meth.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.data.meth.str.str = malloc(smp->data.meth.str.len);
 		if (!var->data.data.meth.str.str) {
-			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -smp->data.meth.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.meth.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
@@ -323,7 +350,7 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope,
 	struct vars *vars;
 
 	switch (scope) {
-	case SCOPE_SESS: vars = &strm->vars_sess;   break;
+	case SCOPE_SESS: vars = &strm->sess->vars;  break;
 	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
@@ -399,7 +426,7 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 
 	/* Select "vars" pool according with the scope. */
 	switch (scope) {
-	case SCOPE_SESS: vars = &strm->vars_sess;   break;
+	case SCOPE_SESS: vars = &strm->sess->vars;  break;
 	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:

@@ -137,10 +137,9 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->req_cap = NULL;
 	s->res_cap = NULL;
 
-	/* Initialise alle the variable context even if will not use.
-	 * This permits to prune these context without errors.
+	/* Initialise all the variables contexts even if not used.
+	 * This permits to prune these contexts without errors.
 	 */
-	vars_init(&s->vars_sess,   SCOPE_SESS);
 	vars_init(&s->vars_txn,    SCOPE_TXN);
 	vars_init(&s->vars_reqres, SCOPE_REQ);
 
@@ -302,7 +301,6 @@ static void stream_free(struct stream *s)
 	}
 
 	/* Cleanup all variable contexts. */
-	vars_prune(&s->vars_sess, s);
 	vars_prune(&s->vars_txn, s);
 	vars_prune(&s->vars_reqres, s);
 

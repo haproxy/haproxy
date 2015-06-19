@@ -27,6 +27,7 @@
 #include <proto/raw_sock.h>
 #include <proto/session.h>
 #include <proto/stream.h>
+#include <proto/vars.h>
 
 struct pool_head *pool2_session;
 
@@ -59,6 +60,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->accept_date = date; /* user-visible date for logging */
 		sess->tv_accept   = now;  /* corrected date for internal use */
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
+		vars_init(&sess->vars, SCOPE_SESS);
 	}
 	return sess;
 }
@@ -66,6 +68,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 void session_free(struct session *sess)
 {
 	session_store_counters(sess);
+	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
 }
 
