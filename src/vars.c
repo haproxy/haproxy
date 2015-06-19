@@ -29,42 +29,45 @@ static unsigned int var_sess_limit = 0;
 static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 
-/* This function adds or remove memory size from the accounting. */
-static void var_accounting_diff(struct vars *vars, struct stream *strm, int size)
+/* This function adds or remove memory size from the accounting. The inner
+ * pointers may be null when setting the outer ones only.
+ */
+static void var_accounting_diff(struct vars *vars, struct vars *per_sess, struct vars *per_strm, struct vars *per_chn, int size)
 {
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		strm->vars_reqres.size += size;
+		per_chn->size += size;
 	case SCOPE_TXN:
-		strm->vars_txn.size += size;
+		per_strm->size += size;
 	case SCOPE_SESS:
-		strm->vars_sess.size += size;
+		per_sess->size += size;
 		var_global_size += size;
 	}
 }
 
 /* This function returns 1 if the <size> is available in the var
  * pool <vars>, otherwise returns 0. If the space is avalaible,
- * the size is reserved.
+ * the size is reserved. The inner pointers may be null when setting
+ * the outer ones only.
  */
-static int var_accounting_add(struct vars *vars, struct stream *strm, int size)
+static int var_accounting_add(struct vars *vars, struct vars *per_sess, struct vars *per_strm, struct vars *per_chn, int size)
 {
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		if (var_reqres_limit && strm->vars_reqres.size + size > var_reqres_limit)
+		if (var_reqres_limit && per_chn->size + size > var_reqres_limit)
 			return 0;
 	case SCOPE_TXN:
-		if (var_txn_limit && strm->vars_txn.size + size > var_txn_limit)
+		if (var_txn_limit && per_strm->size + size > var_txn_limit)
 			return 0;
 	case SCOPE_SESS:
-		if (var_sess_limit && strm->vars_sess.size + size > var_sess_limit)
+		if (var_sess_limit && per_sess->size + size > var_sess_limit)
 			return 0;
 		if (var_global_limit && var_global_size + size > var_global_limit)
 			return 0;
 	}
-	var_accounting_diff(vars, strm, size);
+	var_accounting_diff(vars, per_sess, per_strm, per_chn, size);
 	return 1;
 }
 
@@ -74,21 +77,23 @@ static int var_accounting_add(struct vars *vars, struct stream *strm, int size)
 void vars_prune(struct vars *vars, struct stream *strm)
 {
 	struct var *var, *tmp;
+	unsigned int size = 0;
 
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
 			free(var->data.data.str.str);
-			var_accounting_diff(vars, strm, -var->data.data.str.len);
+			size += var->data.data.str.len;
 		}
 		else if (var->data.type == SMP_T_METH) {
 			free(var->data.data.meth.str.str);
-			var_accounting_diff(vars, strm, -var->data.data.meth.str.len);
+			size += var->data.data.meth.str.len;
 		}
 		LIST_DEL(&var->l);
 		pool_free2(var_pool, var);
-		var_accounting_diff(vars, strm, -(int)sizeof(struct var));
+		size += sizeof(struct var);
 	}
+	var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -size);
 }
 
 /* This function init a list of variabes. */
@@ -240,16 +245,16 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
 			free(var->data.data.str.str);
-			var_accounting_diff(vars, strm, -var->data.data.str.len);
+			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -var->data.data.str.len);
 		}
 		else if (var->data.type == SMP_T_METH) {
 			free(var->data.data.meth.str.str);
-			var_accounting_diff(vars, strm, -var->data.data.meth.str.len);
+			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -var->data.data.meth.str.len);
 		}
 	} else {
 
 		/* Check memory avalaible. */
-		if (!var_accounting_add(vars, strm, sizeof(struct var)))
+		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, sizeof(struct var)))
 			return 0;
 
 		/* Create new entry. */
@@ -278,13 +283,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
-		if (!var_accounting_add(vars, strm, smp->data.str.len)) {
+		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, smp->data.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.data.str.str = malloc(smp->data.str.len);
 		if (!var->data.data.str.str) {
-			var_accounting_diff(vars, strm, -smp->data.str.len);
+			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -smp->data.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
@@ -292,13 +297,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		memcpy(var->data.data.str.str, smp->data.str.str, var->data.data.str.len);
 		break;
 	case SMP_T_METH:
-		if (!var_accounting_add(vars, strm, smp->data.meth.str.len)) {
+		if (!var_accounting_add(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, smp->data.meth.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.data.meth.str.str = malloc(smp->data.meth.str.len);
 		if (!var->data.data.meth.str.str) {
-			var_accounting_diff(vars, strm, -smp->data.meth.str.len);
+			var_accounting_diff(vars, &strm->vars_sess, &strm->vars_txn, &strm->vars_reqres, -smp->data.meth.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
