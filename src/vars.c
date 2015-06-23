@@ -449,7 +449,9 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 	return 1;
 }
 
-/* Returns 0 if miss data, else returns 1. */
+/* Returns 0 if we need to come back later to complete the sample's retrieval,
+ * otherwise 1. For now all processing is considered final so we only return 1.
+ */
 static inline int action_store(struct sample_expr *expr, const char *name,
                                enum vars_scope scope, struct proxy *px,
                                struct stream *s, int sens)
@@ -459,7 +461,7 @@ static inline int action_store(struct sample_expr *expr, const char *name,
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
 	if (!sample_process(px, s->sess, s, sens|SMP_OPT_FINAL, expr, &smp))
-		return 0;
+		return 1;
 
 	/* Store the sample, and ignore errors. */
 	sample_store_stream(name, scope, s, &smp);
