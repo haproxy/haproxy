@@ -144,7 +144,6 @@ struct stream {
 
 	char **req_cap;                         /* array of captures from the request (may be NULL) */
 	char **res_cap;                         /* array of captures from the response (may be NULL) */
-	struct vars vars_sess;                  /* list of variables for the session scope. */
 	struct vars vars_txn;                   /* list of variables for the txn scope. */
 	struct vars vars_reqres;                /* list of variables for the request and resp scope. */
 
