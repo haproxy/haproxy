@@ -6,6 +6,7 @@
 #include <proto/log.h>
 #include <proto/sample.h>
 #include <import/xxhash.h>
+#include <import/lru.h>
 
 #include <import/51d.h>
 
@@ -13,6 +14,9 @@ struct _51d_property_names {
 	struct list list;
 	char *name;
 };
+
+static struct lru64_head *_51d_lru_tree = NULL;
+static unsigned long long _51d_lru_seed;
 
 static int _51d_data_file(char **args, int section_type, struct proxy *curpx,
                           struct proxy *defpx, const char *file, int line,
@@ -78,6 +82,28 @@ static int _51d_property_separator(char **args, int section_type, struct proxy *
 	return 0;
 }
 
+static int _51d_cache_size(char **args, int section_type, struct proxy *curpx,
+                           struct proxy *defpx, const char *file, int line,
+                           char **err)
+{
+	if (*(args[1]) == 0) {
+		memprintf(err,
+		          "'%s' expects a positive numeric value.",
+		          args[0]);
+		return -1;
+	}
+
+	global._51degrees.cache_size = atoi(args[1]);
+	if (global._51degrees.cache_size < 0) {
+		memprintf(err,
+		          "'%s' expects a positive numeric value, got '%s'.",
+		          args[0], args[1]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 {
 	int i;
@@ -92,6 +118,20 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	int device_offset;
 	int property_index;
 #endif
+	struct lru64 *lru = NULL;
+
+	/* Look in the list. */
+	if (_51d_lru_tree) {
+		unsigned long long seed = _51d_lru_seed ^ (long)args;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+		                _51d_lru_tree, global._51degrees.data_file_path, 0);
+		if (lru && lru->domain) {
+			smp->data.str.str = lru->data;
+			smp->data.str.len = strlen(smp->data.str.str);
+			return 1;
+		}
+	}
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	/* Create workset. This will later contain detection results. */
@@ -157,6 +197,9 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesFreeWorkset(ws);
 #endif
+
+	if (lru)
+		lru64_commit(lru, strdup(smp->data.str.str), global._51degrees.data_file_path, 0, free);
 
 	return 1;
 }
@@ -228,6 +271,10 @@ int init_51degrees(void)
 	}
 	free(_51d_property_list);
 
+	_51d_lru_seed = random();
+	if (global._51degrees.cache_size)
+		_51d_lru_tree = lru64_new(global._51degrees.cache_size);
+
 	return 0;
 }
 
@@ -247,12 +294,15 @@ void deinit_51degrees(void)
 		LIST_DEL(&_51d_prop_name->list);
 		free(_51d_prop_name);
 	}
+
+	while (lru64_destroy(_51d_lru_tree));
 }
 
 static struct cfg_kw_list _51dcfg_kws = {{ }, {
 	{ CFG_GLOBAL, "51degrees-data-file", _51d_data_file },
 	{ CFG_GLOBAL, "51degrees-property-name-list", _51d_property_name_list },
 	{ CFG_GLOBAL, "51degrees-property-separator", _51d_property_separator },
+	{ CFG_GLOBAL, "51degrees-cache-size", _51d_cache_size },
 	{ 0, NULL, NULL },
 }};
 

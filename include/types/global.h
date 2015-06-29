@@ -193,6 +193,7 @@ struct global {
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 		fiftyoneDegreesDataSet data_set; /* data set used with the pattern detection method. */
 #endif
+		int cache_size;
 	} _51degrees;
 #endif
 };
