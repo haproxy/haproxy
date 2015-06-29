@@ -33,7 +33,7 @@
 #include <types/task.h>
 
 #ifdef USE_51DEGREES
-#include <51Degrees.h>
+#include <import/51d.h>
 #endif
 
 #ifndef UNIX_MAX_PATH
@@ -185,24 +185,17 @@ struct global {
 		char separator;
 	} deviceatlas;
 #endif
-
 #ifdef USE_51DEGREES
-	char _51d_property_seperator;    /* the seperator to use in the response for the values. this is taken from 51degrees-property-seperator from config. */
-	struct list _51d_property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
-	char * _51d_data_file_path;
+	struct {
+		char property_separator;    /* the separator to use in the response for the values. this is taken from 51degrees-property-separator from config. */
+		struct list property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
+		char *data_file_path;
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	fiftyoneDegreesDataSet _51d_data_set; /* data set used with the pattern detection method. */
+		fiftyoneDegreesDataSet data_set; /* data set used with the pattern detection method. */
 #endif
-
+	} _51degrees;
 #endif
 };
-
-#ifdef USE_51DEGREES
-struct _51d_property_names {
-	struct list list;
-	char *name;
-};
-#endif
 
 extern struct global global;
 extern int  pid;                /* current process id */

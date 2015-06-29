@@ -39,7 +39,7 @@
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
 #   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
-#   USE_51DEGREES        : enable third party device detection library from 51degrees
+#   USE_51DEGREES        : enable third party device detection library from 51Degrees
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -604,7 +604,7 @@ endif
 
 ifneq ($(USE_DEVICEATLAS),)
 # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
-# to 51degrees headers and libraries if needed.
+# to DeviceAtlas headers and libraries if needed.
 DEVICEATLAS_SRC =
 DEVICEATLAS_INC = $(DEVICEATLAS_SRC)
 DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
@@ -621,6 +621,8 @@ ifneq ($(USE_51DEGREES),)
 51DEGREES_SRC =
 51DEGREES_INC = $(51DEGREES_SRC)
 51DEGREES_LIB = $(51DEGREES_SRC)
+OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
+OPTIONS_OBJS    += src/51d.o
 OPTIONS_CFLAGS  += -DUSE_51DEGREES $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
 BUILD_OPTIONS   += $(call ignore_implicit,USE_51DEGREES)
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lz
@@ -742,10 +744,6 @@ EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
 
 ifneq ($(TRACE),)
 OBJS += src/trace.o
-endif
-
-ifneq ($(USE_51DEGREES),)
-OBJS += $(51DEGREES_SRC)/51Degrees.o
 endif
 
 WRAPPER_OBJS = src/haproxy-systemd-wrapper.o

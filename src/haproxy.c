@@ -117,7 +117,7 @@
 #endif
 
 #ifdef USE_51DEGREES
-#include <51Degrees.h>
+#include <import/51d.h>
 #endif
 
 /*********************************************************************/
@@ -189,7 +189,14 @@ struct global global = {
 	},
 #endif
 #ifdef USE_51DEGREES
-	._51d_property_names = LIST_HEAD_INIT(global._51d_property_names),
+	._51degrees = {
+		.property_separator = ',',
+		.property_names = LIST_HEAD_INIT(global._51degrees.property_names),
+		.data_file_path = NULL,
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+		.data_set = { },
+#endif
+	},
 #endif
 	/* others NULL OK */
 };
@@ -550,12 +557,6 @@ void init(int argc, char **argv)
 	char *progname;
 	char *change_dir = NULL;
 	struct tm curtime;
-#ifdef USE_51DEGREES
-	int i = 0;
-	struct _51d_property_names *name;
-	char **_51d_property_list = NULL;
-	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
-#endif
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 	alloc_trash_buffers(global.tune.bufsize);
@@ -818,6 +819,9 @@ void init(int argc, char **argv)
 	init_buffer();
 #if defined(USE_DEVICEATLAS)
 	init_deviceatlas();
+#endif
+#ifdef USE_51DEGREES
+	init_51degrees();
 #endif
 
 	if (have_appsession)
@@ -1106,65 +1110,6 @@ void init(int argc, char **argv)
 	/* initialize structures for name resolution */
 	if (!dns_init_resolvers())
 		exit(1);
-
-#ifdef USE_51DEGREES
-	if (!LIST_ISEMPTY(&global._51d_property_names)) {
-		i = 0;
-		list_for_each_entry(name, &global._51d_property_names, list)
-			++i;
-		_51d_property_list = calloc(i, sizeof(char *));
-
-		i = 0;
-		list_for_each_entry(name, &global._51d_property_names, list)
-			_51d_property_list[i++] = name->name;
-	}
-
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, _51d_property_list, i);
-#endif
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, &global._51d_data_set, _51d_property_list, i);
-#endif
-	chunk_reset(&trash);
-
-	switch (_51d_dataset_status) {
-		case DATA_SET_INIT_STATUS_SUCCESS:
-			break;
-		case DATA_SET_INIT_STATUS_INSUFFICIENT_MEMORY:
-			chunk_printf(&trash, "Insufficient memory.");
-			break;
-		case DATA_SET_INIT_STATUS_CORRUPT_DATA:
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-			chunk_printf(&trash, "Corrupt data file. Check that the data file provided is uncompressed and Trie data format.");
-#endif
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-			chunk_printf(&trash, "Corrupt data file. Check that the data file provided is uncompressed and Pattern data format.");
-#endif
-			break;
-		case DATA_SET_INIT_STATUS_INCORRECT_VERSION:
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-			chunk_printf(&trash, "Incorrect version. Check that the data file provided is uncompressed and Trie data format.");
-#endif
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-			chunk_printf(&trash, "Incorrect version. Check that the data file provided is uncompressed and Pattern data format.");
-#endif
-			break;
-		case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
-			chunk_printf(&trash, "File not found.");
-			break;
-		case DATA_SET_INIT_STATUS_NOT_SET:
-			chunk_printf(&trash, "Data set not initialised.");
-			break;
-	}
-	if (_51d_dataset_status != DATA_SET_INIT_STATUS_SUCCESS) {
-		if (trash.len)
-			Alert("51Degrees Setup - Error reading 51Degrees data file. %s\n", trash.str);
-		else
-			Alert("51Degrees Setup - Error reading 51Degrees data file.\n");
-		exit(1);
-	}
-	free(_51d_property_list);
-#endif // USE_51DEGREES
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)
@@ -1261,9 +1206,6 @@ void deinit(void)
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
 	struct bind_conf *bind_conf, *bind_back;
-#ifdef USE_51DEGREES
-	struct _51d_property_names *_51d_prop_name, *_51d_prop_nameb;
-#endif
 	int i;
 
 	deinit_signals();
@@ -1517,18 +1459,8 @@ void deinit(void)
 #endif
 
 #ifdef USE_51DEGREES
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-	fiftyoneDegreesDestroy();
+	deinit_51degrees();
 #endif
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	fiftyoneDegreesDestroy(&global._51d_data_set);
-#endif
-	free(global._51d_data_file_path); global._51d_data_file_path = NULL;
-	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global._51d_property_names, list) {
-		LIST_DEL(&_51d_prop_name->list);
-		free(_51d_prop_name);
-	}
-#endif // USE_51DEGREES
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
 	free(global.log_tag); global.log_tag = NULL;

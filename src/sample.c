@@ -32,10 +32,6 @@
 #include <proto/sample.h>
 #include <proto/stick_table.h>
 
-#ifdef USE_51DEGREES
-#include <51Degrees.h>
-#endif
-
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_ANY]  = "any",
@@ -2187,122 +2183,6 @@ static int sample_conv_arith_even(const struct arg *arg_p,
 	return 1;
 }
 
-#ifdef USE_51DEGREES
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-static int
-sample_fiftyone_degrees(const struct arg *args, struct sample *smp, void *private)
-{
-	int i; // used in loops.
-	int device_offset;
-	int property_index;
-	char no_data[] = "NoData"; // response when no data could be found.
-	struct chunk *tmp;
-
-	// use a temporary trash buffer and copy data in it
-	smp->data.str.str[smp->data.str.len] = '\0';
-
-	// perform detection.
-	device_offset = fiftyoneDegreesGetDeviceOffset(smp->data.str.str);
-
-	i = 0;
-	tmp = get_trash_chunk();
-	chunk_reset(tmp);
-
-	// loop through property names passed to the filter and fetch them from the dataset.
-	while (args[i].data.str.str) {
-		// try to find request property in dataset.
-		property_index = fiftyoneDegreesGetPropertyIndex(args[i].data.str.str);
-		if (property_index > 0) {
-			chunk_appendf(tmp, "%s", fiftyoneDegreesGetValue(device_offset, property_index));
-		}
-		else {
-			chunk_appendf(tmp, "%s", no_data);
-		}
-		// add seperator
-		if (global._51d_property_seperator)
-			chunk_appendf(tmp, "%c", global._51d_property_seperator);
-		else
-			chunk_appendf(tmp, ",");
-		++i;
-	}
-
-	if (tmp->len) {
-		--tmp->len;
-		tmp->str[tmp->len] = '\0';
-	}
-
-	smp->data.str.str = tmp->str;
-	smp->data.str.len = strlen(smp->data.str.str);
-
-	return 1;
-}
-#endif // FIFTYONEDEGREES_H_TRIE_INCLUDED
-
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-static int
-sample_fiftyone_degrees(const struct arg *args, struct sample *smp, void *private)
-{
-	int i, j, found; // used in loops.
-	fiftyoneDegreesWorkset* ws; // workset for detection.
-	char no_data[] = "NoData"; // response when no data could be found.
-	const char* property_name;
-	struct chunk *tmp;
-
-	// use a temporary trash buffer and copy data in it
-	smp->data.str.str[smp->data.str.len] = '\0';
-
-	// create workset. this will later contain detection results.
-	ws = fiftyoneDegreesCreateWorkset(&global._51d_data_set);
-	if (!ws)
-		return 0;
-
-	// perform detection.
-	fiftyoneDegreesMatch(ws, smp->data.str.str);
-
-	i = 0;
-	tmp = get_trash_chunk();
-	chunk_reset(tmp);
-	// loop through property names passed to the filter and fetch them from the dataset.
-	while (args[i].data.str.str) {
-		found = j = 0;
-		// try to find request property in dataset.
-		for (j = 0; j < ws->dataSet->requiredPropertyCount; j++) {
-			property_name = fiftyoneDegreesGetPropertyName(ws->dataSet, ws->dataSet->requiredProperties[j]);
-			if (strcmp(property_name, args[i].data.str.str) == 0) {
-				found = 1;
-				fiftyoneDegreesSetValues(ws, j);
-				chunk_appendf(tmp, "%s", fiftyoneDegreesGetValueName(ws->dataSet, *ws->values));
-				break;
-			}
-		}
-		if (!found) {
-			chunk_appendf(tmp, "%s", no_data);
-		}
-
-		// add seperator
-		if (global._51d_property_seperator)
-			chunk_appendf(tmp, "%c", global._51d_property_seperator);
-		else
-			chunk_appendf(tmp, ",");
-		++i;
-	}
-
-	if (tmp->len) {
-		--tmp->len;
-		tmp->str[tmp->len] = '\0';
-	}
-
-	smp->data.str.str = tmp->str;
-	smp->data.str.len = strlen(smp->data.str.str);
-
-	fiftyoneDegreesFreeWorkset(ws);
-
-	return 1;
-}
-#endif // FIFTYONEDEGREES_H_PATTERN_INCLUDED
-#endif // USE_51DEGREES
-
-
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -2596,9 +2476,6 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
 	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
 	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_UINT, SMP_T_UINT },
-#ifdef USE_51DEGREES
-	{ "51d",    sample_fiftyone_degrees,ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
-#endif
 
 	{ NULL, NULL, 0, 0, 0 },
 }};

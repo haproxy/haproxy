@@ -542,7 +542,7 @@ The following keywords are supported in the "global" section :
    - unix-bind
    - 51degrees-data-file
    - 51degrees-property-name-list
-   - 51degrees-property-seperator
+   - 51degrees-property-separator
 
  * Performance tuning
    - max-spread-checks
@@ -886,7 +886,7 @@ description <text>
   Please note that this options is only available when haproxy has been
   compiled with USE_51DEGREES.
 
-51degrees-property-seperator <char>
+51degrees-property-separator <char>
   A char that will be appended to every property value in a response header
   containing 51Degrees results. If not set that will be set as ','.
 
