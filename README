@@ -283,12 +283,14 @@ The configuration file needs to set the following parameters:
     51degrees-data-file           path to the pattern or trie data file
     51degrees-property-name-list  list of 51Degrees properties to detect
     51degrees-property-separator  separator to use between values
+    51degrees-cache-size          LRU-based cache size (disabled by default)
 
 The following is an example of the settings for Pattern.
 
     51degrees-data-file '51D_REPO_PATH'/data/51Degrees-Lite.dat
     51degrees-property-name-list IsTablet DeviceType IsMobile
     51degrees-property-separator ,
+    51degrees-cache-size 10000
 
 HAProxy needs a way to pass device information to the backend servers. This is
 done by using the 51d converter, which intercepts the User-Agent header and

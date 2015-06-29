@@ -543,6 +543,7 @@ The following keywords are supported in the "global" section :
    - 51degrees-data-file
    - 51degrees-property-name-list
    - 51degrees-property-separator
+   - 51degrees-cache-size
 
  * Performance tuning
    - max-spread-checks
@@ -875,7 +876,7 @@ description <text>
   The path of the 51Degrees data file to provide device detection services. The
   file should be unzipped and accessible by HAProxy with relevavnt permissions.
 
-  Please note that this options is only available when haproxy has been
+  Please note that this option is only available when haproxy has been
   compiled with USE_51DEGREES.
 
 51degrees-property-name-list [<string>]
@@ -883,14 +884,22 @@ description <text>
   of names is available on the 51Degrees website:
   https://51degrees.com/resources/property-dictionary
 
-  Please note that this options is only available when haproxy has been
+  Please note that this option is only available when haproxy has been
   compiled with USE_51DEGREES.
 
 51degrees-property-separator <char>
   A char that will be appended to every property value in a response header
   containing 51Degrees results. If not set that will be set as ','.
 
-  Please note that this options is only available when haproxy has been
+  Please note that this option is only available when haproxy has been
+  compiled with USE_51DEGREES.
+
+51degrees-cache-size <number>
+  Sets the size of the 51Degrees converter cache to <number> entries. This
+  is an LRU cache which reminds previous device detections and their results.
+  By default, this cache is disabled.
+
+  Please note that this option is only available when haproxy has been
   compiled with USE_51DEGREES.
 
 
