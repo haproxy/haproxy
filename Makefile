@@ -99,7 +99,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
 #    generic, linux22, linux24, linux24e, linux26, solaris,
-#    freebsd, openbsd, cygwin, custom, aix51, aix52
+#    freebsd, openbsd, netbsd, cygwin, custom, aix51, aix52
 TARGET =
 
 #### TARGET CPU
@@ -309,6 +309,12 @@ ifeq ($(TARGET),openbsd)
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
 else
+ifeq ($(TARGET),netbsd)
+  # This is for NetBSD
+  USE_POLL       = implicit
+  USE_KQUEUE     = implicit
+  USE_TPROXY     = implicit
+else
 ifeq ($(TARGET),aix51)
   # This is for AIX 5.1
   USE_POLL        = implicit
@@ -332,6 +338,7 @@ ifeq ($(TARGET),cygwin)
 endif # cygwin
 endif # aix52
 endif # aix51
+endif # netbsd
 endif # openbsd
 endif # osx
 endif # freebsd
