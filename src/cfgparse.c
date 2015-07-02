@@ -7211,7 +7211,7 @@ int check_config_validity()
 			/* an explicit bind-process was specified, let's check how many
 			 * processes remain.
 			 */
-			nbproc = popcount(curproxy->bind_proc);
+			nbproc = my_popcountl(curproxy->bind_proc);
 
 			curproxy->bind_proc &= nbits(global.nbproc);
 			if (!curproxy->bind_proc && nbproc == 1) {
@@ -7236,7 +7236,7 @@ int check_config_validity()
 				mask &= curproxy->bind_proc;
 			/* mask cannot be null here thanks to the previous checks */
 
-			nbproc = popcount(bind_conf->bind_proc);
+			nbproc = my_popcountl(bind_conf->bind_proc);
 			bind_conf->bind_proc &= mask;
 
 			if (!bind_conf->bind_proc && nbproc == 1) {
@@ -8322,7 +8322,7 @@ out_uri_auth_compat:
 				mask &= bind_conf->bind_proc;
 
 			/* stop here if more than one process is used */
-			if (popcount(mask) > 1)
+			if (my_popcountl(mask) > 1)
 				break;
 		}
 		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
@@ -8385,7 +8385,7 @@ out_uri_auth_compat:
 		unsigned int next_id;
 		int nbproc;
 
-		nbproc = popcount(curproxy->bind_proc & nbits(global.nbproc));
+		nbproc = my_popcountl(curproxy->bind_proc & nbits(global.nbproc));
 
 #ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
@@ -8513,7 +8513,7 @@ out_uri_auth_compat:
 				int count, maxproc = 0;
 
 				list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-					count = popcount(bind_conf->bind_proc);
+					count = my_popcountl(bind_conf->bind_proc);
 					if (count > maxproc)
 						maxproc = count;
 				}
@@ -8652,13 +8652,13 @@ out_uri_auth_compat:
 				Warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
 					curpeers->id, localpeer);
 			}
-			else if (popcount(curpeers->peers_fe->bind_proc) != 1) {
+			else if (my_popcountl(curpeers->peers_fe->bind_proc) != 1) {
 				/* either it's totally stopped or too much used */
 				if (curpeers->peers_fe->bind_proc) {
 					Alert("Peers section '%s': peers referenced by sections "
 					      "running in different processes (%d different ones). "
 					      "Check global.nbproc and all tables' bind-process "
-					      "settings.\n", curpeers->id, popcount(curpeers->peers_fe->bind_proc));
+					      "settings.\n", curpeers->id, my_popcountl(curpeers->peers_fe->bind_proc));
 					cfgerr++;
 				}
 				stop_proxy(curpeers->peers_fe);

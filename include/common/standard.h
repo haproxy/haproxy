@@ -621,8 +621,8 @@ static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
 	return result;
 }
 
-/* Simple popcount implementation. It returns the number of ones in a word */
-static inline unsigned int popcount(unsigned long a)
+/* Simple popcountl implementation. It returns the number of ones in a word */
+static inline unsigned int my_popcountl(unsigned long a)
 {
 	unsigned int cnt;
 	for (cnt = 0; a; a >>= 1) {
@@ -632,7 +632,7 @@ static inline unsigned int popcount(unsigned long a)
 	return cnt;
 }
 
-/* Build a word with the <bits> lower bits set (reverse of popcount) */
+/* Build a word with the <bits> lower bits set (reverse of my_popcountl) */
 static inline unsigned long nbits(int bits)
 {
 	if (--bits < 0)
