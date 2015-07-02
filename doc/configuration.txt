@@ -10241,8 +10241,8 @@ weight <weight>
   Supported in default-server: Yes
 
 
-5.3 Server IP address resolution using DNS
-------------------------------------------
+5.3. Server IP address resolution using DNS
+-------------------------------------------
 
 HAProxy allows using a host name to be resolved to find out what is the server
 IP address. By default, HAProxy resolves the name when parsing the
@@ -10256,8 +10256,8 @@ Whether run time server name resolution has been enable or not, HAProxy will
 carry on doing the first resolution when parsing the configuration.
 
 
-5.3.1 Global overview
----------------------
+5.3.1. Global overview
+----------------------
 
 As we've seen in introduction, name resolution in HAProxy occurs at two
 different steps of the process life:
@@ -10283,8 +10283,8 @@ A few things important to notice:
     servers return an error.
 
 
-5.3.2 The resolvers section
----------------------------
+5.3.2. The resolvers section
+----------------------------
 
 This section is dedicated to host information related to name resolution in
 HAProxy.
