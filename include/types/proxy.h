@@ -186,6 +186,11 @@ enum pr_mode {
 #define STK_IS_STORE	0x00000002	/* store on request fetch */
 #define STK_ON_RSP	0x00000004	/* store on response fetch */
 
+/* diff bits for proxy_find_best_match */
+#define PR_FBM_MISMATCH_ID        0x01
+#define PR_FBM_MISMATCH_NAME      0x02
+#define PR_FBM_MISMATCH_PROXYTYPE 0x04
+
 struct stream;
 
 struct error_snapshot {

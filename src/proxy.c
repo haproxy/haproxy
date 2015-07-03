@@ -533,9 +533,12 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
  *    ok  ok  ok  | perfect match
  *
  * Upon return if <diff> is not NULL, it is zeroed then filled with up to 3 bits :
- *   - 0x01 : proxy was found but ID differs (and ID was not zero)
- *   - 0x02 : proxy was found by ID but name differs (and name was not NULL)
- *   - 0x04 : a proxy of different type was found with the same name and/or id
+ *   - PR_FBM_MISMATCH_ID        : proxy was found but ID differs
+ *                                 (and ID was not zero)
+ *   - PR_FBM_MISMATCH_NAME      : proxy was found by ID but name differs
+ *                                 (and name was not NULL)
+ *   - PR_FBM_MISMATCH_PROXYTYPE : a proxy of different type was found with
+ *                                 the same name and/or id
  *
  * Only a valid proxy is returned. If capabilities do not match, NULL is
  * returned. The caller can check <diff> to report detailed warnings / errors,
@@ -574,12 +577,12 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 				 */
 				if (byid->options & PR_O_FORCED_ID) {
 					if (diff)
-						*diff |= 2;
+						*diff |= PR_FBM_MISMATCH_NAME;
 					return byid;
 				}
 				else {
 					if (diff)
-						*diff |= 1;
+						*diff |= PR_FBM_MISMATCH_ID;
 					return byname;
 				}
 			}
@@ -589,14 +592,14 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 			 *   - name set but not found
 			 */
 			if (name && diff)
-				*diff |= 2;
+				*diff |= PR_FBM_MISMATCH_NAME;
 			return byid;
 		}
 
 		/* ID not found */
 		if (byname) {
 			if (diff)
-				*diff |= 1;
+				*diff |= PR_FBM_MISMATCH_ID;
 			return byname;
 		}
 	}
@@ -615,16 +618,16 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 	if (name) {
 		byname = proxy_find_by_name(name, 0, 0);
 		if (byname && (!id || byname->uuid == id))
-			*diff |= 4;
+			*diff |= PR_FBM_MISMATCH_PROXYTYPE;
 	}
 
 	if (id) {
 		byid = proxy_find_by_id(id, 0, 0);
 		if (byid) {
 			if (!name)
-				*diff |= 4; /* only type changed */
+				*diff |= PR_FBM_MISMATCH_PROXYTYPE; /* only type changed */
 			else if (byid->options & PR_O_FORCED_ID)
-				*diff |= 2 | 4; /* name and type changed */
+				*diff |= PR_FBM_MISMATCH_NAME | PR_FBM_MISMATCH_PROXYTYPE; /* name and type changed */
 			/* otherwise it's a different proxy that was returned */
 		}
 	}
