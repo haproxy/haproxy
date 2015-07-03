@@ -112,6 +112,9 @@ struct appctx {
 		struct {
 			struct dns_resolvers *ptr;
 		} resolvers;
+		struct {
+			struct proxy *backend;
+		} server_state;
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 
