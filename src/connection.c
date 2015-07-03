@@ -340,6 +340,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	struct proxy_hdr_v2 *hdr_v2;
 	const char v2sig[] = PP2_SIGNATURE;
 	int tlv_length = 0;
+	int tlv_offset = 0;
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
@@ -529,6 +530,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
 			((struct sockaddr_in *)&conn->addr.to)->sin_port = hdr_v2->addr.ip4.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET;
 			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET;
 			break;
 		case 0x21:  /* TCPv6 */
@@ -542,14 +544,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			memcpy(&((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
 			((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = hdr_v2->addr.ip6.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET6;
 			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET6;
 			break;
 		}
 
 		/* TLV parsing */
 		if (tlv_length > 0) {
-			int tlv_offset = trash.len - tlv_length;
-
 			while (tlv_offset + TLV_HEADER_SIZE <= trash.len) {
 				const struct tlv *tlv_packet = (struct tlv *) &trash.str[tlv_offset];
 				const int tlv_len = get_tlv_length(tlv_packet);
