@@ -1158,7 +1158,10 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		if (ret) {
 resume_execution:
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_REJECT) {
+			if (rule->action == TCP_ACT_ACCEPT) {
+				break;
+			}
+			else if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(req);
 				channel_abort(&s->res);
 				req->analysers = 0;
@@ -1323,7 +1326,10 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		if (ret) {
 resume_execution:
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_REJECT) {
+			if (rule->action == TCP_ACT_ACCEPT) {
+				break;
+			}
+			else if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(rep);
 				channel_abort(&s->req);
 				rep->analysers = 0;
@@ -1399,7 +1405,10 @@ int tcp_exec_req_rules(struct session *sess)
 
 		if (ret) {
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_REJECT) {
+			if (rule->action == TCP_ACT_ACCEPT) {
+				break;
+			}
+			else if (rule->action == TCP_ACT_REJECT) {
 				sess->fe->fe_counters.denied_conn++;
 				if (sess->listener->counters)
 					sess->listener->counters->denied_conn++;
