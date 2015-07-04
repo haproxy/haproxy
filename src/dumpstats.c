@@ -2827,12 +2827,22 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
-		              "<td>%s%s<div class=tips>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
+		              "<td>%s%s<div class=tips><table class=det>"
+			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression out:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "<tr><th>Compression bypass:</th><td>%s</td></tr>"
+			      "<tr><th>Total bytes saved:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "</table></div>%s</td>",
 		              (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "<u>":"",
 		              U2H(px->fe_counters.bytes_out),
-		              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp,
-		              px->fe_counters.comp_in ?
-		              (int)((px->fe_counters.comp_in - px->fe_counters.comp_out)*100/px->fe_counters.comp_in) : 0,
+		              U2H(px->fe_counters.bytes_out),
+		              U2H(px->fe_counters.comp_in),
+			      U2H(px->fe_counters.comp_out),
+			      px->fe_counters.comp_in ? (int)(px->fe_counters.comp_out * 100 / px->fe_counters.comp_in) : 0,
+			      U2H(px->fe_counters.comp_byp),
+			      U2H(px->fe_counters.comp_in - px->fe_counters.comp_out),
+			      px->fe_counters.bytes_out ? (int)((px->fe_counters.comp_in - px->fe_counters.comp_out) * 100 / px->fe_counters.bytes_out) : 0,
 		              (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "</u>":"");
 
 		chunk_appendf(&trash,
@@ -3642,12 +3652,22 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
-		              "<td>%s%s<div class=tips>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
+		              "<td>%s%s<div class=tips><table class=det>"
+			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression out:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "<tr><th>Compression bypass:</th><td>%s</td></tr>"
+			      "<tr><th>Total bytes saved:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "</table></div>%s</td>",
 		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "<u>":"",
 		              U2H(px->be_counters.bytes_out),
-		              px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp,
-		              px->be_counters.comp_in ?
-		              (int)((px->be_counters.comp_in - px->be_counters.comp_out)*100/px->be_counters.comp_in) : 0,
+		              U2H(px->be_counters.bytes_out),
+		              U2H(px->be_counters.comp_in),
+			      U2H(px->be_counters.comp_out),
+			      px->be_counters.comp_in ? (int)(px->be_counters.comp_out * 100 / px->be_counters.comp_in) : 0,
+			      U2H(px->be_counters.comp_byp),
+			      U2H(px->be_counters.comp_in - px->be_counters.comp_out),
+			      px->be_counters.bytes_out ? (int)((px->be_counters.comp_in - px->be_counters.comp_out) * 100 / px->be_counters.bytes_out) : 0,
 		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "</u>":"");
 
 		chunk_appendf(&trash,
