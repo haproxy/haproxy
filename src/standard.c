@@ -408,6 +408,35 @@ char *ultoa_r(unsigned long n, char *buffer, int size)
 
 /*
  * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal.
+ */
+char *lltoa_r(long long int in, char *buffer, int size)
+{
+	char *pos;
+	int neg = 0;
+	unsigned long long int n;
+
+	pos = buffer + size - 1;
+	*pos-- = '\0';
+
+	if (in < 0) {
+		neg = 1;
+		n = -in;
+	}
+	else
+		n = in;
+
+	do {
+		*pos-- = '0' + n % 10;
+		n /= 10;
+	} while (n && pos >= buffer);
+	if (neg && pos > buffer)
+		*pos-- = '-';
+	return pos + 1;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
  * the ascii representation for signed number 'n' in decimal.
  */
 char *sltoa_r(long n, char *buffer, int size)
@@ -1452,6 +1481,81 @@ unsigned int strl2uic(const char *s, int len)
 unsigned int read_uint(const char **s, const char *end)
 {
 	return __read_uint(s, end);
+}
+
+/* This function reads an unsigned integer from the string pointed to by <s> and
+ * returns it. The <s> pointer is adjusted to point to the first unread char. The
+ * function automatically stops at <end>. If the number overflows, the 2^64-1
+ * value is returned.
+ */
+unsigned long long int read_uint64(const char **s, const char *end)
+{
+	const char *ptr = *s;
+	unsigned long long int i = 0, tmp;
+	unsigned int j;
+
+	while (ptr < end) {
+
+		/* read next char */
+		j = *ptr - '0';
+		if (j > 9)
+			goto read_uint64_end;
+
+		/* add char to the number and check overflow. */
+		tmp = i * 10;
+		if (tmp / 10 != i) {
+			i = ULLONG_MAX;
+			goto read_uint64_eat;
+		}
+		if (ULLONG_MAX - tmp < j) {
+			i = ULLONG_MAX;
+			goto read_uint64_eat;
+		}
+		i = tmp + j;
+		ptr++;
+	}
+read_uint64_eat:
+	/* eat each numeric char */
+	while (ptr < end) {
+		if ((unsigned int)(*ptr - '0') > 9)
+			break;
+		ptr++;
+	}
+read_uint64_end:
+	*s = ptr;
+	return i;
+}
+
+/* This function reads an integer from the string pointed to by <s> and returns
+ * it. The <s> pointer is adjusted to point to the first unread char. The function
+ * automatically stops at <end>. Il the number is bigger than 2^63-2, the 2^63-1
+ * value is returned. If the number is lowest than -2^63-1, the -2^63 value is
+ * returned.
+ */
+long long int read_int64(const char **s, const char *end)
+{
+	unsigned long long int i = 0;
+	int neg = 0;
+
+	/* Look for minus char. */
+	if (**s == '-') {
+		neg = 1;
+		(*s)++;
+	}
+	else if (**s == '+')
+		(*s)++;
+
+	/* convert as positive number. */
+	i = read_uint64(s, end);
+
+	if (neg) {
+		if (i > 0x8000000000000000ULL)
+			return LLONG_MIN;
+		return -i;
+	}
+	if (i > 0x7fffffffffffffffULL)
+		return LLONG_MAX;
+	return i;
 }
 
 /* This one is 7 times faster than strtol() on athlon with checks.

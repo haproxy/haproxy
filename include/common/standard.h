@@ -105,6 +105,7 @@ extern int strlcpy2(char *dst, const char *src, int size);
  */
 extern char itoa_str[][171];
 extern char *ultoa_r(unsigned long n, char *buffer, int size);
+extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);
 extern const char *ulltoh_r(unsigned long long n, char *buffer, int size);
 static inline const char *ultoa(unsigned long n)
@@ -494,6 +495,9 @@ static inline unsigned int __read_uint(const char **s, const char *end)
 	*s = ptr;
 	return i;
 }
+
+unsigned long long int read_uint64(const char **s, const char *end);
+long long int read_int64(const char **s, const char *end);
 
 extern unsigned int str2ui(const char *s);
 extern unsigned int str2uic(const char *s);
