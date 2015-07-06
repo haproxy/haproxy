@@ -1338,8 +1338,9 @@ int smp_resolve_args(struct proxy *p)
 /*
  * Process a fetch + format conversion as defined by the sample expression
  * <expr> on request or response considering the <opt> parameter. The output is
- * always of type string. If a stable sample can be fetched, or an unstable one
- * when <opt> contains SMP_OPT_FINAL, the sample is converted to a string and
+ * not explicitly set to <smp_type>, but shall be compatible with it as
+ * specified by 'sample_casts' table. If a stable sample can be fetched, or an
+ * unstable one when <opt> contains SMP_OPT_FINAL, the sample is converted and
  * returned without the SMP_F_MAY_CHANGE flag. If an unstable sample is found
  * and <opt> does not contain SMP_OPT_FINAL, then the sample is returned as-is
  * with its SMP_F_MAY_CHANGE flag so that the caller can check it and decide to
@@ -1355,9 +1356,9 @@ int smp_resolve_args(struct proxy *p)
  *   smp      1        0     Not present yet, may appear later (eg: header)
  *   smp      1        1     never happens (either flag is cleared on output)
  */
-struct sample *sample_fetch_string(struct proxy *px, struct session *sess,
+struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
                                    struct stream *strm, unsigned int opt,
-                                   struct sample_expr *expr)
+                                   struct sample_expr *expr, int smp_type)
 {
 	struct sample *smp = &temp_smp;
 
@@ -1369,13 +1370,12 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *sess,
 		return NULL;
 	}
 
-	if (!sample_casts[smp->type][SMP_T_STR])
+	if (!sample_casts[smp->type][smp_type])
 		return NULL;
 
-	if (!sample_casts[smp->type][SMP_T_STR](smp))
+	if (!sample_casts[smp->type][smp_type](smp))
 		return NULL;
 
-	smp->type = SMP_T_STR;
 	smp->flags &= ~SMP_F_MAY_CHANGE;
 	return smp;
 }

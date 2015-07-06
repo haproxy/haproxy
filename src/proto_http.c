@@ -12498,7 +12498,7 @@ int http_action_req_capture(struct http_req_rule *rule, struct proxy *px, struct
 	char **cap = s->req_cap;
 	int len;
 
-	key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr, SMP_T_STR);
 	if (!key)
 		return 1;
 
@@ -12541,7 +12541,7 @@ int http_action_req_capture_by_id(struct http_req_rule *rule, struct proxy *px, 
 	if (!h)
 		return 1;
 
-	key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr, SMP_T_STR);
 	if (!key)
 		return 1;
 
@@ -12710,7 +12710,7 @@ int http_action_res_capture_by_id(struct http_res_rule *rule, struct proxy *px, 
 	if (!h)
 		return 1;
 
-	key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, expr);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, expr, SMP_T_STR);
 	if (!key)
 		return 1;
 

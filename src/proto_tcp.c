@@ -1206,7 +1206,7 @@ resume_execution:
 				char **cap = s->req_cap;
 				int len;
 
-				key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr);
+				key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr, SMP_T_STR);
 				if (!key)
 					continue;
 
