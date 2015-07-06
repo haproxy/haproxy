@@ -619,13 +619,13 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		case ARGT_TIME:
 			if (argp[idx].type != ARGT_SINT)
 				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
-			argp[idx].type = ARGT_SINT;
+			argp[idx].type = ARGT_TIME;
 			break;
 
 		case ARGT_SIZE:
 			if (argp[idx].type != ARGT_SINT)
 				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
-			argp[idx].type = ARGT_SINT;
+			argp[idx].type = ARGT_SIZE;
 			break;
 
 		case ARGT_FE:
