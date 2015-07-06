@@ -390,7 +390,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
-		case SMP_T_UINT:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_INT];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];

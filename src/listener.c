@@ -593,8 +593,8 @@ void bind_dump_kws(char **out)
 static int
 smp_fetch_dconn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_UINT;
-	smp->data.uint = smp->sess->listener->nbconn;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = smp->sess->listener->nbconn;
 	return 1;
 }
 
@@ -602,8 +602,8 @@ smp_fetch_dconn(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_so_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_UINT;
-	smp->data.uint = smp->sess->listener->luid;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = smp->sess->listener->luid;
 	return 1;
 }
 
@@ -789,8 +789,8 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "dst_conn", smp_fetch_dconn, 0, NULL, SMP_T_UINT, SMP_USE_FTEND, },
-	{ "so_id",    smp_fetch_so_id, 0, NULL, SMP_T_UINT, SMP_USE_FTEND, },
+	{ "dst_conn", smp_fetch_dconn, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "so_id",    smp_fetch_so_id, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ /* END */ },
 }};
 

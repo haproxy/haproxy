@@ -2018,8 +2018,8 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *k, void 
 	if (!cli_conn)
 		return 0;
 
-	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&cli_conn->addr.from)))
+	smp->type = SMP_T_SINT;
+	if (!(smp->data.sint = get_host_port(&cli_conn->addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -2065,8 +2065,8 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 
 	conn_get_to_addr(cli_conn);
 
-	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&cli_conn->addr.to)))
+	smp->type = SMP_T_SINT;
+	if (!(smp->data.sint = get_host_port(&cli_conn->addr.to)))
 		return 0;
 
 	smp->flags = 0;
@@ -2272,9 +2272,9 @@ static struct acl_kw_list acl_kws = {ILH, {
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
-	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_UINT, SMP_USE_L4CLI },
+	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
-	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_UINT, SMP_USE_L4CLI },
+	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 

@@ -841,7 +841,7 @@ static int
 smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (smp->strm->comp_algo != NULL);
+	smp->data.sint = (smp->strm->comp_algo != NULL);
 	return 1;
 }
 

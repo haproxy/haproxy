@@ -125,9 +125,9 @@ struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern
 
 /* Just used for checking configuration compatibility */
 int pat_match_types[PAT_MATCH_NUM] = {
-	[PAT_MATCH_FOUND] = SMP_T_UINT,
-	[PAT_MATCH_BOOL]  = SMP_T_UINT,
-	[PAT_MATCH_INT]   = SMP_T_UINT,
+	[PAT_MATCH_FOUND] = SMP_T_SINT,
+	[PAT_MATCH_BOOL]  = SMP_T_SINT,
+	[PAT_MATCH_INT]   = SMP_T_SINT,
 	[PAT_MATCH_IP]    = SMP_T_ADDR,
 	[PAT_MATCH_BIN]   = SMP_T_BIN,
 	[PAT_MATCH_LEN]   = SMP_T_STR,
@@ -247,7 +247,7 @@ int pat_parse_int(const char *text, struct pattern *pattern, int mflags, char **
 {
 	const char *ptr = text;
 
-	pattern->type = SMP_T_UINT;
+	pattern->type = SMP_T_SINT;
 
 	/* Empty string is not valid */
 	if (!*text)
@@ -332,7 +332,7 @@ int pat_parse_dotted_ver(const char *text, struct pattern *pattern, int mflags, 
 {
 	const char *ptr = text;
 
-	pattern->type = SMP_T_UINT;
+	pattern->type = SMP_T_SINT;
 
 	/* Search ':' or '-' separator. */
 	while (*ptr != '\0' && *ptr != ':' && *ptr != '-')
@@ -425,7 +425,7 @@ int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **e
 /* always return false */
 struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	if (smp->data.uint) {
+	if (smp->data.sint) {
 		if (fill) {
 			static_pattern.smp = NULL;
 			static_pattern.ref = NULL;
@@ -832,8 +832,8 @@ struct pattern *pat_match_int(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
-		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
-		    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
+		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.sint) &&
+		    (!pattern->val.range.max_set || smp->data.sint <= pattern->val.range.max))
 			return pattern;
 	}
 	return NULL;
@@ -2337,7 +2337,7 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 			static_pattern.smp = NULL;
 			static_pattern.ref = NULL;
 			static_pattern.sflags = 0;
-			static_pattern.type = SMP_T_UINT;
+			static_pattern.type = SMP_T_SINT;
 			static_pattern.val.i = 1;
 		}
 		return &static_pattern;

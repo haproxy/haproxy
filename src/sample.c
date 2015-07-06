@@ -36,7 +36,6 @@
 const char *smp_to_type[SMP_TYPES] = {
 	[SMP_T_ANY]  = "any",
 	[SMP_T_BOOL] = "bool",
-	[SMP_T_UINT] = "uint",
 	[SMP_T_SINT] = "sint",
 	[SMP_T_ADDR] = "addr",
 	[SMP_T_IPV4] = "ipv4",
@@ -499,8 +498,8 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 
 static int c_ip2int(struct sample *smp)
 {
-	smp->data.uint = ntohl(smp->data.ipv4.s_addr);
-	smp->type = SMP_T_UINT;
+	smp->data.sint = ntohl(smp->data.ipv4.s_addr);
+	smp->type = SMP_T_SINT;
 	return 1;
 }
 
@@ -549,7 +548,7 @@ static int c_ipv62ip(struct sample *smp)
 
 static int c_int2ip(struct sample *smp)
 {
-	smp->data.ipv4.s_addr = htonl(smp->data.uint);
+	smp->data.ipv4.s_addr = htonl((unsigned int)smp->data.sint);
 	smp->type = SMP_T_IPV4;
 	return 1;
 }
@@ -608,25 +607,7 @@ static int c_int2str(struct sample *smp)
 	struct chunk *trash = get_trash_chunk();
 	char *pos;
 
-	pos = ultoa_r(smp->data.uint, trash->str, trash->size);
-	if (!pos)
-		return 0;
-
-	trash->size = trash->size - (pos - trash->str);
-	trash->str = pos;
-	trash->len = strlen(pos);
-	smp->data.str = *trash;
-	smp->type = SMP_T_STR;
-	smp->flags &= ~SMP_F_CONST;
-	return 1;
-}
-
-static int c_sint2str(struct sample *smp)
-{
-	struct chunk *trash = get_trash_chunk();
-	char *pos;
-
-	pos = sltoa_r(smp->data.sint, trash->str, trash->size);
+	pos = lltoa_r(smp->data.sint, trash->str, trash->size);
 	if (!pos)
 		return 0;
 
@@ -652,7 +633,6 @@ int smp_dup(struct sample *smp)
 
 	switch (smp->type) {
 	case SMP_T_BOOL:
-	case SMP_T_UINT:
 	case SMP_T_SINT:
 	case SMP_T_ADDR:
 	case SMP_T_IPV4:
@@ -684,26 +664,17 @@ int c_none(struct sample *smp)
 
 static int c_str2int(struct sample *smp)
 {
-	int i;
-	uint32_t ret = 0;
+	const char *str;
+	const char *end;
 
 	if (smp->data.str.len == 0)
 		return 0;
 
-	for (i = 0; i < smp->data.str.len; i++) {
-		uint32_t val = smp->data.str.str[i] - '0';
+	str = smp->data.str.str;
+	end = smp->data.str.str + smp->data.str.len;
 
-		if (val > 9) {
-			if (i == 0)
-				return 0;
-			break;
-		}
-
-		ret = ret * 10 + val;
-	}
-
-	smp->data.uint = ret;
-	smp->type = SMP_T_UINT;
+	smp->data.sint = read_int64(&str, end);
+	smp->type = SMP_T_SINT;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
 }
@@ -777,8 +748,8 @@ static int c_int2bin(struct sample *smp)
 {
 	struct chunk *chk = get_trash_chunk();
 
-	*(unsigned int *)chk->str = htonl(smp->data.uint);
-	chk->len = 4;
+	*(unsigned long long int *)chk->str = htonll(smp->data.sint);
+	chk->len = 8;
 
 	smp->data.str = *chk;
 	smp->type = SMP_T_BIN;
@@ -793,17 +764,16 @@ static int c_int2bin(struct sample *smp)
 /*****************************************************************/
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
-/*            to:  ANY     BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
-/* from:  ANY */ { c_none, c_none,    c_none,    c_none,    c_none,     c_none,   c_none,     c_none,     c_none,     c_none,     },
-/*       BOOL */ { c_none, c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
-/*       UINT */ { c_none, c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
-/*       SINT */ { c_none, c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_sint2str, c_int2bin,  NULL,       },
-/*       ADDR */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
-/*       IPV4 */ { c_none, NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
-/*       IPV6 */ { c_none, NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
-/*        STR */ { c_none, c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
-/*        BIN */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
-/*       METH */ { c_none, NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     }
+/*            to:  ANY     BOOL       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
+/* from:  ANY */ { c_none, c_none,    c_none,    c_none,     c_none,   c_none,     c_none,     c_none,     c_none,     },
+/*       BOOL */ { c_none, c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
+/*       SINT */ { c_none, c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  c_int2bin,  NULL,       },
+/*       ADDR */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
+/*       IPV4 */ { c_none, NULL,      c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
+/*       IPV6 */ { c_none, NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
+/*        STR */ { c_none, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
+/*        BIN */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
+/*       METH */ { c_none, NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     }
 };
 
 /*
@@ -1462,10 +1432,10 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint = hash_djb2(smp->data.str.str, smp->data.str.len);
+	smp->data.sint = hash_djb2(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
-		smp->data.uint = full_hash(smp->data.uint);
-	smp->type = SMP_T_UINT;
+		smp->data.sint = full_hash(smp->data.sint);
+	smp->type = SMP_T_SINT;
 	return 1;
 }
 
@@ -1518,7 +1488,7 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp, void 
 static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
-	time_t curr_date = smp->data.uint;
+	time_t curr_date = smp->data.sint;
 	struct tm *tm;
 
 	/* add offset */
@@ -1538,10 +1508,10 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint = hash_sdbm(smp->data.str.str, smp->data.str.len);
+	smp->data.sint = hash_sdbm(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
-		smp->data.uint = full_hash(smp->data.uint);
-	smp->type = SMP_T_UINT;
+		smp->data.sint = full_hash(smp->data.sint);
+	smp->type = SMP_T_SINT;
 	return 1;
 }
 
@@ -1552,7 +1522,7 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *p
 static int sample_conv_utime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
-	time_t curr_date = smp->data.uint;
+	time_t curr_date = smp->data.sint;
 	struct tm *tm;
 
 	/* add offset */
@@ -1572,20 +1542,20 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint = hash_wt6(smp->data.str.str, smp->data.str.len);
+	smp->data.sint = hash_wt6(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
-		smp->data.uint = full_hash(smp->data.uint);
-	smp->type = SMP_T_UINT;
+		smp->data.sint = full_hash(smp->data.sint);
+	smp->type = SMP_T_SINT;
 	return 1;
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint = hash_crc32(smp->data.str.str, smp->data.str.len);
+	smp->data.sint = hash_crc32(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
-		smp->data.uint = full_hash(smp->data.uint);
-	smp->type = SMP_T_UINT;
+		smp->data.sint = full_hash(smp->data.sint);
+	smp->type = SMP_T_SINT;
 	return 1;
 }
 
@@ -2045,149 +2015,149 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
-/* Takes a UINT on input, applies a binary twos complement and returns the UINT
+/* Takes a SINT on input, applies a binary twos complement and returns the SINT
  * result.
  */
 static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint = ~smp->data.uint;
+	smp->data.sint = ~smp->data.sint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies a binary "and" with the UINT in arg_p, and
- * returns the UINT result.
+/* Takes a SINT on input, applies a binary "and" with the UINT in arg_p, and
+ * returns the SINT result.
  */
 static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint &= arg_p->data.uint;
+	smp->data.sint &= arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies a binary "or" with the UINT in arg_p, and
- * returns the UINT result.
+/* Takes a SINT on input, applies a binary "or" with the UINT in arg_p, and
+ * returns the SINT result.
  */
 static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint |= arg_p->data.uint;
+	smp->data.sint |= arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies a binary "xor" with the UINT in arg_p, and
- * returns the UINT result.
+/* Takes a SINT on input, applies a binary "xor" with the UINT in arg_p, and
+ * returns the SINT result.
  */
 static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint ^= arg_p->data.uint;
+	smp->data.sint ^= arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies an arithmetic "add" with the UINT in arg_p,
- * and returns the UINT result.
+/* Takes a SINT on input, applies an arithmetic "add" with the UINT in arg_p,
+ * and returns the SINT result.
  */
 static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.uint += arg_p->data.uint;
+	smp->data.sint += arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies an arithmetic "sub" with the UINT in arg_p,
- * and returns the UINT result.
+/* Takes a SINT on input, applies an arithmetic "sub" with the UINT in arg_p,
+ * and returns the SINT result.
  */
 static int sample_conv_arith_sub(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.uint -= arg_p->data.uint;
+	smp->data.sint -= arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies an arithmetic "mul" with the UINT in arg_p,
- * and returns the UINT result.
+/* Takes a SINT on input, applies an arithmetic "mul" with the UINT in arg_p,
+ * and returns the SINT result.
  */
 static int sample_conv_arith_mul(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.uint *= arg_p->data.uint;
+	smp->data.sint *= arg_p->data.uint;
 	return 1;
 }
 
-/* Takes a UINT on input, applies an arithmetic "div" with the UINT in arg_p,
- * and returns the UINT result. If arg_p makes the result overflow, then the
+/* Takes a SINT on input, applies an arithmetic "div" with the SINT in arg_p,
+ * and returns the SINT result. If arg_p makes the result overflow, then the
  * largest possible quantity is returned.
  */
 static int sample_conv_arith_div(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
-		smp->data.uint /= arg_p->data.uint;
+		smp->data.sint /= arg_p->data.uint;
 	else
-		smp->data.uint = ~0;
+		smp->data.sint = ~0;
 	return 1;
 }
 
-/* Takes a UINT on input, applies an arithmetic "mod" with the UINT in arg_p,
- * and returns the UINT result. If arg_p makes the result overflow, then zero
+/* Takes a SINT on input, applies an arithmetic "mod" with the SINT in arg_p,
+ * and returns the SINT result. If arg_p makes the result overflow, then zero
  * is returned.
  */
 static int sample_conv_arith_mod(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
-		smp->data.uint %= arg_p->data.uint;
+		smp->data.sint %= arg_p->data.uint;
 	else
-		smp->data.uint = 0;
+		smp->data.sint = 0;
 	return 1;
 }
 
-/* Takes an UINT on input, applies an arithmetic "neg" and returns the UINT
+/* Takes an SINT on input, applies an arithmetic "neg" and returns the SINT
  * result.
  */
 static int sample_conv_arith_neg(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.uint = -smp->data.uint;
+	smp->data.sint = -smp->data.sint;
 	return 1;
 }
 
-/* Takes a UINT on input, returns true is the value is non-null, otherwise
+/* Takes a SINT on input, returns true is the value is non-null, otherwise
  * false. The output is a BOOL.
  */
 static int sample_conv_arith_bool(const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
-	smp->data.uint = !!smp->data.uint;
+	smp->data.sint = !!smp->data.sint;
 	smp->type = SMP_T_BOOL;
 	return 1;
 }
 
-/* Takes a UINT on input, returns false is the value is non-null, otherwise
+/* Takes a SINT on input, returns false is the value is non-null, otherwise
  * truee. The output is a BOOL.
  */
 static int sample_conv_arith_not(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.uint = !smp->data.uint;
+	smp->data.sint = !smp->data.sint;
 	smp->type = SMP_T_BOOL;
 	return 1;
 }
 
-/* Takes a UINT on input, returns true is the value is odd, otherwise false.
+/* Takes a SINT on input, returns true is the value is odd, otherwise false.
  * The output is a BOOL.
  */
 static int sample_conv_arith_odd(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.uint = smp->data.uint & 1;
+	smp->data.sint = smp->data.sint & 1;
 	smp->type = SMP_T_BOOL;
 	return 1;
 }
 
-/* Takes a UINT on input, returns true is the value is even, otherwise false.
+/* Takes a SINT on input, returns true is the value is even, otherwise false.
  * The output is a BOOL.
  */
 static int sample_conv_arith_even(const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
-	smp->data.uint = !(smp->data.uint & 1);
+	smp->data.sint = !(smp->data.sint & 1);
 	smp->type = SMP_T_BOOL;
 	return 1;
 }
@@ -2201,7 +2171,7 @@ static int
 smp_fetch_true(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = 1;
+	smp->data.sint = 1;
 	return 1;
 }
 
@@ -2210,7 +2180,7 @@ static int
 smp_fetch_false(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = 0;
+	smp->data.sint = 0;
 	return 1;
 }
 
@@ -2240,13 +2210,13 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 static int
 smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.uint = date.tv_sec;
+	smp->data.sint = date.tv_sec;
 
 	/* add offset */
 	if (args && (args[0].type == ARGT_SINT || args[0].type == ARGT_UINT))
-		smp->data.uint += args[0].data.sint;
+		smp->data.sint += args[0].data.sint;
 
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -2255,8 +2225,8 @@ smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void 
 static int
 smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_UINT;
-	smp->data.uint = global.nbproc;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = global.nbproc;
 	return 1;
 }
 
@@ -2264,8 +2234,8 @@ smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_UINT;
-	smp->data.uint = relative_pid;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = relative_pid;
 	return 1;
 }
 
@@ -2275,13 +2245,13 @@ smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void 
 static int
 smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.uint = random();
+	smp->data.sint = random();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args && args[0].type == ARGT_UINT)
-		smp->data.uint = ((uint64_t)smp->data.uint * args[0].data.uint) / ((u64)RAND_MAX+1);
+		smp->data.sint = (smp->data.sint * args[0].data.uint) / ((u64)RAND_MAX+1);
 
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -2291,7 +2261,7 @@ static int
 smp_fetch_stopping(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = stopping;
+	smp->data.sint = stopping;
 	return 1;
 }
 
@@ -2325,18 +2295,11 @@ static int smp_check_const_bool(struct arg *args, char **err)
 static int smp_fetch_const_bool(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = args[0].data.uint;
+	smp->data.sint = args[0].data.uint;
 	return 1;
 }
 
-static int smp_fetch_const_uint(const struct arg *args, struct sample *smp, const char *kw, void *private)
-{
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args[0].data.uint;
-	return 1;
-}
-
-static int smp_fetch_const_sint(const struct arg *args, struct sample *smp, const char *kw, void *private)
+static int smp_fetch_const_int(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_SINT;
 	smp->data.sint = args[0].data.sint;
@@ -2430,16 +2393,15 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "always_false", smp_fetch_false, 0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_STR,  SMP_USE_INTRN },
-	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_UINT, SMP_USE_INTRN },
-	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_UINT, SMP_USE_INTRN },
-	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_UINT, SMP_USE_INTRN },
-	{ "rand",         smp_fetch_rand,  ARG1(0,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN },
+	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "rand",         smp_fetch_rand,  ARG1(0,UINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 
 	{ "str",  smp_fetch_const_str,  ARG1(1,STR),  NULL                , SMP_T_STR,  SMP_USE_INTRN },
 	{ "bool", smp_fetch_const_bool, ARG1(1,STR),  smp_check_const_bool, SMP_T_BOOL, SMP_USE_INTRN },
-	{ "uint", smp_fetch_const_uint, ARG1(1,UINT), NULL                , SMP_T_UINT, SMP_USE_INTRN },
-	{ "sint", smp_fetch_const_sint, ARG1(1,SINT), NULL                , SMP_T_SINT, SMP_USE_INTRN },
+	{ "int",  smp_fetch_const_int,  ARG1(1,SINT), NULL                , SMP_T_SINT, SMP_USE_INTRN },
 	{ "ipv4", smp_fetch_const_ipv4, ARG1(1,IPV4), NULL                , SMP_T_IPV4, SMP_USE_INTRN },
 	{ "ipv6", smp_fetch_const_ipv6, ARG1(1,IPV6), NULL                , SMP_T_IPV6, SMP_USE_INTRN },
 	{ "bin",  smp_fetch_const_bin,  ARG1(1,STR),  smp_check_const_bin , SMP_T_BIN,  SMP_USE_INTRN },
@@ -2459,32 +2421,32 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
-	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
-	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
-	{ "crc32",  sample_conv_crc32,     ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
-	{ "djb2",   sample_conv_djb2,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
-	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
-	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
+	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
+	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
+	{ "crc32",  sample_conv_crc32,     ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
+	{ "djb2",   sample_conv_djb2,      ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
+	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
+	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
 	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
 	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "word",   sample_conv_word,      ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 
-	{ "and",    sample_conv_binary_and, ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "or",     sample_conv_binary_or,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "xor",    sample_conv_binary_xor, ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "cpl",    sample_conv_binary_cpl,            0, NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "bool",   sample_conv_arith_bool,            0, NULL, SMP_T_UINT, SMP_T_BOOL },
-	{ "not",    sample_conv_arith_not,             0, NULL, SMP_T_UINT, SMP_T_BOOL },
-	{ "odd",    sample_conv_arith_odd,             0, NULL, SMP_T_UINT, SMP_T_BOOL },
-	{ "even",   sample_conv_arith_even,            0, NULL, SMP_T_UINT, SMP_T_BOOL },
-	{ "add",    sample_conv_arith_add,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "sub",    sample_conv_arith_sub,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "mul",    sample_conv_arith_mul,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
-	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "and",    sample_conv_binary_and, ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "or",     sample_conv_binary_or,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "xor",    sample_conv_binary_xor, ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "cpl",    sample_conv_binary_cpl,            0, NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "bool",   sample_conv_arith_bool,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "not",    sample_conv_arith_not,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "odd",    sample_conv_arith_odd,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "even",   sample_conv_arith_even,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "add",    sample_conv_arith_add,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "sub",    sample_conv_arith_sub,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "mul",    sample_conv_arith_mul,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_SINT, SMP_T_SINT },
 
 	{ NULL, NULL, 0, 0, 0 },
 }};

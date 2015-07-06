@@ -2637,7 +2637,7 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = !!smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	smp->data.sint = !!smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
 	return 1;
 }
 
@@ -2655,14 +2655,14 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, gpc0);
+		smp->data.sint = stktable_data_cast(ptr, gpc0);
 	}
 	return 1;
 }
@@ -2681,13 +2681,13 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
 		                  stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u);
 	}
 	return 1;
@@ -2706,8 +2706,8 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr1,*ptr2;
 
@@ -2718,12 +2718,12 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		if (ptr1) {
 			update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
-			smp->data.uint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
+			smp->data.sint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
 		}
 
 		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (ptr2)
-			smp->data.uint = ++stktable_data_cast(ptr2, gpc0);
+			smp->data.sint = ++stktable_data_cast(ptr2, gpc0);
 
 		/* If data was modified, we need to touch to re-schedule sync */
 		if (ptr1 || ptr2)
@@ -2745,13 +2745,13 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, gpc0);
+		smp->data.sint = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
 		/* If data was modified, we need to touch to re-schedule sync */
 		stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
@@ -2772,13 +2772,13 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, conn_cnt);
+		smp->data.sint = stktable_data_cast(ptr, conn_cnt);
 	}
 	return 1;
 }
@@ -2796,13 +2796,13 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
 	}
 	return 1;
@@ -2838,8 +2838,8 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 	if (!ptr)
 		return 0; /* parameter not stored in this table */
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = ++stktable_data_cast(ptr, conn_cnt);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = ++stktable_data_cast(ptr, conn_cnt);
 	/* Touch was previously performed by stktable_update_key */
 	smp->flags = SMP_F_VOL_TEST;
 	return 1;
@@ -2858,13 +2858,13 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, conn_cur);
+		smp->data.sint = stktable_data_cast(ptr, conn_cur);
 	}
 	return 1;
 }
@@ -2882,13 +2882,13 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, sess_cnt);
+		smp->data.sint = stktable_data_cast(ptr, sess_cnt);
 	}
 	return 1;
 }
@@ -2905,13 +2905,13 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
 	}
 	return 1;
@@ -2930,13 +2930,13 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, http_req_cnt);
+		smp->data.sint = stktable_data_cast(ptr, http_req_cnt);
 	}
 	return 1;
 }
@@ -2954,13 +2954,13 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 	}
 	return 1;
@@ -2979,13 +2979,13 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, http_err_cnt);
+		smp->data.sint = stktable_data_cast(ptr, http_err_cnt);
 	}
 	return 1;
 }
@@ -3003,13 +3003,13 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 	}
 	return 1;
@@ -3028,13 +3028,13 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		smp->data.sint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
 	}
 	return 1;
 }
@@ -3052,13 +3052,13 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 	}
 	return 1;
@@ -3077,13 +3077,13 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+		smp->data.sint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
 	}
 	return 1;
 }
@@ -3101,13 +3101,13 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+		smp->data.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 	}
 	return 1;
@@ -3125,8 +3125,8 @@ smp_fetch_sc_trackers(const struct arg *args, struct sample *smp, const char *kw
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = stkctr_entry(stkctr)->ref_cnt;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = stkctr_entry(stkctr)->ref_cnt;
 	return 1;
 }
 
@@ -3137,8 +3137,8 @@ static int
 smp_fetch_table_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args->data.prx->table.current;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args->data.prx->table.current;
 	return 1;
 }
 
@@ -3152,8 +3152,8 @@ smp_fetch_table_avl(const struct arg *args, struct sample *smp, const char *kw, 
 
 	px = args->data.prx;
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = px->table.size - px->table.current;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = px->table.size - px->table.current;
 	return 1;
 }
 
@@ -3168,102 +3168,102 @@ static struct acl_kw_list acl_kws = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
-	{ "sc_bytes_in_rate",   smp_fetch_sc_bytes_in_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_bytes_out_rate",  smp_fetch_sc_bytes_out_rate, ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_clr_gpc0",        smp_fetch_sc_clr_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_conn_cnt",        smp_fetch_sc_conn_cnt,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_conn_cur",        smp_fetch_sc_conn_cur,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_conn_rate",       smp_fetch_sc_conn_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_get_gpc0",        smp_fetch_sc_get_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_gpc0_rate",       smp_fetch_sc_gpc0_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_http_err_cnt",    smp_fetch_sc_http_err_cnt,   ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_http_err_rate",   smp_fetch_sc_http_err_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_http_req_cnt",    smp_fetch_sc_http_req_cnt,   ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_http_req_rate",   smp_fetch_sc_http_req_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_inc_gpc0",        smp_fetch_sc_inc_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_kbytes_in",       smp_fetch_sc_kbytes_in,      ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc_kbytes_out",      smp_fetch_sc_kbytes_out,     ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc_sess_cnt",        smp_fetch_sc_sess_cnt,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc_sess_rate",       smp_fetch_sc_sess_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_bytes_in_rate",   smp_fetch_sc_bytes_in_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_bytes_out_rate",  smp_fetch_sc_bytes_out_rate, ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_clr_gpc0",        smp_fetch_sc_clr_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_conn_cnt",        smp_fetch_sc_conn_cnt,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_conn_cur",        smp_fetch_sc_conn_cur,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_conn_rate",       smp_fetch_sc_conn_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_get_gpc0",        smp_fetch_sc_get_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_gpc0_rate",       smp_fetch_sc_gpc0_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_http_err_cnt",    smp_fetch_sc_http_err_cnt,   ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_http_err_rate",   smp_fetch_sc_http_err_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_http_req_cnt",    smp_fetch_sc_http_req_cnt,   ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_http_req_rate",   smp_fetch_sc_http_req_rate,  ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_inc_gpc0",        smp_fetch_sc_inc_gpc0,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_kbytes_in",       smp_fetch_sc_kbytes_in,      ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc_kbytes_out",      smp_fetch_sc_kbytes_out,     ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc_sess_cnt",        smp_fetch_sc_sess_cnt,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_sess_rate",       smp_fetch_sc_sess_rate,      ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_tracked",         smp_fetch_sc_tracked,        ARG2(1,UINT,TAB), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "sc_trackers",        smp_fetch_sc_trackers,       ARG2(1,UINT,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc0_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc0_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_trackers",        smp_fetch_sc_trackers,       ARG2(1,UINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc0_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc0_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc0_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc0_tracked",        smp_fetch_sc_tracked,        ARG1(0,TAB),      NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "sc0_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc1_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc1_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc0_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc1_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc1_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc1_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc1_tracked",        smp_fetch_sc_tracked,        ARG1(0,TAB),      NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "sc1_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc2_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "sc2_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc2_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "sc2_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc2_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc2_tracked",        smp_fetch_sc_tracked,        ARG1(0,TAB),      NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "sc2_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "src_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_updt_conn_cnt",  smp_fetch_src_updt_conn_cnt, ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "table_avl",          smp_fetch_table_avl,         ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "table_cnt",          smp_fetch_table_cnt,         ARG1(1,TAB),      NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_trackers",       smp_fetch_sc_trackers,       ARG1(0,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "src_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,  ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_bytes_out_rate", smp_fetch_sc_bytes_out_rate, ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_clr_gpc0",       smp_fetch_sc_clr_gpc0,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_gpc0_rate",      smp_fetch_sc_gpc0_rate,      ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_http_err_cnt",   smp_fetch_sc_http_err_cnt,   ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_http_err_rate",  smp_fetch_sc_http_err_rate,  ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_http_req_cnt",   smp_fetch_sc_http_req_cnt,   ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_http_req_rate",  smp_fetch_sc_http_req_rate,  ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_inc_gpc0",       smp_fetch_sc_inc_gpc0,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_kbytes_in",      smp_fetch_sc_kbytes_in,      ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_kbytes_out",     smp_fetch_sc_kbytes_out,     ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_sess_cnt",       smp_fetch_sc_sess_cnt,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_sess_rate",      smp_fetch_sc_sess_rate,      ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_updt_conn_cnt",  smp_fetch_src_updt_conn_cnt, ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "table_avl",          smp_fetch_table_avl,         ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "table_cnt",          smp_fetch_table_cnt,         ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};
 

@@ -3393,7 +3393,7 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 
 	smp->flags = 0;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
+	smp->data.sint = SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
 
 	return 1;
 }
@@ -3757,7 +3757,7 @@ smp_fetch_ssl_c_used(const struct arg *args, struct sample *smp, const char *kw,
 	}
 
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (crt != NULL);
+	smp->data.sint = (crt != NULL);
 	return 1;
 }
 
@@ -3788,11 +3788,11 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 	if (!crt)
 		return 0;
 
-	smp->data.uint = (unsigned int)(1 + X509_get_version(crt));
+	smp->data.sint = (unsigned int)(1 + X509_get_version(crt));
 	/* SSL_get_peer_certificate increase X509 * ref count  */
 	if (cert_peer)
 		X509_free(crt);
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 
 	return 1;
 }
@@ -3903,7 +3903,7 @@ smp_fetch_ssl_fc(const struct arg *args, struct sample *smp, const char *kw, voi
 	struct connection *conn = objt_conn(smp->strm->si[back_conn].end);
 
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (conn && conn->xprt == &ssl_sock);
+	smp->data.sint = (conn && conn->xprt == &ssl_sock);
 	return 1;
 }
 
@@ -3915,7 +3915,7 @@ smp_fetch_ssl_fc_has_sni(const struct arg *args, struct sample *smp, const char 
 	struct connection *conn = objt_conn(smp->sess->origin);
 
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (conn && conn->xprt == &ssl_sock) &&
+	smp->data.sint = (conn && conn->xprt == &ssl_sock) &&
 		conn->xprt_ctx &&
 		SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name) != NULL;
 	return 1;
@@ -3931,7 +3931,7 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
 	struct connection *conn = objt_conn(smp->sess->origin);
 
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (conn && conn->xprt == &ssl_sock) &&
+	smp->data.sint = (conn && conn->xprt == &ssl_sock) &&
 		conn->xprt_ctx &&
 		SSL_session_reused(conn->xprt_ctx);
 	return 1;
@@ -3974,6 +3974,7 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 {
 	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
+	int sint;
 
 	smp->flags = 0;
 
@@ -3981,10 +3982,11 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (!SSL_get_cipher_bits(conn->xprt_ctx, (int *)&smp->data.uint))
+	if (!SSL_get_cipher_bits(conn->xprt_ctx, &sint))
 		return 0;
 
-	smp->type = SMP_T_UINT;
+	smp->data.sint = sint;
+	smp->type = SMP_T_SINT;
 
 	return 1;
 }
@@ -4005,11 +4007,11 @@ smp_fetch_ssl_fc_use_keysize(const struct arg *args, struct sample *smp, const c
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.uint = (unsigned int)SSL_get_cipher_bits(conn->xprt_ctx, NULL);
-	if (!smp->data.uint)
+	smp->data.sint = (unsigned int)SSL_get_cipher_bits(conn->xprt_ctx, NULL);
+	if (!smp->data.sint)
 		return 0;
 
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 
 	return 1;
 }
@@ -4200,8 +4202,8 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 	}
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CA_ERROR(conn->xprt_st);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = (unsigned long long int)SSL_SOCK_ST_TO_CA_ERROR(conn->xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -4222,8 +4224,8 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 		return 0;
 	}
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CAEDEPTH(conn->xprt_st);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = (long long int)SSL_SOCK_ST_TO_CAEDEPTH(conn->xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -4244,8 +4246,8 @@ smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	}
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CRTERROR(conn->xprt_st);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = (long long int)SSL_SOCK_ST_TO_CRTERROR(conn->xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -4269,8 +4271,8 @@ smp_fetch_ssl_c_verify(const struct arg *args, struct sample *smp, const char *k
 	if (!conn->xprt_ctx)
 		return 0;
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_get_verify_result(conn->xprt_ctx);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = (long long int)SSL_get_verify_result(conn->xprt_ctx);
 	smp->flags = 0;
 
 	return 1;
@@ -5139,16 +5141,16 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5SRV },
-	{ "ssl_bc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5SRV },
+	{ "ssl_bc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
 	{ "ssl_bc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_bc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_bc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
-	{ "ssl_bc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5SRV },
+	{ "ssl_bc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
 	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
-	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
-	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
-	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
@@ -5158,8 +5160,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_used",             smp_fetch_ssl_c_used,         0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
-	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
-	{ "ssl_c_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_c_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_f_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_f_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
@@ -5169,9 +5171,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_f_s_dn",             smp_fetch_ssl_x_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_f_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
-	{ "ssl_f_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_f_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
-	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
@@ -5184,7 +5186,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
-	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ NULL, NULL, 0, 0, 0 },

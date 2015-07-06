@@ -298,7 +298,6 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 	/* Copy data. If the data needs memory, the function can fail. */
 	switch (var->data.type) {
 	case SMP_T_BOOL:
-	case SMP_T_UINT:
 	case SMP_T_SINT:
 		var->data.data.sint = smp->data.sint;
 		break;

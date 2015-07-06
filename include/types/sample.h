@@ -36,8 +36,7 @@ struct arg;
 enum {
 	SMP_T_ANY = 0,   /* any type */
 	SMP_T_BOOL,      /* boolean */
-	SMP_T_UINT,      /* unsigned 32bits integer type */
-	SMP_T_SINT,      /* signed 32bits integer type */
+	SMP_T_SINT,      /* signed 64bits integer type */
 	SMP_T_ADDR,      /* ipv4 or ipv6, only used for input type compatibility */
 	SMP_T_IPV4,      /* ipv4 type */
 	SMP_T_IPV6,      /* ipv6 type */
@@ -237,8 +236,7 @@ struct sample {
 	unsigned int flags;       /* SMP_F_* */
 	int type;                 /* SMP_T_* */
 	union {
-		unsigned int    uint;  /* used for unsigned 32bits integers and booleans */
-		int             sint;  /* used for signed 32bits integers */
+		long long int   sint;  /* used for signed 64bits integers */
 		struct in_addr  ipv4;  /* used for ipv4 addresses */
 		struct in6_addr ipv6;  /* used for ipv6 addresses */
 		struct chunk    str;   /* used for char strings or buffers */
@@ -261,8 +259,7 @@ struct sample {
 struct sample_storage {
 	int type;                 /* SMP_T_* */
 	union {
-		unsigned int    uint;  /* used for unsigned 32bits integers and booleans */
-		int             sint;  /* used for signed 32bits integers */
+		long long int   sint;  /* used for signed 64bits integers */
 		struct in_addr  ipv4;  /* used for ipv4 addresses */
 		struct in6_addr ipv6;  /* used for ipv6 addresses */
 		struct chunk    str;   /* used for char strings or buffers */

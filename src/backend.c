@@ -1525,15 +1525,15 @@ smp_fetch_nbsrv(const struct arg *args, struct sample *smp, const char *kw, void
 	struct proxy *px;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 	px = args->data.prx;
 
 	if (px->srv_act)
-		smp->data.uint = px->srv_act;
+		smp->data.sint = px->srv_act;
 	else if (px->lbprm.fbck)
-		smp->data.uint = 1;
+		smp->data.sint = 1;
 	else
-		smp->data.uint = px->srv_bck;
+		smp->data.sint = px->srv_bck;
 
 	return 1;
 }
@@ -1552,9 +1552,9 @@ smp_fetch_srv_is_up(const struct arg *args, struct sample *smp, const char *kw, 
 	smp->type = SMP_T_BOOL;
 	if (!(srv->admin & SRV_ADMF_MAINT) &&
 	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state != SRV_ST_STOPPED)))
-		smp->data.uint = 1;
+		smp->data.sint = 1;
 	else
-		smp->data.uint = 0;
+		smp->data.sint = 0;
 	return 1;
 }
 
@@ -1568,8 +1568,8 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 	struct server *iterator;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = 0;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = 0;
 
 	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
 		if (iterator->state == SRV_ST_STOPPED)
@@ -1577,11 +1577,11 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
 			/* configuration is stupid */
-			smp->data.uint = -1;  /* FIXME: stupid value! */
+			smp->data.sint = -1;  /* FIXME: stupid value! */
 			return 1;
 		}
 
-		smp->data.uint += (iterator->maxconn - iterator->cur_sess)
+		smp->data.sint += (iterator->maxconn - iterator->cur_sess)
 		                       +  (iterator->maxqueue - iterator->nbpend);
 	}
 
@@ -1593,8 +1593,8 @@ static int
 smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = smp->strm->be->uuid;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = smp->strm->be->uuid;
 	return 1;
 }
 
@@ -1605,8 +1605,8 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 	if (!objt_server(smp->strm->target))
 		return 0;
 
-	smp->type = SMP_T_UINT;
-	smp->data.uint = objt_server(smp->strm->target)->puid;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = objt_server(smp->strm->target)->puid;
 
 	return 1;
 }
@@ -1619,8 +1619,8 @@ static int
 smp_fetch_be_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
 	return 1;
 }
 
@@ -1632,8 +1632,8 @@ static int
 smp_fetch_be_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args->data.prx->beconn;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args->data.prx->beconn;
 	return 1;
 }
 
@@ -1645,8 +1645,8 @@ static int
 smp_fetch_queue_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args->data.prx->totpend;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args->data.prx->totpend;
 	return 1;
 }
 
@@ -1665,7 +1665,7 @@ smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char 
 	struct proxy *px;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
+	smp->type = SMP_T_SINT;
 	px = args->data.prx;
 
 	if (px->srv_act)
@@ -1676,9 +1676,9 @@ smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char 
 		nbsrv = px->srv_bck;
 
 	if (nbsrv > 0)
-		smp->data.uint = (px->totpend + nbsrv - 1) / nbsrv;
+		smp->data.sint = (px->totpend + nbsrv - 1) / nbsrv;
 	else
-		smp->data.uint = px->totpend * 2;
+		smp->data.sint = px->totpend * 2;
 
 	return 1;
 }
@@ -1691,8 +1691,8 @@ static int
 smp_fetch_srv_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args->data.srv->cur_sess;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args->data.srv->cur_sess;
 	return 1;
 }
 
@@ -1704,8 +1704,8 @@ static int
 smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = read_freq_ctr(&args->data.srv->sess_per_sec);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = read_freq_ctr(&args->data.srv->sess_per_sec);
 	return 1;
 }
 
@@ -1714,17 +1714,17 @@ smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_UINT, SMP_USE_BKEND, },
-	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "connslots",     smp_fetch_connslots,      ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "queue",         smp_fetch_queue_size,     ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_UINT, SMP_USE_SERVR, },
+	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "connslots",     smp_fetch_connslots,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "queue",         smp_fetch_queue_size,     ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_SINT, SMP_USE_SERVR, },
 	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};
 

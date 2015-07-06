@@ -162,8 +162,8 @@ static int
 smp_fetch_fe_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_SESS;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = smp->sess->fe->uuid;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = smp->sess->fe->uuid;
 	return 1;
 }
 
@@ -175,8 +175,8 @@ static int
 smp_fetch_fe_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = read_freq_ctr(&args->data.prx->fe_sess_per_sec);
+	smp->type = SMP_T_SINT;
+	smp->data.sint = read_freq_ctr(&args->data.prx->fe_sess_per_sec);
 	return 1;
 }
 
@@ -188,8 +188,8 @@ static int
 smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = args->data.prx->feconn;
+	smp->type = SMP_T_SINT;
+	smp->data.sint = args->data.prx->feconn;
 	return 1;
 }
 
@@ -198,9 +198,9 @@ smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, vo
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "fe_conn",      smp_fetch_fe_conn,      ARG1(1,FE), NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "fe_id",        smp_fetch_fe_id,        0,          NULL, SMP_T_UINT, SMP_USE_FTEND, },
-	{ "fe_sess_rate", smp_fetch_fe_sess_rate, ARG1(1,FE), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "fe_conn",      smp_fetch_fe_conn,      ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "fe_id",        smp_fetch_fe_id,        0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "fe_sess_rate", smp_fetch_fe_sess_rate, ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};
 
