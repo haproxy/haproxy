@@ -3672,6 +3672,22 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
          http-request set-var(req.my_var) req.fhdr(user-agent),lower
 
+    - set-src <expr> :
+      Is used to set the source IP address to the value of specified
+      expression. Useful when a proxy in front of HAProxy rewrites source IP,
+      but provides the correct IP in a HTTP header; or you want to mask
+      source IP for privacy.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         http-request set-src hdr(x-forwarded-for)
+         http-request set-src src,ipmask(24)
+
+      When set-src is successful, the source port is set to 0.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
