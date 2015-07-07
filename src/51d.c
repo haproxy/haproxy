@@ -127,6 +127,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
 		                _51d_lru_tree, global._51degrees.data_file_path, 0);
 		if (lru && lru->domain) {
+			smp->flags |= SMP_F_CONST;
 			smp->data.str.str = lru->data;
 			smp->data.str.len = strlen(smp->data.str.str);
 			return 1;
@@ -140,6 +141,10 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		return 0;
 #endif
 
+	/* Duplicate the data and remove the "const" flag before device detection. */
+	if (!smp_dup(smp))
+		return 0;
+
 	smp->data.str.str[smp->data.str.len] = '\0';
 
 	/* Perform detection. */
@@ -152,7 +157,6 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 
 	i = 0;
 	temp = get_trash_chunk();
-	chunk_reset(temp);
 
 	/* Loop through property names passed to the filter and fetch them from the dataset. */
 	while (args[i].data.str.str) {
@@ -198,8 +202,10 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	fiftyoneDegreesFreeWorkset(ws);
 #endif
 
-	if (lru)
+	if (lru) {
+		smp->flags |= SMP_F_CONST;
 		lru64_commit(lru, strdup(smp->data.str.str), global._51degrees.data_file_path, 0, free);
+	}
 
 	return 1;
 }
