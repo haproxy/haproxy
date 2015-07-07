@@ -12084,6 +12084,8 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 		curr_date += args[0].data.sint;
 
 	tm = gmtime(&curr_date);
+	if (!tm)
+		return 0;
 
 	temp = get_trash_chunk();
 	temp->len = snprintf(temp->str, temp->size - temp->len,

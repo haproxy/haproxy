@@ -1519,13 +1519,17 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 {
 	struct chunk *temp;
 	time_t curr_date = smp->data.uint;
+	struct tm *tm;
 
 	/* add offset */
 	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
 		curr_date += args[1].data.sint;
 
+	tm = localtime(&curr_date);
+	if (!tm)
+		return 0;
 	temp = get_trash_chunk();
-	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, localtime(&curr_date));
+	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, tm);
 	smp->data.str = *temp;
 	smp->type = SMP_T_STR;
 	return 1;
@@ -1549,13 +1553,17 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 {
 	struct chunk *temp;
 	time_t curr_date = smp->data.uint;
+	struct tm *tm;
 
 	/* add offset */
 	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
 		curr_date += args[1].data.sint;
 
+	tm = gmtime(&curr_date);
+	if (!tm)
+		return 0;
 	temp = get_trash_chunk();
-	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, gmtime(&curr_date));
+	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, tm);
 	smp->data.str = *temp;
 	smp->type = SMP_T_STR;
 	return 1;
