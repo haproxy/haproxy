@@ -1145,7 +1145,7 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, X509 *cacert)
 
 /* Compute the serial that will be used to create/set/get a certificate. */
 unsigned int
-ssl_sock_generated_cert_serial(void *data, size_t len)
+ssl_sock_generated_cert_serial(const void *data, size_t len)
 {
 	return XXH32(data, len, ssl_ctx_lru_seed);
 }

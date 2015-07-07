@@ -72,7 +72,7 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename);
 SSL_CTX *ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, EVP_PKEY *capkey);
 SSL_CTX *ssl_sock_get_generated_cert(unsigned int serial, X509 *cacert);
 void ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int serial, X509 *cacert);
-unsigned int ssl_sock_generated_cert_serial(void *data, size_t len);
+unsigned int ssl_sock_generated_cert_serial(const void *data, size_t len);
 
 #endif /* _PROTO_SSL_SOCK_H */
 
