@@ -1188,18 +1188,20 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
-		struct sockaddr to;
-		int             fd;
+		if (s->generate_certs) {
+			struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+			unsigned int serial;
+			SSL_CTX *ctx;
 
-		if (s->generate_certs &&
-		    (fd = SSL_get_fd(ssl)) != -1 &&
-		    tcp_get_dst(fd, &to, sizeof(to), 0) != -1) {
-			unsigned int serial = ssl_sock_generated_cert_serial(&to, sizeof(to));
-			SSL_CTX *ctx = ssl_sock_get_generated_cert(serial, s->ca_sign_cert);
-			if (ctx) {
-				/* switch ctx */
-				SSL_set_SSL_CTX(ssl, ctx);
-				return SSL_TLSEXT_ERR_OK;
+			conn_get_to_addr(conn);
+			if (conn->flags & CO_FL_ADDR_TO_SET) {
+				serial = ssl_sock_generated_cert_serial(&conn->addr.to, get_addr_len(&conn->addr.to));
+				ctx = ssl_sock_get_generated_cert(serial, s->ca_sign_cert);
+				if (ctx) {
+					/* switch ctx */
+					SSL_set_SSL_CTX(ssl, ctx);
+					return SSL_TLSEXT_ERR_OK;
+				}
 			}
 		}
 
