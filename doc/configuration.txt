@@ -11290,8 +11290,8 @@ mod(<value>)
 
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
-  the product as an signed integer. In case of overflow, the higher bits are
-  lost, leading to seemingly strange values.
+  the product as an signed integer. In case of overflow, the largest possible
+  value for the sign is returned so that the operation doesn't wrap around.
 
 neg
   Takes the input value of type signed integer, computes the opposite value,

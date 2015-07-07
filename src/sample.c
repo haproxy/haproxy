@@ -2053,12 +2053,38 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, v
 	return 1;
 }
 
+static inline long long int arith_add(long long int a, long long int b)
+{
+	/* Prevent overflow and makes capped calculus.
+	 * We must ensure that the check calculus doesn't
+	 * exceed the signed 64 bits limits.
+	 *
+	 *        +----------+----------+
+	 *        |   a<0    |   a>=0   |
+	 * +------+----------+----------+
+	 * | b<0  | MIN-a>b  | no check |
+	 * +------+----------+----------+
+	 * | b>=0 | no check | MAX-a<b  |
+	 * +------+----------+----------+
+	 */
+	if ((a ^ b) >= 0) {
+		/* signs are differents. */
+		if (a < 0) {
+			if (LLONG_MIN - a > b)
+				return LLONG_MIN;
+		}
+		if (LLONG_MAX - a < b)
+			return LLONG_MAX;
+	}
+	return a + b;
+}
+
 /* Takes a SINT on input, applies an arithmetic "add" with the UINT in arg_p,
  * and returns the SINT result.
  */
 static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint += arg_p->data.sint;
+	smp->data.sint = arith_add(smp->data.sint, arg_p->data.sint);
 	return 1;
 }
 
@@ -2068,7 +2094,21 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 static int sample_conv_arith_sub(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.sint -= arg_p->data.sint;
+	/* We cannot represent -LLONG_MIN because abs(LLONG_MIN) is greater
+	 * than abs(LLONG_MAX). So, the following code use LLONG_MAX in place
+	 * of -LLONG_MIN and correct the result.
+	 */
+	if (arg_p->data.sint == LLONG_MIN) {
+		smp->data.sint = arith_add(smp->data.sint, LLONG_MAX);
+		if (smp->data.sint < LLONG_MAX)
+			smp->data.sint++;
+		return 1;
+	}
+
+	/* standard substraction: we use the "add" function and negate
+	 * the second operand.
+	 */
+	smp->data.sint = arith_add(smp->data.sint, -arg_p->data.sint);
 	return 1;
 }
 
@@ -2078,7 +2118,35 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 static int sample_conv_arith_mul(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.sint *= arg_p->data.sint;
+	long long int c;
+
+	/* prevent divide by 0 during the check */
+	if (!smp->data.sint || !arg_p->data.sint) {
+		smp->data.sint = 0;
+		return 1;
+	}
+
+	/* The multiply between LLONG_MIN and -1 returns a
+	 * "floting point exception".
+	 */
+	if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+		smp->data.sint = LLONG_MAX;
+		return 1;
+	}
+
+	/* execute standard multiplication. */
+	c = smp->data.sint * arg_p->data.sint;
+
+	/* check for overflow and makes capped multiply. */
+	if (smp->data.sint != c / arg_p->data.sint) {
+		if ((smp->data.sint < 0) == (arg_p->data.sint < 0)) {
+			smp->data.sint = LLONG_MAX;
+			return 1;
+		}
+		smp->data.sint = LLONG_MIN;
+		return 1;
+	}
+	smp->data.sint = c;
 	return 1;
 }
 
@@ -2089,10 +2157,18 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 static int sample_conv_arith_div(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.sint)
+	if (arg_p->data.sint) {
+		/* The divide between LLONG_MIN and -1 returns a
+		 * "floting point exception".
+		 */
+		if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+			smp->data.sint = LLONG_MAX;
+			return 1;
+		}
 		smp->data.sint /= arg_p->data.sint;
-	else
-		smp->data.sint = ~0;
+		return 1;
+	}
+	smp->data.sint = LLONG_MAX;
 	return 1;
 }
 
@@ -2103,10 +2179,18 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 static int sample_conv_arith_mod(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.sint)
+	if (arg_p->data.sint) {
+		/* The divide between LLONG_MIN and -1 returns a
+		 * "floting point exception".
+		 */
+		if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+			smp->data.sint = 0;
+			return 1;
+		}
 		smp->data.sint %= arg_p->data.sint;
-	else
-		smp->data.sint = 0;
+		return 1;
+	}
+	smp->data.sint = 0;
 	return 1;
 }
 
@@ -2116,7 +2200,10 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 static int sample_conv_arith_neg(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.sint = -smp->data.sint;
+	if (smp->data.sint == LLONG_MIN)
+		smp->data.sint = LLONG_MAX;
+	else
+		smp->data.sint = -smp->data.sint;
 	return 1;
 }
 
