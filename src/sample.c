@@ -31,6 +31,7 @@
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stick_table.h>
+#include <proto/vars.h>
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
@@ -2017,6 +2018,58 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
+/* This function check an operator entry. It expects a string.
+ * The string can be an integer or a variable name.
+ */
+static int check_operator(struct arg *args, struct sample_conv *conv,
+                          const char *file, int line, char **err)
+{
+	const char *str;
+	const char *end;
+
+	/* Try to decode a variable. */
+	if (vars_check_arg(&args[0], NULL))
+		return 1;
+
+	/* Try to convert an integer */
+	str = args[0].data.str.str;
+	end = str + strlen(str);
+	args[0].data.sint = read_int64(&str, end);
+	if (*str != '\0') {
+		memprintf(err, "expects an integer or a variable name");
+		return 0;
+	}
+	args[0].type = ARGT_SINT;
+	return 1;
+}
+
+/* This fucntion returns a sample struct filled with a arg content.
+ * If the arg contain an integer, the integer is returned in the
+ * sample. If the arg contains a variable descriptor, it returns the
+ * variable value.
+ *
+ * This function returns 0 if an error occurs, otherwise it returns 1.
+ */
+static inline int sample_conv_var2smp(const struct arg *arg, struct stream *strm, struct sample *smp)
+{
+	switch (arg->type) {
+	case ARGT_SINT:
+		smp->type = SMP_T_SINT;
+		smp->data.sint = arg->data.sint;
+		return 1;
+	case ARGT_VAR:
+		if (!vars_get_by_desc(&arg->data.var, strm, smp))
+			return 0;
+		if (!sample_casts[smp->type][SMP_T_SINT])
+			return 0;
+		if (!sample_casts[smp->type][SMP_T_SINT](smp))
+			return 0;
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 /* Takes a SINT on input, applies a binary twos complement and returns the SINT
  * result.
  */
@@ -2026,30 +2079,42 @@ static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, v
 	return 1;
 }
 
-/* Takes a SINT on input, applies a binary "and" with the UINT in arg_p, and
- * returns the SINT result.
+/* Takes a SINT on input, applies a binary "and" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint &= arg_p->data.sint;
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+	smp->data.sint &= tmp.data.sint;
 	return 1;
 }
 
-/* Takes a SINT on input, applies a binary "or" with the UINT in arg_p, and
- * returns the SINT result.
+/* Takes a SINT on input, applies a binary "or" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint |= arg_p->data.sint;
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+	smp->data.sint |= tmp.data.sint;
 	return 1;
 }
 
-/* Takes a SINT on input, applies a binary "xor" with the UINT in arg_p, and
- * returns the SINT result.
+/* Takes a SINT on input, applies a binary "xor" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint ^= arg_p->data.sint;
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+	smp->data.sint ^= tmp.data.sint;
 	return 1;
 }
 
@@ -2079,26 +2144,35 @@ static inline long long int arith_add(long long int a, long long int b)
 	return a + b;
 }
 
-/* Takes a SINT on input, applies an arithmetic "add" with the UINT in arg_p,
- * and returns the SINT result.
+/* Takes a SINT on input, applies an arithmetic "add" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
  */
 static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint = arith_add(smp->data.sint, arg_p->data.sint);
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+	smp->data.sint = arith_add(smp->data.sint, tmp.data.sint);
 	return 1;
 }
 
-/* Takes a SINT on input, applies an arithmetic "sub" with the UINT in arg_p,
- * and returns the SINT result.
+/* Takes a SINT on input, applies an arithmetic "sub" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
  */
 static int sample_conv_arith_sub(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+
 	/* We cannot represent -LLONG_MIN because abs(LLONG_MIN) is greater
 	 * than abs(LLONG_MAX). So, the following code use LLONG_MAX in place
 	 * of -LLONG_MIN and correct the result.
 	 */
-	if (arg_p->data.sint == LLONG_MIN) {
+	if (tmp.data.sint == LLONG_MIN) {
 		smp->data.sint = arith_add(smp->data.sint, LLONG_MAX);
 		if (smp->data.sint < LLONG_MAX)
 			smp->data.sint++;
@@ -2108,20 +2182,26 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 	/* standard substraction: we use the "add" function and negate
 	 * the second operand.
 	 */
-	smp->data.sint = arith_add(smp->data.sint, -arg_p->data.sint);
+	smp->data.sint = arith_add(smp->data.sint, -tmp.data.sint);
 	return 1;
 }
 
-/* Takes a SINT on input, applies an arithmetic "mul" with the UINT in arg_p,
- * and returns the SINT result.
+/* Takes a SINT on input, applies an arithmetic "mul" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * If the result makes an overflow, then the largest possible quantity is
+ * returned.
  */
 static int sample_conv_arith_mul(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
+	struct sample tmp;
 	long long int c;
 
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+
 	/* prevent divide by 0 during the check */
-	if (!smp->data.sint || !arg_p->data.sint) {
+	if (!smp->data.sint || !tmp.data.sint) {
 		smp->data.sint = 0;
 		return 1;
 	}
@@ -2129,17 +2209,17 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 	/* The multiply between LLONG_MIN and -1 returns a
 	 * "floting point exception".
 	 */
-	if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+	if (smp->data.sint == LLONG_MIN && tmp.data.sint == -1) {
 		smp->data.sint = LLONG_MAX;
 		return 1;
 	}
 
 	/* execute standard multiplication. */
-	c = smp->data.sint * arg_p->data.sint;
+	c = smp->data.sint * tmp.data.sint;
 
 	/* check for overflow and makes capped multiply. */
-	if (smp->data.sint != c / arg_p->data.sint) {
-		if ((smp->data.sint < 0) == (arg_p->data.sint < 0)) {
+	if (smp->data.sint != c / tmp.data.sint) {
+		if ((smp->data.sint < 0) == (tmp.data.sint < 0)) {
 			smp->data.sint = LLONG_MAX;
 			return 1;
 		}
@@ -2150,44 +2230,55 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 	return 1;
 }
 
-/* Takes a SINT on input, applies an arithmetic "div" with the SINT in arg_p,
- * and returns the SINT result. If arg_p makes the result overflow, then the
- * largest possible quantity is returned.
+/* Takes a SINT on input, applies an arithmetic "div" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * If arg_p makes the result overflow, then the largest possible quantity is
+ * returned.
  */
 static int sample_conv_arith_div(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.sint) {
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+
+	if (tmp.data.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
 		 * "floting point exception".
 		 */
-		if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+		if (smp->data.sint == LLONG_MIN && tmp.data.sint == -1) {
 			smp->data.sint = LLONG_MAX;
 			return 1;
 		}
-		smp->data.sint /= arg_p->data.sint;
+		smp->data.sint /= tmp.data.sint;
 		return 1;
 	}
 	smp->data.sint = LLONG_MAX;
 	return 1;
 }
 
-/* Takes a SINT on input, applies an arithmetic "mod" with the SINT in arg_p,
- * and returns the SINT result. If arg_p makes the result overflow, then zero
- * is returned.
+/* Takes a SINT on input, applies an arithmetic "mod" with the SINT directly in
+ * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * If arg_p makes the result overflow, then 0 is returned.
  */
 static int sample_conv_arith_mod(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.sint) {
+	struct sample tmp;
+
+	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+		return 0;
+
+	if (tmp.data.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
 		 * "floting point exception".
 		 */
-		if (smp->data.sint == LLONG_MIN && arg_p->data.sint == -1) {
+		if (smp->data.sint == LLONG_MIN && tmp.data.sint == -1) {
 			smp->data.sint = 0;
 			return 1;
 		}
-		smp->data.sint %= arg_p->data.sint;
+		smp->data.sint %= tmp.data.sint;
 		return 1;
 	}
 	smp->data.sint = 0;
@@ -2522,20 +2613,20 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "word",   sample_conv_word,      ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 
-	{ "and",    sample_conv_binary_and, ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "or",     sample_conv_binary_or,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "xor",    sample_conv_binary_xor, ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "cpl",    sample_conv_binary_cpl,            0, NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "bool",   sample_conv_arith_bool,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
-	{ "not",    sample_conv_arith_not,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
-	{ "odd",    sample_conv_arith_odd,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
-	{ "even",   sample_conv_arith_even,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
-	{ "add",    sample_conv_arith_add,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "sub",    sample_conv_arith_sub,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "mul",    sample_conv_arith_mul,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "div",    sample_conv_arith_div,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "mod",    sample_conv_arith_mod,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "xor",    sample_conv_binary_xor, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "cpl",    sample_conv_binary_cpl,           0, NULL, SMP_T_SINT, SMP_T_SINT  },
+	{ "bool",   sample_conv_arith_bool,           0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "not",    sample_conv_arith_not,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "odd",    sample_conv_arith_odd,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "even",   sample_conv_arith_even,           0, NULL, SMP_T_SINT, SMP_T_BOOL },
+	{ "add",    sample_conv_arith_add,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "sub",    sample_conv_arith_sub,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "mul",    sample_conv_arith_mul,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "div",    sample_conv_arith_div,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "mod",    sample_conv_arith_mod,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
+	{ "neg",    sample_conv_arith_neg,            0, NULL, SMP_T_SINT, SMP_T_SINT  },
 
 	{ NULL, NULL, 0, 0, 0 },
 }};

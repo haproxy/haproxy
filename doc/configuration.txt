@@ -11031,11 +11031,29 @@ The currently available list of transformation keywords include :
 
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
-  result as a signed integer.
+  result as a signed integer. <value> can be a numeric value or a variable
+  name. The name of the variable starts by an indication about its scope. The
+  allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 and(<value>)
   Performs a bitwise "AND" between <value> and the input value of type signed
-  integer, and returns the result as an signed integer.
+  integer, and returns the result as an signed integer. <value> can be a
+  numeric value or a variable name. The name of the variable starts by an
+  indication about its scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 base64
   Converts a binary input sample to a base64 string. It is used to log or
@@ -11092,7 +11110,16 @@ debug
 div(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   result as an signed integer. If <value> is null, the largest unsigned
-  integer is returned (typically 2^63-1).
+  integer is returned (typically 2^63-1). <value> can be a numeric value or a
+  variable name. The name of the variable starts by an indication about it
+  scope. The scope allowed are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
@@ -11287,11 +11314,29 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
 mod(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   remainder as an signed integer. If <value> is null, then zero is returned.
+  <value> can be a numeric value or a variable name. The name of the variable
+  starts by an indication about its scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
   the product as an signed integer. In case of overflow, the largest possible
   value for the sign is returned so that the operation doesn't wrap around.
+  <value> can be a numeric value or a variable name. The name of the variable
+  starts by an indication about its scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 neg
   Takes the input value of type signed integer, computes the opposite value,
@@ -11311,7 +11356,16 @@ odd
 
 or(<value>)
   Performs a bitwise "OR" between <value> and the input value of type signed
-  integer, and returns the result as an signed integer.
+  integer, and returns the result as an signed integer. <value> can be a
+  numeric value or a variable name. The name of the variable starts by an
+  indication about its scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 regsub(<regex>,<subst>[,<flags>])
   Applies a regex-based substitution to the input string. It does the same
@@ -11377,7 +11431,16 @@ set-var(<var name>)
 sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
   the result as an signed integer. Note: in order to subtract the input from
-  a constant, simply perform a "neg,add(value)".
+  a constant, simply perform a "neg,add(value)". <value> can be a numeric value
+  or a variable name. The name of the variable starts by an indication about its
+  scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -11559,6 +11622,15 @@ wt6([<avalanche>])
 xor(<value>)
   Performs a bitwise "XOR" (exclusive OR) between <value> and the input value
   of type signed integer, and returns the result as an signed integer.
+  <value> can be a numeric value or a variable name. The name of the variable
+  starts by an indication about its scope. The allowed scopes are:
+    "sess" : the variable is shared with all the session,
+    "txn"  : the variable is shared with all the transaction (request and
+             response),
+    "req"  : the variable is shared only during the request processing,
+    "res"  : the variable is shared only during the response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 
 7.3.2. Fetching samples from internal states
