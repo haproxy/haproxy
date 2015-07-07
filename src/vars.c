@@ -448,6 +448,40 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 	return 1;
 }
 
+/* this function fills a sample with the
+ * content of the varaible described by <var_desc>. Returns 1
+ * if the sample is filled, otherwise it returns 0.
+ */
+int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struct sample *smp)
+{
+	struct vars *vars;
+	struct var *var;
+
+	/* Select "vars" pool according with the scope. */
+	switch (var_desc->scope) {
+	case SCOPE_SESS: vars = &strm->sess->vars;  break;
+	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
+	case SCOPE_REQ:
+	case SCOPE_RES:
+	default:         vars = &strm->vars_reqres; break;
+	}
+
+	/* Check if the scope is avalaible a this point of processing. */
+	if (vars->scope != var_desc->scope)
+		return 0;
+
+	/* Get the variable entry. */
+	var = var_get(vars, var_desc->name);
+	if (!var)
+		return 0;
+
+	/* Copy sample. */
+	smp->type = var->data.type;
+	smp->flags = SMP_F_CONST;
+	memcpy(&smp->data, &var->data.data, sizeof(smp->data));
+	return 1;
+}
+
 /* Returns 0 if we need to come back later to complete the sample's retrieval,
  * otherwise 1. For now all processing is considered final so we only return 1.
  */
