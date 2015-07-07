@@ -1159,7 +1159,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 	struct lru64 *lru     = NULL;
 	unsigned int  serial;
 
-	serial = XXH32(servername, strlen(servername), ssl_ctx_lru_seed);
+	serial = ssl_sock_generated_cert_serial(servername, strlen(servername));
 	if (ssl_ctx_lru_tree) {
 		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
 		if (lru && lru->domain)
