@@ -161,6 +161,7 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 	}
 
 	eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+	newsrv->flags |= SRV_F_FORCED_ID;
 	return 0;
 }
 

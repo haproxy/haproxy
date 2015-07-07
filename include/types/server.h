@@ -86,6 +86,7 @@ enum srv_admin {
 #define SRV_F_MAPPORTS     0x0002        /* this server uses mapped ports */
 #define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
 #define SRV_F_USE_NS_FROM_PP 0x0008      /* use namespace associated with connection if present */
+#define SRV_F_FORCED_ID    0x0010        /* server's ID was forced in the configuration */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1          0x0001        /* proxy protocol version 1 */
