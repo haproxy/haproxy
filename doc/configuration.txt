@@ -12631,6 +12631,15 @@ rdp_cookie_cnt([name]) : integer (deprecated)
   ACL derivatives :
     req_rdp_cookie_cnt([<name>]) : integer match
 
+req.ssl_ec_ext : boolean
+  Returns a boolean identifying if client sent the Supported Elliptic Curves
+  Extension as defined in RFC4492, section 5.1. within the SSL ClientHello
+  message. This can be used to present ECC compatible clients with EC certificate
+  and to use RSA for all others, on the same IP address. Note that this only
+  applies to raw contents found in the request buffer and not to contents
+  deciphered via an SSL data layer, so this will not work with "bind" lines
+  having the "ssl" option.
+
 req.ssl_hello_type : integer
 req_ssl_hello_type : integer (deprecated)
   Returns an integer value containing the type of the SSL hello message found
