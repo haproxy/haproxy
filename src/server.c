@@ -1794,6 +1794,126 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	return err_code;
 }
 
+/* Returns a pointer to the first server matching either id <id>.
+ * NULL is returned if no match is found.
+ * the lookup is performed in the backend <bk>
+ */
+struct server *server_find_by_id(struct proxy *bk, int id)
+{
+	struct eb32_node *eb32;
+	struct server *curserver;
+
+	if (!bk || (id ==0))
+		return NULL;
+
+	/* <bk> has no backend capabilities, so it can't have a server */
+	if (!(bk->cap & PR_CAP_BE))
+		return NULL;
+
+	curserver = NULL;
+
+	eb32 = eb32_lookup(&bk->conf.used_server_id, id);
+	if (eb32)
+		curserver = container_of(eb32, struct server, conf.id);
+
+	return curserver;
+}
+
+/* Returns a pointer to the first server matching either name <name>, or id
+ * if <name> starts with a '#'. NULL is returned if no match is found.
+ * the lookup is performed in the backend <bk>
+ */
+struct server *server_find_by_name(struct proxy *bk, const char *name)
+{
+	struct server *curserver;
+
+	if (!bk || !name)
+		return NULL;
+
+	/* <bk> has no backend capabilities, so it can't have a server */
+	if (!(bk->cap & PR_CAP_BE))
+		return NULL;
+
+	curserver = NULL;
+	if (*name == '#') {
+		curserver = server_find_by_id(bk, atoi(name + 1));
+		if (curserver)
+			return curserver;
+	}
+	else {
+		curserver = bk->srv;
+
+		while (curserver && (strcmp(curserver->id, name) != 0))
+			curserver = curserver->next;
+
+		if (curserver)
+			return curserver;
+	}
+
+	return NULL;
+}
+
+struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff)
+{
+	struct server *byname;
+	struct server *byid;
+
+	if (!name && !id)
+		return NULL;
+
+	if (diff)
+		*diff = 0;
+
+	byname = byid = NULL;
+
+	if (name) {
+		byname = server_find_by_name(bk, name);
+		if (byname && (!id || byname->puid == id))
+			return byname;
+	}
+
+	/* remaining possibilities :
+	 *  - name not set
+	 *  - name set but not found
+	 *  - name found but ID doesn't match
+	 */
+	if (id) {
+		byid = server_find_by_id(bk, id);
+		if (byid) {
+			if (byname) {
+				/* use id only if forced by configuration */
+				if (byid->flags & SRV_F_FORCED_ID) {
+					if (diff)
+						*diff |= 2;
+					return byid;
+				}
+				else {
+					if (diff)
+						*diff |= 1;
+					return byname;
+				}
+			}
+
+			/* remaining possibilities:
+			 *   - name not set
+			 *   - name set but not found
+			 */
+			if (name && diff)
+				*diff |= 2;
+			return byid;
+		}
+
+		/* id bot found */
+		if (byname) {
+			if (diff)
+				*diff |= 1;
+			return byname;
+		}
+	}
+
+	return NULL;
+}
+
 /*
  * update a server's current IP address.
  * ip is a pointer to the new IP address, whose address family is ip_sin_family.
