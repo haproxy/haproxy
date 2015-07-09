@@ -174,22 +174,26 @@ struct logformat_var_args var_args_list[] = {
 static inline const char *fmt_directive(const struct proxy *curproxy)
 {
 	switch (curproxy->conf.args.ctx) {
-	case ARGC_UIF:
-		return "unique-id-format";
+	case ARGC_ACL:
+		return "acl";
+	case ARGC_STK:
+		return "stick";
+	case ARGC_TRK:
+		return "track-sc";
+	case ARGC_LOG:
+		return "log-format";
 	case ARGC_HRQ:
 		return "http-request";
 	case ARGC_HRS:
 		return "http-response";
-	case ARGC_STK:
-		return "stick";
-	case ARGC_TRK:
-		return "track-sc"; break;
+	case ARGC_UIF:
+		return "unique-id-format";
 	case ARGC_RDR:
-		return "redirect"; break;
-	case ARGC_ACL:
-		return "acl"; break;
+		return "redirect";
+	case ARGC_CAP:
+		return "capture";
 	default:
-		return "log-format";
+		return "undefined(please report this bug)"; /* must never happen */
 	}
 }
 
