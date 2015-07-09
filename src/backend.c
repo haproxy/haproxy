@@ -55,6 +55,10 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif /* USE_OPENSSL */
+
 int be_lastsession(const struct proxy *be)
 {
 	if (be->be_counters.last_sess)
@@ -1116,6 +1120,36 @@ int connect_server(struct stream *s)
 			srv->counters.cur_sess_max = srv->cur_sess;
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
+
+#ifdef USE_OPENSSL
+		if (srv->ssl_ctx.sni) {
+			struct sample *smp;
+			int rewind;
+
+			/* Tricky case : we have already scheduled the pending
+			 * HTTP request or TCP data for leaving. So in HTTP we
+			 * rewind exactly the headers, otherwise we rewind the
+			 * output data.
+			 */
+			rewind = s->txn ? http_hdr_rewind(&s->txn->req) : s->req.buf->o;
+			b_rew(s->req.buf, rewind);
+
+			smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, srv->ssl_ctx.sni, SMP_T_STR);
+
+			/* restore the pointers */
+			b_adv(s->req.buf, rewind);
+
+			if (smp) {
+				/* get write access to terminate with a zero */
+				smp_dup(smp);
+				if (smp->data.str.len >= smp->data.str.size)
+					smp->data.str.len = smp->data.str.size - 1;
+				smp->data.str.str[smp->data.str.len] = 0;
+				ssl_sock_set_servername(srv_conn, smp->data.str.str);
+			}
+		}
+#endif /* USE_OPENSSL */
+
 	}
 
 	return SF_ERR_NONE;  /* connection is OK */

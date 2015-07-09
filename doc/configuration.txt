@@ -10183,6 +10183,15 @@ slowstart <start_time_in_ms>
 
   Supported in default-server: Yes
 
+sni <expression>
+  The "sni" parameter evaluates the sample fetch expression, converts it to a
+  string and uses the result as the host name sent in the SNI TLS extension to
+  the server. A typical use case is to send the SNI received from the client in
+  a bridged HTTPS scenario, using the "ssl_fc_sni" sample fetch for the
+  expression, though alternatives such as req.hdr(host) can also make sense.
+
+  Supported in default-server: no
+
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<pl>[-<ph>]] [interface <name>] ...

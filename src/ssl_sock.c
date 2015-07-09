@@ -4952,6 +4952,42 @@ static int srv_parse_send_proxy_cn(char **args, int *cur_arg, struct proxy *px, 
 	return 0;
 }
 
+/* parse the "sni" server keyword */
+static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	memprintf(err, "'%s' : the current SSL library doesn't support the SNI TLS extension", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
+	struct sample_expr *expr;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing sni expression", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	(*cur_arg)++;
+	proxy->conf.args.ctx = ARGC_SRV;
+
+	expr = sample_parse_expr((char **)args, cur_arg, px->conf.file, px->conf.line, err, &proxy->conf.args);
+	if (!expr) {
+		memprintf(err, "error detected while parsing sni expression : %s", *err);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
+		memprintf(err, "error detected while parsing sni expression : "
+		          " fetch method '%s' extracts information from '%s', none of which is available here.\n",
+		          args[*cur_arg-1], sample_src_names(expr->fetch->use));
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	px->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
+	newsrv->ssl_ctx.sni = expr;
+	return 0;
+#endif
+}
+
 /* parse the "ssl" server keyword */
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -5225,6 +5261,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tls-tickets",        srv_parse_no_tls_tickets, 0, 0 }, /* disable session resumption tickets */
 	{ "send-proxy-v2-ssl",     srv_parse_send_proxy_ssl, 0, 0 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",  srv_parse_send_proxy_cn,  0, 0 }, /* send PROXY protocol header v2 with CN */
+	{ "sni",                   srv_parse_sni,            1, 0 }, /* send SNI extension */
 	{ "ssl",                   srv_parse_ssl,            0, 0 }, /* enable SSL processing */
 	{ "verify",                srv_parse_verify,         1, 0 }, /* set SSL verify method */
 	{ "verifyhost",            srv_parse_verifyhost,     1, 0 }, /* require that SSL cert verifies for hostname */

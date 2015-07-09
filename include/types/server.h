@@ -222,6 +222,7 @@ struct server {
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
 		char *client_crt;		/* client certificate to send */
+		struct sample_expr *sni;        /* sample expression for SNI */
 	} ssl_ctx;
 #endif
 	struct {
