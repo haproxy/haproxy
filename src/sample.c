@@ -1125,6 +1125,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGC_RDR: where = "in redirect format string in"; break;
 		case ARGC_CAP: where = "in capture rule in"; break;
 		case ARGC_ACL: ctx = "ACL keyword"; break;
+		case ARGC_SRV: where = "in server directive in"; break;
 		}
 
 		/* set a few default settings */

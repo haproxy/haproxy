@@ -74,6 +74,7 @@ enum {
 	ARGC_UIF,      /* unique-id-format */
 	ARGC_RDR,      /* redirect */
 	ARGC_CAP,      /* capture rule */
+	ARGC_SRV,      /* server line */
 };
 
 /* flags used when compiling and executing regex */

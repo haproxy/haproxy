@@ -192,6 +192,8 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 		return "redirect";
 	case ARGC_CAP:
 		return "capture";
+	case ARGC_SRV:
+		return "server";
 	default:
 		return "undefined(please report this bug)"; /* must never happen */
 	}
