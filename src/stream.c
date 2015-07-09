@@ -1987,6 +1987,14 @@ struct task *process_stream(struct task *t)
 		 */
 		if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 			channel_forward(req, CHN_INFINITE_FORWARD);
+
+		/* Just in order to support fetching HTTP contents after start
+		 * of forwarding when the HTTP forwarding analyser is not used,
+		 * we simply reset msg->sov so that HTTP rewinding points to the
+		 * headers.
+		 */
+		if (s->txn)
+			s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - req->buf->o;
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
@@ -2149,6 +2157,14 @@ struct task *process_stream(struct task *t)
 		 */
 		if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 			channel_forward(res, CHN_INFINITE_FORWARD);
+
+		/* Just in order to support fetching HTTP contents after start
+		 * of forwarding when the HTTP forwarding analyser is not used,
+		 * we simply reset msg->sov so that HTTP rewinding points to the
+		 * headers.
+		 */
+		if (s->txn)
+			s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - res->buf->o;
 
 		/* if we have no analyser anymore in any direction and have a
 		 * tunnel timeout set, use it now. Note that we must respect
