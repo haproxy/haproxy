@@ -3292,6 +3292,16 @@ char *ssl_sock_get_version(struct connection *conn)
 	return (char *)SSL_get_version(conn->xprt_ctx);
 }
 
+void ssl_sock_set_servername(struct connection *conn, const char *hostname)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	if (!ssl_sock_is_ssl(conn))
+		return;
+
+	SSL_set_tlsext_host_name(conn->xprt_ctx, hostname);
+#endif
+}
+
 /* Extract peer certificate's common name into the chunk dest
  * Returns
  *  the len of the extracted common name
