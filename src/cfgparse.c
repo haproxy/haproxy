@@ -2187,8 +2187,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->id = strdup(args[1]);
 		curr_resolvers->query_ids = EB_ROOT;
 		/* default hold period for valid is 10s */
-		curr_resolvers->hold.valid = 10;
-		curr_resolvers->timeout.retry = 1;
+		curr_resolvers->hold.valid = 10000;
+		curr_resolvers->timeout.retry = 1000;
 		curr_resolvers->resolve_retries = 3;
 		LIST_INIT(&curr_resolvers->nameserver_list);
 		LIST_INIT(&curr_resolvers->curr_resolution);
