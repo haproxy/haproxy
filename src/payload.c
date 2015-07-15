@@ -161,6 +161,7 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 		if (ext_type == 10) {
 			smp->type = SMP_T_BOOL;
 			smp->data.uint = 1;
+			smp->flags = SMP_F_VOLATILE;
 			return 1;
 		}
 
