@@ -606,6 +606,9 @@ endif
 endif
 
 OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
+ifneq ($(USE_DL),)
+OPTIONS_LDFLAGS += -ldl
+endif
 OPTIONS_OBJS    += src/hlua.o
 endif
 
