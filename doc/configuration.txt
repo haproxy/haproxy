@@ -6896,6 +6896,8 @@ source <addr>[:<port>] [interface <name>]
   is possible at the server level using the "source" server option. Refer to
   section 5 for more information.
 
+  In order to work, "usesrc" requires root privileges.
+
   Examples :
         backend private
             # Connect to the servers using our 192.168.1.200 source address
