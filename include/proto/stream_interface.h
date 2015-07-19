@@ -282,19 +282,14 @@ static inline struct connection *si_alloc_conn(struct stream_interface *si, int 
 {
 	struct connection *conn;
 
-	/* If we find a connection, we return it, otherwise it's an applet
-	 * and we start by releasing it.
+	/* If we find a reusable connection, we return it, otherwise we start
+	 * by releasing what we have (non-reusable conn or applet).
 	 */
 	if (si->end) {
 		conn = objt_conn(si->end);
-		if (conn) {
-			if (!reuse) {
-				conn_force_close(conn);
-				conn_init(conn);
-			}
+		if (conn && reuse)
 			return conn;
-		}
-		/* it was an applet then */
+
 		si_release_endpoint(si);
 	}
 
