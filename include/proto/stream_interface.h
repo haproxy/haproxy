@@ -46,7 +46,6 @@ extern struct data_cb si_conn_cb;
 extern struct data_cb si_idle_conn_cb;
 
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app);
-void stream_int_unregister_handler(struct stream_interface *si);
 void si_applet_done(struct stream_interface *si);
 
 /* returns the channel which receives data from this stream interface (input channel) */
@@ -152,11 +151,6 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	}
 	si->end = NULL;
 	si->ops = &si_embedded_ops;
-}
-
-static inline void si_detach(struct stream_interface *si)
-{
-	si_release_endpoint(si);
 }
 
 /* Turn a possibly existing connection endpoint of stream interface <si> to

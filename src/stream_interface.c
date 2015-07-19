@@ -396,14 +396,6 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct a
 	return si_appctx(si);
 }
 
-/* Unregister a stream interface handler. This must be called by the handler task
- * itself when it detects that it is in the SI_ST_DIS state.
- */
-void stream_int_unregister_handler(struct stream_interface *si)
-{
-	si_detach(si);
-}
-
 /* This callback is used to send a valid PROXY protocol line to a socket being
  * established. It returns 0 if it fails in a fatal way or needs to poll to go
  * further, otherwise it returns non-zero and removes itself from the connection's
