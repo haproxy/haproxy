@@ -160,7 +160,6 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	 * callbacks will be initialized before attempting to connect.
 	 */
 	si_reset(&s->si[1]);
-	si_detach(&s->si[1]);
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
