@@ -10603,8 +10603,8 @@ smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void 
 		name_str = args[0].data.str.str;
 		name_len = args[0].data.str.len;
 
-		if (args[1].type == ARGT_UINT || args[1].type == ARGT_SINT)
-			occ = args[1].data.uint;
+		if (args[1].type == ARGT_SINT)
+			occ = args[1].data.sint;
 	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
@@ -10731,8 +10731,8 @@ smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *
 		name_str = args[0].data.str.str;
 		name_len = args[0].data.str.len;
 
-		if (args[1].type == ARGT_UINT || args[1].type == ARGT_SINT)
-			occ = args[1].data.uint;
+		if (args[1].type == ARGT_SINT)
+			occ = args[1].data.sint;
 	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
@@ -11216,10 +11216,10 @@ smp_fetch_capture_header_req(const struct arg *args, struct sample *smp, const c
 	struct proxy *fe = strm_fe(smp->strm);
 	int idx;
 
-	if (!args || args->type != ARGT_UINT)
+	if (!args || args->type != ARGT_SINT)
 		return 0;
 
-	idx = args->data.uint;
+	idx = args->data.sint;
 
 	if (idx > (fe->nb_req_cap - 1) || smp->strm->req_cap == NULL || smp->strm->req_cap[idx] == NULL)
 		return 0;
@@ -11241,10 +11241,10 @@ smp_fetch_capture_header_res(const struct arg *args, struct sample *smp, const c
 	struct proxy *fe = strm_fe(smp->strm);
 	int idx;
 
-	if (!args || args->type != ARGT_UINT)
+	if (!args || args->type != ARGT_SINT)
 		return 0;
 
-	idx = args->data.uint;
+	idx = args->data.sint;
 
 	if (idx > (fe->nb_rsp_cap - 1) || smp->strm->res_cap == NULL || smp->strm->res_cap[idx] == NULL)
 		return 0;
@@ -12081,10 +12081,11 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	const char mon[12][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 	struct chunk *temp;
 	struct tm *tm;
-	time_t curr_date = smp->data.sint;
+	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
+	time_t curr_date = smp->data.sint & 0x007fffffffffffffLL;
 
 	/* add offset */
-	if (args && (args[0].type == ARGT_SINT || args[0].type == ARGT_UINT))
+	if (args && (args[0].type == ARGT_SINT))
 		curr_date += args[0].data.sint;
 
 	tm = gmtime(&curr_date);
@@ -12302,10 +12303,10 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 	struct cap_hdr *hdr;
 	int len;
 
-	if (!args || args->type != ARGT_UINT)
+	if (!args || args->type != ARGT_SINT)
 		return 0;
 
-	idx = args->data.uint;
+	idx = args->data.sint;
 
 	/* Check the availibity of the capture id. */
 	if (idx > fe->nb_req_cap - 1)
@@ -12343,10 +12344,10 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 	struct cap_hdr *hdr;
 	int len;
 
-	if (!args || args->type != ARGT_UINT)
+	if (!args || args->type != ARGT_SINT)
 		return 0;
 
-	idx = args->data.uint;
+	idx = args->data.sint;
 
 	/* Check the availibity of the capture id. */
 	if (idx > fe->nb_rsp_cap - 1)
@@ -13013,15 +13014,15 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
 	/* capture are allocated and are permanent in the stream */
-	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1,SINT), NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
 	/* retrieve these captures from the HTTP logs */
-	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
-	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
-	{ "capture.req.ver",    smp_fetch_capture_req_ver,    0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.method", smp_fetch_capture_req_method, 0,         NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,         NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.ver",    smp_fetch_capture_req_ver,    0,         NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
-	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRSHP },
-	{ "capture.res.ver", smp_fetch_capture_res_ver,       0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1,SINT), NULL,   SMP_T_STR,  SMP_USE_HRSHP },
+	{ "capture.res.ver", smp_fetch_capture_res_ver,       0,         NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
 	/* cookie is valid in both directions (eg: for "stick ...") but cook*
 	 * are only here to match the ACL's name, are request-only and are used
@@ -13123,8 +13124,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date", sample_conv_http_date,  ARG1(0,SINT),     NULL, SMP_T_SINT, SMP_T_STR},
 	{ "language",  sample_conv_q_prefered, ARG2(1,STR,STR),  NULL, SMP_T_STR,  SMP_T_STR},
-	{ "capture-req", smp_conv_req_capture, ARG1(1,UINT),     NULL, SMP_T_STR,  SMP_T_STR},
-	{ "capture-res", smp_conv_res_capture, ARG1(1,UINT),     NULL, SMP_T_STR,  SMP_T_STR},
+	{ "capture-req", smp_conv_req_capture, ARG1(1,SINT),     NULL, SMP_T_STR,  SMP_T_STR},
+	{ "capture-res", smp_conv_res_capture, ARG1(1,SINT),     NULL, SMP_T_STR,  SMP_T_STR},
 	{ "url_dec",   sample_conv_url_dec,    0,                NULL, SMP_T_STR,  SMP_T_STR},
 	{ NULL, NULL, 0, 0, 0 },
 }};

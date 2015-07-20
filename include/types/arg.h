@@ -44,8 +44,7 @@
 
 enum {
 	ARGT_STOP = 0, /* end of the arg list */
-	ARGT_UINT,     /* unsigned integer, which is a positive integer without any sign */
-	ARGT_SINT,     /* signed integer, the sign (+/-) was explicit. Falls back to UINT if no sign. */
+	ARGT_SINT,     /* signed 64 bit integer. */
 	ARGT_STR,      /* string */
 	ARGT_IPV4,     /* an IPv4 address */
 	ARGT_MSK4,     /* an IPv4 address mask (integer or dotted), stored as ARGT_IPV4 */
@@ -88,8 +87,7 @@ struct userlist;
 struct my_regex;
 
 union arg_data {
-	unsigned int uint; /* used for uint, time, size */
-	int sint;
+	long long int sint;
 	struct chunk str;
 	struct in_addr ipv4;
 	struct in6_addr ipv6;

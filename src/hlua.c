@@ -317,10 +317,6 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 {
 	switch (arg->type) {
 	case ARGT_SINT:
-		lua_pushinteger(L, arg->data.sint);
-		break;
-
-	case ARGT_UINT:
 	case ARGT_TIME:
 	case ARGT_SIZE:
 		lua_pushinteger(L, arg->data.sint);
@@ -374,7 +370,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
 	case LUA_TTHREAD:
 	case LUA_TLIGHTUSERDATA:
 		arg->type = ARGT_SINT;
-		arg->data.uint = 0;
+		arg->data.sint = 0;
 		break;
 	}
 	return 1;
@@ -603,12 +599,6 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		/* Convert some argument types. */
 		switch (mask & ARGT_MASK) {
 		case ARGT_SINT:
-			if (argp[idx].type != ARGT_SINT)
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
-			argp[idx].type = ARGT_SINT;
-			break;
-
-		case ARGT_UINT:
 			if (argp[idx].type != ARGT_SINT)
 				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
 			argp[idx].type = ARGT_SINT;

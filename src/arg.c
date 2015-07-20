@@ -19,8 +19,7 @@
 
 const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_STOP] = "end of arguments",
-	[ARGT_UINT] = "unsigned integer",
-	[ARGT_SINT] = "signed integer",
+	[ARGT_SINT] = "integer",
 	[ARGT_STR]  = "string",
 	[ARGT_IPV4] = "IPv4 address",
 	[ARGT_MSK4] = "IPv4 mask",
@@ -125,6 +124,8 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 	/* Note: empty arguments after a comma always exist. */
 	while (pos < nbarg) {
+		unsigned int uint;
+
 		beg = in;
 		while (len && *in != ',') {
 			in++;
@@ -145,28 +146,10 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		case ARGT_SINT:
 			if (in == beg)	  // empty number
 				goto empty_err;
-			else if (*beg < '0' || *beg > '9') {
-				beg++;
-				arg->data.sint = read_uint(&beg, in);
-				if (beg < in)
-					goto parse_err;
-				if (*word == '-')
-					arg->data.sint = -arg->data.sint;
-				else if (*word != '+')    // invalid first character
-					goto parse_err;
-				break;
-			}
-
-			arg->type = ARGT_UINT;
-			/* fall through ARGT_UINT if no sign is present */
-
-		case ARGT_UINT:
-			if (in == beg)    // empty number
-				goto empty_err;
-
-			arg->data.uint = read_uint(&beg, in);
+			arg->data.sint = read_int64(&beg, in);
 			if (beg < in)
 				goto parse_err;
+			arg->type = ARGT_SINT;
 			break;
 
 		case ARGT_FE:
@@ -226,22 +209,23 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 			if (in == beg)    // empty time
 				goto empty_err;
 
-			ptr_err = parse_time_err(word, &arg->data.uint, TIME_UNIT_MS);
+			ptr_err = parse_time_err(word, &uint, TIME_UNIT_MS);
 			if (ptr_err)
 				goto parse_err;
-
-			arg->type = ARGT_UINT;
+			arg->data.sint = uint;
+			arg->type = ARGT_SINT;
 			break;
 
 		case ARGT_SIZE:
 			if (in == beg)    // empty size
 				goto empty_err;
 
-			ptr_err = parse_size_err(word, &arg->data.uint);
+			ptr_err = parse_size_err(word, &uint);
 			if (ptr_err)
 				goto parse_err;
 
-			arg->type = ARGT_UINT;
+			arg->data.sint = uint;
+			arg->type = ARGT_SINT;
 			break;
 
 			/* FIXME: other types need to be implemented here */

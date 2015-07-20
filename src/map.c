@@ -188,7 +188,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 
 	case SMP_T_SINT:
 		smp->type = SMP_T_SINT;
-		smp->data.sint = arg_p[1].data.uint;
+		smp->data.sint = arg_p[1].data.sint;
 		break;
 
 	case SMP_T_IPV4:
@@ -233,15 +233,15 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "map_int",     sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_SINT, SMP_T_STR,  (void *)PAT_MATCH_INT },
 	{ "map_ip",      sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_ADDR, SMP_T_STR,  (void *)PAT_MATCH_IP  },
 
-	{ "map_str_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_STR },
-	{ "map_beg_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_BEG },
-	{ "map_sub_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_SUB },
-	{ "map_dir_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_DIR },
-	{ "map_dom_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_DOM },
-	{ "map_end_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_END },
-	{ "map_reg_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_REG },
-	{ "map_int_int", sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_SINT, SMP_T_SINT, (void *)PAT_MATCH_INT },
-	{ "map_ip_int",  sample_conv_map, ARG2(1,STR,UINT), sample_load_map, SMP_T_ADDR, SMP_T_SINT, (void *)PAT_MATCH_IP  },
+	{ "map_str_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_STR },
+	{ "map_beg_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_BEG },
+	{ "map_sub_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_SUB },
+	{ "map_dir_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_DIR },
+	{ "map_dom_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_DOM },
+	{ "map_end_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_END },
+	{ "map_reg_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_STR,  SMP_T_SINT, (void *)PAT_MATCH_REG },
+	{ "map_int_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_SINT, SMP_T_SINT, (void *)PAT_MATCH_INT },
+	{ "map_ip_int",  sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_ADDR, SMP_T_SINT, (void *)PAT_MATCH_IP  },
 
 	{ "map_str_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_STR },
 	{ "map_beg_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_BEG },

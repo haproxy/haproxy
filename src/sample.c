@@ -1433,7 +1433,7 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.sint = hash_djb2(smp->data.str.str, smp->data.str.len);
-	if (arg_p && arg_p->data.uint)
+	if (arg_p && arg_p->data.sint)
 		smp->data.sint = full_hash(smp->data.sint);
 	smp->type = SMP_T_SINT;
 	return 1;
@@ -1488,11 +1488,12 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp, void 
 static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
-	time_t curr_date = smp->data.sint;
+	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
+	time_t curr_date = smp->data.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
 
 	/* add offset */
-	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
+	if (args[1].type == ARGT_SINT)
 		curr_date += args[1].data.sint;
 
 	tm = localtime(&curr_date);
@@ -1509,7 +1510,7 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.sint = hash_sdbm(smp->data.str.str, smp->data.str.len);
-	if (arg_p && arg_p->data.uint)
+	if (arg_p && arg_p->data.sint)
 		smp->data.sint = full_hash(smp->data.sint);
 	smp->type = SMP_T_SINT;
 	return 1;
@@ -1522,11 +1523,12 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *p
 static int sample_conv_utime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
-	time_t curr_date = smp->data.sint;
+	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
+	time_t curr_date = smp->data.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
 
 	/* add offset */
-	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
+	if (args[1].type == ARGT_SINT)
 		curr_date += args[1].data.sint;
 
 	tm = gmtime(&curr_date);
@@ -1543,7 +1545,7 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.sint = hash_wt6(smp->data.str.str, smp->data.str.len);
-	if (arg_p && arg_p->data.uint)
+	if (arg_p && arg_p->data.sint)
 		smp->data.sint = full_hash(smp->data.sint);
 	smp->type = SMP_T_SINT;
 	return 1;
@@ -1553,7 +1555,7 @@ static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *pr
 static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.sint = hash_crc32(smp->data.str.str, smp->data.str.len);
-	if (arg_p && arg_p->data.uint)
+	if (arg_p && arg_p->data.sint)
 		smp->data.sint = full_hash(smp->data.sint);
 	smp->type = SMP_T_SINT;
 	return 1;
@@ -1590,38 +1592,38 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 	}
 
 	if (strcmp(arg->data.str.str, "") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_ASCII;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_ASCII;
 		return 1;
 	}
 
 	else if (strcmp(arg->data.str.str, "ascii") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_ASCII;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_ASCII;
 		return 1;
 	}
 
 	else if (strcmp(arg->data.str.str, "utf8") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_UTF8;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_UTF8;
 		return 1;
 	}
 
 	else if (strcmp(arg->data.str.str, "utf8s") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_UTF8S;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_UTF8S;
 		return 1;
 	}
 
 	else if (strcmp(arg->data.str.str, "utf8p") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_UTF8P;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_UTF8P;
 		return 1;
 	}
 
 	else if (strcmp(arg->data.str.str, "utf8ps") == 0) {
-		arg->type = ARGT_UINT;
-		arg->data.uint = IT_UTF8PS;
+		arg->type = ARGT_SINT;
+		arg->data.sint = IT_UTF8PS;
 		return 1;
 	}
 
@@ -1642,7 +1644,7 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 	char *p;
 
 	if (arg_p)
-		input_type = arg_p->data.uint;
+		input_type = arg_p->data.sint;
 
 	temp = get_trash_chunk();
 	temp->len = 0;
@@ -1746,18 +1748,18 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
  * Optional second arg is the length to truncate */
 static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	if (smp->data.str.len <= arg_p[0].data.uint) {
+	if (smp->data.str.len <= arg_p[0].data.sint) {
 		smp->data.str.len = 0;
 		return 1;
 	}
 
 	if (smp->data.str.size)
-			smp->data.str.size -= arg_p[0].data.uint;
-	smp->data.str.len -= arg_p[0].data.uint;
-	smp->data.str.str += arg_p[0].data.uint;
+			smp->data.str.size -= arg_p[0].data.sint;
+	smp->data.str.len -= arg_p[0].data.sint;
+	smp->data.str.str += arg_p[0].data.sint;
 
-	if ((arg_p[1].type == ARGT_UINT) && (arg_p[1].data.uint < smp->data.str.len))
-		smp->data.str.len = arg_p[1].data.uint;
+	if ((arg_p[1].type == ARGT_SINT) && (arg_p[1].data.sint < smp->data.str.len))
+		smp->data.str.len = arg_p[1].data.sint;
 
 	return 1;
 }
@@ -1772,12 +1774,12 @@ static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
-	if (arg->type != ARGT_UINT) {
+	if (arg->type != ARGT_SINT) {
 		memprintf(err, "Unexpected arg type");
 		return 0;
 	}
 
-	if (!arg->data.uint) {
+	if (!arg->data.sint) {
 		memprintf(err, "Unexpected value 0 for index");
 		return 0;
 	}
@@ -1807,7 +1809,7 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 	char *start, *end;
 	int i;
 
-	if (!arg_p[0].data.uint)
+	if (!arg_p[0].data.sint)
 		return 0;
 
 	field = 1;
@@ -1816,7 +1818,7 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 
 		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
 			if (*end == arg_p[1].data.str.str[i]) {
-				if (field == arg_p[0].data.uint)
+				if (field == arg_p[0].data.sint)
 					goto found;
 				start = end+1;
 				field++;
@@ -1827,7 +1829,7 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 	}
 
 	/* Field not found */
-	if (field != arg_p[0].data.uint) {
+	if (field != arg_p[0].data.sint) {
 		smp->data.str.len = 0;
 		return 1;
 	}
@@ -1858,7 +1860,7 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 	char *start, *end;
 	int i, issep, inword;
 
-	if (!arg_p[0].data.uint)
+	if (!arg_p[0].data.sint)
 		return 0;
 
 	word = 0;
@@ -1880,7 +1882,7 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 			}
 		}
 		else if (issep) {
-			if (word == arg_p[0].data.uint)
+			if (word == arg_p[0].data.sint)
 				goto found;
 			inword = 0;
 		}
@@ -1888,7 +1890,7 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 	}
 
 	/* Field not found */
-	if (word != arg_p[0].data.uint) {
+	if (word != arg_p[0].data.sint) {
 		smp->data.str.len = 0;
 		return 1;
 	}
@@ -2029,7 +2031,7 @@ static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, v
  */
 static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint &= arg_p->data.uint;
+	smp->data.sint &= arg_p->data.sint;
 	return 1;
 }
 
@@ -2038,7 +2040,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, v
  */
 static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint |= arg_p->data.uint;
+	smp->data.sint |= arg_p->data.sint;
 	return 1;
 }
 
@@ -2047,7 +2049,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, vo
  */
 static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint ^= arg_p->data.uint;
+	smp->data.sint ^= arg_p->data.sint;
 	return 1;
 }
 
@@ -2056,7 +2058,7 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, v
  */
 static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.sint += arg_p->data.uint;
+	smp->data.sint += arg_p->data.sint;
 	return 1;
 }
 
@@ -2066,7 +2068,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 static int sample_conv_arith_sub(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.sint -= arg_p->data.uint;
+	smp->data.sint -= arg_p->data.sint;
 	return 1;
 }
 
@@ -2076,7 +2078,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 static int sample_conv_arith_mul(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.sint *= arg_p->data.uint;
+	smp->data.sint *= arg_p->data.sint;
 	return 1;
 }
 
@@ -2087,8 +2089,8 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 static int sample_conv_arith_div(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.uint)
-		smp->data.sint /= arg_p->data.uint;
+	if (arg_p->data.sint)
+		smp->data.sint /= arg_p->data.sint;
 	else
 		smp->data.sint = ~0;
 	return 1;
@@ -2101,8 +2103,8 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 static int sample_conv_arith_mod(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (arg_p->data.uint)
-		smp->data.sint %= arg_p->data.uint;
+	if (arg_p->data.sint)
+		smp->data.sint %= arg_p->data.sint;
 	else
 		smp->data.sint = 0;
 	return 1;
@@ -2213,7 +2215,7 @@ smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void 
 	smp->data.sint = date.tv_sec;
 
 	/* add offset */
-	if (args && (args[0].type == ARGT_SINT || args[0].type == ARGT_UINT))
+	if (args && args[0].type == ARGT_SINT)
 		smp->data.sint += args[0].data.sint;
 
 	smp->type = SMP_T_SINT;
@@ -2248,8 +2250,8 @@ smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void 
 	smp->data.sint = random();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
-	if (args && args[0].type == ARGT_UINT)
-		smp->data.sint = (smp->data.sint * args[0].data.uint) / ((u64)RAND_MAX+1);
+	if (args && args[0].type == ARGT_SINT)
+		smp->data.sint = (smp->data.sint * args[0].data.sint) / ((u64)RAND_MAX+1);
 
 	smp->type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
@@ -2278,14 +2280,14 @@ static int smp_check_const_bool(struct arg *args, char **err)
 {
 	if (strcasecmp(args[0].data.str.str, "true") == 0 ||
 	    strcasecmp(args[0].data.str.str, "1") == 0) {
-		args[0].type = ARGT_UINT;
-		args[0].data.uint = 1;
+		args[0].type = ARGT_SINT;
+		args[0].data.sint = 1;
 		return 1;
 	}
 	if (strcasecmp(args[0].data.str.str, "false") == 0 ||
 	    strcasecmp(args[0].data.str.str, "0") == 0) {
-		args[0].type = ARGT_UINT;
-		args[0].data.uint = 0;
+		args[0].type = ARGT_SINT;
+		args[0].data.sint = 0;
 		return 1;
 	}
 	memprintf(err, "Expects 'true', 'false', '0' or '1'");
@@ -2295,7 +2297,7 @@ static int smp_check_const_bool(struct arg *args, char **err)
 static int smp_fetch_const_bool(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.sint = args[0].data.uint;
+	smp->data.sint = args[0].data.sint;
 	return 1;
 }
 
@@ -2349,8 +2351,8 @@ static int smp_check_const_meth(struct arg *args, char **err)
 
 	meth = find_http_meth(args[0].data.str.str, args[0].data.str.len);
 	if (meth != HTTP_METH_OTHER) {
-		args[0].type = ARGT_UINT;
-		args[0].data.uint = meth;
+		args[0].type = ARGT_SINT;
+		args[0].data.sint = meth;
 	} else {
 		/* Check method avalaibility. A methos is a token defined as :
 		 * tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
@@ -2370,9 +2372,9 @@ static int smp_check_const_meth(struct arg *args, char **err)
 static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_METH;
-	if (args[0].type == ARGT_UINT) {
+	if (args[0].type == ARGT_SINT) {
 		smp->flags &= ~SMP_F_CONST;
-		smp->data.meth.meth = args[0].data.uint;
+		smp->data.meth.meth = args[0].data.sint;
 		smp->data.meth.str.str = "";
 		smp->data.meth.str.len = 0;
 	} else {
@@ -2396,7 +2398,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
-	{ "rand",         smp_fetch_rand,  ARG1(0,UINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 
 	{ "str",  smp_fetch_const_str,  ARG1(1,STR),  NULL                , SMP_T_STR,  SMP_USE_INTRN },
@@ -2423,29 +2425,29 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
-	{ "crc32",  sample_conv_crc32,     ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
-	{ "djb2",   sample_conv_djb2,      ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
-	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
-	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT),  NULL, SMP_T_BIN, SMP_T_SINT  },
+	{ "crc32",  sample_conv_crc32,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "djb2",   sample_conv_djb2,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "sdbm",   sample_conv_sdbm,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "wt6",    sample_conv_wt6,       ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
-	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
-	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
-	{ "word",   sample_conv_word,      ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "bytes",  sample_conv_bytes,     ARG2(1,SINT,SINT), NULL, SMP_T_BIN,  SMP_T_BIN },
+	{ "field",  sample_conv_field,     ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "word",   sample_conv_word,      ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 
-	{ "and",    sample_conv_binary_and, ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "or",     sample_conv_binary_or,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "xor",    sample_conv_binary_xor, ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "and",    sample_conv_binary_and, ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "or",     sample_conv_binary_or,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "xor",    sample_conv_binary_xor, ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
 	{ "cpl",    sample_conv_binary_cpl,            0, NULL, SMP_T_SINT, SMP_T_SINT },
 	{ "bool",   sample_conv_arith_bool,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
 	{ "not",    sample_conv_arith_not,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
 	{ "odd",    sample_conv_arith_odd,             0, NULL, SMP_T_SINT, SMP_T_BOOL },
 	{ "even",   sample_conv_arith_even,            0, NULL, SMP_T_SINT, SMP_T_BOOL },
-	{ "add",    sample_conv_arith_add,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "sub",    sample_conv_arith_sub,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "mul",    sample_conv_arith_mul,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
-	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "add",    sample_conv_arith_add,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "sub",    sample_conv_arith_sub,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "mul",    sample_conv_arith_mul,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "div",    sample_conv_arith_div,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
+	{ "mod",    sample_conv_arith_mod,  ARG1(1,SINT), NULL, SMP_T_SINT, SMP_T_SINT },
 	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_SINT, SMP_T_SINT },
 
 	{ NULL, NULL, 0, 0, 0 },

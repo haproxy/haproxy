@@ -637,8 +637,8 @@ smp_fetch_rdp_cookie_cnt(const struct arg *args, struct sample *smp, const char 
 static int
 smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
-	unsigned int len_offset = arg_p[0].data.uint;
-	unsigned int len_size = arg_p[1].data.uint;
+	unsigned int len_offset = arg_p[0].data.sint;
+	unsigned int len_size = arg_p[1].data.sint;
 	unsigned int buf_offset;
 	unsigned int buf_size = 0;
 	struct channel *chn;
@@ -659,12 +659,16 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf->p)[i + len_offset];
 	}
 
-	/* buf offset may be implicit, absolute or relative */
+	/* buf offset may be implicit, absolute or relative. If the LSB
+	 * is set, then the offset is relative otherwise it is absolute.
+	 */
 	buf_offset = len_offset + len_size;
-	if (arg_p[2].type == ARGT_UINT)
-		buf_offset = arg_p[2].data.uint;
-	else if (arg_p[2].type == ARGT_SINT)
-		buf_offset += arg_p[2].data.sint;
+	if (arg_p[2].type == ARGT_SINT) {
+		if (arg_p[2].data.sint & 1)
+			buf_offset += arg_p[2].data.sint >> 1;
+		else
+			buf_offset = arg_p[2].data.sint >> 1;
+	}
 
 	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
 		/* will never match */
@@ -690,8 +694,8 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 static int
 smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
-	unsigned int buf_offset = arg_p[0].data.uint;
-	unsigned int buf_size = arg_p[1].data.uint;
+	unsigned int buf_offset = arg_p[0].data.sint;
+	unsigned int buf_size = arg_p[1].data.sint;
 	struct channel *chn;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
@@ -729,18 +733,42 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
  * not NULL, it will be filled with a pointer to an error message in case of
  * error, that the caller is responsible for freeing. The initial location must
  * either be freeable or NULL.
+ *
+ * Note that offset2 is stored with SINT type, but its not directly usable as is.
+ * The value is contained in the 63 MSB and the LSB is used as a flag for marking
+ * the "relative" property of the value.
  */
 int val_payload_lv(struct arg *arg, char **err_msg)
 {
-	if (!arg[1].data.uint) {
+	int relative = 0;
+	const char *str;
+
+	if (arg[0].data.sint < 0) {
+		memprintf(err_msg, "payload offset1 must be positive");
+		return 0;
+	}
+
+	if (!arg[1].data.sint) {
 		memprintf(err_msg, "payload length must be > 0");
 		return 0;
 	}
 
-	if (arg[2].type == ARGT_SINT &&
-	    (int)(arg[0].data.uint + arg[1].data.uint + arg[2].data.sint) < 0) {
-		memprintf(err_msg, "payload offset too negative");
-		return 0;
+	if (arg[2].type == ARGT_STR && arg[2].data.str.len > 0) {
+		if (arg[2].data.str.str[0] == '+' || arg[2].data.str.str[0] == '-')
+			relative = 1;
+		str = arg[2].data.str.str;
+		arg[2].type = ARGT_SINT;
+		arg[2].data.sint = read_int64(&str, str + arg[2].data.str.len);
+		if (*str != '\0') {
+			memprintf(err_msg, "payload offset2 is not a number");
+			return 0;
+		}
+	   if (arg[0].data.sint + arg[1].data.sint + arg[2].data.sint < 0) {
+			memprintf(err_msg, "payload offset2 too negative");
+			return 0;
+		}
+		if (relative)
+			arg[2].data.sint = ( arg[2].data.sint << 1 ) + 1;
 	}
 	return 1;
 }
@@ -755,8 +783,8 @@ int val_payload_lv(struct arg *arg, char **err_msg)
  * instance IPv4/IPv6 must be declared IPv4.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,UINT,UINT,UINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload",             smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "rdp_cookie_cnt",      smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "rep_ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
@@ -766,8 +794,8 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req_ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 
 	{ "req.len",             smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
-	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ },
-	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,UINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ },
+	{ "req.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ },
+	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie_cnt",  smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "req.ssl_ec_ext",      smp_fetch_req_ssl_ec_ext, 0,                      NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
@@ -775,8 +803,8 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "res.len",             smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
-	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6RES },
-	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
+	{ "res.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6RES },
+	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },
 	{ /* END */ },

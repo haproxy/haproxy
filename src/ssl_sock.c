@@ -3613,8 +3613,6 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 
 		if (args[1].type == ARGT_SINT)
 			pos = args[1].data.sint;
-		else if (args[1].type == ARGT_UINT)
-			pos =(int)args[1].data.uint;
 
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
 			goto out;
@@ -3715,8 +3713,6 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 
 		if (args[1].type == ARGT_SINT)
 			pos = args[1].data.sint;
-		else if (args[1].type == ARGT_UINT)
-			pos =(int)args[1].data.uint;
 
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
 			goto out;
