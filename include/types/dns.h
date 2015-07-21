@@ -89,6 +89,36 @@ struct dns_question {
 	unsigned short	qclass;		/* query class */
 };
 
+struct dns_query_item {
+	struct list list;
+	char name[DNS_MAX_NAME_SIZE];		/* query name */
+	unsigned short type;			/* question type */
+	unsigned short class;			/* query class */
+};
+
+struct dns_answer_item {
+	struct list list;
+	char *name;				/* answer name
+						 * For SRV type, name also includes service
+						 * and protocol value */
+	int16_t type;				/* question type */
+	int16_t class;				/* query class */
+	int32_t ttl;				/* response TTL */
+	int16_t priority;			/* SRV type priority */
+	int16_t weight;				/* SRV type weight */
+	int16_t port;				/* SRV type port */
+	int16_t data_len;			/* number of bytes in target below */
+	struct sockaddr address;		/* IPv4 or IPv6, network format */
+	char *target;				/* Response data: SRV or CNAME type target */
+};
+
+struct dns_response_packet {
+	struct dns_header header;
+	struct list query_list;
+	struct list answer_list;
+	/* authority and additional_information ignored for now */
+};
+
 /*
  * resolvers section and parameters. It is linked to the name servers
  * servers points to it.
