@@ -30,6 +30,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <common/chunk.h>
 #include <common/config.h>
 #include <eb32tree.h>
@@ -990,6 +991,34 @@ static inline unsigned char utf8_return_code(unsigned int code)
 static inline unsigned char utf8_return_length(unsigned char code)
 {
 	return code & 0x0f;
+}
+
+/* Turns 64-bit value <a> from host byte order to network byte order.
+ * The principle consists in letting the compiler detect we're playing
+ * with a union and simplify most or all operations. The asm-optimized
+ * htonl() version involving bswap (x86) / rev (arm) / other is a single
+ * operation on little endian, or a NOP on big-endian. In both cases,
+ * this lets the compiler "see" that we're rebuilding a 64-bit word from
+ * two 32-bit quantities that fit into a 32-bit register. In big endian,
+ * the whole code is optimized out. In little endian, with a decent compiler,
+ * a few bswap and 2 shifts are left, which is the minimum acceptable.
+ */
+static inline unsigned long long htonll(unsigned long long a)
+{
+	union {
+		struct {
+			unsigned int w1;
+			unsigned int w2;
+		} by32;
+		unsigned long long by64;
+	} w = { .by64 = a };
+	return ((unsigned long long)htonl(w.by32.w1) << 32) | htonl(w.by32.w2);
+}
+
+/* Turns 64-bit value <a> from network byte order to host byte order. */
+static inline unsigned long long ntohll(unsigned long long a)
+{
+	return htonll(a);
 }
 
 /* returns a 64-bit a timestamp with the finest resolution available. The
