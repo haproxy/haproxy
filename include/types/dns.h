@@ -70,6 +70,9 @@
  */
 #define SRV_MAX_PREF_NET 5
 
+/* DNS header size */
+#define DNS_HEADER_SIZE		sizeof(struct dns_header)
+
 /* DNS request or response header structure */
 struct dns_header {
 	uint16_t id;
