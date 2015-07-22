@@ -3243,8 +3243,8 @@ static int enqueue_one_email_alert(struct email_alertq *q, const char *msg)
 			"Subject: [HAproxy Alert] ", msg, "\n",
 			"\n",
 			msg, "\n",
-			".\r\n",
 			"\r\n",
+			".\r\n",
 			NULL
 		};
 
