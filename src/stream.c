@@ -105,6 +105,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	 * any rulelist match the NULL pointer.
 	 */
 	s->current_rule_list = NULL;
+	s->current_rule = NULL;
 
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
