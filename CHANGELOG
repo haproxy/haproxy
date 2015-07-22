@@ -1,6 +1,62 @@
 ChangeLog :
 ===========
 
+2015/07/22 : 1.6-dev3
+    - CLEANUP: sample: generalize sample_fetch_string() as sample_fetch_as_type()
+    - MEDIUM: http: Add new 'set-src' option to http-request
+    - DOC usesrc root privileges requirments
+    - BUG/MINOR: dns: wrong time unit for some DNS default parameters
+    - MINOR: proxy: bit field for proxy_find_best_match diff status
+    - MINOR: server: new server flag: SRV_F_FORCED_ID
+    - MINOR: server: server_find functions: id, name, best_match
+    - DOC: dns: fix chapters syntax
+    - BUILD/MINOR: tools: rename popcount to my_popcountl
+    - BUILD: add netbsd TARGET
+    - MEDIUM: 51Degrees code refactoring and cleanup
+    - MEDIUM: 51d: add LRU-based cache on User-Agent string detection
+    - DOC: add notes about the "51degrees-cache-size" parameter
+    - BUG/MEDIUM: 51d: possible incorrect operations on smp->data.str.str
+    - BUG/MAJOR: connection: fix TLV offset calculation for proxy protocol v2 parsing
+    - MINOR: Add sample fetch to detect Supported Elliptic Curves Extension
+    - BUG/MINOR: payload: Add volatile flag to smp_fetch_req_ssl_ec_ext
+    - BUG/MINOR: lua: type error in the arguments wrapper
+    - CLEANUP: vars: remove unused struct
+    - BUG/MINOR: http/sample: gmtime/localtime can fail
+    - MINOR: standard: add 64 bits conversion functions
+    - MAJOR: sample: converts uint and sint in 64 bits signed integer
+    - MAJOR: arg: converts uint and sint in sint
+    - MEDIUM: sample: switch to saturated arithmetic
+    - MINOR: vars: returns variable content
+    - MEDIUM: vars/sample: operators can use variables as parameter
+    - BUG/MINOR: ssl: fix smp_fetch_ssl_fc_session_id
+    - BUILD/MINOR: lua: fix a harmless build warning
+    - BUILD/MINOR: stats: fix build warning due to condition always true
+    - BUG/MAJOR: lru: fix unconditional call to free due to unexpected semi-colon
+    - BUG/MEDIUM: logs: fix improper systematic use of quotes with a few tags
+    - BUILD/MINOR: lua: ensure that hlua_ctx_destroy is properly defined
+    - BUG/MEDIUM: lru: fix possible memory leak when ->free() is used
+    - MINOR: vars: make the accounting not depend on the stream
+    - MEDIUM: vars: move the session variables to the session, not the stream
+    - BUG/MEDIUM: vars: do not freeze the connection when the expression cannot be fetched
+    - BUG/MAJOR: buffers: make the buffer_slow_realign() function respect output data
+    - BUG/MAJOR: tcp: tcp rulesets were still broken
+    - MINOR: stats: improve compression stats reporting
+    - MINOR: ssl: make self-generated certs also work with raw IPv6 addresses
+    - CLEANUP: ssl: make ssl_sock_generated_cert_serial() take a const
+    - CLEANUP: ssl: make ssl_sock_generate_certificate() use ssl_sock_generated_cert_serial()
+    - BUG/MINOR: log: missing some ARGC_* entries in fmt_directives()
+    - MINOR: args: add new context for servers
+    - MINOR: stream: maintain consistence between channel_forward and HTTP forward
+    - MINOR: ssl: provide ia function to set the SNI extension on a connection
+    - MEDIUM: ssl: add sni support on the server lines
+    - CLEANUP: stream: remove a useless call to si_detach()
+    - CLEANUP: stream-int: fix a few outdated comments about stream_int_register_handler()
+    - CLEANUP: stream-int: remove stream_int_unregister_handler() and si_detach()
+    - MINOR: stream-int: only use si_release_endpoint() to release a connection
+    - MINOR: standard: provide htonll() and ntohll()
+    - CLEANUP/MINOR: dns: dns_str_to_dn_label() only needs a const char
+    - BUG/MAJOR: dns: fix the length of the string to be copied
+
 2015/06/17 : 1.6-dev2
     - BUG/MINOR: ssl: Display correct filename in error message
     - MEDIUM: logs: Add HTTP request-line log format directives
