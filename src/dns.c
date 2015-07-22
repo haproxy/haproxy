@@ -928,7 +928,7 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
  * In the second case, memory will be allocated.
  * in case of error, -1 is returned, otherwise, number of bytes copied in dn
  */
-char *dns_str_to_dn_label(char *string, char *dn, int dn_len)
+char *dns_str_to_dn_label(const char *string, char *dn, int dn_len)
 {
 	char *c, *d;
 	int i, offset;

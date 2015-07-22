@@ -25,7 +25,7 @@
 #include <types/dns.h>
 #include <types/proto_udp.h>
 
-char *dns_str_to_dn_label(char *string, char *dn, int dn_len);
+char *dns_str_to_dn_label(const char *string, char *dn, int dn_len);
 int dns_str_to_dn_label_len(const char *string);
 int dns_hostname_validation(const char *string, char **err);
 int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostname_dn_len, char *buf, int bufsize);
