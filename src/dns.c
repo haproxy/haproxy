@@ -947,7 +947,7 @@ char *dns_str_to_dn_label(const char *string, char *dn, int dn_len)
 	if (dn_len < i + offset)
 		return NULL;
 
-	i = strlen(string) + offset;
+	i = strlen(string);
 	memcpy(dn + offset, string, i);
 	dn[i + offset] = '\0';
 	/* avoid a '\0' at the beginning of dn string which may prevent the for loop
