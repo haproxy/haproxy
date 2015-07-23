@@ -5619,6 +5619,11 @@ static int stats_map_lookup(struct stream_interface *si)
 		appctx->ctx.map.expr = LIST_ELEM(&appctx->ctx.map.ref->pat, struct pattern_expr *, list);
 		appctx->ctx.map.expr = pat_expr_get_next(appctx->ctx.map.expr, &appctx->ctx.map.ref->pat);
 		appctx->st2 = STAT_ST_LIST;
+
+		/* retrieve one of the compatible map descriptor for learnig the type. */
+		if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+			appctx->ctx.map.desc = container_of(appctx->ctx.map.expr->pat_head,
+			                                    struct map_descriptor, pat);
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -5692,8 +5697,8 @@ static int stats_map_lookup(struct stream_interface *si)
 				/* display return value */
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
 					if (pat->smp && pat->ref && pat->ref->sample)
-						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
-						              pat->ref->sample, smp_to_type[pat->smp->type]);
+						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"", pat->ref->sample,
+						              smp_to_type[appctx->ctx.map.desc->conv->out_type]);
 					else
 						chunk_appendf(&trash, ", value=none");
 				}
