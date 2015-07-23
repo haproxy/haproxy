@@ -218,20 +218,6 @@ enum {
 	PERSIST_TYPE_IGNORE,            /* ignore-persist */
 };
 
-/* Known HTTP methods */
-enum http_meth_t {
-	HTTP_METH_NONE = 0,
-	HTTP_METH_OPTIONS,
-	HTTP_METH_GET,
-	HTTP_METH_HEAD,
-	HTTP_METH_POST,
-	HTTP_METH_PUT,
-	HTTP_METH_DELETE,
-	HTTP_METH_TRACE,
-	HTTP_METH_CONNECT,
-	HTTP_METH_OTHER, /* Must be the last entry */
-} __attribute__((packed));
-
 enum ht_auth_m {
 	HTTP_AUTH_WRONG		= -1,		/* missing or unknown */
 	HTTP_AUTH_UNKNOWN	= 0,

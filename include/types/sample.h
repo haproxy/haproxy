@@ -28,7 +28,6 @@
 
 #include <common/chunk.h>
 #include <common/mini-clist.h>
-#include <types/proto_http.h>
 
 struct arg;
 
@@ -210,6 +209,20 @@ enum {
 /* needed below */
 struct session;
 struct stream;
+
+/* Known HTTP methods */
+enum http_meth_t {
+	HTTP_METH_NONE = 0,
+	HTTP_METH_OPTIONS,
+	HTTP_METH_GET,
+	HTTP_METH_HEAD,
+	HTTP_METH_POST,
+	HTTP_METH_PUT,
+	HTTP_METH_DELETE,
+	HTTP_METH_TRACE,
+	HTTP_METH_CONNECT,
+	HTTP_METH_OTHER, /* Must be the last entry */
+} __attribute__((packed));
 
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a
