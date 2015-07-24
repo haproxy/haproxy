@@ -47,49 +47,6 @@ void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 /* Export some samples. */
 int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);
 
-/* Converts the INET/INET6 source address to a stick_table key usable for table
- * lookups. <type> can be SMP_T_IPV4 or SMP_T_IPV6. The function
- * try to convert the incoming IP to the type expected by the sticktable.
- * Returns either NULL if the source cannot be converted (eg: not IPv4) or a
- * pointer to the converted result in static_table_key in the appropriate format
- * (IP).
- */
-static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage *addr, long type)
-{
-	switch (addr->ss_family) {
-	case AF_INET:
-		/* Convert IPv4 to IPv4 key. */
-		if (type == SMP_T_IPV4) {
-			static_table_key->key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
-			break;
-		}
-		/* Convert IPv4 to IPv6 key. */
-		if (type == SMP_T_IPV6) {
-			v4tov6(&static_table_key->data.ipv6, &((struct sockaddr_in *)addr)->sin_addr);
-			static_table_key->key = &static_table_key->data.ipv6;
-			break;
-		}
-		return NULL;
-
-	case AF_INET6:
-		/* Convert IPv6 to IPv4 key. This conversion can be failed. */
-		if (type == SMP_T_IPV4) {
-			if (!v6tov4(&static_table_key->data.ipv4, &((struct sockaddr_in6 *)addr)->sin6_addr))
-				return NULL;
-			static_table_key->key = &static_table_key->data.ipv4;
-			break;
-		}
-		/* Convert IPv6 to IPv6 key. */
-		if (type == SMP_T_IPV6) {
-			static_table_key->key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
-			break;
-		}
-		return NULL;
-	default:
-		return NULL;
-	}
-	return static_table_key;
-}
 
 /* for a tcp-request action ACT_TCP_TRK_*, return a tracking index starting at
  * zero for SC0. Unknown actions also return zero.

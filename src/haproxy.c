@@ -1051,7 +1051,7 @@ void init(int argc, char **argv)
 
 	swap_buffer = (char *)calloc(1, global.tune.bufsize);
 	get_http_auth_buff = (char *)calloc(1, global.tune.bufsize);
-	static_table_key = calloc(1, sizeof(*static_table_key) + global.tune.bufsize);
+	static_table_key = calloc(1, sizeof(*static_table_key));
 
 	fdinfo = (struct fdinfo *)calloc(1,
 				       sizeof(struct fdinfo) * (global.maxsock));

@@ -521,7 +521,6 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 	default: /* impossible case. */
 		return NULL;
 	}
-	static_table_key->data = smp->data.u;
 
 	return static_table_key;
 }

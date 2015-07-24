@@ -175,7 +175,6 @@ extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 struct stktable_key {
 	void *key;                      /* pointer on key buffer */
 	size_t key_len;                 /* data len to read in buff in case of null terminated string */
-	union sample_value data;
 };
 
 /* WARNING: if new fields are added, they must be initialized in stream_accept()

@@ -2597,11 +2597,20 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 	else if (num > 9) { /* src_* variant, args[0] = table */
 		struct stktable_key *key;
 		struct connection *conn = objt_conn(sess->origin);
+		struct sample smp;
 
 		if (!conn)
 			return NULL;
 
-		key = addr_to_stktable_key(&conn->addr.from, args->data.prx->table.type);
+		/* Fetch source adress in a sample. */
+		smp.px = NULL;
+		smp.sess = sess;
+		smp.strm = strm;
+		if (!smp_fetch_src(NULL, &smp, NULL, NULL))
+			return NULL;
+
+		/* Converts into key. */
+		key = smp_to_stkey(&smp, &args->data.prx->table);
 		if (!key)
 			return NULL;
 
@@ -2647,6 +2656,7 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	static struct stkctr stkctr;
 	struct stktable_key *key;
 	struct connection *conn = objt_conn(sess->origin);
+	struct sample smp;
 
 	if (strncmp(kw, "src_", 4) != 0)
 		return NULL;
@@ -2654,7 +2664,15 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	if (!conn)
 		return NULL;
 
-	key = addr_to_stktable_key(&conn->addr.from, args->data.prx->table.type);
+	/* Fetch source adress in a sample. */
+	smp.px = NULL;
+	smp.sess = sess;
+	smp.strm = strm;
+	if (!smp_fetch_src(NULL, &smp, NULL, NULL))
+		return NULL;
+
+	/* Converts into key. */
+	key = smp_to_stkey(&smp, &args->data.prx->table);
 	if (!key)
 		return NULL;
 
@@ -2867,7 +2885,12 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 	if (!conn)
 		return 0;
 
-	key = addr_to_stktable_key(&conn->addr.from, smp->px->table.type);
+	/* Fetch source adress in a sample. */
+	if (!smp_fetch_src(NULL, smp, NULL, NULL))
+		return 0;
+
+	/* Converts into key. */
+	key = smp_to_stkey(smp, &args->data.prx->table);
 	if (!key)
 		return 0;
 
