@@ -64,7 +64,7 @@ void stksess_kill(struct stktable *t, struct stksess *ts)
  */
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key)
 {
-	if (t->type != STKTABLE_TYPE_STRING)
+	if (t->type != SMP_T_STR)
 		memcpy(ts->key.key, key->key, t->key_size);
 	else {
 		memcpy(ts->key.key, key->key, MIN(t->key_size - 1, key->key_len));
@@ -187,7 +187,7 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 {
 	struct ebmb_node *eb;
 
-	if (t->type == STKTABLE_TYPE_STRING)
+	if (t->type == SMP_T_STR)
 		eb = ebst_lookup_len(&t->keys, key->key, key->key_len+1 < t->key_size ? key->key_len : t->key_size-1);
 	else
 		eb = ebmb_lookup(&t->keys, key->key, t->key_size);
@@ -228,7 +228,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct ebmb_node *eb;
 
-	if (t->type == STKTABLE_TYPE_STRING)
+	if (t->type == SMP_T_STR)
 		eb = ebst_lookup(&(t->keys), (char *)ts->key.key);
 	else
 		eb = ebmb_lookup(&(t->keys), ts->key.key, t->key_size);
@@ -413,12 +413,13 @@ int stktable_init(struct stktable *t)
 /*
  * Configuration keywords of known table types
  */
-struct stktable_type stktable_types[STKTABLE_TYPES] =  {{ "ip", 0, 4 },
-						        { "ipv6", 0, 16 },
-						        { "integer", 0, 4 },
-						        { "string", STK_F_CUSTOM_KEYSIZE, 32 },
-						        { "binary", STK_F_CUSTOM_KEYSIZE, 32 } };
-
+struct stktable_type stktable_types[SMP_TYPES] = {
+	[SMP_T_SINT] = { "integer", 0,                     4 },
+	[SMP_T_IPV4] = { "ip",      0,                     4 },
+	[SMP_T_IPV6] = { "ipv6",    0,                    16 },
+	[SMP_T_STR]  = { "string",  STK_F_CUSTOM_KEYSIZE, 32 },
+	[SMP_T_BIN]  = { "binary",  STK_F_CUSTOM_KEYSIZE, 32 }
+};
 
 /*
  * Parse table type configuration.
@@ -427,7 +428,9 @@ struct stktable_type stktable_types[STKTABLE_TYPES] =  {{ "ip", 0, 4 },
  */
 int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *key_size)
 {
-	for (*type = 0; *type < STKTABLE_TYPES; (*type)++) {
+	for (*type = 0; *type < SMP_TYPES; (*type)++) {
+		if (!stktable_types[*type].kw)
+			continue;
 		if (strcmp(args[*myidx], stktable_types[*type].kw) != 0)
 			continue;
 
@@ -440,7 +443,7 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 				*key_size = atol(args[*myidx]);
 				if (!*key_size)
 					break;
-				if (*type == STKTABLE_TYPE_STRING) {
+				if (*type == SMP_T_STR) {
 					/* null terminated string needs +1 for '\0'. */
 					(*key_size)++;
 				}
@@ -459,37 +462,24 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
  */
 struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 {
-	int type;
-
-	/* Map stick table type to sample types. */
-	switch (t->type) {
-	case STKTABLE_TYPE_IP:      type = SMP_T_IPV4; break;
-	case STKTABLE_TYPE_IPV6:    type = SMP_T_IPV6; break;
-	case STKTABLE_TYPE_INTEGER: type = SMP_T_SINT; break;
-	case STKTABLE_TYPE_STRING:  type = SMP_T_STR;  break;
-	case STKTABLE_TYPE_BINARY:  type = SMP_T_BIN;  break;
-	default: /* impossible case. */
-		return NULL;
-	}
-
 	/* Convert sample. */
-	if (!sample_convert(smp, type))
+	if (!sample_convert(smp, t->type))
 		return NULL;
 
 	/* Fill static_table_key. */
 	switch (t->type) {
 
-	case STKTABLE_TYPE_IP:
+	case SMP_T_IPV4:
 		static_table_key->key = &smp->data.u.ipv4;
 		static_table_key->key_len = 4;
 		break;
 
-	case STKTABLE_TYPE_IPV6:
+	case SMP_T_IPV6:
 		static_table_key->key = &smp->data.u.ipv6;
 		static_table_key->key_len = 16;
 		break;
 
-	case STKTABLE_TYPE_INTEGER:
+	case SMP_T_SINT:
 		/* The stick table require a 32bit unsigned int, "sint" is a
 		 * signed 64 it, so we can convert it inplace.
 		 */
@@ -498,7 +488,7 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		static_table_key->key_len = 4;
 		break;
 
-	case STKTABLE_TYPE_STRING:
+	case SMP_T_STR:
 		/* Must be NULL terminated. */
 		if (smp->data.u.str.len >= smp->data.u.str.size ||
 		    smp->data.u.str.str[smp->data.u.str.len] != '\0') {
@@ -512,7 +502,7 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		static_table_key->key_len = smp->data.u.str.len;
 		break;
 
-	case STKTABLE_TYPE_BINARY:
+	case SMP_T_BIN:
 		if (smp->data.u.str.len < t->key_size) {
 			/* This type needs padding with 0. */
 			if (smp->data.u.str.size < t->key_size)
@@ -577,21 +567,10 @@ int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_typ
 {
 	int out_type;
 
-	if (table_type >= STKTABLE_TYPES)
+	if (table_type >= SMP_TYPES || !stktable_types[table_type].kw)
 		return 0;
 
 	out_type = smp_expr_output_type(expr);
-
-	/* Map stick table type to sample types. */
-	switch (table_type) {
-	case STKTABLE_TYPE_IP:      table_type = SMP_T_IPV4; break;
-	case STKTABLE_TYPE_IPV6:    table_type = SMP_T_IPV6; break;
-	case STKTABLE_TYPE_INTEGER: table_type = SMP_T_SINT; break;
-	case STKTABLE_TYPE_STRING:  table_type = SMP_T_STR;  break;
-	case STKTABLE_TYPE_BINARY:  table_type = SMP_T_BIN;  break;
-	default: /* impossible case. */
-		return 0;
-	}
 
 	/* Convert sample. */
 	if (!sample_casts[out_type][table_type])

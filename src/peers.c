@@ -262,14 +262,14 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
 	}
 
 	/* encode the key */
-	if (st->table->type == STKTABLE_TYPE_STRING) {
+	if (st->table->type == SMP_T_STR) {
 		int stlen = strlen((char *)ts->key.key);
 
 		intencode(stlen, &cursor);
 		memcpy(cursor, ts->key.key, stlen);
 		cursor += stlen;
 	}
-	else if (st->table->type == STKTABLE_TYPE_INTEGER) {
+	else if (st->table->type == SMP_T_SINT) {
 		netinteger = htonl(*((uint32_t *)ts->key.key));
 		memcpy(cursor, &netinteger, sizeof(netinteger));
 		cursor += sizeof(netinteger);
@@ -1028,7 +1028,7 @@ switchstate:
 						if (!newts)
 							goto ignore_msg;
 
-						if (st->table->type == STKTABLE_TYPE_STRING) {
+						if (st->table->type == SMP_T_STR) {
 							unsigned int to_read, to_store;
 
 							to_read = intdecode(&msg_cur, msg_end);
@@ -1050,7 +1050,7 @@ switchstate:
 							newts->key.key[to_store] = 0;
 							msg_cur += to_read;
 						}
-						else if (st->table->type == STKTABLE_TYPE_INTEGER) {
+						else if (st->table->type == SMP_T_SINT) {
 							unsigned int netinteger;
 
 							if (msg_cur + sizeof(netinteger) > msg_end) {

@@ -33,16 +33,6 @@
 #include <types/freq_ctr.h>
 #include <types/sample.h>
 
-/* stick table key types */
-enum {
-	STKTABLE_TYPE_IP = 0,     /* table key is ipv4 */
-	STKTABLE_TYPE_IPV6,       /* table key is ipv6 */
-	STKTABLE_TYPE_INTEGER,    /* table key is unsigned 32bit integer */
-	STKTABLE_TYPE_STRING,     /* table key is a null terminated string */
-	STKTABLE_TYPE_BINARY,     /* table key is a buffer of data  */
-	STKTABLE_TYPES            /* Number of types, must always be last */
-};
-
 /* The types of extra data we can store in a stick table */
 enum {
 	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this stream if > 0 */
