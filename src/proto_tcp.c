@@ -1990,8 +1990,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 /************************************************************************/
 
 /* fetch the connection's source IPv4/IPv6 address */
-static int
-smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
+int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 

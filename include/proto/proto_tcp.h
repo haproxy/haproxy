@@ -45,6 +45,9 @@ void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list);
 void tcp_req_cont_keywords_register(struct tcp_action_kw_list *kw_list);
 void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list);
 
+/* Export some samples. */
+int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);
+
 /* Converts the INET/INET6 source address to a stick_table key usable for table
  * lookups. <type> can be STKTABLE_TYPE_IP or STKTABLE_TYPE_IPV6. The function
  * try to convert the incoming IP to the type expected by the sticktable.
