@@ -1127,8 +1127,9 @@ ssl_sock_get_generated_cert(unsigned int serial, X509 *cacert)
 	return NULL;
 }
 
-/* Set a certificate int the LRU cache used to store generated certificate. */
-void
+/* Set a certificate int the LRU cache used to store generated
+ * certificate. Return 0 on success, otherwise -1 */
+int
 ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, X509 *cacert)
 {
 	struct lru64 *lru = NULL;
@@ -1136,11 +1137,13 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, X509 *cacert)
 	if (ssl_ctx_lru_tree) {
 		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
 		if (!lru)
-			return;
+			return -1;
 		if (lru->domain && lru->data)
 			lru->free((SSL_CTX *)lru->data);
 		lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
+		return 0;
 	}
+	return -1;
 }
 
 /* Compute the serial that will be used to create/set/get a certificate. */
@@ -1164,13 +1167,13 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
 		if (lru && lru->domain)
 			ssl_ctx = (SSL_CTX *)lru->data;
-	}
-
-	if (!ssl_ctx) {
-		ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
-		if (lru)
+		if (!ssl_ctx && lru) {
+			ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
+		}
 	}
+	else
+		ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
 	return ssl_ctx;
 }
 
@@ -2489,6 +2492,10 @@ ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px)
 	if (!bind_conf || !bind_conf->generate_certs)
 		return err;
 
+	if (global.tune.ssl_ctx_cache)
+		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
+	ssl_ctx_lru_seed = (unsigned int)time(NULL);
+
 	if (!bind_conf->ca_sign_file) {
 		Alert("Proxy '%s': cannot enable certificate generation, "
 		      "no CA certificate File configured at [%s:%d].\n",
@@ -2838,7 +2845,6 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	}
 
 reneg_ok:
-
 	/* Handshake succeeded */
 	if (!SSL_session_reused(conn->xprt_ctx)) {
 		if (objt_server(conn->target)) {
@@ -3082,6 +3088,11 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 static void ssl_sock_close(struct connection *conn) {
 
 	if (conn->xprt_ctx) {
+		if (!ssl_ctx_lru_tree && objt_listener(conn->target)) {
+			SSL_CTX *ctx = SSL_get_SSL_CTX(conn->xprt_ctx);
+			if (ctx != objt_listener(conn->target)->bind_conf->default_ctx)
+				SSL_CTX_free(ctx);
+		}
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		sslconns--;
@@ -5344,21 +5355,12 @@ static void __ssl_sock_init(void)
 #ifndef OPENSSL_NO_DH
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 #endif
-
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	/* Add a global parameter for the LRU cache size */
-	if (global.tune.ssl_ctx_cache)
-		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
-	ssl_ctx_lru_seed = (unsigned int)time(NULL);
-#endif
 }
 
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	lru64_destroy(ssl_ctx_lru_tree);
-#endif
 
 #ifndef OPENSSL_NO_DH
         if (local_dh_1024) {
