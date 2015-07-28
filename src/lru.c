@@ -39,15 +39,6 @@ struct lru64 *lru64_lookup(unsigned long long key, struct lru64_head *lru,
 	struct eb64_node *node;
 	struct lru64 *elem;
 
-	if (!lru->spare) {
-		if (!lru->cache_size)
-			return NULL;
-		lru->spare = malloc(sizeof(*lru->spare));
-		if (!lru->spare)
-			return NULL;
-		lru->spare->domain = NULL;
-	}
-
 	node = __eb64_lookup(&lru->keys, key);
 	elem = container_of(node, typeof(*elem), node);
 	if (elem) {
