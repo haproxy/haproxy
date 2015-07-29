@@ -41,7 +41,7 @@ and assign it to the TARGET variable :
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 10 (others untested)
   - osx         for Mac OS/X
-  - openbsd     for OpenBSD 3.1 to 5.2 (others untested)
+  - openbsd     for OpenBSD 3.1 and above
   - aix51       for AIX 5.1
   - aix52       for AIX 5.2
   - cygwin      for Cygwin
