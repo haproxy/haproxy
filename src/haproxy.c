@@ -1411,6 +1411,10 @@ void deinit(void)
 			free(s->agent.bi);
 			free(s->agent.bo);
 			free((char*)s->conf.file);
+#ifdef USE_OPENSSL
+			if (s->use_ssl || s->check.use_ssl)
+				ssl_sock_free_srv_ctx(s);
+#endif
 			free(s);
 			s = s_next;
 		}/* end while(s) */

@@ -2444,6 +2444,14 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 	return err;
 }
 
+
+/* release ssl context allocated for servers. */
+void ssl_sock_free_srv_ctx(struct server *srv)
+{
+	if (srv->ssl_ctx.ctx)
+		SSL_CTX_free(srv->ssl_ctx.ctx);
+}
+
 /* Walks down the two trees in bind_conf and frees all the certs. The pointer may
  * be NULL, in which case nothing is done. The default_ctx is nullified too.
  */
