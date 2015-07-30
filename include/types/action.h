@@ -56,6 +56,7 @@ struct act_rule {
 			struct list key;       /* pattern to retrieve MAP or ACL key */
 			struct list value;     /* pattern to retrieve MAP value */
 		} map;
+		struct hlua_rule *hlua_rule;
 		struct {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */

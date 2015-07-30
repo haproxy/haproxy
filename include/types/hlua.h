@@ -123,6 +123,7 @@ struct hlua_socket {
 /* Empty struct for compilation compatibility */
 struct hlua { };
 struct hlua_socket { };
+struct hlua_rule { };
 
 #endif /* USE_LUA */
 
