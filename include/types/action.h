@@ -51,7 +51,6 @@ struct act_rule {
 		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_REQ_ACT_SET_TOS */
 		int mark;                      /* nfmark value for HTTP_REQ_ACT_SET_MARK */
-		void *data;                    /* generic pointer for module or external rule */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */
 			struct list key;       /* pattern to retrieve MAP or ACL key */
