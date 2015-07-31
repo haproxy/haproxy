@@ -65,6 +65,10 @@ struct act_rule {
 			struct sample_expr *expr;
 			struct cap_hdr *hdr;
 		} cap;
+		struct {
+			struct sample_expr *expr;
+			int idx;
+		} capid;
 		struct hlua_rule *hlua_rule;
 		struct {
 			struct sample_expr *expr;

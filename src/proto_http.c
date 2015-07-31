@@ -12352,9 +12352,7 @@ int http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
                                   struct session *sess, struct stream *s)
 {
 	struct sample *key;
-	struct sample_expr *expr = rule->arg.act.p[0];
 	struct cap_hdr *h;
-	int idx = (long)rule->arg.act.p[1];
 	char **cap = s->req_cap;
 	struct proxy *fe = strm_fe(s);
 	int len;
@@ -12362,12 +12360,12 @@ int http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
 
 	/* Look for the original configuration. */
 	for (h = fe->req_cap, i = fe->nb_req_cap - 1;
-	     h != NULL && i != idx ;
+	     h != NULL && i != rule->arg.capid.idx ;
 	     i--, h = h->next);
 	if (!h)
 		return 1;
 
-	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr, SMP_T_STR);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.capid.expr, SMP_T_STR);
 	if (!key)
 		return 1;
 
@@ -12498,8 +12496,8 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 		rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
 		rule->action_ptr   = http_action_req_capture_by_id;
-		rule->arg.act.p[0] = expr;
-		rule->arg.act.p[1] = (void *)(long)id;
+		rule->arg.capid.expr = expr;
+		rule->arg.capid.idx  = id;
 	}
 
 	else {
@@ -12521,9 +12519,7 @@ int http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
                                   struct session *sess, struct stream *s)
 {
 	struct sample *key;
-	struct sample_expr *expr = rule->arg.act.p[0];
 	struct cap_hdr *h;
-	int idx = (long)rule->arg.act.p[1];
 	char **cap = s->res_cap;
 	struct proxy *fe = strm_fe(s);
 	int len;
@@ -12531,12 +12527,12 @@ int http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
 
 	/* Look for the original configuration. */
 	for (h = fe->rsp_cap, i = fe->nb_rsp_cap - 1;
-	     h != NULL && i != idx ;
+	     h != NULL && i != rule->arg.capid.idx ;
 	     i--, h = h->next);
 	if (!h)
 		return 1;
 
-	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, expr, SMP_T_STR);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->arg.capid.expr, SMP_T_STR);
 	if (!key)
 		return 1;
 
@@ -12622,8 +12618,8 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
 	rule->action_ptr   = http_action_res_capture_by_id;
-	rule->arg.act.p[0] = expr;
-	rule->arg.act.p[1] = (void *)(long)id;
+	rule->arg.capid.expr = expr;
+	rule->arg.capid.idx  = id;
 
 	*orig_arg = cur_arg;
 	return 0;
