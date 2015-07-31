@@ -12248,11 +12248,11 @@ int http_action_set_req_line(struct act_rule *rule, struct proxy *px,
 	chunk_reset(&trash);
 
 	/* If we have to create a query string, prepare a '?'. */
-	if (*(int *)&rule->arg.act.p[2] == 2)
+	if (rule->arg.http.action == 2)
 		trash.str[trash.len++] = '?';
-	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, (struct list *)&rule->arg.act.p[0]);
+	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.http.logfmt);
 
-	http_replace_req_line(*(int *)&rule->arg.act.p[2], trash.str, trash.len, px, s);
+	http_replace_req_line(rule->arg.http.action, trash.str, trash.len, px, s);
 	return 1;
 }
 
@@ -12275,19 +12275,19 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 
 	switch (args[0][4]) {
 	case 'm' :
-		*(int *)&rule->arg.act.p[2] = 0;
+		rule->arg.http.action = 0;
 		rule->action_ptr = http_action_set_req_line;
 		break;
 	case 'p' :
-		*(int *)&rule->arg.act.p[2] = 1;
+		rule->arg.http.action = 1;
 		rule->action_ptr = http_action_set_req_line;
 		break;
 	case 'q' :
-		*(int *)&rule->arg.act.p[2] = 2;
+		rule->arg.http.action = 2;
 		rule->action_ptr = http_action_set_req_line;
 		break;
 	case 'u' :
-		*(int *)&rule->arg.act.p[2] = 3;
+		rule->arg.http.action = 3;
 		rule->action_ptr = http_action_set_req_line;
 		break;
 	default:
@@ -12301,9 +12301,9 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 		return -1;
 	}
 
-	LIST_INIT((struct list *)&rule->arg.act.p[0]);
+	LIST_INIT(&rule->arg.http.logfmt);
 	proxy->conf.args.ctx = ARGC_HRQ;
-	parse_logformat_string(args[cur_arg], proxy, (struct list *)&rule->arg.act.p[0], LOG_OPT_HTTP,
+	parse_logformat_string(args[cur_arg], proxy, &rule->arg.http.logfmt, LOG_OPT_HTTP,
 			       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 			       proxy->conf.args.file, proxy->conf.args.line);
 
