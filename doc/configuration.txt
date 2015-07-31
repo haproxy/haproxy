@@ -14072,6 +14072,7 @@ Please refer to the table below for currently defined variables :
   |   | %H   | hostname                                      | string      |
   | H | %HM  | HTTP method (ex: POST)                        | string      |
   | H | %HP  | HTTP request URI without query string (path)  | string      |
+  | H | %HQ  | HTTP request URI query string (ex: ?bar=baz)  | string      |
   | H | %HU  | HTTP request URI (ex: /foo?bar=baz)           | string      |
   | H | %HV  | HTTP version (ex: HTTP/1.0)                   | string      |
   |   | %ID  | unique-id                                     | string      |

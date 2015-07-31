@@ -111,6 +111,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response list */
 	{ "HM", LOG_FMT_HTTP_METHOD, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP method */
 	{ "HP", LOG_FMT_HTTP_PATH, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP path */
+	{ "HQ", LOG_FMT_HTTP_QUERY, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP query */
 	{ "HU", LOG_FMT_HTTP_URI, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP full URI */
 	{ "HV", LOG_FMT_HTTP_VERSION, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP version */
 	{ "lc", LOG_FMT_LOGCNT, PR_MODE_TCP, LW_INIT, NULL }, /* log counter */
@@ -937,6 +938,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 	struct chunk chunk;
 	char *uri;
 	char *spc;
+	char *qmark;
 	char *end;
 	struct tm tm;
 	int t_request;
@@ -1565,6 +1567,40 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				} else {
 					chunk.str = uri;
 					chunk.len = spc - uri;
+				}
+
+				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_QUERY: // %HQ
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				if (!txn->uri) {
+					chunk.str = "<BADREQ>";
+					chunk.len = strlen("<BADREQ>");
+				} else {
+					uri = txn->uri;
+					end = uri + strlen(uri);
+					// look for the first question mark
+					while (uri < end && *uri != '?')
+						uri++;
+
+					qmark = uri;
+					// look for first space or question mark after url
+					while (uri < end && !HTTP_IS_SPHT(*uri))
+						uri++;
+
+					chunk.str = qmark;
+					chunk.len = uri - qmark;
 				}
 
 				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
