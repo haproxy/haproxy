@@ -12320,12 +12320,11 @@ int http_action_req_capture(struct act_rule *rule, struct proxy *px,
                             struct session *sess, struct stream *s)
 {
 	struct sample *key;
-	struct sample_expr *expr = rule->arg.act.p[0];
-	struct cap_hdr *h = rule->arg.act.p[1];
+	struct cap_hdr *h = rule->arg.cap.hdr;
 	char **cap = s->req_cap;
 	int len;
 
-	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr, SMP_T_STR);
+	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.cap.expr, SMP_T_STR);
 	if (!key)
 		return 1;
 
@@ -12471,8 +12470,8 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 		rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
 		rule->action_ptr   = http_action_req_capture;
-		rule->arg.act.p[0] = expr;
-		rule->arg.act.p[1] = hdr;
+		rule->arg.cap.expr = expr;
+		rule->arg.cap.hdr  = hdr;
 	}
 
 	else if (strcmp(args[cur_arg], "id") == 0) {

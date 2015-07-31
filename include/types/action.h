@@ -61,6 +61,10 @@ struct act_rule {
 			struct list logfmt;
 			int action;
 		} http;
+		struct {
+			struct sample_expr *expr;
+			struct cap_hdr *hdr;
+		} cap;
 		struct hlua_rule *hlua_rule;
 		struct {
 			struct sample_expr *expr;
