@@ -458,6 +458,9 @@ const struct http_method_desc http_methods[26][3] = {
 	['H' - 'A'] = {
 		[0] = {	.meth = HTTP_METH_HEAD    , .len=4, .text="HEAD"    },
 	},
+	['O' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_OPTIONS , .len=7, .text="OPTIONS" },
+	},
 	['P' - 'A'] = {
 		[0] = {	.meth = HTTP_METH_POST    , .len=4, .text="POST"    },
 		[1] = {	.meth = HTTP_METH_PUT     , .len=3, .text="PUT"     },
