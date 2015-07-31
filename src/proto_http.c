@@ -3679,7 +3679,7 @@ resume_execution:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
 				struct sample *smp;
 
-				smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.act.p[0], SMP_T_ADDR);
+				smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
 
 				if (smp) {
 					if (smp->data.type == SMP_T_IPV4) {
@@ -9345,7 +9345,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			goto out_err;
 		}
 
-		rule->arg.act.p[0] = expr;
+		rule->arg.expr = expr;
 		rule->action = HTTP_REQ_ACT_SET_SRC;
 	} else if (((custom = action_http_req_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;

@@ -56,6 +56,7 @@ struct act_rule {
 			struct list key;       /* pattern to retrieve MAP or ACL key */
 			struct list value;     /* pattern to retrieve MAP value */
 		} map;
+		struct sample_expr *expr;
 		struct hlua_rule *hlua_rule;
 		struct {
 			struct sample_expr *expr;
