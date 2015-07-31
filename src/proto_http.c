@@ -12618,7 +12618,6 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 	}
 	cur_arg++;
 
-	LIST_INIT((struct list *)&rule->arg.act.p[0]);
 	proxy->conf.args.ctx = ARGC_CAP;
 
 	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
