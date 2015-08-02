@@ -3780,7 +3780,7 @@ static struct task *hlua_process_task(struct task *task)
 	 * execution timeouts.
 	 */
 	if (!HLUA_IS_RUNNING(hlua))
-		hlua->expire = tick_add(now_ms, hlua_timeout_task);
+		hlua->expire = tick_add_ifset(now_ms, hlua_timeout_task);
 
 	/* Execute the Lua code. */
 	status = hlua_ctx_resume(hlua, 1);
