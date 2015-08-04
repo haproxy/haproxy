@@ -261,6 +261,7 @@ struct connection {
 		} sock;
 	} t;
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
+	struct list list;             /* attach point to various connection lists (idle, ...) */
 	const struct netns_entry *proxy_netns;
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
