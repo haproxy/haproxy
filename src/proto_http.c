@@ -5189,7 +5189,13 @@ void http_end_txn_clean_session(struct stream *s)
 	/* we're in keep-alive with an idle connection, monitor it */
 	if (srv_conn) {
 		srv = objt_server(srv_conn->target);
-		si_idle_conn(&s->si[1], srv ? &srv->priv_conns : NULL);
+		if (!srv)
+			si_idle_conn(&s->si[1], NULL);
+		else if ((srv_conn->flags & CO_FL_PRIVATE) ||
+			 ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR))
+			si_idle_conn(&s->si[1], &srv->priv_conns);
+		else
+			si_idle_conn(&s->si[1], &srv->idle_conns);
 	}
 
 	s->req.analysers = strm_li(s)->analysers;
