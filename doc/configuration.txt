@@ -10097,7 +10097,9 @@ resolve-prefer <family>
   from the family mentioned in the "resolve-prefer" parameter.
   Available families: "ipv4" and "ipv6"
 
-  Default value: ipv4
+  Default value: ipv6
+
+  Supported in default-server: Yes
 
   Example: server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
 
