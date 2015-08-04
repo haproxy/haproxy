@@ -5864,7 +5864,7 @@ option tcp-check
          option tcp-check
          tcp-check comment PING\ phase
          tcp-check send PING\r\n
-         tcp-check expect +PONGe
+         tcp-check expect string +PONG
          tcp-check comment role\ check
          tcp-check send info\ replication\r\n
          tcp-check expect string role:master
@@ -8073,7 +8073,7 @@ tcp-check expect [!] <match> <pattern>
          # look for the redis master server
          option tcp-check
          tcp-check send PING\r\n
-         tcp-check expect +PONG
+         tcp-check expect string +PONG
          tcp-check send info\ replication\r\n
          tcp-check expect string role:master
          tcp-check send QUIT\r\n
