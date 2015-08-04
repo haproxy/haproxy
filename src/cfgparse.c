@@ -8226,7 +8226,7 @@ out_uri_auth_compat:
 		if ((curproxy->cap & PR_CAP_FE) && !curproxy->tcp_req.inspect_delay) {
 			list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
 				if (trule->action == TCP_ACT_CAPTURE &&
-				    !(trule->act_prm.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+				    !(trule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
 				if  ((trule->action >= TCP_ACT_TRK_SC0 && trule->action <= TCP_ACT_TRK_SCMAX) &&
 				     !(trule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))

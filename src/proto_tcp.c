@@ -1205,11 +1205,11 @@ resume_execution:
 			}
 			else if (rule->action == TCP_ACT_CAPTURE) {
 				struct sample *key;
-				struct cap_hdr *h = rule->act_prm.cap.hdr;
+				struct cap_hdr *h = rule->arg.cap.hdr;
 				char **cap = s->req_cap;
 				int len;
 
-				key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr, SMP_T_STR);
+				key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->arg.cap.expr, SMP_T_STR);
 				if (!key)
 					continue;
 
@@ -1615,8 +1615,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
-		rule->act_prm.cap.expr = expr;
-		rule->act_prm.cap.hdr = hdr;
+		rule->arg.cap.expr = expr;
+		rule->arg.cap.hdr = hdr;
 		rule->action = TCP_ACT_CAPTURE;
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0 &&

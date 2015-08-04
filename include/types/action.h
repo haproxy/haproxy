@@ -24,11 +24,6 @@
 
 #include <types/stick_table.h>
 
-struct capture_prm {
-	struct sample_expr *expr;               /* expression used as the key */
-	struct cap_hdr *hdr;                    /* the capture storage */
-};
-
 struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
@@ -62,8 +57,8 @@ struct act_rule {
 			int action;
 		} http;
 		struct {
-			struct sample_expr *expr;
-			struct cap_hdr *hdr;
+			struct sample_expr *expr; /* expression used as the key */
+			struct cap_hdr *hdr;      /* the capture storage */
 		} cap;
 		struct {
 			struct sample_expr *expr;
@@ -80,10 +75,6 @@ struct act_rule {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */
-
-	union {
-		struct capture_prm cap;
-	} act_prm;
 };
 
 #endif /* _TYPES_ACTION_H */
