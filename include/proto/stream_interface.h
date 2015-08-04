@@ -129,6 +129,19 @@ static inline void si_set_state(struct stream_interface *si, int state)
 	si->state = si->prev_state = state;
 }
 
+/* only detaches the endpoint from the SI, which means that it's set to
+ * NULL and that ->ops is mapped to si_embedded_ops. The previous endpoint
+ * is returned.
+ */
+static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
+{
+	enum obj_type *prev = si->end;
+
+	si->end = NULL;
+	si->ops = &si_embedded_ops;
+	return prev;
+}
+
 /* Release the endpoint if it's a connection or an applet, then nullify it.
  * Note: released connections are closed then freed.
  */
@@ -149,8 +162,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
 	}
-	si->end = NULL;
-	si->ops = &si_embedded_ops;
+	si_detach_endpoint(si);
 }
 
 /* Turn a possibly existing connection endpoint of stream interface <si> to
