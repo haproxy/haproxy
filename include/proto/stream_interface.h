@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <types/server.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
 #include <proto/applet.h>
@@ -154,6 +155,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		return;
 
 	if ((conn = objt_conn(si->end))) {
+		LIST_DEL(&conn->list);
 		conn_force_close(conn);
 		conn_free(conn);
 	}
@@ -167,14 +169,18 @@ static inline void si_release_endpoint(struct stream_interface *si)
 
 /* Turn a possibly existing connection endpoint of stream interface <si> to
  * idle mode, which means that the connection will be polled for incoming events
- * and might be killed by the underlying I/O handler.
+ * and might be killed by the underlying I/O handler. If <pool> is not null, the
+ * connection will also be added at the head of this list.
  */
-static inline void si_idle_conn(struct stream_interface *si)
+static inline void si_idle_conn(struct stream_interface *si, struct list *pool)
 {
 	struct connection *conn = objt_conn(si->end);
 
 	if (!conn)
 		return;
+
+	if (pool)
+		LIST_ADD(pool, &conn->list);
 
 	conn_attach(conn, si, &si_idle_conn_cb);
 	conn_data_want_recv(conn);

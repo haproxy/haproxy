@@ -1052,6 +1052,11 @@ int connect_server(struct stream *s)
 
 	if (!reuse)
 		srv_conn = si_alloc_conn(&s->si[1]);
+	else {
+		/* reusing our connection, take it out of the idle list */
+		LIST_DEL(&srv_conn->list);
+		LIST_INIT(&srv_conn->list);
+	}
 
 	if (!srv_conn)
 		return SF_ERR_RESOURCE;

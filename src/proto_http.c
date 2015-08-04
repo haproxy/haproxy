@@ -5030,12 +5030,15 @@ void http_end_txn_clean_session(struct stream *s)
 {
 	int prev_status = s->txn->status;
 	struct proxy *fe = strm_fe(s);
+	struct connection *srv_conn;
+	struct server *srv;
 
 	/* FIXME: We need a more portable way of releasing a backend's and a
 	 * server's connections. We need a safer way to reinitialize buffer
 	 * flags. We also need a more accurate method for computing per-request
 	 * data.
 	 */
+	srv_conn = objt_conn(s->si[1].end);
 
 	/* unless we're doing keep-alive, we want to quickly close the connection
 	 * to the server.
@@ -5125,6 +5128,7 @@ void http_end_txn_clean_session(struct stream *s)
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
 	    !si_conn_ready(&s->si[1])) {
 		si_release_endpoint(&s->si[1]);
+		srv_conn = NULL;
 	}
 
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
@@ -5182,7 +5186,11 @@ void http_end_txn_clean_session(struct stream *s)
 	channel_auto_close(&s->res);
 
 	/* we're in keep-alive with an idle connection, monitor it */
-	si_idle_conn(&s->si[1]);
+	srv = NULL;
+	if (srv_conn)
+		srv = objt_server(srv_conn->target);
+
+	si_idle_conn(&s->si[1], srv ? &srv->priv_conns : NULL);
 
 	s->req.analysers = strm_li(s)->analysers;
 	s->res.analysers = 0;

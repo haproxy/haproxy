@@ -515,6 +515,7 @@ static int si_idle_conn_wake_cb(struct connection *conn)
 
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 		/* warning, we can't do anything on <conn> after this call ! */
+		LIST_DEL(&conn->list);
 		conn_force_close(conn);
 		conn_free(conn);
 		si->end = NULL;
