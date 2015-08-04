@@ -3365,6 +3365,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               set-map(<file name>) <key fmt> <value fmt> |
               set-var(<var name>) <expr> |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
+              sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
               lua <function name>
              }
@@ -3635,6 +3636,11 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       an error occurs, this action silently fails and the actions evaluation
       continues.
 
+    - sc-inc-gpc0(<sc-id>):
+      This action increments the GPC0 counter according with the sticky counter
+      designated by <sc-id>. If an error occurs, this action silently fails and
+      the actions evaluation continues.
+
     - "lua" is used to run a Lua function if the action is executed. The single
       parameter is the name of the function to run. The prototype of the
       function is documented in the API documentation.
@@ -3745,6 +3751,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 del-map(<file name>) <key fmt> |
                 set-map(<file name>) <key fmt> <value fmt> |
                 set-var(<var-name>) <expr> |
+                sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 lua <function name>
               }
@@ -3949,6 +3956,11 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       by <sc-id> and the value of <int>. The expected result is a boolean. If
       an error occurs, this action silently fails and the actions evaluation
       continues.
+
+    - sc-inc-gpc0(<sc-id>):
+      This action increments the GPC0 counter according with the sticky counter
+      designated by <sc-id>. If an error occurs, this action silently fails and
+      the actions evaluation continues.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -8312,6 +8324,11 @@ tcp-request connection <action> [{if | unless} <condition>]
         advantage over just checking the keys, because only one table lookup is
         performed for all ACL checks that make use of it.
 
+    - sc-inc-gpc0(<sc-id>):
+        The "sc-inc-gpc0" increments the GPC0 counter according to the sticky
+        counter designated by <sc-id>. If an error occurs, this action silently
+        fails and the actions evaluation continues.
+
     - sc-set-gpt0(<sc-id>) <int>:
         This action sets the GPT0 tag according to the sticky counter designated
         by <sc-id> and the value of <int>. The expected result is a boolean. If
@@ -8354,8 +8371,8 @@ tcp-request content <action> [{if | unless} <condition>]
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
                 actions include : "accept", "reject", "track-sc0", "track-sc1",
-                "track-sc2", "sc-set-gpt0", "capture" and "lua". See
-                "tcp-request connection" above for their signification.
+                "track-sc2", "sc-inc-gpc0", "sc-set-gpt0", "capture" and "lua".
+                See "tcp-request connection" above for their signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8388,6 +8405,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - reject : the request is rejected and the connection is closed
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - sc-inc-gpc0(<sc-id>)
     - set-gpt0(<sc-id>) <int>
     - lua <function>
     - set-var(<var-name>) <expr>
@@ -8556,8 +8574,8 @@ tcp-response content <action> [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "close", "reject", "lua", and
-                "sc-set-gpt0".
+                actions include : "accept", "close", "reject", "lua",
+                "sc-inc-gpc0" and "sc-set-gpt0".
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8600,6 +8618,11 @@ tcp-response content <action> [{if | unless} <condition>]
 
     - set-var(<var-name>) <expr>
         Sets a variable.
+
+    - sc-inc-gpc0(<sc-id>):
+        This action increments the GPC0 counter according to the sticky
+        counter designated by <sc-id>. If an error occurs, this action fails
+        silently and the actions evaluation continues.
 
     - sc-set-gpt0(<sc-id>) <int> :
         This action sets the GPT0 tag according to the sticky counter designated

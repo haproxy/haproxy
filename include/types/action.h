@@ -132,6 +132,9 @@ struct act_rule {
 		} vars;
 		struct {
 			int sc;
+		} gpc;
+		struct {
+			int sc;
 			long long int value;
 		} gpt;
 		struct track_ctr_prm trk_ctr;

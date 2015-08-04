@@ -1310,6 +1310,75 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 }
 
 /* Always returns 1. */
+static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
+                                       struct session *sess, struct stream *s)
+{
+	void *ptr;
+	struct stksess *ts;
+	struct stkctr *stkctr;
+
+	/* Extract the stksess, return OK if no stksess available. */
+	if (s)
+		stkctr = &s->stkctr[rule->arg.gpc.sc];
+	else
+		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return ACT_RET_CONT;
+
+	/* Store the sample in the required sc, and ignore errors. */
+	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
+	if (!ptr)
+		return ACT_RET_CONT;
+
+	stktable_data_cast(ptr, gpc0)++;
+	return ACT_RET_CONT;
+}
+
+/* This function is a common parser for using variables. It understands
+ * the formats:
+ *
+ *   sc-inc-gpc0(<stick-table ID>)
+ *
+ * It returns 0 if fails and <err> is filled with an error message. Otherwise,
+ * it returns 1 and the variable <expr> is filled with the pointer to the
+ * expression to execute.
+ */
+static enum act_parse_ret parse_inc_gpc0(const char **args, int *arg, struct proxy *px,
+                                         struct act_rule *rule, char **err)
+{
+	const char *cmd_name = args[*arg-1];
+	char *error;
+
+	cmd_name += strlen("sc-inc-gpc0");
+	if (*cmd_name == '\0') {
+		/* default stick table id. */
+		rule->arg.gpc.sc = 0;
+	} else {
+		/* parse the stick table id. */
+		if (*cmd_name != '(') {
+			memprintf(err, "invalid stick table track ID. Expects %s(<Track ID>)", args[*arg-1]);
+			return ACT_RET_PRS_ERR;
+		}
+		cmd_name++; /* jump the '(' */
+		rule->arg.gpc.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
+		if (*error != ')') {
+			memprintf(err, "invalid stick table track ID. Expects %s(<Track ID>)", args[*arg-1]);
+			return ACT_RET_PRS_ERR;
+		}
+
+		if (rule->arg.gpc.sc >= ACT_ACTION_TRK_SCMAX) {
+			memprintf(err, "invalid stick table track ID. The max allowed ID is %d",
+			          ACT_ACTION_TRK_SCMAX-1);
+			return ACT_RET_PRS_ERR;
+		}
+	}
+	rule->action = ACT_ACTION_CONT;
+	rule->action_ptr = action_inc_gpc0;
+	return ACT_RET_PRS_OK;
+}
+
+/* Always returns 1. */
 static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s)
 {
@@ -1388,26 +1457,31 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 }
 
 static struct action_kw_list tcp_conn_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list tcp_req_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list tcp_res_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_req_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_res_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
