@@ -7539,31 +7539,31 @@ int check_config_validity()
 			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SCMAX)
 				continue;
 
-			if (trule->act_prm.trk_ctr.table.n)
-				target = proxy_tbl_by_name(trule->act_prm.trk_ctr.table.n);
+			if (trule->arg.trk_ctr.table.n)
+				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
 			else
 				target = curproxy;
 
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n,
+				      curproxy->id, trule->arg.trk_ctr.table.n,
 				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
 				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
-			else if (!stktable_compatible_sample(trule->act_prm.trk_ctr.expr,  target->table.type)) {
+			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id,
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
 				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
-				free(trule->act_prm.trk_ctr.table.n);
-				trule->act_prm.trk_ctr.table.t = &target->table;
+				free(trule->arg.trk_ctr.table.n);
+				trule->arg.trk_ctr.table.t = &target->table;
 				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
@@ -7578,31 +7578,31 @@ int check_config_validity()
 			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SCMAX)
 				continue;
 
-			if (trule->act_prm.trk_ctr.table.n)
-				target = proxy_tbl_by_name(trule->act_prm.trk_ctr.table.n);
+			if (trule->arg.trk_ctr.table.n)
+				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
 			else
 				target = curproxy;
 
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n,
+				      curproxy->id, trule->arg.trk_ctr.table.n,
 				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
 				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
-			else if (!stktable_compatible_sample(trule->act_prm.trk_ctr.expr,  target->table.type)) {
+			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id,
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
 				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
-				free(trule->act_prm.trk_ctr.table.n);
-				trule->act_prm.trk_ctr.table.t = &target->table;
+				free(trule->arg.trk_ctr.table.n);
+				trule->arg.trk_ctr.table.t = &target->table;
 				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
@@ -7617,31 +7617,31 @@ int check_config_validity()
 			if (hrqrule->action < HTTP_REQ_ACT_TRK_SC0 || hrqrule->action > HTTP_REQ_ACT_TRK_SCMAX)
 				continue;
 
-			if (hrqrule->act_prm.trk_ctr.table.n)
-				target = proxy_tbl_by_name(hrqrule->act_prm.trk_ctr.table.n);
+			if (hrqrule->arg.trk_ctr.table.n)
+				target = proxy_tbl_by_name(hrqrule->arg.trk_ctr.table.n);
 			else
 				target = curproxy;
 
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n,
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
 				      http_req_trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
 				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n ? hrqrule->act_prm.trk_ctr.table.n : curproxy->id);
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
-			else if (!stktable_compatible_sample(hrqrule->act_prm.trk_ctr.expr,  target->table.type)) {
+			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n ? hrqrule->act_prm.trk_ctr.table.n : curproxy->id,
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
 				      http_req_trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else {
-				free(hrqrule->act_prm.trk_ctr.table.n);
-				hrqrule->act_prm.trk_ctr.table.t = &target->table;
+				free(hrqrule->arg.trk_ctr.table.n);
+				hrqrule->arg.trk_ctr.table.t = &target->table;
 				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
@@ -8229,7 +8229,7 @@ out_uri_auth_compat:
 				    !(trule->act_prm.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
 				if  ((trule->action >= TCP_ACT_TRK_SC0 && trule->action <= TCP_ACT_TRK_SCMAX) &&
-				     !(trule->act_prm.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+				     !(trule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
 			}
 

@@ -1190,8 +1190,8 @@ resume_execution:
 				if (stkctr_entry(&s->stkctr[tcp_trk_idx(rule->action)]))
 					continue;
 
-				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->act_prm.trk_ctr.expr, &smp);
+				t = rule->arg.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->arg.trk_ctr.expr, &smp);
 
 				if ((smp.flags & SMP_F_MAY_CHANGE) && !(partial & SMP_OPT_FINAL))
 					goto missing_data; /* key might appear later */
@@ -1428,8 +1428,8 @@ int tcp_exec_req_rules(struct session *sess)
 				if (stkctr_entry(&sess->stkctr[tcp_trk_idx(rule->action)]))
 					continue;
 
-				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
+				t = rule->arg.trk_ctr.table.t;
+				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
 					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
@@ -1657,10 +1657,10 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 				return -1;
 			}
 			/* we copy the table name for now, it will be resolved later */
-			rule->act_prm.trk_ctr.table.n = strdup(args[arg]);
+			rule->arg.trk_ctr.table.n = strdup(args[arg]);
 			arg++;
 		}
-		rule->act_prm.trk_ctr.expr = expr;
+		rule->arg.trk_ctr.expr = expr;
 		rule->action = TCP_ACT_TRK_SC0 + args[kw][8] - '0';
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {

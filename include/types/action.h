@@ -75,6 +75,7 @@ struct act_rule {
 			const char *name;
 			enum vars_scope scope;
 		} vars;
+		struct track_ctr_prm trk_ctr;
 		struct {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
@@ -82,7 +83,6 @@ struct act_rule {
 
 	union {
 		struct capture_prm cap;
-		struct track_ctr_prm trk_ctr;
 	} act_prm;
 };
 

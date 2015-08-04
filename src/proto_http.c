@@ -3652,8 +3652,8 @@ resume_execution:
 				struct stktable_key *key;
 				void *ptr;
 
-				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
+				t = rule->arg.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					stream_track_stkctr(&s->stkctr[http_req_trk_idx(rule->action)], t, ts);
@@ -9173,10 +9173,10 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 				goto out_err;
 			}
 			/* we copy the table name for now, it will be resolved later */
-			rule->act_prm.trk_ctr.table.n = strdup(args[cur_arg]);
+			rule->arg.trk_ctr.table.n = strdup(args[cur_arg]);
 			cur_arg++;
 		}
-		rule->act_prm.trk_ctr.expr = expr;
+		rule->arg.trk_ctr.expr = expr;
 		rule->action = HTTP_REQ_ACT_TRK_SC0 + args[0][8] - '0';
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
