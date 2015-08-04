@@ -886,6 +886,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->obj_type = OBJ_TYPE_SERVER;
 			LIST_INIT(&newsrv->actconns);
 			LIST_INIT(&newsrv->pendconns);
+			LIST_INIT(&newsrv->priv_conns);
 			do_check = 0;
 			do_agent = 0;
 			newsrv->flags = 0;
