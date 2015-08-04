@@ -474,12 +474,15 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 		if (is_inet_addr(&conn->addr.from)) {
 			switch (src->opts & CO_SRC_TPROXY_MASK) {
-			case CO_SRC_TPROXY_ADDR:
 			case CO_SRC_TPROXY_CLI:
+				conn->flags |= CO_FL_PRIVATE;
+				/* fall through */
+			case CO_SRC_TPROXY_ADDR:
 				flags = 3;
 				break;
 			case CO_SRC_TPROXY_CIP:
 			case CO_SRC_TPROXY_DYN:
+				conn->flags |= CO_FL_PRIVATE;
 				flags = 1;
 				break;
 			}

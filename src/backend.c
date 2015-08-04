@@ -1087,6 +1087,7 @@ int connect_server(struct stream *s)
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
 		if (srv && srv->pp_opts) {
+			srv_conn->flags |= CO_FL_PRIVATE;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			cli_conn = objt_conn(strm_orig(s));
 			if (cli_conn)
@@ -1152,6 +1153,7 @@ int connect_server(struct stream *s)
 					smp->data.str.len = smp->data.str.size - 1;
 				smp->data.str.str[smp->data.str.len] = 0;
 				ssl_sock_set_servername(srv_conn, smp->data.str.str);
+				srv_conn->flags |= CO_FL_PRIVATE;
 			}
 		}
 #endif /* USE_OPENSSL */
