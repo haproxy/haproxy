@@ -1029,6 +1029,7 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int err;
 
+	srv = objt_server(s->target);
 	srv_conn = objt_conn(s->si[1].end);
 	if (srv_conn)
 		reuse = s->target == srv_conn->target;
@@ -1039,7 +1040,6 @@ int connect_server(struct stream *s)
 		 * we don't need to disable connection reuse on no-idempotent
 		 * requests nor when PROXY protocol is used.
 		 */
-		srv = objt_server(s->target);
 		if (srv && srv->conn_src.opts & CO_SRC_BIND) {
 			if ((srv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
 				reuse = 0;
@@ -1065,8 +1065,8 @@ int connect_server(struct stream *s)
 		srv_conn->target = s->target;
 
 		/* set the correct protocol on the output stream interface */
-		if (objt_server(s->target)) {
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), objt_server(s->target)->xprt);
+		if (srv) {
+			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), srv->xprt);
 		}
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
@@ -1079,7 +1079,7 @@ int connect_server(struct stream *s)
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
-		if (objt_server(s->target) && objt_server(s->target)->pp_opts) {
+		if (srv && srv->pp_opts) {
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			cli_conn = objt_conn(strm_orig(s));
 			if (cli_conn)
@@ -1112,7 +1112,6 @@ int connect_server(struct stream *s)
 	/* set connect timeout */
 	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
-	srv = objt_server(s->target);
 	if (srv) {
 		s->flags |= SF_CURR_SESS;
 		srv->cur_sess++;
