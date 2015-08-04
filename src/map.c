@@ -24,26 +24,22 @@
 #include <proto/pattern.h>
 #include <proto/sample.h>
 
-/* Parse an IPv4 address and store it into the sample.
- * The output type is IPV4.
+/* Parse an IPv4 or IPv6 address and store it into the sample.
+ * The output type is IPv4 or IPv6.
  */
 int map_parse_ip(const char *text, struct sample_data *data)
 {
-	if (!buf2ip(text, strlen(text), &data->u.ipv4))
-		return 0;
-	data->type = SMP_T_IPV4;
-	return 1;
-}
+	int len = strlen(text);
 
-/* Parse an IPv6 address and store it into the sample.
- * The output type is IPV6.
- */
-int map_parse_ip6(const char *text, struct sample_data *data)
-{
-	if (!buf2ip6(text, strlen(text), &data->u.ipv6))
-		return 0;
-	data->type = SMP_T_IPV6;
-	return 1;
+	if (buf2ip(text, len, &data->u.ipv4)) {
+		data->type = SMP_T_IPV4;
+		return 1;
+	}
+	if (buf2ip6(text, len, &data->u.ipv6)) {
+		data->type = SMP_T_IPV6;
+		return 1;
+	}
+	return 0;
 }
 
 /* Parse a string and store a pointer to it into the sample. The original
@@ -126,8 +122,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	switch (desc->conv->out_type) {
 	case SMP_T_STR:  desc->pat.parse_smp = map_parse_str;  break;
 	case SMP_T_SINT: desc->pat.parse_smp = map_parse_int;  break;
-	case SMP_T_IPV4: desc->pat.parse_smp = map_parse_ip;   break;
-	case SMP_T_IPV6: desc->pat.parse_smp = map_parse_ip6;  break;
+	case SMP_T_ADDR: desc->pat.parse_smp = map_parse_ip;   break;
 	default:
 		memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
 		          conv->out_type);
@@ -138,6 +133,24 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, PAT_MF_NO_DNS,
 	                            1, err, file, line))
 		return 0;
+
+	/* the maps of type IP have a string as defaultvalue. This
+	 * string canbe anipv4 or an ipv6, we must convert it.
+	 */
+	if (desc->conv->out_type == SMP_T_ADDR) {
+		struct sample_data data;
+		if (!map_parse_ip(arg[1].data.str.str, &data)) {
+			memprintf(err, "map: cannot parse default ip <%s>.", arg[1].data.str.str);
+			return 0;
+		}
+		if (data.type == SMP_T_IPV4) {
+			arg[1].type = ARGT_IPV4;
+			arg[1].data.ipv4 = data.u.ipv4;
+		} else {
+			arg[1].type = ARGT_IPV6;
+			arg[1].data.ipv6 = data.u.ipv6;
+		}
+	}
 
 	/* replace the first argument by this definition */
 	arg[0].type = ARGT_MAP;
@@ -190,14 +203,14 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 		smp->data.u.sint = arg_p[1].data.sint;
 		break;
 
-	case SMP_T_IPV4:
-		smp->data.type = SMP_T_IPV4;
-		smp->data.u.ipv4 = arg_p[1].data.ipv4;
-		break;
-
-	case SMP_T_IPV6:
-		smp->data.type = SMP_T_IPV6;
-		smp->data.u.ipv6 = arg_p[1].data.ipv6;
+	case SMP_T_ADDR:
+		if (arg_p[1].type == ARGT_IPV4) {
+			smp->data.type = SMP_T_IPV4;
+			smp->data.u.ipv4 = arg_p[1].data.ipv4;
+		} else {
+			smp->data.type = SMP_T_IPV6;
+			smp->data.u.ipv6 = arg_p[1].data.ipv6;
+		}
 		break;
 	}
 
@@ -242,15 +255,15 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "map_int_int", sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_SINT, SMP_T_SINT, (void *)PAT_MATCH_INT },
 	{ "map_ip_int",  sample_conv_map, ARG2(1,STR,SINT), sample_load_map, SMP_T_ADDR, SMP_T_SINT, (void *)PAT_MATCH_IP  },
 
-	{ "map_str_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_STR },
-	{ "map_beg_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_BEG },
-	{ "map_sub_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_SUB },
-	{ "map_dir_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_DIR },
-	{ "map_dom_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_DOM },
-	{ "map_end_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_END },
-	{ "map_reg_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_STR,  SMP_T_IPV4, (void *)PAT_MATCH_REG },
-	{ "map_int_ip",  sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_SINT, SMP_T_IPV4, (void *)PAT_MATCH_INT },
-	{ "map_ip_ip",   sample_conv_map, ARG2(1,STR,IPV4), sample_load_map, SMP_T_ADDR, SMP_T_IPV4, (void *)PAT_MATCH_IP  },
+	{ "map_str_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_STR },
+	{ "map_beg_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_BEG },
+	{ "map_sub_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_SUB },
+	{ "map_dir_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_DIR },
+	{ "map_dom_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_DOM },
+	{ "map_end_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_END },
+	{ "map_reg_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_ADDR, (void *)PAT_MATCH_REG },
+	{ "map_int_ip",  sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_SINT, SMP_T_ADDR, (void *)PAT_MATCH_INT },
+	{ "map_ip_ip",   sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_ADDR, SMP_T_ADDR, (void *)PAT_MATCH_IP  },
 
 	{ /* END */ },
 }};
