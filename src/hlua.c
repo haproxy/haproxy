@@ -4379,20 +4379,20 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 /* Lua execution wrapper for "tcp-request". This function uses
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
-int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
+int hlua_tcp_req_act_wrapper(struct act_rule *act_rule, struct proxy *px,
                              struct session *sess, struct stream *s)
 {
-	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data[0],
+	return hlua_request_act_wrapper((struct hlua_rule *)act_rule->arg.data,
 	                                px, s, AN_REQ_INSPECT_FE);
 }
 
 /* Lua execution wrapper for "tcp-response". This function uses
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
-int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
+int hlua_tcp_res_act_wrapper(struct act_rule *act_rule, struct proxy *px,
                              struct session *sess, struct stream *s)
 {
-	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data[0],
+	return hlua_request_act_wrapper((struct hlua_rule *)act_rule->arg.data,
 	                                px, s, AN_RES_INSPECT);
 }
 
@@ -4400,8 +4400,8 @@ int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
  * This function uses "hlua_request_act_wrapper" for executing
  * the LUA code.
  */
-int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
-                              struct stream *s)
+int hlua_http_req_act_wrapper(struct act_rule *rule, struct proxy *px,
+                              struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
 	                                s, AN_REQ_HTTP_PROCESS_FE);
@@ -4411,8 +4411,8 @@ int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
  * This function uses "hlua_request_act_wrapper" for executing
  * the LUA code.
  */
-int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
-                              struct stream *s)
+int hlua_http_res_act_wrapper(struct act_rule *rule, struct proxy *px,
+                              struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
 	                                s, AN_RES_HTTP_PROCESS_BE);
@@ -4420,9 +4420,9 @@ int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
 
 /* tcp-request <*> configuration wrapper. */
 static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                       struct tcp_rule *rule, char **err)
+                                       struct act_rule *rule, char **err)
 {
-	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data[0], err))
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
 		return 0;
 	rule->action = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr = hlua_tcp_req_act_wrapper;
@@ -4431,9 +4431,9 @@ static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct p
 
 /* tcp-response <*> configuration wrapper. */
 static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                       struct tcp_rule *rule, char **err)
+                                       struct act_rule *rule, char **err)
 {
-	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data[0], err))
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
 		return 0;
 	rule->action = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr = hlua_tcp_res_act_wrapper;
@@ -4442,7 +4442,7 @@ static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct p
 
 /* http-request <*> configuration wrapper. */
 static int http_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                        struct http_req_rule *rule, char **err)
+                                        struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
 		return -1;
@@ -4453,7 +4453,7 @@ static int http_req_action_register_lua(const char **args, int *cur_arg, struct 
 
 /* http-response <*> configuration wrapper. */
 static int http_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                        struct http_res_rule *rule, char **err)
+                                        struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
 		return -1;

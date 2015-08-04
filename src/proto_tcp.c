@@ -1102,7 +1102,7 @@ int tcp_pause_listener(struct listener *l)
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct tcp_rule *rule;
+	struct act_rule *rule;
 	struct stksess *ts;
 	struct stktable *t;
 	int partial;
@@ -1269,7 +1269,7 @@ resume_execution:
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct tcp_rule *rule;
+	struct act_rule *rule;
 	int partial;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
@@ -1386,7 +1386,7 @@ resume_execution:
  */
 int tcp_exec_req_rules(struct session *sess)
 {
-	struct tcp_rule *rule;
+	struct act_rule *rule;
 	struct stksess *ts;
 	struct stktable *t = NULL;
 	struct connection *conn = objt_conn(sess->origin);
@@ -1457,7 +1457,7 @@ int tcp_exec_req_rules(struct session *sess)
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
                                    struct proxy *curpx, struct proxy *defpx,
-                                   struct tcp_rule *rule, char **err,
+                                   struct act_rule *rule, char **err,
                                    unsigned int where,
                                    const char *file, int line)
 {
@@ -1516,7 +1516,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
                                   struct proxy *curpx, struct proxy *defpx,
-                                  struct tcp_rule *rule, char **err,
+                                  struct act_rule *rule, char **err,
                                   unsigned int where, const char *file, int line)
 {
 	if (curpx == defpx) {
@@ -1729,7 +1729,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	unsigned int val;
 	int warn = 0;
 	int arg;
-	struct tcp_rule *rule;
+	struct act_rule *rule;
 	unsigned int where;
 	const struct acl *acl;
 	const char *kw;
@@ -1835,7 +1835,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	unsigned int val;
 	int warn = 0;
 	int arg;
-	struct tcp_rule *rule;
+	struct act_rule *rule;
 	unsigned int where;
 	const struct acl *acl;
 	const char *kw;

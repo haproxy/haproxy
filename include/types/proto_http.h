@@ -27,8 +27,8 @@
 #include <common/mini-clist.h>
 #include <common/regex.h>
 
+#include <types/action.h>
 #include <types/hdr_idx.h>
-#include <types/stick_table.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -406,72 +406,6 @@ struct proxy;
 struct http_txn;
 struct stream;
 
-struct http_req_rule {
-	struct list list;
-	struct acl_cond *cond;                 /* acl condition to meet */
-	unsigned int action;                   /* HTTP_REQ_* */
-	short deny_status;                     /* HTTP status to return to user when denying */
-	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct stream *s);  /* ptr to custom action */
-	union {
-		struct {
-			char *realm;
-		} auth;                        /* arg used by "auth" */
-		struct {
-			char *name;            /* header name */
-			int name_len;          /* header name's length */
-			struct list fmt;       /* log-format compatible expression */
-			struct my_regex re;    /* used by replace-header and replace-value */
-		} hdr_add;                     /* args used by "add-header" and "set-header" */
-		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
-		int nice;                      /* nice value for HTTP_REQ_ACT_SET_NICE */
-		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
-		int tos;                       /* tos value for HTTP_REQ_ACT_SET_TOS */
-		int mark;                      /* nfmark value for HTTP_REQ_ACT_SET_MARK */
-		void *data;                    /* generic pointer for module or external rule */
-		struct {
-			char *ref;             /* MAP or ACL file name to update */
-			struct list key;       /* pattern to retrieve MAP or ACL key */
-			struct list value;     /* pattern to retrieve MAP value */
-		} map;
-		struct {
-			void *p[4];
-		} act;                         /* generic pointers to be used by custom actions */
-	} arg;                                 /* arguments used by some actions */
-
-	union {
-		struct track_ctr_prm trk_ctr;
-	} act_prm;
-};
-
-struct http_res_rule {
-	struct list list;
-	struct acl_cond *cond;                 /* acl condition to meet */
-	unsigned int action;                   /* HTTP_RES_* */
-	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct stream *s);  /* ptr to custom action */
-	union {
-		struct {
-			char *name;            /* header name */
-			int name_len;          /* header name's length */
-			struct list fmt;       /* log-format compatible expression */
-			struct my_regex re;    /* used by replace-header and replace-value */
-		} hdr_add;                     /* args used by "add-header" and "set-header" */
-		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
-		int nice;                      /* nice value for HTTP_RES_ACT_SET_NICE */
-		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */
-		int tos;                       /* tos value for HTTP_RES_ACT_SET_TOS */
-		int mark;                      /* nfmark value for HTTP_RES_ACT_SET_MARK */
-		void *data;                    /* generic pointer for module or external rule */
-		struct {
-			char *ref;             /* MAP or ACL file name to update */
-			struct list key;       /* pattern to retrieve MAP or ACL key */
-			struct list value;     /* pattern to retrieve MAP value */
-		} map;
-		struct {
-			void *p[4];
-		} act;                         /* generic pointers to be used by custom actions */
-	} arg;                                 /* arguments used by some actions */
-};
-
 /* This is an HTTP transaction. It contains both a request message and a
  * response message (which can be empty).
  */
@@ -519,13 +453,13 @@ struct http_method_name {
 
 struct http_req_action_kw {
        const char *kw;
-       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_req_rule *rule, char **err);
+       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct act_rule *rule, char **err);
 	int match_pfx;
 };
 
 struct http_res_action_kw {
        const char *kw;
-       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_res_rule *rule, char **err);
+       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct act_rule *rule, char **err);
 	int match_pfx;
 };
 

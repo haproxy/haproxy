@@ -3540,7 +3540,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->conn_retries = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "http-request")) {	/* request access control: allow/deny/auth */
-		struct http_req_rule *rule;
+		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3549,11 +3549,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (!LIST_ISEMPTY(&curproxy->http_req_rules) &&
-		    !LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_ALLOW ||
-		     LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_DENY ||
-		     LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_REDIR ||
-		     LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_AUTH)) {
+		    !LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->cond &&
+		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_ALLOW ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_DENY ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_REDIR ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_AUTH)) {
 			Warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
@@ -3574,7 +3574,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "http-response")) {	/* response access control */
-		struct http_res_rule *rule;
+		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3583,9 +3583,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (!LIST_ISEMPTY(&curproxy->http_res_rules) &&
-		    !LIST_PREV(&curproxy->http_res_rules, struct http_res_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_res_rules, struct http_res_rule *, list)->action == HTTP_RES_ACT_ALLOW ||
-		     LIST_PREV(&curproxy->http_res_rules, struct http_res_rule *, list)->action == HTTP_RES_ACT_DENY)) {
+		    !LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->cond &&
+		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == HTTP_RES_ACT_ALLOW ||
+		     LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == HTTP_RES_ACT_DENY)) {
 			Warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
@@ -3622,7 +3622,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
-		struct http_req_rule *rule;
+		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -4144,7 +4144,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 		} else if (!strcmp(args[1], "http-request")) {    /* request access control: allow/deny/auth */
-			struct http_req_rule *rule;
+			struct act_rule *rule;
 
 			if (curproxy == &defproxy) {
 				Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -4159,7 +4159,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if (!LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
-			    !LIST_PREV(&curproxy->uri_auth->http_req_rules, struct http_req_rule *, list)->cond) {
+			    !LIST_PREV(&curproxy->uri_auth->http_req_rules, struct act_rule *, list)->cond) {
 				Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
 					file, linenum, args[0]);
 				err_code |= ERR_WARN;
@@ -7152,8 +7152,8 @@ int check_config_validity()
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
-		struct tcp_rule *trule;
-		struct http_req_rule *hrqrule;
+		struct act_rule *trule;
+		struct act_rule *hrqrule;
 		unsigned int next_id;
 		int nbproc;
 
@@ -7721,7 +7721,7 @@ int check_config_validity()
 
 		if (curproxy->uri_auth && curproxy->uri_auth->userlist && !(curproxy->uri_auth->flags & ST_CONVDONE)) {
 			const char *uri_auth_compat_req[10];
-			struct http_req_rule *rule;
+			struct act_rule *rule;
 			int i = 0;
 
 			/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */

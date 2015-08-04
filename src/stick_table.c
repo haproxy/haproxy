@@ -1413,7 +1413,6 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	return 1;
 }
 
-
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "in_table",             sample_conv_in_table,             ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_BOOL  },

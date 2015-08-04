@@ -1130,7 +1130,7 @@ static void deinit_acl_cond(struct acl_cond *cond)
 
 static void deinit_tcp_rules(struct list *rules)
 {
-	struct tcp_rule *trule, *truleb;
+	struct act_rule *trule, *truleb;
 
 	list_for_each_entry_safe(trule, truleb, rules, list) {
 		LIST_DEL(&trule->list);

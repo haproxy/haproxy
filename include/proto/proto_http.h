@@ -117,8 +117,8 @@ void http_end_txn(struct stream *s);
 void http_reset_txn(struct stream *s);
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg);
 
-struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
-struct http_res_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
+struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
+struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 void free_http_req_rules(struct list *r);
 void free_http_res_rules(struct list *r);
 struct chunk *http_error_message(struct stream *s, int msgnum);

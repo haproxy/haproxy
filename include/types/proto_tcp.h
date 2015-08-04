@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
+#include <types/action.h>
 #include <types/acl.h>
 #include <types/stream.h>
 
@@ -43,28 +44,10 @@ enum {
 	TCP_ACT_CUSTOM_CONT, /* Use for custom registered keywords. */
 };
 
-struct capture_prm {
-	struct sample_expr *expr;               /* expression used as the key */
-	struct cap_hdr *hdr;                    /* the capture storage */
-};
-
-struct tcp_rule {
-	struct list list;
-	struct acl_cond *cond;
-	int action;
-	int (*action_ptr)(struct tcp_rule *rule, struct proxy *px,
-	                  struct session *sess, struct stream *s);
-	union {
-		struct track_ctr_prm trk_ctr;
-		struct capture_prm cap;
-		void *data[4];
-	} act_prm;
-};
-
 struct tcp_action_kw {
 	const char *kw;
 	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
-	             struct tcp_rule *rule, char **err);
+	             struct act_rule *rule, char **err);
 	int match_pfx;
 };
 
