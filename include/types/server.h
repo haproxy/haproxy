@@ -167,6 +167,7 @@ struct server {
 	struct list pendconns;			/* pending connections */
 	struct list actconns;			/* active connections */
 	struct list priv_conns;			/* private idle connections attached to stream interfaces */
+	struct list idle_conns;			/* sharable idle connections attached or not to a stream interface */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 
 	struct conn_src conn_src;               /* connection source settings */
