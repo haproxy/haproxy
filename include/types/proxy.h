@@ -76,7 +76,15 @@ enum pr_mode {
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
 #define PR_O_TRANSP     0x00000002      /* transparent mode : use original DEST as dispatch */
-/* unused: 0x04, 0x08, 0x10 */
+
+/* HTTP server-side reuse */
+#define PR_O_REUSE_NEVR 0x00000000      /* never reuse a shared connection */
+#define PR_O_REUSE_SAFE 0x00000004      /* only reuse a shared connection when it's safe to do so */
+#define PR_O_REUSE_AGGR 0x00000008      /* aggressively reuse a shared connection */
+#define PR_O_REUSE_ALWS 0x0000000C      /* always reuse a shared connection */
+#define PR_O_REUSE_MASK 0x0000000C      /* mask to retrieve shared connection preferences */
+
+/* unused: 0x10 */
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */

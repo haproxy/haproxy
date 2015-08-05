@@ -5024,6 +5024,30 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
+	else if (!strcmp(args[0], "http-reuse")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (strcmp(args[1], "never") == 0) {
+			/* enable a graceful server shutdown on an HTTP 404 response */
+			curproxy->options &= ~PR_O_REUSE_MASK;
+			curproxy->options |= PR_O_REUSE_NEVR;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+		}
+		else if (strcmp(args[1], "always") == 0) {
+			/* enable a graceful server shutdown on an HTTP 404 response */
+			curproxy->options &= ~PR_O_REUSE_MASK;
+			curproxy->options |= PR_O_REUSE_ALWS;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' only supports 'never', 'always'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "http-check")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
