@@ -252,7 +252,6 @@ enum {
 	HTTP_REQ_ACT_TRK_SC0,
 	/* SC1, SC2, ... SCn */
 	HTTP_REQ_ACT_TRK_SCMAX = HTTP_REQ_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
-	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
 /* actions for "http-response" */
@@ -276,7 +275,6 @@ enum {
 	HTTP_RES_ACT_REDIR,
 	HTTP_RES_ACT_CUSTOM_STOP,  /* used for module keywords */
 	HTTP_RES_ACT_CUSTOM_CONT,  /* used for module keywords */
-	HTTP_RES_ACT_MAX /* must always be last */
 };
 
 /* final results for http-request rules */

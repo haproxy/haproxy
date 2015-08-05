@@ -3432,8 +3432,6 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	s->current_rule_list = rules;
 
 	list_for_each_entry(rule, rules, list) {
-		if (rule->action >= HTTP_REQ_ACT_MAX)
-			continue;
 
 		/* check optional condition */
 		if (rule->cond) {
@@ -3694,6 +3692,10 @@ resume_execution:
 				}
 			}
 			break;
+
+		/* other flags exists, but normaly, they never be matched. */
+		default:
+			break;
 		}
 	}
 
@@ -3735,8 +3737,6 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	s->current_rule_list = rules;
 
 	list_for_each_entry(rule, rules, list) {
-		if (rule->action >= HTTP_RES_ACT_MAX)
-			continue;
 
 		/* check optional condition */
 		if (rule->cond) {
@@ -3918,6 +3918,10 @@ resume_execution:
 		case HTTP_RES_ACT_CUSTOM_STOP:
 			rule->action_ptr(rule, px, s->sess, s);
 			return HTTP_RULE_RES_STOP;
+
+		/* other flags exists, but normaly, they never be matched. */
+		default:
+			break;
 		}
 	}
 
