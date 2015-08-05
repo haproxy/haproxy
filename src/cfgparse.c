@@ -3550,10 +3550,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!LIST_ISEMPTY(&curproxy->http_req_rules) &&
 		    !LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_ALLOW ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_DENY ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_REDIR ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == HTTP_REQ_ACT_AUTH)) {
+		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_ACTION_ALLOW ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_ACTION_DENY ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_HTTP_REDIR ||
+		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_HTTP_REQ_AUTH)) {
 			Warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
@@ -3584,8 +3584,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!LIST_ISEMPTY(&curproxy->http_res_rules) &&
 		    !LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == HTTP_RES_ACT_ALLOW ||
-		     LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == HTTP_RES_ACT_DENY)) {
+		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == ACT_ACTION_ALLOW ||
+		     LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == ACT_ACTION_DENY)) {
 			Warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
@@ -7536,7 +7536,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.l4_rules, list) {
 			struct proxy *target;
 
-			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SCMAX)
+			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
 				continue;
 
 			if (trule->arg.trk_ctr.table.n)
@@ -7575,7 +7575,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
 			struct proxy *target;
 
-			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SCMAX)
+			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
 				continue;
 
 			if (trule->arg.trk_ctr.table.n)
@@ -7614,7 +7614,7 @@ int check_config_validity()
 		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
 			struct proxy *target;
 
-			if (hrqrule->action < HTTP_REQ_ACT_TRK_SC0 || hrqrule->action > HTTP_REQ_ACT_TRK_SCMAX)
+			if (hrqrule->action < ACT_ACTION_TRK_SC0 || hrqrule->action > ACT_ACTION_TRK_SCMAX)
 				continue;
 
 			if (hrqrule->arg.trk_ctr.table.n)
@@ -8225,10 +8225,10 @@ out_uri_auth_compat:
 		 */
 		if ((curproxy->cap & PR_CAP_FE) && !curproxy->tcp_req.inspect_delay) {
 			list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
-				if (trule->action == TCP_ACT_CAPTURE &&
+				if (trule->action == ACT_TCP_CAPTURE &&
 				    !(trule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
-				if  ((trule->action >= TCP_ACT_TRK_SC0 && trule->action <= TCP_ACT_TRK_SCMAX) &&
+				if  ((trule->action >= ACT_ACTION_TRK_SC0 && trule->action <= ACT_ACTION_TRK_SCMAX) &&
 				     !(trule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
 			}

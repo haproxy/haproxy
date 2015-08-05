@@ -36,60 +36,40 @@ enum act_name {
 	ACT_ACTION_CONT = 0,
 	ACT_ACTION_STOP,
 
-	/* http request actions. */
-	HTTP_REQ_ACT_UNKNOWN,
-	HTTP_REQ_ACT_ALLOW,
-	HTTP_REQ_ACT_DENY,
-	HTTP_REQ_ACT_TARPIT,
-	HTTP_REQ_ACT_AUTH,
-	HTTP_REQ_ACT_ADD_HDR,
-	HTTP_REQ_ACT_SET_HDR,
-	HTTP_REQ_ACT_DEL_HDR,
-	HTTP_REQ_ACT_REPLACE_HDR,
-	HTTP_REQ_ACT_REPLACE_VAL,
-	HTTP_REQ_ACT_REDIR,
-	HTTP_REQ_ACT_SET_NICE,
-	HTTP_REQ_ACT_SET_LOGL,
-	HTTP_REQ_ACT_SET_TOS,
-	HTTP_REQ_ACT_SET_MARK,
-	HTTP_REQ_ACT_ADD_ACL,
-	HTTP_REQ_ACT_DEL_ACL,
-	HTTP_REQ_ACT_DEL_MAP,
-	HTTP_REQ_ACT_SET_MAP,
-	HTTP_REQ_ACT_SET_SRC,
-	HTTP_REQ_ACT_TRK_SC0,
-	/* SC1, SC2, ... SCn */
-	HTTP_REQ_ACT_TRK_SCMAX = HTTP_REQ_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
+	/* common action */
+	ACT_ACTION_ALLOW,
+	ACT_ACTION_DENY,
 
-	/* http response actions */
-	HTTP_RES_ACT_UNKNOWN,
-	HTTP_RES_ACT_ALLOW,
-	HTTP_RES_ACT_DENY,
-	HTTP_RES_ACT_ADD_HDR,
-	HTTP_RES_ACT_REPLACE_HDR,
-	HTTP_RES_ACT_REPLACE_VAL,
-	HTTP_RES_ACT_SET_HDR,
-	HTTP_RES_ACT_DEL_HDR,
-	HTTP_RES_ACT_SET_NICE,
-	HTTP_RES_ACT_SET_LOGL,
-	HTTP_RES_ACT_SET_TOS,
-	HTTP_RES_ACT_SET_MARK,
-	HTTP_RES_ACT_ADD_ACL,
-	HTTP_RES_ACT_DEL_ACL,
-	HTTP_RES_ACT_DEL_MAP,
-	HTTP_RES_ACT_SET_MAP,
-	HTTP_RES_ACT_REDIR,
+	/* common http actions .*/
+	ACT_HTTP_ADD_HDR,
+	ACT_HTTP_REPLACE_HDR,
+	ACT_HTTP_REPLACE_VAL,
+	ACT_HTTP_SET_HDR,
+	ACT_HTTP_DEL_HDR,
+	ACT_HTTP_REDIR,
+	ACT_HTTP_SET_NICE,
+	ACT_HTTP_SET_LOGL,
+	ACT_HTTP_SET_TOS,
+	ACT_HTTP_SET_MARK,
+	ACT_HTTP_ADD_ACL,
+	ACT_HTTP_DEL_ACL,
+	ACT_HTTP_DEL_MAP,
+	ACT_HTTP_SET_MAP,
+
+	/* http request actions. */
+	ACT_HTTP_REQ_TARPIT,
+	ACT_HTTP_REQ_AUTH,
+	ACT_HTTP_REQ_SET_SRC,
 
 	/* tcp actions */
-	TCP_ACT_ACCEPT,
-	TCP_ACT_REJECT,
-	TCP_ACT_EXPECT_PX,
-	TCP_ACT_TRK_SC0, /* TCP request tracking : must be contiguous and cover up to MAX_SESS_STKCTR values */
-	TCP_ACT_TRK_SC1,
-	TCP_ACT_TRK_SC2,
-	TCP_ACT_TRK_SCMAX = TCP_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
-	TCP_ACT_CLOSE, /* close at the sender's */
-	TCP_ACT_CAPTURE, /* capture a fetched sample */
+	ACT_TCP_EXPECT_PX,
+	ACT_TCP_CLOSE, /* close at the sender's */
+	ACT_TCP_CAPTURE, /* capture a fetched sample */
+
+	/* track stick counters */
+	ACT_ACTION_TRK_SC0,
+	/* SC1, SC2, ... SCn */
+	ACT_ACTION_TRK_SCMAX = ACT_ACTION_TRK_SC0 + MAX_SESS_STKCTR - 1,
 };
 
 struct act_rule {
@@ -111,10 +91,10 @@ struct act_rule {
 			struct my_regex re;    /* used by replace-header and replace-value */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
-		int nice;                      /* nice value for HTTP_REQ_ACT_SET_NICE */
-		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
-		int tos;                       /* tos value for HTTP_REQ_ACT_SET_TOS */
-		int mark;                      /* nfmark value for HTTP_REQ_ACT_SET_MARK */
+		int nice;                      /* nice value for ACT_HTTP_SET_NICE */
+		int loglevel;                  /* log-level value for ACT_HTTP_SET_LOGL */
+		int tos;                       /* tos value for ACT_HTTP_SET_TOS */
+		int mark;                      /* nfmark value for ACT_HTTP_SET_MARK */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */
 			struct list key;       /* pattern to retrieve MAP or ACL key */

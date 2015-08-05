@@ -3095,7 +3095,7 @@ __LJMP static int hlua_http_req_rep_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, HTTP_REQ_ACT_REPLACE_HDR));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, ACT_HTTP_REPLACE_HDR));
 }
 
 __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
@@ -3105,7 +3105,7 @@ __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "res_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, HTTP_RES_ACT_REPLACE_HDR));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, ACT_HTTP_REPLACE_HDR));
 }
 
 __LJMP static int hlua_http_req_rep_val(lua_State *L)
@@ -3115,7 +3115,7 @@ __LJMP static int hlua_http_req_rep_val(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, HTTP_REQ_ACT_REPLACE_VAL));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, ACT_HTTP_REPLACE_VAL));
 }
 
 __LJMP static int hlua_http_res_rep_val(lua_State *L)
@@ -3125,7 +3125,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "res_rep_val"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, HTTP_RES_ACT_REPLACE_VAL));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, ACT_HTTP_REPLACE_VAL));
 }
 
 /* This function deletes all the occurences of an header.

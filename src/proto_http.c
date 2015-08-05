@@ -3350,12 +3350,10 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 
 	/* Choose the header browsing function. */
 	switch (action) {
-	case HTTP_REQ_ACT_REPLACE_VAL:
-	case HTTP_RES_ACT_REPLACE_VAL:
+	case ACT_HTTP_REPLACE_VAL:
 		http_find_hdr_func = http_find_header2;
 		break;
-	case HTTP_REQ_ACT_REPLACE_HDR:
-	case HTTP_RES_ACT_REPLACE_HDR:
+	case ACT_HTTP_REPLACE_HDR:
 		http_find_hdr_func = http_find_full_header2;
 		break;
 	default: /* impossible */
@@ -3449,19 +3447,19 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 
 resume_execution:
 		switch (rule->action) {
-		case HTTP_REQ_ACT_ALLOW:
+		case ACT_ACTION_ALLOW:
 			return HTTP_RULE_RES_STOP;
 
-		case HTTP_REQ_ACT_DENY:
+		case ACT_ACTION_DENY:
 			txn->rule_deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
-		case HTTP_REQ_ACT_TARPIT:
+		case ACT_HTTP_REQ_TARPIT:
 			txn->flags |= TX_CLTARPIT;
 			txn->rule_deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
-		case HTTP_REQ_ACT_AUTH:
+		case ACT_HTTP_REQ_AUTH:
 			/* Auth might be performed on regular http-req rules as well as on stats */
 			auth_realm = rule->arg.auth.realm;
 			if (!auth_realm) {
@@ -3480,33 +3478,33 @@ resume_execution:
 			stream_inc_http_err_ctr(s);
 			return HTTP_RULE_RES_ABRT;
 
-		case HTTP_REQ_ACT_REDIR:
+		case ACT_HTTP_REDIR:
 			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
 				return HTTP_RULE_RES_BADREQ;
 			return HTTP_RULE_RES_DONE;
 
-		case HTTP_REQ_ACT_SET_NICE:
+		case ACT_HTTP_SET_NICE:
 			s->task->nice = rule->arg.nice;
 			break;
 
-		case HTTP_REQ_ACT_SET_TOS:
+		case ACT_HTTP_SET_TOS:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
-		case HTTP_REQ_ACT_SET_MARK:
+		case ACT_HTTP_SET_MARK:
 #ifdef SO_MARK
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
-		case HTTP_REQ_ACT_SET_LOGL:
+		case ACT_HTTP_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
 			break;
 
-		case HTTP_REQ_ACT_REPLACE_HDR:
-		case HTTP_REQ_ACT_REPLACE_VAL:
+		case ACT_HTTP_REPLACE_HDR:
+		case ACT_HTTP_REPLACE_VAL:
 			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name,
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
@@ -3514,7 +3512,7 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 			break;
 
-		case HTTP_REQ_ACT_DEL_HDR:
+		case ACT_HTTP_DEL_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
 			while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
@@ -3523,8 +3521,8 @@ resume_execution:
 			}
 			break;
 
-		case HTTP_REQ_ACT_SET_HDR:
-		case HTTP_REQ_ACT_ADD_HDR:
+		case ACT_HTTP_SET_HDR:
+		case ACT_HTTP_ADD_HDR:
 			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
 			trash.len = rule->arg.hdr_add.name_len;
@@ -3532,7 +3530,7 @@ resume_execution:
 			trash.str[trash.len++] = ' ';
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
 
-			if (rule->action == HTTP_REQ_ACT_SET_HDR) {
+			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
 				ctx.idx = 0;
 				while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
@@ -3544,8 +3542,8 @@ resume_execution:
 			http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
 			break;
 
-		case HTTP_REQ_ACT_DEL_ACL:
-		case HTTP_REQ_ACT_DEL_MAP: {
+		case ACT_HTTP_DEL_ACL:
+		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
 			char *key;
 			int len;
@@ -3567,7 +3565,7 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_REQ_ACT_ADD_ACL: {
+		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
 			char *key;
 			struct chunk *trash_key;
@@ -3593,7 +3591,7 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_REQ_ACT_SET_MAP: {
+		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
 			char *key, *value;
 			struct chunk *trash_key, *trash_value;
@@ -3639,7 +3637,7 @@ resume_execution:
 			rule->action_ptr(rule, px, s->sess, s);
 			return HTTP_RULE_RES_DONE;
 
-		case HTTP_REQ_ACT_TRK_SC0 ... HTTP_REQ_ACT_TRK_SCMAX:
+		case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 			/* Note: only the first valid tracking parameter of each
 			 * applies.
 			 */
@@ -3673,7 +3671,7 @@ resume_execution:
 			}
 			break;
 
-		case HTTP_REQ_ACT_SET_SRC:
+		case ACT_HTTP_REQ_SET_SRC:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
 				struct sample *smp;
 
@@ -3754,35 +3752,35 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 
 resume_execution:
 		switch (rule->action) {
-		case HTTP_RES_ACT_ALLOW:
+		case ACT_ACTION_ALLOW:
 			return HTTP_RULE_RES_STOP; /* "allow" rules are OK */
 
-		case HTTP_RES_ACT_DENY:
+		case ACT_ACTION_DENY:
 			txn->flags |= TX_SVDENY;
 			return HTTP_RULE_RES_STOP;
 
-		case HTTP_RES_ACT_SET_NICE:
+		case ACT_HTTP_SET_NICE:
 			s->task->nice = rule->arg.nice;
 			break;
 
-		case HTTP_RES_ACT_SET_TOS:
+		case ACT_HTTP_SET_TOS:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
-		case HTTP_RES_ACT_SET_MARK:
+		case ACT_HTTP_SET_MARK:
 #ifdef SO_MARK
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
-		case HTTP_RES_ACT_SET_LOGL:
+		case ACT_HTTP_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
 			break;
 
-		case HTTP_RES_ACT_REPLACE_HDR:
-		case HTTP_RES_ACT_REPLACE_VAL:
+		case ACT_HTTP_REPLACE_HDR:
+		case ACT_HTTP_REPLACE_VAL:
 			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name,
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
@@ -3790,7 +3788,7 @@ resume_execution:
 				return HTTP_RULE_RES_STOP; /* note: we should report an error here */
 			break;
 
-		case HTTP_RES_ACT_DEL_HDR:
+		case ACT_HTTP_DEL_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
 			while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
@@ -3799,8 +3797,8 @@ resume_execution:
 			}
 			break;
 
-		case HTTP_RES_ACT_SET_HDR:
-		case HTTP_RES_ACT_ADD_HDR:
+		case ACT_HTTP_SET_HDR:
+		case ACT_HTTP_ADD_HDR:
 			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
 			trash.len = rule->arg.hdr_add.name_len;
@@ -3808,7 +3806,7 @@ resume_execution:
 			trash.str[trash.len++] = ' ';
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
 
-			if (rule->action == HTTP_RES_ACT_SET_HDR) {
+			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
 				ctx.idx = 0;
 				while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
@@ -3819,8 +3817,8 @@ resume_execution:
 			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
 			break;
 
-		case HTTP_RES_ACT_DEL_ACL:
-		case HTTP_RES_ACT_DEL_MAP: {
+		case ACT_HTTP_DEL_ACL:
+		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
 			char *key;
 			int len;
@@ -3842,7 +3840,7 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_RES_ACT_ADD_ACL: {
+		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
 			char *key;
 			struct chunk *trash_key;
@@ -3868,7 +3866,7 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_RES_ACT_SET_MAP: {
+		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
 			char *key, *value;
 			struct chunk *trash_key, *trash_value;
@@ -3903,7 +3901,7 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_RES_ACT_REDIR:
+		case ACT_HTTP_REDIR:
 			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
 				return HTTP_RULE_RES_BADREQ;
 			return HTTP_RULE_RES_DONE;
@@ -8911,7 +8909,7 @@ void free_http_req_rules(struct list *r)
 
 	list_for_each_entry_safe(pr, tr, r, list) {
 		LIST_DEL(&pr->list);
-		if (pr->action == HTTP_REQ_ACT_AUTH)
+		if (pr->action == ACT_HTTP_REQ_AUTH)
 			free(pr->arg.auth.realm);
 
 		regex_free(&pr->arg.hdr_add.re);
@@ -8935,13 +8933,13 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 	rule->deny_status = HTTP_ERR_403;
 	if (!strcmp(args[0], "allow")) {
-		rule->action = HTTP_REQ_ACT_ALLOW;
+		rule->action = ACT_ACTION_ALLOW;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "deny") || !strcmp(args[0], "block")) {
 		int code;
 		int hc;
 
-		rule->action = HTTP_REQ_ACT_DENY;
+		rule->action = ACT_ACTION_DENY;
 		cur_arg = 1;
                 if (strcmp(args[cur_arg], "deny_status") == 0) {
                         cur_arg++;
@@ -8966,10 +8964,10 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
                         }
                 }
 	} else if (!strcmp(args[0], "tarpit")) {
-		rule->action = HTTP_REQ_ACT_TARPIT;
+		rule->action = ACT_HTTP_REQ_TARPIT;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "auth")) {
-		rule->action = HTTP_REQ_ACT_AUTH;
+		rule->action = ACT_HTTP_REQ_AUTH;
 		cur_arg = 1;
 
 		while(*args[cur_arg]) {
@@ -8981,7 +8979,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 				break;
 		}
 	} else if (!strcmp(args[0], "set-nice")) {
-		rule->action = HTTP_REQ_ACT_SET_NICE;
+		rule->action = ACT_HTTP_SET_NICE;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -8999,7 +8997,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	} else if (!strcmp(args[0], "set-tos")) {
 #ifdef IP_TOS
 		char *err;
-		rule->action = HTTP_REQ_ACT_SET_TOS;
+		rule->action = ACT_HTTP_SET_TOS;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9023,7 +9021,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	} else if (!strcmp(args[0], "set-mark")) {
 #ifdef SO_MARK
 		char *err;
-		rule->action = HTTP_REQ_ACT_SET_MARK;
+		rule->action = ACT_HTTP_SET_MARK;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9046,7 +9044,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-log-level")) {
-		rule->action = HTTP_REQ_ACT_SET_LOGL;
+		rule->action = ACT_HTTP_SET_LOGL;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9062,7 +9060,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			goto bad_log_level;
 		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
-		rule->action = *args[0] == 'a' ? HTTP_REQ_ACT_ADD_HDR : HTTP_REQ_ACT_SET_HDR;
+		rule->action = *args[0] == 'a' ? ACT_HTTP_ADD_HDR : ACT_HTTP_SET_HDR;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
@@ -9085,7 +9083,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
 	} else if (strcmp(args[0], "replace-header") == 0 || strcmp(args[0], "replace-value") == 0) {
-		rule->action = args[0][8] == 'h' ? HTTP_REQ_ACT_REPLACE_HDR : HTTP_REQ_ACT_REPLACE_VAL;
+		rule->action = args[0][8] == 'h' ? ACT_HTTP_REPLACE_HDR : ACT_HTTP_REPLACE_VAL;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
@@ -9117,7 +9115,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 3;
 	} else if (strcmp(args[0], "del-header") == 0) {
-		rule->action = HTTP_REQ_ACT_DEL_HDR;
+		rule->action = ACT_HTTP_DEL_HDR;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9181,7 +9179,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			cur_arg++;
 		}
 		rule->arg.trk_ctr.expr = expr;
-		rule->action = HTTP_REQ_ACT_TRK_SC0 + args[0][8] - '0';
+		rule->action = ACT_ACTION_TRK_SC0 + args[0][8] - '0';
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
@@ -9195,7 +9193,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		/* this redirect rule might already contain a parsed condition which
 		 * we'll pass to the http-request rule.
 		 */
-		rule->action = HTTP_REQ_ACT_REDIR;
+		rule->action = ACT_HTTP_REDIR;
 		rule->arg.redir = redir;
 		rule->cond = redir->cond;
 		redir->cond = NULL;
@@ -9203,7 +9201,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		return rule;
 	} else if (strncmp(args[0], "add-acl", 7) == 0) {
 		/* http-request add-acl(<reference (acl name)>) <key pattern> */
-		rule->action = HTTP_REQ_ACT_ADD_ACL;
+		rule->action = ACT_HTTP_ADD_ACL;
 		/*
 		 * '+ 8' for 'add-acl('
 		 * '- 9' for 'add-acl(' + trailing ')'
@@ -9230,7 +9228,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "del-acl", 7) == 0) {
 		/* http-request del-acl(<reference (acl name)>) <key pattern> */
-		rule->action = HTTP_REQ_ACT_DEL_ACL;
+		rule->action = ACT_HTTP_DEL_ACL;
 		/*
 		 * '+ 8' for 'del-acl('
 		 * '- 9' for 'del-acl(' + trailing ')'
@@ -9257,7 +9255,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "del-map", 7) == 0) {
 		/* http-request del-map(<reference (map name)>) <key pattern> */
-		rule->action = HTTP_REQ_ACT_DEL_MAP;
+		rule->action = ACT_HTTP_DEL_MAP;
 		/*
 		 * '+ 8' for 'del-map('
 		 * '- 9' for 'del-map(' + trailing ')'
@@ -9284,7 +9282,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "set-map", 7) == 0) {
 		/* http-request set-map(<reference (map name)>) <key pattern> <value pattern> */
-		rule->action = HTTP_REQ_ACT_SET_MAP;
+		rule->action = ACT_HTTP_SET_MAP;
 		/*
 		 * '+ 8' for 'set-map('
 		 * '- 9' for 'set-map(' + trailing ')'
@@ -9350,7 +9348,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		}
 
 		rule->arg.expr = expr;
-		rule->action = HTTP_REQ_ACT_SET_SRC;
+		rule->action = ACT_HTTP_REQ_SET_SRC;
 	} else if (((custom = action_http_req_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
 		cur_arg = 1;
@@ -9408,13 +9406,13 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	}
 
 	if (!strcmp(args[0], "allow")) {
-		rule->action = HTTP_RES_ACT_ALLOW;
+		rule->action = ACT_ACTION_ALLOW;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "deny")) {
-		rule->action = HTTP_RES_ACT_DENY;
+		rule->action = ACT_ACTION_DENY;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "set-nice")) {
-		rule->action = HTTP_RES_ACT_SET_NICE;
+		rule->action = ACT_HTTP_SET_NICE;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9432,7 +9430,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	} else if (!strcmp(args[0], "set-tos")) {
 #ifdef IP_TOS
 		char *err;
-		rule->action = HTTP_RES_ACT_SET_TOS;
+		rule->action = ACT_HTTP_SET_TOS;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9456,7 +9454,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	} else if (!strcmp(args[0], "set-mark")) {
 #ifdef SO_MARK
 		char *err;
-		rule->action = HTTP_RES_ACT_SET_MARK;
+		rule->action = ACT_HTTP_SET_MARK;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9479,7 +9477,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-log-level")) {
-		rule->action = HTTP_RES_ACT_SET_LOGL;
+		rule->action = ACT_HTTP_SET_LOGL;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9495,7 +9493,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 			goto bad_log_level;
 		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
-		rule->action = *args[0] == 'a' ? HTTP_RES_ACT_ADD_HDR : HTTP_RES_ACT_SET_HDR;
+		rule->action = *args[0] == 'a' ? ACT_HTTP_ADD_HDR : ACT_HTTP_SET_HDR;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
@@ -9518,7 +9516,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
 	} else if (strcmp(args[0], "replace-header") == 0 || strcmp(args[0], "replace-value") == 0) {
-		rule->action = args[0][8] == 'h' ? HTTP_RES_ACT_REPLACE_HDR : HTTP_RES_ACT_REPLACE_VAL;
+		rule->action = args[0][8] == 'h' ? ACT_HTTP_REPLACE_HDR : ACT_HTTP_REPLACE_VAL;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
@@ -9550,7 +9548,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 3;
 	} else if (strcmp(args[0], "del-header") == 0) {
-		rule->action = HTTP_RES_ACT_DEL_HDR;
+		rule->action = ACT_HTTP_DEL_HDR;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] ||
@@ -9570,7 +9568,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "add-acl", 7) == 0) {
 		/* http-request add-acl(<reference (acl name)>) <key pattern> */
-		rule->action = HTTP_RES_ACT_ADD_ACL;
+		rule->action = ACT_HTTP_ADD_ACL;
 		/*
 		 * '+ 8' for 'add-acl('
 		 * '- 9' for 'add-acl(' + trailing ')'
@@ -9598,7 +9596,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "del-acl", 7) == 0) {
 		/* http-response del-acl(<reference (acl name)>) <key pattern> */
-		rule->action = HTTP_RES_ACT_DEL_ACL;
+		rule->action = ACT_HTTP_DEL_ACL;
 		/*
 		 * '+ 8' for 'del-acl('
 		 * '- 9' for 'del-acl(' + trailing ')'
@@ -9625,7 +9623,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "del-map", 7) == 0) {
 		/* http-response del-map(<reference (map name)>) <key pattern> */
-		rule->action = HTTP_RES_ACT_DEL_MAP;
+		rule->action = ACT_HTTP_DEL_MAP;
 		/*
 		 * '+ 8' for 'del-map('
 		 * '- 9' for 'del-map(' + trailing ')'
@@ -9652,7 +9650,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg += 1;
 	} else if (strncmp(args[0], "set-map", 7) == 0) {
 		/* http-response set-map(<reference (map name)>) <key pattern> <value pattern> */
-		rule->action = HTTP_RES_ACT_SET_MAP;
+		rule->action = ACT_HTTP_SET_MAP;
 		/*
 		 * '+ 8' for 'set-map('
 		 * '- 9' for 'set-map(' + trailing ')'
@@ -9701,7 +9699,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		/* this redirect rule might already contain a parsed condition which
 		 * we'll pass to the http-request rule.
 		 */
-		rule->action = HTTP_RES_ACT_REDIR;
+		rule->action = ACT_HTTP_REDIR;
 		rule->arg.redir = redir;
 		rule->cond = redir->cond;
 		redir->cond = NULL;

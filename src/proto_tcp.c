@@ -1161,10 +1161,10 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		if (ret) {
 resume_execution:
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_ACCEPT) {
+			if (rule->action == ACT_ACTION_ALLOW) {
 				break;
 			}
-			else if (rule->action == TCP_ACT_REJECT) {
+			else if (rule->action == ACT_ACTION_DENY) {
 				channel_abort(req);
 				channel_abort(&s->res);
 				req->analysers = 0;
@@ -1180,7 +1180,7 @@ resume_execution:
 					s->flags |= SF_FINST_R;
 				return 0;
 			}
-			else if (rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) {
+			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
@@ -1203,7 +1203,7 @@ resume_execution:
 						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
-			else if (rule->action == TCP_ACT_CAPTURE) {
+			else if (rule->action == ACT_TCP_CAPTURE) {
 				struct sample *key;
 				struct cap_hdr *h = rule->arg.cap.hdr;
 				char **cap = s->req_cap;
@@ -1329,10 +1329,10 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		if (ret) {
 resume_execution:
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_ACCEPT) {
+			if (rule->action == ACT_ACTION_ALLOW) {
 				break;
 			}
-			else if (rule->action == TCP_ACT_REJECT) {
+			else if (rule->action == ACT_ACTION_DENY) {
 				channel_abort(rep);
 				channel_abort(&s->req);
 				rep->analysers = 0;
@@ -1348,7 +1348,7 @@ resume_execution:
 					s->flags |= SF_FINST_D;
 				return 0;
 			}
-			else if (rule->action == TCP_ACT_CLOSE) {
+			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
 				si_shutr(chn_prod(rep));
 				si_shutw(chn_prod(rep));
@@ -1408,10 +1408,10 @@ int tcp_exec_req_rules(struct session *sess)
 
 		if (ret) {
 			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_ACCEPT) {
+			if (rule->action == ACT_ACTION_ALLOW) {
 				break;
 			}
-			else if (rule->action == TCP_ACT_REJECT) {
+			else if (rule->action == ACT_ACTION_DENY) {
 				sess->fe->fe_counters.denied_conn++;
 				if (sess->listener->counters)
 					sess->listener->counters->denied_conn++;
@@ -1419,7 +1419,7 @@ int tcp_exec_req_rules(struct session *sess)
 				result = 0;
 				break;
 			}
-			else if (rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) {
+			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
@@ -1434,7 +1434,7 @@ int tcp_exec_req_rules(struct session *sess)
 				if (key && (ts = stktable_get_entry(t, key)))
 					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
 			}
-			else if (rule->action == TCP_ACT_EXPECT_PX) {
+			else if (rule->action == ACT_TCP_EXPECT_PX) {
 				conn->flags |= CO_FL_ACCEPT_PROXY;
 				conn_sock_want_recv(conn);
 			}
@@ -1469,15 +1469,15 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 
 	if (strcmp(args[arg], "accept") == 0) {
 		arg++;
-		rule->action = TCP_ACT_ACCEPT;
+		rule->action = ACT_ACTION_ALLOW;
 	}
 	else if (strcmp(args[arg], "reject") == 0) {
 		arg++;
-		rule->action = TCP_ACT_REJECT;
+		rule->action = ACT_ACTION_DENY;
 	}
 	else if (strcmp(args[arg], "close") == 0) {
 		arg++;
-		rule->action = TCP_ACT_CLOSE;
+		rule->action = ACT_TCP_CLOSE;
 	}
 	else {
 		struct tcp_action_kw *kw;
@@ -1528,11 +1528,11 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 	if (!strcmp(args[arg], "accept")) {
 		arg++;
-		rule->action = TCP_ACT_ACCEPT;
+		rule->action = ACT_ACTION_ALLOW;
 	}
 	else if (!strcmp(args[arg], "reject")) {
 		arg++;
-		rule->action = TCP_ACT_REJECT;
+		rule->action = ACT_ACTION_DENY;
 	}
 	else if (strcmp(args[arg], "capture") == 0) {
 		struct sample_expr *expr;
@@ -1618,7 +1618,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr = hdr;
-		rule->action = TCP_ACT_CAPTURE;
+		rule->action = ACT_TCP_CAPTURE;
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0 &&
 		 args[arg][9] == '\0' && args[arg][8] >= '0' &&
@@ -1662,7 +1662,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			arg++;
 		}
 		rule->arg.trk_ctr.expr = expr;
-		rule->action = TCP_ACT_TRK_SC0 + args[kw][8] - '0';
+		rule->action = ACT_ACTION_TRK_SC0 + args[kw][8] - '0';
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {
 		if (strcmp(args[arg+1], "layer4") != 0) {
@@ -1680,7 +1680,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		}
 
 		arg += 2;
-		rule->action = TCP_ACT_EXPECT_PX;
+		rule->action = ACT_TCP_EXPECT_PX;
 	}
 	else {
 		struct tcp_action_kw *kw;
