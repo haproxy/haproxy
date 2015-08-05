@@ -167,17 +167,15 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	si_detach_endpoint(si);
 }
 
-/* Turn a possibly existing connection endpoint of stream interface <si> to
- * idle mode, which means that the connection will be polled for incoming events
- * and might be killed by the underlying I/O handler. If <pool> is not null, the
- * connection will also be added at the head of this list.
+/* Turn an existing connection endpoint of stream interface <si> to idle mode,
+ * which means that the connection will be polled for incoming events and might
+ * be killed by the underlying I/O handler. If <pool> is not null, the
+ * connection will also be added at the head of this list. This connection
+ * remains assigned to the stream interface it is currently attached to.
  */
 static inline void si_idle_conn(struct stream_interface *si, struct list *pool)
 {
-	struct connection *conn = objt_conn(si->end);
-
-	if (!conn)
-		return;
+	struct connection *conn = __objt_conn(si->end);
 
 	if (pool)
 		LIST_ADD(pool, &conn->list);

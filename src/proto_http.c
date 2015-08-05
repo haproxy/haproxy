@@ -5186,11 +5186,10 @@ void http_end_txn_clean_session(struct stream *s)
 	channel_auto_close(&s->res);
 
 	/* we're in keep-alive with an idle connection, monitor it */
-	srv = NULL;
-	if (srv_conn)
+	if (srv_conn) {
 		srv = objt_server(srv_conn->target);
-
-	si_idle_conn(&s->si[1], srv ? &srv->priv_conns : NULL);
+		si_idle_conn(&s->si[1], srv ? &srv->priv_conns : NULL);
+	}
 
 	s->req.analysers = strm_li(s)->analysers;
 	s->res.analysers = 0;
