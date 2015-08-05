@@ -5032,6 +5032,7 @@ void http_end_txn_clean_session(struct stream *s)
 	struct proxy *fe = strm_fe(s);
 	struct connection *srv_conn;
 	struct server *srv;
+	unsigned int prev_flags = s->txn->flags;
 
 	/* FIXME: We need a more portable way of releasing a backend's and a
 	 * server's connections. We need a safer way to reinitialize buffer
@@ -5194,6 +5195,12 @@ void http_end_txn_clean_session(struct stream *s)
 		else if ((srv_conn->flags & CO_FL_PRIVATE) ||
 			 ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR))
 			si_idle_conn(&s->si[1], &srv->priv_conns);
+		else if (prev_flags & TX_NOT_FIRST)
+			/* note: we check the request, not the connection, but
+			 * this is valid for strategies SAFE and AGGR, and in
+			 * case of ALWS, we don't care anyway.
+			 */
+			si_idle_conn(&s->si[1], &srv->safe_conns);
 		else
 			si_idle_conn(&s->si[1], &srv->idle_conns);
 	}

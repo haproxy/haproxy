@@ -1046,17 +1046,43 @@ int connect_server(struct stream *s)
 			 */
 		}
 
-		if (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS ||
-		     ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE && s->txn && (s->txn->flags & TX_NOT_FIRST)))
-		    && !LIST_ISEMPTY(&srv->idle_conns)) {
-			/* We're going to have to pick the first connection
-			 * from this pool and use it for our purposes. We may
-			 * have to get rid of the current idle connection, so
-			 * for this we try to swap it with the other owner's.
-			 * That way it may remain alive for others to pick.
-			 */
-			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
+		/* Below we pick connections from the safe or idle lists based
+		 * on the strategy, the fact that this is a first or second
+		 * (retryable) request, with the indicated priority (1 or 2) :
+		 *
+		 *          SAFE                 AGGR                ALWS
+		 *
+		 *      +-----+-----+        +-----+-----+       +-----+-----+
+		 *   req| 1st | 2nd |     req| 1st | 2nd |    req| 1st | 2nd |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *  safe|  -  |  2  |    safe|  1  |  2  |   safe|  1  |  2  |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 */
 
+		if (!LIST_ISEMPTY(&srv->idle_conns) &&
+		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
+		     s->txn && (s->txn->flags & TX_NOT_FIRST))) {
+			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
+		}
+		else if (!LIST_ISEMPTY(&srv->safe_conns) &&
+			 ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
+			  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR)) {
+			srv_conn = LIST_ELEM(srv->safe_conns.n, struct connection *, list);
+		}
+		else if (!LIST_ISEMPTY(&srv->idle_conns) &&
+			 (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) {
+			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
+		}
+
+		/* If we've picked a connection from the pool, we now have to
+		 * detach it. We may have to get rid of the previous idle
+		 * connection we had, so for this we try to swap it with the
+		 * other owner's. That way it may remain alive for others to
+		 * pick.
+		 */
+		if (srv_conn) {
 			LIST_DEL(&srv_conn->list);
 			LIST_INIT(&srv_conn->list);
 
@@ -1069,8 +1095,8 @@ int connect_server(struct stream *s)
 			reuse = 1;
 		}
 
+		/* we may have to release our connection if we couldn't swap it */
 		if (old_conn && !old_conn->owner) {
-			/* we couldn't swap our connection, let's release it */
 			LIST_DEL(&old_conn->list);
 			conn_force_close(old_conn);
 			conn_free(old_conn);
