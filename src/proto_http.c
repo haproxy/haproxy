@@ -4477,7 +4477,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		char *path;
 
 		/* Note that for now we don't reuse existing proxy connections */
-		if (unlikely((conn = si_alloc_conn(&s->si[1], 0)) == NULL)) {
+		if (unlikely((conn = si_alloc_conn(&s->si[1])) == NULL)) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
 			req->analysers = 0;

@@ -2062,7 +2062,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	port    = MAY_LJMP(luaL_checkinteger(L, 3));
 
-	conn = si_alloc_conn(&socket->s->si[1], 0);
+	conn = si_alloc_conn(&socket->s->si[1]);
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 

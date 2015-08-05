@@ -271,27 +271,15 @@ static inline void si_applet_stop_get(struct stream_interface *si)
 }
 
 /* Try to allocate a new connection and assign it to the interface. If
- * a connection was previously allocated and the <reuse> flag is set,
- * it is returned unmodified. Otherwise it is reset.
+ * an endpoint was previously allocated, it is released first. The newly
+ * allocated connection is initialized, assigned to the stream interface,
+ * and returned.
  */
-/* Returns the stream interface's existing connection if one such already
- * exists, or tries to allocate and initialize a new one which is then
- * assigned to the stream interface.
- */
-static inline struct connection *si_alloc_conn(struct stream_interface *si, int reuse)
+static inline struct connection *si_alloc_conn(struct stream_interface *si)
 {
 	struct connection *conn;
 
-	/* If we find a reusable connection, we return it, otherwise we start
-	 * by releasing what we have (non-reusable conn or applet).
-	 */
-	if (si->end) {
-		conn = objt_conn(si->end);
-		if (conn && reuse)
-			return conn;
-
-		si_release_endpoint(si);
-	}
+	si_release_endpoint(si);
 
 	conn = conn_new();
 	if (conn)

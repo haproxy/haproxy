@@ -1051,7 +1051,7 @@ int connect_server(struct stream *s)
 	}
 
 	if (!reuse)
-		srv_conn = si_alloc_conn(&s->si[1], 0);
+		srv_conn = si_alloc_conn(&s->si[1]);
 
 	if (!srv_conn)
 		return SF_ERR_RESOURCE;
