@@ -5062,6 +5062,7 @@ void hlua_init(void)
 	LIST_INIT(&socket_tcp.pendconns);
 	LIST_INIT(&socket_tcp.priv_conns);
 	LIST_INIT(&socket_tcp.idle_conns);
+	LIST_INIT(&socket_tcp.safe_conns);
 	socket_tcp.state = SRV_ST_RUNNING; /* early server setup */
 	socket_tcp.last_change = 0;
 	socket_tcp.id = "LUA-TCP-CONN";
@@ -5107,6 +5108,7 @@ void hlua_init(void)
 	LIST_INIT(&socket_ssl.pendconns);
 	LIST_INIT(&socket_ssl.priv_conns);
 	LIST_INIT(&socket_ssl.idle_conns);
+	LIST_INIT(&socket_ssl.safe_conns);
 	socket_ssl.state = SRV_ST_RUNNING; /* early server setup */
 	socket_ssl.last_change = 0;
 	socket_ssl.id = "LUA-SSL-CONN";

@@ -168,6 +168,7 @@ struct server {
 	struct list actconns;			/* active connections */
 	struct list priv_conns;			/* private idle connections attached to stream interfaces */
 	struct list idle_conns;			/* sharable idle connections attached or not to a stream interface */
+	struct list safe_conns;			/* safe idle connections attached to stream interfaces, shared */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 
 	struct conn_src conn_src;               /* connection source settings */
