@@ -5035,6 +5035,13 @@ stats_error_parsing:
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 		}
+		else if (strcmp(args[1], "safe") == 0) {
+			/* enable a graceful server shutdown on an HTTP 404 response */
+			curproxy->options &= ~PR_O_REUSE_MASK;
+			curproxy->options |= PR_O_REUSE_SAFE;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+		}
 		else if (strcmp(args[1], "always") == 0) {
 			/* enable a graceful server shutdown on an HTTP 404 response */
 			curproxy->options &= ~PR_O_REUSE_MASK;
@@ -5043,7 +5050,7 @@ stats_error_parsing:
 				goto out;
 		}
 		else {
-			Alert("parsing [%s:%d] : '%s' only supports 'never', 'always'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' only supports 'never', 'safe', 'always'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

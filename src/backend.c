@@ -1046,8 +1046,9 @@ int connect_server(struct stream *s)
 			 */
 		}
 
-		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS &&
-		    !LIST_ISEMPTY(&srv->idle_conns)) {
+		if (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS ||
+		     ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE && s->txn && (s->txn->flags & TX_NOT_FIRST)))
+		    && !LIST_ISEMPTY(&srv->idle_conns)) {
 			/* We're going to have to pick the first connection
 			 * from this pool and use it for our purposes. We may
 			 * have to get rid of the current idle connection, so
