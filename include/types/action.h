@@ -32,10 +32,70 @@ enum act_from {
 	ACT_F_HTTP_RES,    /* http-response */
 };
 
+enum act_name {
+	ACT_ACTION_CONT = 0,
+	ACT_ACTION_STOP,
+
+	/* http request actions. */
+	HTTP_REQ_ACT_UNKNOWN,
+	HTTP_REQ_ACT_ALLOW,
+	HTTP_REQ_ACT_DENY,
+	HTTP_REQ_ACT_TARPIT,
+	HTTP_REQ_ACT_AUTH,
+	HTTP_REQ_ACT_ADD_HDR,
+	HTTP_REQ_ACT_SET_HDR,
+	HTTP_REQ_ACT_DEL_HDR,
+	HTTP_REQ_ACT_REPLACE_HDR,
+	HTTP_REQ_ACT_REPLACE_VAL,
+	HTTP_REQ_ACT_REDIR,
+	HTTP_REQ_ACT_SET_NICE,
+	HTTP_REQ_ACT_SET_LOGL,
+	HTTP_REQ_ACT_SET_TOS,
+	HTTP_REQ_ACT_SET_MARK,
+	HTTP_REQ_ACT_ADD_ACL,
+	HTTP_REQ_ACT_DEL_ACL,
+	HTTP_REQ_ACT_DEL_MAP,
+	HTTP_REQ_ACT_SET_MAP,
+	HTTP_REQ_ACT_SET_SRC,
+	HTTP_REQ_ACT_TRK_SC0,
+	/* SC1, SC2, ... SCn */
+	HTTP_REQ_ACT_TRK_SCMAX = HTTP_REQ_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
+
+	/* http response actions */
+	HTTP_RES_ACT_UNKNOWN,
+	HTTP_RES_ACT_ALLOW,
+	HTTP_RES_ACT_DENY,
+	HTTP_RES_ACT_ADD_HDR,
+	HTTP_RES_ACT_REPLACE_HDR,
+	HTTP_RES_ACT_REPLACE_VAL,
+	HTTP_RES_ACT_SET_HDR,
+	HTTP_RES_ACT_DEL_HDR,
+	HTTP_RES_ACT_SET_NICE,
+	HTTP_RES_ACT_SET_LOGL,
+	HTTP_RES_ACT_SET_TOS,
+	HTTP_RES_ACT_SET_MARK,
+	HTTP_RES_ACT_ADD_ACL,
+	HTTP_RES_ACT_DEL_ACL,
+	HTTP_RES_ACT_DEL_MAP,
+	HTTP_RES_ACT_SET_MAP,
+	HTTP_RES_ACT_REDIR,
+
+	/* tcp actions */
+	TCP_ACT_ACCEPT,
+	TCP_ACT_REJECT,
+	TCP_ACT_EXPECT_PX,
+	TCP_ACT_TRK_SC0, /* TCP request tracking : must be contiguous and cover up to MAX_SESS_STKCTR values */
+	TCP_ACT_TRK_SC1,
+	TCP_ACT_TRK_SC2,
+	TCP_ACT_TRK_SCMAX = TCP_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
+	TCP_ACT_CLOSE, /* close at the sender's */
+	TCP_ACT_CAPTURE, /* capture a fetched sample */
+};
+
 struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
-	unsigned int action;                   /* HTTP_REQ_* */
+	enum act_name action;                  /* ACT_ACTION_* */
 	enum act_from from;                    /* ACT_F_* */
 	short deny_status;                     /* HTTP status to return to user when denying */
 	int (*action_ptr)(struct act_rule *rule, struct proxy *px,

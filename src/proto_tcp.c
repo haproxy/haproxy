@@ -1237,7 +1237,7 @@ resume_execution:
 				}
 
 				/* accept */
-				if (rule->action == TCP_ACT_CUSTOM)
+				if (rule->action == ACT_ACTION_STOP)
 					break;
 				/* otherwise continue */
 			}
@@ -1363,7 +1363,7 @@ resume_execution:
 				}
 
 				/* accept */
-				if (rule->action == TCP_ACT_CUSTOM)
+				if (rule->action == ACT_ACTION_STOP)
 					break;
 				/* otherwise continue */
 			}
@@ -1442,7 +1442,7 @@ int tcp_exec_req_rules(struct session *sess)
 				/* Custom keywords. */
 				if (rule->action_ptr) {
 					rule->action_ptr(rule, sess->fe, sess, NULL);
-					if (rule->action == TCP_ACT_CUSTOM_CONT)
+					if (rule->action == ACT_ACTION_CONT)
 						continue;
 				}
 

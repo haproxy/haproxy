@@ -610,7 +610,7 @@ static int parse_tcp_req_store(const char **args, int *arg, struct proxy *px,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
 		return 0;
-	rule->action       = TCP_ACT_CUSTOM_CONT;
+	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_tcp_req_store;
 	return 1;
 }
@@ -624,7 +624,7 @@ static int parse_tcp_res_store(const char **args, int *arg, struct proxy *px,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
 		return 0;
-	rule->action       = TCP_ACT_CUSTOM_CONT;
+	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_tcp_res_store;
 	return 1;
 }
@@ -638,7 +638,7 @@ static int parse_http_req_store(const char **args, int *arg, struct proxy *px,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
 		return -1;
-	rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
+	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_http_req_store;
 	return 0;
 }
@@ -652,7 +652,7 @@ static int parse_http_res_store(const char **args, int *arg, struct proxy *px,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
 		return -1;
-	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
+	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_http_res_store;
 	return 0;
 }

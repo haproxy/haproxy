@@ -3628,14 +3628,14 @@ resume_execution:
 			break;
 			}
 
-		case HTTP_REQ_ACT_CUSTOM_CONT:
+		case ACT_ACTION_CONT:
 			if (!rule->action_ptr(rule, px, s->sess, s)) {
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
 
-		case HTTP_REQ_ACT_CUSTOM_STOP:
+		case ACT_ACTION_STOP:
 			rule->action_ptr(rule, px, s->sess, s);
 			return HTTP_RULE_RES_DONE;
 
@@ -3908,14 +3908,14 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 			return HTTP_RULE_RES_DONE;
 
-		case HTTP_RES_ACT_CUSTOM_CONT:
+		case ACT_ACTION_CONT:
 			if (!rule->action_ptr(rule, px, s->sess, s)) {
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
 
-		case HTTP_RES_ACT_CUSTOM_STOP:
+		case ACT_ACTION_STOP:
 			rule->action_ptr(rule, px, s->sess, s);
 			return HTTP_RULE_RES_STOP;
 
@@ -12277,7 +12277,7 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 {
 	int cur_arg = *orig_arg;
 
-	rule->action = HTTP_REQ_ACT_CUSTOM_CONT;
+	rule->action = ACT_ACTION_CONT;
 
 	switch (args[0][4]) {
 	case 'm' :
@@ -12472,7 +12472,7 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 		px->req_cap = hdr;
 		px->to_log |= LW_REQHDR;
 
-		rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
+		rule->action       = ACT_ACTION_CONT;
 		rule->action_ptr   = http_action_req_capture;
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr  = hdr;
@@ -12500,7 +12500,7 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 		proxy->conf.args.ctx = ARGC_CAP;
 
-		rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
+		rule->action       = ACT_ACTION_CONT;
 		rule->action_ptr   = http_action_req_capture_by_id;
 		rule->arg.capid.expr = expr;
 		rule->arg.capid.idx  = id;
@@ -12622,7 +12622,7 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 	proxy->conf.args.ctx = ARGC_CAP;
 
-	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
+	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = http_action_res_capture_by_id;
 	rule->arg.capid.expr = expr;
 	rule->arg.capid.idx  = id;

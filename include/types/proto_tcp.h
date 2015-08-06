@@ -29,21 +29,6 @@
 #include <types/acl.h>
 #include <types/stream.h>
 
-/* Layer4 accept/reject rules */
-enum {
-	TCP_ACT_ACCEPT = 1,
-	TCP_ACT_REJECT = 2,
-	TCP_ACT_EXPECT_PX = 3,
-	TCP_ACT_TRK_SC0 = 4, /* TCP request tracking : must be contiguous and cover up to MAX_SESS_STKCTR values */
-	TCP_ACT_TRK_SC1 = 5,
-	TCP_ACT_TRK_SC2 = 6,
-	TCP_ACT_TRK_SCMAX = TCP_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
-	TCP_ACT_CLOSE, /* close at the sender's */
-	TCP_ACT_CAPTURE, /* capture a fetched sample */
-	TCP_ACT_CUSTOM, /* Use for custom registered keywords. */
-	TCP_ACT_CUSTOM_CONT, /* Use for custom registered keywords. */
-};
-
 struct tcp_action_kw {
 	const char *kw;
 	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
