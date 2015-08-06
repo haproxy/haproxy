@@ -1621,6 +1621,7 @@ http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
+http-reuse                                X          -         X         X
 http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
@@ -3977,6 +3978,88 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
 
   See also : "http-request", section 3.4 about userlists and section 7 about
              ACL usage.
+
+
+http-reuse { never | safe | aggressive | always }
+  Declare how idle HTTP connections may be shared between requests
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  By default, a connection established between haproxy and the backend server
+  belongs to the session that initiated it. The downside is that between the
+  response and the next request, the connection remains idle and is not used.
+  In many cases for performance reasons it is desirable to make it possible to
+  reuse these idle connections to serve other requests from different sessions.
+  This directive allows to tune this behaviour.
+
+  The argument indicates the desired connection reuse strategy :
+
+    - "never"  : idle connections are never shared between sessions. This is
+                 the default choice. It may be enforced to cancel a different
+                 strategy inherited from a defaults section or for
+                 troubleshooting. For example, if an old bogus application
+                 considers that multiple requests over the same connection come
+                 from the same client and it is not possible to fix the
+                 application, it may be desirable to disable connection sharing
+                 in a single backend. An example of such an application could
+                 be an old haproxy using cookie insertion in tunnel mode and
+                 not checking any request past the first one.
+
+    - "safe"   : this is the recommended strategy. The first request of a
+                 session is always sent over its own connection, and only
+                 subsequent requests may be dispatched over other existing
+                 connections. This ensures that in case the server closes the
+                 connection when the request is being sent, the browser can
+                 decide to silently retry it. Since it is exactly equivalent to
+                 regular keep-alive, there should be no side effects.
+
+    - "aggressive" : this mode may be useful in webservices environments where
+                 all servers are not necessarily known and where it would be
+                 appreciable to deliver most first requests over existing
+                 connections. In this case, first requests are only delivered
+                 over existing connections that have been reused at least once,
+                 proving that the server correctly supports connection reuse.
+                 It should only be used when it's sure that the client can
+                 retry a failed request once in a while and where the benefit
+                 of aggressive connection reuse significantly outweights the
+                 downsides of rare connection failures.
+
+    - "always" : this mode is only recommended when the path to the server is
+                 known for never breaking existing connections quickly after
+                 releasing them. It allows the first request of a session to be
+                 sent to an existing connection. This can provide a significant
+                 performance increase over the "safe" strategy when the backend
+                 is a cache farm, since such components tend to show a
+                 consistent behaviour and will benefit from the connection
+                 sharing. It is recommended that the "http-keep-alive" timeout
+                 remains low in this mode so that no dead connections remain
+                 usable. In most cases, this will lead to the same performance
+                 gains as "aggressive" but with more risks. It should only be
+                 used when it improves the situation over "aggressive".
+
+  When http connection sharing is enabled, a great care is taken to respect the
+  connection properties and compatiblities. Specifically :
+    - connections made with "usesrc" followed by a client-dependant value
+      ("client", "clientip", "hdr_ip") are marked private and never shared ;
+
+    - connections sent to a server with a TLS SNI extension are marked private
+      and are never shared ;
+
+    - connections receiving a status code 401 or 407 expect some authentication
+      to be sent in return. Due to certain bogus authentication schemes (such
+      as NTLM) relying on the connection, these connections are marked private
+      and are never shared ;
+
+  No connection pool is involved, once a session dies, the last idle connection
+  it was attached to is deleted at the same time. This ensures that connections
+  may not last after all sessions are closed.
+
+  Note: connection reuse improves the accuracy of the "server maxconn" setting,
+  because almost no new connection will be established while idle connections
+  remain available. This is particularly true with the "always" strategy.
+
+  See also : "option http-keep-alive", "server maxconn"
 
 
 http-send-name-header [<header>]
