@@ -4215,64 +4215,29 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	return 0;
 }
 
-/* global {tcp|http}-request parser. Return 1 in succes case, else return 0. */
-static int hlua_parse_rule(const char **args, int *cur_arg, struct proxy *px,
-                           struct hlua_rule **rule_p, char **err)
-{
-	struct hlua_rule *rule;
-
-	/* Memory for the rule. */
-	rule = malloc(sizeof(*rule));
-	if (!rule) {
-		memprintf(err, "out of memory error");
-		return 0;
-	}
-	*rule_p = rule;
-
-	/* The requiered arg is a function name. */
-	if (!args[*cur_arg]) {
-		memprintf(err, "expect Lua function name");
-		return 0;
-	}
-
-	/* Lookup for the symbol, and check if it is a function. */
-	lua_getglobal(gL.T, args[*cur_arg]);
-	if (lua_isnil(gL.T, -1)) {
-		lua_pop(gL.T, 1);
-		memprintf(err, "Lua function '%s' not found", args[*cur_arg]);
-		return 0;
-	}
-	if (!lua_isfunction(gL.T, -1)) {
-		lua_pop(gL.T, 1);
-		memprintf(err, "'%s' is not a function",  args[*cur_arg]);
-		return 0;
-	}
-
-	/* Reference the Lua function and store the reference. */
-	rule->fcn.function_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
-	rule->fcn.name = strdup(args[*cur_arg]);
-	if (!rule->fcn.name) {
-		memprintf(err, "out of memory error.");
-		return 0;
-	}
-	(*cur_arg)++;
-
-	/* TODO: later accept arguments. */
-	rule->args = NULL;
-
-	return 1;
-}
-
 /* This function is a wrapper to execute each LUA function declared
  * as an action wrapper during the initialisation period. This function
- * return 1 if the processing is finished (with oe without error) and
- * return 0 if the function must be called again because the LUA
- * returns a yield.
+ * return ACT_RET_CONT if the processing is finished (with or without
+ * error) and return ACT_RET_YIELD if the function must be called again
+ * because the LUA returns a yield.
  */
-static enum act_return hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
-                                                struct stream *s, unsigned int analyzer)
+static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
+                                   struct session *sess, struct stream *s)
 {
 	char **arg;
+	unsigned int analyzer;
+
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; break;
+	case ACT_F_TCP_RES_CNT: analyzer = AN_RES_INSPECT        ; break;
+	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; break;
+	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; break;
+	default:
+		send_log(px, LOG_ERR, "Lua: internal error while execute action.");
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua: internal error while execute action.\n");
+		return ACT_RET_CONT;
+	}
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -4280,9 +4245,11 @@ static enum act_return hlua_request_act_wrapper(struct hlua_rule *rule, struct p
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!s->hlua.T && !hlua_ctx_init(&s->hlua, s->task)) {
-		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.", rule->fcn.name);
+		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.",
+		         rule->arg.hlua_rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Lua action '%s': can't initialize Lua context.\n", rule->fcn.name);
+			Alert("Lua action '%s': can't initialize Lua context.\n",
+			      rule->arg.hlua_rule->fcn.name);
 		return ACT_RET_CONT;
 	}
 
@@ -4290,30 +4257,36 @@ static enum act_return hlua_request_act_wrapper(struct hlua_rule *rule, struct p
 	if (!HLUA_IS_RUNNING(&s->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua.T, 1)) {
-			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+			         rule->arg.hlua_rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+				Alert("Lua function '%s': full stack.\n",
+				      rule->arg.hlua_rule->fcn.name);
 			return ACT_RET_CONT;
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, rule->fcn.function_ref);
+		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn.function_ref);
 
 		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua.T, s, px)) {
-			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+			         rule->arg.hlua_rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+				Alert("Lua function '%s': full stack.\n",
+				      rule->arg.hlua_rule->fcn.name);
 			return ACT_RET_CONT;
 		}
 		s->hlua.nargs = 1;
 
 		/* push keywords in the stack. */
-		for (arg = rule->args; arg && *arg; arg++) {
+		for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
 			if (!lua_checkstack(s->hlua.T, 1)) {
-				send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+				send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+				         rule->arg.hlua_rule->fcn.name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-					Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+					Alert("Lua function '%s': full stack.\n",
+					      rule->arg.hlua_rule->fcn.name);
 				return ACT_RET_CONT;
 			}
 			lua_pushstring(s->hlua.T, *arg);
@@ -4358,102 +4331,73 @@ static enum act_return hlua_request_act_wrapper(struct hlua_rule *rule, struct p
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua function '%s': %s.", rule->fcn.name, lua_tostring(s->hlua.T, -1));
+		send_log(px, LOG_ERR, "Lua function '%s': %s.",
+		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Lua function '%s': %s.\n", rule->fcn.name, lua_tostring(s->hlua.T, -1));
+			Alert("Lua function '%s': %s.\n",
+			      rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua.T, -1));
 		lua_pop(s->hlua.T, 1);
 		return ACT_RET_CONT;
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua function '%s' return an unknown error.", rule->fcn.name);
+		send_log(px, LOG_ERR, "Lua function '%s' return an unknown error.",
+		         rule->arg.hlua_rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Lua function '%s' return an unknown error.\n", rule->fcn.name);
+			Alert("Lua function '%s' return an unknown error.\n",
+			      rule->arg.hlua_rule->fcn.name);
 
 	default:
 		return ACT_RET_CONT;
 	}
 }
 
-/* Lua execution wrapper for "tcp-request". This function uses
- * "hlua_request_act_wrapper" for executing the LUA code.
+/* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
+ * succes case, else return ACT_RET_PRS_ERR.
  */
-enum act_return hlua_tcp_req_act_wrapper(struct act_rule *act_rule, struct proxy *px,
-                                         struct session *sess, struct stream *s)
+static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                              struct act_rule *rule, char **err)
 {
-	return hlua_request_act_wrapper(act_rule->arg.hlua_rule, px, s, AN_REQ_INSPECT_FE);
-}
-
-/* Lua execution wrapper for "tcp-response". This function uses
- * "hlua_request_act_wrapper" for executing the LUA code.
- */
-enum act_return hlua_tcp_res_act_wrapper(struct act_rule *act_rule, struct proxy *px,
-                                         struct session *sess, struct stream *s)
-{
-	return hlua_request_act_wrapper(act_rule->arg.hlua_rule, px, s, AN_RES_INSPECT);
-}
-
-/* Lua execution wrapper for http-request.
- * This function uses "hlua_request_act_wrapper" for executing
- * the LUA code.
- */
-enum act_return hlua_http_req_act_wrapper(struct act_rule *rule, struct proxy *px,
-                                          struct session *sess, struct stream *s)
-{
-	return hlua_request_act_wrapper(rule->arg.hlua_rule, px, s, AN_REQ_HTTP_PROCESS_FE);
-}
-
-/* Lua execution wrapper for http-response.
- * This function uses "hlua_request_act_wrapper" for executing
- * the LUA code.
- */
-enum act_return hlua_http_res_act_wrapper(struct act_rule *rule, struct proxy *px,
-                                          struct session *sess, struct stream *s)
-{
-	return hlua_request_act_wrapper(rule->arg.hlua_rule, px, s, AN_RES_HTTP_PROCESS_BE);
-}
-
-/* tcp-request <*> configuration wrapper. */
-static enum act_parse_ret tcp_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                                      struct act_rule *rule, char **err)
-{
-	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
+	/* Memory for the rule. */
+	rule->arg.hlua_rule = malloc(sizeof(*rule->arg.hlua_rule));
+	if (!rule->arg.hlua_rule) {
+		memprintf(err, "out of memory error");
 		return ACT_RET_PRS_ERR;
-	rule->action = ACT_ACTION_CONT;
-	rule->action_ptr = hlua_tcp_req_act_wrapper;
-	return ACT_RET_PRS_OK;
-}
+	}
 
-/* tcp-response <*> configuration wrapper. */
-static enum act_parse_ret tcp_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                                      struct act_rule *rule, char **err)
-{
-	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
+	/* The requiered arg is a function name. */
+	if (!args[*cur_arg]) {
+		memprintf(err, "expect Lua function name");
 		return ACT_RET_PRS_ERR;
-	rule->action = ACT_ACTION_CONT;
-	rule->action_ptr = hlua_tcp_res_act_wrapper;
-	return ACT_RET_PRS_OK;
-}
+	}
 
-/* http-request <*> configuration wrapper. */
-static enum act_parse_ret http_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                                       struct act_rule *rule, char **err)
-{
-	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
+	/* Lookup for the symbol, and check if it is a function. */
+	lua_getglobal(gL.T, args[*cur_arg]);
+	if (lua_isnil(gL.T, -1)) {
+		lua_pop(gL.T, 1);
+		memprintf(err, "Lua function '%s' not found", args[*cur_arg]);
 		return ACT_RET_PRS_ERR;
-	rule->action = ACT_ACTION_CONT;
-	rule->action_ptr = hlua_http_req_act_wrapper;
-	return ACT_RET_PRS_OK;
-}
+	}
+	if (!lua_isfunction(gL.T, -1)) {
+		lua_pop(gL.T, 1);
+		memprintf(err, "'%s' is not a function",  args[*cur_arg]);
+		return ACT_RET_PRS_ERR;
+	}
 
-/* http-response <*> configuration wrapper. */
-static enum act_parse_ret http_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                                       struct act_rule *rule, char **err)
-{
-	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
+	/* Reference the Lua function and store the reference. */
+	rule->arg.hlua_rule->fcn.function_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+	rule->arg.hlua_rule->fcn.name = strdup(args[*cur_arg]);
+	if (!rule->arg.hlua_rule->fcn.name) {
+		memprintf(err, "out of memory error.");
 		return ACT_RET_PRS_ERR;
+	}
+	(*cur_arg)++;
+
+	/* TODO: later accept arguments. */
+	rule->arg.hlua_rule->args = NULL;
+
 	rule->action = ACT_ACTION_CONT;
-	rule->action_ptr = hlua_http_res_act_wrapper;
+	rule->action_ptr = hlua_action;
 	return ACT_RET_PRS_OK;
 }
 
@@ -4584,22 +4528,22 @@ static struct cfg_kw_list cfg_kws = {{ },{
 }};
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "lua", http_req_action_register_lua },
+	{ "lua", action_register_lua },
 	{ NULL, NULL }
 }};
 
 static struct action_kw_list http_res_kws = { { }, {
-	{ "lua", http_res_action_register_lua },
+	{ "lua", action_register_lua },
 	{ NULL, NULL }
 }};
 
 static struct action_kw_list tcp_req_cont_kws = { { }, {
-	{ "lua", tcp_req_action_register_lua },
+	{ "lua", action_register_lua },
 	{ NULL, NULL }
 }};
 
 static struct action_kw_list tcp_res_cont_kws = { { }, {
-	{ "lua", tcp_res_action_register_lua },
+	{ "lua", action_register_lua },
 	{ NULL, NULL }
 }};
 

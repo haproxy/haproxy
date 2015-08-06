@@ -479,55 +479,34 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struc
 	return 1;
 }
 
-/* Returns 0 if we need to come back later to complete the sample's retrieval,
- * otherwise 1. For now all processing is considered final so we only return 1.
- */
-static inline enum act_return action_store(struct sample_expr *expr, const char *name,
-                                           enum vars_scope scope, struct proxy *px,
-                                           struct stream *s, int sens)
+/* Always returns ACT_RET_CONT even if an error occurs. */
+static enum act_return action_store(struct act_rule *rule, struct proxy *px,
+                                    struct session *sess, struct stream *s)
 {
 	struct sample smp;
+	int dir;
+
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CNT: dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_TCP_RES_CNT: dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_HTTP_REQ:    dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_HTTP_RES:    dir = SMP_OPT_DIR_RES; break;
+	default:
+		send_log(px, LOG_ERR, "Vars: internal error while execute action store.");
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Vars: internal error while execute action store.\n");
+		return ACT_RET_CONT;
+	}
 
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
-	if (!sample_process(px, s->sess, s, sens|SMP_OPT_FINAL, expr, &smp))
+	if (!sample_process(px, s->sess, s, dir|SMP_OPT_FINAL,
+	                    rule->arg.vars.expr, &smp))
 		return ACT_RET_CONT;
 
 	/* Store the sample, and ignore errors. */
-	sample_store_stream(name, scope, s, &smp);
+	sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, s, &smp);
 	return ACT_RET_CONT;
-}
-
-/* Wrapper for action_store */
-static enum act_return action_tcp_req_store(struct act_rule *rule, struct proxy *px,
-                                            struct session *sess, struct stream *s)
-{
-	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
-	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_REQ);
-}
-
-/* Wrapper for action_store */
-static enum act_return action_tcp_res_store(struct act_rule *rule, struct proxy *px,
-                                            struct session *sess, struct stream *s)
-{
-	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
-	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_RES);
-}
-
-/* Wrapper for action_store */
-static enum act_return action_http_req_store(struct act_rule *rule, struct proxy *px,
-                                             struct session *sess, struct stream *s)
-{
-	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
-	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_REQ);
-}
-
-/* Wrapper for action_store */
-static enum act_return action_http_res_store(struct act_rule *rule, struct proxy *px,
-                                             struct session *sess, struct stream *s)
-{
-	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
-	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_RES);
 }
 
 /* This two function checks the variable name and replace the
@@ -554,106 +533,63 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
  *
  *   set-var(<variable-name>) <expression>
  *
- * It returns 0 if fails and <err> is filled with an error message. Otherwise,
- * it returns 1 and the variable <expr> is filled with the pointer to the
- * expression to execute.
+ * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error
+ * message. Otherwise, it returns ACT_RET_PRS_OK and the variable <expr>
+ * is filled with the pointer to the expression to execute.
  */
-static int parse_vars(const char **args, int *arg, struct proxy *px,
-                      int flags, char **err, struct sample_expr **expr,
-                      const char **name, enum vars_scope *scope)
+static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy *px,
+                                      struct act_rule *rule, char **err)
 {
 	const char *var_name = args[*arg-1];
 	int var_len;
 	const char *kw_name;
+	int flags;
 
 	var_name += strlen("set-var");
 	if (*var_name != '(') {
 		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)'", args[*arg-1]);
-		return 0;
+		return ACT_RET_PRS_ERR;
 	}
 	var_name++; /* jump the '(' */
 	var_len = strlen(var_name);
 	var_len--; /* remove the ')' */
 	if (var_name[var_len] != ')') {
 		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)'", args[*arg-1]);
-		return 0;
+		return ACT_RET_PRS_ERR;
 	}
 
-	*name = register_name(var_name, var_len, scope, err);
-	if (!*name)
-		return 0;
+	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, err);
+	if (!rule->arg.vars.name)
+		return ACT_RET_PRS_ERR;
 
 	kw_name = args[*arg-1];
 
-	*expr = sample_parse_expr((char **)args, arg, px->conf.args.file, px->conf.args.line,
-	                          err, &px->conf.args);
-	if (!*expr)
-		return 0;
+	rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+	                                        px->conf.args.line, err, &px->conf.args);
+	if (!rule->arg.vars.expr)
+		return ACT_RET_PRS_ERR;
 
-	if (!((*expr)->fetch->val & flags)) {
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_CNT: flags = SMP_VAL_FE_REQ_CNT; break;
+	case ACT_F_TCP_RES_CNT: flags = SMP_VAL_BE_RES_CNT; break;
+	case ACT_F_HTTP_REQ:    flags = SMP_VAL_FE_HRQ_HDR; break;
+	case ACT_F_HTTP_RES:    flags = SMP_VAL_BE_HRS_HDR; break;
+	default:
+		memprintf(err,
+			  "internal error, unexpected rule->from=%d, please report this bug!",
+			  rule->from);
+		return ACT_RET_PRS_ERR;
+	}
+	if (!(rule->arg.vars.expr->fetch->val & flags)) {
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
-			  kw_name, sample_src_names((*expr)->fetch->use));
-		free(*expr);
-		return 0;
+			  kw_name, sample_src_names(rule->arg.vars.expr->fetch->use));
+		free(rule->arg.vars.expr);
+		return ACT_RET_PRS_ERR;
 	}
 
-	return 1;
-}
-
-/* Wrapper for parse_vars */
-static enum act_parse_ret parse_tcp_req_store(const char **args, int *arg, struct proxy *px,
-                                              struct act_rule *rule, char **err)
-{
-	if (!parse_vars(args, arg, px, SMP_VAL_FE_REQ_CNT, err,
-                   &rule->arg.vars.expr,
-                   &rule->arg.vars.name,
-                   &rule->arg.vars.scope))
-		return ACT_RET_PRS_ERR;
-	rule->action       = ACT_ACTION_CONT;
-	rule->action_ptr   = action_tcp_req_store;
-	return ACT_RET_PRS_OK;
-}
-
-/* Wrapper for parse_vars */
-static enum act_parse_ret parse_tcp_res_store(const char **args, int *arg, struct proxy *px,
-                                              struct act_rule *rule, char **err)
-{
-	if (!parse_vars(args, arg, px, SMP_VAL_BE_RES_CNT, err,
-                   &rule->arg.vars.expr,
-                   &rule->arg.vars.name,
-                   &rule->arg.vars.scope))
-		return ACT_RET_PRS_ERR;
-	rule->action       = ACT_ACTION_CONT;
-	rule->action_ptr   = action_tcp_res_store;
-	return ACT_RET_PRS_OK;
-}
-
-/* Wrapper for parse_vars */
-static enum act_parse_ret parse_http_req_store(const char **args, int *arg, struct proxy *px,
-                                               struct act_rule *rule, char **err)
-{
-	if (!parse_vars(args, arg, px, SMP_VAL_FE_HRQ_HDR, err,
-                   &rule->arg.vars.expr,
-                   &rule->arg.vars.name,
-                   &rule->arg.vars.scope))
-		return ACT_RET_PRS_ERR;
-	rule->action       = ACT_ACTION_CONT;
-	rule->action_ptr   = action_http_req_store;
-	return ACT_RET_PRS_OK;
-}
-
-/* Wrapper for parse_vars */
-static enum act_parse_ret parse_http_res_store(const char **args, int *arg, struct proxy *px,
-                                               struct act_rule *rule, char **err)
-{
-	if (!parse_vars(args, arg, px, SMP_VAL_BE_HRS_HDR, err,
-                   &rule->arg.vars.expr,
-                   &rule->arg.vars.name,
-                   &rule->arg.vars.scope))
-		return ACT_RET_PRS_ERR;
-	rule->action       = ACT_ACTION_CONT;
-	rule->action_ptr   = action_http_res_store;
+	rule->action     = ACT_ACTION_CONT;
+	rule->action_ptr = action_store;
 	return ACT_RET_PRS_OK;
 }
 
@@ -711,22 +647,22 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 }};
 
 static struct action_kw_list tcp_req_kws = { { }, {
-	{ "set-var", parse_tcp_req_store, 1 },
+	{ "set-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list tcp_res_kws = { { }, {
-	{ "set-var", parse_tcp_res_store, 1 },
+	{ "set-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "set-var", parse_http_req_store, 1 },
+	{ "set-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_res_kws = { { }, {
-	{ "set-var", parse_http_res_store, 1 },
+	{ "set-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
