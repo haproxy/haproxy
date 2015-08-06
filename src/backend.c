@@ -1025,6 +1025,7 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn;
 	struct connection *srv_conn;
+	struct connection *old_conn;
 	struct server *srv;
 	int reuse = 0;
 	int err;
@@ -1035,29 +1036,43 @@ int connect_server(struct stream *s)
 		reuse = s->target == srv_conn->target;
 
 	if (srv && !reuse) {
-		if (srv_conn) {
-			srv_conn->owner = NULL;
-			si_release_endpoint(&s->si[1]);
+		old_conn = srv_conn;
+		if (old_conn) {
 			srv_conn = NULL;
+			old_conn->owner = NULL;
+			si_detach_endpoint(&s->si[1]);
+			/* note: if the connection was in a server's idle
+			 * queue, it doesn't get dequeued.
+			 */
 		}
 
 		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS &&
 		    !LIST_ISEMPTY(&srv->idle_conns)) {
 			/* We're going to have to pick the first connection
 			 * from this pool and use it for our purposes. We may
-			 * have to get rid of the current idle connection. It
-			 * may move to another pool, but we know we're not
-			 * interested in it.
+			 * have to get rid of the current idle connection, so
+			 * for this we try to swap it with the other owner's.
+			 * That way it may remain alive for others to pick.
 			 */
-			/* pick first connection. We know there's at least one */
 			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
 
 			LIST_DEL(&srv_conn->list);
 			LIST_INIT(&srv_conn->list);
 
-			si_detach_endpoint(srv_conn->owner);
+			if (srv_conn->owner) {
+				si_detach_endpoint(srv_conn->owner);
+				if (old_conn && !(old_conn->flags & CO_FL_PRIVATE))
+					si_attach_conn(srv_conn->owner, old_conn);
+			}
 			si_attach_conn(&s->si[1], srv_conn);
 			reuse = 1;
+		}
+
+		if (old_conn && !old_conn->owner) {
+			/* we couldn't swap our connection, let's release it */
+			LIST_DEL(&old_conn->list);
+			conn_force_close(old_conn);
+			conn_free(old_conn);
 		}
 	}
 
