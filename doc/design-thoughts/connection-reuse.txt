@@ -1,3 +1,88 @@
+2015/08/06 - server connection sharing
+
+Improvements on the connection sharing strategies
+-------------------------------------------------
+
+4 strategies are currently supported :
+  - never
+  - safe
+  - aggressive
+  - always
+
+The "aggressive" and "always" strategies take into account the fact that the
+connection has already been reused at least once or not. The principle is that
+second requests can be used to safely "validate" connection reuse on newly
+added connections, and that such validated connections may be used even by
+first requests from other sessions. A validated connection is a connection
+which has already been reused, hence proving that it definitely supports
+multiple requests. Such connections are easy to verify : after processing the
+response, if the txn already had the TX_NOT_FIRST flag, then it was not the
+first request over that connection, and it is validated as safe for reuse.
+Validated connections are put into a distinct list : server->safe_conns.
+
+Incoming requests with TX_NOT_FIRST first pick from the regular idle_conns
+list so that any new idle connection is validated as soon as possible.
+
+Incoming requests without TX_NOT_FIRST only pick from the safe_conns list for
+strategy "aggressive", guaranteeing that the server properly supports connection
+reuse, or first from the safe_conns list, then from the idle_conns list for
+strategy "always".
+
+Connections are always stacked into the list (LIFO) so that there are higher
+changes to convert recent connections and to use them. This will first optimize
+the likeliness that the connection works, and will avoid TCP metrics from being
+lost due to an idle state, and/or the congestion window to drop and the
+connection going to slow start mode.
+
+
+Handling connections in pools
+-----------------------------
+
+A per-server "pool-max" setting should be added to permit disposing unused idle
+connections not attached anymore to a session for use by future requests. The
+principle will be that attached connections are queued from the front of the
+list while the detached connections will be queued from the tail of the list.
+
+This way, most reused connections will be fairly recent and detached connections
+will most often be ignored. The number of detached idle connections in the lists
+should be accounted for (pool_used) and limited (pool_max).
+
+After some time, a part of these detached idle connections should be killed.
+For this, the list is walked from tail to head and connections without an owner
+may be evicted. It may be useful to have a per-server pool_min setting
+indicating how many idle connections should remain in the pool, ready for use
+by new requests. Conversely, a pool_low metric should be kept between eviction
+runs, to indicate the lowest amount of detached connections that were found in
+the pool.
+
+For eviction, the principle of a half-life is appealing. The principle is
+simple : over a period of time, half of the connections between pool_min and
+pool_low should be gone. Since pool_low indicates how many connections were
+remaining unused over a period, it makes sense to kill some of them.
+
+In order to avoid killing thousands of connections in one run, the purge
+interval should be split into smaller batches. Let's call N the ratio of the
+half-life interval and the effective interval.
+
+The algorithm consists in walking over them from the end every interval and
+killing ((pool_low - pool_min) + 2 * N - 1) / (2 * N). It ensures that half
+of the unused connections are killed over the half-life period, in N batches
+of population/2N entries at most.
+
+Unsafe connections should be evicted first. There should be quite few of them
+since most of them are probed and become safe. Since detached connections are
+quickly recycled and attached to a new session, there should not be too many
+detached connections in the pool, and those present there may be killed really
+quickly.
+
+Another interesting point of pools is that when a pool-max is not null, then it
+makes sense to automatically enable pretend-keep-alive on non-private connections
+going to the server in order to be able to feed them back into the pool. With
+the "aggressive" or "always" strategies, it can allow clients making a single
+request over their connection to share persistent connections to the servers.
+
+
+
 2013/10/17 - server connection management and reuse
 
 Current state
