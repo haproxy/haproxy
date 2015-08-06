@@ -3627,15 +3627,24 @@ resume_execution:
 			}
 
 		case ACT_ACTION_CONT:
-			if (!rule->action_ptr(rule, px, s->sess, s)) {
+			switch (rule->action_ptr(rule, px, s->sess, s)) {
+			case ACT_RET_ERR:
+			case ACT_RET_CONT:
+				break;
+			case ACT_RET_YIELD:
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
 
 		case ACT_ACTION_STOP:
-			rule->action_ptr(rule, px, s->sess, s);
-			return HTTP_RULE_RES_DONE;
+			switch (rule->action_ptr(rule, px, s->sess, s)) {
+			case ACT_RET_YIELD:
+			case ACT_RET_ERR:
+			case ACT_RET_CONT:
+				return HTTP_RULE_RES_DONE;
+			}
+			break;
 
 		case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 			/* Note: only the first valid tracking parameter of each
@@ -3907,7 +3916,11 @@ resume_execution:
 			return HTTP_RULE_RES_DONE;
 
 		case ACT_ACTION_CONT:
-			if (!rule->action_ptr(rule, px, s->sess, s)) {
+			switch (rule->action_ptr(rule, px, s->sess, s)) {
+			case ACT_RET_ERR:
+			case ACT_RET_CONT:
+				break;
+			case ACT_RET_YIELD:
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
@@ -12246,8 +12259,8 @@ int http_replace_req_line(int action, const char *replace, int len,
  * http_action_set_req_line_exec(). It always returns 1. If an error occurs
  * the action is canceled, but the rule processing continue.
  */
-int http_action_set_req_line(struct act_rule *rule, struct proxy *px,
-                             struct session *sess, struct stream *s)
+enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
+                                         struct session *sess, struct stream *s)
 {
 	chunk_reset(&trash);
 
@@ -12257,7 +12270,7 @@ int http_action_set_req_line(struct act_rule *rule, struct proxy *px,
 	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.http.logfmt);
 
 	http_replace_req_line(rule->arg.http.action, trash.str, trash.len, px, s);
-	return 1;
+	return ACT_RET_CONT;
 }
 
 /* parse an http-request action among :
@@ -12320,8 +12333,8 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
  * returns 1. If an error occurs the action is cancelled, but the rule
  * processing continues.
  */
-int http_action_req_capture(struct act_rule *rule, struct proxy *px,
-                            struct session *sess, struct stream *s)
+enum act_return http_action_req_capture(struct act_rule *rule, struct proxy *px,
+                                        struct session *sess, struct stream *s)
 {
 	struct sample *key;
 	struct cap_hdr *h = rule->arg.cap.hdr;
@@ -12330,13 +12343,13 @@ int http_action_req_capture(struct act_rule *rule, struct proxy *px,
 
 	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.cap.expr, SMP_T_STR);
 	if (!key)
-		return 1;
+		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
 		cap[h->index] = pool_alloc2(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
-		return 1;
+		return ACT_RET_CONT;
 
 	len = key->data.u.str.len;
 	if (len > h->len)
@@ -12344,7 +12357,7 @@ int http_action_req_capture(struct act_rule *rule, struct proxy *px,
 
 	memcpy(cap[h->index], key->data.u.str.str, len);
 	cap[h->index][len] = 0;
-	return 1;
+	return ACT_RET_CONT;
 }
 
 /* This function executes the "capture" action and store the result in a
@@ -12352,8 +12365,8 @@ int http_action_req_capture(struct act_rule *rule, struct proxy *px,
  * into a string and puts it in a capture slot. It always returns 1. If an
  * error occurs the action is cancelled, but the rule processing continues.
  */
-int http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                  struct session *sess, struct stream *s)
+enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s)
 {
 	struct sample *key;
 	struct cap_hdr *h;
@@ -12367,17 +12380,17 @@ int http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
 	     h != NULL && i != rule->arg.capid.idx ;
 	     i--, h = h->next);
 	if (!h)
-		return 1;
+		return ACT_RET_CONT;
 
 	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.capid.expr, SMP_T_STR);
 	if (!key)
-		return 1;
+		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
 		cap[h->index] = pool_alloc2(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
-		return 1;
+		return ACT_RET_CONT;
 
 	len = key->data.u.str.len;
 	if (len > h->len)
@@ -12385,7 +12398,7 @@ int http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
 
 	memcpy(cap[h->index], key->data.u.str.str, len);
 	cap[h->index][len] = 0;
-	return 1;
+	return ACT_RET_CONT;
 }
 
 /* parse an "http-request capture" action. It takes a single argument which is
@@ -12519,8 +12532,8 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
  * into a string and puts it in a capture slot. It always returns 1. If an
  * error occurs the action is cancelled, but the rule processing continues.
  */
-int http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                  struct session *sess, struct stream *s)
+enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s)
 {
 	struct sample *key;
 	struct cap_hdr *h;
@@ -12534,17 +12547,17 @@ int http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
 	     h != NULL && i != rule->arg.capid.idx ;
 	     i--, h = h->next);
 	if (!h)
-		return 1;
+		return ACT_RET_CONT;
 
 	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->arg.capid.expr, SMP_T_STR);
 	if (!key)
-		return 1;
+		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
 		cap[h->index] = pool_alloc2(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
-		return 1;
+		return ACT_RET_CONT;
 
 	len = key->data.u.str.len;
 	if (len > h->len)
@@ -12552,7 +12565,7 @@ int http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
 
 	memcpy(cap[h->index], key->data.u.str.str, len);
 	cap[h->index][len] = 0;
-	return 1;
+	return ACT_RET_CONT;
 }
 
 /* parse an "http-response capture" action. It takes a single argument which is

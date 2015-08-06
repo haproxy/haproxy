@@ -482,49 +482,49 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struc
 /* Returns 0 if we need to come back later to complete the sample's retrieval,
  * otherwise 1. For now all processing is considered final so we only return 1.
  */
-static inline int action_store(struct sample_expr *expr, const char *name,
-                               enum vars_scope scope, struct proxy *px,
-                               struct stream *s, int sens)
+static inline enum act_return action_store(struct sample_expr *expr, const char *name,
+                                           enum vars_scope scope, struct proxy *px,
+                                           struct stream *s, int sens)
 {
 	struct sample smp;
 
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
 	if (!sample_process(px, s->sess, s, sens|SMP_OPT_FINAL, expr, &smp))
-		return 1;
+		return ACT_RET_CONT;
 
 	/* Store the sample, and ignore errors. */
 	sample_store_stream(name, scope, s, &smp);
-	return 1;
+	return ACT_RET_CONT;
 }
 
 /* Wrapper for action_store */
-static int action_tcp_req_store(struct act_rule *rule, struct proxy *px,
-                                struct session *sess, struct stream *s)
+static enum act_return action_tcp_req_store(struct act_rule *rule, struct proxy *px,
+                                            struct session *sess, struct stream *s)
 {
 	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
 	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_REQ);
 }
 
 /* Wrapper for action_store */
-static int action_tcp_res_store(struct act_rule *rule, struct proxy *px,
-                                struct session *sess, struct stream *s)
+static enum act_return action_tcp_res_store(struct act_rule *rule, struct proxy *px,
+                                            struct session *sess, struct stream *s)
 {
 	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
 	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_RES);
 }
 
 /* Wrapper for action_store */
-static int action_http_req_store(struct act_rule *rule, struct proxy *px,
-                                 struct session *sess, struct stream *s)
+static enum act_return action_http_req_store(struct act_rule *rule, struct proxy *px,
+                                             struct session *sess, struct stream *s)
 {
 	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
 	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_REQ);
 }
 
 /* Wrapper for action_store */
-static int action_http_res_store(struct act_rule *rule, struct proxy *px,
-                                 struct session *sess, struct stream *s)
+static enum act_return action_http_res_store(struct act_rule *rule, struct proxy *px,
+                                             struct session *sess, struct stream *s)
 {
 	return action_store(rule->arg.vars.expr, rule->arg.vars.name,
 	                    rule->arg.vars.scope, px, s, SMP_OPT_DIR_RES);

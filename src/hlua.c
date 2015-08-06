@@ -4270,8 +4270,8 @@ static int hlua_parse_rule(const char **args, int *cur_arg, struct proxy *px,
  * return 0 if the function must be called again because the LUA
  * returns a yield.
  */
-static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
-                                    struct stream *s, unsigned int analyzer)
+static enum act_return hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
+                                                struct stream *s, unsigned int analyzer)
 {
 	char **arg;
 
@@ -4284,7 +4284,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.", rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua action '%s': can't initialize Lua context.\n", rule->fcn.name);
-		return 1;
+		return ACT_RET_CONT;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
@@ -4294,7 +4294,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-			return 1;
+			return ACT_RET_CONT;
 		}
 
 		/* Restore the function in the stack. */
@@ -4305,7 +4305,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-			return 1;
+			return ACT_RET_CONT;
 		}
 		s->hlua.nargs = 1;
 
@@ -4315,7 +4315,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 				send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-				return 1;
+				return ACT_RET_CONT;
 			}
 			lua_pushstring(s->hlua.T, *arg);
 			s->hlua.nargs++;
@@ -4332,7 +4332,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 	switch (hlua_ctx_resume(&s->hlua, 1)) {
 	/* finished. */
 	case HLUA_E_OK:
-		return 1;
+		return ACT_RET_CONT;
 
 	/* yield. */
 	case HLUA_E_AGAIN:
@@ -4354,7 +4354,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		}
 		if (HLUA_IS_WAKEREQWR(&s->hlua))
 			s->req.flags |= CF_WAKE_WRITE;
-		return 0;
+		return ACT_RET_YIELD;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
@@ -4363,7 +4363,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua function '%s': %s.\n", rule->fcn.name, lua_tostring(s->hlua.T, -1));
 		lua_pop(s->hlua.T, 1);
-		return 1;
+		return ACT_RET_CONT;
 
 	case HLUA_E_ERR:
 		/* Display log. */
@@ -4372,15 +4372,15 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			Alert("Lua function '%s' return an unknown error.\n", rule->fcn.name);
 
 	default:
-		return 1;
+		return ACT_RET_CONT;
 	}
 }
 
 /* Lua execution wrapper for "tcp-request". This function uses
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
-int hlua_tcp_req_act_wrapper(struct act_rule *act_rule, struct proxy *px,
-                             struct session *sess, struct stream *s)
+enum act_return hlua_tcp_req_act_wrapper(struct act_rule *act_rule, struct proxy *px,
+                                         struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper(act_rule->arg.hlua_rule, px, s, AN_REQ_INSPECT_FE);
 }
@@ -4388,8 +4388,8 @@ int hlua_tcp_req_act_wrapper(struct act_rule *act_rule, struct proxy *px,
 /* Lua execution wrapper for "tcp-response". This function uses
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
-int hlua_tcp_res_act_wrapper(struct act_rule *act_rule, struct proxy *px,
-                             struct session *sess, struct stream *s)
+enum act_return hlua_tcp_res_act_wrapper(struct act_rule *act_rule, struct proxy *px,
+                                         struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper(act_rule->arg.hlua_rule, px, s, AN_RES_INSPECT);
 }
@@ -4398,8 +4398,8 @@ int hlua_tcp_res_act_wrapper(struct act_rule *act_rule, struct proxy *px,
  * This function uses "hlua_request_act_wrapper" for executing
  * the LUA code.
  */
-int hlua_http_req_act_wrapper(struct act_rule *rule, struct proxy *px,
-                              struct session *sess, struct stream *s)
+enum act_return hlua_http_req_act_wrapper(struct act_rule *rule, struct proxy *px,
+                                          struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper(rule->arg.hlua_rule, px, s, AN_REQ_HTTP_PROCESS_FE);
 }
@@ -4408,8 +4408,8 @@ int hlua_http_req_act_wrapper(struct act_rule *rule, struct proxy *px,
  * This function uses "hlua_request_act_wrapper" for executing
  * the LUA code.
  */
-int hlua_http_res_act_wrapper(struct act_rule *rule, struct proxy *px,
-                              struct session *sess, struct stream *s)
+enum act_return hlua_http_res_act_wrapper(struct act_rule *rule, struct proxy *px,
+                                          struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper(rule->arg.hlua_rule, px, s, AN_RES_HTTP_PROCESS_BE);
 }

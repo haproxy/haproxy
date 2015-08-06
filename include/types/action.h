@@ -32,6 +32,12 @@ enum act_from {
 	ACT_F_HTTP_RES,    /* http-response */
 };
 
+enum act_return {
+	ACT_RET_CONT,  /* continue processing. */
+	ACT_RET_YIELD, /* call me again. */
+	ACT_RET_ERR,   /* processing error. */
+};
+
 enum act_name {
 	ACT_ACTION_CONT = 0,
 	ACT_ACTION_STOP,
@@ -78,8 +84,8 @@ struct act_rule {
 	enum act_name action;                  /* ACT_ACTION_* */
 	enum act_from from;                    /* ACT_F_* */
 	short deny_status;                     /* HTTP status to return to user when denying */
-	int (*action_ptr)(struct act_rule *rule, struct proxy *px,
-	                  struct session *sess, struct stream *s); /* ptr to custom action */
+	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,
+	                              struct session *sess, struct stream *s); /* ptr to custom action */
 	union {
 		struct {
 			char *realm;
