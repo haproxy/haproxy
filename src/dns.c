@@ -219,6 +219,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 
 		}
 
+		nameserver->counters.valid += 1;
 		resolution->requester_cb(resolution, nameserver, buf, buflen);
 	}
 }
