@@ -462,40 +462,40 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
 		}
 
 		/* ptr now points to the name */
-		/* if cname is set, it means a CNAME recursion is in progress */
-		if (cname) {
-			/* check if the name can stand in response */
-			if ((reader + cnamelen) > bufend)
-				return DNS_RESP_INVALID;
-			/* compare cname and current name */
-			if (memcmp(ptr, cname, cnamelen) != 0)
-				return DNS_RESP_CNAME_ERROR;
-		}
-		/* compare server hostname to current name */
-		else if (dn_name) {
-			/* check if the name can stand in response */
-			if ((reader + dn_name_len) > bufend)
-				return DNS_RESP_INVALID;
-			if (memcmp(ptr, dn_name, dn_name_len) != 0)
-				return DNS_RESP_WRONG_NAME;
-		}
-
-		if ((*reader & 0xc0) == 0xc0) {
-			/* move forward 2 bytes for information pointer and address pointer */
-			reader += 2;
-		}
-		else {
+		if ((*reader & 0xc0) != 0xc0) {
+			/* if cname is set, it means a CNAME recursion is in progress */
 			if (cname) {
+				/* check if the name can stand in response */
+				if ((reader + cnamelen) > bufend)
+					return DNS_RESP_INVALID;
+				/* compare cname and current name */
+				if (memcmp(ptr, cname, cnamelen) != 0)
+					return DNS_RESP_CNAME_ERROR;
+
 				cname = reader;
 				cnamelen = dns_str_to_dn_label_len((const char *)cname);
 
 				/* move forward cnamelen bytes + NULL byte */
 				reader += (cnamelen + 1);
 			}
+			/* compare server hostname to current name */
+			else if (dn_name) {
+				/* check if the name can stand in response */
+				if ((reader + dn_name_len) > bufend)
+					return DNS_RESP_INVALID;
+				if (memcmp(ptr, dn_name, dn_name_len) != 0)
+					return DNS_RESP_WRONG_NAME;
+			}
 			else {
 				reader += (len + 1);
 			}
 		}
+		else {
+			/* shortname in progress */
+			/* move forward 2 bytes for information pointer and address pointer */
+			reader += 2;
+		}
+
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
 
