@@ -104,6 +104,16 @@ static int _51d_cache_size(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+static int _51d_conv_check(struct arg *arg, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	if (global._51degrees.data_file_path)
+		return 1;
+
+	memprintf(err, "51Degrees data file is not specified (parameter '51degrees-data-file')");
+	return 0;
+}
+
 static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 {
 	int i;
@@ -218,6 +228,9 @@ int init_51degrees(void)
 	char **_51d_property_list = NULL;
 	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
 
+	if (!global._51degrees.data_file_path)
+		return -1;
+
 	if (!LIST_ISEMPTY(&global._51degrees.property_names)) {
 		i = 0;
 		list_for_each_entry(name, &global._51degrees.property_names, list)
@@ -314,7 +327,7 @@ static struct cfg_kw_list _51dcfg_kws = {{ }, {
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
-	{ "51d", _51d_conv, ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
+	{ "51d", _51d_conv, ARG5(1,STR,STR,STR,STR,STR), _51d_conv_check, SMP_T_STR, SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

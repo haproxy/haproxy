@@ -195,8 +195,8 @@ struct global global = {
 		.data_file_path = NULL,
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 		.data_set = { },
-		.cache_size = 0,
 #endif
+		.cache_size = 0,
 	},
 #endif
 	/* others NULL OK */
