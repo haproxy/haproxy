@@ -1294,6 +1294,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 1;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
+				newsrv->admin |= SRV_ADMF_CMAINT;
 				newsrv->admin |= SRV_ADMF_FMAINT;
 				newsrv->state = SRV_ST_STOPPED;
 				newsrv->check.state |= CHK_ST_PAUSED;

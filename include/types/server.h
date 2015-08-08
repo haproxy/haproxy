@@ -73,12 +73,13 @@ enum srv_state {
  *   state_str = (state & MAINT) ? "MAINT" : (state & DRAIN) : "DRAIN" : "READY"
  */
 enum srv_admin {
-	SRV_ADMF_FMAINT    = 0x1,        /* the server was explicitly forced into maintenance */
-	SRV_ADMF_IMAINT    = 0x2,        /* the server has inherited the maintenance status from a tracked server */
-	SRV_ADMF_MAINT     = 0x3,        /* mask to check if any maintenance flag is present */
-	SRV_ADMF_FDRAIN    = 0x4,        /* the server was explicitly forced into drain state */
-	SRV_ADMF_IDRAIN    = 0x8,        /* the server has inherited the drain status from a tracked server */
-	SRV_ADMF_DRAIN     = 0xC,        /* mask to check if any drain flag is present */
+	SRV_ADMF_FMAINT    = 0x01,        /* the server was explicitly forced into maintenance */
+	SRV_ADMF_IMAINT    = 0x02,        /* the server has inherited the maintenance status from a tracked server */
+	SRV_ADMF_CMAINT    = 0x04,        /* the server is in maintenance because of the configuration */
+	SRV_ADMF_MAINT     = 0x07,        /* mask to check if any maintenance flag is present */
+	SRV_ADMF_FDRAIN    = 0x08,        /* the server was explicitly forced into drain state */
+	SRV_ADMF_IDRAIN    = 0x10,        /* the server has inherited the drain status from a tracked server */
+	SRV_ADMF_DRAIN     = 0x18,        /* mask to check if any drain flag is present */
 };
 
 /* server flags */
