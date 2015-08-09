@@ -3944,7 +3944,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&stream->hlua);
@@ -4050,7 +4050,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&stream->hlua);
@@ -4322,7 +4322,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		}
 
 		/* We must initialize the execution timeouts. */
-		s->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+		s->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&s->hlua);
