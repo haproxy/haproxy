@@ -14104,7 +14104,7 @@ Please refer to the table below for currently defined variables :
   |   | %hrl | captured_request_headers CLF style            | string list |
   |   | %hs  | captured_response_headers default style       | string      |
   |   | %hsl | captured_response_headers CLF style           | string list |
-  |   | %ms  | accept date milliseconds                      | numeric     |
+  |   | %ms  | accept date milliseconds (left-padded with 0) | numeric     |
   |   | %pid | PID                                           | numeric     |
   | H | %r   | http_request                                  | string      |
   |   | %rc  | retries                                       | numeric     |
