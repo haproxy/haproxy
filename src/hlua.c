@@ -4380,7 +4380,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
 int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
-                             struct stream *s)
+                             struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data[0],
 	                                px, s, AN_REQ_INSPECT_FE);
@@ -4390,7 +4390,7 @@ int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
 int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
-                             struct stream *s)
+                             struct session *sess, struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data[0],
 	                                px, s, AN_RES_INSPECT);

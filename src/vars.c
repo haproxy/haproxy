@@ -502,7 +502,8 @@ static inline int action_store(struct sample_expr *expr, const char *name,
 }
 
 /* Returns 0 if miss data, else returns 1. */
-static int action_tcp_req_store(struct tcp_rule *rule, struct proxy *px, struct stream *s)
+static int action_tcp_req_store(struct tcp_rule *rule, struct proxy *px,
+                                struct session *sess, struct stream *s)
 {
 	struct sample_expr *expr = rule->act_prm.data[0];
 	const char *name = rule->act_prm.data[1];
@@ -512,7 +513,8 @@ static int action_tcp_req_store(struct tcp_rule *rule, struct proxy *px, struct 
 }
 
 /* Returns 0 if miss data, else returns 1. */
-static int action_tcp_res_store(struct tcp_rule *rule, struct proxy *px, struct stream *s)
+static int action_tcp_res_store(struct tcp_rule *rule, struct proxy *px,
+                                struct session *sess, struct stream *s)
 {
 	struct sample_expr *expr = rule->act_prm.data[0];
 	const char *name = rule->act_prm.data[1];

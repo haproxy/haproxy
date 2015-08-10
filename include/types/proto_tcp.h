@@ -53,7 +53,7 @@ struct tcp_rule {
 	struct acl_cond *cond;
 	int action;
 	int (*action_ptr)(struct tcp_rule *rule, struct proxy *px,
-	                  struct stream *s);
+	                  struct session *sess, struct stream *s);
 	union {
 		struct track_ctr_prm trk_ctr;
 		struct capture_prm cap;
