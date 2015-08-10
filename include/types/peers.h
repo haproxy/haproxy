@@ -27,11 +27,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <common/appsession.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/sessionhash.h>
 #include <common/tools.h>
 #include <eb32tree.h>
 

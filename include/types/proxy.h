@@ -27,12 +27,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <common/appsession.h>
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/sessionhash.h>
 #include <common/tools.h>
 #include <eb32tree.h>
 #include <ebistree.h>
@@ -136,14 +134,8 @@ enum pr_mode {
 #define PR_O2_INDEPSTR	0x00001000	/* independent streams, don't update rex on write */
 #define PR_O2_SOCKSTAT	0x00002000	/* collect & provide separate statistics for sockets */
 
-/* appsession */
-#define PR_O2_AS_REQL	0x00004000      /* learn the session id from the request */
-#define PR_O2_AS_PFX	0x00008000      /* match on the cookie prefix */
+/* unused: 0x00004000 0x00008000 0x00010000 */
 
-/* Encoding of appsession cookie matching modes : 2 possible values => 1 bit */
-#define PR_O2_AS_M_PP	0x00000000      /* path-parameters mode (the default mode) */
-#define PR_O2_AS_M_QS	0x00010000      /* query-string mode */
-#define PR_O2_AS_M_ANY	0x00010000      /* mask covering all PR_O2_AS_M_* values */
 #define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
@@ -291,10 +283,6 @@ struct proxy {
 	char *hh_name;				/* name of the header parameter used for hashing */
 	int  hh_len;				/* strlen(hh_name), computed only once */
 	int  hh_match_domain;			/* toggle use of special match function */
-	char *appsession_name;			/* name of the cookie to look for */
-	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
-	int  appsession_len;			/* length of the appsession cookie value to be used */
-	struct appsession_hash htbl_proxy;	/* Per Proxy hashtable */
 	char *capture_name;			/* beginning of the name of the cookie to capture */
 	int  capture_namelen;			/* length of the cookie name to match */
 	int  capture_len;			/* length of the string to be captured */
@@ -309,7 +297,6 @@ struct proxy {
 		int queue;                      /* queue timeout, defaults to connect if unspecified */
 		int connect;                    /* connect timeout (in ticks) */
 		int server;                     /* server I/O timeout (in ticks) */
-		int appsession;                 /* appsession cookie expiration */
 		int httpreq;                    /* maximum time for complete HTTP request */
 		int httpka;                     /* maximum time for a new HTTP request when using keep-alive */
 		int check;                      /* maximum time for complete check */

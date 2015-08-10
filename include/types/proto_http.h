@@ -502,7 +502,6 @@ struct http_txn {
 	char *uri;                      /* first line if log needed, NULL otherwise */
 	char *cli_cookie;               /* cookie presented by the client, in capture mode */
 	char *srv_cookie;               /* cookie presented by the server, in capture mode */
-	char *sessid;                   /* the appsession id, if found in the request or in the response */
 	int cookie_first_date;          /* if non-zero, first date the expirable cookie was set/seen */
 	int cookie_last_date;           /* if non-zero, last date the expirable cookie was set/seen */
 

@@ -98,7 +98,6 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.queue = TICK_ETERNITY;
 	proxy->timeout.connect = TICK_ETERNITY;
 	proxy->timeout.server = TICK_ETERNITY;
-	proxy->timeout.appsession = TICK_ETERNITY;
 	proxy->timeout.httpreq = TICK_ETERNITY;
 	proxy->timeout.check = TICK_ETERNITY;
 	proxy->timeout.tunnel = TICK_ETERNITY;
