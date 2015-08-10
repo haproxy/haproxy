@@ -3430,76 +3430,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
-		int cur_arg;
-
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[5]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'appsession' <cookie_name> 'len' <len> 'timeout' <timeout> [options*].\n",
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		have_appsession = 1;
-		free(curproxy->appsession_name);
-		curproxy->appsession_name = strdup(args[1]);
-		curproxy->appsession_name_len = strlen(curproxy->appsession_name);
-		curproxy->appsession_len = atoi(args[3]);
-		err = parse_time_err(args[5], &val, TIME_UNIT_MS);
-		if (err) {
-			Alert("parsing [%s:%d] : unexpected character '%c' in %s timeout.\n",
-			      file, linenum, *err, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->timeout.appsession = val;
-
-		if (appsession_hash_init(&(curproxy->htbl_proxy), destroy) == 0) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		cur_arg = 6;
-		curproxy->options2 &= ~PR_O2_AS_REQL;
-		curproxy->options2 &= ~PR_O2_AS_M_ANY;
-		curproxy->options2 |= PR_O2_AS_M_PP;
-		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "request-learn")) {
-				curproxy->options2 |= PR_O2_AS_REQL;
-			} else if (!strcmp(args[cur_arg], "prefix")) {
-				curproxy->options2 |= PR_O2_AS_PFX;
-			} else if (!strcmp(args[cur_arg], "mode")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg++;
-				if (!strcmp(args[cur_arg], "query-string")) {
-					curproxy->options2 &= ~PR_O2_AS_M_ANY;
-					curproxy->options2 |= PR_O2_AS_M_QS;
-				} else if (!strcmp(args[cur_arg], "path-parameters")) {
-					curproxy->options2 &= ~PR_O2_AS_M_ANY;
-					curproxy->options2 |= PR_O2_AS_M_PP;
-				} else {
-					Alert("parsing [%s:%d] : unknown mode '%s'\n", file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			}
-			cur_arg++;
-		}
-	} /* Url App Session */
+		Alert("parsing [%s:%d] : '%s' is not supported anymore, please check the documentation.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
 	else if (!strcmp(args[0], "capture")) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -8564,10 +8498,6 @@ out_uri_auth_compat:
 					Warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
 					        curproxy->id);
 				}
-			}
-			if (curproxy->appsession_name) {
-				Warning("Proxy '%s': appsession will not work correctly in multi-process mode.\n",
-				        curproxy->id);
 			}
 			if (!LIST_ISEMPTY(&curproxy->sticking_rules)) {
 				Warning("Proxy '%s': sticking rules will not work correctly in multi-process mode.\n",

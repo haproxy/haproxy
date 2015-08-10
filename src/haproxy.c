@@ -56,7 +56,6 @@
 #include <assert.h>
 #endif
 
-#include <common/appsession.h>
 #include <common/base64.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
@@ -745,7 +744,6 @@ void init(int argc, char **argv)
 		exit(1);
 	}
 
-	have_appsession = 0;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 
 	init_default_instance();
@@ -824,9 +822,6 @@ void init(int argc, char **argv)
 #ifdef USE_51DEGREES
 	init_51degrees();
 #endif
-
-	if (have_appsession)
-		appsession_init();
 
 	if (start_checks() < 0)
 		exit(1);
@@ -1343,8 +1338,6 @@ void deinit(void)
 		deinit_stick_rules(&p->storersp_rules);
 		deinit_stick_rules(&p->sticking_rules);
 
-		free(p->appsession_name);
-
 		h = p->req_cap;
 		while (h) {
 			h_next = h->next;
@@ -1490,17 +1483,11 @@ void deinit(void)
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy2(pool2_capture);
-	pool_destroy2(pool2_appsess);
 	pool_destroy2(pool2_pendconn);
 	pool_destroy2(pool2_sig_handlers);
 	pool_destroy2(pool2_hdr_idx);
 	pool_destroy2(pool2_http_txn);
     
-	if (have_appsession) {
-		pool_destroy2(apools.serverid);
-		pool_destroy2(apools.sessid);
-	}
-
 	deinit_pollers();
 } /* end deinit() */
 
@@ -1886,8 +1873,6 @@ int main(int argc, char **argv)
 	 */
 	run_poll_loop();
 
-	/* Free all Hash Keys and all Hash elements */
-	appsession_cleanup();
 	/* Do some cleanup */ 
 	deinit();
     
