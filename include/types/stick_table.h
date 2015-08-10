@@ -31,6 +31,7 @@
 #include <eb32tree.h>
 #include <common/memory.h>
 #include <types/freq_ctr.h>
+#include <types/sample.h>
 
 /* stick table key types */
 enum {
@@ -180,19 +181,11 @@ struct stktable {
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 
-/* stick table key data */
-union stktable_key_data {
-	struct in_addr ip;        /* used to store an ipv4 key */
-	struct in6_addr ipv6;     /* used to store an ipv6 key */
-	uint32_t integer;         /* used to store an integer key */
-	char buf[0];              /* dynamically allocated, used to store a null terminated string key or a buffer of data */
-};
-
 /* stick table key */
 struct stktable_key {
 	void *key;                      /* pointer on key buffer */
 	size_t key_len;                 /* data len to read in buff in case of null terminated string */
-	union stktable_key_data data;   /* data, must always be last */
+	union sample_value data;
 };
 
 /* WARNING: if new fields are added, they must be initialized in stream_accept()

@@ -74,9 +74,9 @@ static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage 
 	case AF_INET6:
 		/* Convert IPv6 to IPv4 key. This conversion can be failed. */
 		if (type == STKTABLE_TYPE_IP) {
-			if (!v6tov4(&static_table_key->data.ip, &((struct sockaddr_in6 *)addr)->sin6_addr))
+			if (!v6tov4(&static_table_key->data.ipv4, &((struct sockaddr_in6 *)addr)->sin6_addr))
 				return NULL;
-			static_table_key->key = &static_table_key->data.ip;
+			static_table_key->key = &static_table_key->data.ipv4;
 			break;
 		}
 		/* Convert IPv6 to IPv6 key. */

@@ -452,175 +452,6 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 	return 1;
 }
 
-/*****************************************************************/
-/*    typed sample to typed table key functions                  */
-/*****************************************************************/
-
-static void *k_int2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	kdata->integer = smp->data.u.sint;
-	return (void *)&kdata->integer;
-}
-
-static void *k_ip2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (smp->data.type == SMP_T_IPV6) {
-		v6tov4(&kdata->ip, &smp->data.u.ipv6);
-		return (void *)&kdata->ip.s_addr;
-	}
-	else {
-		return (void *)&smp->data.u.ipv4.s_addr;
-	}
-}
-
-static void *k_ip2ipv6(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (smp->data.type == SMP_T_IPV6) {
-		return (void *)&smp->data.u.ipv6.s6_addr;
-	}
-	else {
-		v4tov6(&kdata->ipv6, &smp->data.u.ipv4);
-		return (void *)&kdata->ipv6.s6_addr;
-	}
-}
-
-static void *k_ip2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (smp->data.type == SMP_T_IPV6) {
-		if (!v6tov4(&kdata->ip, &smp->data.u.ipv6))
-			return NULL;
-		kdata->integer = ntohl(kdata->ip.s_addr);
-	}
-	else {
-		kdata->integer = ntohl(smp->data.u.ipv4.s_addr);
-	}
-	return (void *)&kdata->integer;
-}
-
-static void *k_int2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	kdata->ip.s_addr = htonl((unsigned int)smp->data.u.sint);
-	return (void *)&kdata->ip.s_addr;
-}
-
-static void *k_str2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	*len = smp->data.u.str.len;
-	return (void *)smp->data.u.str.str;
-}
-
-static void *k_ip2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (smp->data.type == SMP_T_IPV6) {
-		if (!inet_ntop(AF_INET6, &smp->data.u.ipv6, kdata->buf, *len))
-			return NULL;
-	}
-	else {
-		if (!inet_ntop(AF_INET, &smp->data.u.ipv4, kdata->buf, *len))
-			return NULL;
-	}
-
-	*len = strlen((const char *)kdata->buf);
-	return (void *)kdata->buf;
-}
-
-static void *k_ip2bin(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (smp->data.type == SMP_T_IPV4) {
-		if (*len > 4)
-			*len = 4;
-		memcpy(kdata->buf, &smp->data.u.ipv4, *len);
-	}
-	else if (smp->data.type == SMP_T_IPV6) {
-		if (*len > 16)
-			*len = 16;
-		memcpy(kdata->buf, &smp->data.u.ipv6, *len);
-	}
-	else
-		*len = 0;
-	return (void *)kdata->buf;
-}
-
-static void *k_bin2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	unsigned char c;
-	int ptr = 0;
-	int max = *len;
-	int size = 0;
-
-	while (ptr < smp->data.u.str.len && size <= max - 2) {
-		c = smp->data.u.str.str[ptr++];
-		kdata->buf[size++] = hextab[(c >> 4) & 0xF];
-		kdata->buf[size++] = hextab[c & 0xF];
-	}
-	*len = size;
-	return (void *)kdata->buf;
-}
-
-static void *k_int2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	void *key;
-
-	key = (void *)lltoa_r(smp->data.u.sint, kdata->buf, *len);
-	if (!key)
-		return NULL;
-
-	*len = strlen((const char *)key);
-	return key;
-}
-
-static void *k_str2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (!buf2ip(smp->data.u.str.str, smp->data.u.str.len, &kdata->ip))
-		return NULL;
-
-	return (void *)&kdata->ip.s_addr;
-}
-
-static void *k_str2ipv6(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	if (!inet_pton(AF_INET6, smp->data.u.str.str, &kdata->ipv6))
-		return NULL;
-
-	return (void *)&kdata->ipv6.s6_addr;
-}
-
-static void *k_str2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
-{
-	int i;
-
-	kdata->integer = 0;
-	for (i = 0; i < smp->data.u.str.len; i++) {
-		uint32_t val = smp->data.u.str.str[i] - '0';
-
-		if (val > 9)
-			break;
-
-		kdata->integer = kdata->integer * 10 + val;
-	}
-	return (void *)&kdata->integer;
-}
-
-/*****************************************************************/
-/*      typed sample to typed table key matrix:                  */
-/*         sample_to_key[from sample type][to table key type]    */
-/*         NULL pointer used for impossible sample casts         */
-/*****************************************************************/
-
-typedef void *(*sample_to_key_fct)(struct sample *smp, union stktable_key_data *kdata, size_t *len);
-static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
-/*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
-/* patt. type: ANY  */ { k_ip2ip,  k_ip2ipv6,   k_int2int, k_str2str,  k_str2str },
-/*             BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
-/*             SINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
-/*             ADDR */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
-/*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   k_ip2bin  },
-/*             IPV6 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   k_ip2bin  },
-/*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*              BIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
-};
-
-
 /* Prepares a stktable_key from a sample <smp> to search into table <t>.
  * Returns NULL if the sample could not be converted (eg: no matching type),
  * otherwise a pointer to the static stktable_key filled with what is needed
@@ -628,43 +459,79 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
  */
 struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 {
-	if (!sample_to_key[smp->data.type][t->type])
+	int type;
+
+	/* Map stick table type to sample types. */
+	switch (t->type) {
+	case STKTABLE_TYPE_IP:      type = SMP_T_IPV4; break;
+	case STKTABLE_TYPE_IPV6:    type = SMP_T_IPV6; break;
+	case STKTABLE_TYPE_INTEGER: type = SMP_T_SINT; break;
+	case STKTABLE_TYPE_STRING:  type = SMP_T_STR;  break;
+	case STKTABLE_TYPE_BINARY:  type = SMP_T_BIN;  break;
+	default: /* impossible case. */
 		return NULL;
-
-	static_table_key->key_len = t->key_size;
-	static_table_key->key = sample_to_key[smp->data.type][t->type](smp, &static_table_key->data, &static_table_key->key_len);
-
-	if (!static_table_key->key)
-		return NULL;
-
-	if (static_table_key->key_len == 0)
-		return NULL;
-
-	if ((static_table_key->key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
-		/* need padding with null */
-
-		/* assume static_table_key.key_len is less than sizeof(static_table_key.data.u.buf)
-		cause t->key_size is necessary less than sizeof(static_table_key.data) */
-
-		if ((char *)static_table_key->key > (char *)&static_table_key->data &&
-		    (char *)static_table_key->key <  (char *)&static_table_key->data + global.tune.bufsize) {
-			/* key buffer is part of the static_table_key private data buffer, but is not aligned */
-
-			if (global.tune.bufsize - ((char *)static_table_key->key - (char *)&static_table_key->data) < t->key_size) {
-				/* if not remain enough place for padding , process a realign */
-				memmove(static_table_key->data.buf, static_table_key->key, static_table_key->key_len);
-				static_table_key->key = static_table_key->data.buf;
-			}
-		}
-		else if (static_table_key->key != static_table_key->data.buf) {
-			/* key definitly not part of the static_table_key private data buffer */
-
-			memcpy(static_table_key->data.buf, static_table_key->key, static_table_key->key_len);
-			static_table_key->key = static_table_key->data.buf;
-		}
-
-		memset(static_table_key->key + static_table_key->key_len, 0, t->key_size - static_table_key->key_len);
 	}
+
+	/* Convert sample. */
+	if (!sample_convert(smp, type))
+		return NULL;
+
+	/* Fill static_table_key. */
+	switch (t->type) {
+
+	case STKTABLE_TYPE_IP:
+		static_table_key->key = &smp->data.u.ipv4;
+		static_table_key->key_len = 4;
+		break;
+
+	case STKTABLE_TYPE_IPV6:
+		static_table_key->key = &smp->data.u.ipv6;
+		static_table_key->key_len = 16;
+		break;
+
+	case STKTABLE_TYPE_INTEGER:
+		/* The stick table require a 32bit unsigned int, "sint" is a
+		 * signed 64 it, so we can convert it inplace.
+		 */
+		*(unsigned int *)&smp->data.u.sint = (unsigned int)smp->data.u.sint;
+		static_table_key->key = &smp->data.u.sint;
+		static_table_key->key_len = 4;
+		break;
+
+	case STKTABLE_TYPE_STRING:
+		/* Must be NULL terminated. */
+		if (smp->data.u.str.len >= smp->data.u.str.size ||
+		    smp->data.u.str.str[smp->data.u.str.len] != '\0') {
+			if (!smp_dup(smp))
+				return NULL;
+			if (smp->data.u.str.len >= smp->data.u.str.size)
+				return NULL;
+			smp->data.u.str.str[smp->data.u.str.len] = '\0';
+		}
+		static_table_key->key = smp->data.u.str.str;
+		static_table_key->key_len = smp->data.u.str.len;
+		break;
+
+	case STKTABLE_TYPE_BINARY:
+		if (smp->data.u.str.len < t->key_size) {
+			/* This type needs padding with 0. */
+			if (smp->data.u.str.size < t->key_size)
+				if (!smp_dup(smp))
+					return NULL;
+			if (smp->data.u.str.size < t->key_size)
+				return NULL;
+			memset(smp->data.u.str.str + smp->data.u.str.len, 0,
+			       t->key_size - smp->data.u.str.len);
+			smp->data.u.str.len = t->key_size;
+		}
+		static_table_key->key = smp->data.u.str.str;
+		static_table_key->key_len = smp->data.u.str.len;
+		break;
+
+	default: /* impossible case. */
+		return NULL;
+	}
+	static_table_key->data = smp->data.u;
 
 	return static_table_key;
 }
@@ -714,7 +581,20 @@ int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_typ
 		return 0;
 
 	out_type = smp_expr_output_type(expr);
-	if (!sample_to_key[out_type][table_type])
+
+	/* Map stick table type to sample types. */
+	switch (table_type) {
+	case STKTABLE_TYPE_IP:      table_type = SMP_T_IPV4; break;
+	case STKTABLE_TYPE_IPV6:    table_type = SMP_T_IPV6; break;
+	case STKTABLE_TYPE_INTEGER: table_type = SMP_T_SINT; break;
+	case STKTABLE_TYPE_STRING:  table_type = SMP_T_STR;  break;
+	case STKTABLE_TYPE_BINARY:  table_type = SMP_T_BIN;  break;
+	default: /* impossible case. */
+		return 0;
+	}
+
+	/* Convert sample. */
+	if (!sample_casts[out_type][table_type])
 		return 0;
 
 	return 1;
