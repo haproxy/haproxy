@@ -78,12 +78,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 int http_response_forward_body(struct stream *s, struct channel *res, int an_bit);
 
 void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end);
-void get_srv_from_appsession(struct stream *s, const char *begin, int len);
 int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp);
 int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_exp *exp);
 int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy *px);
 int apply_filters_to_response(struct stream *s, struct channel *rtr, struct proxy *px);
-void manage_client_side_appsession(struct stream *s, const char *buf, int len);
 void manage_client_side_cookies(struct stream *s, struct channel *req);
 void manage_server_side_cookies(struct stream *s, struct channel *rtr);
 void check_response_for_cacheability(struct stream *s, struct channel *rtr);

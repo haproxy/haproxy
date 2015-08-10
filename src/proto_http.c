@@ -25,7 +25,6 @@
 
 #include <netinet/tcp.h>
 
-#include <common/appsession.h>
 #include <common/base64.h>
 #include <common/chunk.h>
 #include <common/compat.h>
@@ -4531,19 +4530,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * the fields will stay coherent and the URI will not move.
 	 * This should only be performed in the backend.
 	 */
-	if ((s->be->cookie_name || s->be->appsession_name || sess->fe->capture_name)
+	if ((s->be->cookie_name || sess->fe->capture_name)
 	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 		manage_client_side_cookies(s, req);
-
-	/*
-	 * 8: the appsession cookie was looked up very early in 1.2,
-	 * so let's do the same now.
-	 */
-
-	/* It needs to look into the URI unless persistence must be ignored */
-	if ((txn->sessid == NULL) && s->be->appsession_name && !(s->flags & SF_IGNORE_PRST)) {
-		get_srv_from_appsession(s, req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l);
-	}
 
 	/* add unique-id if "header-unique-id" is specified */
 
@@ -6639,8 +6628,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	/*
 	 * Now check for a server cookie.
 	 */
-	if (s->be->cookie_name || s->be->appsession_name || sess->fe->capture_name ||
-	    (s->be->options & PR_O_CHK_CACHE))
+	if (s->be->cookie_name || sess->fe->capture_name || (s->be->options & PR_O_CHK_CACHE))
 		manage_server_side_cookies(s, rep);
 
 	/*
@@ -7388,81 +7376,6 @@ int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy
 }
 
 
-
-/*
- * Try to retrieve the server associated to the appsession.
- * If the server is found, it's assigned to the stream.
- */
-void manage_client_side_appsession(struct stream *s, const char *buf, int len) {
-	struct http_txn *txn = s->txn;
-	appsess *asession = NULL;
-	char *sessid_temp = NULL;
-
-	if (len > s->be->appsession_len) {
-		len = s->be->appsession_len;
-	}
-
-	if (s->be->options2 & PR_O2_AS_REQL) {
-		/* request-learn option is enabled : store the sessid in the stream for future use */
-		if (txn->sessid != NULL) {
-			/* free previously allocated memory as we don't need the stream id found in the URL anymore */
-			pool_free2(apools.sessid, txn->sessid);
-		}
-
-		if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
-			Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-			send_log(s->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
-			return;
-		}
-
-		memcpy(txn->sessid, buf, len);
-		txn->sessid[len] = 0;
-	}
-
-	if ((sessid_temp = pool_alloc2(apools.sessid)) == NULL) {
-		Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-		send_log(s->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
-		return;
-	}
-
-	memcpy(sessid_temp, buf, len);
-	sessid_temp[len] = 0;
-
-	asession = appsession_hash_lookup(&(s->be->htbl_proxy), sessid_temp);
-	/* free previously allocated memory */
-	pool_free2(apools.sessid, sessid_temp);
-
-	if (asession != NULL) {
-		asession->expire = tick_add_ifset(now_ms, s->be->timeout.appsession);
-		if (!(s->be->options2 & PR_O2_AS_REQL))
-			asession->request_count++;
-
-		if (asession->serverid != NULL) {
-			struct server *srv = s->be->srv;
-
-			while (srv) {
-				if (strcmp(srv->id, asession->serverid) == 0) {
-					if ((srv->state != SRV_ST_STOPPED) ||
-					    (s->be->options & PR_O_PERSIST) ||
-					    (s->flags & SF_FORCE_PRST)) {
-						/* we found the server and it's usable */
-						txn->flags &= ~TX_CK_MASK;
-						txn->flags |= (srv->state != SRV_ST_STOPPED) ? TX_CK_VALID : TX_CK_DOWN;
-						s->flags |= SF_DIRECT | SF_ASSIGNED;
-						s->target = &srv->obj_type;
-
-						break;
-					} else {
-						txn->flags &= ~TX_CK_MASK;
-						txn->flags |= TX_CK_DOWN;
-					}
-				}
-				srv = srv->next;
-			}
-		}
-	}
-}
-
 /* Find the end of a cookie value contained between <s> and <e>. It works the
  * same way as with headers above except that the semi-colon also ends a token.
  * See RFC2965 for more information. Note that it requires a valid header to
@@ -7933,28 +7846,6 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				}
 			}
 
-			/* Look for the appsession cookie unless persistence must be ignored */
-			if (!(s->flags & SF_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
-				int cmp_len, value_len;
-				char *value_begin;
-
-				if (s->be->options2 & PR_O2_AS_PFX) {
-					cmp_len     = MIN(val_end - att_beg, s->be->appsession_name_len);
-					value_begin = att_beg + s->be->appsession_name_len;
-					value_len   = val_end - att_beg - s->be->appsession_name_len;
-				} else {
-					cmp_len     = att_end - att_beg;
-					value_begin = val_beg;
-					value_len   = val_end - val_beg;
-				}
-
-				/* let's see if the cookie is our appcookie */
-				if (cmp_len == s->be->appsession_name_len &&
-				    memcmp(att_beg, s->be->appsession_name, cmp_len) == 0) {
-					manage_client_side_appsession(s, value_begin, value_len);
-				}
-			}
-
 			/* continue with next cookie on this header line */
 			att_beg = next;
 		} /* for each cookie */
@@ -8271,9 +8162,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 		 * check-cache is enabled) and we are not interested in checking
 		 * them. Warning, the cookie capture is declared in the frontend.
 		 */
-		if (s->be->cookie_name == NULL &&
-		    s->be->appsession_name == NULL &&
-		    sess->fe->capture_name == NULL)
+		if (s->be->cookie_name == NULL && sess->fe->capture_name == NULL)
 			return;
 
 		/* OK so now we know we have to process this response cookie.
@@ -8500,82 +8389,12 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					txn->flags |= TX_SCK_REPLACED;
 				}
 			}
-			/* next, let's see if the cookie is our appcookie, unless persistence must be ignored */
-			else if (!(s->flags & SF_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
-				int cmp_len, value_len;
-				char *value_begin;
-
-				if (s->be->options2 & PR_O2_AS_PFX) {
-					cmp_len = MIN(val_end - att_beg, s->be->appsession_name_len);
-					value_begin = att_beg + s->be->appsession_name_len;
-					value_len = MIN(s->be->appsession_len, val_end - att_beg - s->be->appsession_name_len);
-				} else {
-					cmp_len = att_end - att_beg;
-					value_begin = val_beg;
-					value_len = MIN(s->be->appsession_len, val_end - val_beg);
-				}
-
-				if ((cmp_len == s->be->appsession_name_len) &&
-				    (memcmp(att_beg, s->be->appsession_name, s->be->appsession_name_len) == 0)) {
-					/* free a possibly previously allocated memory */
-					pool_free2(apools.sessid, txn->sessid);
-
-					/* Store the sessid in the stream for future use */
-					if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
-						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-						send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-						return;
-					}
-					memcpy(txn->sessid, value_begin, value_len);
-					txn->sessid[value_len] = 0;
-				}
-			}
 			/* that's done for this cookie, check the next one on the same
 			 * line when next != hdr_end (only if is_cookie2).
 			 */
 		}
 		/* check next header */
 		old_idx = cur_idx;
-	}
-
-	if (txn->sessid != NULL) {
-		appsess *asession = NULL;
-		/* only do insert, if lookup fails */
-		asession = appsession_hash_lookup(&(s->be->htbl_proxy), txn->sessid);
-		if (asession == NULL) {
-			size_t server_id_len;
-			if ((asession = pool_alloc2(pool2_appsess)) == NULL) {
-				Alert("Not enough Memory process_srv():asession:calloc().\n");
-				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
-				return;
-			}
-			asession->serverid = NULL; /* to avoid a double free in case of allocation error */
-
-			if ((asession->sessid = pool_alloc2(apools.sessid)) == NULL) {
-				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-				s->be->htbl_proxy.destroy(asession);
-				return;
-			}
-			memcpy(asession->sessid, txn->sessid, s->be->appsession_len);
-			asession->sessid[s->be->appsession_len] = 0;
-
-			server_id_len = strlen(objt_server(s->target)->id) + 1;
-			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
-				Alert("Not enough Memory process_srv():asession->serverid:malloc().\n");
-				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-				s->be->htbl_proxy.destroy(asession);
-				return;
-			}
-			asession->serverid[0] = '\0';
-			memcpy(asession->serverid, objt_server(s->target)->id, server_id_len);
-
-			asession->request_count = 0;
-			appsession_hash_insert(&(s->be->htbl_proxy), asession);
-		}
-
-		asession->expire = tick_add_ifset(now_ms, s->be->timeout.appsession);
-		asession->request_count++;
 	}
 }
 
@@ -8667,78 +8486,6 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 	}
 }
 
-
-/*
- * Try to retrieve a known appsession in the URI, then the associated server.
- * If the server is found, it's assigned to the stream.
- */
-void get_srv_from_appsession(struct stream *s, const char *begin, int len)
-{
-	char *end_params, *first_param, *cur_param, *next_param;
-	char separator;
-	int value_len;
-
-	int mode = s->be->options2 & PR_O2_AS_M_ANY;
-
-	if (s->be->appsession_name == NULL ||
-	    (s->txn->meth != HTTP_METH_GET && s->txn->meth != HTTP_METH_POST && s->txn->meth != HTTP_METH_HEAD)) {
-		return;
-	}
-
-	first_param = NULL;
-	switch (mode) {
-	case PR_O2_AS_M_PP:
-		first_param = memchr(begin, ';', len);
-		break;
-	case PR_O2_AS_M_QS:
-		first_param = memchr(begin, '?', len);
-		break;
-	}
-
-	if (first_param == NULL) {
-		return;
-	}
-
-	switch (mode) {
-	case PR_O2_AS_M_PP:
-		if ((end_params = memchr(first_param, '?', len - (begin - first_param))) == NULL) {
-			end_params = (char *) begin + len;
-		}
-		separator = ';';
-		break;
-	case PR_O2_AS_M_QS:
-		end_params = (char *) begin + len;
-		separator = '&';
-		break;
-	default:
-		/* unknown mode, shouldn't happen */
-		return;
-	}
-	
-	cur_param = next_param = end_params;
-	while (cur_param > first_param) {
-		cur_param--;
-		if ((cur_param[0] == separator) || (cur_param == first_param)) {
-			/* let's see if this is the appsession parameter */
-			if ((cur_param + s->be->appsession_name_len + 1 < next_param) &&
-				((s->be->options2 & PR_O2_AS_PFX) || cur_param[s->be->appsession_name_len + 1] == '=') &&
-				(strncasecmp(cur_param + 1, s->be->appsession_name, s->be->appsession_name_len) == 0)) {
-				/* Cool... it's the right one */
-				cur_param += s->be->appsession_name_len + (s->be->options2 & PR_O2_AS_PFX ? 1 : 2);
-				value_len = MIN(s->be->appsession_len, next_param - cur_param);
-				if (value_len > 0) {
-					manage_client_side_appsession(s, cur_param, value_len);
-				}
-				break;
-			}
-			next_param = cur_param;
-		}
-	}
-#if defined(DEBUG_HASH)
-	Alert("get_srv_from_appsession\n");
-	appsession_hash_dump(&(s->be->htbl_proxy));
-#endif
-}
 
 /*
  * In a GET, HEAD or POST request, check if the requested URI matches the stats uri
@@ -9021,7 +8768,6 @@ void http_init_txn(struct stream *s)
 	txn->cookie_first_date = 0;
 	txn->cookie_last_date = 0;
 
-	txn->sessid = NULL;
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 	txn->uri = NULL;
@@ -9070,11 +8816,9 @@ void http_end_txn(struct stream *s)
 	pool_free2(pool2_requri, txn->uri);
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
-	pool_free2(apools.sessid, txn->sessid);
 	pool_free2(pool2_uniqueid, s->unique_id);
 
 	s->unique_id = NULL;
-	txn->sessid = NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
