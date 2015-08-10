@@ -1582,7 +1582,7 @@ specified in a previous "defaults" section.
  keyword                              defaults   frontend   listen    backend
 ------------------------------------+----------+----------+---------+---------
 acl                                       -          X         X         X
-appsession                                -          -         X         X
+appsession                                -          -         -         -
 backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
@@ -1830,24 +1830,9 @@ appsession <cookie> len <length> timeout <holdtime>
                  In this mode, the parser will look for the appsession in the
                  query string.
 
-  When an application cookie is defined in a backend, HAProxy will check when
-  the server sets such a cookie, and will store its value in a table, and
-  associate it with the server's identifier. Up to <length> characters from
-  the value will be retained. On each connection, haproxy will look for this
-  cookie both in the "Cookie:" headers, and as a URL parameter (depending on
-  the mode used). If a known value is found, the client will be directed to the
-  server associated with this value. Otherwise, the load balancing algorithm is
-  applied. Cookies are automatically removed from memory when they have been
-  unused for a duration longer than <holdtime>.
-
-  The definition of an application cookie is limited to one per backend.
-
-  Note : Consider not using this feature in multi-process mode (nbproc > 1)
-         unless you know what you do : memory is not shared between the
-         processes, which can result in random behaviours.
-
-  Example :
-        appsession JSESSIONID len 52 timeout 3h
+  As of version 1.6, appsessions was removed. It is more flexible and more
+  convenient to use stick-tables instead, and stick-tables support multi-master
+  replication and data conservation across reloads, which appsessions did not.
 
   See also : "cookie", "capture cookie", "balance", "stick", "stick-table",
              "ignore-persist", "nbproc" and "bind-process".
@@ -2091,8 +2076,7 @@ balance url_param <param> [check_post]
       might be a URL parameter list. This is probably not a concern with SGML
       type message bodies.
 
-  See also : "dispatch", "cookie", "appsession", "transparent", "hash-type" and
-             "http_proxy".
+  See also : "dispatch", "cookie", "transparent", "hash-type" and "http_proxy".
 
 
 bind [<address>]:<port_range> [, ...] [param*]
@@ -2708,8 +2692,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
         cookie SRV insert postonly indirect
         cookie SRV insert indirect nocache maxidle 30m maxlife 8h
 
-  See also : "appsession", "balance source", "capture cookie", "server"
-             and "ignore-persist".
+  See also : "balance source", "capture cookie", "server" and "ignore-persist".
 
 
 declare capture [ request | response ] len <length>
@@ -4103,9 +4086,6 @@ ignore-persist { if | unless } <condition>
   This is sometimes useful to load balance requests for static files, which
   often don't require persistence. This can also be used to fully disable
   persistence for a specific User-Agent (for example, some web crawler bots).
-
-  Combined with "appsession", it can also help reduce HAProxy memory usage, as
-  the appsession table won't grow if persistence is ignored.
 
   The persistence is ignored when an "if" condition is met, or unless an
   "unless" condition is met.
@@ -13062,12 +13042,11 @@ cookie([<name>]) : string (deprecated)
   header line from the request, or a "Set-Cookie" header from the response, and
   returns its value as a string. A typical use is to get multiple clients
   sharing a same profile use the same server. This can be similar to what
-  "appsession" does with the "request-learn" statement, but with support for
+  "appsession" did with the "request-learn" statement, but with support for
   multi-peer synchronization and state keeping across restarts. If no name is
   specified, the first cookie value is returned. This fetch should not be used
   anymore and should be replaced by req.cook() or res.cook() instead as it
   ambiguously uses the direction based on the context where it is used.
-  See also : "appsession".
 
 hdr([<name>[,<occ>]]) : string
   This is equivalent to req.hdr() when used on requests, and to res.hdr() when
@@ -13346,13 +13325,11 @@ resp_ver : string (deprecated)
 set-cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
   header line from the response and uses the corresponding value to match. This
-  can be comparable to what "appsession" does with default options, but with
+  can be comparable to what "appsession" did with default options, but with
   support for multi-peer synchronization and state keeping across restarts.
 
   This fetch function is deprecated and has been superseded by the "res.cook"
   fetch. This keyword will disappear soon.
-
-  See also : "appsession"
 
 status : integer
   Returns an integer containing the HTTP status code in the HTTP response, for
