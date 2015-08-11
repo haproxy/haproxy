@@ -1440,8 +1440,11 @@ int tcp_exec_req_rules(struct session *sess)
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr)
+				if (rule->action_ptr) {
 					rule->action_ptr(rule, sess->fe, NULL);
+					if (rule->action == TCP_ACT_CUSTOM_CONT)
+						continue;
+				}
 
 				/* otherwise it's an accept */
 				break;
