@@ -7245,6 +7245,12 @@ int check_config_validity()
 			break;
 		}
 
+		if ((curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
+			Warning("config : %s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
+			        proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+		}
+
 		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
 			if (curproxy->lbprm.algo & BE_LB_KIND) {
 				if (curproxy->options & PR_O_TRANSP) {
