@@ -544,13 +544,11 @@ struct http_res_action_kw {
 };
 
 struct http_req_action_kw_list {
-       const char *scope;
        struct list list;
        struct http_req_action_kw kw[VAR_ARRAY];
 };
 
 struct http_res_action_kw_list {
-       const char *scope;
        struct list list;
        struct http_res_action_kw kw[VAR_ARRAY];
 };

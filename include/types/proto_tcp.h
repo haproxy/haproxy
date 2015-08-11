@@ -69,7 +69,6 @@ struct tcp_action_kw {
 };
 
 struct tcp_action_kw_list {
-	const char *scope;
 	struct list list;
 	struct tcp_action_kw kw[VAR_ARRAY];
 };

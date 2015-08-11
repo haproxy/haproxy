@@ -12899,7 +12899,6 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
 struct http_req_action_kw_list http_req_actions = {
-	.scope = "http",
 	.kw = {
 		{ "capture",    parse_http_req_capture },
 		{ "set-method", parse_set_req_line },
@@ -12911,7 +12910,6 @@ struct http_req_action_kw_list http_req_actions = {
 };
 
 struct http_res_action_kw_list http_res_actions = {
-	.scope = "http",
 	.kw = {
 		{ "capture",    parse_http_res_capture },
 		{ NULL, NULL }
