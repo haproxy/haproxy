@@ -208,7 +208,7 @@ void pattern_init_expr(struct pattern_expr *expr);
 struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_ref *ref);
 struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref,
                                       char **err, int *reuse);
-struct sample_storage **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *elt);
+struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *elt);
 int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref);
 
 

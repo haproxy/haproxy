@@ -269,7 +269,7 @@ struct sample {
 };
 
 /* Used to store sample constant */
-struct sample_storage {
+struct sample_data {
 	int type;                 /* SMP_T_* */
 	union {
 		long long int   sint;  /* used for signed 64bits integers */

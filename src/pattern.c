@@ -1606,9 +1606,9 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
                                   const char *value, char **err)
 {
 	struct pattern_expr *expr;
-	struct sample_storage **smp;
+	struct sample_data **smp;
 	char *sample;
-	struct sample_storage test;
+	struct sample_data test;
 
 	/* Try all needed converters. */
 	list_for_each_entry(expr, &ref->pat, list) {
@@ -1823,7 +1823,7 @@ static inline
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
                  int patflags, char **err)
 {
-	struct sample_storage *smp;
+	struct sample_data *smp;
 	struct pattern pattern;
 
 	/* Create sample */
@@ -2376,7 +2376,7 @@ void pattern_prune(struct pattern_head *head)
  * the function returns NULL. If the key cannot be parsed, the function
  * fill <err>.
  */
-struct sample_storage **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *ref)
+struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct ebmb_node *node;
 	struct pattern_tree *elt;

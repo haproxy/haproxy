@@ -27,7 +27,7 @@ struct var_desc {
 struct var {
 	struct list l; /* Used for chaining vars. */
 	const char *name; /* Contains the variable name. */
-	struct sample_storage data; /* data storage. */
+	struct sample_data data; /* data storage. */
 };
 
 #endif

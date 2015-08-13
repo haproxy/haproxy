@@ -129,7 +129,7 @@ struct pat_time {
  * "sample" with a tree entry. It is used with maps.
  */
 struct pattern_tree {
-	struct sample_storage *smp;
+	struct sample_data *smp;
 	struct pat_ref_elt *ref;
 	struct ebmb_node node;
 };
@@ -168,7 +168,7 @@ struct pattern {
 	} ptr;                          /* indirect values, allocated */
 	int len;                        /* data length when required  */
 	int sflags;                     /* flags relative to the storage method. */
-	struct sample_storage *smp;     /* used to store a pointer to sample value associated
+	struct sample_data *smp;        /* used to store a pointer to sample value associated
 	                                   with the match. It is used with maps */
 	struct pat_ref_elt *ref;
 };
@@ -212,7 +212,7 @@ struct pattern_expr_list {
 /* This struct contain a list of pattern expr */
 struct pattern_head {
 	int (*parse)(const char *text, struct pattern *pattern, int flags, char **err);
-	int (*parse_smp)(const char *text, struct sample_storage *smp);
+	int (*parse_smp)(const char *text, struct sample_data *smp);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	void (*delete)(struct pattern_expr *, struct pat_ref_elt *);
 	void (*prune)(struct pattern_expr *);

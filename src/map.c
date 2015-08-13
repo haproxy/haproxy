@@ -27,7 +27,7 @@
 /* Parse an IPv4 address and store it into the sample.
  * The output type is IPV4.
  */
-int map_parse_ip(const char *text, struct sample_storage *smp)
+int map_parse_ip(const char *text, struct sample_data *smp)
 {
 	if (!buf2ip(text, strlen(text), &smp->data.ipv4))
 		return 0;
@@ -38,7 +38,7 @@ int map_parse_ip(const char *text, struct sample_storage *smp)
 /* Parse an IPv6 address and store it into the sample.
  * The output type is IPV6.
  */
-int map_parse_ip6(const char *text, struct sample_storage *smp)
+int map_parse_ip6(const char *text, struct sample_data *smp)
 {
 	if (!buf2ip6(text, strlen(text), &smp->data.ipv6))
 		return 0;
@@ -52,7 +52,7 @@ int map_parse_ip6(const char *text, struct sample_storage *smp)
  * overwritten because sample_conv_map() makes a const sample with this
  * output.
  */
-int map_parse_str(const char *text, struct sample_storage *smp)
+int map_parse_str(const char *text, struct sample_data *smp)
 {
 	smp->data.str.str = (char *)text;
 	smp->data.str.len = strlen(text);
@@ -65,7 +65,7 @@ int map_parse_str(const char *text, struct sample_storage *smp)
  * number is negative, or UINT if it is positive or null. The function returns
  * zero (error) if the number is too large.
  */
-int map_parse_int(const char *text, struct sample_storage *smp)
+int map_parse_int(const char *text, struct sample_data *smp)
 {
 	smp->type = SMP_T_SINT;
 	smp->data.sint = read_int64(&text, text + strlen(text));
