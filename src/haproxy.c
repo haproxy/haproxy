@@ -800,6 +800,9 @@ void init(int argc, char **argv)
 		exit(2);
 	}
 
+	/* Apply server states */
+	apply_server_state();
+
 	global_listener_queue_task = task_new();
 	if (!global_listener_queue_task) {
 		Alert("Out of memory when initializing global task\n");
