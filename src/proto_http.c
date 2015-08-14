@@ -9351,6 +9351,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 		cur_arg = 1;
 		/* try in the module list */
+		rule->from = ACT_F_HTTP_REQ;
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
@@ -9706,6 +9707,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 		cur_arg = 1;
 		/* try in the module list */
+		rule->from = ACT_F_HTTP_RES;
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);

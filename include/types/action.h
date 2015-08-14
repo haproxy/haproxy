@@ -24,10 +24,19 @@
 
 #include <types/stick_table.h>
 
+enum act_from {
+	ACT_F_TCP_REQ_CON, /* tcp-request connection */
+	ACT_F_TCP_REQ_CNT, /* tcp-request content */
+	ACT_F_TCP_RES_CNT, /* tcp-response content */
+	ACT_F_HTTP_REQ,    /* http-request */
+	ACT_F_HTTP_RES,    /* http-response */
+};
+
 struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_REQ_* */
+	enum act_from from;                    /* ACT_F_* */
 	short deny_status;                     /* HTTP status to return to user when denying */
 	int (*action_ptr)(struct act_rule *rule, struct proxy *px,
 	                  struct session *sess, struct stream *s); /* ptr to custom action */
