@@ -107,7 +107,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
 
-	memset(s->stkctr, 0, sizeof(s->stkctr));
+	memcpy(s->stkctr, sess->stkctr, sizeof(s->stkctr));
 
 	s->sess = sess;
 	s->si[0].flags = SI_FL_NONE;
