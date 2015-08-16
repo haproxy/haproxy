@@ -1456,7 +1456,7 @@ It is possible to send email alerts when the state of servers changes.
 If configured email alerts are sent to each mailer that is configured
 in a mailers section. Email is sent to mailers using SMTP.
 
-mailer <mailersect>
+mailers <mailersect>
   Creates a new mailer list with the name <mailersect>. It is an
   independent section which is referenced by one or more proxies.
 

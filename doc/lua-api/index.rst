@@ -514,7 +514,7 @@ Channel class
   If the buffer cant receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
-  :returns: a string containig the avalaiable line or nil.
+  :returns: a string containing the available line or nil.
 
 .. js:function:: Channel.set(channel, string)
 
@@ -579,21 +579,21 @@ HTTP class
 
    This class contain all the HTTP manipulation functions.
 
-.. js:function:: HTTP.req_get_header(http)
+.. js:function:: HTTP.req_get_headers(http)
 
   Returns an array containing all the request headers.
 
   :param class_http http: The related http object.
   :returns: array of headers.
-  :see: HTTP.res_get_header()
+  :see: HTTP.res_get_headers()
 
-.. js:function:: HTTP.res_get_header(http)
+.. js:function:: HTTP.res_get_headers(http)
 
   Returns an array containing all the response headers.
 
   :param class_http http: The related http object.
   :returns: array of headers.
-  :see: HTTP.req_get_header()
+  :see: HTTP.req_get_headers()
 
 .. js:function:: HTTP.req_add_header(http, name, value)
 
@@ -661,9 +661,9 @@ HTTP class
   :param class_http http: The related http object.
   :param string name: The header name.
   :param string value: The header value.
-  :see: HTTP.req_set_header()
+  :see: HTTP.req_rep_header()
 
-.. js:function:: HTTP.req_replace_header(http, name, regex, replace)
+.. js:function:: HTTP.req_rep_header(http, name, regex, replace)
 
   Matches the regular expression in all occurrences of header field "name"
   according to "regex", and replaces them with the "replace" argument. The
@@ -674,9 +674,9 @@ HTTP class
   :param string name: The header name.
   :param string regex: The match regular expression.
   :param string replace: The replacement value.
-  :see: HTTP.res_replace_header()
+  :see: HTTP.res_rep_header()
 
-.. js:function:: HTTP.res_replace_header(http, name, regex, string)
+.. js:function:: HTTP.res_rep_header(http, name, regex, string)
 
   Matches the regular expression in all occurrences of header field "name"
   according to "regex", and replaces them with the "replace" argument. The
