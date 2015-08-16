@@ -7308,9 +7308,9 @@ int check_config_validity()
 		if (curproxy->email_alert.set) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
 			    Warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
-				    "'email-alert from', 'email-alert level' 'email-alert mailer', "
-				    "'email-alert hostname', or 'email-alert to' "
-				    "requrires each of 'email-alert from', 'email-alert mailer' and 'email-alert' "
+				    "'email-alert from', 'email-alert level' 'email-alert mailers', "
+				    "'email-alert myhostname', or 'email-alert to' "
+				    "requires each of 'email-alert from', 'email-alert mailers' and 'email-alert to' "
 				    "to be present).\n",
 				    proxy_type_str(curproxy), curproxy->id);
 			    err_code |= ERR_WARN;
