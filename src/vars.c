@@ -607,9 +607,9 @@ static int parse_tcp_req_store(const char **args, int *arg, struct proxy *px,
                                struct tcp_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_FE_REQ_CNT, err,
-                   (struct sample_expr **)rule->act_prm.data[0],
-                   (char **)rule->act_prm.data[1],
-                   (enum vars_scope *)rule->act_prm.data[2]))
+                   (struct sample_expr **)&rule->act_prm.data[0],
+                   (char **)&rule->act_prm.data[1],
+                   (enum vars_scope *)&rule->act_prm.data[2]))
 		return 0;
 	rule->action       = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr   = action_tcp_req_store;
@@ -621,9 +621,9 @@ static int parse_tcp_res_store(const char **args, int *arg, struct proxy *px,
                          struct tcp_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_BE_RES_CNT, err,
-                   (struct sample_expr **)rule->act_prm.data[0],
-                   (char **)rule->act_prm.data[1],
-                   (enum vars_scope *)rule->act_prm.data[2]))
+                   (struct sample_expr **)&rule->act_prm.data[0],
+                   (char **)&rule->act_prm.data[1],
+                   (enum vars_scope *)&rule->act_prm.data[2]))
 		return 0;
 	rule->action       = TCP_ACT_CUSTOM_CONT;
 	rule->action_ptr   = action_tcp_res_store;
@@ -635,9 +635,9 @@ static int parse_http_req_store(const char **args, int *arg, struct proxy *px,
                          struct http_req_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_FE_HRQ_HDR, err,
-                   (struct sample_expr **)rule->arg.act.p[0],
-                   (char **)rule->arg.act.p[1],
-                   (enum vars_scope *)rule->arg.act.p[2]))
+                   (struct sample_expr **)&rule->arg.act.p[0],
+                   (char **)&rule->arg.act.p[1],
+                   (enum vars_scope *)&rule->arg.act.p[2]))
 		return -1;
 	rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
 	rule->action_ptr   = action_http_req_store;
@@ -649,9 +649,9 @@ static int parse_http_res_store(const char **args, int *arg, struct proxy *px,
                          struct http_res_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_BE_HRS_HDR, err,
-                   (struct sample_expr **)rule->arg.act.p[0],
-                   (char **)rule->arg.act.p[1],
-                   (enum vars_scope *)rule->arg.act.p[2]))
+                   (struct sample_expr **)&rule->arg.act.p[0],
+                   (char **)&rule->arg.act.p[1],
+                   (enum vars_scope *)&rule->arg.act.p[2]))
 		return -1;
 	rule->action       = HTTP_RES_ACT_CUSTOM_CONT;
 	rule->action_ptr   = action_http_res_store;
