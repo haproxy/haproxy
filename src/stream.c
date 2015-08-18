@@ -71,6 +71,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	struct stream *s;
 	struct connection *conn = objt_conn(origin);
 	struct appctx *appctx   = objt_appctx(origin);
+	int i;
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		return s;
@@ -107,7 +108,13 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
 
+	/* Copy SC counters for the stream. Each SC counter will be used by
+	 * the stream, so we need to increment the refcount.
+	 */
 	memcpy(s->stkctr, sess->stkctr, sizeof(s->stkctr));
+	for (i = 0; i < MAX_SESS_STKCTR; i++)
+		if (stkctr_entry(&s->stkctr[i]))
+			stkctr_entry(&s->stkctr[i])->ref_cnt++;
 
 	s->sess = sess;
 	s->si[0].flags = SI_FL_NONE;
