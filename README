@@ -344,6 +344,10 @@ in the usual DESTDIR variable.
 
 There is some documentation in the doc/ directory :
 
+    - intro.txt : this is an introduction to haproxy, it explains what it is
+      what it is not. Useful for beginners or to re-discover it when planning
+      for an upgrade.
+
     - architecture.txt : this is the architecture manual. It is quite old and
       does not tell about the nice new features, but it's still a good starting
       point when you know what you want but don't know how to do it.
