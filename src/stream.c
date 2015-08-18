@@ -2636,6 +2636,33 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 	return stkptr;
 }
 
+/* same as smp_fetch_sc_stkctr() but dedicated to src_* and can create
+ * the entry if it doesn't exist yet. This is needed for a few fetch
+ * functions which need to create an entry, such as src_inc_gpc* and
+ * src_clr_gpc*.
+ */
+struct stkctr *
+smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw)
+{
+	static struct stkctr stkctr;
+	struct stktable_key *key;
+	struct connection *conn = objt_conn(sess->origin);
+
+	if (strncmp(kw, "src_", 4) != 0)
+		return NULL;
+
+	if (!conn)
+		return NULL;
+
+	key = addr_to_stktable_key(&conn->addr.from, args->data.prx->table.type);
+	if (!key)
+		return NULL;
+
+	stkctr.table = &args->data.prx->table;
+	stkctr_set_entry(&stkctr, stktable_update_key(stkctr.table, key));
+	return &stkctr;
+}
+
 /* set return a boolean indicating if the requested stream counter is
  * currently being tracked or not.
  * Supports being called as "sc[0-9]_tracked" only.
@@ -2716,6 +2743,10 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_SINT;
 	smp->data.sint = 0;
+
+	if (stkctr_entry(stkctr) == NULL)
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw);
+
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr1,*ptr2;
 
@@ -2755,6 +2786,10 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_SINT;
 	smp->data.sint = 0;
+
+	if (stkctr_entry(stkctr) == NULL)
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw);
+
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr)
