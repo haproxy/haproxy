@@ -147,8 +147,8 @@ static int da_haproxy(const struct arg *args, struct sample *smp, void *private)
 	tmp = get_trash_chunk();
 	chunk_reset(tmp);
 
-	i = smp->data.data.str.len > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.data.str.len;
-	memcpy(useragentbuf, smp->data.data.str.str, i - 1);
+	i = smp->data.u.str.len > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.u.str.len;
+	memcpy(useragentbuf, smp->data.u.str.str, i - 1);
 	useragentbuf[i - 1] = 0;
 
 	useragent = (const char *)useragentbuf;
@@ -211,8 +211,8 @@ static int da_haproxy(const struct arg *args, struct sample *smp, void *private)
 		tmp->str[tmp->len] = 0;
 	}
 
-	smp->data.data.str.str = tmp->str;
-	smp->data.data.str.len = strlen(tmp->str);
+	smp->data.u.str.str = tmp->str;
+	smp->data.u.str.len = strlen(tmp->str);
 
 	return 1;
 }

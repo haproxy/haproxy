@@ -29,7 +29,7 @@
  */
 int map_parse_ip(const char *text, struct sample_data *data)
 {
-	if (!buf2ip(text, strlen(text), &data->data.ipv4))
+	if (!buf2ip(text, strlen(text), &data->u.ipv4))
 		return 0;
 	data->type = SMP_T_IPV4;
 	return 1;
@@ -40,7 +40,7 @@ int map_parse_ip(const char *text, struct sample_data *data)
  */
 int map_parse_ip6(const char *text, struct sample_data *data)
 {
-	if (!buf2ip6(text, strlen(text), &data->data.ipv6))
+	if (!buf2ip6(text, strlen(text), &data->u.ipv6))
 		return 0;
 	data->type = SMP_T_IPV6;
 	return 1;
@@ -54,9 +54,9 @@ int map_parse_ip6(const char *text, struct sample_data *data)
  */
 int map_parse_str(const char *text, struct sample_data *data)
 {
-	data->data.str.str = (char *)text;
-	data->data.str.len = strlen(text);
-	data->data.str.size = data->data.str.len + 1;
+	data->u.str.str = (char *)text;
+	data->u.str.len = strlen(text);
+	data->u.str.size = data->u.str.len + 1;
 	data->type = SMP_T_STR;
 	return 1;
 }
@@ -68,7 +68,7 @@ int map_parse_str(const char *text, struct sample_data *data)
 int map_parse_int(const char *text, struct sample_data *data)
 {
 	data->type = SMP_T_SINT;
-	data->data.sint = read_int64(&text, text + strlen(text));
+	data->u.sint = read_int64(&text, text + strlen(text));
 	if (*text != '\0')
 		return 0;
 	return 1;
@@ -163,13 +163,13 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 		if (pat->data) {
 			smp->data.type = pat->data->type;
 			smp->flags |= SMP_F_CONST;
-			memcpy(&smp->data.data, &pat->data->data, sizeof(smp->data.data));
+			memcpy(&smp->data.u, &pat->data->u, sizeof(smp->data.u));
 			return 1;
 		}
 
 		/* Return just int sample containing 1. */
 		smp->data.type = SMP_T_SINT;
-		smp->data.data.sint = 1;
+		smp->data.u.sint = 1;
 		return 1;
 	}
 
@@ -183,22 +183,22 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 	case SMP_T_STR:
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->data.data.str = arg_p[1].data.str;
+		smp->data.u.str = arg_p[1].data.str;
 		break;
 
 	case SMP_T_SINT:
 		smp->data.type = SMP_T_SINT;
-		smp->data.data.sint = arg_p[1].data.sint;
+		smp->data.u.sint = arg_p[1].data.sint;
 		break;
 
 	case SMP_T_IPV4:
 		smp->data.type = SMP_T_IPV4;
-		smp->data.data.ipv4 = arg_p[1].data.ipv4;
+		smp->data.u.ipv4 = arg_p[1].data.ipv4;
 		break;
 
 	case SMP_T_IPV6:
 		smp->data.type = SMP_T_IPV6;
-		smp->data.data.ipv6 = arg_p[1].data.ipv6;
+		smp->data.u.ipv6 = arg_p[1].data.ipv6;
 		break;
 	}
 

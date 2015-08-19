@@ -499,7 +499,7 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 
 static int c_ip2int(struct sample *smp)
 {
-	smp->data.data.sint = ntohl(smp->data.data.ipv4.s_addr);
+	smp->data.u.sint = ntohl(smp->data.u.ipv4.s_addr);
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
@@ -508,11 +508,11 @@ static int c_ip2str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	if (!inet_ntop(AF_INET, (void *)&smp->data.data.ipv4, trash->str, trash->size))
+	if (!inet_ntop(AF_INET, (void *)&smp->data.u.ipv4, trash->str, trash->size))
 		return 0;
 
 	trash->len = strlen(trash->str);
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 
@@ -521,14 +521,14 @@ static int c_ip2str(struct sample *smp)
 
 static int c_ip2ipv6(struct sample *smp)
 {
-	v4tov6(&smp->data.data.ipv6, &smp->data.data.ipv4);
+	v4tov6(&smp->data.u.ipv6, &smp->data.u.ipv4);
 	smp->data.type = SMP_T_IPV6;
 	return 1;
 }
 
 static int c_ipv62ip(struct sample *smp)
 {
-	if (!v6tov4(&smp->data.data.ipv4, &smp->data.data.ipv6))
+	if (!v6tov4(&smp->data.u.ipv4, &smp->data.u.ipv6))
 		return 0;
 	smp->data.type = SMP_T_IPV6;
 	return 1;
@@ -538,11 +538,11 @@ static int c_ipv62str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	if (!inet_ntop(AF_INET6, (void *)&smp->data.data.ipv6, trash->str, trash->size))
+	if (!inet_ntop(AF_INET6, (void *)&smp->data.u.ipv6, trash->str, trash->size))
 		return 0;
 
 	trash->len = strlen(trash->str);
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
@@ -551,29 +551,29 @@ static int c_ipv62str(struct sample *smp)
 /*
 static int c_ipv62ip(struct sample *smp)
 {
-	return v6tov4(&smp->data.data.ipv4, &smp->data.data.ipv6);
+	return v6tov4(&smp->data.u.ipv4, &smp->data.u.ipv6);
 }
 */
 
 static int c_int2ip(struct sample *smp)
 {
-	smp->data.data.ipv4.s_addr = htonl((unsigned int)smp->data.data.sint);
+	smp->data.u.ipv4.s_addr = htonl((unsigned int)smp->data.u.sint);
 	smp->data.type = SMP_T_IPV4;
 	return 1;
 }
 
 static int c_int2ipv6(struct sample *smp)
 {
-	smp->data.data.ipv4.s_addr = htonl((unsigned int)smp->data.data.sint);
-	v4tov6(&smp->data.data.ipv6, &smp->data.data.ipv4);
+	smp->data.u.ipv4.s_addr = htonl((unsigned int)smp->data.u.sint);
+	v4tov6(&smp->data.u.ipv6, &smp->data.u.ipv4);
 	smp->data.type = SMP_T_IPV6;
 	return 1;
 }
 
 static int c_str2addr(struct sample *smp)
 {
-	if (!buf2ip(smp->data.data.str.str, smp->data.data.str.len, &smp->data.data.ipv4)) {
-		if (!buf2ip6(smp->data.data.str.str, smp->data.data.str.len, &smp->data.data.ipv6))
+	if (!buf2ip(smp->data.u.str.str, smp->data.u.str.len, &smp->data.u.ipv4)) {
+		if (!buf2ip6(smp->data.u.str.str, smp->data.u.str.len, &smp->data.u.ipv6))
 			return 0;
 		smp->data.type = SMP_T_IPV6;
 		smp->flags &= ~SMP_F_CONST;
@@ -586,7 +586,7 @@ static int c_str2addr(struct sample *smp)
 
 static int c_str2ip(struct sample *smp)
 {
-	if (!buf2ip(smp->data.data.str.str, smp->data.data.str.len, &smp->data.data.ipv4))
+	if (!buf2ip(smp->data.u.str.str, smp->data.u.str.len, &smp->data.u.ipv4))
 		return 0;
 	smp->data.type = SMP_T_IPV4;
 	smp->flags &= ~SMP_F_CONST;
@@ -595,7 +595,7 @@ static int c_str2ip(struct sample *smp)
 
 static int c_str2ipv6(struct sample *smp)
 {
-	if (!buf2ip6(smp->data.data.str.str, smp->data.data.str.len, &smp->data.data.ipv6))
+	if (!buf2ip6(smp->data.u.str.str, smp->data.u.str.len, &smp->data.u.ipv6))
 		return 0;
 	smp->data.type = SMP_T_IPV6;
 	smp->flags &= ~SMP_F_CONST;
@@ -610,9 +610,9 @@ static int c_bin2str(struct sample *smp)
 {
 	int i;
 
-	for (i = 0; i < smp->data.data.str.len; i++) {
-		if (!smp->data.data.str.str[i]) {
-			smp->data.data.str.len = i;
+	for (i = 0; i < smp->data.u.str.len; i++) {
+		if (!smp->data.u.str.str[i]) {
+			smp->data.u.str.len = i;
 			break;
 		}
 	}
@@ -624,14 +624,14 @@ static int c_int2str(struct sample *smp)
 	struct chunk *trash = get_trash_chunk();
 	char *pos;
 
-	pos = lltoa_r(smp->data.data.sint, trash->str, trash->size);
+	pos = lltoa_r(smp->data.u.sint, trash->str, trash->size);
 	if (!pos)
 		return 0;
 
 	trash->size = trash->size - (pos - trash->str);
 	trash->str = pos;
 	trash->len = strlen(pos);
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
@@ -660,9 +660,9 @@ int smp_dup(struct sample *smp)
 	case SMP_T_BIN:
 		/* Duplicate data. */
 		trash = get_trash_chunk();
-		trash->len = smp->data.data.str.len < trash->size ? smp->data.data.str.len : trash->size;
-		memcpy(trash->str, smp->data.data.str.str, trash->len);
-		smp->data.data.str = *trash;
+		trash->len = smp->data.u.str.len < trash->size ? smp->data.u.str.len : trash->size;
+		memcpy(trash->str, smp->data.u.str.str, trash->len);
+		smp->data.u.str = *trash;
 		break;
 	default:
 		/* Other cases are unexpected. */
@@ -684,13 +684,13 @@ static int c_str2int(struct sample *smp)
 	const char *str;
 	const char *end;
 
-	if (smp->data.data.str.len == 0)
+	if (smp->data.u.str.len == 0)
 		return 0;
 
-	str = smp->data.data.str.str;
-	end = smp->data.data.str.str + smp->data.data.str.len;
+	str = smp->data.u.str.str;
+	end = smp->data.u.str.str + smp->data.u.str.len;
 
-	smp->data.data.sint = read_int64(&str, end);
+	smp->data.u.sint = read_int64(&str, end);
 	smp->data.type = SMP_T_SINT;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
@@ -701,15 +701,15 @@ static int c_str2meth(struct sample *smp)
 	enum http_meth_t meth;
 	int len;
 
-	meth = find_http_meth(smp->data.data.str.str, smp->data.data.str.len);
+	meth = find_http_meth(smp->data.u.str.str, smp->data.u.str.len);
 	if (meth == HTTP_METH_OTHER) {
-		len = smp->data.data.str.len;
-		smp->data.data.meth.str.str = smp->data.data.str.str;
-		smp->data.data.meth.str.len = len;
+		len = smp->data.u.str.len;
+		smp->data.u.meth.str.str = smp->data.u.str.str;
+		smp->data.u.meth.str.len = len;
 	}
 	else
 		smp->flags &= ~SMP_F_CONST;
-	smp->data.data.meth.meth = meth;
+	smp->data.u.meth.meth = meth;
 	smp->data.type = SMP_T_METH;
 	return 1;
 }
@@ -719,18 +719,18 @@ static int c_meth2str(struct sample *smp)
 	int len;
 	enum http_meth_t meth;
 
-	if (smp->data.data.meth.meth == HTTP_METH_OTHER) {
+	if (smp->data.u.meth.meth == HTTP_METH_OTHER) {
 		/* The method is unknown. Copy the original pointer. */
-		len = smp->data.data.meth.str.len;
-		smp->data.data.str.str = smp->data.data.meth.str.str;
-		smp->data.data.str.len = len;
+		len = smp->data.u.meth.str.len;
+		smp->data.u.str.str = smp->data.u.meth.str.str;
+		smp->data.u.str.len = len;
 		smp->data.type = SMP_T_STR;
 	}
-	else if (smp->data.data.meth.meth < HTTP_METH_OTHER) {
+	else if (smp->data.u.meth.meth < HTTP_METH_OTHER) {
 		/* The method is known, copy the pointer containing the string. */
-		meth = smp->data.data.meth.meth;
-		smp->data.data.str.str = http_known_methods[meth].name;
-		smp->data.data.str.len = http_known_methods[meth].len;
+		meth = smp->data.u.meth.meth;
+		smp->data.u.str.str = http_known_methods[meth].name;
+		smp->data.u.str.len = http_known_methods[meth].len;
 		smp->flags |= SMP_F_CONST;
 		smp->data.type = SMP_T_STR;
 	}
@@ -747,16 +747,16 @@ static int c_addr2bin(struct sample *smp)
 
 	if (smp->data.type == SMP_T_IPV4) {
 		chk->len = 4;
-		memcpy(chk->str, &smp->data.data.ipv4, chk->len);
+		memcpy(chk->str, &smp->data.u.ipv4, chk->len);
 	}
 	else if (smp->data.type == SMP_T_IPV6) {
 		chk->len = 16;
-		memcpy(chk->str, &smp->data.data.ipv6, chk->len);
+		memcpy(chk->str, &smp->data.u.ipv6, chk->len);
 	}
 	else
 		return 0;
 
-	smp->data.data.str = *chk;
+	smp->data.u.str = *chk;
 	smp->data.type = SMP_T_BIN;
 	return 1;
 }
@@ -765,10 +765,10 @@ static int c_int2bin(struct sample *smp)
 {
 	struct chunk *chk = get_trash_chunk();
 
-	*(unsigned long long int *)chk->str = htonll(smp->data.data.sint);
+	*(unsigned long long int *)chk->str = htonll(smp->data.u.sint);
 	chk->len = 8;
 
-	smp->data.data.str = *chk;
+	smp->data.u.str = *chk;
 	smp->data.type = SMP_T_BIN;
 	return 1;
 }
@@ -1397,9 +1397,9 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 			else {
 				/* Display the displayable chars*. */
 				fprintf(stderr, "<");
-				for (i = 0; i < tmp.data.data.str.len; i++) {
-					if (isprint(tmp.data.data.str.str[i]))
-						fputc(tmp.data.data.str.str[i], stderr);
+				for (i = 0; i < tmp.data.u.str.len; i++) {
+					if (isprint(tmp.data.u.str.str[i]))
+						fputc(tmp.data.u.str.str[i], stderr);
 					else
 						fputc('.', stderr);
 				}
@@ -1417,12 +1417,12 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, v
 	int b64_len;
 
 	trash->len = 0;
-	b64_len = a2base64(smp->data.data.str.str, smp->data.data.str.len, trash->str, trash->size);
+	b64_len = a2base64(smp->data.u.str.str, smp->data.u.str.len, trash->str, trash->size);
 	if (b64_len < 0)
 		return 0;
 
 	trash->len = b64_len;
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
@@ -1435,12 +1435,12 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 	int ptr = 0;
 
 	trash->len = 0;
-	while (ptr < smp->data.data.str.len && trash->len <= trash->size - 2) {
-		c = smp->data.data.str.str[ptr++];
+	while (ptr < smp->data.u.str.len && trash->len <= trash->size - 2) {
+		c = smp->data.u.str.str[ptr++];
 		trash->str[trash->len++] = hextab[(c >> 4) & 0xF];
 		trash->str[trash->len++] = hextab[c & 0xF];
 	}
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
@@ -1449,9 +1449,9 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.sint = hash_djb2(smp->data.data.str.str, smp->data.data.str.len);
+	smp->data.u.sint = hash_djb2(smp->data.u.str.str, smp->data.u.str.len);
 	if (arg_p && arg_p->data.sint)
-		smp->data.data.sint = full_hash(smp->data.data.sint);
+		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
@@ -1463,12 +1463,12 @@ static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp, vo
 	if (!smp_dup(smp))
 		return 0;
 
-	if (!smp->data.data.str.size)
+	if (!smp->data.u.str.size)
 		return 0;
 
-	for (i = 0; i < smp->data.data.str.len; i++) {
-		if ((smp->data.data.str.str[i] >= 'A') && (smp->data.data.str.str[i] <= 'Z'))
-			smp->data.data.str.str[i] += 'a' - 'A';
+	for (i = 0; i < smp->data.u.str.len; i++) {
+		if ((smp->data.u.str.str[i] >= 'A') && (smp->data.u.str.str[i] <= 'Z'))
+			smp->data.u.str.str[i] += 'a' - 'A';
 	}
 	return 1;
 }
@@ -1480,12 +1480,12 @@ static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, vo
 	if (!smp_dup(smp))
 		return 0;
 
-	if (!smp->data.data.str.size)
+	if (!smp->data.u.str.size)
 		return 0;
 
-	for (i = 0; i < smp->data.data.str.len; i++) {
-		if ((smp->data.data.str.str[i] >= 'a') && (smp->data.data.str.str[i] <= 'z'))
-			smp->data.data.str.str[i] += 'A' - 'a';
+	for (i = 0; i < smp->data.u.str.len; i++) {
+		if ((smp->data.u.str.str[i] >= 'a') && (smp->data.u.str.str[i] <= 'z'))
+			smp->data.u.str.str[i] += 'A' - 'a';
 	}
 	return 1;
 }
@@ -1493,7 +1493,7 @@ static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, vo
 /* takes the netmask in arg_p */
 static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
+	smp->data.u.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
 	smp->data.type = SMP_T_IPV4;
 	return 1;
 }
@@ -1506,7 +1506,7 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 {
 	struct chunk *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
-	time_t curr_date = smp->data.data.sint & 0x007fffffffffffffLL;
+	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
 
 	/* add offset */
@@ -1518,7 +1518,7 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 		return 0;
 	temp = get_trash_chunk();
 	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, tm);
-	smp->data.data.str = *temp;
+	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 	return 1;
 }
@@ -1526,9 +1526,9 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.sint = hash_sdbm(smp->data.data.str.str, smp->data.data.str.len);
+	smp->data.u.sint = hash_sdbm(smp->data.u.str.str, smp->data.u.str.len);
 	if (arg_p && arg_p->data.sint)
-		smp->data.data.sint = full_hash(smp->data.data.sint);
+		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
@@ -1541,7 +1541,7 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 {
 	struct chunk *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
-	time_t curr_date = smp->data.data.sint & 0x007fffffffffffffLL;
+	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
 
 	/* add offset */
@@ -1553,7 +1553,7 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 		return 0;
 	temp = get_trash_chunk();
 	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, tm);
-	smp->data.data.str = *temp;
+	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 	return 1;
 }
@@ -1561,9 +1561,9 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.sint = hash_wt6(smp->data.data.str.str, smp->data.data.str.len);
+	smp->data.u.sint = hash_wt6(smp->data.u.str.str, smp->data.u.str.len);
 	if (arg_p && arg_p->data.sint)
-		smp->data.data.sint = full_hash(smp->data.data.sint);
+		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
@@ -1571,9 +1571,9 @@ static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *pr
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.sint = hash_crc32(smp->data.data.str.str, smp->data.data.str.len);
+	smp->data.u.sint = hash_crc32(smp->data.u.str.str, smp->data.u.str.len);
 	if (arg_p && arg_p->data.sint)
-		smp->data.data.sint = full_hash(smp->data.data.sint);
+		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
@@ -1666,8 +1666,8 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 	temp = get_trash_chunk();
 	temp->len = 0;
 
-	p = smp->data.data.str.str;
-	while (p < smp->data.data.str.str + smp->data.data.str.len) {
+	p = smp->data.u.str.str;
+	while (p < smp->data.u.str.str + smp->data.u.str.len) {
 
 		if (input_type == IT_ASCII) {
 			/* Read input as ASCII. */
@@ -1676,7 +1676,7 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 		}
 		else {
 			/* Read input as UTF8. */
-			ret = utf8_next(p, smp->data.data.str.len - ( p - smp->data.data.str.str ), &c);
+			ret = utf8_next(p, smp->data.u.str.len - ( p - smp->data.u.str.str ), &c);
 			p += utf8_return_length(ret);
 
 			if (input_type == IT_UTF8 && utf8_return_code(ret) != UTF8_CODE_OK)
@@ -1754,7 +1754,7 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 	}
 
 	smp->flags &= ~SMP_F_CONST;
-	smp->data.data.str = *temp;
+	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 
 	return 1;
@@ -1765,18 +1765,18 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
  * Optional second arg is the length to truncate */
 static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	if (smp->data.data.str.len <= arg_p[0].data.sint) {
-		smp->data.data.str.len = 0;
+	if (smp->data.u.str.len <= arg_p[0].data.sint) {
+		smp->data.u.str.len = 0;
 		return 1;
 	}
 
-	if (smp->data.data.str.size)
-			smp->data.data.str.size -= arg_p[0].data.sint;
-	smp->data.data.str.len -= arg_p[0].data.sint;
-	smp->data.data.str.str += arg_p[0].data.sint;
+	if (smp->data.u.str.size)
+			smp->data.u.str.size -= arg_p[0].data.sint;
+	smp->data.u.str.len -= arg_p[0].data.sint;
+	smp->data.u.str.str += arg_p[0].data.sint;
 
-	if ((arg_p[1].type == ARGT_SINT) && (arg_p[1].data.sint < smp->data.data.str.len))
-		smp->data.data.str.len = arg_p[1].data.sint;
+	if ((arg_p[1].type == ARGT_SINT) && (arg_p[1].data.sint < smp->data.u.str.len))
+		smp->data.u.str.len = arg_p[1].data.sint;
 
 	return 1;
 }
@@ -1830,8 +1830,8 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 		return 0;
 
 	field = 1;
-	end = start = smp->data.data.str.str;
-	while (end - smp->data.data.str.str < smp->data.data.str.len) {
+	end = start = smp->data.u.str.str;
+	while (end - smp->data.u.str.str < smp->data.u.str.len) {
 
 		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
 			if (*end == arg_p[1].data.str.str[i]) {
@@ -1847,22 +1847,22 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 
 	/* Field not found */
 	if (field != arg_p[0].data.sint) {
-		smp->data.data.str.len = 0;
+		smp->data.u.str.len = 0;
 		return 1;
 	}
 found:
-	smp->data.data.str.len = end - start;
+	smp->data.u.str.len = end - start;
 	/* If ret string is len 0, no need to
            change pointers or to update size */
-	if (!smp->data.data.str.len)
+	if (!smp->data.u.str.len)
 		return 1;
 
-	smp->data.data.str.str = start;
+	smp->data.u.str.str = start;
 
 	/* Compute remaining size if needed
-           Note: smp->data.data.str.size cannot be set to 0 */
-	if (smp->data.data.str.size)
-		smp->data.data.str.size -= start - smp->data.data.str.str;
+           Note: smp->data.u.str.size cannot be set to 0 */
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= start - smp->data.u.str.str;
 
 	return 1;
 }
@@ -1882,8 +1882,8 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 
 	word = 0;
 	inword = 0;
-	end = start = smp->data.data.str.str;
-	while (end - smp->data.data.str.str < smp->data.data.str.len) {
+	end = start = smp->data.u.str.str;
+	while (end - smp->data.u.str.str < smp->data.u.str.len) {
 		issep = 0;
 		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
 			if (*end == arg_p[1].data.str.str[i]) {
@@ -1908,22 +1908,22 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 
 	/* Field not found */
 	if (word != arg_p[0].data.sint) {
-		smp->data.data.str.len = 0;
+		smp->data.u.str.len = 0;
 		return 1;
 	}
 found:
-	smp->data.data.str.len = end - start;
+	smp->data.u.str.len = end - start;
 	/* If ret string is len 0, no need to
            change pointers or to update size */
-	if (!smp->data.data.str.len)
+	if (!smp->data.u.str.len)
 		return 1;
 
-	smp->data.data.str.str = start;
+	smp->data.u.str.str = start;
 
 	/* Compute remaining size if needed
-           Note: smp->data.data.str.size cannot be set to 0 */
-	if (smp->data.data.str.size)
-		smp->data.data.str.size -= start - smp->data.data.str.str;
+           Note: smp->data.u.str.size cannot be set to 0 */
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= start - smp->data.u.str.str;
 
 	return 1;
 }
@@ -1974,8 +1974,8 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	int flag, max;
 	int found;
 
-	start = smp->data.data.str.str;
-	end = start + smp->data.data.str.len;
+	start = smp->data.u.str.str;
+	end = start + smp->data.u.str.len;
 
 	flag = 0;
 	while (1) {
@@ -2030,7 +2030,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 		flag |= REG_NOTBOL;
 	}
 
-	smp->data.data.str = *trash;
+	smp->data.u.str = *trash;
 	return 1;
 }
 
@@ -2071,7 +2071,7 @@ static inline int sample_conv_var2smp(const struct arg *arg, struct stream *strm
 	switch (arg->type) {
 	case ARGT_SINT:
 		smp->data.type = SMP_T_SINT;
-		smp->data.data.sint = arg->data.sint;
+		smp->data.u.sint = arg->data.sint;
 		return 1;
 	case ARGT_VAR:
 		if (!vars_get_by_desc(&arg->data.var, strm, smp))
@@ -2091,7 +2091,7 @@ static inline int sample_conv_var2smp(const struct arg *arg, struct stream *strm
  */
 static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	smp->data.data.sint = ~smp->data.data.sint;
+	smp->data.u.sint = ~smp->data.u.sint;
 	return 1;
 }
 
@@ -2104,7 +2104,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, v
 
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
-	smp->data.data.sint &= tmp.data.data.sint;
+	smp->data.u.sint &= tmp.data.u.sint;
 	return 1;
 }
 
@@ -2117,7 +2117,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, vo
 
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
-	smp->data.data.sint |= tmp.data.data.sint;
+	smp->data.u.sint |= tmp.data.u.sint;
 	return 1;
 }
 
@@ -2130,7 +2130,7 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, v
 
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
-	smp->data.data.sint ^= tmp.data.data.sint;
+	smp->data.u.sint ^= tmp.data.u.sint;
 	return 1;
 }
 
@@ -2169,7 +2169,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
-	smp->data.data.sint = arith_add(smp->data.data.sint, tmp.data.data.sint);
+	smp->data.u.sint = arith_add(smp->data.u.sint, tmp.data.u.sint);
 	return 1;
 }
 
@@ -2188,17 +2188,17 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 	 * than abs(LLONG_MAX). So, the following code use LLONG_MAX in place
 	 * of -LLONG_MIN and correct the result.
 	 */
-	if (tmp.data.data.sint == LLONG_MIN) {
-		smp->data.data.sint = arith_add(smp->data.data.sint, LLONG_MAX);
-		if (smp->data.data.sint < LLONG_MAX)
-			smp->data.data.sint++;
+	if (tmp.data.u.sint == LLONG_MIN) {
+		smp->data.u.sint = arith_add(smp->data.u.sint, LLONG_MAX);
+		if (smp->data.u.sint < LLONG_MAX)
+			smp->data.u.sint++;
 		return 1;
 	}
 
 	/* standard substraction: we use the "add" function and negate
 	 * the second operand.
 	 */
-	smp->data.data.sint = arith_add(smp->data.data.sint, -tmp.data.data.sint);
+	smp->data.u.sint = arith_add(smp->data.u.sint, -tmp.data.u.sint);
 	return 1;
 }
 
@@ -2217,32 +2217,32 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 		return 0;
 
 	/* prevent divide by 0 during the check */
-	if (!smp->data.data.sint || !tmp.data.data.sint) {
-		smp->data.data.sint = 0;
+	if (!smp->data.u.sint || !tmp.data.u.sint) {
+		smp->data.u.sint = 0;
 		return 1;
 	}
 
 	/* The multiply between LLONG_MIN and -1 returns a
 	 * "floting point exception".
 	 */
-	if (smp->data.data.sint == LLONG_MIN && tmp.data.data.sint == -1) {
-		smp->data.data.sint = LLONG_MAX;
+	if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
+		smp->data.u.sint = LLONG_MAX;
 		return 1;
 	}
 
 	/* execute standard multiplication. */
-	c = smp->data.data.sint * tmp.data.data.sint;
+	c = smp->data.u.sint * tmp.data.u.sint;
 
 	/* check for overflow and makes capped multiply. */
-	if (smp->data.data.sint != c / tmp.data.data.sint) {
-		if ((smp->data.data.sint < 0) == (tmp.data.data.sint < 0)) {
-			smp->data.data.sint = LLONG_MAX;
+	if (smp->data.u.sint != c / tmp.data.u.sint) {
+		if ((smp->data.u.sint < 0) == (tmp.data.u.sint < 0)) {
+			smp->data.u.sint = LLONG_MAX;
 			return 1;
 		}
-		smp->data.data.sint = LLONG_MIN;
+		smp->data.u.sint = LLONG_MIN;
 		return 1;
 	}
-	smp->data.data.sint = c;
+	smp->data.u.sint = c;
 	return 1;
 }
 
@@ -2259,18 +2259,18 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
-	if (tmp.data.data.sint) {
+	if (tmp.data.u.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
 		 * "floting point exception".
 		 */
-		if (smp->data.data.sint == LLONG_MIN && tmp.data.data.sint == -1) {
-			smp->data.data.sint = LLONG_MAX;
+		if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
+			smp->data.u.sint = LLONG_MAX;
 			return 1;
 		}
-		smp->data.data.sint /= tmp.data.data.sint;
+		smp->data.u.sint /= tmp.data.u.sint;
 		return 1;
 	}
-	smp->data.data.sint = LLONG_MAX;
+	smp->data.u.sint = LLONG_MAX;
 	return 1;
 }
 
@@ -2286,18 +2286,18 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
-	if (tmp.data.data.sint) {
+	if (tmp.data.u.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
 		 * "floting point exception".
 		 */
-		if (smp->data.data.sint == LLONG_MIN && tmp.data.data.sint == -1) {
-			smp->data.data.sint = 0;
+		if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
+			smp->data.u.sint = 0;
 			return 1;
 		}
-		smp->data.data.sint %= tmp.data.data.sint;
+		smp->data.u.sint %= tmp.data.u.sint;
 		return 1;
 	}
-	smp->data.data.sint = 0;
+	smp->data.u.sint = 0;
 	return 1;
 }
 
@@ -2307,10 +2307,10 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 static int sample_conv_arith_neg(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	if (smp->data.data.sint == LLONG_MIN)
-		smp->data.data.sint = LLONG_MAX;
+	if (smp->data.u.sint == LLONG_MIN)
+		smp->data.u.sint = LLONG_MAX;
 	else
-		smp->data.data.sint = -smp->data.data.sint;
+		smp->data.u.sint = -smp->data.u.sint;
 	return 1;
 }
 
@@ -2320,7 +2320,7 @@ static int sample_conv_arith_neg(const struct arg *arg_p,
 static int sample_conv_arith_bool(const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
-	smp->data.data.sint = !!smp->data.data.sint;
+	smp->data.u.sint = !!smp->data.u.sint;
 	smp->data.type = SMP_T_BOOL;
 	return 1;
 }
@@ -2331,7 +2331,7 @@ static int sample_conv_arith_bool(const struct arg *arg_p,
 static int sample_conv_arith_not(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.data.sint = !smp->data.data.sint;
+	smp->data.u.sint = !smp->data.u.sint;
 	smp->data.type = SMP_T_BOOL;
 	return 1;
 }
@@ -2342,7 +2342,7 @@ static int sample_conv_arith_not(const struct arg *arg_p,
 static int sample_conv_arith_odd(const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
-	smp->data.data.sint = smp->data.data.sint & 1;
+	smp->data.u.sint = smp->data.u.sint & 1;
 	smp->data.type = SMP_T_BOOL;
 	return 1;
 }
@@ -2353,7 +2353,7 @@ static int sample_conv_arith_odd(const struct arg *arg_p,
 static int sample_conv_arith_even(const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
-	smp->data.data.sint = !(smp->data.data.sint & 1);
+	smp->data.u.sint = !(smp->data.u.sint & 1);
 	smp->data.type = SMP_T_BOOL;
 	return 1;
 }
@@ -2367,7 +2367,7 @@ static int
 smp_fetch_true(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = 1;
+	smp->data.u.sint = 1;
 	return 1;
 }
 
@@ -2376,7 +2376,7 @@ static int
 smp_fetch_false(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = 0;
+	smp->data.u.sint = 0;
 	return 1;
 }
 
@@ -2395,8 +2395,8 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.data.str.str = env;
-	smp->data.data.str.len = strlen(env);
+	smp->data.u.str.str = env;
+	smp->data.u.str.len = strlen(env);
 	return 1;
 }
 
@@ -2406,11 +2406,11 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 static int
 smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.data.sint = date.tv_sec;
+	smp->data.u.sint = date.tv_sec;
 
 	/* add offset */
 	if (args && args[0].type == ARGT_SINT)
-		smp->data.data.sint += args[0].data.sint;
+		smp->data.u.sint += args[0].data.sint;
 
 	smp->data.type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
@@ -2422,7 +2422,7 @@ static int
 smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = global.nbproc;
+	smp->data.u.sint = global.nbproc;
 	return 1;
 }
 
@@ -2431,7 +2431,7 @@ static int
 smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = relative_pid;
+	smp->data.u.sint = relative_pid;
 	return 1;
 }
 
@@ -2441,11 +2441,11 @@ smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void 
 static int
 smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.data.sint = random();
+	smp->data.u.sint = random();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args && args[0].type == ARGT_SINT)
-		smp->data.data.sint = (smp->data.data.sint * args[0].data.sint) / ((u64)RAND_MAX+1);
+		smp->data.u.sint = (smp->data.u.sint * args[0].data.sint) / ((u64)RAND_MAX+1);
 
 	smp->data.type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
@@ -2457,7 +2457,7 @@ static int
 smp_fetch_stopping(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = stopping;
+	smp->data.u.sint = stopping;
 	return 1;
 }
 
@@ -2465,8 +2465,8 @@ static int smp_fetch_const_str(const struct arg *args, struct sample *smp, const
 {
 	smp->flags |= SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
-	smp->data.data.str.str = args[0].data.str.str;
-	smp->data.data.str.len = args[0].data.str.len;
+	smp->data.u.str.str = args[0].data.str.str;
+	smp->data.u.str.len = args[0].data.str.len;
 	return 1;
 }
 
@@ -2491,28 +2491,28 @@ static int smp_check_const_bool(struct arg *args, char **err)
 static int smp_fetch_const_bool(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = args[0].data.sint;
+	smp->data.u.sint = args[0].data.sint;
 	return 1;
 }
 
 static int smp_fetch_const_int(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = args[0].data.sint;
+	smp->data.u.sint = args[0].data.sint;
 	return 1;
 }
 
 static int smp_fetch_const_ipv4(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_IPV4;
-	smp->data.data.ipv4 = args[0].data.ipv4;
+	smp->data.u.ipv4 = args[0].data.ipv4;
 	return 1;
 }
 
 static int smp_fetch_const_ipv6(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_IPV6;
-	smp->data.data.ipv6 = args[0].data.ipv6;
+	smp->data.u.ipv6 = args[0].data.ipv6;
 	return 1;
 }
 
@@ -2533,8 +2533,8 @@ static int smp_fetch_const_bin(const struct arg *args, struct sample *smp, const
 {
 	smp->flags |= SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
-	smp->data.data.str.str = args[0].data.str.str;
-	smp->data.data.str.len = args[0].data.str.len;
+	smp->data.u.str.str = args[0].data.str.str;
+	smp->data.u.str.len = args[0].data.str.len;
 	return 1;
 }
 
@@ -2568,14 +2568,14 @@ static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, cons
 	smp->data.type = SMP_T_METH;
 	if (args[0].type == ARGT_SINT) {
 		smp->flags &= ~SMP_F_CONST;
-		smp->data.data.meth.meth = args[0].data.sint;
-		smp->data.data.meth.str.str = "";
-		smp->data.data.meth.str.len = 0;
+		smp->data.u.meth.meth = args[0].data.sint;
+		smp->data.u.meth.str.str = "";
+		smp->data.u.meth.str.len = 0;
 	} else {
 		smp->flags |= SMP_F_CONST;
-		smp->data.data.meth.meth = HTTP_METH_OTHER;
-		smp->data.data.meth.str.str = args[0].data.str.str;
-		smp->data.data.meth.str.len = args[0].data.str.len;
+		smp->data.u.meth.meth = HTTP_METH_OTHER;
+		smp->data.u.meth.str.str = args[0].data.str.str;
+		smp->data.u.meth.str.len = args[0].data.str.len;
 	}
 	return 1;
 }

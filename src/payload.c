@@ -36,7 +36,7 @@ smp_fetch_wait_end(const struct arg *args, struct sample *smp, const char *kw, v
 		return 0;
 	}
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = 1;
+	smp->data.u.sint = 1;
 	return 1;
 }
 
@@ -51,7 +51,7 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = chn->buf->i;
+	smp->data.u.sint = chn->buf->i;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -160,7 +160,7 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 		/* Elliptic curves extension */
 		if (ext_type == 10) {
 			smp->data.type = SMP_T_BOOL;
-			smp->data.data.sint = 1;
+			smp->data.u.sint = 1;
 			smp->flags = SMP_F_VOLATILE;
 			return 1;
 		}
@@ -225,7 +225,7 @@ smp_fetch_ssl_hello_type(const struct arg *args, struct sample *smp, const char 
 	}
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = hs_type;
+	smp->data.u.sint = hs_type;
 	smp->flags = SMP_F_VOLATILE;
 
 	return 1;
@@ -339,7 +339,7 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 	 * the protocol version.
 	 */
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = version;
+	smp->data.u.sint = version;
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
@@ -493,8 +493,8 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 
 			if (name_type == 0) { /* hostname */
 				smp->data.type = SMP_T_STR;
-				smp->data.data.str.str = (char *)data + 9;
-				smp->data.data.str.len = name_len;
+				smp->data.u.str.str = (char *)data + 9;
+				smp->data.u.str.len = name_len;
 				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 				return 1;
 			}
@@ -580,8 +580,8 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	}
 
 	/* data points to cookie value */
-	smp->data.data.str.str = (char *)data;
-	smp->data.data.str.len = 0;
+	smp->data.u.str.str = (char *)data;
+	smp->data.u.str.len = 0;
 
 	while (bleft > 0 && *data != '\r') {
 		data++;
@@ -594,7 +594,7 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	if (data[0] != '\r' || data[1] != '\n')
 		goto not_cookie;
 
-	smp->data.data.str.len = (char *)data - smp->data.data.str.str;
+	smp->data.u.str.len = (char *)data - smp->data.u.str.str;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	return 1;
 
@@ -629,7 +629,7 @@ smp_fetch_rdp_cookie_cnt(const struct arg *args, struct sample *smp, const char 
 
 	smp->flags = SMP_F_VOLATILE;
 	smp->data.type = SMP_T_SINT;
-	smp->data.data.sint = ret;
+	smp->data.u.sint = ret;
 	return 1;
 }
 
@@ -682,7 +682,7 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.data.str, chn->buf->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.u.str, chn->buf->p + buf_offset, 0, buf_size);
 	return 1;
 
  too_short:
@@ -714,7 +714,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.data.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
+	chunk_initlen(&smp->data.u.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
 	if (!buf_size && channel_may_recv(chn) && !channel_input_closed(chn))
 		smp->flags |= SMP_F_MAY_CHANGE;
 

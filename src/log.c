@@ -993,9 +993,9 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
 				if (tmp->options & LOG_OPT_HTTP)
 					ret = encode_chunk(tmplog, dst + maxsize,
-					                   '%', http_encode_map, key ? &key->data.data.str : &empty);
+					                   '%', http_encode_map, key ? &key->data.u.str : &empty);
 				else
-					ret = lf_text_len(tmplog, key ? key->data.data.str.str : NULL, key ? key->data.data.str.len : 0, dst + maxsize - tmplog, tmp);
+					ret = lf_text_len(tmplog, key ? key->data.u.str.str : NULL, key ? key->data.u.str.len : 0, dst + maxsize - tmplog, tmp);
 				if (ret == 0)
 					goto out;
 				tmplog = ret;

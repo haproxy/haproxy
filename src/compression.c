@@ -841,7 +841,7 @@ static int
 smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
-	smp->data.data.sint = (smp->strm->comp_algo != NULL);
+	smp->data.u.sint = (smp->strm->comp_algo != NULL);
 	return 1;
 }
 
@@ -854,8 +854,8 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp, const char *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.data.str.str = smp->strm->comp_algo->cfg_name;
-	smp->data.data.str.len = smp->strm->comp_algo->cfg_name_len;
+	smp->data.u.str.str = smp->strm->comp_algo->cfg_name;
+	smp->data.u.str.len = smp->strm->comp_algo->cfg_name_len;
 	return 1;
 }
 

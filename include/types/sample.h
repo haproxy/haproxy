@@ -253,7 +253,7 @@ union sample_value {
 /* Used to store sample constant */
 struct sample_data {
 	int type;                 /* SMP_T_* */
-	union sample_value data;  /* sample data */
+	union sample_value u;     /* sample data */
 };
 
 /* a sample is a typed data extracted from a stream. It has a type, contents,

@@ -385,16 +385,16 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 	switch (smp->data.type) {
 	case SMP_T_SINT:
 	case SMP_T_BOOL:
-		lua_pushinteger(L, smp->data.data.sint);
+		lua_pushinteger(L, smp->data.u.sint);
 		break;
 
 	case SMP_T_BIN:
 	case SMP_T_STR:
-		lua_pushlstring(L, smp->data.data.str.str, smp->data.data.str.len);
+		lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
 		break;
 
 	case SMP_T_METH:
-		switch (smp->data.data.meth.meth) {
+		switch (smp->data.u.meth.meth) {
 		case HTTP_METH_OPTIONS: lua_pushstring(L, "OPTIONS"); break;
 		case HTTP_METH_GET:     lua_pushstring(L, "GET");     break;
 		case HTTP_METH_HEAD:    lua_pushstring(L, "HEAD");    break;
@@ -404,7 +404,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
 		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
 		case HTTP_METH_OTHER:
-			lua_pushlstring(L, smp->data.data.meth.str.str, smp->data.data.meth.str.len);
+			lua_pushlstring(L, smp->data.u.meth.str.str, smp->data.u.meth.str.len);
 			break;
 		default:
 			lua_pushnil(L);
@@ -417,7 +417,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
 		if (sample_casts[smp->data.type][SMP_T_STR] &&
 		    sample_casts[smp->data.type][SMP_T_STR](smp))
-			lua_pushlstring(L, smp->data.data.str.str, smp->data.data.str.len);
+			lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
 		else
 			lua_pushnil(L);
 		break;
@@ -438,11 +438,11 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 
 	case SMP_T_BIN:
 	case SMP_T_STR:
-		lua_pushlstring(L, smp->data.data.str.str, smp->data.data.str.len);
+		lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
 		break;
 
 	case SMP_T_METH:
-		switch (smp->data.data.meth.meth) {
+		switch (smp->data.u.meth.meth) {
 		case HTTP_METH_OPTIONS: lua_pushstring(L, "OPTIONS"); break;
 		case HTTP_METH_GET:     lua_pushstring(L, "GET");     break;
 		case HTTP_METH_HEAD:    lua_pushstring(L, "HEAD");    break;
@@ -452,7 +452,7 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
 		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
 		case HTTP_METH_OTHER:
-			lua_pushlstring(L, smp->data.data.meth.str.str, smp->data.data.meth.str.len);
+			lua_pushlstring(L, smp->data.u.meth.str.str, smp->data.u.meth.str.len);
 			break;
 		default:
 			lua_pushstring(L, "");
@@ -467,7 +467,7 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
 		if (sample_casts[smp->data.type][SMP_T_STR] &&
 		    sample_casts[smp->data.type][SMP_T_STR](smp))
-			lua_pushlstring(L, smp->data.data.str.str, smp->data.data.str.len);
+			lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
 		else
 			lua_pushstring(L, "");
 		break;
@@ -488,19 +488,19 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 
 	case LUA_TNUMBER:
 		smp->data.type = SMP_T_SINT;
-		smp->data.data.sint = lua_tointeger(L, ud);
+		smp->data.u.sint = lua_tointeger(L, ud);
 		break;
 
 
 	case LUA_TBOOLEAN:
 		smp->data.type = SMP_T_BOOL;
-		smp->data.data.sint = lua_toboolean(L, ud);
+		smp->data.u.sint = lua_toboolean(L, ud);
 		break;
 
 	case LUA_TSTRING:
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->data.data.str.str = (char *)lua_tolstring(L, ud, (size_t *)&smp->data.data.str.len);
+		smp->data.u.str.str = (char *)lua_tolstring(L, ud, (size_t *)&smp->data.u.str.len);
 		break;
 
 	case LUA_TUSERDATA:
@@ -510,7 +510,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 	case LUA_TTHREAD:
 	case LUA_TLIGHTUSERDATA:
 		smp->data.type = SMP_T_BOOL;
-		smp->data.data.sint = 0;
+		smp->data.u.sint = 0;
 		break;
 	}
 	return 1;
@@ -1370,12 +1370,12 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	desc = MAY_LJMP(hlua_checkmap(L, 1));
 	if (desc->pat.expect_type == SMP_T_SINT) {
 		smp.data.type = SMP_T_SINT;
-		smp.data.data.sint = MAY_LJMP(luaL_checkinteger(L, 2));
+		smp.data.u.sint = MAY_LJMP(luaL_checkinteger(L, 2));
 	}
 	else {
 		smp.data.type = SMP_T_STR;
 		smp.flags = SMP_F_CONST;
-		smp.data.data.str.str = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.data.str.len));
+		smp.data.u.str.str = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.u.str.len));
 	}
 
 	pat = pattern_exec_match(&desc->pat, &smp, 1);
@@ -1388,7 +1388,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	}
 
 	/* The Lua pattern must return a string, so we can't check the returned type */
-	lua_pushlstring(L, pat->data->data.str.str, pat->data->data.str.len);
+	lua_pushlstring(L, pat->data->u.str.str, pat->data->u.str.len);
 	return 1;
 }
 
