@@ -4284,7 +4284,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.", rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua action '%s': can't initialize Lua context.\n", rule->fcn.name);
-		return 0;
+		return 1;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
@@ -4294,7 +4294,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-			return 0;
+			return 1;
 		}
 
 		/* Restore the function in the stack. */
@@ -4305,7 +4305,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-			return 0;
+			return 1;
 		}
 		s->hlua.nargs = 1;
 
@@ -4315,7 +4315,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 				send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua function '%s': full stack.\n", rule->fcn.name);
-				return 0;
+				return 1;
 			}
 			lua_pushstring(s->hlua.T, *arg);
 			s->hlua.nargs++;
