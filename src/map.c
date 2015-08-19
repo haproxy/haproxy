@@ -161,9 +161,8 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 	if (pat) {
 		/* Copy sample. */
 		if (pat->data) {
-			smp->data.type = pat->data->type;
+			smp->data = *pat->data;
 			smp->flags |= SMP_F_CONST;
-			memcpy(&smp->data.u, &pat->data->u, sizeof(smp->data.u));
 			return 1;
 		}
 

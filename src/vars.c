@@ -249,9 +249,8 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 		return 0;
 
 	/* Copy sample. */
-	smp->data.type = var->data.type;
+	smp->data = var->data;
 	smp->flags |= SMP_F_CONST;
-	memcpy(&smp->data.u, &var->data.u, sizeof(smp->data.u));
 	return 1;
 }
 
@@ -442,9 +441,8 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 		return 0;
 
 	/* Copy sample. */
-	smp->data.type = var->data.type;
+	smp->data = var->data;
 	smp->flags = SMP_F_CONST;
-	memcpy(&smp->data.u, &var->data.u, sizeof(smp->data.u));
 	return 1;
 }
 
@@ -476,9 +474,8 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struc
 		return 0;
 
 	/* Copy sample. */
-	smp->data.type = var->data.type;
+	smp->data = var->data;
 	smp->flags = SMP_F_CONST;
-	memcpy(&smp->data.u, &var->data.u, sizeof(smp->data.u));
 	return 1;
 }
 
