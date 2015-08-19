@@ -23,6 +23,8 @@
 #include <ebsttree.h>
 
 #include <proto/arg.h>
+#include <proto/proto_http.h>
+#include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
@@ -855,6 +857,41 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the value of the GPT0 tag for the key
+ * if the key is present in the table, otherwise false, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPT0);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.u.sint = stktable_data_cast(ptr, gpt0);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns the value of the GPC0 counter for the key
  * if the key is present in the table, otherwise zero, so that comparisons can
  * be easily performed. If the inspected parameter is not stored in the table,
@@ -1272,6 +1309,109 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	return 1;
 }
 
+/* Always returns 1. */
+static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
+                                       struct session *sess, struct stream *s)
+{
+	void *ptr;
+	struct stksess *ts;
+	struct stkctr *stkctr;
+
+	/* Extract the stksess, return OK if no stksess available. */
+	if (s)
+		stkctr = &s->stkctr[rule->arg.gpt.sc];
+	else
+		stkctr = &sess->stkctr[rule->arg.gpt.sc];
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return ACT_RET_CONT;
+
+	/* Store the sample in the required sc, and ignore errors. */
+	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
+	if (ptr)
+		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
+	return ACT_RET_CONT;
+}
+
+/* This function is a common parser for using variables. It understands
+ * the format:
+ *
+ *   set-gpt0(<stick-table ID>) <expression>
+ *
+ * It returns 0 if fails and <err> is filled with an error message. Otherwise,
+ * it returns 1 and the variable <expr> is filled with the pointer to the
+ * expression to execute.
+ */
+static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct proxy *px,
+                                         struct act_rule *rule, char **err)
+
+
+{
+	const char *cmd_name = args[*arg-1];
+	char *error;
+
+	cmd_name += strlen("sc-set-gpt0");
+	if (*cmd_name == '\0') {
+		/* default stick table id. */
+		rule->arg.gpt.sc = 0;
+	} else {
+		/* parse the stick table id. */
+		if (*cmd_name != '(') {
+			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+			return ACT_RET_PRS_ERR;
+		}
+		cmd_name++; /* jump the '(' */
+		rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
+		if (*error != ')') {
+			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+			return ACT_RET_PRS_ERR;
+		}
+
+		if (rule->arg.gpt.sc >= ACT_ACTION_TRK_SCMAX) {
+			memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
+			          args[*arg-1], ACT_ACTION_TRK_SCMAX-1);
+			return ACT_RET_PRS_ERR;
+		}
+	}
+
+	rule->arg.gpt.value = strtol(args[*arg], &error, 10);
+	if (*error != '\0') {
+		memprintf(err, "invalid integer value '%s'", args[*arg]);
+		return ACT_RET_PRS_ERR;
+	}
+	(*arg)++;
+
+	rule->action = ACT_ACTION_CONT;
+	rule->action_ptr = action_set_gpt0;
+
+	return ACT_RET_PRS_OK;
+}
+
+static struct action_kw_list tcp_conn_kws = { { }, {
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
+static struct action_kw_list tcp_req_kws = { { }, {
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
+static struct action_kw_list tcp_res_kws = { { }, {
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
+static struct action_kw_list http_req_kws = { { }, {
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
+static struct action_kw_list http_res_kws = { { }, {
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "in_table",             sample_conv_in_table,             ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_BOOL  },
@@ -1280,6 +1420,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "table_conn_cnt",       sample_conv_table_conn_cnt,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
 	{ "table_conn_cur",       sample_conv_table_conn_cur,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
 	{ "table_conn_rate",      sample_conv_table_conn_rate,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
+	{ "table_gpt0",           sample_conv_table_gpt0,           ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
 	{ "table_gpc0",           sample_conv_table_gpc0,           ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
 	{ "table_gpc0_rate",      sample_conv_table_gpc0_rate,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
 	{ "table_http_err_cnt",   sample_conv_table_http_err_cnt,   ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_SINT  },
@@ -1298,6 +1439,13 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 __attribute__((constructor))
 static void __stick_table_init(void)
 {
+	/* register som action keywords. */
+	tcp_req_conn_keywords_register(&tcp_conn_kws);
+	tcp_req_cont_keywords_register(&tcp_req_kws);
+	tcp_res_cont_keywords_register(&tcp_res_kws);
+	http_req_keywords_register(&http_req_kws);
+	http_res_keywords_register(&http_res_kws);
+
 	/* register sample fetch and format conversion keywords */
 	sample_register_convs(&sample_conv_kws);
 }

@@ -130,6 +130,10 @@ struct act_rule {
 			const char *name;
 			enum vars_scope scope;
 		} vars;
+		struct {
+			int sc;
+			long long int value;
+		} gpt;
 		struct track_ctr_prm trk_ctr;
 		struct {
 			void *p[4];

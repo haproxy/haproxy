@@ -3365,6 +3365,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               set-map(<file name>) <key fmt> <value fmt> |
               set-var(<var name>) <expr> |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
+              sc-set-gpt0(<sc-id>) <int> |
               lua <function name>
              }
              [ { if | unless } <condition> ]
@@ -3628,6 +3629,12 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       advantage over just checking the keys, because only one table lookup is
       performed for all ACL checks that make use of it.
 
+    - sc-set-gpt0(<sc-id>) <int> :
+      This action sets the GPT0 tag according to the sticky counter designated
+      by <sc-id> and the value of <int>. The expected result is a boolean. If
+      an error occurs, this action silently fails and the actions evaluation
+      continues.
+
     - "lua" is used to run a Lua function if the action is executed. The single
       parameter is the name of the function to run. The prototype of the
       function is documented in the API documentation.
@@ -3738,6 +3745,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 del-map(<file name>) <key fmt> |
                 set-map(<file name>) <key fmt> <value fmt> |
                 set-var(<var-name>) <expr> |
+                sc-set-gpt0(<sc-id>) <int> |
                 lua <function name>
               }
               [ { if | unless } <condition> ]
@@ -3935,6 +3943,12 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       Example:
 
          http-response set-var(sess.last_redir) res.hdr(location)
+
+    - sc-set-gpt0(<sc-id>) <int> :
+      This action sets the GPT0 tag according to the sticky counter designated
+      by <sc-id> and the value of <int>. The expected result is a boolean. If
+      an error occurs, this action silently fails and the actions evaluation
+      continues.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -8298,6 +8312,12 @@ tcp-request connection <action> [{if | unless} <condition>]
         advantage over just checking the keys, because only one table lookup is
         performed for all ACL checks that make use of it.
 
+    - sc-set-gpt0(<sc-id>) <int>:
+        This action sets the GPT0 tag according to the sticky counter designated
+        by <sc-id> and the value of <int>. The expected result is a boolean. If
+        an error occurs, this action silently fails and the actions evaluation
+        continues.
+
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
   "track-sc*" actions as well as for changing the default action to a reject.
@@ -8334,8 +8354,8 @@ tcp-request content <action> [{if | unless} <condition>]
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
                 actions include : "accept", "reject", "track-sc0", "track-sc1",
-                "track-sc2", "capture" and "lua". See "tcp-request connection"
-                above for their signification.
+                "track-sc2", "sc-set-gpt0", "capture" and "lua". See
+                "tcp-request connection" above for their signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8363,11 +8383,12 @@ tcp-request content <action> [{if | unless} <condition>]
   contents. There is no specific limit to the number of rules which may be
   inserted.
 
-  Four types of actions are supported :
+  Several types of actions are supported :
     - accept : the request is accepted
     - reject : the request is rejected and the connection is closed
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - set-gpt0(<sc-id>) <int>
     - lua <function>
     - set-var(<var-name>) <expr>
 
@@ -8535,7 +8556,8 @@ tcp-response content <action> [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "close", "reject", "lua".
+                actions include : "accept", "close", "reject", "lua", and
+                "sc-set-gpt0".
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8552,7 +8574,7 @@ tcp-response content <action> [{if | unless} <condition>]
   contents. There is no specific limit to the number of rules which may be
   inserted.
 
-  Two types of actions are supported :
+  Several types of actions are supported :
     - accept :
         accepts the response if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
@@ -8578,6 +8600,12 @@ tcp-response content <action> [{if | unless} <condition>]
 
     - set-var(<var-name>) <expr>
         Sets a variable.
+
+    - sc-set-gpt0(<sc-id>) <int> :
+        This action sets the GPT0 tag according to the sticky counter designated
+        by <sc-id> and the value of <int>. The expected result is a boolean. If
+        an error occurs, this action silently fails and the actions evaluation
+        continues.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
@@ -11545,6 +11573,13 @@ table_conn_rate(<table>)
   rate associated with the input sample in the designated table. See also the
   sc_conn_rate sample fetch keyword.
 
+table_gpt0(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, boolean value zero
+  is returned. Otherwise the converter returns the current value of the first
+  general purpose tag associated with the input sample in the designated table.
+  See also the sc_get_gpt0 sample fetch keyword.
+
 table_gpc0(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -12069,6 +12104,13 @@ sc2_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc/sc0/sc1/sc2_inc_gpc0.
 
+sc_get_gpt0(<ctr>[,<table>]) : integer
+sc0_get_gpt0([<table>]) : integer
+sc1_get_gpt0([<table>]) : integer
+sc2_get_gpt0([<table>]) : integer
+  Returns the value of the first General Purpose Tag associated to the
+  currently tracked counters. See also src_get_gpt0.
+
 sc_gpc0_rate(<ctr>[,<table>]) : integer
 sc0_gpc0_rate([<table>]) : integer
 sc1_gpc0_rate([<table>]) : integer
@@ -12256,6 +12298,12 @@ src_get_gpc0([<table>]) : integer
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc/sc0/sc1/sc2_get_gpc0 and src_inc_gpc0.
+
+src_get_gpt0([<table>]) : integer
+  Returns the value of the first General Purpose Tag associated to the
+  incoming connection's source address in the current proxy's stick-table or in
+  the designated stick-table. If the address is not found, zero is returned.
+  See also sc/sc0/sc1/sc2_get_gpt0.
 
 src_gpc0_rate([<table>]) : integer
   Returns the average increment rate of the first General Purpose Counter
