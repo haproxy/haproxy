@@ -476,7 +476,7 @@ struct server *get_server_rch(struct stream *s)
 	b_rew(s->req.buf, rewind = s->req.buf->o);
 
 	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
-	len = smp.data.str.len;
+	len = smp.data.data.str.len;
 
 	b_adv(s->req.buf, rewind);
 
@@ -490,7 +490,7 @@ struct server *get_server_rch(struct stream *s)
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
-	hash = gen_hash(px, smp.data.str.str, len);
+	hash = gen_hash(px, smp.data.data.str.str, len);
 
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
@@ -1218,10 +1218,10 @@ int connect_server(struct stream *s)
 			if (smp) {
 				/* get write access to terminate with a zero */
 				smp_dup(smp);
-				if (smp->data.str.len >= smp->data.str.size)
-					smp->data.str.len = smp->data.str.size - 1;
-				smp->data.str.str[smp->data.str.len] = 0;
-				ssl_sock_set_servername(srv_conn, smp->data.str.str);
+				if (smp->data.data.str.len >= smp->data.data.str.size)
+					smp->data.data.str.len = smp->data.data.str.size - 1;
+				smp->data.data.str.str[smp->data.data.str.len] = 0;
+				ssl_sock_set_servername(srv_conn, smp->data.data.str.str);
 				srv_conn->flags |= CO_FL_PRIVATE;
 			}
 		}
@@ -1361,14 +1361,14 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	memset(&smp, 0, sizeof(smp));
 
 	ret = fetch_rdp_cookie_name(s, &smp, s->be->rdp_cookie_name, s->be->rdp_cookie_len);
-	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.data.str.len == 0)
 		goto no_cookie;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 
 	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return */
-	addr.sin_addr.s_addr = strtoul(smp.data.str.str, &p, 10);
+	addr.sin_addr.s_addr = strtoul(smp.data.data.str.str, &p, 10);
 	if (*p != '.')
 		goto no_cookie;
 	p++;
@@ -1602,15 +1602,15 @@ smp_fetch_nbsrv(const struct arg *args, struct sample *smp, const char *kw, void
 	struct proxy *px;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
+	smp->data.type = SMP_T_SINT;
 	px = args->data.prx;
 
 	if (px->srv_act)
-		smp->data.sint = px->srv_act;
+		smp->data.data.sint = px->srv_act;
 	else if (px->lbprm.fbck)
-		smp->data.sint = 1;
+		smp->data.data.sint = 1;
 	else
-		smp->data.sint = px->srv_bck;
+		smp->data.data.sint = px->srv_bck;
 
 	return 1;
 }
@@ -1626,12 +1626,12 @@ smp_fetch_srv_is_up(const struct arg *args, struct sample *smp, const char *kw, 
 	struct server *srv = args->data.srv;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_BOOL;
+	smp->data.type = SMP_T_BOOL;
 	if (!(srv->admin & SRV_ADMF_MAINT) &&
 	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state != SRV_ST_STOPPED)))
-		smp->data.sint = 1;
+		smp->data.data.sint = 1;
 	else
-		smp->data.sint = 0;
+		smp->data.data.sint = 0;
 	return 1;
 }
 
@@ -1645,8 +1645,8 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 	struct server *iterator;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = 0;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = 0;
 
 	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
 		if (iterator->state == SRV_ST_STOPPED)
@@ -1654,11 +1654,11 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
 			/* configuration is stupid */
-			smp->data.sint = -1;  /* FIXME: stupid value! */
+			smp->data.data.sint = -1;  /* FIXME: stupid value! */
 			return 1;
 		}
 
-		smp->data.sint += (iterator->maxconn - iterator->cur_sess)
+		smp->data.data.sint += (iterator->maxconn - iterator->cur_sess)
 		                       +  (iterator->maxqueue - iterator->nbpend);
 	}
 
@@ -1670,8 +1670,8 @@ static int
 smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = smp->strm->be->uuid;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = smp->strm->be->uuid;
 	return 1;
 }
 
@@ -1682,8 +1682,8 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 	if (!objt_server(smp->strm->target))
 		return 0;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = objt_server(smp->strm->target)->puid;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = objt_server(smp->strm->target)->puid;
 
 	return 1;
 }
@@ -1696,8 +1696,8 @@ static int
 smp_fetch_be_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
 	return 1;
 }
 
@@ -1709,8 +1709,8 @@ static int
 smp_fetch_be_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = args->data.prx->beconn;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = args->data.prx->beconn;
 	return 1;
 }
 
@@ -1722,8 +1722,8 @@ static int
 smp_fetch_queue_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = args->data.prx->totpend;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = args->data.prx->totpend;
 	return 1;
 }
 
@@ -1742,7 +1742,7 @@ smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char 
 	struct proxy *px;
 
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
+	smp->data.type = SMP_T_SINT;
 	px = args->data.prx;
 
 	if (px->srv_act)
@@ -1753,9 +1753,9 @@ smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char 
 		nbsrv = px->srv_bck;
 
 	if (nbsrv > 0)
-		smp->data.sint = (px->totpend + nbsrv - 1) / nbsrv;
+		smp->data.data.sint = (px->totpend + nbsrv - 1) / nbsrv;
 	else
-		smp->data.sint = px->totpend * 2;
+		smp->data.data.sint = px->totpend * 2;
 
 	return 1;
 }
@@ -1768,8 +1768,8 @@ static int
 smp_fetch_srv_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = args->data.srv->cur_sess;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = args->data.srv->cur_sess;
 	return 1;
 }
 
@@ -1781,8 +1781,8 @@ static int
 smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = read_freq_ctr(&args->data.srv->sess_per_sec);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = read_freq_ctr(&args->data.srv->sess_per_sec);
 	return 1;
 }
 

@@ -56,11 +56,11 @@ int smp_dup(struct sample *smp);
 static inline
 int sample_convert(struct sample *sample, int req_type)
 {
-	if (!sample_casts[sample->type][req_type])
+	if (!sample_casts[sample->data.type][req_type])
 		return 0;
-	if (sample_casts[sample->type][req_type] == c_none)
+	if (sample_casts[sample->data.type][req_type] == c_none)
 		return 1;
-	return sample_casts[sample->type][req_type](sample);
+	return sample_casts[sample->data.type][req_type](sample);
 }
 
 #endif /* _PROTO_SAMPLE_H */

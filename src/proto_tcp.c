@@ -1222,11 +1222,11 @@ resume_execution:
 				if (cap[h->index] == NULL) /* no more capture memory */
 					continue;
 
-				len = key->data.str.len;
+				len = key->data.data.str.len;
 				if (len > h->len)
 					len = h->len;
 
-				memcpy(cap[h->index], key->data.str.str, len);
+				memcpy(cap[h->index], key->data.data.str.str, len);
 				cap[h->index][len] = 0;
 			}
 			else {
@@ -1999,12 +1999,12 @@ int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, vo
 
 	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
-		smp->type = SMP_T_IPV4;
+		smp->data.data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
+		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr;
-		smp->type = SMP_T_IPV6;
+		smp->data.data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr;
+		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -2023,8 +2023,8 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *k, void 
 	if (!cli_conn)
 		return 0;
 
-	smp->type = SMP_T_SINT;
-	if (!(smp->data.sint = get_host_port(&cli_conn->addr.from)))
+	smp->data.type = SMP_T_SINT;
+	if (!(smp->data.data.sint = get_host_port(&cli_conn->addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -2044,12 +2044,12 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	switch (cli_conn->addr.to.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
-		smp->type = SMP_T_IPV4;
+		smp->data.data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
+		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
-		smp->type = SMP_T_IPV6;
+		smp->data.data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
+		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -2070,8 +2070,8 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 
 	conn_get_to_addr(cli_conn);
 
-	smp->type = SMP_T_SINT;
-	if (!(smp->data.sint = get_host_port(&cli_conn->addr.to)))
+	smp->data.type = SMP_T_SINT;
+	if (!(smp->data.data.sint = get_host_port(&cli_conn->addr.to)))
 		return 0;
 
 	smp->flags = 0;

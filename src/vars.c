@@ -249,9 +249,9 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 		return 0;
 
 	/* Copy sample. */
-	smp->type = var->data.type;
+	smp->data.type = var->data.type;
 	smp->flags |= SMP_F_CONST;
-	memcpy(&smp->data, &var->data.data, sizeof(smp->data));
+	memcpy(&smp->data.data, &var->data.data, sizeof(smp->data.data));
 	return 1;
 }
 
@@ -293,50 +293,50 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 	}
 
 	/* Set type. */
-	var->data.type = smp->type;
+	var->data.type = smp->data.type;
 
 	/* Copy data. If the data needs memory, the function can fail. */
 	switch (var->data.type) {
 	case SMP_T_BOOL:
 	case SMP_T_SINT:
-		var->data.data.sint = smp->data.sint;
+		var->data.data.sint = smp->data.data.sint;
 		break;
 	case SMP_T_IPV4:
-		var->data.data.ipv4 = smp->data.ipv4;
+		var->data.data.ipv4 = smp->data.data.ipv4;
 		break;
 	case SMP_T_IPV6:
-		var->data.data.ipv6 = smp->data.ipv6;
+		var->data.data.ipv6 = smp->data.data.ipv6;
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
-		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.str.len)) {
+		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.data.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.data.str.str = malloc(smp->data.str.len);
+		var->data.data.str.str = malloc(smp->data.data.str.len);
 		if (!var->data.data.str.str) {
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.data.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.data.str.len = smp->data.str.len;
-		memcpy(var->data.data.str.str, smp->data.str.str, var->data.data.str.len);
+		var->data.data.str.len = smp->data.data.str.len;
+		memcpy(var->data.data.str.str, smp->data.data.str.str, var->data.data.str.len);
 		break;
 	case SMP_T_METH:
-		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.meth.str.len)) {
+		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.data.meth.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.data.meth.str.str = malloc(smp->data.meth.str.len);
+		var->data.data.meth.str.str = malloc(smp->data.data.meth.str.len);
 		if (!var->data.data.meth.str.str) {
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.meth.str.len);
+			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.data.meth.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.data.meth.meth = smp->data.meth.meth;
-		var->data.data.meth.str.len = smp->data.meth.str.len;
-		var->data.data.meth.str.size = smp->data.meth.str.len;
-		memcpy(var->data.data.meth.str.str, smp->data.meth.str.str, var->data.data.meth.str.len);
+		var->data.data.meth.meth = smp->data.data.meth.meth;
+		var->data.data.meth.str.len = smp->data.data.meth.str.len;
+		var->data.data.meth.str.size = smp->data.data.meth.str.len;
+		memcpy(var->data.data.meth.str.str, smp->data.data.meth.str.str, var->data.data.meth.str.len);
 		break;
 	}
 	return 1;
@@ -442,9 +442,9 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 		return 0;
 
 	/* Copy sample. */
-	smp->type = var->data.type;
+	smp->data.type = var->data.type;
 	smp->flags = SMP_F_CONST;
-	memcpy(&smp->data, &var->data.data, sizeof(smp->data));
+	memcpy(&smp->data.data, &var->data.data, sizeof(smp->data.data));
 	return 1;
 }
 
@@ -476,9 +476,9 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struc
 		return 0;
 
 	/* Copy sample. */
-	smp->type = var->data.type;
+	smp->data.type = var->data.type;
 	smp->flags = SMP_F_CONST;
-	memcpy(&smp->data, &var->data.data, sizeof(smp->data));
+	memcpy(&smp->data.data, &var->data.data, sizeof(smp->data.data));
 	return 1;
 }
 

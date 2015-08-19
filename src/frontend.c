@@ -162,8 +162,8 @@ static int
 smp_fetch_fe_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_SESS;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = smp->sess->fe->uuid;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = smp->sess->fe->uuid;
 	return 1;
 }
 
@@ -175,8 +175,8 @@ static int
 smp_fetch_fe_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = read_freq_ctr(&args->data.prx->fe_sess_per_sec);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = read_freq_ctr(&args->data.prx->fe_sess_per_sec);
 	return 1;
 }
 
@@ -188,8 +188,8 @@ static int
 smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	smp->type = SMP_T_SINT;
-	smp->data.sint = args->data.prx->feconn;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = args->data.prx->feconn;
 	return 1;
 }
 

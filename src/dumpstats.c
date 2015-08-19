@@ -5633,10 +5633,10 @@ static int stats_map_lookup(struct stream_interface *si)
 			chunk_reset(&trash);
 
 			/* execute pattern matching */
-			sample.type = SMP_T_STR;
+			sample.data.type = SMP_T_STR;
 			sample.flags |= SMP_F_CONST;
-			sample.data.str.len = appctx->ctx.map.chunk.len;
-			sample.data.str.str = appctx->ctx.map.chunk.str;
+			sample.data.data.str.len = appctx->ctx.map.chunk.len;
+			sample.data.data.str.str = appctx->ctx.map.chunk.str;
 			if (appctx->ctx.map.expr->pat_head->match &&
 			    sample_convert(&sample, appctx->ctx.map.expr->pat_head->expect_type))
 				pat = appctx->ctx.map.expr->pat_head->match(&sample, appctx->ctx.map.expr, 1);

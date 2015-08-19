@@ -3682,13 +3682,13 @@ resume_execution:
 				smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.act.p[0], SMP_T_ADDR);
 
 				if (smp) {
-					if (smp->type == SMP_T_IPV4) {
+					if (smp->data.type == SMP_T_IPV4) {
 						((struct sockaddr_in *)&cli_conn->addr.from)->sin_family = AF_INET;
-						((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.ipv4.s_addr;
+						((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.data.ipv4.s_addr;
 						((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = 0;
-					} else if (smp->type == SMP_T_IPV6) {
+					} else if (smp->data.type == SMP_T_IPV6) {
 						((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_family = AF_INET6;
-						memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.ipv6, sizeof(struct in6_addr));
+						memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.data.ipv6, sizeof(struct in6_addr));
 						((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = 0;
 					}
 				}
@@ -9945,7 +9945,7 @@ smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 	msg = &txn->req;
 
 	/* Check for a dependency on a request */
-	smp->type = SMP_T_BOOL;
+	smp->data.type = SMP_T_BOOL;
 
 	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
 		/* If the buffer does not leave enough free space at the end,
@@ -9987,7 +9987,7 @@ smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 			if (unlikely(s->req.buf->i + s->req.buf->p >
 				     s->req.buf->data + s->req.buf->size - global.tune.maxrewrite)) {
 				msg->msg_state = HTTP_MSG_ERROR;
-				smp->data.sint = 1;
+				smp->data.data.sint = 1;
 				return 1;
 			}
 
@@ -10014,7 +10014,7 @@ smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 	}
 
 	/* everything's OK */
-	smp->data.sint = 1;
+	smp->data.data.sint = 1;
 	return 1;
 }
 
@@ -10068,15 +10068,15 @@ smp_fetch_meth(const struct arg *args, struct sample *smp, const char *kw, void 
 	CHECK_HTTP_MESSAGE_FIRST_PERM();
 
 	meth = txn->meth;
-	smp->type = SMP_T_METH;
-	smp->data.meth.meth = meth;
+	smp->data.type = SMP_T_METH;
+	smp->data.data.meth.meth = meth;
 	if (meth == HTTP_METH_OTHER) {
 		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 			/* ensure the indexes are not affected */
 			return 0;
 		smp->flags |= SMP_F_CONST;
-		smp->data.meth.str.len = txn->req.sl.rq.m_l;
-		smp->data.meth.str.str = txn->req.chn->buf->p;
+		smp->data.data.meth.str.len = txn->req.sl.rq.m_l;
+		smp->data.data.meth.str.str = txn->req.chn->buf->p;
 	}
 	smp->flags |= SMP_F_VOL_1ST;
 	return 1;
@@ -10094,19 +10094,19 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 
 		/* well-known method */
 		if (pattern->val.i != HTTP_METH_OTHER) {
-			if (smp->data.meth.meth == pattern->val.i)
+			if (smp->data.data.meth.meth == pattern->val.i)
 				return pattern;
 			else
 				continue;
 		}
 
 		/* Other method, we must compare the strings */
-		if (pattern->len != smp->data.meth.str.len)
+		if (pattern->len != smp->data.data.meth.str.len)
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) == 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) == 0))
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.data.meth.str.str, smp->data.data.meth.str.len) == 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.data.meth.str.str, smp->data.data.meth.str.len) == 0))
 			return pattern;
 	}
 	return NULL;
@@ -10128,9 +10128,9 @@ smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void
 	if (len <= 0)
 		return 0;
 
-	smp->type = SMP_T_STR;
-	smp->data.str.str = ptr;
-	smp->data.str.len = len;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = ptr;
+	smp->data.data.str.len = len;
 
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
@@ -10156,9 +10156,9 @@ smp_fetch_stver(const struct arg *args, struct sample *smp, const char *kw, void
 	if (len <= 0)
 		return 0;
 
-	smp->type = SMP_T_STR;
-	smp->data.str.str = ptr;
-	smp->data.str.len = len;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = ptr;
+	smp->data.data.str.len = len;
 
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
@@ -10181,8 +10181,8 @@ smp_fetch_stcode(const struct arg *args, struct sample *smp, const char *kw, voi
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.chn->buf->p + txn->rsp.sl.st.c;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = __strl2ui(ptr, len);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = __strl2ui(ptr, len);
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -10216,9 +10216,9 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	if (block1 == len) {
 		/* buffer is not wrapped (or empty) */
-		smp->type = SMP_T_BIN;
-		smp->data.str.str = body;
-		smp->data.str.len = len;
+		smp->data.type = SMP_T_BIN;
+		smp->data.data.str.str = body;
+		smp->data.data.str.len = len;
 		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
 	}
 	else {
@@ -10226,9 +10226,9 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 		temp = get_trash_chunk();
 		memcpy(temp->str, body, block1);
 		memcpy(temp->str + block1, msg->chn->buf->data, len - block1);
-		smp->type = SMP_T_BIN;
-		smp->data.str.str = temp->str;
-		smp->data.str.len = len;
+		smp->data.type = SMP_T_BIN;
+		smp->data.data.str.str = temp->str;
+		smp->data.data.str.len = len;
 		smp->flags = SMP_F_VOL_TEST;
 	}
 	return 1;
@@ -10251,8 +10251,8 @@ smp_fetch_body_len(const struct arg *args, struct sample *smp, const char *kw, v
 	else
 		msg = &txn->rsp;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = http_body_bytes(msg);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = http_body_bytes(msg);
 
 	smp->flags = SMP_F_VOL_TEST;
 	return 1;
@@ -10276,8 +10276,8 @@ smp_fetch_body_size(const struct arg *args, struct sample *smp, const char *kw, 
 	else
 		msg = &txn->rsp;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = msg->body_len;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = msg->body_len;
 
 	smp->flags = SMP_F_VOL_TEST;
 	return 1;
@@ -10293,9 +10293,9 @@ smp_fetch_url(const struct arg *args, struct sample *smp, const char *kw, void *
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	txn = smp->strm->txn;
-	smp->type = SMP_T_STR;
-	smp->data.str.len = txn->req.sl.rq.u_l;
-	smp->data.str.str = txn->req.chn->buf->p + txn->req.sl.rq.u;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.len = txn->req.sl.rq.u_l;
+	smp->data.data.str.str = txn->req.chn->buf->p + txn->req.sl.rq.u;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10313,8 +10313,8 @@ smp_fetch_url_ip(const struct arg *args, struct sample *smp, const char *kw, voi
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
 
-	smp->type = SMP_T_IPV4;
-	smp->data.ipv4 = ((struct sockaddr_in *)&addr)->sin_addr;
+	smp->data.type = SMP_T_IPV4;
+	smp->data.data.ipv4 = ((struct sockaddr_in *)&addr)->sin_addr;
 	smp->flags = 0;
 	return 1;
 }
@@ -10332,8 +10332,8 @@ smp_fetch_url_port(const struct arg *args, struct sample *smp, const char *kw, v
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = ntohs(((struct sockaddr_in *)&addr)->sin_port);
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = ntohs(((struct sockaddr_in *)&addr)->sin_port);
 	smp->flags = 0;
 	return 1;
 }
@@ -10389,9 +10389,9 @@ smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void 
 		/* prepare to report multiple occurrences for ACL fetches */
 		smp->flags |= SMP_F_NOT_LAST;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
-	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
+	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.data.str.str, &smp->data.data.str.len))
 		return 1;
 
 	smp->flags &= ~SMP_F_NOT_LAST;
@@ -10427,8 +10427,8 @@ smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const char *kw, v
 	while (http_find_full_header2(name, len, msg->chn->buf->p, idx, &ctx))
 		cnt++;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = cnt;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = cnt;
 	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
@@ -10460,9 +10460,9 @@ smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, 
 		temp->len += ctx.del;
 	}
 
-	smp->type = SMP_T_STR;
-	smp->data.str.str = temp->str;
-	smp->data.str.len = temp->len;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = temp->str;
+	smp->data.data.str.len = temp->len;
 	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
@@ -10517,9 +10517,9 @@ smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *
 		/* prepare to report multiple occurrences for ACL fetches */
 		smp->flags |= SMP_F_NOT_LAST;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
-	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
+	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.data.str.str, &smp->data.data.str.len))
 		return 1;
 
 	smp->flags &= ~SMP_F_NOT_LAST;
@@ -10554,8 +10554,8 @@ smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const char *kw, vo
 	while (http_find_header2(name, len, msg->chn->buf->p, idx, &ctx))
 		cnt++;
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = cnt;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = cnt;
 	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
@@ -10571,8 +10571,8 @@ smp_fetch_hdr_val(const struct arg *args, struct sample *smp, const char *kw, vo
 	int ret = smp_fetch_hdr(args, smp, kw, private);
 
 	if (ret > 0) {
-		smp->type = SMP_T_SINT;
-		smp->data.sint = strl2ic(smp->data.str.str, smp->data.str.len);
+		smp->data.type = SMP_T_SINT;
+		smp->data.data.sint = strl2ic(smp->data.data.str.str, smp->data.data.str.len);
 	}
 
 	return ret;
@@ -10588,16 +10588,16 @@ smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, voi
 	int ret;
 
 	while ((ret = smp_fetch_hdr(args, smp, kw, private)) > 0) {
-		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4)) {
-			smp->type = SMP_T_IPV4;
+		if (url2ipv4((char *)smp->data.data.str.str, &smp->data.data.ipv4)) {
+			smp->data.type = SMP_T_IPV4;
 			break;
 		} else {
 			struct chunk *temp = get_trash_chunk();
-			if (smp->data.str.len < temp->size - 1) {
-				memcpy(temp->str, smp->data.str.str, smp->data.str.len);
-				temp->str[smp->data.str.len] = '\0';
-				if (inet_pton(AF_INET6, temp->str, &smp->data.ipv6)) {
-					smp->type = SMP_T_IPV6;
+			if (smp->data.data.str.len < temp->size - 1) {
+				memcpy(temp->str, smp->data.data.str.str, smp->data.data.str.len);
+				temp->str[smp->data.data.str.len] = '\0';
+				if (inet_pton(AF_INET6, temp->str, &smp->data.data.ipv6)) {
+					smp->data.type = SMP_T_IPV6;
 					break;
 				}
 			}
@@ -10628,13 +10628,13 @@ smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void 
 		return 0;
 
 	/* OK, we got the '/' ! */
-	smp->type = SMP_T_STR;
-	smp->data.str.str = ptr;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = ptr;
 
 	while (ptr < end && *ptr != '?')
 		ptr++;
 
-	smp->data.str.len = ptr - smp->data.str.str;
+	smp->data.data.str.len = ptr - smp->data.data.str.str;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10664,9 +10664,9 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 	temp = get_trash_chunk();
 	memcpy(temp->str, ctx.line + ctx.val, ctx.vlen);
-	smp->type = SMP_T_STR;
-	smp->data.str.str = temp->str;
-	smp->data.str.len = ctx.vlen;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = temp->str;
+	smp->data.data.str.len = ctx.vlen;
 
 	/* now retrieve the path */
 	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
@@ -10677,8 +10677,8 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 	for (ptr = beg; ptr < end && *ptr != '?'; ptr++);
 
 	if (beg < ptr && *beg == '/') {
-		memcpy(smp->data.str.str + smp->data.str.len, beg, ptr - beg);
-		smp->data.str.len += ptr - beg;
+		memcpy(smp->data.data.str.str + smp->data.data.str.len, beg, ptr - beg);
+		smp->data.data.str.len += ptr - beg;
 	}
 
 	smp->flags = SMP_F_VOL_1ST;
@@ -10728,8 +10728,8 @@ smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, voi
 	}
 	hash = full_hash(hash);
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = hash;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = hash;
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -10754,7 +10754,7 @@ smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 
 	temp = get_trash_chunk();
-	*(unsigned int *)temp->str = htonl(smp->data.sint);
+	*(unsigned int *)temp->str = htonl(smp->data.data.sint);
 	temp->len += sizeof(unsigned int);
 
 	switch (cli_conn->addr.from.ss_family) {
@@ -10770,8 +10770,8 @@ smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	}
 
-	smp->data.str = *temp;
-	smp->type = SMP_T_BIN;
+	smp->data.data.str = *temp;
+	smp->data.type = SMP_T_BIN;
 	return 1;
 }
 
@@ -10797,9 +10797,9 @@ smp_fetch_query(const struct arg *args, struct sample *smp, const char *kw, void
 			return 0;
 	} while (*ptr++ != '?');
 
-	smp->type = SMP_T_STR;
-	smp->data.str.str = ptr;
-	smp->data.str.len = end - ptr;
+	smp->data.type = SMP_T_STR;
+	smp->data.data.str.str = ptr;
+	smp->data.data.str.len = end - ptr;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10813,8 +10813,8 @@ smp_fetch_proto_http(const struct arg *args, struct sample *smp, const char *kw,
 
 	CHECK_HTTP_MESSAGE_FIRST_PERM();
 
-	smp->type = SMP_T_BOOL;
-	smp->data.sint = 1;
+	smp->data.type = SMP_T_BOOL;
+	smp->data.data.sint = 1;
 	return 1;
 }
 
@@ -10822,8 +10822,8 @@ smp_fetch_proto_http(const struct arg *args, struct sample *smp, const char *kw,
 static int
 smp_fetch_http_first_req(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_BOOL;
-	smp->data.sint = !(smp->strm->txn->flags & TX_NOT_FIRST);
+	smp->data.type = SMP_T_BOOL;
+	smp->data.data.sint = !(smp->strm->txn->flags & TX_NOT_FIRST);
 	return 1;
 }
 
@@ -10840,8 +10840,8 @@ smp_fetch_http_auth(const struct arg *args, struct sample *smp, const char *kw, 
 	if (!get_http_auth(smp->strm))
 		return 0;
 
-	smp->type = SMP_T_BOOL;
-	smp->data.sint = check_user(args->data.usr, smp->strm->txn->auth.user,
+	smp->data.type = SMP_T_BOOL;
+	smp->data.data.sint = check_user(args->data.usr, smp->strm->txn->auth.user,
 	                            smp->strm->txn->auth.pass);
 	return 1;
 }
@@ -10869,10 +10869,10 @@ smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *
 	/* pat_match_auth() will need the user list */
 	smp->ctx.a[0] = args->data.usr;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.str.str = smp->strm->txn->auth.user;
-	smp->data.str.len = strlen(smp->strm->txn->auth.user);
+	smp->data.data.str.str = smp->strm->txn->auth.user;
+	smp->data.data.str.len = strlen(smp->strm->txn->auth.user);
 
 	return 1;
 }
@@ -10989,10 +10989,10 @@ smp_fetch_capture_header_req(const struct arg *args, struct sample *smp, const c
 	if (idx > (fe->nb_req_cap - 1) || smp->strm->req_cap == NULL || smp->strm->req_cap[idx] == NULL)
 		return 0;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.str.str = smp->strm->req_cap[idx];
-	smp->data.str.len = strlen(smp->strm->req_cap[idx]);
+	smp->data.data.str.str = smp->strm->req_cap[idx];
+	smp->data.data.str.len = strlen(smp->strm->req_cap[idx]);
 
 	return 1;
 }
@@ -11014,10 +11014,10 @@ smp_fetch_capture_header_res(const struct arg *args, struct sample *smp, const c
 	if (idx > (fe->nb_rsp_cap - 1) || smp->strm->res_cap == NULL || smp->strm->res_cap[idx] == NULL)
 		return 0;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.str.str = smp->strm->res_cap[idx];
-	smp->data.str.len = strlen(smp->strm->res_cap[idx]);
+	smp->data.data.str.str = smp->strm->res_cap[idx];
+	smp->data.data.str.len = strlen(smp->strm->res_cap[idx]);
 
 	return 1;
 }
@@ -11041,8 +11041,8 @@ smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const c
 	temp = get_trash_chunk();
 	temp->str = txn->uri;
 	temp->len = ptr - txn->uri;
-	smp->data.str = *temp;
-	smp->type = SMP_T_STR;
+	smp->data.data.str = *temp;
+	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 
 	return 1;
@@ -11077,9 +11077,9 @@ smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char
 	while (*ptr != ' ' && *ptr != '\0')  /* find space after URI */
 		ptr++;
 
-	smp->data.str = *temp;
-	smp->data.str.len = ptr - temp->str;
-	smp->type = SMP_T_STR;
+	smp->data.data.str = *temp;
+	smp->data.data.str.len = ptr - temp->str;
+	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 
 	return 1;
@@ -11097,12 +11097,12 @@ smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	if (txn->req.flags & HTTP_MSGF_VER_11)
-		smp->data.str.str = "HTTP/1.1";
+		smp->data.data.str.str = "HTTP/1.1";
 	else
-		smp->data.str.str = "HTTP/1.0";
+		smp->data.data.str.str = "HTTP/1.0";
 
-	smp->data.str.len = 8;
-	smp->type  = SMP_T_STR;
+	smp->data.data.str.len = 8;
+	smp->data.type  = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
 
@@ -11120,12 +11120,12 @@ smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	if (txn->rsp.flags & HTTP_MSGF_VER_11)
-		smp->data.str.str = "HTTP/1.1";
+		smp->data.data.str.str = "HTTP/1.1";
 	else
-		smp->data.str.str = "HTTP/1.0";
+		smp->data.data.str.str = "HTTP/1.0";
 
-	smp->data.str.len = 8;
-	smp->type  = SMP_T_STR;
+	smp->data.data.str.len = 8;
+	smp->data.type  = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
 
@@ -11212,17 +11212,17 @@ int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw,
 			smp->ctx.a[1] = smp->ctx.a[0] + ctx->vlen;
 		}
 
-		smp->type = SMP_T_STR;
+		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
 						 args->data.str.str, args->data.str.len,
 						 (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						 &smp->data.str.str,
-						 &smp->data.str.len);
+						 &smp->data.data.str.str,
+						 &smp->data.data.str.len);
 		if (smp->ctx.a[0]) {
 			found = 1;
 			if (occ >= 0) {
-				/* one value was returned into smp->data.str.{str,len} */
+				/* one value was returned into smp->data.data.str.{str,len} */
 				smp->flags |= SMP_F_NOT_LAST;
 				return 1;
 			}
@@ -11291,19 +11291,19 @@ smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw,
 			val_end = val_beg + ctx.vlen;
 		}
 
-		smp->type = SMP_T_STR;
+		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
 						       args->data.str.str, args->data.str.len,
 						       (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						       &smp->data.str.str,
-						       &smp->data.str.len))) {
+						       &smp->data.data.str.str,
+						       &smp->data.data.str.len))) {
 			cnt++;
 		}
 	}
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = cnt;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = cnt;
 	smp->flags |= SMP_F_VOL_HDR;
 	return 1;
 }
@@ -11317,8 +11317,8 @@ smp_fetch_cookie_val(const struct arg *args, struct sample *smp, const char *kw,
 	int ret = smp_fetch_cookie(args, smp, kw, private);
 
 	if (ret > 0) {
-		smp->type = SMP_T_SINT;
-		smp->data.sint = strl2ic(smp->data.str.str, smp->data.str.len);
+		smp->data.type = SMP_T_SINT;
+		smp->data.data.sint = strl2ic(smp->data.data.str.str, smp->data.data.str.len);
 	}
 
 	return ret;
@@ -11563,7 +11563,7 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 	/* Create sample. If the value is contiguous, return the pointer as CONST,
 	 * if the value is wrapped, copy-it in a buffer.
 	 */
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	if (chunks[2] &&
 	    vstart >= chunks[0] && vstart <= chunks[1] &&
 	    vend >= chunks[2] && vend <= chunks[3]) {
@@ -11571,12 +11571,12 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 		temp = get_trash_chunk();
 		memcpy(temp->str, vstart, chunks[1] - vstart);
 		memcpy(temp->str + ( chunks[1] - vstart ), chunks[2], vend - chunks[2]);
-		smp->data.str.str = temp->str;
-		smp->data.str.len = ( chunks[1] - vstart ) + ( vend - chunks[2] );
+		smp->data.data.str.str = temp->str;
+		smp->data.data.str.len = ( chunks[1] - vstart ) + ( vend - chunks[2] );
 	} else {
 		/* Contiguous case. */
-		smp->data.str.str = (char *)vstart;
-		smp->data.str.len = vend - vstart;
+		smp->data.data.str.str = (char *)vstart;
+		smp->data.data.str.len = vend - vstart;
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	}
 
@@ -11719,8 +11719,8 @@ smp_fetch_url_param_val(const struct arg *args, struct sample *smp, const char *
 	int ret = smp_fetch_url_param(args, smp, kw, private);
 
 	if (ret > 0) {
-		smp->type = SMP_T_SINT;
-		smp->data.sint = strl2ic(smp->data.str.str, smp->data.str.len);
+		smp->data.type = SMP_T_SINT;
+		smp->data.data.sint = strl2ic(smp->data.data.str.str, smp->data.data.str.len);
 	}
 
 	return ret;
@@ -11771,8 +11771,8 @@ smp_fetch_url32(const struct arg *args, struct sample *smp, const char *kw, void
 	}
 	hash = full_hash(hash);
 
-	smp->type = SMP_T_SINT;
-	smp->data.sint = hash;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = hash;
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -11795,7 +11795,7 @@ smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 
 	/* The returned hash is a 32 bytes integer. */
-	hash = smp->data.sint;
+	hash = smp->data.data.sint;
 
 	temp = get_trash_chunk();
 	memcpy(temp->str + temp->len, &hash, sizeof(hash));
@@ -11814,8 +11814,8 @@ smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	}
 
-	smp->data.str = *temp;
-	smp->type = SMP_T_BIN;
+	smp->data.data.str = *temp;
+	smp->data.type = SMP_T_BIN;
 	return 1;
 }
 
@@ -11847,7 +11847,7 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	struct chunk *temp;
 	struct tm *tm;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
-	time_t curr_date = smp->data.sint & 0x007fffffffffffffLL;
+	time_t curr_date = smp->data.data.sint & 0x007fffffffffffffLL;
 
 	/* add offset */
 	if (args && (args[0].type == ARGT_SINT))
@@ -11863,8 +11863,8 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 			     day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon], 1900+tm->tm_year,
 			     tm->tm_hour, tm->tm_min, tm->tm_sec);
 
-	smp->data.str = *temp;
-	smp->type = SMP_T_STR;
+	smp->data.data.str = *temp;
+	smp->data.type = SMP_T_STR;
 	return 1;
 }
 
@@ -11896,8 +11896,8 @@ static inline int language_range_match(const char *range, int range_len,
 /* Arguments: The list of expected value, the number of parts returned and the separator */
 static int sample_conv_q_prefered(const struct arg *args, struct sample *smp, void *private)
 {
-	const char *al = smp->data.str.str;
-	const char *end = al + smp->data.str.len;
+	const char *al = smp->data.data.str.str;
+	const char *end = al + smp->data.data.str.len;
 	const char *token;
 	int toklen;
 	int qvalue;
@@ -11909,9 +11909,9 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp, vo
 	 * function will be peek in the constant configuration string.
 	 */
 	smp->flags |= SMP_F_CONST;
-	smp->data.str.size = 0;
-	smp->data.str.str = "";
-	smp->data.str.len = 0;
+	smp->data.data.str.size = 0;
+	smp->data.data.str.str = "";
+	smp->data.data.str.len = 0;
 
 	/* Parse the accept language */
 	while (1) {
@@ -12011,8 +12011,8 @@ process_value:
 		 * break the process.
 		 */
 		if (qvalue > best_q) {
-			smp->data.str.str = (char *)w;
-			smp->data.str.len = str - w;
+			smp->data.data.str.str = (char *)w;
+			smp->data.data.str.len = str - w;
 			if (qvalue >= 1000)
 				break;
 			best_q = qvalue;
@@ -12031,13 +12031,13 @@ expect_comma:
 	}
 
 	/* Set default value if required. */
-	if (smp->data.str.len == 0 && args[1].type == ARGT_STR) {
-		smp->data.str.str = args[1].data.str.str;
-		smp->data.str.len = args[1].data.str.len;
+	if (smp->data.data.str.len == 0 && args[1].type == ARGT_STR) {
+		smp->data.data.str.str = args[1].data.str.str;
+		smp->data.data.str.len = args[1].data.str.len;
 	}
 
 	/* Return true only if a matching language was found. */
-	return smp->data.str.len != 0;
+	return smp->data.data.str.len != 0;
 }
 
 /* This fetch url-decode any input string. */
@@ -12047,17 +12047,17 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	 * the end of the buffer, copy the string in other buffer
 	  * before decoding.
 	 */
-	if (smp->flags & SMP_F_CONST || smp->data.str.size <= smp->data.str.len) {
+	if (smp->flags & SMP_F_CONST || smp->data.data.str.size <= smp->data.data.str.len) {
 		struct chunk *str = get_trash_chunk();
-		memcpy(str->str, smp->data.str.str, smp->data.str.len);
-		smp->data.str.str = str->str;
-		smp->data.str.size = str->size;
+		memcpy(str->str, smp->data.data.str.str, smp->data.data.str.len);
+		smp->data.data.str.str = str->str;
+		smp->data.data.str.size = str->size;
 		smp->flags &= ~SMP_F_CONST;
 	}
 
 	/* Add final \0 required by url_decode(), and convert the input string. */
-	smp->data.str.str[smp->data.str.len] = '\0';
-	smp->data.str.len = url_decode(smp->data.str.str);
+	smp->data.data.str.str[smp->data.data.str.len] = '\0';
+	smp->data.data.str.len = url_decode(smp->data.data.str.str);
 	return 1;
 }
 
@@ -12091,12 +12091,12 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 		return 0;
 
 	/* Check length. */
-	len = smp->data.str.len;
+	len = smp->data.data.str.len;
 	if (len > hdr->len)
 		len = hdr->len;
 
 	/* Capture input data. */
-	memcpy(smp->strm->req_cap[idx], smp->data.str.str, len);
+	memcpy(smp->strm->req_cap[idx], smp->data.data.str.str, len);
 	smp->strm->req_cap[idx][len] = '\0';
 
 	return 1;
@@ -12132,12 +12132,12 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 		return 0;
 
 	/* Check length. */
-	len = smp->data.str.len;
+	len = smp->data.data.str.len;
 	if (len > hdr->len)
 		len = hdr->len;
 
 	/* Capture input data. */
-	memcpy(smp->strm->res_cap[idx], smp->data.str.str, len);
+	memcpy(smp->strm->res_cap[idx], smp->data.data.str.str, len);
 	smp->strm->res_cap[idx][len] = '\0';
 
 	return 1;
@@ -12334,11 +12334,11 @@ int http_action_req_capture(struct http_req_rule *rule, struct proxy *px, struct
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return 1;
 
-	len = key->data.str.len;
+	len = key->data.data.str.len;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.str.str, len);
+	memcpy(cap[h->index], key->data.data.str.str, len);
 	cap[h->index][len] = 0;
 	return 1;
 }
@@ -12377,11 +12377,11 @@ int http_action_req_capture_by_id(struct http_req_rule *rule, struct proxy *px, 
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return 1;
 
-	len = key->data.str.len;
+	len = key->data.data.str.len;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.str.str, len);
+	memcpy(cap[h->index], key->data.data.str.str, len);
 	cap[h->index][len] = 0;
 	return 1;
 }
@@ -12546,11 +12546,11 @@ int http_action_res_capture_by_id(struct http_res_rule *rule, struct proxy *px, 
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return 1;
 
-	len = key->data.str.len;
+	len = key->data.data.str.len;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.str.str, len);
+	memcpy(cap[h->index], key->data.data.str.str, len);
 	cap[h->index][len] = 0;
 	return 1;
 }

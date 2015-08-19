@@ -161,15 +161,15 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 	if (pat) {
 		/* Copy sample. */
 		if (pat->data) {
-			smp->type = pat->data->type;
+			smp->data.type = pat->data->type;
 			smp->flags |= SMP_F_CONST;
-			memcpy(&smp->data, &pat->data->data, sizeof(smp->data));
+			memcpy(&smp->data.data, &pat->data->data, sizeof(smp->data.data));
 			return 1;
 		}
 
 		/* Return just int sample containing 1. */
-		smp->type = SMP_T_SINT;
-		smp->data.sint = 1;
+		smp->data.type = SMP_T_SINT;
+		smp->data.data.sint = 1;
 		return 1;
 	}
 
@@ -181,24 +181,24 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 	switch (desc->conv->out_type) {
 
 	case SMP_T_STR:
-		smp->type = SMP_T_STR;
+		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->data.str = arg_p[1].data.str;
+		smp->data.data.str = arg_p[1].data.str;
 		break;
 
 	case SMP_T_SINT:
-		smp->type = SMP_T_SINT;
-		smp->data.sint = arg_p[1].data.sint;
+		smp->data.type = SMP_T_SINT;
+		smp->data.data.sint = arg_p[1].data.sint;
 		break;
 
 	case SMP_T_IPV4:
-		smp->type = SMP_T_IPV4;
-		smp->data.ipv4 = arg_p[1].data.ipv4;
+		smp->data.type = SMP_T_IPV4;
+		smp->data.data.ipv4 = arg_p[1].data.ipv4;
 		break;
 
 	case SMP_T_IPV6:
-		smp->type = SMP_T_IPV6;
-		smp->data.ipv6 = arg_p[1].data.ipv6;
+		smp->data.type = SMP_T_IPV6;
+		smp->data.data.ipv6 = arg_p[1].data.ipv6;
 		break;
 	}
 

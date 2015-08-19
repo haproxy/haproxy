@@ -840,8 +840,8 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 static int
 smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_BOOL;
-	smp->data.sint = (smp->strm->comp_algo != NULL);
+	smp->data.type = SMP_T_BOOL;
+	smp->data.data.sint = (smp->strm->comp_algo != NULL);
 	return 1;
 }
 
@@ -852,10 +852,10 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp, const char *
 	if (!smp->strm->comp_algo)
 		return 0;
 
-	smp->type = SMP_T_STR;
+	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.str.str = smp->strm->comp_algo->cfg_name;
-	smp->data.str.len = smp->strm->comp_algo->cfg_name_len;
+	smp->data.data.str.str = smp->strm->comp_algo->cfg_name;
+	smp->data.data.str.len = smp->strm->comp_algo->cfg_name_len;
 	return 1;
 }
 

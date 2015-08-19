@@ -242,11 +242,8 @@ struct meth {
 	struct chunk str;
 };
 
-/* a sample is a typed data extracted from a stream. It has a type, contents,
- * validity constraints, a context for use in iterative calls.
- */
-struct sample {
-	unsigned int flags;       /* SMP_F_* */
+/* Used to store sample constant */
+struct sample_data {
 	int type;                 /* SMP_T_* */
 	union {
 		long long int   sint;  /* used for signed 64bits integers */
@@ -255,6 +252,14 @@ struct sample {
 		struct chunk    str;   /* used for char strings or buffers */
 		struct meth     meth;  /* used for http method */
 	} data;                        /* sample data */
+};
+
+/* a sample is a typed data extracted from a stream. It has a type, contents,
+ * validity constraints, a context for use in iterative calls.
+ */
+struct sample {
+	unsigned int flags;       /* SMP_F_* */
+	struct sample_data data;
 	union smp_ctx ctx;
 
 	/* Some sample analyzer (sample-fetch or converters) needs to
@@ -266,18 +271,6 @@ struct sample {
 	struct session *sess;
 	struct stream *strm;
 	unsigned int opt; /* fetch options (SMP_OPT_*) */
-};
-
-/* Used to store sample constant */
-struct sample_data {
-	int type;                 /* SMP_T_* */
-	union {
-		long long int   sint;  /* used for signed 64bits integers */
-		struct in_addr  ipv4;  /* used for ipv4 addresses */
-		struct in6_addr ipv6;  /* used for ipv6 addresses */
-		struct chunk    str;   /* used for char strings or buffers */
-		struct meth     meth;  /* used for http method */
-	} data;                        /* sample data */
 };
 
 /* Descriptor for a sample conversion */

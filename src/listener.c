@@ -593,8 +593,8 @@ void bind_dump_kws(char **out)
 static int
 smp_fetch_dconn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_SINT;
-	smp->data.sint = smp->sess->listener->nbconn;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = smp->sess->listener->nbconn;
 	return 1;
 }
 
@@ -602,8 +602,8 @@ smp_fetch_dconn(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_so_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->type = SMP_T_SINT;
-	smp->data.sint = smp->sess->listener->luid;
+	smp->data.type = SMP_T_SINT;
+	smp->data.data.sint = smp->sess->listener->luid;
 	return 1;
 }
 
