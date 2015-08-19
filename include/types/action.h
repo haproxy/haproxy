@@ -1,6 +1,6 @@
 /*
  * include/types/action.h
- * This file contains TCP protocol definitions.
+ * This file contains actions definitions.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *

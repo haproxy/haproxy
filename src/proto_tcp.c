@@ -40,6 +40,7 @@
 #include <types/server.h>
 
 #include <proto/acl.h>
+#include <proto/action.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
@@ -137,62 +138,17 @@ void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
  */
 static struct action_kw *tcp_req_conn_action(const char *kw)
 {
-	struct action_kw_list *kw_list;
-	int i;
-
-	if (LIST_ISEMPTY(&tcp_req_conn_keywords))
-		return NULL;
-
-	list_for_each_entry(kw_list, &tcp_req_conn_keywords, list) {
-		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			if (kw_list->kw[i].match_pfx &&
-			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
-				return &kw_list->kw[i];
-			if (!strcmp(kw, kw_list->kw[i].kw))
-				return &kw_list->kw[i];
-		}
-	}
-	return NULL;
+	return action_lookup(&tcp_req_conn_keywords, kw);
 }
 
 static struct action_kw *tcp_req_cont_action(const char *kw)
 {
-	struct action_kw_list *kw_list;
-	int i;
-
-	if (LIST_ISEMPTY(&tcp_req_cont_keywords))
-		return NULL;
-
-	list_for_each_entry(kw_list, &tcp_req_cont_keywords, list) {
-		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			if (kw_list->kw[i].match_pfx &&
-			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
-				return &kw_list->kw[i];
-			if (!strcmp(kw, kw_list->kw[i].kw))
-				return &kw_list->kw[i];
-		}
-	}
-	return NULL;
+	return action_lookup(&tcp_req_cont_keywords, kw);
 }
 
 static struct action_kw *tcp_res_cont_action(const char *kw)
 {
-	struct action_kw_list *kw_list;
-	int i;
-
-	if (LIST_ISEMPTY(&tcp_res_cont_keywords))
-		return NULL;
-
-	list_for_each_entry(kw_list, &tcp_res_cont_keywords, list) {
-		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			if (kw_list->kw[i].match_pfx &&
-			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
-				return &kw_list->kw[i];
-			if (!strcmp(kw, kw_list->kw[i].kw))
-				return &kw_list->kw[i];
-		}
-	}
-	return NULL;
+	return action_lookup(&tcp_res_cont_keywords, kw);
 }
 
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
