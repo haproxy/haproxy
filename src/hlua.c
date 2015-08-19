@@ -4584,22 +4584,22 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
-static struct http_req_action_kw_list http_req_kws = { { }, {
+static struct action_kw_list http_req_kws = { { }, {
 	{ "lua", http_req_action_register_lua },
 	{ NULL, NULL }
 }};
 
-static struct http_res_action_kw_list http_res_kws = { { }, {
+static struct action_kw_list http_res_kws = { { }, {
 	{ "lua", http_res_action_register_lua },
 	{ NULL, NULL }
 }};
 
-static struct tcp_action_kw_list tcp_req_cont_kws = { { }, {
+static struct action_kw_list tcp_req_cont_kws = { { }, {
 	{ "lua", tcp_req_action_register_lua },
 	{ NULL, NULL }
 }};
 
-static struct tcp_action_kw_list tcp_res_cont_kws = { { }, {
+static struct action_kw_list tcp_res_cont_kws = { { }, {
 	{ "lua", tcp_res_action_register_lua },
 	{ NULL, NULL }
 }};

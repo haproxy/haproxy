@@ -397,30 +397,8 @@ struct http_method_name {
 	int len;
 };
 
-struct http_req_action_kw {
-       const char *kw;
-       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct act_rule *rule, char **err);
-	int match_pfx;
-};
-
-struct http_res_action_kw {
-       const char *kw;
-       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct act_rule *rule, char **err);
-	int match_pfx;
-};
-
-struct http_req_action_kw_list {
-       struct list list;
-       struct http_req_action_kw kw[VAR_ARRAY];
-};
-
-struct http_res_action_kw_list {
-       struct list list;
-       struct http_res_action_kw kw[VAR_ARRAY];
-};
-
-extern struct http_req_action_kw_list http_req_keywords;
-extern struct http_res_action_kw_list http_res_keywords;
+extern struct action_kw_list http_req_keywords;
+extern struct action_kw_list http_res_keywords;
 
 extern const struct http_method_name http_known_methods[HTTP_METH_OTHER];
 

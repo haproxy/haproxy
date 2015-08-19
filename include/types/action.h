@@ -132,4 +132,16 @@ struct act_rule {
 	} arg;                                 /* arguments used by some actions */
 };
 
+struct action_kw {
+	const char *kw;
+	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
+	             struct act_rule *rule, char **err);
+	int match_pfx;
+};
+
+struct action_kw_list {
+	struct list list;
+	struct action_kw kw[VAR_ARRAY];
+};
+
 #endif /* _TYPES_ACTION_H */

@@ -710,22 +710,22 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ /* END */ },
 }};
 
-static struct tcp_action_kw_list tcp_req_kws = { { }, {
+static struct action_kw_list tcp_req_kws = { { }, {
 	{ "set-var", parse_tcp_req_store, 1 },
 	{ /* END */ }
 }};
 
-static struct tcp_action_kw_list tcp_res_kws = { { }, {
+static struct action_kw_list tcp_res_kws = { { }, {
 	{ "set-var", parse_tcp_res_store, 1 },
 	{ /* END */ }
 }};
 
-static struct http_req_action_kw_list http_req_kws = { { }, {
+static struct action_kw_list http_req_kws = { { }, {
 	{ "set-var", parse_http_req_store, 1 },
 	{ /* END */ }
 }};
 
-static struct http_res_action_kw_list http_res_kws = { { }, {
+static struct action_kw_list http_res_kws = { { }, {
 	{ "set-var", parse_http_res_store, 1 },
 	{ /* END */ }
 }};

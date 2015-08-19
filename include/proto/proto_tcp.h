@@ -41,9 +41,9 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *sess);
 
 /* TCP keywords. */
-void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list);
-void tcp_req_cont_keywords_register(struct tcp_action_kw_list *kw_list);
-void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list);
+void tcp_req_conn_keywords_register(struct action_kw_list *kw_list);
+void tcp_req_cont_keywords_register(struct action_kw_list *kw_list);
+void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 
 /* Export some samples. */
 int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);

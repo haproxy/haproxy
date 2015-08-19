@@ -29,18 +29,6 @@
 #include <types/acl.h>
 #include <types/stream.h>
 
-struct tcp_action_kw {
-	const char *kw;
-	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
-	             struct act_rule *rule, char **err);
-	int match_pfx;
-};
-
-struct tcp_action_kw_list {
-	struct list list;
-	struct tcp_action_kw kw[VAR_ARRAY];
-};
-
 #endif /* _TYPES_PROTO_TCP_H */
 
 /*

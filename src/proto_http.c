@@ -236,12 +236,12 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 
 
 /* List head of all known action keywords for "http-request" */
-struct http_req_action_kw_list http_req_keywords = {
+struct action_kw_list http_req_keywords = {
        .list = LIST_HEAD_INIT(http_req_keywords.list)
 };
 
 /* List head of all known action keywords for "http-response" */
-struct http_res_action_kw_list http_res_keywords = {
+struct action_kw_list http_res_keywords = {
        .list = LIST_HEAD_INIT(http_res_keywords.list)
 };
 
@@ -8934,7 +8934,7 @@ void free_http_req_rules(struct list *r)
 struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct act_rule *rule;
-	struct http_req_action_kw *custom = NULL;
+	struct action_kw *custom = NULL;
 	int cur_arg;
 	char *error;
 
@@ -9408,7 +9408,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct act_rule *rule;
-	struct http_res_action_kw *custom = NULL;
+	struct action_kw *custom = NULL;
 	int cur_arg;
 	char *error;
 
@@ -12645,10 +12645,10 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
-struct http_req_action_kw *action_http_req_custom(const char *kw)
+struct action_kw *action_http_req_custom(const char *kw)
 {
 	if (!LIST_ISEMPTY(&http_req_keywords.list)) {
-		struct http_req_action_kw_list *kw_list;
+		struct action_kw_list *kw_list;
 		int i;
 
 		list_for_each_entry(kw_list, &http_req_keywords.list, list) {
@@ -12667,10 +12667,10 @@ struct http_req_action_kw *action_http_req_custom(const char *kw)
 /*
  * Return the struct http_res_action_kw associated to a keyword.
  */
-struct http_res_action_kw *action_http_res_custom(const char *kw)
+struct action_kw *action_http_res_custom(const char *kw)
 {
 	if (!LIST_ISEMPTY(&http_res_keywords.list)) {
-		struct http_res_action_kw_list *kw_list;
+		struct action_kw_list *kw_list;
 		int i;
 
 		list_for_each_entry(kw_list, &http_res_keywords.list, list) {
@@ -12911,7 +12911,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
-struct http_req_action_kw_list http_req_actions = {
+struct action_kw_list http_req_actions = {
 	.kw = {
 		{ "capture",    parse_http_req_capture },
 		{ "set-method", parse_set_req_line },
@@ -12922,7 +12922,7 @@ struct http_req_action_kw_list http_req_actions = {
 	}
 };
 
-struct http_res_action_kw_list http_res_actions = {
+struct action_kw_list http_res_actions = {
 	.kw = {
 		{ "capture",    parse_http_res_capture },
 		{ NULL, NULL }

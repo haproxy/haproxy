@@ -117,17 +117,17 @@ static struct protocol proto_tcpv6 = {
 /*
  * Register keywords.
  */
-void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list)
+void tcp_req_conn_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&tcp_req_conn_keywords, &kw_list->list);
 }
 
-void tcp_req_cont_keywords_register(struct tcp_action_kw_list *kw_list)
+void tcp_req_cont_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&tcp_req_cont_keywords, &kw_list->list);
 }
 
-void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list)
+void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&tcp_res_cont_keywords, &kw_list->list);
 }
@@ -135,9 +135,9 @@ void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list)
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
-static struct tcp_action_kw *tcp_req_conn_action(const char *kw)
+static struct action_kw *tcp_req_conn_action(const char *kw)
 {
-	struct tcp_action_kw_list *kw_list;
+	struct action_kw_list *kw_list;
 	int i;
 
 	if (LIST_ISEMPTY(&tcp_req_conn_keywords))
@@ -155,9 +155,9 @@ static struct tcp_action_kw *tcp_req_conn_action(const char *kw)
 	return NULL;
 }
 
-static struct tcp_action_kw *tcp_req_cont_action(const char *kw)
+static struct action_kw *tcp_req_cont_action(const char *kw)
 {
-	struct tcp_action_kw_list *kw_list;
+	struct action_kw_list *kw_list;
 	int i;
 
 	if (LIST_ISEMPTY(&tcp_req_cont_keywords))
@@ -175,9 +175,9 @@ static struct tcp_action_kw *tcp_req_cont_action(const char *kw)
 	return NULL;
 }
 
-static struct tcp_action_kw *tcp_res_cont_action(const char *kw)
+static struct action_kw *tcp_res_cont_action(const char *kw)
 {
-	struct tcp_action_kw_list *kw_list;
+	struct action_kw_list *kw_list;
 	int i;
 
 	if (LIST_ISEMPTY(&tcp_res_cont_keywords))
@@ -1504,7 +1504,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		rule->action = ACT_TCP_CLOSE;
 	}
 	else {
-		struct tcp_action_kw *kw;
+		struct action_kw *kw;
 		kw = tcp_res_cont_action(args[arg]);
 		if (kw) {
 			arg++;
@@ -1707,7 +1707,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		rule->action = ACT_TCP_EXPECT_PX;
 	}
 	else {
-		struct tcp_action_kw *kw;
+		struct action_kw *kw;
 		if (where & SMP_VAL_FE_CON_ACC) {
 			kw = tcp_req_conn_action(args[arg]);
 			rule->from = ACT_F_TCP_REQ_CON;
