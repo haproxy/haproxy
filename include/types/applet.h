@@ -95,7 +95,6 @@ struct appctx {
 			unsigned int display_flags;
 			struct pat_ref *ref;
 			struct pat_ref_elt *elt;
-			struct map_descriptor *desc;
 			struct pattern_expr *expr;
 			struct chunk chunk;
 		} map;
