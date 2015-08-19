@@ -64,6 +64,14 @@ enum pr_mode {
 	PR_MODE_HEALTH,
 } __attribute__((packed));
 
+enum PR_SRV_STATE_FILE {
+	PR_SRV_STATE_FILE_UNSPEC = 0,
+	PR_SRV_STATE_FILE_NONE,
+	PR_SRV_STATE_FILE_GLOBAL,
+	PR_SRV_STATE_FILE_LOCAL,
+};
+
+
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
 #define PR_CAP_NONE    0x0000
 #define PR_CAP_FE      0x0001
@@ -411,6 +419,14 @@ struct proxy {
 		int set;			/* True if email_alert settings are present */
 		struct email_alertq *queues;	/* per-mailer alerts queues */
 	} email_alert;
+
+	int load_server_state_from_file;	/* location of the file containing server state.
+						 * flag PR_SRV_STATE_FILE_* */
+	char *server_state_file_name;		/* used when load_server_state_from_file is set to
+						 * PR_SRV_STATE_FILE_LOCAL. Give a specific file name for
+						 * this backend. If not specified or void, then the backend
+						 * name is used
+						 */
 };
 
 struct switching_rule {

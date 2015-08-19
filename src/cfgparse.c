@@ -1861,6 +1861,7 @@ void init_default_instance()
 	defproxy.defsrv.uweight = defproxy.defsrv.iweight = 1;
 
 	defproxy.email_alert.level = LOG_ALERT;
+	defproxy.load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
 }
 
 
@@ -2664,6 +2665,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #if defined(CONFIG_HAP_TRANSPARENT)
 			curproxy->conn_src.tproxy_addr = defproxy.conn_src.tproxy_addr;
 #endif
+			curproxy->load_server_state_from_file = defproxy.load_server_state_from_file;
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
@@ -3464,6 +3466,39 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		Alert("parsing [%s:%d] : '%s' is not supported anymore, please check the documentation.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
+	}
+	else if (!strcmp(args[0], "load-server-state-from-file")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+		if (!strcmp(args[1], "global")) {  /* use the file pointed to by global server-state-file directive */
+			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_GLOBAL;
+		}
+		else if (!strcmp(args[1], "local")) { /* use the server-state-file-name variable to locate the server-state file */
+			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_LOCAL;
+		}
+		else if (!strcmp(args[1], "none")) {  /* don't use server-state-file directive for this backend */
+			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' expects 'global', 'local' or 'none'. Got '%s'\n",
+			      file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (!strcmp(args[0], "server-state-file-name")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects 'use-backend-name' or a string. Got no argument\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (!strcmp(args[1], "use-backend-name"))
+			curproxy->server_state_file_name = strdup(curproxy->id);
+		else
+			curproxy->server_state_file_name = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "capture")) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
@@ -7894,6 +7929,19 @@ out_uri_auth_compat:
 			                                     MEM_F_SHARED);
 		}
 
+		switch (curproxy->load_server_state_from_file) {
+			case PR_SRV_STATE_FILE_UNSPEC:
+				curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
+				break;
+			case PR_SRV_STATE_FILE_GLOBAL:
+				if (!global.server_state_file) {
+					Warning("config : backend '%s' configured to load server state file from global section 'server-state-file' directive. Unfortunately, 'server-state-file' is not set!\n",
+						curproxy->id);
+					err_code |= ERR_WARN;
+				}
+				break;
+		}
+
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {
@@ -8730,6 +8778,14 @@ out_uri_auth_compat:
 			free(*last);
 			*last = curmailers;
 		}
+	}
+
+	/* Update server_state_file_name to backend name if backend is supposed to use
+	 * a server-state file locally defined and none has been provided */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_LOCAL &&
+		    curproxy->server_state_file_name == NULL)
+			curproxy->server_state_file_name = strdup(curproxy->id);
 	}
 
 	pool2_hdr_idx = create_pool("hdr_idx",

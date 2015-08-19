@@ -12,6 +12,7 @@
  */
 
 #include <ctype.h>
+#include <errno.h>
 
 #include <common/cfgparse.h>
 #include <common/config.h>
@@ -32,6 +33,7 @@
 #include <proto/task.h>
 #include <proto/dns.h>
 
+static void srv_update_state(struct server *srv, int version, char **params);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -1890,6 +1892,578 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
 	}
 
 	return NULL;
+}
+
+/* Update a server state using the parameters available in the params list */
+static void srv_update_state(struct server *srv, int version, char **params)
+{
+	int msg_default_len;
+	char *p;
+	struct chunk *msg = get_trash_chunk();
+
+	/* fields since version 1
+	 * and common to all other upcoming versions
+	 */
+	struct sockaddr_storage addr;
+	enum srv_state srv_op_state;
+	enum srv_admin srv_admin_state;
+	unsigned srv_uweight, srv_iweight;
+	unsigned long srv_last_time_change;
+	short srv_check_status;
+	enum chk_result srv_check_result;
+	int srv_check_health;
+	int srv_check_state, srv_agent_state;
+	int bk_f_forced_id;
+	int srv_f_forced_id;
+
+	chunk_printf(msg, "server-state application failed for server '%s/%s'", srv->proxy->id, srv->id);
+	msg_default_len = msg->len;
+	switch (version) {
+		case 1:
+			/*
+			 * now we can proceed with server's state update:
+			 * srv_addr:             params[0]
+			 * srv_op_state:         params[1]
+			 * srv_admin_state:      params[2]
+			 * srv_uweight:          params[3]
+			 * srv_iweight:          params[4]
+			 * srv_last_time_change: params[5]
+			 * srv_check_status:     params[6]
+			 * srv_check_result:     params[7]
+			 * srv_check_health:     params[8]
+			 * srv_check_state:      params[9]
+			 * srv_agent_state:      params[10]
+			 * bk_f_forced_id:       params[11]
+			 * srv_f_forced_id:      params[12]
+			 */
+
+			/* validating srv_op_state */
+			p = NULL;
+			errno = 0;
+			srv_op_state = strtol(params[1], &p, 10);
+			if ((p == params[1]) || errno == EINVAL || errno == ERANGE ||
+			    (srv_op_state != SRV_ST_STOPPED &&
+			     srv_op_state != SRV_ST_STARTING &&
+			     srv_op_state != SRV_ST_RUNNING &&
+			     srv_op_state != SRV_ST_STOPPING)) {
+				chunk_appendf(msg, ", invalid srv_op_state value '%s'", params[1]);
+			}
+
+			/* validating srv_admin_state */
+			p = NULL;
+			errno = 0;
+			srv_admin_state = strtol(params[2], &p, 10);
+			if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
+			    (srv_admin_state != 0 &&
+			     srv_admin_state != SRV_ADMF_FMAINT &&
+			     srv_admin_state != SRV_ADMF_IMAINT &&
+			     srv_admin_state != SRV_ADMF_CMAINT &&
+			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT) &&
+			     srv_admin_state != SRV_ADMF_FDRAIN &&
+			     srv_admin_state != SRV_ADMF_IDRAIN)) {
+				chunk_appendf(msg, ", invalid srv_admin_state value '%s'", params[2]);
+			}
+
+			/* validating srv_uweight */
+			p = NULL;
+			errno = 0;
+			srv_uweight = strtol(params[3], &p, 10);
+			if ((p == params[3]) || errno == EINVAL || errno == ERANGE ||
+			    (srv_uweight < 0) || (srv_uweight > SRV_UWGHT_MAX))
+				chunk_appendf(msg, ", invalid srv_uweight value '%s'", params[3]);
+
+			/* validating srv_iweight */
+			p = NULL;
+			errno = 0;
+			srv_iweight = strtol(params[4], &p, 10);
+			if ((p == params[4]) || errno == EINVAL || errno == ERANGE ||
+			    (srv_iweight < 0) || (srv_iweight > SRV_UWGHT_MAX))
+				chunk_appendf(msg, ", invalid srv_iweight value '%s'", params[4]);
+
+			/* validating srv_last_time_change */
+			p = NULL;
+			errno = 0;
+			srv_last_time_change = strtol(params[5], &p, 10);
+			if ((p == params[5]) || errno == EINVAL || errno == ERANGE)
+				chunk_appendf(msg, ", invalid srv_last_time_change value '%s'", params[5]);
+
+			/* validating srv_check_status */
+			p = NULL;
+			errno = 0;
+			srv_check_status = strtol(params[6], &p, 10);
+			if (p == params[6] || errno == EINVAL || errno == ERANGE ||
+			    (srv_check_status >= HCHK_STATUS_SIZE))
+				chunk_appendf(msg, ", invalid srv_check_status value '%s'", params[6]);
+
+			/* validating srv_check_result */
+			p = NULL;
+			errno = 0;
+			srv_check_result = strtol(params[7], &p, 10);
+			if ((p == params[7]) || errno == EINVAL || errno == ERANGE ||
+			    (srv_check_result != CHK_RES_UNKNOWN &&
+			     srv_check_result != CHK_RES_NEUTRAL &&
+			     srv_check_result != CHK_RES_FAILED &&
+			     srv_check_result != CHK_RES_PASSED &&
+			     srv_check_result != CHK_RES_CONDPASS)) {
+				chunk_appendf(msg, ", invalid srv_check_result value '%s'", params[7]);
+			}
+
+			/* validating srv_check_health */
+			p = NULL;
+			errno = 0;
+			srv_check_health = strtol(params[8], &p, 10);
+			if (p == params[8] || errno == EINVAL || errno == ERANGE)
+				chunk_appendf(msg, ", invalid srv_check_health value '%s'", params[8]);
+
+			/* validating srv_check_state */
+			p = NULL;
+			errno = 0;
+			srv_check_state = strtol(params[9], &p, 10);
+			if (p == params[9] || errno == EINVAL || errno == ERANGE ||
+			    (srv_check_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
+				chunk_appendf(msg, ", invalid srv_check_state value '%s'", params[9]);
+
+			/* validating srv_agent_state */
+			p = NULL;
+			errno = 0;
+			srv_agent_state = strtol(params[10], &p, 10);
+			if (p == params[10] || errno == EINVAL || errno == ERANGE ||
+			    (srv_agent_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
+				chunk_appendf(msg, ", invalid srv_agent_state value '%s'", params[10]);
+
+			/* validating bk_f_forced_id */
+			p = NULL;
+			errno = 0;
+			bk_f_forced_id = strtol(params[11], &p, 10);
+			if (p == params[11] || errno == EINVAL || errno == ERANGE || !((bk_f_forced_id == 0) || (bk_f_forced_id == 1)))
+				chunk_appendf(msg, ", invalid bk_f_forced_id value '%s'", params[11]);
+
+			/* validating srv_f_forced_id */
+			p = NULL;
+			errno = 0;
+			srv_f_forced_id = strtol(params[12], &p, 10);
+			if (p == params[12] || errno == EINVAL || errno == ERANGE || !((srv_f_forced_id == 0) || (srv_f_forced_id == 1)))
+				chunk_appendf(msg, ", invalid srv_f_forced_id value '%s'", params[12]);
+
+
+			/* don't apply anything if one error has been detected */
+			if (msg->len > msg_default_len)
+				goto out;
+
+			/* recover operational state and apply it to this server
+			 * and all servers tracking this one */
+			switch (srv_op_state) {
+				case SRV_ST_STOPPED:
+					srv->check.health = 0;
+					srv_set_stopped(srv, "changed from server-state after a reload");
+					break;
+				case SRV_ST_STARTING:
+					srv->state = srv_op_state;
+					break;
+				case SRV_ST_STOPPING:
+					srv->check.health = srv->check.rise + srv->check.fall - 1;
+					srv_set_stopping(srv, "changed from server-state after a reload");
+					break;
+				case SRV_ST_RUNNING:
+					srv->check.health = srv->check.rise + srv->check.fall - 1;
+					srv_set_running(srv, "");
+					break;
+			}
+
+			/* When applying server state, the following rules apply:
+			 * - in case of a configuration change, we apply the setting from the new
+			 *   configuration, regardless of old running state
+			 * - if no configuration change, we apply old running state only if old running
+			 *   state is different from new configuration state
+			 */
+			/* configuration has changed */
+			if ((srv_admin_state & SRV_ADMF_CMAINT) != (srv->admin & SRV_ADMF_CMAINT)) {
+				if (srv->admin & SRV_ADMF_CMAINT)
+					srv_adm_set_maint(srv);
+				else
+					srv_adm_set_ready(srv);
+			}
+			/* configuration is the same, let's compate old running state and new conf state */
+			else {
+				if (srv_admin_state & SRV_ADMF_FMAINT && !(srv->admin & SRV_ADMF_CMAINT))
+					srv_adm_set_maint(srv);
+				else if (!(srv_admin_state & SRV_ADMF_FMAINT) && (srv->admin & SRV_ADMF_CMAINT))
+					srv_adm_set_ready(srv);
+			}
+			/* apply drain mode if server is currently enabled */
+			if (!(srv->admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
+				/* The SRV_ADMF_FDRAIN flag is inherited when srv->iweight is 0
+				 * (srv->iweight is the weight set up in configuration)
+				 * so we don't want to apply it when srv_iweight is 0 and
+				 * srv->iweight is greater than 0. Purpose is to give the
+				 * chance to the admin to re-enable this server from configuration
+				 * file by setting a new weight > 0.
+				 */
+				if ((srv_iweight == 0) && (srv->iweight > 0)) {
+					srv_adm_set_drain(srv);
+				}
+			}
+
+			srv->last_change = date.tv_sec - srv_last_time_change;
+			srv->check.status = srv_check_status;
+			srv->check.result = srv_check_result;
+			srv->check.health = srv_check_health;
+
+			/* Only case we want to apply is removing ENABLED flag which could have been
+			 * done by the "disable health" command over the stats socket
+			 */
+			if ((srv->check.state & CHK_ST_CONFIGURED) &&
+			    (srv_check_state & CHK_ST_CONFIGURED) &&
+			    !(srv_check_state & CHK_ST_ENABLED))
+				srv->check.state &= ~CHK_ST_ENABLED;
+
+			/* Only case we want to apply is removing ENABLED flag which could have been
+			 * done by the "disable agent" command over the stats socket
+			 */
+			if ((srv->agent.state & CHK_ST_CONFIGURED) &&
+			    (srv_agent_state & CHK_ST_CONFIGURED) &&
+			    !(srv_agent_state & CHK_ST_ENABLED))
+				srv->agent.state &= ~CHK_ST_ENABLED;
+
+			/* by default, HAProxy applies the following weight when parsing the configuration
+			 *    srv->uweight = srv_iweight.
+			 *
+			 * We want to apply the previous 'running' weight (srv_uweight) in the following cases:
+			 *  - previous uweight, iweight and iweight were set, whatever their values
+			 *  - both previous and new iweight are equal but previous uweight is set, whatever
+			 *    its value
+			 *  - iweight has changed between previous and new configuration file but uweight
+			 *    wasn't set to previous iweight value (basically, changed over the stats socket)
+			 *    => basically, stats socket has precedence over configuration file in such case.
+			 */
+			if ((srv_uweight > 0 && srv_iweight > 0 && srv->iweight > 0) ||
+			    (srv_iweight == srv->iweight && srv_uweight > 0) ||
+			    (srv_iweight != srv->iweight && srv_uweight != srv_iweight)) {
+				srv->uweight = srv_uweight;
+			}
+
+			server_recalc_eweight(srv);
+
+			/* update server IP only if DNS resolution is used on the server */
+			if (srv->resolution) {
+				memset(&addr, 0, sizeof(struct sockaddr_storage));
+				if (str2ip2(params[0], &addr, 0))
+					memcpy(&srv->addr, &addr, sizeof(struct sockaddr_storage));
+				else
+					chunk_appendf(msg, ", can't parse IP: %s", params[0]);
+			}
+			break;
+		default:
+			chunk_appendf(msg, ", version '%d' not supported", version);
+	}
+
+ out:
+	if (msg->len > msg_default_len) {
+		chunk_appendf(msg, "\n");
+		Warning(msg->str);
+	}
+
+}
+
+/* This function parses all the proxies and only take care of the backends (since we're looking for server)
+ * For each proxy, it does the following:
+ *  - opens its server state file (either one or local one)
+ *  - read whole file, line by line
+ *  - analyse each line to check if it matches our current backend:
+ *    - backend name matches
+ *    - backend id matches if id is forced and name doesn't match
+ *  - if the server pointed by the line is found, then state is applied
+ *
+ * If the running backend uuid or id differs from the state file, then HAProxy reports
+ * a warning.
+ */
+void apply_server_state(void)
+{
+	char *cur, *end;
+	char mybuf[SRV_STATE_LINE_MAXLEN];
+	int mybuflen;
+	char *params[SRV_STATE_FILE_MAX_FIELDS];
+	char *srv_params[SRV_STATE_FILE_MAX_FIELDS];
+	int arg, srv_arg, version, diff;
+	FILE *f;
+	char *filepath;
+	char globalfilepath[MAXPATHLEN + 1];
+	char localfilepath[MAXPATHLEN + 1];
+	int len, fileopenerr, globalfilepathlen, localfilepathlen;
+	extern struct proxy *proxy;
+	struct proxy *curproxy, *bk;
+	struct server *srv;
+
+	globalfilepathlen = 0;
+	/* create the globalfilepath variable */
+	if (global.server_state_file) {
+		/* absolute path or no base directory provided */
+	        if ((global.server_state_file[0] == '/') || (!global.server_state_base)) {
+			len = strlen(global.server_state_file);
+			if (len > MAXPATHLEN) {
+				globalfilepathlen = 0;
+				goto globalfileerror;
+			}
+			memcpy(globalfilepath, global.server_state_file, len);
+			globalfilepath[len] = '\0';
+			globalfilepathlen = len;
+		}
+		else if (global.server_state_base) {
+			len = strlen(global.server_state_base);
+			globalfilepathlen += len;
+
+			if (globalfilepathlen > MAXPATHLEN) {
+				globalfilepathlen = 0;
+				goto globalfileerror;
+			}
+			strncpy(globalfilepath, global.server_state_base, len);
+			globalfilepath[globalfilepathlen] = 0;
+
+			/* append a slash if needed */
+			if (!globalfilepathlen || globalfilepath[globalfilepathlen - 1] != '/') {
+				if (globalfilepathlen + 1 > MAXPATHLEN) {
+					globalfilepathlen = 0;
+					goto globalfileerror;
+				}
+				globalfilepath[globalfilepathlen++] = '/';
+			}
+
+			len = strlen(global.server_state_file);
+			if (globalfilepathlen + len > MAXPATHLEN) {
+				globalfilepathlen = 0;
+				goto globalfileerror;
+			}
+			memcpy(globalfilepath + globalfilepathlen, global.server_state_file, len);
+			globalfilepathlen += len;
+			globalfilepath[globalfilepathlen++] = 0;
+		}
+	}
+ globalfileerror:
+	if (globalfilepathlen == 0)
+		globalfilepath[0] = '\0';
+
+	/* read servers state from local file */
+	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+		/* servers are only in backends */
+		if (!(curproxy->cap & PR_CAP_BE))
+			continue;
+		fileopenerr = 0;
+		filepath = NULL;
+
+		/* search server state file path and name */
+		switch (curproxy->load_server_state_from_file) {
+			/* read servers state from global file */
+			case PR_SRV_STATE_FILE_GLOBAL:
+				/* there was an error while generating global server state file path */
+				if (globalfilepathlen == 0)
+					continue;
+				filepath = globalfilepath;
+				fileopenerr = 1;
+				break;
+			/* this backend has its own file */
+			case PR_SRV_STATE_FILE_LOCAL:
+				localfilepathlen = 0;
+				localfilepath[0] = '\0';
+				len = 0;
+				/* create the localfilepath variable */
+				/* absolute path or no base directory provided */
+				if ((curproxy->server_state_file_name[0] == '/') || (!global.server_state_base)) {
+					len = strlen(curproxy->server_state_file_name);
+					if (len > MAXPATHLEN) {
+						localfilepathlen = 0;
+						goto localfileerror;
+					}
+					memcpy(localfilepath, curproxy->server_state_file_name, len);
+					localfilepath[len] = '\0';
+					localfilepathlen = len;
+				}
+				else if (global.server_state_base) {
+					len = strlen(global.server_state_base);
+					localfilepathlen += len;
+
+					if (localfilepathlen > MAXPATHLEN) {
+						localfilepathlen = 0;
+						goto localfileerror;
+					}
+					strncpy(localfilepath, global.server_state_base, len);
+					localfilepath[localfilepathlen] = 0;
+
+					/* append a slash if needed */
+					if (!localfilepathlen || localfilepath[localfilepathlen - 1] != '/') {
+						if (localfilepathlen + 1 > MAXPATHLEN) {
+							localfilepathlen = 0;
+							goto localfileerror;
+						}
+						localfilepath[localfilepathlen++] = '/';
+					}
+
+					len = strlen(curproxy->server_state_file_name);
+					if (localfilepathlen + len > MAXPATHLEN) {
+						localfilepathlen = 0;
+						goto localfileerror;
+					}
+					memcpy(localfilepath + localfilepathlen, curproxy->server_state_file_name, len);
+					localfilepathlen += len;
+					localfilepath[localfilepathlen++] = 0;
+				}
+				filepath = localfilepath;
+ localfileerror:
+				if (localfilepathlen == 0)
+					localfilepath[0] = '\0';
+
+				break;
+			case PR_SRV_STATE_FILE_NONE:
+			default:
+				continue;
+		}
+
+		/* preload global state file */
+		errno = 0;
+		f = fopen(filepath, "r");
+		if (errno && fileopenerr)
+			Warning("Can't open server state file '%s': %s\n", filepath, strerror(errno));
+		if (!f)
+			continue;
+
+		mybuf[0] = '\0';
+		mybuflen = 0;
+		version = 0;
+
+		/* first character of first line of the file must contain the version of the export */
+		fgets(mybuf, SRV_STATE_LINE_MAXLEN, f);
+		cur = mybuf;
+		version = atoi(cur);
+		if ((version < SRV_STATE_FILE_VERSION_MIN) ||
+		    (version > SRV_STATE_FILE_VERSION_MAX))
+			continue;
+
+		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
+			int bk_f_forced_id = 0;
+			int check_id = 0;
+			int check_name = 0;
+
+			mybuflen = strlen(mybuf);
+			cur = mybuf;
+			end = cur + mybuflen;
+
+			bk = NULL;
+			srv = NULL;
+
+			/* we need at least one character */
+			if (mybuflen == 0)
+				continue;
+
+			/* ignore blank characters at the beginning of the line */
+			while (isspace(*cur))
+				++cur;
+
+			if (cur == end)
+				continue;
+
+			/* ignore comment line */
+			if (*cur == '#')
+				continue;
+
+			/* we're now ready to move the line into *srv_params[] */
+			params[0] = cur;
+			arg = 1;
+			srv_arg = 0;
+			while (*cur && arg < SRV_STATE_FILE_MAX_FIELDS) {
+				if (isspace(*cur)) {
+					*cur = '\0';
+					++cur;
+					while (isspace(*cur))
+						++cur;
+					switch (version) {
+						case 1:
+							/*
+							 * srv_addr:             params[4]  => srv_params[0]
+							 * srv_op_state:         params[5]  => srv_params[1]
+							 * srv_admin_state:      params[6]  => srv_params[2]
+							 * srv_uweight:          params[7]  => srv_params[3]
+							 * srv_iweight:          params[8]  => srv_params[4]
+							 * srv_last_time_change: params[9]  => srv_params[5]
+							 * srv_check_status:     params[10] => srv_params[6]
+							 * srv_check_result:     params[11] => srv_params[7]
+							 * srv_check_health:     params[12] => srv_params[8]
+							 * srv_check_state:      params[13] => srv_params[9]
+							 * srv_agent_state:      params[14] => srv_params[10]
+							 * bk_f_forced_id:       params[15] => srv_params[11]
+							 * srv_f_forced_id:      params[16] => srv_params[12]
+							 */
+							if (arg >= 4) {
+								srv_params[srv_arg] = cur;
+								++srv_arg;
+							}
+							break;
+					}
+
+					params[arg] = cur;
+					++arg;
+				}
+				else {
+					++cur;
+				}
+			}
+
+			/* if line is incomplete line, then ignore it.
+			 * otherwise, update useful flags */
+			switch (version) {
+				case 1:
+					if (arg < SRV_STATE_FILE_NB_FIELDS_VERSION_1)
+						continue;
+					bk_f_forced_id = (atoi(params[15]) & PR_O_FORCED_ID);
+					check_id = (atoi(params[0]) == curproxy->uuid);
+					check_name = (strcmp(curproxy->id, params[1]) == 0);
+					break;
+			}
+
+			diff = 0;
+			bk = curproxy;
+
+			/* if backend can't be found, let's continue */
+			if (!check_id && !check_name)
+				continue;
+			else if (!check_id && check_name) {
+				Warning("backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
+				send_log(bk, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
+			}
+			else if (check_id && !check_name) {
+				Warning("backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
+				send_log(bk, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
+				/* if name doesn't match, we still want to update curproxy if the backend id
+				 * was forced in previous the previous configuration */
+				if (!bk_f_forced_id)
+					continue;
+			}
+
+			/* look for the server by its id: param[2] */
+			/* else look for the server by its name: param[3] */
+			diff = 0;
+			srv = server_find_best_match(bk, params[3], atoi(params[2]), &diff);
+
+			if (!srv) {
+				/* if no server found, then warning and continue with next line */
+				Warning("can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
+					params[3], params[2], params[0], params[1]);
+				send_log(bk, LOG_NOTICE, "can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
+					 params[3], params[2], params[0], params[1]);
+				continue;
+			}
+			else if (diff & PR_FBM_MISMATCH_ID) {
+				Warning("In backend '%s' (id: '%d'): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
+				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
+			}
+			else if (diff & PR_FBM_MISMATCH_NAME) {
+				Warning("In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
+				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
+			}
+
+			/* now we can proceed with server's state update */
+			srv_update_state(srv, version, srv_params);
+		}
+		fclose(f);
+	}
 }
 
 /*
