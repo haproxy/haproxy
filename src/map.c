@@ -27,22 +27,22 @@
 /* Parse an IPv4 address and store it into the sample.
  * The output type is IPV4.
  */
-int map_parse_ip(const char *text, struct sample_data *smp)
+int map_parse_ip(const char *text, struct sample_data *data)
 {
-	if (!buf2ip(text, strlen(text), &smp->data.ipv4))
+	if (!buf2ip(text, strlen(text), &data->data.ipv4))
 		return 0;
-	smp->type = SMP_T_IPV4;
+	data->type = SMP_T_IPV4;
 	return 1;
 }
 
 /* Parse an IPv6 address and store it into the sample.
  * The output type is IPV6.
  */
-int map_parse_ip6(const char *text, struct sample_data *smp)
+int map_parse_ip6(const char *text, struct sample_data *data)
 {
-	if (!buf2ip6(text, strlen(text), &smp->data.ipv6))
+	if (!buf2ip6(text, strlen(text), &data->data.ipv6))
 		return 0;
-	smp->type = SMP_T_IPV6;
+	data->type = SMP_T_IPV6;
 	return 1;
 }
 
@@ -52,12 +52,12 @@ int map_parse_ip6(const char *text, struct sample_data *smp)
  * overwritten because sample_conv_map() makes a const sample with this
  * output.
  */
-int map_parse_str(const char *text, struct sample_data *smp)
+int map_parse_str(const char *text, struct sample_data *data)
 {
-	smp->data.str.str = (char *)text;
-	smp->data.str.len = strlen(text);
-	smp->data.str.size = smp->data.str.len + 1;
-	smp->type = SMP_T_STR;
+	data->data.str.str = (char *)text;
+	data->data.str.len = strlen(text);
+	data->data.str.size = data->data.str.len + 1;
+	data->type = SMP_T_STR;
 	return 1;
 }
 
@@ -65,10 +65,10 @@ int map_parse_str(const char *text, struct sample_data *smp)
  * number is negative, or UINT if it is positive or null. The function returns
  * zero (error) if the number is too large.
  */
-int map_parse_int(const char *text, struct sample_data *smp)
+int map_parse_int(const char *text, struct sample_data *data)
 {
-	smp->type = SMP_T_SINT;
-	smp->data.sint = read_int64(&text, text + strlen(text));
+	data->type = SMP_T_SINT;
+	data->data.sint = read_int64(&text, text + strlen(text));
 	if (*text != '\0')
 		return 0;
 	return 1;
@@ -160,10 +160,10 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 	/* Match case. */
 	if (pat) {
 		/* Copy sample. */
-		if (pat->smp) {
-			smp->type = pat->smp->type;
+		if (pat->data) {
+			smp->type = pat->data->type;
 			smp->flags |= SMP_F_CONST;
-			memcpy(&smp->data, &pat->smp->data, sizeof(smp->data));
+			memcpy(&smp->data, &pat->data->data, sizeof(smp->data));
 			return 1;
 		}
 

@@ -1379,7 +1379,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	}
 
 	pat = pattern_exec_match(&desc->pat, &smp, 1);
-	if (!pat || !pat->smp) {
+	if (!pat || !pat->data) {
 		if (str)
 			lua_pushstring(L, "");
 		else
@@ -1388,7 +1388,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	}
 
 	/* The Lua pattern must return a string, so we can't check the returned type */
-	lua_pushlstring(L, pat->smp->data.str.str, pat->smp->data.str.len);
+	lua_pushlstring(L, pat->data->data.str.str, pat->data->data.str.len);
 	return 1;
 }
 

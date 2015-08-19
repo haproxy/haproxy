@@ -427,7 +427,7 @@ struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr,
 {
 	if (smp->data.sint) {
 		if (fill) {
-			static_pattern.smp = NULL;
+			static_pattern.data = NULL;
 			static_pattern.ref = NULL;
 			static_pattern.type = 0;
 			static_pattern.ptr.str = NULL;
@@ -464,7 +464,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				static_pattern.smp = elt->smp;
+				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_STR;
@@ -598,7 +598,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				static_pattern.smp = elt->smp;
+				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_STR;
@@ -874,7 +874,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				static_pattern.smp = elt->smp;
+				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV4;
@@ -896,7 +896,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				static_pattern.smp = elt->smp;
+				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
@@ -916,7 +916,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				static_pattern.smp = elt->smp;
+				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
@@ -950,7 +950,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			if (node) {
 				if (fill) {
 					elt = ebmb_entry(node, struct pattern_tree, node);
-					static_pattern.smp = elt->smp;
+					static_pattern.data = elt->data;
 					static_pattern.ref = elt->ref;
 					static_pattern.sflags = PAT_SF_TREE;
 					static_pattern.type = SMP_T_IPV4;
@@ -1009,7 +1009,7 @@ void free_pattern_tree(struct eb_root *root)
 		next = eb_next(node);
 		eb_delete(node);
 		elt = container_of(node, struct pattern_tree, node);
-		free(elt->smp);
+		free(elt->data);
 		free(elt);
 		node = next;
 	}
@@ -1020,7 +1020,7 @@ void pat_prune_val(struct pattern_expr *expr)
 	struct pattern_list *pat, *tmp;
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 
@@ -1035,7 +1035,7 @@ void pat_prune_ptr(struct pattern_expr *expr)
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		free(pat->pat.ptr.ptr);
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 
@@ -1050,7 +1050,7 @@ void pat_prune_reg(struct pattern_expr *expr)
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		regex_free(pat->pat.ptr.ptr);
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 
@@ -1207,7 +1207,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 			}
 
 			/* copy the pointer to sample associated to this node */
-			node->smp = pat->smp;
+			node->data = pat->data;
 			node->ref = pat->ref;
 
 			/* FIXME: insert <addr>/<mask> into the tree here */
@@ -1235,7 +1235,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 		}
 
 		/* copy the pointer to sample associated to this node */
-		node->smp = pat->smp;
+		node->data = pat->data;
 		node->ref = pat->ref;
 
 		/* FIXME: insert <addr>/<mask> into the tree here */
@@ -1280,7 +1280,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* copy the pointer to sample associated to this node */
-	node->smp = pat->smp;
+	node->data = pat->data;
 	node->ref = pat->ref;
 
 	/* copy the string */
@@ -1321,7 +1321,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* copy the pointer to sample associated to this node */
-	node->smp = pat->smp;
+	node->data = pat->data;
 	node->ref = pat->ref;
 
 	/* copy the string and the trailing zero */
@@ -1348,7 +1348,7 @@ void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 	expr->revision = rdtsc();
@@ -1372,7 +1372,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
-		free(elt->smp);
+		free(elt->data);
 		free(elt);
 	}
 
@@ -1392,7 +1392,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
-		free(elt->smp);
+		free(elt->data);
 		free(elt);
 	}
 	expr->revision = rdtsc();
@@ -1411,7 +1411,7 @@ void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
 		free(pat->pat.ptr.ptr);
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 	expr->revision = rdtsc();
@@ -1439,7 +1439,7 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
-		free(elt->smp);
+		free(elt->data);
 		free(elt);
 	}
 	expr->revision = rdtsc();
@@ -1458,7 +1458,7 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
 		regex_free(pat->pat.ptr.ptr);
-		free(pat->pat.smp);
+		free(pat->pat.data);
 		free(pat);
 	}
 	expr->revision = rdtsc();
@@ -1606,7 +1606,7 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
                                   const char *value, char **err)
 {
 	struct pattern_expr *expr;
-	struct sample_data **smp;
+	struct sample_data **data;
 	char *sample;
 	struct sample_data test;
 
@@ -1637,9 +1637,9 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 		if (!expr->pat_head->parse_smp)
 			continue;
 
-		smp = pattern_find_smp(expr, elt);
-		if (smp && *smp && !expr->pat_head->parse_smp(sample, *smp))
-			*smp = NULL;
+		data = pattern_find_smp(expr, elt);
+		if (data && *data && !expr->pat_head->parse_smp(sample, *data))
+			*data = NULL;
 	}
 
 	return 1;
@@ -1823,41 +1823,41 @@ static inline
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
                  int patflags, char **err)
 {
-	struct sample_data *smp;
+	struct sample_data *data;
 	struct pattern pattern;
 
 	/* Create sample */
 	if (elt->sample && expr->pat_head->parse_smp) {
 		/* New sample. */
-		smp = malloc(sizeof(*smp));
-		if (!smp)
+		data = malloc(sizeof(*data));
+		if (!data)
 			return 0;
 
 		/* Parse value. */
-		if (!expr->pat_head->parse_smp(elt->sample, smp)) {
+		if (!expr->pat_head->parse_smp(elt->sample, data)) {
 			memprintf(err, "unable to parse '%s'", elt->sample);
-			free(smp);
+			free(data);
 			return 0;
 		}
 
 	}
 	else
-		smp = NULL;
+		data = NULL;
 
 	/* initialise pattern */
 	memset(&pattern, 0, sizeof(pattern));
-	pattern.smp = smp;
+	pattern.data = data;
 	pattern.ref = elt;
 
 	/* parse pattern */
 	if (!expr->pat_head->parse(elt->pattern, &pattern, expr->mflags, err)) {
-		free(smp);
+		free(data);
 		return 0;
 	}
 
 	/* index pattern */
 	if (!expr->pat_head->index(expr, &pattern, err)) {
-		free(smp);
+		free(data);
 		return 0;
 	}
 
@@ -2334,7 +2334,7 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 
 	if (!head->match) {
 		if (fill) {
-			static_pattern.smp = NULL;
+			static_pattern.data = NULL;
 			static_pattern.ref = NULL;
 			static_pattern.sflags = 0;
 			static_pattern.type = SMP_T_SINT;
@@ -2387,7 +2387,7 @@ struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_
 	     node = ebmb_next(node)) {
 		elt = container_of(node, struct pattern_tree, node);
 		if (elt->ref == ref)
-			return &elt->smp;
+			return &elt->data;
 	}
 
 	for (node = ebmb_first(&expr->pattern_tree_2);
@@ -2395,12 +2395,12 @@ struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_
 	     node = ebmb_next(node)) {
 		elt = container_of(node, struct pattern_tree, node);
 		if (elt->ref == ref)
-			return &elt->smp;
+			return &elt->data;
 	}
 
 	list_for_each_entry(pat, &expr->patterns, list)
 		if (pat->pat.ref == ref)
-			return &pat->pat.smp;
+			return &pat->pat.data;
 
 	return NULL;
 }

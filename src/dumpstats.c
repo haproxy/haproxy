@@ -5696,7 +5696,7 @@ static int stats_map_lookup(struct stream_interface *si)
 
 				/* display return value */
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-					if (pat->smp && pat->ref && pat->ref->sample)
+					if (pat->data && pat->ref && pat->ref->sample)
 						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"", pat->ref->sample,
 						              smp_to_type[appctx->ctx.map.desc->conv->out_type]);
 					else
