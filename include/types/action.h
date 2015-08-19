@@ -38,6 +38,11 @@ enum act_return {
 	ACT_RET_ERR,   /* processing error. */
 };
 
+enum act_parse_ret {
+	ACT_RET_PRS_OK,    /* continue processing. */
+	ACT_RET_PRS_ERR,   /* abort processing. */
+};
+
 enum act_name {
 	ACT_ACTION_CONT = 0,
 	ACT_ACTION_STOP,
@@ -134,8 +139,8 @@ struct act_rule {
 
 struct action_kw {
 	const char *kw;
-	int (*parse)(const char **args, int *cur_arg, struct proxy *px,
-	             struct act_rule *rule, char **err);
+	enum act_parse_ret (*parse)(const char **args, int *cur_arg, struct proxy *px,
+	                            struct act_rule *rule, char **err);
 	int match_pfx;
 };
 

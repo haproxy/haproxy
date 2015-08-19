@@ -602,59 +602,59 @@ static int parse_vars(const char **args, int *arg, struct proxy *px,
 }
 
 /* Wrapper for parse_vars */
-static int parse_tcp_req_store(const char **args, int *arg, struct proxy *px,
-                               struct act_rule *rule, char **err)
+static enum act_parse_ret parse_tcp_req_store(const char **args, int *arg, struct proxy *px,
+                                              struct act_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_FE_REQ_CNT, err,
                    &rule->arg.vars.expr,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
-		return 0;
+		return ACT_RET_PRS_ERR;
 	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_tcp_req_store;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 /* Wrapper for parse_vars */
-static int parse_tcp_res_store(const char **args, int *arg, struct proxy *px,
-                         struct act_rule *rule, char **err)
+static enum act_parse_ret parse_tcp_res_store(const char **args, int *arg, struct proxy *px,
+                                              struct act_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_BE_RES_CNT, err,
                    &rule->arg.vars.expr,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
-		return 0;
+		return ACT_RET_PRS_ERR;
 	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_tcp_res_store;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 /* Wrapper for parse_vars */
-static int parse_http_req_store(const char **args, int *arg, struct proxy *px,
-                         struct act_rule *rule, char **err)
+static enum act_parse_ret parse_http_req_store(const char **args, int *arg, struct proxy *px,
+                                               struct act_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_FE_HRQ_HDR, err,
                    &rule->arg.vars.expr,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
-		return -1;
+		return ACT_RET_PRS_ERR;
 	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_http_req_store;
-	return 0;
+	return ACT_RET_PRS_OK;
 }
 
 /* Wrapper for parse_vars */
-static int parse_http_res_store(const char **args, int *arg, struct proxy *px,
-                         struct act_rule *rule, char **err)
+static enum act_parse_ret parse_http_res_store(const char **args, int *arg, struct proxy *px,
+                                               struct act_rule *rule, char **err)
 {
 	if (!parse_vars(args, arg, px, SMP_VAL_BE_HRS_HDR, err,
                    &rule->arg.vars.expr,
                    &rule->arg.vars.name,
                    &rule->arg.vars.scope))
-		return -1;
+		return ACT_RET_PRS_ERR;
 	rule->action       = ACT_ACTION_CONT;
 	rule->action_ptr   = action_http_res_store;
-	return 0;
+	return ACT_RET_PRS_OK;
 }
 
 static int vars_max_size(char **args, int section_type, struct proxy *curpx,

@@ -4414,47 +4414,47 @@ enum act_return hlua_http_res_act_wrapper(struct act_rule *rule, struct proxy *p
 }
 
 /* tcp-request <*> configuration wrapper. */
-static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                       struct act_rule *rule, char **err)
+static enum act_parse_ret tcp_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                                      struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
-		return 0;
+		return ACT_RET_PRS_ERR;
 	rule->action = ACT_ACTION_CONT;
 	rule->action_ptr = hlua_tcp_req_act_wrapper;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 /* tcp-response <*> configuration wrapper. */
-static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                       struct act_rule *rule, char **err)
+static enum act_parse_ret tcp_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                                      struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
-		return 0;
+		return ACT_RET_PRS_ERR;
 	rule->action = ACT_ACTION_CONT;
 	rule->action_ptr = hlua_tcp_res_act_wrapper;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 /* http-request <*> configuration wrapper. */
-static int http_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                        struct act_rule *rule, char **err)
+static enum act_parse_ret http_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                                       struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
-		return -1;
+		return ACT_RET_PRS_ERR;
 	rule->action = ACT_ACTION_CONT;
 	rule->action_ptr = hlua_http_req_act_wrapper;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 /* http-response <*> configuration wrapper. */
-static int http_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
-                                        struct act_rule *rule, char **err)
+static enum act_parse_ret http_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                                       struct act_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, &rule->arg.hlua_rule, err))
-		return -1;
+		return ACT_RET_PRS_ERR;
 	rule->action = ACT_ACTION_CONT;
 	rule->action_ptr = hlua_http_res_act_wrapper;
-	return 1;
+	return ACT_RET_PRS_OK;
 }
 
 static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,

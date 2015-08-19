@@ -9368,7 +9368,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg = 1;
 		/* try in the module list */
 		rule->from = ACT_F_HTTP_REQ;
-		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
+		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			free(errmsg);
@@ -9724,7 +9724,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg = 1;
 		/* try in the module list */
 		rule->from = ACT_F_HTTP_RES;
-		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
+		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			free(errmsg);
@@ -12283,9 +12283,10 @@ enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px
  * All of them accept a single argument of type string representing a log-format.
  * The resulting rule makes use of arg->act.p[0..1] to store the log-format list
  * head, and p[2] to store the action as an int (0=method, 1=path, 2=query, 3=uri).
- * It returns 0 on success, < 0 on error.
+ * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct proxy *px,
+                                      struct act_rule *rule, char **err)
 {
 	int cur_arg = *orig_arg;
 
@@ -12310,13 +12311,13 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 		break;
 	default:
 		memprintf(err, "internal error: unhandled action '%s'", args[0]);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	if (!*args[cur_arg] ||
 	    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
 		memprintf(err, "expects exactly 1 argument <format>");
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	LIST_INIT(&rule->arg.http.logfmt);
@@ -12326,7 +12327,7 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 			       proxy->conf.args.file, proxy->conf.args.line);
 
 	(*orig_arg)++;
-	return 0;
+	return ACT_RET_PRS_OK;
 }
 
 /* This function executes the "capture" action. It executes a fetch expression,
@@ -12405,9 +12406,10 @@ enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct prox
 /* parse an "http-request capture" action. It takes a single argument which is
  * a sample fetch expression. It stores the expression into arg->act.p[0] and
  * the allocated hdr_cap struct or the preallocated "id" into arg->act.p[1].
- * It returns 0 on success, < 0 on error.
+ * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px,
+                                          struct act_rule *rule, char **err)
 {
 	struct sample_expr *expr;
 	struct cap_hdr *hdr;
@@ -12421,26 +12423,26 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 	if (cur_arg < *orig_arg + 3) {
 		memprintf(err, "expects <expression> [ 'len' <length> | id <idx> ]");
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	cur_arg = *orig_arg;
 	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
 	if (!expr)
-		return -1;
+		return ACT_RET_PRS_ERR;
 
 	if (!(expr->fetch->val & SMP_VAL_FE_HRQ_HDR)) {
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	if (!args[cur_arg] || !*args[cur_arg]) {
 		memprintf(err, "expects 'len or 'id'");
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	if (strcmp(args[cur_arg], "len") == 0) {
@@ -12448,7 +12450,7 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 		if (!(px->cap & PR_CAP_FE)) {
 			memprintf(err, "proxy '%s' has no frontend capability", px->id);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 
 		proxy->conf.args.ctx = ARGC_CAP;
@@ -12456,21 +12458,21 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 		if (!args[cur_arg]) {
 			memprintf(err, "missing length value");
 			free(expr);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 		/* we copy the table name for now, it will be resolved later */
 		len = atoi(args[cur_arg]);
 		if (len <= 0) {
 			memprintf(err, "length must be > 0");
 			free(expr);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 		cur_arg++;
 
 		if (!len) {
 			memprintf(err, "a positive 'len' argument is mandatory");
 			free(expr);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 
 		hdr = calloc(sizeof(struct cap_hdr), 1);
@@ -12499,14 +12501,14 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 		if (!args[cur_arg]) {
 			memprintf(err, "missing id value");
 			free(expr);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 
 		id = strtol(args[cur_arg], &error, 10);
 		if (*error != '\0') {
 			memprintf(err, "cannot parse id '%s'", args[cur_arg]);
 			free(expr);
-			return -1;
+			return ACT_RET_PRS_ERR;
 		}
 		cur_arg++;
 
@@ -12521,11 +12523,11 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 	else {
 		memprintf(err, "expects 'len' or 'id', found '%s'", args[cur_arg]);
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	*orig_arg = cur_arg;
-	return 0;
+	return ACT_RET_PRS_OK;
 }
 
 /* This function executes the "capture" action and store the result in a
@@ -12572,9 +12574,10 @@ enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct prox
 /* parse an "http-response capture" action. It takes a single argument which is
  * a sample fetch expression. It stores the expression into arg->act.p[0] and
  * the allocated hdr_cap struct od the preallocated id into arg->act.p[1].
- * It returns 0 on success, < 0 on error.
+ * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px,
+                                          struct act_rule *rule, char **err)
 {
 	struct sample_expr *expr;
 	int cur_arg;
@@ -12588,32 +12591,32 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 
 	if (cur_arg < *orig_arg + 3) {
 		memprintf(err, "expects <expression> [ 'len' <length> | id <idx> ]");
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	cur_arg = *orig_arg;
 	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
 	if (!expr)
-		return -1;
+		return ACT_RET_PRS_ERR;
 
 	if (!(expr->fetch->val & SMP_VAL_FE_HRS_HDR)) {
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	if (!args[cur_arg] || !*args[cur_arg]) {
 		memprintf(err, "expects 'len or 'id'");
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	if (strcmp(args[cur_arg], "id") != 0) {
 		memprintf(err, "expects 'id', found '%s'", args[cur_arg]);
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	cur_arg++;
@@ -12621,14 +12624,14 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 	if (!args[cur_arg]) {
 		memprintf(err, "missing id value");
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	id = strtol(args[cur_arg], &error, 10);
 	if (*error != '\0') {
 		memprintf(err, "cannot parse id '%s'", args[cur_arg]);
 		free(expr);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 	cur_arg++;
 
@@ -12640,7 +12643,7 @@ int parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px, s
 	rule->arg.capid.idx  = id;
 
 	*orig_arg = cur_arg;
-	return 0;
+	return ACT_RET_PRS_OK;
 }
 
 /*
