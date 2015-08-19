@@ -16,7 +16,6 @@
 
 #include <types/connection.h>
 #include <types/hlua.h>
-#include <types/proto_tcp.h>
 #include <types/proxy.h>
 
 #include <proto/arg.h>

@@ -74,7 +74,6 @@
 
 #include <types/capture.h>
 #include <types/global.h>
-#include <types/proto_tcp.h>
 #include <types/acl.h>
 #include <types/peers.h>
 
