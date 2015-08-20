@@ -5477,8 +5477,8 @@ option mysql-check [ user <username> [ post-41 ] ]
   various purposes, including IP privilege matching and connection logging.
   When possible, it is often wise to masquerade the client's IP address when
   connecting to the server using the "usesrc" argument of the "source" keyword,
-  which requires the cttproxy feature to be compiled in, and the MySQL server
-  to route the client via the machine hosting haproxy.
+  which requires the transparent proxy feature to be compiled in, and the MySQL
+  server to route the client via the machine hosting haproxy.
 
   See also: "option httpchk"
 
@@ -5725,7 +5725,7 @@ option smtpchk <hello> <domain>
   various purposes, including spam filtering, anti-spoofing and logging. When
   possible, it is often wise to masquerade the client's IP address when
   connecting to the server using the "usesrc" argument of the "source" keyword,
-  which requires the cttproxy feature to be compiled in.
+  which requires the transparent proxy feature to be compiled in.
 
   Example :
         option smtpchk HELO mydomain.org
@@ -6972,13 +6972,6 @@ source <addr>[:<port>] [interface <name>]
       However, since the upstream and downstream ports are different, local IP
       connection tracking on the machine will not be upset by the reuse of the
       same session.
-
-  Note that depending on the transparent proxy technology used, it may be
-  required to force the source address. In fact, cttproxy version 2 requires an
-  IP address in <addr> above, and does not support setting of "0.0.0.0" as the
-  IP address because it creates NAT entries which much match the exact outgoing
-  address. Tproxy version 4 and some other kernel patches which work in pure
-  forwarding mode generally will not have this limitation.
 
   This option sets the default source for all servers in the backend. It may
   also be specified in a "defaults" section. Finer source address specification

@@ -102,10 +102,6 @@
 #include <proto/task.h>
 #include <proto/dns.h>
 
-#ifdef CONFIG_HAP_CTTPROXY
-#include <proto/cttproxy.h>
-#endif
-
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
 #endif
@@ -368,11 +364,8 @@ void display_build_opts()
 	printf("Built without Lua support\n");
 #endif
 
-#if defined(CONFIG_HAP_TRANSPARENT) || defined(CONFIG_HAP_CTTPROXY)
+#if defined(CONFIG_HAP_TRANSPARENT)
 	printf("Built with transparent proxy support using:"
-#if defined(CONFIG_HAP_CTTPROXY)
-	       " CTTPROXY"
-#endif
 #if defined(IP_TRANSPARENT)
 	       " IP_TRANSPARENT"
 #endif
@@ -1696,22 +1689,6 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 	}
-
-#ifdef CONFIG_HAP_CTTPROXY
-	if (global.last_checks & LSTCHK_CTTPROXY) {
-		int ret;
-
-		ret = check_cttproxy_version();
-		if (ret < 0) {
-			Alert("[%s.main()] Cannot enable cttproxy.\n%s",
-			      argv[0],
-			      (ret == -1) ? "  Incorrect module version.\n"
-			      : "  Make sure you have enough permissions and that the module is loaded.\n");
-			protocol_unbind_all();
-			exit(1);
-		}
-	}
-#endif
 
 	if ((global.last_checks & LSTCHK_NETADM) && global.uid) {
 		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"

@@ -57,10 +57,6 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-#ifdef CONFIG_HAP_CTTPROXY
-#include <import/ip_tproxy.h>
-#endif
-
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 
@@ -160,7 +156,6 @@ static struct action_kw *tcp_res_cont_action(const char *kw)
  *
  * The function supports multiple foreign binding methods :
  *   - linux_tproxy: we directly bind to the foreign address
- *   - cttproxy: we bind to a local address then nat.
  * The second one can be used as a fallback for the first one.
  * This function returns 0 when everything's OK, 1 if it could not bind, to the
  * local address, 2 if it could not bind to the foreign address.
@@ -263,25 +258,6 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	if (!flags)
 		return 0;
 
-#ifdef CONFIG_HAP_CTTPROXY
-	if (!foreign_ok && remote->ss_family == AF_INET) {
-		struct in_tproxy itp1, itp2;
-		memset(&itp1, 0, sizeof(itp1));
-
-		itp1.op = TPROXY_ASSIGN;
-		itp1.v.addr.faddr = ((struct sockaddr_in *)&bind_addr)->sin_addr;
-		itp1.v.addr.fport = ((struct sockaddr_in *)&bind_addr)->sin_port;
-
-		/* set connect flag on socket */
-		itp2.op = TPROXY_FLAGS;
-		itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-
-		if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) != -1 &&
-		    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) != -1) {
-			foreign_ok = 1;
-		}
-	}
-#endif
 	if (!foreign_ok)
 		/* we could not bind to a foreign address */
 		return 2;

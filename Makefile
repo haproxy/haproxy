@@ -5,7 +5,6 @@
 #
 # Valid USE_* options are the following. Most of them are automatically set by
 # the TARGET, others have to be explictly specified :
-#   USE_CTTPROXY         : enable CTTPROXY on Linux (needs kernel patch).
 #   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
@@ -424,12 +423,6 @@ endif
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
 BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_SPLICE)
-endif
-
-ifneq ($(USE_CTTPROXY),)
-OPTIONS_CFLAGS += -DCONFIG_HAP_CTTPROXY
-OPTIONS_OBJS   += src/cttproxy.o
-BUILD_OPTIONS  += $(call ignore_implicit,USE_CTTPROXY)
 endif
 
 ifneq ($(USE_TPROXY),)

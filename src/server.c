@@ -1441,15 +1441,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 2;
 				while (*(args[cur_arg])) {
 					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
-#if !defined(CONFIG_HAP_TRANSPARENT)
-						if (!is_inet_addr(&newsrv->conn_src.source_addr)) {
-							Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
-							      file, linenum, "usesrc", "source");
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-#endif
+#if defined(CONFIG_HAP_TRANSPARENT)
 						if (!*args[cur_arg + 1]) {
 							Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', 'clientip', or 'hdr_ip(name,#)' as argument.\n",
 							      file, linenum, "usesrc");
@@ -1531,9 +1523,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 							newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 						}
 						global.last_checks |= LSTCHK_NETADM;
-#if !defined(CONFIG_HAP_TRANSPARENT)
-						global.last_checks |= LSTCHK_CTTPROXY;
-#endif
 						cur_arg += 2;
 						continue;
 #else	/* no TPROXY support */
@@ -1541,7 +1530,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						      file, linenum, "usesrc");
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
-#endif /* defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT) */
+#endif /* defined(CONFIG_HAP_TRANSPARENT) */
 					} /* "usesrc" */
 
 					if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */

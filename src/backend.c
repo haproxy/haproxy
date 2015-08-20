@@ -953,7 +953,7 @@ int assign_server_and_queue(struct stream *s)
  */
 static void assign_tproxy_address(struct stream *s)
 {
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
+#if defined(CONFIG_HAP_TRANSPARENT)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
 	struct connection *cli_conn;
