@@ -242,16 +242,18 @@ struct meth {
 	struct chunk str;
 };
 
+union sample_value {
+	long long int   sint;  /* used for signed 64bits integers */
+	struct in_addr  ipv4;  /* used for ipv4 addresses */
+	struct in6_addr ipv6;  /* used for ipv6 addresses */
+	struct chunk    str;   /* used for char strings or buffers */
+	struct meth     meth;  /* used for http method */
+};
+
 /* Used to store sample constant */
 struct sample_data {
 	int type;                 /* SMP_T_* */
-	union {
-		long long int   sint;  /* used for signed 64bits integers */
-		struct in_addr  ipv4;  /* used for ipv4 addresses */
-		struct in6_addr ipv6;  /* used for ipv6 addresses */
-		struct chunk    str;   /* used for char strings or buffers */
-		struct meth     meth;  /* used for http method */
-	} data;                        /* sample data */
+	union sample_value data;  /* sample data */
 };
 
 /* a sample is a typed data extracted from a stream. It has a type, contents,
