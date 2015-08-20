@@ -134,12 +134,12 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	if (_51d_lru_tree) {
 		unsigned long long seed = _51d_lru_seed ^ (long)args;
 
-		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 		                _51d_lru_tree, global._51degrees.data_file_path, 0);
 		if (lru && lru->domain) {
 			smp->flags |= SMP_F_CONST;
-			smp->data.str.str = lru->data;
-			smp->data.str.len = strlen(smp->data.str.str);
+			smp->data.u.str.str = lru->data;
+			smp->data.u.str.len = strlen(smp->data.u.str.str);
 			return 1;
 		}
 	}
@@ -155,14 +155,14 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	if (!smp_dup(smp))
 		return 0;
 
-	smp->data.str.str[smp->data.str.len] = '\0';
+	smp->data.u.str.str[smp->data.u.str.len] = '\0';
 
 	/* Perform detection. */
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	fiftyoneDegreesMatch(ws, smp->data.str.str);
+	fiftyoneDegreesMatch(ws, smp->data.u.str.str);
 #endif
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-	device_offset = fiftyoneDegreesGetDeviceOffset(smp->data.str.str);
+	device_offset = fiftyoneDegreesGetDeviceOffset(smp->data.u.str.str);
 #endif
 
 	i = 0;
@@ -205,8 +205,8 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		temp->str[temp->len] = '\0';
 	}
 
-	smp->data.str.str = temp->str;
-	smp->data.str.len = strlen(smp->data.str.str);
+	smp->data.u.str.str = temp->str;
+	smp->data.u.str.len = strlen(smp->data.u.str.str);
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesFreeWorkset(ws);
@@ -214,7 +214,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 
 	if (lru) {
 		smp->flags |= SMP_F_CONST;
-		lru64_commit(lru, strdup(smp->data.str.str), global._51degrees.data_file_path, 0, free);
+		lru64_commit(lru, strdup(smp->data.u.str.str), global._51degrees.data_file_path, 0, free);
 	}
 
 	return 1;
