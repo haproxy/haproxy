@@ -457,6 +457,8 @@ static void peer_session_release(struct appctx *appctx)
 	/* peer session identified */
 	if (peer) {
 		if (peer->stream == s) {
+			/* Re-init current table pointers to force announcement on re-connect */
+			peer->remote_table = peer->last_local_table = NULL;
 			peer->stream = NULL;
 			peer->appctx = NULL;
 			if (peer->flags & PEER_F_LEARN_ASSIGN) {
