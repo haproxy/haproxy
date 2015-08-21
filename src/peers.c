@@ -429,7 +429,7 @@ static int peer_prepare_ackmsg(struct shared_table *st, char *msg, size_t size)
 
 	/*  prepare message header */
 	msg[0] = PEER_MSG_CLASS_STICKTABLE;
-	msg[1] = PEER_MSG_STKT_DEFINE;
+	msg[1] = PEER_MSG_STKT_ACK;
 	cursor = &msg[2];
 	intencode(datalen, &cursor);
 
