@@ -562,6 +562,7 @@ The following keywords are supported in the "global" section :
    - nogetaddrinfo
    - spread-checks
    - server-state-base
+   - server-state-file
    - tune.bufsize
    - tune.chksize
    - tune.comp.maxlevel
@@ -762,7 +763,18 @@ stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
 
 server-state-base <directory>
   Specifies the directory prefix to be prepended in front of all servers state
-  file names which do not start with a '/'. Read below 'See also'.
+  file names which do not start with a '/'. See also "server-state-file".
+
+server-state-file <file>
+  Specifies the path to the file containing state of servers. If the path starts
+  with a slash ('/'), it is considered absolute, otherwise it is considered
+  relative to the directory specified using "server-state-base" (if set) or to
+  the current directory. Before reloading HAProxy, it is possible to save the
+  servers' current state using the stats command "show servers state". The
+  output of this command must be written in the file pointed by <file>. When
+  starting up, before handling traffic, HAProxy will read, load and apply state
+  for each server found in the file and available in its current running
+  configuration. See also "server-state-base" and "show servers state".
 
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
