@@ -25,6 +25,8 @@
 #include <sys/un.h>
 
 #include <netinet/tcp.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 
 #include <common/cfgparse.h>
 #include <common/compat.h>
@@ -38,6 +40,7 @@
 #include <types/global.h>
 #include <types/capture.h>
 #include <types/server.h>
+#include <types/connection.h>
 
 #include <proto/acl.h>
 #include <proto/action.h>
@@ -49,6 +52,7 @@
 #include <proto/log.h>
 #include <proto/port_range.h>
 #include <proto/protocol.h>
+#include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
@@ -1416,6 +1420,65 @@ int tcp_exec_req_rules(struct session *sess)
 	return result;
 }
 
+/* Executes the "silent-drop" action. May be called from {tcp,http}{request,response} */
+static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct proxy *px, struct session *sess, struct stream *strm, int flags)
+{
+	struct connection *conn = objt_conn(sess->origin);
+
+	if (!conn)
+		goto out;
+
+	if (!conn_ctrl_ready(conn))
+		goto out;
+
+	conn_sock_drain(conn);
+#ifdef TCP_QUICKACK
+	/* re-enable quickack if it was disabled to ack all data and avoid
+	 * retransmits from the client that might trigger a real reset.
+	 */
+	setsockopt(conn->t.sock.fd, SOL_TCP, TCP_QUICKACK, &one, sizeof(one));
+#endif
+	/* lingering must absolutely be disabled so that we don't send a
+	 * shutdown(), this is critical to the TCP_REPAIR trick. When no stream
+	 * is present, returning with ERR will cause lingering to be disabled.
+	 */
+	if (strm)
+		strm->si[0].flags |= SI_FL_NOLINGER;
+
+#ifdef TCP_REPAIR
+	if (setsockopt(conn->t.sock.fd, SOL_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
+		/* socket will be quiet now */
+		goto out;
+	}
+#endif
+	/* either TCP_REPAIR is not defined or it failed (eg: permissions).
+	 * Let's fall back on the TTL trick, though it only works for routed
+	 * network and has no effect on local net.
+	 */
+#ifdef IP_TTL
+	setsockopt(conn->t.sock.fd, SOL_IP, IP_TTL, &one, sizeof(one));
+#endif
+ out:
+	/* kill the stream if any */
+	if (strm) {
+		channel_abort(&strm->req);
+		channel_abort(&strm->res);
+		strm->req.analysers = 0;
+		strm->res.analysers = 0;
+		strm->be->be_counters.denied_req++;
+		if (!(strm->flags & SF_ERR_MASK))
+			strm->flags |= SF_ERR_PRXCOND;
+		if (!(strm->flags & SF_FINST_MASK))
+			strm->flags |= SF_FINST_R;
+	}
+
+	sess->fe->fe_counters.denied_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->denied_req++;
+
+	return ACT_RET_STOP;
+}
+
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
                                    struct proxy *curpx, struct proxy *defpx,
@@ -1953,6 +2016,17 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+/* Parse a "silent-drop" action. It takes no argument. It returns ACT_RET_PRS_OK on
+ * success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *orig_arg, struct proxy *px,
+                                                struct act_rule *rule, char **err)
+{
+	rule->action     = ACT_CUSTOM;
+	rule->action_ptr = tcp_exec_action_silent_drop;
+	return ACT_RET_PRS_OK;
+}
+
 
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
@@ -2299,6 +2373,33 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ NULL, NULL, 0 },
 }};
 
+
+static struct action_kw_list tcp_req_conn_actions = {ILH, {
+	{ "silent-drop", tcp_parse_silent_drop },
+	{ /* END */ }
+}};
+
+static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "silent-drop", tcp_parse_silent_drop },
+	{ /* END */ }
+}};
+
+static struct action_kw_list tcp_res_cont_actions = {ILH, {
+	{ "silent-drop", tcp_parse_silent_drop },
+	{ /* END */ }
+}};
+
+static struct action_kw_list http_req_actions = {ILH, {
+	{ "silent-drop", tcp_parse_silent_drop },
+	{ /* END */ }
+}};
+
+static struct action_kw_list http_res_actions = {ILH, {
+	{ "silent-drop", tcp_parse_silent_drop },
+	{ /* END */ }
+}};
+
+
 __attribute__((constructor))
 static void __tcp_protocol_init(void)
 {
@@ -2308,6 +2409,11 @@ static void __tcp_protocol_init(void)
 	cfg_register_keywords(&cfg_kws);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
+	tcp_req_conn_keywords_register(&tcp_req_conn_actions);
+	tcp_req_cont_keywords_register(&tcp_req_cont_actions);
+	tcp_res_cont_keywords_register(&tcp_res_cont_actions);
+	http_req_keywords_register(&http_req_actions);
+	http_res_keywords_register(&http_res_actions);
 }
 
 

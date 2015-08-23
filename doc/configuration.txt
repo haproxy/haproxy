@@ -3409,6 +3409,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
               sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
+              silent-drop |
               lua <function name>
              }
              [ { if | unless } <condition> ]
@@ -3441,7 +3442,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       efficient against very dumb robots, and will significantly reduce the
       load on firewalls compared to a "deny" rule. But when facing "correctly"
       developed robots, it can make things worse by forcing haproxy and the
-      front firewall to support insane number of concurrent connections.
+      front firewall to support insane number of concurrent connections. See
+      also the "silent-drop" action below.
 
     - "auth" : this stops the evaluation of the rules and immediately responds
       with an HTTP 401 or 407 error code to invite the user to present a valid
@@ -3727,6 +3729,23 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
       When set-src is successful, the source port is set to 0.
 
+    - "silent-drop" : this stops the evaluation of the rules and makes the
+      client-facing connection suddenly disappear using a system-dependant way
+      that tries to prevent the client from being notified. The effect it then
+      that the client still sees an established connection while there's none
+      on HAProxy. The purpose is to achieve a comparable effect to "tarpit"
+      except that it doesn't use any local resource at all on the machine
+      running HAProxy. It can resist much higher loads than "tarpit", and slow
+      down stronger attackers. It is important to undestand the impact of using
+      this mechanism. All stateful equipments placed between the client and
+      HAProxy (firewalls, proxies, load balancers) will also keep the
+      established connection for a long time and may suffer from this action.
+      On modern Linux systems running with enough privileges, the TCP_REPAIR
+      socket option is used to block the emission of a TCP reset. On other
+      systems, the socket's TTL is reduced to 1 so that the TCP reset doesn't
+      pass the first router, though it's still delivered to local networks. Do
+      not use it unless you fully understand how it works.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -3796,6 +3815,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-var(<var-name>) <expr> |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
+                silent-drop |
                 lua <function name>
               }
               [ { if | unless } <condition> ]
@@ -4013,6 +4033,23 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       This action increments the GPC0 counter according with the sticky counter
       designated by <sc-id>. If an error occurs, this action silently fails and
       the actions evaluation continues.
+
+    - "silent-drop" : this stops the evaluation of the rules and makes the
+      client-facing connection suddenly disappear using a system-dependant way
+      that tries to prevent the client from being notified. The effect it then
+      that the client still sees an established connection while there's none
+      on HAProxy. The purpose is to achieve a comparable effect to "tarpit"
+      except that it doesn't use any local resource at all on the machine
+      running HAProxy. It can resist much higher loads than "tarpit", and slow
+      down stronger attackers. It is important to undestand the impact of using
+      this mechanism. All stateful equipments placed between the client and
+      HAProxy (firewalls, proxies, load balancers) will also keep the
+      established connection for a long time and may suffer from this action.
+      On modern Linux systems running with enough privileges, the TCP_REPAIR
+      socket option is used to block the emission of a TCP reset. On other
+      systems, the socket's TTL is reduced to 1 so that the TCP reset doesn't
+      pass the first router, though it's still delivered to local networks. Do
+      not use it unless you fully understand how it works.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -8516,6 +8553,24 @@ tcp-request connection <action> [{if | unless} <condition>]
         an error occurs, this action silently fails and the actions evaluation
         continues.
 
+    - "silent-drop" :
+        This stops the evaluation of the rules and makes the client-facing
+        connection suddenly disappear using a system-dependant way that tries
+        to prevent the client from being notified. The effect it then that the
+        client still sees an established connection while there's none on
+        HAProxy. The purpose is to achieve a comparable effect to "tarpit"
+        except that it doesn't use any local resource at all on the machine
+        running HAProxy. It can resist much higher loads than "tarpit", and
+        slow down stronger attackers. It is important to undestand the impact
+        of using this mechanism. All stateful equipments placed between the
+        client and HAProxy (firewalls, proxies, load balancers) will also keep
+        the established connection for a long time and may suffer from this
+        action.  On modern Linux systems running with enough privileges, the
+        TCP_REPAIR socket option is used to block the emission of a TCP
+        reset. On other systems, the socket's TTL is reduced to 1 so that the
+        TCP reset doesn't pass the first router, though it's still delivered to
+        local networks. Do not use it unless you fully understand how it works.
+
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
   "track-sc*" actions as well as for changing the default action to a reject.
@@ -8588,6 +8643,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-gpt0(<sc-id>) <int>
     - lua <function>
     - set-var(<var-name>) <expr>
+    - silent-drop
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -8807,6 +8863,24 @@ tcp-response content <action> [{if | unless} <condition>]
         by <sc-id> and the value of <int>. The expected result is a boolean. If
         an error occurs, this action silently fails and the actions evaluation
         continues.
+
+    - "silent-drop" :
+        This stops the evaluation of the rules and makes the client-facing
+        connection suddenly disappear using a system-dependant way that tries
+        to prevent the client from being notified. The effect it then that the
+        client still sees an established connection while there's none on
+        HAProxy. The purpose is to achieve a comparable effect to "tarpit"
+        except that it doesn't use any local resource at all on the machine
+        running HAProxy. It can resist much higher loads than "tarpit", and
+        slow down stronger attackers. It is important to undestand the impact
+        of using this mechanism. All stateful equipments placed between the
+        client and HAProxy (firewalls, proxies, load balancers) will also keep
+        the established connection for a long time and may suffer from this
+        action.  On modern Linux systems running with enough privileges, the
+        TCP_REPAIR socket option is used to block the emission of a TCP
+        reset. On other systems, the socket's TTL is reduced to 1 so that the
+        TCP reset doesn't pass the first router, though it's still delivered to
+        local networks. Do not use it unless you fully understand how it works.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
