@@ -561,6 +561,7 @@ The following keywords are supported in the "global" section :
    - nosplice
    - nogetaddrinfo
    - spread-checks
+   - server-state-base
    - tune.bufsize
    - tune.chksize
    - tune.comp.maxlevel
@@ -758,6 +759,10 @@ stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   the number of processes used. The maximum process ID depends on the machine's
   word size (32 or 64). A better option consists in using the "process" setting
   of the "stats socket" line to force the process on each line.
+
+server-state-base <directory>
+  Specifies the directory prefix to be prepended in front of all servers state
+  file names which do not start with a '/'. Read below 'See also'.
 
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
