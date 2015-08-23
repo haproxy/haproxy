@@ -1645,6 +1645,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.log_send_hostname = malloc(len + 2);
 		snprintf(global.log_send_hostname, len + 2, "%s ", name);
 	}
+	else if (!strcmp(args[0], "server-state-base")) { /* path base where HAProxy can find server state files */
+		if (global.server_state_base != NULL) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+
+		if (!*(args[1])) {
+			Alert("parsing [%s:%d] : '%s' expects one argument: a directory path.\n", file, linenum, args[0]);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		global.server_state_base = strdup(args[1]);
+	}
 	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;

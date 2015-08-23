@@ -129,6 +129,7 @@ struct global {
 	char *log_tag;                  /* name for syslog */
 	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */
+	char *server_state_base;   /* path to a directory where server state files can be found */
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */
