@@ -3621,13 +3621,17 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	ic = &htxn->s->req;
 	oc = &htxn->s->res;
 
+	channel_auto_read(ic);
 	channel_abort(ic);
 	channel_auto_close(ic);
 	channel_erase(ic);
+
+	oc->wex = tick_add_ifset(now_ms, oc->wto);
 	channel_auto_read(oc);
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
 
+	htxn->s->txn->req.chn->analysers = 0;
 	return 0;
 }
 
