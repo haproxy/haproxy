@@ -557,6 +557,10 @@ making it quite complete are :
   - Detect, log and block certain known attacks even on vulnerable SSL libs,
     such as the Heartbleed attack affecting certain versions of OpenSSL.
 
+  - support for stateless session resumption (RFC 5077 TLS Ticket extension).
+    TLS tickets can be updated from CLI which provides them means to implement
+    Perfect Forward Secrecy by frequently rotating the tickets.
+
 
 3.3.3. Basic features : Monitoring
 ----------------------------------
