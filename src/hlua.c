@@ -2084,6 +2084,13 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	hlua = hlua_gethlua(L);
 	appctx = objt_appctx(socket->s->si[0].end);
+
+	/* inform the stream that we want to be notified whenever the
+	 * connection completes.
+	 */
+	si_applet_cant_get(&socket->s->si[0]);
+	si_applet_cant_put(&socket->s->si[0]);
+
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
