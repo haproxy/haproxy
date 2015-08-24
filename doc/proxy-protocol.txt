@@ -525,12 +525,15 @@ bytes specified by the length.
 
 The following types have already been registered for the <type> field :
 
-        #define PP2_TYPE_ALPN          0x01
-        #define PP2_TYPE_AUTHORITY     0x02
-        #define PP2_TYPE_SSL           0x20
-        #define PP2_TYPE_SSL_VERSION   0x21
-        #define PP2_TYPE_SSL_CN        0x22
-        #define PP2_TYPE_NETNS         0x30
+        #define PP2_TYPE_ALPN           0x01
+        #define PP2_TYPE_AUTHORITY      0x02
+        #define PP2_TYPE_SSL            0x20
+        #define PP2_SUBTYPE_SSL_VERSION 0x21
+        #define PP2_SUBTYPE_SSL_CN      0x22
+        #define PP2_TYPE_NETNS          0x30
+
+
+2.2.1. The PP2_TYPE_SSL type and subtypes
 
 For the type PP2_TYPE_SSL, the value is itselv a defined like this :
 
@@ -540,27 +543,35 @@ For the type PP2_TYPE_SSL, the value is itselv a defined like this :
                 struct pp2_tlv sub_tlv[0];
         };
 
-And the <client> field is made of a bit field from the following values,
+The <verify> field will be zero if the client presented a certificate
+and it was successfully verified, and non-zero otherwise.
+
+The <client> field is made of a bit field from the following values,
 indicating which element is present :
 
 	#define PP2_CLIENT_SSL           0x01
 	#define PP2_CLIENT_CERT_CONN     0x02
 	#define PP2_CLIENT_CERT_SESS     0x04
 
-Each of these elements may lead to extra data being appended to this TLV using
-a second level of TLV encapsulation. It is thus possible to find multiple TLV
-values after this field. The total length of the upper TLV will reflect this.
+Note, that each of these elements may lead to extra data being appended to
+this TLV using a second level of TLV encapsulation. It is thus possible to
+find multiple TLV values after this field. The total length of the pp2_tlv_ssl
+TLV will reflect this.
 
-PP2_CLIENT_SSL indicates that the client connected over SSL/TLS. When this
-field is present, the string representation of the TLS version is appended at
-the end of the field in the TLV format using the type PP2_TYPE_SSL_VERSION.
+The PP2_CLIENT_SSL flag indicates that the client connected over SSL/TLS. When
+this field is present, the string representation of the TLS version is appended
+at the end of the field in the TLV format using the type PP2_SUBTYPE_SSL_VERSION.
 
 PP2_CLIENT_CERT_CONN indicates that the client provided a certificate over the
 current connection. PP2_CLIENT_CERT_SESS indicates that the client provided a
-certificate at least once over the TLS session this connection belongs to. In
-both cases, the string representation of the client certificate's CN may be
-appended after the SSL/TLS version using the TLV format using the type
-PP2_TYPE_SSL_CN.
+certificate at least once over the TLS session this connection belongs to.
+
+In all cases, the string representation (in UTF8) of the Common Name field
+(OID: 2.5.4.3) of the client certificate's DistinguishedName, is appended
+using the TLV format and the type PP2_SUBTYPE_SSL_CN.
+
+
+2.2.2. The PP2_TYPE_NETNS type
 
 The type PP2_TYPE_NETNS defines the value as the string representation of the
 namespace's name.
