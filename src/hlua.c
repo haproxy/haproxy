@@ -991,6 +991,16 @@ timeout_reached:
 		break;
 
 	case LUA_ERRRUN:
+
+		/* Special exit case. The traditionnal exit is returned as an error
+		 * because the errors ares the only one mean to return immediately
+		 * from and lua execution.
+		 */
+		if (lua->flags & HLUA_EXIT) {
+			ret = HLUA_E_OK;
+			break;
+		}
+
 		lua->wake_time = TICK_ETERNITY;
 		if (!lua_checkstack(lua->T, 1)) {
 			ret = HLUA_E_ERR;
@@ -1068,6 +1078,17 @@ timeout_reached:
 	}
 
 	return ret;
+}
+
+/* This function exit the current code. */
+__LJMP static int hlua_done(lua_State *L)
+{
+	struct hlua *hlua = hlua_gethlua(L);
+
+	hlua->flags |= HLUA_EXIT;
+	WILL_LJMP(lua_error(L));
+
+	return 0;
 }
 
 /* This function is an LUA binding. It provides a function
@@ -4704,6 +4725,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "Info", hlua_log_info);
 	hlua_class_function(gL.T, "Warning", hlua_log_warning);
 	hlua_class_function(gL.T, "Alert", hlua_log_alert);
+	hlua_class_function(gL.T, "done", hlua_done);
 
 	lua_setglobal(gL.T, "core");
 

@@ -402,6 +402,19 @@ Core class
 
   :returns: A socket class object.
 
+.. js:function:: core.done(data)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param any data: Return some data for the caller. It is useful with
+    sample-fetches and sample-converters.
+
+  Immediately stops the current Lua execution and returns to the caller which
+  may be a sample fetch, a converter or an action and returns the specified
+  value (ignored for actions). It is used when the LUA process finishes its
+  work and wants to give back the control to HAProxy without executing the
+  remaining code. It can be seen as a multi-level "return".
+
 .. js:function:: core.yield()
 
   **context**: task, action, sample-fetch, converter

@@ -24,6 +24,7 @@ struct stream;
 #define HLUA_CTRLYIELD 0x00000002
 #define HLUA_WAKERESWR 0x00000004
 #define HLUA_WAKEREQWR 0x00000008
+#define HLUA_EXIT      0x00000010
 
 enum hlua_exec {
 	HLUA_E_OK = 0,
