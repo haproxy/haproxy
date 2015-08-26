@@ -12255,10 +12255,10 @@ int http_replace_req_line(int action, const char *replace, int len,
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
- * the action to be performed in p[2], previously filled by function
+ * the action to be performed in <http.action>, previously filled by function
  * parse_set_req_line(). The replacement action is excuted by the function
- * http_action_set_req_line_exec(). It always returns 1. If an error occurs
- * the action is canceled, but the rule processing continue.
+ * http_action_set_req_line(). It always returns ACT_RET_CONT. If an error
+ * occurs the action is canceled, but the rule processing continue.
  */
 enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s)
