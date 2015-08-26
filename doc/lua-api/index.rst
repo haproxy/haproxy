@@ -750,7 +750,7 @@ HTTP class
   :param class_http http: The related http object.
   :param string query: The new query.
 
-.. js:function:: HTTP.req.set_uri(http, uri)
+.. js:function:: HTTP.req_set_uri(http, uri)
 
   Rewrites the request URI with the parameter "uri".
 
