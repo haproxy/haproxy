@@ -3643,7 +3643,7 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 /* This function is an Lua binding that send pending data
  * to the client, and close the stream interface.
  */
-__LJMP static int hlua_txn_close(lua_State *L)
+__LJMP static int hlua_txn_done(lua_State *L)
 {
 	struct hlua_txn *htxn;
 	struct channel *ic, *oc;
@@ -3665,6 +3665,8 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	channel_shutr_now(oc);
 
 	htxn->s->txn->req.chn->analysers = 0;
+
+	WILL_LJMP(hlua_done(L));
 	return 0;
 }
 
@@ -4968,7 +4970,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
 	hlua_class_function(gL.T, "set_var",     hlua_set_var);
 	hlua_class_function(gL.T, "get_var",     hlua_get_var);
-	hlua_class_function(gL.T, "close",       hlua_txn_close);
+	hlua_class_function(gL.T, "done",        hlua_txn_done);
 	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);
 	hlua_class_function(gL.T, "set_tos",     hlua_txn_set_tos);
 	hlua_class_function(gL.T, "set_mark",    hlua_txn_set_mark);
