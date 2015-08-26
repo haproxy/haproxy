@@ -2315,7 +2315,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 #ifndef OPENSSL_NO_SSL3
 		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, SSLv3_client_method());
 #else
-		Alert("SSLv3 support requested but unavailable.");
+		Alert("SSLv3 support requested but unavailable.\n");
 		cfgerr++;
 #endif
 	}
