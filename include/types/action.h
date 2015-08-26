@@ -121,6 +121,9 @@ struct act_rule {
 			struct cap_hdr *hdr;      /* the capture storage */
 		} cap;
 		struct {
+			unsigned int code;     /* HTTP status code */
+		} status;
+		struct {
 			struct sample_expr *expr;
 			int idx;
 		} capid;

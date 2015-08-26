@@ -757,6 +757,14 @@ HTTP class
   :param class_http http: The related http object.
   :param string uri: The new uri.
 
+.. js:function:: HTTP.res_set_status(http, status)
+
+  Rewrites the response status code with the parameter "code". Note that the
+  reason is automatically adapted to the new code.
+
+  :param class_http http: The related http object.
+  :param integer status: The new response status code.
+
 TXN class
 =========
 

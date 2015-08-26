@@ -3322,6 +3322,16 @@ static int hlua_http_req_set_uri(lua_State *L)
 	return 1;
 }
 
+/* This function set the response code. */
+static int hlua_http_res_set_status(lua_State *L)
+{
+	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+	unsigned int code = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	http_set_status(code, htxn->s);
+	return 0;
+}
+
 /*
  *
  *
@@ -4931,6 +4941,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "res_rep_value",  hlua_http_res_rep_val);
 	hlua_class_function(gL.T, "res_add_header", hlua_http_res_add_hdr);
 	hlua_class_function(gL.T, "res_set_header", hlua_http_res_set_hdr);
+	hlua_class_function(gL.T, "res_set_status", hlua_http_res_set_status);
 
 	lua_settable(gL.T, -3);
 

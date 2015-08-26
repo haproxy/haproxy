@@ -273,6 +273,91 @@ fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set
 
 static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 
+/* This function returns a reason associated with the HTTP status.
+ * This function never fails, a message is always returned.
+ */
+const char *get_reason(unsigned int status)
+{
+	switch (status) {
+	case 100: return "Continue";
+	case 101: return "Switching Protocols";
+	case 102: return "Processing";
+	case 200: return "OK";
+	case 201: return "Created";
+	case 202: return "Accepted";
+	case 203: return "Non-Authoritative Information";
+	case 204: return "No Content";
+	case 205: return "Reset Content";
+	case 206: return "Partial Content";
+	case 207: return "Multi-Status";
+	case 210: return "Content Different";
+	case 226: return "IM Used";
+	case 300: return "Multiple Choices";
+	case 301: return "Moved Permanently";
+	case 302: return "Moved Temporarily";
+	case 303: return "See Other";
+	case 304: return "Not Modified";
+	case 305: return "Use Proxy";
+	case 307: return "Temporary Redirect";
+	case 308: return "Permanent Redirect";
+	case 310: return "Too many Redirects";
+	case 400: return "Bad Request";
+	case 401: return "Unauthorized";
+	case 402: return "Payment Required";
+	case 403: return "Forbidden";
+	case 404: return "Not Found";
+	case 405: return "Method Not Allowed";
+	case 406: return "Not Acceptable";
+	case 407: return "Proxy Authentication Required";
+	case 408: return "Request Time-out";
+	case 409: return "Conflict";
+	case 410: return "Gone";
+	case 411: return "Length Required";
+	case 412: return "Precondition Failed";
+	case 413: return "Request Entity Too Large";
+	case 414: return "Request-URI Too Long";
+	case 415: return "Unsupported Media Type";
+	case 416: return "Requested range unsatisfiable";
+	case 417: return "Expectation failed";
+	case 418: return "I'm a teapot";
+	case 422: return "Unprocessable entity";
+	case 423: return "Locked";
+	case 424: return "Method failure";
+	case 425: return "Unordered Collection";
+	case 426: return "Upgrade Required";
+	case 428: return "Precondition Required";
+	case 429: return "Too Many Requests";
+	case 431: return "Request Header Fields Too Large";
+	case 449: return "Retry With";
+	case 450: return "Blocked by Windows Parental Controls";
+	case 451: return "Unavailable For Legal Reasons";
+	case 456: return "Unrecoverable Error";
+	case 499: return "client has closed connection";
+	case 500: return "Internal Server Error";
+	case 501: return "Not Implemented";
+	case 502: return "Bad Gateway ou Proxy Error";
+	case 503: return "Service Unavailable";
+	case 504: return "Gateway Time-out";
+	case 505: return "HTTP Version not supported";
+	case 506: return "Variant also negociate";
+	case 507: return "Insufficient storage";
+	case 508: return "Loop detected";
+	case 509: return "Bandwidth Limit Exceeded";
+	case 510: return "Not extended";
+	case 511: return "Network authentication required";
+	case 520: return "Web server is returning an unknown error";
+	default:
+		switch (status) {
+		case 100 ... 199: return "Informational";
+		case 200 ... 299: return "Success";
+		case 300 ... 399: return "Redirection";
+		case 400 ... 499: return "Client Error";
+		case 500 ... 599: return "Server Error";
+		default:          return "Other";
+		}
+	}
+}
+
 void init_proto_http()
 {
 	int i;
@@ -12253,6 +12338,50 @@ int http_replace_req_line(int action, const char *replace, int len,
 	return 0;
 }
 
+/* This function replace the HTTP status code and the associated message. The
+ * variable <status> contains the new status code. This function never fails.
+ */
+void http_set_status(unsigned int status, struct stream *s)
+{
+	struct http_txn *txn = s->txn;
+	char *cur_ptr, *cur_end;
+	int delta;
+	char *res;
+	int c_l;
+	const char *msg;
+	int msg_len;
+
+	chunk_reset(&trash);
+
+	res = ultoa_o(status, trash.str, trash.size);
+	c_l = res - trash.str;
+
+	trash.str[c_l] = ' ';
+	trash.len = c_l + 1;
+
+	msg = get_reason(status);
+	msg_len = strlen(msg);
+
+	strncpy(&trash.str[trash.len], msg, trash.size - trash.len);
+	trash.len += msg_len;
+
+	cur_ptr = s->res.buf->p + txn->rsp.sl.st.c;
+	cur_end = s->res.buf->p + txn->rsp.sl.st.r + txn->rsp.sl.st.r_l;
+
+	/* commit changes and adjust message */
+	delta = buffer_replace2(s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
+
+	/* adjust res line offsets and lengths */
+	txn->rsp.sl.st.r += c_l - txn->rsp.sl.st.c_l;
+	txn->rsp.sl.st.c_l = c_l;
+	txn->rsp.sl.st.r_l = msg_len;
+
+	delta = trash.len - (cur_end - cur_ptr);
+	txn->rsp.sl.st.l += delta;
+	txn->hdr_idx.v[0].len += delta;
+	http_msg_move_end(&txn->rsp, delta);
+}
+
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
  * the action to be performed in <http.action>, previously filled by function
@@ -12271,6 +12400,14 @@ enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px
 	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.http.logfmt);
 
 	http_replace_req_line(rule->arg.http.action, trash.str, trash.len, px, s);
+	return ACT_RET_CONT;
+}
+
+/* This function is just a compliant action wrapper for "set-status". */
+enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
+                                       struct session *sess, struct stream *s)
+{
+	http_set_status(rule->arg.status.code, s);
 	return ACT_RET_CONT;
 }
 
@@ -12325,6 +12462,36 @@ enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct p
 	parse_logformat_string(args[cur_arg], proxy, &rule->arg.http.logfmt, LOG_OPT_HTTP,
 			       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 			       proxy->conf.args.file, proxy->conf.args.line);
+
+	(*orig_arg)++;
+	return ACT_RET_PRS_OK;
+}
+
+/* parse set-status action:
+ * This action accepts a single argument of type int representing
+ * an http status code. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struct proxy *px,
+                                         struct act_rule *rule, char **err)
+{
+	char *error;
+
+	rule->action = ACT_ACTION_CONT;
+	rule->action_ptr = action_http_set_status;
+
+	/* Check if an argument is available */
+	if (!*args[*orig_arg]) {
+		memprintf(err, "expects exactly 1 argument <status>");
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* convert status code as integer */
+	rule->arg.status.code = strtol(args[*orig_arg], &error, 10);
+	if (*error != '\0' || rule->arg.status.code < 100 || rule->arg.status.code > 999) {
+		memprintf(err, "expects an integer status code between 100 and 999");
+		return ACT_RET_PRS_ERR;
+	}
 
 	(*orig_arg)++;
 	return ACT_RET_PRS_OK;
@@ -12901,6 +13068,7 @@ struct action_kw_list http_req_actions = {
 struct action_kw_list http_res_actions = {
 	.kw = {
 		{ "capture",    parse_http_res_capture },
+		{ "set-status", parse_http_set_status },
 		{ NULL, NULL }
 	}
 };
