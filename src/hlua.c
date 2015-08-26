@@ -508,6 +508,8 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 	case LUA_TFUNCTION:
 	case LUA_TTHREAD:
 	case LUA_TLIGHTUSERDATA:
+	case LUA_TNONE:
+	default:
 		smp->data.type = SMP_T_BOOL;
 		smp->data.u.sint = 0;
 		break;
