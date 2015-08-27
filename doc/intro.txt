@@ -1355,7 +1355,7 @@ be able to saturate :
 
   - about 100 anti-virus proxies;
 
-  - and about 100 to 1000 application servers depending on the technology in use.
+  - and about 100-1000 application servers depending on the technology in use.
 
 
 3.6. How to get HAProxy
