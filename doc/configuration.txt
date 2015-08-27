@@ -3709,7 +3709,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
   Example:
         http-request set-header X-Haproxy-Current-Date %T
         http-request set-header X-SSL                  %[ssl_fc]
-        http-request set-header X-SSL-Session_ID       %[ssl_fc_session_id]
+        http-request set-header X-SSL-Session_ID       %[ssl_fc_session_id,hex]
         http-request set-header X-SSL-Client-Verify    %[ssl_c_verify]
         http-request set-header X-SSL-Client-DN        %{+Q}[ssl_c_s_dn]
         http-request set-header X-SSL-Client-CN        %{+Q}[ssl_c_s_dn(cn)]
