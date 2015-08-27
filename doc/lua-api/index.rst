@@ -88,7 +88,7 @@ HAProxy Lua file (`hello_world.lua`):
 
     function hello_world(txn)
        txn.res:send("hello world\n")
-       txn:close()
+       txn:done()
     end
 
 How to start HAProxy for testing this configuration:
