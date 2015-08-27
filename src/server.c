@@ -978,7 +978,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			curr_resolution->status = RSLV_STATUS_NONE;
 			curr_resolution->step = RSLV_STEP_NONE;
 			/* a first resolution has been done by the configuration parser */
-			curr_resolution->last_resolution = now_ms;
+			curr_resolution->last_resolution = 0;
 			newsrv->resolution = curr_resolution;
 
  skip_name_resolution:
