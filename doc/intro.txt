@@ -78,10 +78,6 @@ to the mailing list whose responses are present in these documents.
     ensure you're running with all known fixes how to update it, complements and
     alternatives.
 
-  - management.txt : it explains how to start haproxy, how to manage it at
-    runtime, how to manage it on multiple nodes, how to proceed with seamless
-    upgrades.
-
   - configuration.txt : the reference manual details all configuration keywords
     and their options. It is used when a configuration change is needed.
 
@@ -106,7 +102,7 @@ to the mailing list whose responses are present in these documents.
 Load balancing consists in aggregating multiple components in order to achieve
 a total processing capacity above each component's individual capacity, without
 any intervention from the end user and in a scalable way. This results in more
-operations being performed simultaneously by the time it takes component to
+operations being performed simultaneously by the time it takes a component to
 perform only one. A single operation however will still be performed on a single
 component at a time and will not get faster than without load balancing. It
 always requires at least as many operations as available components and an
@@ -139,7 +135,10 @@ A load balancer may act :
     in deciding what server will process a connection or request.
 
 Two distinct technologies exist and address different needs, though with some
-overlapping.
+overlapping. In each case it is important to keep in mind that load balancing
+consists in diverting the traffic from its natural flow and that doing so always
+requires a minimum of care to maintain the required level of consistency between
+all routing decisions.
 
 The first one acts at the packet level and processes packets more or less
 individually. There is a 1-to-1 relation between input and output packets, so
@@ -592,7 +591,8 @@ and about reporting its own state to other network components :
     SSL hello, LDAP, SQL, Redis, send/expect scripts, all with/without SSL;
 
   - State change is notified in the logs and stats page with the failure reason
-    (eg: the HTTP response received at the moment the failure was detected);
+    (eg: the HTTP response received at the moment the failure was detected). An
+    e-mail can also be sent to a configurable address upon such a change ;
 
   - Server state is also reported on the stats interface and can be used to take
     routing decisions so that traffic may be sent to different farms depending
