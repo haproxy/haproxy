@@ -759,8 +759,8 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 
 	send_log(px, level, "%s", trash.str);
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
-      get_localtime(date.tv_sec, &tm);
-      fprintf(stderr, "[%s] %03d/%02d%02d%02d (%d) : %s\n",
+		get_localtime(date.tv_sec, &tm);
+		fprintf(stderr, "[%s] %03d/%02d%02d%02d (%d) : %s\n",
 		        log_levels[level], tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec,
 		        (int)getpid(), trash.str);
 		fflush(stderr);
@@ -2917,7 +2917,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
 		else
-                       lua_pushnil(L);
+			lua_pushnil(L);
 		return 1;
 	}
 
@@ -2926,7 +2926,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
-        return 1;
+	return 1;
 }
 
 /*
