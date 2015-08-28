@@ -931,10 +931,11 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :returns: an array of headers.
 
-.. js:function:: TXN.close(txn)
+.. js:function:: TXN.done(txn)
 
-  This function close the transaction and the associated session. It can be
-  used when a critical error is detected.
+  This function terminates processing of the transaction and the associated
+  session. It can be used when a critical error is detected or to terminate
+  processing after some data have been returned to the client (eg: a redirect).
 
   :param class_txn txn: The class txn object containing the data.
 
