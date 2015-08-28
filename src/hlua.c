@@ -1000,6 +1000,7 @@ timeout_reached:
 		 */
 		if (lua->flags & HLUA_EXIT) {
 			ret = HLUA_E_OK;
+			hlua_ctx_renew(lua, 0);
 			break;
 		}
 
