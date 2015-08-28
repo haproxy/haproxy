@@ -3664,7 +3664,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
 
-	htxn->s->txn->req.chn->analysers = 0;
+	ic->analysers = 0;
 
 	WILL_LJMP(hlua_done(L));
 	return 0;
