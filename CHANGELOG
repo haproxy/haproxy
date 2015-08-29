@@ -1,6 +1,137 @@
 ChangeLog :
 ===========
 
+2015/08/30 : 1.6-dev4
+    - MINOR: log: Add log-format variable %HQ, to log HTTP query strings
+    - DOC: typo in 'redirect', 302 code meaning
+    - DOC: typos in tcp-check expect examples
+    - DOC: resolve-prefer default value and default-server update
+    - MINOR: DNS counters: increment valid counter
+    - BUG/MEDIUM: DNS resolution response parsing broken
+    - MINOR: server: add new SRV_ADMF_CMAINT flag
+    - MINOR: server SRV_ADMF_CMAINT flag doesn't imply SRV_ADMF_FMAINT
+    - BUG/MEDIUM: dns: wrong first time DNS resolution
+    - BUG/MEDIUM: lua: Lua tasks fail to start.
+    - BUILD: add USE_LUA to BUILD_OPTIONS when it's used
+    - DOC/MINOR: fix OpenBSD versions where haproxy works
+    - MINOR: 51d: unable to start haproxy without "51degrees-data-file"
+    - BUG/MEDIUM: peers: fix wrong message id on stick table updates acknowledgement.
+    - BUG/MAJOR: peers: fix current table pointer not re-initialized on session release.
+    - BUILD: ssl: Allow building against libssl without SSLv3.
+    - DOC: clarify some points about SSL and the proxy protocol
+    - DOC: mention support for RFC 5077 TLS Ticket extension in starter guide
+    - BUG/MEDIUM: mailer: DATA part must be terminated with <CRLF>.<CRLF>
+    - DOC: match several lua configuration option names to those implemented in code
+    - MINOR cfgparse: Correct the mailer warning text to show the right names to the user
+    - BUG/MINOR: ssl: TLS Ticket Key rotation broken via socket command
+    - MINOR: stream: initialize the current_rule field to NULL on stream init
+    - BUG/MEDIUM: lua: timeout error with converters, wrapper and actions.
+    - CLEANUP: proto_http: remove useless initialisation
+    - CLEANUP: http/tcp actions: remove the scope member
+    - BUG/MINOR: proto_tcp: custom action continue is ignored
+    - MINOR: proto_tcp: add session in the action prototype
+    - MINOR: vars: reduce the code size of some wrappers
+    - MINOR: Move http method enum from proto_http to sample
+    - MINOR: sample: Add ipv6 to ipv4 and sint to ipv6 casts
+    - MINOR: sample/proto_tcp: export "smp_fetch_src"
+    - MEDIUM: cli: rely on the map's output type instead of the sample type
+    - BUG/MEDIUM: stream: The stream doen't inherit SC from the session
+    - BUG/MEDIUM: vars: segfault during the configuration parsing
+    - BUG/MEDIUM: stick-tables: refcount error after copying SC for the session to the stream
+    - BUG/MEDIUM: lua: bad error processing
+    - MINOR: samples: rename a struct from sample_storage to sample_data
+    - MINOR: samples: rename some struct member from "smp" to "data"
+    - MEDIUM: samples: Use the "struct sample_data" in the "struct sample"
+    - MINOR: samples: extract the anonymous union and create the union sample_value
+    - MINOR: samples: rename union from "data" to "u"
+    - MEDIUM: 51degrees: Adapt the 51Degrees library
+    - MINOR: samples: data assignation simplification
+    - MEDIUM: pattern/map: Maps can returns various types
+    - MINOR: map: The map can return IPv4 and IPv6
+    - MEDIUM: actions: Merge (http|tcp)-(request|reponse) action structs
+    - MINOR: actions: Remove the data opaque pointer
+    - MINOR: lua: use the hlua_rule type in place of opaque type
+    - MINOR: vars: use the vars types as argument in place of opaque type
+    - MINOR: proto_http: use an "expr" type in place of generic opaque type.
+    - MINOR: proto_http: replace generic opaque types by real used types for the actions on thr request line
+    - MINOR: proto_http: replace generic opaque types by real used types in "http_capture"
+    - MINOR: proto_http: replace generic opaque types by real used types in "http_capture" by id
+    - MEDIUM: track-sc: Move the track-sc configuration storage in the union
+    - MEDIUM: capture: Move the capture configuration storage in the union
+    - MINOR: actions: add "from" information
+    - MINOR: actions: remove the mark indicating the last entry in enum
+    - MINOR: actions: Declare all the embedded actions in the same header file
+    - MINOR: actions: change actions names
+    - MEDIUM: actions: Add standard return code for the action API
+    - MEDIUM: actions: Merge (http|tcp)-(request|reponse) keywords structs
+    - MINOR: proto_tcp: proto_tcp.h is now useles
+    - MINOR: actions: mutualise the action keyword lookup
+    - MEDIUM: actions: Normalize the return code of the configuration parsers
+    - MINOR: actions: Remove wrappers
+    - MAJOR: stick-tables: use sample types in place of dedicated types
+    - MEDIUM: stick-tables: use the sample type names
+    - MAJOR: stick-tables: remove key storage from the key struct
+    - MEDIUM: stick-tables: Add GPT0 in the stick tables
+    - MINOR: stick-tables: Add GPT0 access
+    - MINOR: stick-tables: Add GPC0 actions
+    - BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segfault
+    - DOC: ssl: missing LF
+    - MINOR: lua: add core.done() function
+    - DOC: fix function name
+    - BUG/MINOR: lua: in some case a sample may remain undefined
+    - DOC: fix "http_action_set_req_line()" comments
+    - MINOR: http: Action for manipulating the returned status code.
+    - MEDIUM: lua: turns txn:close into txn:done
+    - BUG/MEDIUM: lua: cannot process more Lua hooks after a "done()" function call
+    - BUILD: link with libdl if needed for Lua support
+    - CLEANUP: backend: factor out objt_server() in connect_server()
+    - MEDIUM: backend: don't call si_alloc_conn() when we reuse a valid connection
+    - MEDIUM: stream-int: simplify si_alloc_conn()
+    - MINOR: stream-int: add new function si_detach_endpoint()
+    - MINOR: server: add a list of private idle connections
+    - MINOR: connection: add a new list member in the connection struct
+    - MEDIUM: stream-int: queue idle connections at the server
+    - MINOR: stream-int: make si_idle_conn() only accept valid connections
+    - MINOR: server: add a list of already used idle connections
+    - MINOR: connection: add a new flag CO_FL_PRIVATE
+    - MINOR: config: add new setting "http-reuse"
+    - MAJOR: backend: initial work towards connection reuse
+    - MAJOR: backend: improve the connection reuse mechanism
+    - MEDIUM: backend: implement "http-reuse safe"
+    - MINOR: server: add a list of safe, already reused idle connections
+    - MEDIUM: backend: add the "http-reuse aggressive" strategy
+    - DOC: document the new http-reuse directive
+    - DOC: internals: document next steps for HTTP connection reuse
+    - DOC: mention that %ms is left-padded with zeroes.
+    - MINOR: init: indicate to check 'bind' lines when no listeners were found.
+    - MAJOR: http: remove references to appsession
+    - CLEANUP: config: remove appsession initialization
+    - CLEANUP: appsession: remove appsession.c and sessionhash.c
+    - CLEANUP: tests: remove sessionhash_test.c and test-cookie-appsess.cfg
+    - CLEANUP: proxy: remove last references to appsession
+    - CLEANUP: appsession: remove the last include files
+    - DOC: remove documentation about appsession
+    - CLEANUP: .gitignore: ignore more test files
+    - CLEANUP: .gitignore: finally ignore everything but what is known.
+    - MEDIUM: config: emit a warning on a frontend without listener
+    - DOC: add doc/internals/entities-v2.txt
+    - DOC: add doc/linux-syn-cookies.txt
+    - DOC: add design thoughts on HTTP/2
+    - DOC: add some thoughts on connection sharing for HTTP/2
+    - DOC: add design thoughts on dynamic buffer allocation
+    - BUG/MEDIUM: counters: ensure that src_{inc,clr}_gpc0 creates a missing entry
+    - DOC: add new file intro.txt
+    - MAJOR: tproxy: remove support for cttproxy
+    - BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2
+    - DOC: lua: replace txn:close with txn:done in lua-api
+    - DOC: intro: minor updates and fixes
+    - DOC: intro: fix too long line.
+    - DOC: fix example of http-request using ssl_fc_session_id
+    - BUG/MEDIUM: lua: txn:done() still causes a segfault in TCP mode
+    - CLEANUP: lua: fix some indent issues
+    - BUG/MEDIUM: lua: fix a segfault in txn:done() if called twice
+    - DOC: lua: mention than txn:close was renamed txn:done.
+
 2015/07/22 : 1.6-dev3
     - CLEANUP: sample: generalize sample_fetch_string() as sample_fetch_as_type()
     - MEDIUM: http: Add new 'set-src' option to http-request

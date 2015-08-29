@@ -1,4 +1,4 @@
-2015/05/02                                                        Willy Tarreau
+2015/08/24                                                        Willy Tarreau
                                                            HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
