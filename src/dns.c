@@ -165,7 +165,8 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		query_id = dns_response_get_query_id(buf);
 
 		/* search the query_id in the pending resolution tree */
-		if ((eb = eb32_lookup(&resolvers->query_ids, query_id)) == NULL) {
+		eb = eb32_lookup(&resolvers->query_ids, query_id);
+		if (eb == NULL) {
 			/* unknown query id means an outdated response and can be safely ignored */
 			nameserver->counters.outdated += 1;
 			continue;
