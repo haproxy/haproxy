@@ -218,6 +218,10 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 			resolution->requester_error_cb(resolution, DNS_RESP_CNAME_ERROR);
 			continue;
 
+		case DNS_RESP_TRUNCATED:
+			nameserver->counters.truncated += 1;
+			resolution->requester_error_cb(resolution, DNS_RESP_TRUNCATED);
+			continue;
 		}
 
 		nameserver->counters.valid += 1;

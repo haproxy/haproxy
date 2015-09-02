@@ -2132,6 +2132,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 			break;
 
 		case DNS_RESP_ANCOUNT_ZERO:
+		case DNS_RESP_TRUNCATED:
 		case DNS_RESP_ERROR:
 			if (resolution->query_type == DNS_RTYPE_ANY) {
 				/* let's change the query type */

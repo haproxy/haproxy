@@ -198,6 +198,7 @@ enum {
 	DNS_RESP_WRONG_NAME,		/* response does not match query name */
 	DNS_RESP_CNAME_ERROR,		/* error when resolving a CNAME in an atomic response */
 	DNS_RESP_TIMEOUT,		/* DNS server has not answered in time */
+	DNS_RESP_TRUNCATED,		/* DNS response is truncated */
 };
 
 /* return codes after searching an IP in a DNS response buffer, using a family preference */
