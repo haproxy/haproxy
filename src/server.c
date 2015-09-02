@@ -2112,6 +2112,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 {
 	struct server *s;
 	struct dns_resolvers *resolvers;
+	int qtype_any, res_preferred_afinet, res_preferred_afinet6;
 
 	/* shortcut to the server whose name is being resolved */
 	s = (struct server *)resolution->requester;
@@ -2134,12 +2135,27 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 		case DNS_RESP_ANCOUNT_ZERO:
 		case DNS_RESP_TRUNCATED:
 		case DNS_RESP_ERROR:
-			if (resolution->query_type == DNS_RTYPE_ANY) {
+			qtype_any = resolution->query_type == DNS_RTYPE_ANY;
+			res_preferred_afinet = resolution->resolver_family_priority == AF_INET && resolution->query_type == DNS_RTYPE_A;
+			res_preferred_afinet6 = resolution->resolver_family_priority == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+
+			if (qtype_any || res_preferred_afinet || res_preferred_afinet6) {
 				/* let's change the query type */
-				if (resolution->resolver_family_priority == AF_INET6)
-					resolution->query_type = DNS_RTYPE_AAAA;
-				else
+				if (qtype_any) {
+					/* fallback from ANY to resolution preference */
+					if (resolution->resolver_family_priority == AF_INET6)
+						resolution->query_type = DNS_RTYPE_AAAA;
+					else
+						resolution->query_type = DNS_RTYPE_A;
+				}
+				else if (res_preferred_afinet6) {
+					/* fallback from AAAA to A */
 					resolution->query_type = DNS_RTYPE_A;
+				}
+				else if (res_preferred_afinet) {
+					/* fallback from A to AAAA */
+					resolution->query_type = DNS_RTYPE_AAAA;
+				}
 
 				dns_send_query(resolution);
 
