@@ -51,6 +51,10 @@
 #define DNS_RCODE_NX_DOMAIN	3	/* non existent domain */
 #define DNS_RCODE_REFUSED	5	/* query refused */
 
+/* dns flags masks */
+#define DNS_FLAG_TRUNCATED	0x0200	/* mask for truncated flag */
+#define DNS_FLAG_REPLYCODE	0x000F	/* mask for reply code */
+
 /* DNS request or response header structure */
 struct dns_header {
 	unsigned short	id:16;		/* identifier */
