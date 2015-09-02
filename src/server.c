@@ -2088,7 +2088,6 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 	/* reset values */
 	dns_reset_resolution(resolution);
 
-	LIST_DEL(&resolution->list);
 	dns_update_resolvers_timeout(nameserver->resolvers);
 
 	snr_update_srv_status(s);
@@ -2149,7 +2148,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 				 */
 				if (dns_check_resolution_queue(resolvers) > 1) {
 					/* second resolution becomes first one */
-					LIST_DEL(&resolvers->curr_resolution);
+					LIST_DEL(&resolution->list);
 					/* ex first resolution goes to the end of the queue */
 					LIST_ADDQ(&resolvers->curr_resolution, &resolution->list);
 				}
