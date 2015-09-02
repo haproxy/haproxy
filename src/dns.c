@@ -334,7 +334,7 @@ void dns_update_resolvers_timeout(struct dns_resolvers *resolvers)
 int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *dn_name, int dn_name_len)
 {
 	unsigned char *reader, *cname, *ptr;
-	int i, len, type, ancount, cnamelen;
+	int i, len, flags, type, ancount, cnamelen;
 
 	reader = resp;
 	cname = NULL;
@@ -347,29 +347,33 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
 		return DNS_RESP_INVALID;
 
 	/*
-	 * analyzing flags
-	 * 1st byte can be ignored for now
-	 * rcode is at the beginning of the second byte
+	 * flags are stored over 2 bytes
+	 * First byte contains:
+	 *  - response flag (1 bit)
+	 *  - opcode (4 bits)
+	 *  - authoritative (1 bit)
+	 *  - truncated (1 bit)
+	 *  - recursion desired (1 bit)
 	 */
-	reader += 1;
-	if (reader >= bufend)
+	if (reader + 2 >= bufend)
 		return DNS_RESP_INVALID;
 
-	/*
-	 * rcode is 4 latest bits
-	 * ignore response if it contains an error
-	 */
-	if ((*reader & 0x0f) != DNS_RCODE_NO_ERROR) {
-		if ((*reader & 0x0f) == DNS_RCODE_NX_DOMAIN)
+	flags = reader[0] * 256 + reader[1];
+
+	if (flags & DNS_FLAG_TRUNCATED)
+		return DNS_RESP_TRUNCATED;
+
+	if ((flags & DNS_FLAG_REPLYCODE) != DNS_RCODE_NO_ERROR) {
+		if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_NX_DOMAIN)
 			return DNS_RESP_NX_DOMAIN;
-		else if ((*reader & 0x0f) == DNS_RCODE_REFUSED)
+		else if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_REFUSED)
 			return DNS_RESP_REFUSED;
 
 		return DNS_RESP_ERROR;
 	}
 
-	/* move forward 1 byte for rcode */
-	reader += 1;
+	/* move forward 2 bytes for flags */
+	reader += 2;
 	if (reader >= bufend)
 		return DNS_RESP_INVALID;
 
