@@ -136,6 +136,7 @@ struct dns_nameserver {
 		long int invalid;	/* - malformed DNS response */
 		long int too_big;	/* - too big response */
 		long int outdated;	/* - outdated response (server slower than the other ones) */
+		long int truncated;	/* - truncated response */
 	} counters;
 };
 

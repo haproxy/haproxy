@@ -6266,6 +6266,7 @@ static int stats_dump_resolvers_to_buffer(struct stream_interface *si)
 			chunk_appendf(&trash, "  other: %ld\n", pnameserver->counters.other);
 			chunk_appendf(&trash, "  invalid: %ld\n", pnameserver->counters.invalid);
 			chunk_appendf(&trash, "  too_big: %ld\n", pnameserver->counters.too_big);
+			chunk_appendf(&trash, "  truncated: %ld\n", pnameserver->counters.truncated);
 			chunk_appendf(&trash, "  outdated: %ld\n", pnameserver->counters.outdated);
 		}
 
