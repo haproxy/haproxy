@@ -4465,7 +4465,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	/* TODO: later accept arguments. */
 	rule->arg.hlua_rule->args = NULL;
 
-	rule->action = ACT_ACTION_CONT;
+	rule->action = ACT_CUSTOM;
 	rule->action_ptr = hlua_action;
 	return ACT_RET_PRS_OK;
 }

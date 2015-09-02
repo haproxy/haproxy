@@ -34,6 +34,7 @@ enum act_from {
 
 enum act_return {
 	ACT_RET_CONT,  /* continue processing. */
+	ACT_RET_STOP,  /* stop processing. */
 	ACT_RET_YIELD, /* call me again. */
 	ACT_RET_ERR,   /* processing error. */
 };
@@ -44,8 +45,7 @@ enum act_parse_ret {
 };
 
 enum act_name {
-	ACT_ACTION_CONT = 0,
-	ACT_ACTION_STOP,
+	ACT_CUSTOM = 0,
 
 	/* common action */
 	ACT_ACTION_ALLOW,

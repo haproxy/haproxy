@@ -3712,23 +3712,16 @@ resume_execution:
 			break;
 			}
 
-		case ACT_ACTION_CONT:
+		case ACT_CUSTOM:
 			switch (rule->action_ptr(rule, px, s->sess, s)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
+			case ACT_RET_STOP:
+				return HTTP_RULE_RES_DONE;
 			case ACT_RET_YIELD:
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
-			}
-			break;
-
-		case ACT_ACTION_STOP:
-			switch (rule->action_ptr(rule, px, s->sess, s)) {
-			case ACT_RET_YIELD:
-			case ACT_RET_ERR:
-			case ACT_RET_CONT:
-				return HTTP_RULE_RES_DONE;
 			}
 			break;
 
@@ -4001,20 +3994,18 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 			return HTTP_RULE_RES_DONE;
 
-		case ACT_ACTION_CONT:
+		case ACT_CUSTOM:
 			switch (rule->action_ptr(rule, px, s->sess, s)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
+			case ACT_RET_STOP:
+				return HTTP_RULE_RES_STOP;
 			case ACT_RET_YIELD:
 				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
-
-		case ACT_ACTION_STOP:
-			rule->action_ptr(rule, px, s->sess, s);
-			return HTTP_RULE_RES_STOP;
 
 		/* other flags exists, but normaly, they never be matched. */
 		default:
@@ -12428,7 +12419,7 @@ enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct p
 {
 	int cur_arg = *orig_arg;
 
-	rule->action = ACT_ACTION_CONT;
+	rule->action = ACT_CUSTOM;
 
 	switch (args[0][4]) {
 	case 'm' :
@@ -12478,7 +12469,7 @@ enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struc
 {
 	char *error;
 
-	rule->action = ACT_ACTION_CONT;
+	rule->action = ACT_CUSTOM;
 	rule->action_ptr = action_http_set_status;
 
 	/* Check if an argument is available */
@@ -12654,7 +12645,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 		px->req_cap = hdr;
 		px->to_log |= LW_REQHDR;
 
-		rule->action       = ACT_ACTION_CONT;
+		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture;
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr  = hdr;
@@ -12682,7 +12673,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 
 		proxy->conf.args.ctx = ARGC_CAP;
 
-		rule->action       = ACT_ACTION_CONT;
+		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture_by_id;
 		rule->arg.capid.expr = expr;
 		rule->arg.capid.idx  = id;
@@ -12805,7 +12796,7 @@ enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, stru
 
 	proxy->conf.args.ctx = ARGC_CAP;
 
-	rule->action       = ACT_ACTION_CONT;
+	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_res_capture_by_id;
 	rule->arg.capid.expr = expr;
 	rule->arg.capid.idx  = id;

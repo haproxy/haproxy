@@ -588,7 +588,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->action     = ACT_ACTION_CONT;
+	rule->action     = ACT_CUSTOM;
 	rule->action_ptr = action_store;
 	return ACT_RET_PRS_OK;
 }

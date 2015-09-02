@@ -1373,7 +1373,7 @@ static enum act_parse_ret parse_inc_gpc0(const char **args, int *arg, struct pro
 			return ACT_RET_PRS_ERR;
 		}
 	}
-	rule->action = ACT_ACTION_CONT;
+	rule->action = ACT_CUSTOM;
 	rule->action_ptr = action_inc_gpc0;
 	return ACT_RET_PRS_OK;
 }
@@ -1450,7 +1450,7 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 	}
 	(*arg)++;
 
-	rule->action = ACT_ACTION_CONT;
+	rule->action = ACT_CUSTOM;
 	rule->action_ptr = action_set_gpt0;
 
 	return ACT_RET_PRS_OK;

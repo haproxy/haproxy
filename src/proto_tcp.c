@@ -1163,21 +1163,19 @@ resume_execution:
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr) {
-					switch (rule->action_ptr(rule, s->be, s->sess, s)) {
-					case ACT_RET_ERR:
-					case ACT_RET_CONT:
-						break;
-					case ACT_RET_YIELD:
-						s->current_rule = rule;
-						goto missing_data;
-					}
-				}
-
-				/* accept */
-				if (rule->action == ACT_ACTION_STOP)
+				if (!rule->action_ptr)
+					continue;
+				switch (rule->action_ptr(rule, s->be, s->sess, s)) {
+				case ACT_RET_ERR:
+				case ACT_RET_CONT:
+					continue;
+				case ACT_RET_STOP:
 					break;
-				/* otherwise continue */
+				case ACT_RET_YIELD:
+					s->current_rule = rule;
+					goto missing_data;
+				}
+				break; /* ACT_RET_STOP */
 			}
 		}
 	}
@@ -1294,22 +1292,20 @@ resume_execution:
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr) {
-					switch (rule->action_ptr(rule, s->be, s->sess, s)) {
-					case ACT_RET_ERR:
-					case ACT_RET_CONT:
-						break;
-					case ACT_RET_YIELD:
-						channel_dont_close(rep);
-						s->current_rule = rule;
-						return 0;
-					}
-				}
-
-				/* accept */
-				if (rule->action == ACT_ACTION_STOP)
+				if (!rule->action_ptr)
+					continue;
+				switch (rule->action_ptr(rule, s->be, s->sess, s)) {
+				case ACT_RET_ERR:
+				case ACT_RET_CONT:
+					continue;
+				case ACT_RET_STOP:
 					break;
-				/* otherwise continue */
+				case ACT_RET_YIELD:
+					channel_dont_close(rep);
+					s->current_rule = rule;
+					return 0;
+				}
+				break; /* ACT_RET_STOP */
 			}
 		}
 	}
@@ -1384,26 +1380,24 @@ int tcp_exec_req_rules(struct session *sess)
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr) {
-					switch (rule->action_ptr(rule, sess->fe, sess, NULL)) {
-					case ACT_RET_YIELD:
-						/* yield is not allowed at this point. If this return code is
-						 * used it is a bug, so I prefer to abort the process.
-						 */
-						send_log(sess->fe, LOG_WARNING,
-						         "Internal error: yield not allowed with tcp-request connection actions.");
-					case ACT_RET_CONT:
-						break;
-					case ACT_RET_ERR:
-						result = 0;
-						break;
-					}
-					if (rule->action == ACT_ACTION_CONT)
-						continue;
+				if (rule->action_ptr)
+					break;
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL)) {
+				case ACT_RET_YIELD:
+					/* yield is not allowed at this point. If this return code is
+					 * used it is a bug, so I prefer to abort the process.
+					 */
+					send_log(sess->fe, LOG_WARNING,
+					         "Internal error: yield not allowed with tcp-request connection actions.");
+				case ACT_RET_STOP:
+					break;
+				case ACT_RET_CONT:
+					continue;
+				case ACT_RET_ERR:
+					result = 0;
+					break;
 				}
-
-				/* otherwise it's an accept */
-				break;
+				break; /* ACT_RET_STOP */
 			}
 		}
 	}
