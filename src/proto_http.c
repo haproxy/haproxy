@@ -5246,7 +5246,8 @@ void http_end_txn_clean_session(struct stream *s)
 		 * it's better to do it (at least it helps with debugging).
 		 */
 		s->txn->flags |= TX_PREFER_LAST;
-		srv_conn->flags |= CO_FL_PRIVATE;
+		if (srv_conn)
+			srv_conn->flags |= CO_FL_PRIVATE;
 	}
 
 	if (fe->options2 & PR_O2_INDEPSTR)
