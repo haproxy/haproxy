@@ -151,9 +151,9 @@ struct dns_resolution {
 	char *hostname_dn;		/* server hostname in domain name label format */
 	int hostname_dn_len;		/* server domain name label len */
 	int resolver_family_priority;	/* which IP family should the resolver use when both are returned */
-	time_t last_resolution;		/* time of the lastest valid resolution */
-	time_t last_sent_packet;	/* time of the latest DNS packet sent */
-	time_t last_status_change;	/* time of the latest DNS resolution status change */
+	unsigned int last_resolution;	/* time of the lastest valid resolution */
+	unsigned int last_sent_packet;	/* time of the latest DNS packet sent */
+	unsigned int last_status_change;	/* time of the latest DNS resolution status change */
 	int query_id;			/* DNS query ID dedicated for this resolution */
 	struct eb32_node qid;		/* ebtree query id */
 	int query_type;			/* query type to send. By default DNS_RTYPE_ANY */
