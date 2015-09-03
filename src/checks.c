@@ -2155,7 +2155,7 @@ static struct task *process_chk(struct task *t)
 			 * if there has not been any name resolution for a longer period than
 			 * hold.valid, let's trigger a new one.
 			 */
-			if (tick_is_expired(tick_add(resolution->last_resolution, resolution->resolvers->hold.valid), now_ms)) {
+			if (!resolution->last_resolution || tick_is_expired(tick_add(resolution->last_resolution, resolution->resolvers->hold.valid), now_ms)) {
 				trigger_resolution(s);
 			}
 		}
