@@ -466,12 +466,11 @@ const struct http_method_desc http_methods[26][3] = {
 		[0] = {	.meth = HTTP_METH_TRACE   , .len=5, .text="TRACE"   },
 	},
 	/* rest is empty like this :
-	 *      [1] = {	.meth = HTTP_METH_NONE    , .len=0, .text=""        },
+	 *      [0] = {	.meth = HTTP_METH_OTHER   , .len=0, .text=""        },
 	 */
 };
 
 const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
-	[HTTP_METH_NONE]    = { "",         0 },
 	[HTTP_METH_OPTIONS] = { "OPTIONS",  7 },
 	[HTTP_METH_GET]     = { "GET",      3 },
 	[HTTP_METH_HEAD]    = { "HEAD",     4 },
@@ -962,8 +961,8 @@ struct chunk *http_error_message(struct stream *s, int msgnum)
 }
 
 /*
- * returns HTTP_METH_NONE if there is nothing valid to read (empty or non-text
- * string), HTTP_METH_OTHER for unknown methods, or the identified method.
+ * returns a known method among HTTP_METH_* or HTTP_METH_OTHER for all unknown
+ * ones.
  */
 enum http_meth_t find_http_meth(const char *str, const int len)
 {
@@ -979,10 +978,8 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 			if (likely(memcmp(str, h->text, h->len) == 0))
 				return h->meth;
 		};
-		return HTTP_METH_OTHER;
 	}
-	return HTTP_METH_NONE;
-
+	return HTTP_METH_OTHER;
 }
 
 /* Parse the URI from the given transaction (which is assumed to be in request
