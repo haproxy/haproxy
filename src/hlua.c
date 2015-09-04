@@ -1461,8 +1461,14 @@ static void hlua_socket_handler(struct appctx *appctx)
 		return;
 	}
 
-	if (!(c->flags & CO_FL_CONNECTED))
+	/* if the connection is not estabkished, inform the stream that we want
+	 * to be notified whenever the connection completes.
+	 */
+	if (!(c->flags & CO_FL_CONNECTED)) {
+		si_applet_cant_get(si);
+		si_applet_cant_put(si);
 		return;
+	}
 
 	/* This function is called after the connect. */
 	appctx->ctx.hlua.connected = 1;
