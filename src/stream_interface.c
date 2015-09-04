@@ -1629,7 +1629,7 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 	if (channel_may_recv(ic) && !ic->pipe) {
 		/* (re)start reading */
 		appctx_wakeup(si_appctx(si));
-        }
+	}
 }
 
 /* chk_snd function for applets */
