@@ -782,6 +782,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		goto out;
 	}
 
+	if (!*str2) {
+		memprintf(err, "'%s' resolves to an empty address (environment variable missing?)\n", str);
+		goto out;
+	}
+
 	memset(&ss, 0, sizeof(ss));
 
 	if (strncmp(str2, "unix@", 5) == 0) {
