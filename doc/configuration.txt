@@ -10223,8 +10223,14 @@ resolve-prefer <family>
 resolvers <id>
   Points to an existing "resolvers" section to resolve current server's
   hostname.
+  In order to be operational, DNS resolution requires that health check is
+  enabled on the server. Actually, health checks triggers the DNS resolution.
+  You must precise one 'resolvers' parameter on each server line where DNS
+  resolution is required.
 
-  Example: server s1 app1.domain.com:80 resolvers mydns
+  Supported in default-server: No
+
+  Example: server s1 app1.domain.com:80 check resolvers mydns
 
   See also chapter 5.3
 
@@ -10390,9 +10396,9 @@ weight <weight>
 5.3. Server IP address resolution using DNS
 -------------------------------------------
 
-HAProxy allows using a host name to be resolved to find out what is the server
-IP address. By default, HAProxy resolves the name when parsing the
-configuration, at startup.
+HAProxy allows using a host name on the server line to retrieve its IP address
+using name servers. By default, HAProxy resolves the name when parsing the
+configuration file, at startup and cache the result for the process' life.
 This is not sufficient in some cases, such as in Amazon where a server's IP
 can change after a reboot or an ELB Virtual IP can change based on current
 workload.
@@ -10400,6 +10406,9 @@ This chapter describes how HAProxy can be configured to process server's name
 resolution at run time.
 Whether run time server name resolution has been enable or not, HAProxy will
 carry on doing the first resolution when parsing the configuration.
+
+Bear in mind that DNS resolution is triggered by health checks. This makes
+health checks mandatory to allow DNS resolution.
 
 
 5.3.1. Global overview
@@ -10437,6 +10446,47 @@ HAProxy.
 There can be as many as resolvers section as needed. Each section can contain
 many name servers.
 
+When multiple name servers are configured in a resolvers section, then HAProxy
+uses the first valid response. In case of invalid responses, only the last one
+is treated. Purpose is to give the chance to a slow server to deliver a valid
+answer after a fast faulty or outdated server.
+
+When each server returns a different error type, then only the last error is
+used by HAProxy to decide what type of behavior to apply.
+
+Two types of behavior can be applied:
+ 1. stop DNS resolution
+ 2. replay the DNS query with a new query type
+      In such case, the following types are applied in this exact order:
+        1. ANY query type
+        2. query type corresponding to family pointed by resolve-prefer
+           server's parameter
+        3. remaining family type
+
+HAProxy stops DNS resolution when the following errors occur:
+ - invalid DNS response packet
+ - wrong name in the query section of the response
+ - NX domain
+ - Query refused by server
+ - CNAME not pointing to an IP address
+
+HAProxy tries a new query type when the following errors occur:
+ - no Answer records in the response
+ - DNS response truncated
+ - Error in DNS response
+ - No expected DNS records found in the response
+ - name server timeout
+
+For example, with 2 name servers configured in a resolvers section:
+ - first response is valid and is applied directly, second response is ignored
+ - first response is invalid and second one is valid, then second response is
+   applied;
+ - first response is a NX domain and second one a truncated response, then
+   HAProxy replays the query with a new type;
+ - first response is truncated and second one is a NX Domain, then HAProxy
+   stops resolution.
+
+
 resolvers <resolvers id>
   Creates a new name server list labelled <resolvers id>
 
@@ -10466,6 +10516,10 @@ resolve_retries <nb>
   Defines the number <nb> of queries to send to resolve a server name before
   giving up.
   Default value: 3
+
+  A retry occurs on name server timeout or when the full sequence of DNS query
+  type failover is over and we need to start up from the default ANY query
+  type.
 
 timeout <event> <time>
   Defines timeouts related to name resolution
