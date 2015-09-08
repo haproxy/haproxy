@@ -724,6 +724,11 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 		return DNS_UPD_CNAME;
 	}
 
+	/* no IP found in the response */
+	if (!newip4 && !newip6) {
+		return DNS_UPD_NO_IP_FOUND;
+	}
+
 	/* case when the caller looks first for an IPv4 address */
 	if (family_priority == AF_INET) {
 		if (newip4) {

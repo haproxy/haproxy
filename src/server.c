@@ -2049,6 +2049,13 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			}
 			goto invalid;
 
+		case DNS_UPD_NO_IP_FOUND:
+			if (resolution->status != RSLV_STATUS_OTHER) {
+				resolution->status = RSLV_STATUS_OTHER;
+				resolution->last_status_change = now_ms;
+			}
+			goto stop_resolution;
+
 		default:
 			goto invalid;
 

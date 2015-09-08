@@ -212,6 +212,7 @@ enum {
 					 *    matching preference was found */
 	DNS_UPD_CNAME,			/* CNAME without any IP provided in the response */
 	DNS_UPD_NAME_ERROR,		/* name in the response did not match the query */
+	DNS_UPD_NO_IP_FOUND,		/* no IP could be found in the response */
 };
 
 #endif /* _TYPES_DNS_H */
