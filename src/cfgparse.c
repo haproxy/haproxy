@@ -239,7 +239,8 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		ss2 = str2sa_range(str, &port, &end, err,
-		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix);
+		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
+		                   NULL);
 		if (!ss2)
 			goto fail;
 
@@ -1597,7 +1598,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2027,7 +2028,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2227,7 +2228,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		newnameserver->conf.line = linenum;
 		newnameserver->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2411,7 +2412,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 
 		newmailer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -5545,7 +5546,7 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -5817,7 +5818,7 @@ stats_error_parsing:
 				}
 			}
 
-			sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
+			sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL, NULL);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -5869,7 +5870,7 @@ stats_error_parsing:
 		curproxy->conn_src.iface_name = NULL;
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : %s\n",
 			      file, linenum, args[0], args[1], errmsg);
@@ -5954,7 +5955,7 @@ stats_error_parsing:
 				} else {
 					struct sockaddr_storage *sk;
 
-					sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL);
+					sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL, NULL);
 					if (!sk) {
 						Alert("parsing [%s:%d] : '%s %s' : %s\n",
 						      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);

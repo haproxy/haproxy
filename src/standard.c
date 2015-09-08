@@ -755,10 +755,15 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * If <pfx> is non-null, it is used as a string prefix before any path-based
  * address (typically the path to a unix socket).
  *
+ * if <fqdn> is non-null, it will be filled with :
+ *   - a pointer to the FQDN of the server name to resolve if there's one, and
+ *     that the caller will have to free(),
+ *   - NULL if there was an explicit address that doesn't require resolution.
+ *
  * When a file descriptor is passed, its value is put into the s_addr part of
  * the address when cast to sockaddr_in and the address family is AF_UNSPEC.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx)
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn)
 {
 	static struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -768,6 +773,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 	int abstract = 0;
 
 	portl = porth = porta = 0;
+	if (fqdn)
+		*fqdn = NULL;
 
 	str2 = back = env_expand(strdup(str));
 	if (str2 == NULL) {
@@ -840,15 +847,20 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		memcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len + abstract, str2, adr_len + 1 - abstract);
 	}
 	else { /* IPv4 and IPv6 */
+		int use_fqdn = 0;
+
 		port1 = strrchr(str2, ':');
 		if (port1)
 			*port1++ = '\0';
 		else
 			port1 = "";
 
-		if (str2ip(str2, &ss) == NULL) {
-			memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
-			goto out;
+		if (str2ip2(str2, &ss, 0) == NULL) {
+			use_fqdn = 1;
+			if (str2ip(str2, &ss) == NULL) {
+				memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
+				goto out;
+			}
 		}
 
 		if (isdigit((int)(unsigned char)*port1)) {	/* single port or range */
@@ -874,6 +886,13 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			goto out;
 		}
 		set_host_port(&ss, porta);
+
+		if (use_fqdn && fqdn) {
+			if (str2 != back)
+				memmove(back, str2, strlen(str2) + 1);
+			*fqdn = back;
+			back = NULL;
+		}
 	}
 
 	ret = &ss;
