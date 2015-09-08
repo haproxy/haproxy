@@ -2120,6 +2120,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 		case DNS_RESP_ANCOUNT_ZERO:
 		case DNS_RESP_TRUNCATED:
 		case DNS_RESP_ERROR:
+		case DNS_RESP_NO_EXPECTED_RECORD:
 			qtype_any = resolution->query_type == DNS_RTYPE_ANY;
 			res_preferred_afinet = resolution->resolver_family_priority == AF_INET && resolution->query_type == DNS_RTYPE_A;
 			res_preferred_afinet6 = resolution->resolver_family_priority == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;

@@ -222,6 +222,11 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 			nameserver->counters.truncated += 1;
 			resolution->requester_error_cb(resolution, DNS_RESP_TRUNCATED);
 			continue;
+
+		case DNS_RESP_NO_EXPECTED_RECORD:
+			nameserver->counters.other += 1;
+			resolution->requester_error_cb(resolution, DNS_RESP_NO_EXPECTED_RECORD);
+			continue;
 		}
 
 		nameserver->counters.valid += 1;
@@ -334,12 +339,18 @@ void dns_update_resolvers_timeout(struct dns_resolvers *resolvers)
 int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *dn_name, int dn_name_len)
 {
 	unsigned char *reader, *cname, *ptr;
-	int i, len, flags, type, ancount, cnamelen;
+	int i, len, flags, type, ancount, cnamelen, expected_record;
 
 	reader = resp;
 	cname = NULL;
 	cnamelen = 0;
 	len = 0;
+	expected_record = 0; /* flag to report if at least one expected record type is found in the response.
+			      * For now, only records containing an IP address (A and AAAA) are
+			      * considered as expected.
+			      * Later, this function may be updated to let the caller decide what type
+			      * of record is expected to consider the response as valid. (SRV or TXT types)
+			      */
 
 	/* move forward 2 bytes for the query id */
 	reader += 2;
@@ -540,6 +551,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
 				/* ipv4 is stored on 4 bytes */
 				if (len != 4)
 					return DNS_RESP_INVALID;
+				expected_record = 1;
 				break;
 
 			case DNS_RTYPE_CNAME:
@@ -551,12 +563,16 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
 				/* ipv6 is stored on 16 bytes */
 				if (len != 16)
 					return DNS_RESP_INVALID;
+				expected_record = 1;
 				break;
 		} /* switch (record type) */
 
 		/* move forward len for analyzing next record in the response */
 		reader += len;
 	} /* for i 0 to ancount */
+
+	if (expected_record == 0)
+		return DNS_RESP_NO_EXPECTED_RECORD;
 
 	return DNS_RESP_VALID;
 }
