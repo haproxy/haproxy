@@ -2215,13 +2215,14 @@ int trigger_resolution(struct server *s)
 	resolution->qid.key = query_id;
 	resolution->step = RSLV_STEP_RUNNING;
 	resolution->query_type = DNS_RTYPE_ANY;
-	resolution->try = 0;
+	resolution->try = resolvers->resolve_retries;
 	resolution->try_cname = 0;
 	resolution->nb_responses = 0;
 	resolution->resolver_family_priority = s->resolver_family_priority;
 	eb32_insert(&resolvers->query_ids, &resolution->qid);
 
 	dns_send_query(resolution);
+	resolution->try -= 1;
 
 	/* update wakeup date if this resolution is the only one in the FIFO list */
 	if (dns_check_resolution_queue(resolvers) == 1) {

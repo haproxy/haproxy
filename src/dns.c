@@ -305,7 +305,6 @@ int dns_send_query(struct dns_resolution *resolution)
 	}
 
 	/* update resolution */
-	resolution->try += 1;
 	resolution->nb_responses = 0;
 	resolution->last_sent_packet = now_ms;
 
@@ -1103,13 +1102,15 @@ struct task *dns_process_resolve(struct task *t)
 		 * if current resolution has been tried too many times and finishes in timeout
 		 * we update its status and remove it from the list
 		 */
-		if (resolution->try >= resolvers->resolve_retries) {
+		if (resolution->try <= 0) {
 			/* clean up resolution information and remove from the list */
 			dns_reset_resolution(resolution);
 
 			/* notify the result to the requester */
 			resolution->requester_error_cb(resolution, DNS_RESP_TIMEOUT);
 		}
+
+		resolution->try -= 1;
 
 		/* check current resolution status */
 		if (resolution->step == RSLV_STEP_RUNNING) {
