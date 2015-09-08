@@ -835,6 +835,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	char *errmsg = NULL;
 	int err_code = 0;
 	unsigned val;
+	char *fqdn = NULL;
 
 	if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
@@ -904,7 +905,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, NULL);
+			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, &fqdn);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -936,29 +937,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			/* save hostname and create associated name resolution */
-			switch (sk->ss_family) {
-			case AF_INET: {
-				/* remove the port if any */
-				char *c;
-				if ((c = rindex(args[2], ':')) != NULL) {
-					newsrv->hostname = my_strndup(args[2], c - args[2]);
-				}
-				else {
-					newsrv->hostname = strdup(args[2]);
-				}
-			}
-				break;
-			case AF_INET6:
-				newsrv->hostname = strdup(args[2]);
-				break;
-			default:
-				goto skip_name_resolution;
-			}
-
-			/* no name resolution if an IP has been provided */
-			if (inet_pton(sk->ss_family, newsrv->hostname, trash.str) == 1)
+			newsrv->hostname = fqdn;
+			if (!fqdn)
 				goto skip_name_resolution;
 
+			fqdn = NULL;
 			if ((curr_resolution = calloc(1, sizeof(struct dns_resolution))) == NULL)
 				goto skip_name_resolution;
 
@@ -1779,9 +1762,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			srv_lb_commit_status(newsrv);
 		}
 	}
+	free(fqdn);
 	return 0;
 
  out:
+	free(fqdn);
 	free(errmsg);
 	return err_code;
 }
