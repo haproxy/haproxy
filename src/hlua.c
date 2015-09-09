@@ -757,7 +757,7 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 	}
 	*p = '\0';
 
-	send_log(px, level, "%s", trash.str);
+	send_log(px, level, "%s\n", trash.str);
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		get_localtime(date.tv_sec, &tm);
 		fprintf(stderr, "[%s] %03d/%02d%02d%02d (%d) : %s\n",
@@ -3874,7 +3874,7 @@ static struct task *hlua_process_task(struct task *task)
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		send_log(NULL, LOG_ERR, "Lua task: %s.", lua_tostring(hlua->T, -1));
+		send_log(NULL, LOG_ERR, "Lua task: %s.\n", lua_tostring(hlua->T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua task: %s.\n", lua_tostring(hlua->T, -1));
 		hlua_ctx_destroy(hlua);
@@ -3884,7 +3884,7 @@ static struct task *hlua_process_task(struct task *task)
 
 	case HLUA_E_ERR:
 	default:
-		send_log(NULL, LOG_ERR, "Lua task: unknown error.");
+		send_log(NULL, LOG_ERR, "Lua task: unknown error.\n");
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua task: unknown error.\n");
 		hlua_ctx_destroy(hlua);
@@ -3974,7 +3974,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua.T && !hlua_ctx_init(&stream->hlua, stream->task)) {
-		send_log(stream->be, LOG_ERR, "Lua converter '%s': can't initialize Lua context.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
@@ -3984,7 +3984,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	if (!HLUA_IS_RUNNING(&stream->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 1)) {
-			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.\n", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua converter '%s': full stack.\n", fcn->name);
 			return 0;
@@ -3995,7 +3995,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 		/* convert input sample and pust-it in the stack. */
 		if (!lua_checkstack(stream->hlua.T, 1)) {
-			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.\n", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua converter '%s': full stack.\n", fcn->name);
 			return 0;
@@ -4007,7 +4007,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		if (arg_p) {
 			for (; arg_p->type != ARGT_STOP; arg_p++) {
 				if (!lua_checkstack(stream->hlua.T, 1)) {
-					send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+					send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.\n", fcn->name);
 					if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 						Alert("Lua converter '%s': full stack.\n", fcn->name);
 					return 0;
@@ -4035,7 +4035,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		send_log(stream->be, LOG_ERR, "Lua converter '%s': cannot use yielded functions.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': cannot use yielded functions.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
@@ -4043,7 +4043,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(stream->be, LOG_ERR, "Lua converter '%s': %s.", fcn->name, lua_tostring(stream->hlua.T, -1));
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
 		lua_pop(stream->hlua.T, 1);
@@ -4051,7 +4051,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(stream->be, LOG_ERR, "Lua converter '%s' returns an unknown error.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua converter '%s' returns an unknown error.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s' returns an unknown error.\n", fcn->name);
 
@@ -4076,7 +4076,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua.T && !hlua_ctx_init(&stream->hlua, stream->task)) {
-		send_log(stream->be, LOG_ERR, "Lua sample-fetch '%s': can't initialize Lua context.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
@@ -4086,7 +4086,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	if (!HLUA_IS_RUNNING(&stream->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 2)) {
-			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.\n", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 			return 0;
@@ -4097,7 +4097,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 		/* push arguments in the stack. */
 		if (!hlua_txn_new(stream->hlua.T, stream, smp->px)) {
-			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.\n", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 			return 0;
@@ -4108,13 +4108,13 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		for (; arg_p && arg_p->type != ARGT_STOP; arg_p++) {
 			/* Check stack available size. */
 			if (!lua_checkstack(stream->hlua.T, 1)) {
-				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.\n", fcn->name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 				return 0;
 			}
 			if (!lua_checkstack(stream->hlua.T, 1)) {
-				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.\n", fcn->name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 				return 0;
@@ -4144,7 +4144,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': cannot use yielded functions.", fcn->name);
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
@@ -4152,7 +4152,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': %s.", fcn->name, lua_tostring(stream->hlua.T, -1));
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
 		lua_pop(stream->hlua.T, 1);
@@ -4160,7 +4160,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s' returns an unknown error.", fcn->name);
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': returns an unknown error.\n", fcn->name);
 
@@ -4308,7 +4308,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; break;
 	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; break;
 	default:
-		send_log(px, LOG_ERR, "Lua: internal error while execute action.");
+		send_log(px, LOG_ERR, "Lua: internal error while execute action.\n");
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua: internal error while execute action.\n");
 		return ACT_RET_CONT;
@@ -4320,7 +4320,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!s->hlua.T && !hlua_ctx_init(&s->hlua, s->task)) {
-		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.",
+		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.\n",
 		         rule->arg.hlua_rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua action '%s': can't initialize Lua context.\n",
@@ -4332,7 +4332,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	if (!HLUA_IS_RUNNING(&s->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua.T, 1)) {
-			send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n",
@@ -4345,7 +4345,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua.T, s, px)) {
-			send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua function '%s': full stack.\n",
@@ -4357,7 +4357,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		/* push keywords in the stack. */
 		for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
 			if (!lua_checkstack(s->hlua.T, 1)) {
-				send_log(px, LOG_ERR, "Lua function '%s': full stack.",
+				send_log(px, LOG_ERR, "Lua function '%s': full stack.\n",
 				         rule->arg.hlua_rule->fcn.name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua function '%s': full stack.\n",
@@ -4406,7 +4406,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua function '%s': %s.",
+		send_log(px, LOG_ERR, "Lua function '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua function '%s': %s.\n",
@@ -4416,7 +4416,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua function '%s' return an unknown error.",
+		send_log(px, LOG_ERR, "Lua function '%s' return an unknown error.\n",
 		         rule->arg.hlua_rule->fcn.name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua function '%s' return an unknown error.\n",
