@@ -23,6 +23,7 @@
 #define _PROTO_PROTO_HTTP_H
 
 #include <common/config.h>
+#include <types/action.h>
 #include <types/proto_http.h>
 #include <types/stream.h>
 #include <types/task.h>

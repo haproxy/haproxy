@@ -27,7 +27,6 @@
 #include <common/mini-clist.h>
 #include <common/regex.h>
 
-#include <types/action.h>
 #include <types/hdr_idx.h>
 
 /* These are the flags that are found in txn->flags */
