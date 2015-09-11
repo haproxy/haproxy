@@ -22,6 +22,8 @@
 #ifndef _TYPES_ACTION_H
 #define _TYPES_ACTION_H
 
+#include <common/regex.h>
+
 #include <types/stick_table.h>
 
 enum act_from {
