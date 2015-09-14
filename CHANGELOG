@@ -1,6 +1,34 @@
 ChangeLog :
 ===========
 
+2015/09/14 : 1.6-dev5
+    - MINOR: dns: dns_resolution structure update: time_t to unsigned int
+    - BUG/MEDIUM: dns: DNS resolution doesn't start
+    - BUG/MAJOR: dns: dns client resolution infinite loop
+    - MINOR: dns: coding style update
+    - MINOR: dns: new bitmasks to use against DNS flags
+    - MINOR: dns: dns_nameserver structure update: new counter for truncated response
+    - MINOR: dns: New DNS response analysis code: DNS_RESP_TRUNCATED
+    - MEDIUM: dns: handling of truncated response
+    - MINOR: DNS client query type failover management
+    - MINOR: dns: no expected DNS record type found
+    - MINOR: dns: new flag to report that no IP can be found in a DNS response packet
+    - BUG/MINOR: DNS request retry counter used for retry only
+    - DOC: DNS documentation updated
+    - MEDIUM: actions: remove ACTION_STOP
+    - BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2 (bis)
+    - BUG/MINOR: lua: last log character truncated.
+    - CLEANUP: typo: bad indent
+    - CLEANUP: actions: missplaced includes
+    - MINOR: build: missing header
+    - CLEANUP: lua: Merge log functions
+    - BUG/MAJOR: http: don't manipulate the server connection if it's killed
+    - BUG/MINOR: http: remove stupid HTTP_METH_NONE entry
+    - BUG/MAJOR: http: don't call http_send_name_header() after an error
+    - MEDIUM: tools: make str2sa_range() optionally return the FQDN
+    - BUG/MINOR: tools: make str2sa_range() report unresolvable addresses
+    - BUG/MEDIUM: dns: use the correct server hostname when resolving
+
 2015/08/30 : 1.6-dev4
     - MINOR: log: Add log-format variable %HQ, to log HTTP query strings
     - DOC: typo in 'redirect', 302 code meaning
