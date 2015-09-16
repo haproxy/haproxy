@@ -814,8 +814,14 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 	/* Cleanup the log message. */
 	p = trash.str;
 	for (; *msg != '\0'; msg++, p++) {
-		if (p >= trash.str + trash.size - 1)
-			return;
+		if (p >= trash.str + trash.size - 1) {
+			/* Break the message if exceed the buffer size. */
+			*(p-4) = ' ';
+			*(p-3) = '.';
+			*(p-2) = '.';
+			*(p-1) = '.';
+			break;
+		}
 		if (isprint(*msg))
 			*p = *msg;
 		else
