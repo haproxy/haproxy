@@ -3413,9 +3413,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
                 }
 
 		if (!strcmp(args[1], "command")) {
-			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
 				goto out;
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
 				      file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -3425,9 +3425,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->check_command = strdup(args[2]);
 		}
 		else if (!strcmp(args[1], "path")) {
-			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
 				goto out;
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
 				      file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -7472,7 +7472,7 @@ int check_config_validity()
 				clear = 1;
 			}
 			if (curproxy->check_command[0] != '/' && !curproxy->check_path) {
-				Alert("Proxy '%s': '%s' does not have a leading '/' and 'external-command path' is not set.\n",
+				Alert("Proxy '%s': '%s' does not have a leading '/' and 'external-check path' is not set.\n",
 				      curproxy->id, "external-check command");
 				cfgerr++;
 			}
