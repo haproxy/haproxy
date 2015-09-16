@@ -9,14 +9,14 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
-#define CLASS_CORE     "Core"
-#define CLASS_TXN      "TXN"
-#define CLASS_FETCHES  "Fetches"
-#define CLASS_CONVERTERS "Converters"
-#define CLASS_SOCKET   "Socket"
-#define CLASS_CHANNEL  "Channel"
-#define CLASS_HTTP     "HTTP"
-#define CLASS_MAP      "Map"
+#define CLASS_CORE         "Core"
+#define CLASS_TXN          "TXN"
+#define CLASS_FETCHES      "Fetches"
+#define CLASS_CONVERTERS   "Converters"
+#define CLASS_SOCKET       "Socket"
+#define CLASS_CHANNEL      "Channel"
+#define CLASS_HTTP         "HTTP"
+#define CLASS_MAP          "Map"
 
 struct stream;
 
