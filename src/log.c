@@ -807,6 +807,11 @@ void send_log(struct proxy *p, int level, const char *format, ...)
  */
 void __send_log(struct proxy *p, int level, char *message, size_t size)
 {
+	static struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
+	static struct msghdr msghdr = {
+		.msg_iov = iovec,
+		.msg_iovlen = NB_MSG_IOVEC_ELEMENTS
+	};
 	static int logfdunix = -1;	/* syslog to AF_UNIX socket */
 	static int logfdinet = -1;	/* syslog to AF_INET socket */
 	static char *dataptr = NULL;
@@ -889,14 +894,18 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		backup = log_ptr[max - 1];
 		log_ptr[max - 1] = '\n';
 
-		sent = sendto(*plogfd, log_ptr, max,
-			      MSG_DONTWAIT | MSG_NOSIGNAL,
-			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
+		iovec[0].iov_base = log_ptr;
+		iovec[0].iov_len = max;
+
+		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
+		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
+
+		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 
 		log_ptr[max - 1] = backup;
 
 		if (sent < 0) {
-			Alert("sendto logger #%d failed: %s (errno=%d)\n",
+			Alert("sendmsg logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);
 		}
 	}
