@@ -9994,16 +9994,17 @@ downinter <delay>
   It is also possible to use "fastinter" and "downinter" to optimize delays
   between checks depending on the server state :
 
-             Server state            |             Interval used
-    ---------------------------------+-----------------------------------------
-     UP 100% (non-transitional)      | "inter"
-    ---------------------------------+-----------------------------------------
-     Transitionally UP (going down), |
-     Transitionally DOWN (going up), | "fastinter" if set, "inter" otherwise.
-     or yet unchecked.               |
-    ---------------------------------+-----------------------------------------
-     DOWN 100% (non-transitional)    | "downinter" if set, "inter" otherwise.
-    ---------------------------------+-----------------------------------------
+             Server state                   |         Interval used
+    ----------------------------------------+----------------------------------
+     UP 100% (non-transitional)             | "inter"
+    ----------------------------------------+----------------------------------
+     Transitionally UP (going down "fall"), | "fastinter" if set,
+     Transitionally DOWN (going up "rise"), | "inter" otherwise.
+     or yet unchecked.                      |
+    ----------------------------------------+----------------------------------
+     DOWN 100% (non-transitional)           | "downinter" if set,
+                                            | "inter" otherwise.
+    ----------------------------------------+----------------------------------
 
   Just as with every other time-based parameter, they can be entered in any
   other explicit unit among { us, ms, s, m, h, d }. The "inter" parameter also
