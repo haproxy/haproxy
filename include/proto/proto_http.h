@@ -112,6 +112,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, int *vlen);
+char *http_get_path(struct http_txn *txn);
 
 struct http_txn *http_alloc_txn(struct stream *s);
 void http_init_txn(struct stream *s);

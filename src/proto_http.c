@@ -986,8 +986,7 @@ enum http_meth_t find_http_meth(const char *str, const int len)
  * phase) and look for the "/" beginning the PATH. If not found, return NULL.
  * It is returned otherwise.
  */
-static char *
-http_get_path(struct http_txn *txn)
+char *http_get_path(struct http_txn *txn)
 {
 	char *ptr, *end;
 
