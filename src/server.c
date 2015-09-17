@@ -2125,23 +2125,18 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			    !(srv_agent_state & CHK_ST_ENABLED))
 				srv->agent.state &= ~CHK_ST_ENABLED;
 
-			/* by default, HAProxy applies the following weight when parsing the configuration
-			 *    srv->uweight = srv_iweight.
+			/* We want to apply the previous 'running' weight (srv_uweight) only if there
+			 * was no change in the configuration: both previous and new iweight are equals
 			 *
-			 * We want to apply the previous 'running' weight (srv_uweight) in the following cases:
-			 *  - previous uweight, iweight and iweight were set, whatever their values
-			 *  - both previous and new iweight are equal but previous uweight is set, whatever
-			 *    its value
-			 *  - iweight has changed between previous and new configuration file but uweight
-			 *    wasn't set to previous iweight value (basically, changed over the stats socket)
-			 *    => basically, stats socket has precedence over configuration file in such case.
+			 * It means that a configuration file change has precedence over a unix socket change
+			 * for server's weight
+			 *
+			 * by default, HAProxy applies the following weight when parsing the configuration
+			 *    srv->uweight = srv->iweight
 			 */
-			if ((srv_uweight > 0 && srv_iweight > 0 && srv->iweight > 0) ||
-			    (srv_iweight == srv->iweight && srv_uweight > 0) ||
-			    (srv_iweight != srv->iweight && srv_uweight != srv_iweight)) {
+			if (srv_iweight == srv->iweight) {
 				srv->uweight = srv_uweight;
 			}
-
 			server_recalc_eweight(srv);
 
 			/* update server IP only if DNS resolution is used on the server */

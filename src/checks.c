@@ -2295,6 +2295,9 @@ int start_checks() {
 				t->process = server_warmup;
 				t->context = s;
 				t->expire = TICK_ETERNITY;
+				/* server can be in this state only because of */
+				if (s->state == SRV_ST_STARTING)
+					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, (now.tv_sec - s->last_change)) / 20)));
 			}
 
 			if (s->check.state & CHK_ST_CONFIGURED) {
