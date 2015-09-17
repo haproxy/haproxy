@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 
 #include <ctype.h>
+#include <setjmp.h>
 
 #include <lauxlib.h>
 #include <lua.h>
@@ -49,6 +50,64 @@
 #define __LJMP
 #define WILL_LJMP(func) func
 #define MAY_LJMP(func) func
+
+/* This couple of function executes securely some Lua calls outside of
+ * the lua runtime environment. Each Lua call can return a longjmp
+ * if it encounter a memory error.
+ *
+ * Lua documentation extract:
+ *
+ *   If an error happens outside any protected environment, Lua calls
+ *   a panic function (see lua_atpanic) and then calls abort, thus
+ *   exiting the host application. Your panic function can avoid this
+ *   exit by never returning (e.g., doing a long jump to your own
+ *   recovery point outside Lua).
+ *
+ *   The panic function runs as if it were a message handler (see
+ *   §2.3); in particular, the error message is at the top of the
+ *   stack. However, there is no guarantee about stack space. To push
+ *   anything on the stack, the panic function must first check the
+ *   available space (see §4.2).
+ *
+ * We must check all the Lua entry point. This includes:
+ *  - The include/proto/hlua.h exported functions
+ *  - the task wrapper function
+ *  - The action wrapper function
+ *  - The converters wrapper function
+ *  - The sample-fetch wrapper functions
+ *
+ * It is tolerated that the initilisation function returns an abort.
+ * Before each Lua abort, an error message is writed on stderr.
+ *
+ * The macro SET_SAFE_LJMP initialise the longjmp. The Macro
+ * RESET_SAFE_LJMP reset the longjmp. These function must be macro
+ * because they must be exists in the program stack when the longjmp
+ * is called.
+ */
+jmp_buf safe_ljmp_env;
+static int hlua_panic_safe(lua_State *L) { return 0; }
+static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
+
+#define SET_SAFE_LJMP(__L) \
+	({ \
+		int ret; \
+		if (setjmp(safe_ljmp_env) != 0) { \
+			lua_atpanic(__L, hlua_panic_safe); \
+			ret = 0; \
+		} else { \
+			lua_atpanic(__L, hlua_panic_ljmp); \
+			ret = 1; \
+		} \
+		ret; \
+	})
+
+/* If we are the last function catching Lua errors, we
+ * must reset the panic function.
+ */
+#define RESET_SAFE_LJMP(__L) \
+	do { \
+		lua_atpanic(__L, hlua_panic_safe); \
+	} while(0)
 
 /* The main Lua execution context. */
 struct hlua gL;
@@ -796,9 +855,22 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
 /* This function initialises the Lua environment stored in the stream.
  * It must be called at the start of the stream. This function creates
  * an LUA coroutine. It can not be use to crete the main LUA context.
+ *
+ * This function is particular. it initialises a new Lua thread. If the
+ * initialisation fails (example: out of memory error), the lua function
+ * throws an error (longjmp).
+ *
+ * This function manipulates two Lua stack: the main and the thread. Only
+ * the main stack can fail. The thread is not manipulated. This function
+ * MUST NOT manipulate the created thread stack state, because is not
+ * proctected agains error throwed by the thread stack.
  */
 int hlua_ctx_init(struct hlua *lua, struct task *task)
 {
+	if (!SET_SAFE_LJMP(gL.T)) {
+		lua->Tref = LUA_REFNIL;
+		return 0;
+	}
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
 	LIST_INIT(&lua->com);
@@ -810,6 +882,7 @@ int hlua_ctx_init(struct hlua *lua, struct task *task)
 	hlua_sethlua(lua);
 	lua->Tref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
 	lua->task = task;
+	RESET_SAFE_LJMP(gL.T);
 	return 1;
 }
 
@@ -3845,6 +3918,9 @@ __LJMP static int hlua_set_nice(lua_State *L)
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
  * signal to wake the task.
+ *
+ * Task wrapper are longjmp safe because the only one Lua code
+ * executed is the safe hlua_ctx_resume();
  */
 static struct task *hlua_process_task(struct task *task)
 {
@@ -3983,6 +4059,13 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(&stream->hlua)) {
+
+		/* The following Lua calls can fail. */
+		if (!SET_SAFE_LJMP(stream->hlua.T)) {
+			SEND_ERR(stream->be, "Lua converter '%s': critical error.\n", fcn->name);
+			return 0;
+		}
+
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
@@ -4014,6 +4097,9 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 		/* We must initialize the execution timeouts. */
 		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
+
+		/* At this point the execution is safe. */
+		RESET_SAFE_LJMP(stream->hlua.T);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&stream->hlua);
@@ -4072,6 +4158,13 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(&stream->hlua)) {
+
+		/* The following Lua calls can fail. */
+		if (!SET_SAFE_LJMP(stream->hlua.T)) {
+			SEND_ERR(smp->px, "Lua sample-fetch '%s': critical error.\n", fcn->name);
+			return 0;
+		}
+
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 2)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
@@ -4105,6 +4198,9 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 		/* We must initialize the execution timeouts. */
 		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
+
+		/* At this point the execution is safe. */
+		RESET_SAFE_LJMP(stream->hlua.T);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&stream->hlua);
@@ -4300,6 +4396,14 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(&s->hlua)) {
+
+		/* The following Lua calls can fail. */
+		if (!SET_SAFE_LJMP(s->hlua.T)) {
+			SEND_ERR(px, "Lua function '%s': critical error.\n",
+			         rule->arg.hlua_rule->fcn.name);
+			return ACT_RET_CONT;
+		}
+
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua.T, 1)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
@@ -4328,6 +4432,9 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			lua_pushstring(s->hlua.T, *arg);
 			s->hlua.nargs++;
 		}
+
+		/* Now the execution is safe. */
+		RESET_SAFE_LJMP(s->hlua.T);
 
 		/* We must initialize the execution timeouts. */
 		s->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
@@ -4384,6 +4491,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
  * succes case, else return ACT_RET_PRS_ERR.
+ *
+ * This function can fail with an abort() due to an Lua critical error.
+ * We are in the configuration parsing process of HAProxy, this abort() is
+ * tolerated.
  */
 static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, struct proxy *px,
                                               struct act_rule *rule, char **err)
@@ -4503,6 +4614,10 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
  *
  * In some error case, LUA set an error message in top of the stack. This function
  * returns this error message in the HAProxy logs and pop it from the stack.
+ *
+ * This function can fail with an abort() due to an Lua critical error.
+ * We are in the configuration parsing process of HAProxy, this abort() is
+ * tolerated.
  */
 static int hlua_load(char **args, int section_type, struct proxy *curpx,
                      struct proxy *defpx, const char *file, int line,
@@ -4577,6 +4692,10 @@ static struct action_kw_list tcp_res_cont_kws = { { }, {
 	{ NULL, NULL }
 }};
 
+/* This function can fail with an abort() due to an Lua critical error.
+ * We are in the initialisation process of HAProxy, this abort() is
+ * tolerated.
+ */
 int hlua_post_init()
 {
 	struct hlua_init_function *init;
@@ -4644,6 +4763,10 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	return ptr;
 }
 
+/* Ithis function can fail with an abort() due to an Lua critical error.
+ * We are in the initialisation process of HAProxy, this abort() is
+ * tolerated.
+ */
 void hlua_init(void)
 {
 	int i;
@@ -4684,6 +4807,11 @@ void hlua_init(void)
 	hlua_sethlua(&gL);
 	gL.Tref = LUA_REFNIL;
 	gL.task = NULL;
+
+	/* From this point, until the end of the initialisation fucntion,
+	 * the Lua function can fail with an abort. We are in the initialisation
+	 * process of HAProxy, this abort() is tolerated.
+	 */
 
 	/* change the memory allocators to track memory usage */
 	lua_setallocf(gL.T, hlua_alloc, &hlua_global_allocator);
