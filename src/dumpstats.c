@@ -93,6 +93,7 @@ enum {
 	STAT_CLI_O_TLSK,     /* list all TLS ticket keys references */
 	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
 	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
+	STAT_CLI_O_BACKEND,  /* dump backend list */
 };
 
 /* Actions available for the stats admin forms */
@@ -128,6 +129,7 @@ enum {
 	ST_ADM_ACTION_START,
 };
 
+static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_servers_state_to_buffer(struct stream_interface *si);
 static int stats_dump_pools_to_buffer(struct stream_interface *si);
@@ -153,6 +155,7 @@ static void dump_servers_state(struct proxy *backend, struct chunk *buf);
  *     -> stats_dump_sess_to_buffer()     // "show sess"
  *     -> stats_dump_errors_to_buffer()   // "show errors"
  *     -> stats_dump_info_to_buffer()     // "show info"
+ *     -> stats_dump_backend_to_buffer()  // "show backend"
  *     -> stats_dump_servers_state_to_buffer() // "show servers state [<backend name>]"
  *     -> stats_dump_stat_to_buffer()     // "show stat"
  *        -> stats_dump_resolvers_to_buffer() // "show stat resolver <id>"
@@ -187,6 +190,7 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
+	"  show backend   : list backends in the current running config\n"
 	"  show info      : report information about the running process\n"
 	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
@@ -1154,7 +1158,11 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
-		if (strcmp(args[1], "stat") == 0) {
+		if (strcmp(args[1], "backend") == 0) {
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_BACKEND;
+		}
+		 else if (strcmp(args[1], "stat") == 0) {
 			if (strcmp(args[2], "resolvers") == 0) {
 				struct dns_resolvers *presolvers;
 
@@ -2496,6 +2504,10 @@ static void cli_io_handler(struct appctx *appctx)
 				else
 					si_applet_cant_put(si);
 				break;
+			case STAT_CLI_O_BACKEND:
+				if (stats_dump_backend_to_buffer(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
 			case STAT_CLI_O_INFO:
 				if (stats_dump_info_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
@@ -2775,6 +2787,35 @@ static void dump_servers_state(struct proxy *backend, struct chunk *buf)
 
 		srv = srv->next;
 	}
+}
+
+/* Parses backend list and simply report backend names */
+static int stats_dump_backend_to_buffer(struct stream_interface *si)
+{
+	extern struct proxy *proxy;
+	struct proxy *curproxy;
+
+	chunk_reset(&trash);
+	chunk_printf(&trash, "# name\n");
+
+	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+		/* looking for backends only */
+		if (!(curproxy->cap & PR_CAP_BE))
+			continue;
+
+		/* we don't want to list a backend which is bound to this process */
+		if (curproxy->bind_proc && !(curproxy->bind_proc & (1UL << (relative_pid - 1))))
+			continue;
+
+		chunk_appendf(&trash, "%s\n", curproxy->id);
+	}
+
+	if (bi_putchk(si_ic(si), &trash) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	return 1;
 }
 
 /* Parses backend list or simply use backend name provided by the user to return

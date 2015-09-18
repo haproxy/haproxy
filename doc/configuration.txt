@@ -15794,6 +15794,9 @@ show errors [<iid>]
     is the slash ('/') in header name "header/bizarre", which is not a valid
     HTTP character for a header name.
 
+show backend
+  Dump the list of backends available in the running process
+
 show info
   Dump info about haproxy status on current process.
 
