@@ -254,6 +254,13 @@ __LJMP static inline void hlua_class_function(lua_State *L, const char *name,
 	lua_settable(L, -3);
 }
 
+__LJMP static int hlua_dump_object(struct lua_State *L)
+{
+	const char *name = (const char *)lua_tostring(L, lua_upvalueindex(1));
+	lua_pushfstring(L, "HAProxy class %s", name);
+	return 1;
+}
+
 /* This function check the number of arguments available in the
  * stack. If the number of arguments available is not the same
  * then <nb> an error is throwed.
@@ -4917,6 +4924,12 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_MAP);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -4948,6 +4961,12 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_CHANNEL);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -4978,6 +4997,12 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
+
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_FETCHES);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -5029,6 +5054,12 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_CONVERTERS);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
 	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -5076,6 +5107,12 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_HTTP);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -5116,6 +5153,12 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_TXN);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -5151,6 +5194,12 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
+
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_SOCKET);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
