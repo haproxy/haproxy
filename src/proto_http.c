@@ -10015,8 +10015,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
  *     we'll never have any HTTP message there ;
  *   1 if an HTTP message is ready
  */
-static int
-smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
+int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
                   const struct arg *args, struct sample *smp, int req_vol)
 {
 	struct http_txn *txn;
@@ -10109,16 +10108,6 @@ smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 	smp->data.u.sint = 1;
 	return 1;
 }
-
-/* Note: these functinos *do* modify the sample. Even in case of success, at
- * least the type and uint value are modified.
- */
-#define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 1); if (r <= 0) return r; } while (0)
-
-#define CHECK_HTTP_MESSAGE_FIRST_PERM() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 0); if (r <= 0) return r; } while (0)
-
 
 /* 1. Check on METHOD
  * We use the pre-parsed method if it is known, and store its number as an

@@ -135,6 +135,18 @@ struct action_kw *action_http_req_custom(const char *kw);
 struct action_kw *action_http_res_custom(const char *kw);
 int val_hdr(struct arg *arg, char **err_msg);
 
+int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
+                  const struct arg *args, struct sample *smp, int req_vol);
+
+/* Note: these functions *do* modify the sample. Even in case of success, at
+ * least the type and uint value are modified.
+ */
+#define CHECK_HTTP_MESSAGE_FIRST() \
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 1); if (r <= 0) return r; } while (0)
+
+#define CHECK_HTTP_MESSAGE_FIRST_PERM() \
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 0); if (r <= 0) return r; } while (0)
+
 static inline void http_req_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&http_req_keywords.list, &kw_list->list);
