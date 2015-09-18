@@ -113,6 +113,7 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, int *vlen);
 char *http_get_path(struct http_txn *txn);
+const char *get_reason(unsigned int status);
 
 struct http_txn *http_alloc_txn(struct stream *s);
 void http_init_txn(struct stream *s);
