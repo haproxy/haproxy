@@ -1,0 +1,62 @@
+Reloading HAProxy without impacting server states
+=================================================
+
+Of course, to fully understand below information please consult
+doc/configuration.txt to understand how each HAProxy directive works.
+
+In the mean line, we update HAProxy's configuration to tell it where to
+retrieve the last know trustable servers state.
+Then, before reloading HAProxy, we simply dump servers state from running
+process into the locations we pointed into the configuration.
+And voilà :)
+
+
+Using one file for all backends
+-------------------------------
+
+HAProxy configuration
+*********************
+
+  global
+    [...]
+    stats socket /var/run/haproxy/socket
+    server-state-file global
+    server-state-base /var/state/haproxy/
+
+  defaults
+    [...]
+    load-server-state-from-file global
+
+HAProxy init script
+*******************
+
+Run the following command BEFORE reloading:
+
+  socat /var/run/haproxy/socket - <<< "show servers state" > /var/state/haproxy/global
+
+
+Using one state file per backend
+--------------------------------
+
+HAProxy configuration
+*********************
+
+  global
+    [...]
+    stats socket /var/run/haproxy/socket
+    server-state-base /var/state/haproxy/
+
+  defaults
+    [...]
+    load-server-state-from-file local
+
+HAProxy init script
+*******************
+
+Run the following command BEFORE reloading:
+
+  for b in $(socat /var/run/haproxy/socket - <<< "show backend" | fgrep -v '#')
+  do
+    socat /var/run/haproxy/socket - <<< "show servers state $b" > /var/state/haproxy/$b
+  done
+
