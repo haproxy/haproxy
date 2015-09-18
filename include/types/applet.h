@@ -121,6 +121,13 @@ struct appctx {
 			struct task *task;
 		} hlua_apptcp;
 		struct {
+			struct hlua hlua;
+			int left_bytes; /* The max amount of bytes that we can read. */
+			int flags;
+			int status;
+			struct task *task;
+		} hlua_apphttp;
+		struct {
 			struct dns_resolvers *ptr;
 		} resolvers;
 		struct {

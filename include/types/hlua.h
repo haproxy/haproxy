@@ -18,6 +18,7 @@
 #define CLASS_HTTP         "HTTP"
 #define CLASS_MAP          "Map"
 #define CLASS_APPLET_TCP   "AppletTCP"
+#define CLASS_APPLET_HTTP  "AppletHTTP"
 
 struct stream;
 
