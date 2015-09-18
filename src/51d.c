@@ -129,6 +129,38 @@ static int _51d_conv_check(struct arg *arg, struct sample_conv *conv,
 }
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+/* Insert the data associated with the sample into the cache as a fresh item.
+ */
+static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru)
+{
+	struct chunk *cache_entry = (struct chunk*)malloc(sizeof(struct chunk));
+
+	if (!cache_entry)
+		return;
+
+	smp->flags |= SMP_F_CONST;
+	cache_entry->str = malloc(smp->data.u.str.len + 1);
+	if (!cache_entry->str)
+		return;
+
+	memcpy(cache_entry->str, smp->data.u.str.str, smp->data.u.str.len);
+	cache_entry->str[smp->data.u.str.len] = 0;
+	cache_entry->len = smp->data.u.str.len;
+	lru64_commit(lru, cache_entry, _51DEGREES_CONV_CACHE_KEY, 0, free);
+}
+
+/* Retrieves the data from the cache and sets the sample data to this string.
+ */
+static void _51d_retrieve_cache_entry(struct sample *smp, struct lru64 *lru)
+{
+	struct chunk *cache_entry = (struct chunk*)lru->data;
+	smp->flags |= SMP_F_CONST;
+	smp->data.u.str.str = cache_entry->str;
+	smp->data.u.str.len = cache_entry->len;
+}
+#endif
+
+#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 /* Sets the important HTTP headers ahead of the detection
  */
 static void _51d_set_headers(struct sample *smp, fiftyoneDegreesWorkset *ws)
@@ -286,7 +318,7 @@ static void _51d_process_match(const struct arg *args, struct sample *smp)
 	}
 
 	smp->data.u.str.str = temp->str;
-	smp->data.u.str.len = strlen(temp->str);
+	smp->data.u.str.len = temp->len;
 }
 
 static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -324,10 +356,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 		lru = lru64_get(_51d_req_hash(args, ws),
 		                _51d_lru_tree, _51DEGREES_FETCH_CACHE_KEY, 0);
 		if (lru && lru->domain) {
-			smp->flags |= SMP_F_CONST;
-			smp->data.u.str.str = lru->data;
-			smp->data.u.str.len = strlen(lru->data);
-			fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
+			_51d_retrieve_cache_entry(smp, lru);
 			return 1;
 		}
 	}
@@ -351,8 +380,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
 	if (lru) {
-		smp->flags |= SMP_F_CONST;
-		lru64_commit(lru, strdup(smp->data.u.str.str), _51DEGREES_FETCH_CACHE_KEY, 0, free);
+		_51d_insert_cache_entry(smp, lru);
 	}
 #endif
 
@@ -375,9 +403,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 		                _51d_lru_tree, _51DEGREES_CONV_CACHE_KEY, 0);
 		if (lru && lru->domain) {
-			smp->flags |= SMP_F_CONST;
-			smp->data.u.str.str = lru->data;
-			smp->data.u.str.len = strlen(smp->data.u.str.str);
+			_51d_retrieve_cache_entry(smp, lru);
 			return 1;
 		}
 	}
@@ -408,8 +434,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
 	if (lru) {
-		smp->flags |= SMP_F_CONST;
-		lru64_commit(lru, strdup(smp->data.u.str.str), _51DEGREES_CONV_CACHE_KEY, 0, free);
+		_51d_insert_cache_entry(smp, lru);
 	}
 #endif
 
