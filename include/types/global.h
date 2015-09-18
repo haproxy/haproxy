@@ -191,8 +191,15 @@ struct global {
 		char property_separator;    /* the separator to use in the response for the values. this is taken from 51degrees-property-separator from config. */
 		struct list property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
 		char *data_file_path;
+		int header_count; /* number of HTTP headers related to device detection. */
+		struct chunk *header_names; /* array of HTTP header names. */
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 		fiftyoneDegreesDataSet data_set; /* data set used with the pattern detection method. */
+		fiftyoneDegreesWorksetPool *pool; /* pool of worksets to avoid creating a new one for each request. */
+#endif
+#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
+		int32_t *header_offsets; /* offsets to the HTTP header name string. */
+		fiftyoneDegreesDeviceOffsets device_offsets; /* Memory used for device offsets. */
 #endif
 		int cache_size;
 	} _51degrees;
