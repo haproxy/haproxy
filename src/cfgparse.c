@@ -1571,6 +1571,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		if (logsrv->maxlen > global.max_syslog_len) {
 			global.max_syslog_len = logsrv->maxlen;
+			logheader = realloc(logheader, global.max_syslog_len + 1);
 			logline = realloc(logline, global.max_syslog_len + 1);
 		}
 
@@ -5853,6 +5854,7 @@ stats_error_parsing:
 
 			if (logsrv->maxlen > global.max_syslog_len) {
 				global.max_syslog_len = logsrv->maxlen;
+				logheader = realloc(logheader, global.max_syslog_len + 1);
 				logline = realloc(logline, global.max_syslog_len + 1);
 			}
 

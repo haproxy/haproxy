@@ -151,8 +151,14 @@ char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %m
 char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
-/* This is a global syslog line, common to all outgoing messages. It begins
- * with the syslog tag and the date that are updated by update_log_hdr().
+/* This is a global syslog header, common to all outgoing messages. It
+ * begins with the syslog tag and the date that are updated by
+ * update_log_hdr().
+ */
+char *logheader = NULL;
+
+/* This is a global syslog message buffer, common to all outgoing
+ * messages. It contains only the data part.
  */
 char *logline = NULL;
 
@@ -734,7 +740,7 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 	return ret;
 }
 
-/* Re-generate the syslog header at the beginning of logline once a second and
+/* Re-generate the syslog header at the beginning of logheader once a second and
  * return the pointer to the first character after the header.
  */
 static char *update_log_hdr(const char *log_tag)
@@ -751,7 +757,7 @@ static char *update_log_hdr(const char *log_tag)
 		tvsec = date.tv_sec;
 		get_localtime(tvsec, &tm);
 
-		hdr_len = snprintf(logline, global.max_syslog_len,
+		hdr_len = snprintf(logheader, global.max_syslog_len,
 				   "<<<<>%s %2d %02d:%02d:%02d %s",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -763,36 +769,32 @@ static char *update_log_hdr(const char *log_tag)
 		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
 			hdr_len = global.max_syslog_len;
 
-		dataptr = logline + hdr_len;
+		dataptr = logheader + hdr_len;
 	}
 
 	dataptr[0] = 0; // ensure we get rid of any previous attempt
 
-	tag_len = snprintf(dataptr, logline + global.max_syslog_len - dataptr, "%s[%d]: ", log_tag, pid);
-	if (tag_len < 0 || tag_len > logline + global.max_syslog_len - dataptr)
-		tag_len = logline + global.max_syslog_len - dataptr;
+	tag_len = snprintf(dataptr, logheader + global.max_syslog_len - dataptr, "%s[%d]: ", log_tag, pid);
+	if (tag_len < 0 || tag_len > logheader + global.max_syslog_len - dataptr)
+		tag_len = logheader + global.max_syslog_len - dataptr;
 
 	return dataptr + tag_len;
 }
 
 /*
- * This function adds a header to the message and sends the syslog message
- * using a printf format string. It expects an LF-terminated message.
+ * This function sends the syslog message using a printf format string. It
+ * expects an LF-terminated message.
  */
 void send_log(struct proxy *p, int level, const char *format, ...)
 {
 	va_list argp;
-	char *dataptr;
 	int  data_len;
 
 	if (level < 0 || format == NULL || logline == NULL)
 		return;
 
-	dataptr = update_log_hdr(p && p->log_tag ? p->log_tag : global.log_tag); /* update log header and skip it */
-	data_len = dataptr - logline;
-
 	va_start(argp, format);
-	data_len += vsnprintf(dataptr, logline + global.max_syslog_len - dataptr, format, argp);
+	data_len = vsnprintf(logline, global.max_syslog_len, format, argp);
 	if (data_len < 0 || data_len > global.max_syslog_len)
 		data_len = global.max_syslog_len;
 	va_end(argp);
@@ -803,7 +805,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
- * It overrides the last byte (message[size-1]) with an LF character.
+ * It overrides the last byte of the vector with an LF character.
  */
 void __send_log(struct proxy *p, int level, char *message, size_t size)
 {
@@ -819,7 +821,10 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 	struct list *logsrvs = NULL;
 	struct logsrv *tmp = NULL;
 	int nblogger;
+	char *log_tag = global.log_tag;
 	char *log_ptr;
+	char *hdr_ptr;
+	size_t hdr_size;
 
 	dataptr = message;
 
@@ -831,10 +836,16 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		if (!LIST_ISEMPTY(&p->logsrvs)) {
 			logsrvs = &p->logsrvs;
 		}
+		if (p->log_tag) {
+			log_tag = p->log_tag;
+		}
 	}
 
 	if (!logsrvs)
 		return;
+
+	hdr_ptr = update_log_hdr(log_tag);
+	hdr_size = hdr_ptr - logheader;
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
@@ -843,7 +854,8 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
 		int sent;
-		int max;
+		int hdr_max = 0;
+		int max = 1;
 		char backup;
 
 		nblogger++;
@@ -875,34 +887,46 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		 * and we change the pointer to the header accordingly.
 		 */
 		fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
-		log_ptr = dataptr + 3; /* last digit of the log level */
+		hdr_ptr = logheader + 3; /* last digit of the log level */
 		do {
-			*log_ptr = '0' + fac_level % 10;
+			*hdr_ptr = '0' + fac_level % 10;
 			fac_level /= 10;
-			log_ptr--;
-		} while (fac_level && log_ptr > dataptr);
-		*log_ptr = '<';
+			hdr_ptr--;
+		} while (fac_level && hdr_ptr > logheader);
+		*hdr_ptr = '<';
 
-		max = size - (log_ptr - dataptr);
-		if (max > logsrv->maxlen)
-			max = logsrv->maxlen;
+		log_ptr = dataptr;
 
+		hdr_max = hdr_size - (hdr_ptr - logheader);
+
+		if (unlikely(hdr_size >= logsrv->maxlen)) {
+			hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
+			goto send;
+		}
+
+		max = MIN(size, logsrv->maxlen - hdr_max);
+
+		log_ptr += max - 1;
+
+send:
 		/* insert a \n at the end of the message, but save what was
 		 * there first because we could have different max lengths
 		 * for different log targets.
 		 */
-		backup = log_ptr[max - 1];
-		log_ptr[max - 1] = '\n';
+		backup = *log_ptr;
+		*log_ptr = '\n';
 
-		iovec[0].iov_base = log_ptr;
-		iovec[0].iov_len = max;
+		iovec[0].iov_base = hdr_ptr;
+		iovec[0].iov_len = hdr_max;
+		iovec[1].iov_base = dataptr;
+		iovec[1].iov_len = max;
 
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 
-		log_ptr[max - 1] = backup;
+		*log_ptr = backup;
 
 		if (sent < 0) {
 			Alert("sendmsg logger #%d failed: %s (errno=%d)\n",
@@ -1822,7 +1846,6 @@ out:
 void strm_log(struct stream *s)
 {
 	struct session *sess = s->sess;
-	char *tmplog;
 	int size, err, level;
 
 	/* if we don't want to log normal traffic, return now */
@@ -1857,9 +1880,7 @@ void strm_log(struct stream *s)
 			build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
 
-	tmplog = update_log_hdr(sess->fe->log_tag ? sess->fe->log_tag : global.log_tag);
-	size = tmplog - logline;
-	size += build_logline(s, tmplog, global.max_syslog_len - size, &sess->fe->logformat);
+	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		sess->fe->log_count++;
 		__send_log(sess->fe, level, logline, size + 1);
