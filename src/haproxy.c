@@ -1328,6 +1328,7 @@ void deinit(void)
 			LIST_DEL(&log->list);
 			free(log);
 		}
+		chunk_destroy(&p->log_htp);
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
 			LIST_DEL(&lf->list);

@@ -152,8 +152,7 @@ char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%
 char *log_format = NULL;
 
 /* This is a global syslog header, common to all outgoing messages. It
- * begins with the syslog tag and the date that are updated by
- * update_log_hdr().
+ * begins with time-based part and is updated by update_log_hdr().
  */
 char *logheader = NULL;
 
@@ -740,14 +739,26 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 	return ret;
 }
 
+char *lf_host_tag_pid(char *dst, const char *hostname, const char *log_tag, int pid, size_t size)
+{
+	char *ret = dst;
+	int iret;
+
+	iret = snprintf(dst, size, "%s%s[%d]: ", hostname, log_tag, pid);
+	if (iret < 0 || iret > size)
+		return NULL;
+	ret += iret;
+
+	return ret;
+}
+
 /* Re-generate the syslog header at the beginning of logheader once a second and
  * return the pointer to the first character after the header.
  */
-static char *update_log_hdr(const char *log_tag)
+char *update_log_hdr()
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
-	int tag_len;
 
 	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -758,10 +769,9 @@ static char *update_log_hdr(const char *log_tag)
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logheader, global.max_syslog_len,
-				   "<<<<>%s %2d %02d:%02d:%02d %s",
+				   "<<<<>%s %2d %02d:%02d:%02d ",
 				   monthname[tm.tm_mon],
-				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   global.log_send_hostname ? global.log_send_hostname : "");
+				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
@@ -774,11 +784,7 @@ static char *update_log_hdr(const char *log_tag)
 
 	dataptr[0] = 0; // ensure we get rid of any previous attempt
 
-	tag_len = snprintf(dataptr, logheader + global.max_syslog_len - dataptr, "%s[%d]: ", log_tag, pid);
-	if (tag_len < 0 || tag_len > logheader + global.max_syslog_len - dataptr)
-		tag_len = logheader + global.max_syslog_len - dataptr;
-
-	return dataptr + tag_len;
+	return dataptr;
 }
 
 /*
@@ -821,7 +827,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 	struct list *logsrvs = NULL;
 	struct logsrv *tmp = NULL;
 	int nblogger;
-	char *log_tag = global.log_tag;
 	char *log_ptr;
 	char *hdr_ptr;
 	size_t hdr_size;
@@ -836,15 +841,12 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		if (!LIST_ISEMPTY(&p->logsrvs)) {
 			logsrvs = &p->logsrvs;
 		}
-		if (p->log_tag) {
-			log_tag = p->log_tag;
-		}
 	}
 
 	if (!logsrvs)
 		return;
 
-	hdr_ptr = update_log_hdr(log_tag);
+	hdr_ptr = update_log_hdr();
 	hdr_size = hdr_ptr - logheader;
 
 	/* Send log messages to syslog server. */
@@ -854,7 +856,9 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
 		int sent;
+		int maxlen;
 		int hdr_max = 0;
+		int htp_max = 0;
 		int max = 1;
 		char backup;
 
@@ -904,7 +908,15 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 			goto send;
 		}
 
-		max = MIN(size, logsrv->maxlen - hdr_max);
+		maxlen = logsrv->maxlen - hdr_max;
+		htp_max = p->log_htp.len;
+
+		if (unlikely(htp_max >= maxlen)) {
+			htp_max = maxlen - 1;
+			goto send;
+		}
+
+		max = MIN(size, maxlen - htp_max);
 
 		log_ptr += max - 1;
 
@@ -918,8 +930,10 @@ send:
 
 		iovec[0].iov_base = hdr_ptr;
 		iovec[0].iov_len = hdr_max;
-		iovec[1].iov_base = dataptr;
-		iovec[1].iov_len = max;
+		iovec[1].iov_base = p->log_htp.str;
+		iovec[1].iov_len = htp_max;
+		iovec[2].iov_base = dataptr;
+		iovec[2].iov_len = max;
 
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);

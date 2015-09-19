@@ -7818,6 +7818,27 @@ int check_config_validity()
 		}
 out_uri_auth_compat:
 
+		/* write a syslog header string that contains hostname, log_tag and pid */
+		curproxy->log_htp.str = lf_host_tag_pid(logheader,
+		                                        global.log_send_hostname ? global.log_send_hostname : "",
+		                                        curproxy->log_tag ? curproxy->log_tag : global.log_tag, pid,
+		                                        global.max_syslog_len);
+
+		if ((curproxy->log_htp.str == NULL) ||
+		    (curproxy->log_htp.len = curproxy->log_htp.str - logheader) >= global.max_syslog_len) {
+			Alert("Proxy '%s': cannot write a syslog header string that contains "
+			      "hostname, log_tag and pid.\n",
+			      curproxy->id);
+			cfgerr++;
+		}
+		else {
+			curproxy->log_htp.str = (char *)malloc(curproxy->log_htp.len);
+			memcpy(curproxy->log_htp.str, logheader, curproxy->log_htp.len);
+			curproxy->log_htp.size = 0;
+		}
+
+		logheader[0] = 0;
+
 		/* compile the log format */
 		if (!(curproxy->cap & PR_CAP_FE)) {
 			if (curproxy->conf.logformat_string != default_http_log_format &&
