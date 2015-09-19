@@ -109,6 +109,10 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 		lua_atpanic(__L, hlua_panic_safe); \
 	} while(0)
 
+/* Applet status flags */
+#define APPLET_DONE 0x1 /* applet processing is done. */
+#define APPLET_SENT 0x2 /* some data are sent. */
+
 /* The main Lua execution context. */
 struct hlua gL;
 
@@ -138,6 +142,7 @@ static int class_fetches_ref;
 static int class_converters_ref;
 static int class_http_ref;
 static int class_map_ref;
+static int class_applet_tcp_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with stream (actions, sample-fetches and converters) have a
@@ -146,6 +151,7 @@ static int class_map_ref;
  */
 static unsigned int hlua_timeout_session = 4000; /* session timeout. */
 static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
+static unsigned int hlua_timeout_applet = 4000; /* applet timeout. */
 
 /* Interrupts the Lua processing each "hlua_nb_instruction" instructions.
  * it is used for preventing infinite loops.
@@ -3137,6 +3143,287 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 /*
  *
  *
+ * Class AppletTCP
+ *
+ *
+ */
+
+/* Returns a struct hlua_txn if the stack entry "ud" is
+ * a class stream, otherwise it throws an error.
+ */
+__LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
+{
+	return (struct hlua_appctx *)MAY_LJMP(hlua_checkudata(L, ud, class_applet_tcp_ref));
+}
+
+/* This function creates and push in the stack an Applet object
+ * according with a current TXN.
+ */
+static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
+{
+	struct hlua_appctx *appctx;
+	struct stream_interface *si = ctx->owner;
+	struct stream *s = si_strm(si);
+	struct proxy *p = s->be;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 3))
+		return 0;
+
+	/* Create the object: obj[0] = userdata.
+	 * Note that the base of the Converters object is the
+	 * same than the TXN object.
+	 */
+	lua_newtable(L);
+	appctx = lua_newuserdata(L, sizeof(*appctx));
+	lua_rawseti(L, -2, 0);
+	appctx->appctx = ctx;
+	appctx->htxn.s = s;
+	appctx->htxn.p = p;
+
+	/* Create the "f" field that contains a list of fetches. */
+	lua_pushstring(L, "f");
+	if (!hlua_fetches_new(L, &appctx->htxn, 0))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "sf" field that contains a list of stringsafe fetches. */
+	lua_pushstring(L, "sf");
+	if (!hlua_fetches_new(L, &appctx->htxn, 1))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "c" field that contains a list of converters. */
+	lua_pushstring(L, "c");
+	if (!hlua_converters_new(L, &appctx->htxn, 0))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "sc" field that contains a list of stringsafe converters. */
+	lua_pushstring(L, "sc");
+	if (!hlua_converters_new(L, &appctx->htxn, 1))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Pop a class stream metatable and affect it to the table. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_applet_tcp_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+/* If expected data not yet available, it returns a yield. This function
+ * consumes the data in the buffer. It returns a string containing the
+ * data. This string can be empty.
+ */
+__LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream_interface *si = appctx->appctx->owner;
+	int ret;
+	char *blk1;
+	int len1;
+	char *blk2;
+	int len2;
+
+	/* Read the maximum amount of data avalaible. */
+	ret = bo_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+
+	/* Data not yet avalaible. return yield. */
+	if (ret == 0) {
+		si_applet_cant_get(si);
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_getline_yield, TICK_ETERNITY, 0));
+	}
+
+	/* End of data: commit the total strings and return. */
+	if (ret < 0) {
+		luaL_pushresult(&appctx->b);
+		return 1;
+	}
+
+	/* Ensure that the block 2 length is usable. */
+	if (ret == 1)
+		len2 = 0;
+
+	/* dont check the max length read and dont check. */
+	luaL_addlstring(&appctx->b, blk1, len1);
+	luaL_addlstring(&appctx->b, blk2, len2);
+
+	/* Consume input channel output buffer data. */
+	bo_skip(si_oc(si), len1 + len2);
+	luaL_pushresult(&appctx->b);
+	return 1;
+}
+
+/* Check arguments for the fucntion "hlua_channel_get_yield". */
+__LJMP static int hlua_applet_tcp_getline(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+
+	/* Initialise the string catenation. */
+	luaL_buffinit(L, &appctx->b);
+
+	return MAY_LJMP(hlua_applet_tcp_getline_yield(L, 0, 0));
+}
+
+/* If expected data not yet available, it returns a yield. This function
+ * consumes the data in the buffer. It returns a string containing the
+ * data. This string can be empty.
+ */
+__LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream_interface *si = appctx->appctx->owner;
+	int len = MAY_LJMP(luaL_checkinteger(L, 2));
+	int ret;
+	char *blk1;
+	int len1;
+	char *blk2;
+	int len2;
+
+	/* Read the maximum amount of data avalaible. */
+	ret = bo_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+
+	/* Data not yet avalaible. return yield. */
+	if (ret == 0) {
+		si_applet_cant_get(si);
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+	}
+
+	/* End of data: commit the total strings and return. */
+	if (ret < 0) {
+		luaL_pushresult(&appctx->b);
+		return 1;
+	}
+
+	/* Ensure that the block 2 length is usable. */
+	if (ret == 1)
+		len2 = 0;
+
+	if (len == -1) {
+
+		/* If len == -1, catenate all the data avalaile and
+		 * yield because we want to get all the data until
+		 * the end of data stream.
+		 */
+		luaL_addlstring(&appctx->b, blk1, len1);
+		luaL_addlstring(&appctx->b, blk2, len2);
+		bo_skip(si_oc(si), len1 + len2);
+		si_applet_cant_get(si);
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+
+	} else {
+
+		/* Copy the fisrt block caping to the length required. */
+		if (len1 > len)
+			len1 = len;
+		luaL_addlstring(&appctx->b, blk1, len1);
+		len -= len1;
+
+		/* Copy the second block. */
+		if (len2 > len)
+			len2 = len;
+		luaL_addlstring(&appctx->b, blk2, len2);
+		len -= len2;
+
+		/* Consume input channel output buffer data. */
+		bo_skip(si_oc(si), len1 + len2);
+
+		/* If we are no other data avalaible, yield waiting for new data. */
+		if (len > 0) {
+			lua_pushinteger(L, len);
+			lua_replace(L, 2);
+			si_applet_cant_get(si);
+			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+		}
+
+		/* return the result. */
+		luaL_pushresult(&appctx->b);
+		return 1;
+	}
+
+	/* we never executes this */
+	hlua_pusherror(L, "Lua: internal error");
+	WILL_LJMP(lua_error(L));
+	return 0;
+}
+
+/* Check arguments for the fucntion "hlua_channel_get_yield". */
+__LJMP static int hlua_applet_tcp_recv(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	int len = -1;
+
+	if (lua_gettop(L) > 2)
+		WILL_LJMP(luaL_error(L, "The 'recv' function requires between 1 and 2 arguments."));
+	if (lua_gettop(L) >= 2) {
+		len = MAY_LJMP(luaL_checkinteger(L, 2));
+		lua_pop(L, 1);
+	}
+
+	/* Confirm or set the required length */
+	lua_pushinteger(L, len);
+
+	/* Initialise the string catenation. */
+	luaL_buffinit(L, &appctx->b);
+
+	return MAY_LJMP(hlua_applet_tcp_recv_yield(L, 0, 0));
+}
+
+/* Append data in the output side of the buffer. This data is immediatly
+ * sent. The fcuntion returns the ammount of data writed. If the buffer
+ * cannot contains the data, the function yield. The function returns -1
+ * if the channel is closed.
+ */
+__LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	size_t len;
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	int l = MAY_LJMP(luaL_checkinteger(L, 3));
+	struct stream_interface *si = appctx->appctx->owner;
+	struct channel *chn = si_ic(si);
+	int max;
+
+	/* Get the max amount of data which can write as input in the channel. */
+	max = channel_recv_max(chn);
+	if (max > (len - l))
+		max = len - l;
+
+	/* Copy data. */
+	bi_putblk(chn, str + l, max);
+
+	/* update counters. */
+	l += max;
+	lua_pop(L, 1);
+	lua_pushinteger(L, l);
+
+	/* If some data is not send, declares the situation to the
+	 * applet, and returns a yield.
+	 */
+	if (l < len) {
+		si_applet_cant_put(si);
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
+	}
+
+	return 1;
+}
+
+/* Just a wraper of "hlua_applet_tcp_send_yield". This wrapper permits
+ * yield the LUA process, and resume it without checking the
+ * input arguments.
+ */
+__LJMP static int hlua_applet_tcp_send(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "send"));
+	lua_pushinteger(L, 0);
+
+	return MAY_LJMP(hlua_applet_tcp_send_yield(L, 0, 0));
+}
+
+/*
+ *
+ *
  * Class HTTP
  *
  *
@@ -4624,6 +4911,176 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 }
 
+struct task *hlua_applet_wakeup(struct task *t)
+{
+	struct appctx *ctx = t->context;
+	struct stream_interface *si = ctx->owner;
+
+	/* If the applet is wake up without any expected work, the sheduler
+	 * remove it from the run queue. This flag indicate that the applet
+	 * is waiting for write. If the buffer is full, the main processing
+	 * will send some data and after call the applet, otherwise it call
+	 * the applet ASAP.
+	 */
+	si_applet_cant_put(si);
+	appctx_wakeup(ctx);
+	return NULL;
+}
+
+static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
+{
+	struct stream_interface *si = ctx->owner;
+	struct hlua *hlua = &ctx->ctx.hlua_apptcp.hlua;
+	struct task *task;
+	char **arg;
+
+	HLUA_INIT(hlua);
+	ctx->ctx.hlua_apptcp.flags = 0;
+
+	/* Create task used by signal to wakeup applets. */
+	task = task_new();
+	if (!task) {
+		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		return 0;
+	}
+	task->nice = 0;
+	task->context = ctx;
+	task->process = hlua_applet_wakeup;
+	ctx->ctx.hlua_apptcp.task = task;
+
+	/* In the execution wrappers linked with a stream, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+	if (!hlua_ctx_init(hlua, task)) {
+		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		return 0;
+	}
+
+	/* Set timeout according with the applet configuration. */
+	hlua->expire = tick_add_ifset(now_ms, ctx->applet->timeout);
+
+	/* The following Lua calls can fail. */
+	if (!SET_SAFE_LJMP(hlua->T)) {
+		SEND_ERR(px, "Lua applet tcp '%s': critical error.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		RESET_SAFE_LJMP(hlua->T);
+		return 0;
+	}
+
+	/* Check stack available size. */
+	if (!lua_checkstack(hlua->T, 1)) {
+		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		RESET_SAFE_LJMP(hlua->T);
+		return 0;
+	}
+
+	/* Restore the function in the stack. */
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn.function_ref);
+
+	/* Create and and push object stream in the stack. */
+	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
+		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		RESET_SAFE_LJMP(hlua->T);
+		return 0;
+	}
+	hlua->nargs = 1;
+
+	/* push keywords in the stack. */
+	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
+		if (!lua_checkstack(hlua->T, 1)) {
+			SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
+			         ctx->rule->arg.hlua_rule->fcn.name);
+			RESET_SAFE_LJMP(hlua->T);
+			return 0;
+		}
+		lua_pushstring(hlua->T, *arg);
+		hlua->nargs++;
+	}
+
+	RESET_SAFE_LJMP(hlua->T);
+
+	/* Wakeup the applet ASAP. */
+	si_applet_cant_get(si);
+	si_applet_cant_put(si);
+
+	return 1;
+}
+
+static void hlua_applet_tcp_fct(struct appctx *ctx)
+{
+	struct stream_interface *si = ctx->owner;
+	struct stream *strm = si_strm(si);
+	struct channel *res = si_ic(si);
+	struct act_rule *rule = ctx->rule;
+	struct proxy *px = strm->be;
+	struct hlua *hlua = &ctx->ctx.hlua_apptcp.hlua;
+
+	/* The applet execution is already done. */
+	if (ctx->ctx.hlua_apptcp.flags & APPLET_DONE)
+		return;
+
+	/* If the stream is disconnect or closed, ldo nothing. */
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+		return;
+
+	/* Execute the function. */
+	switch (hlua_ctx_resume(hlua, 1)) {
+	/* finished. */
+	case HLUA_E_OK:
+		ctx->ctx.hlua_apptcp.flags |= APPLET_DONE;
+
+		/* log time */
+		strm->logs.tv_request = now;
+
+		/* eat the whole request */
+		bo_skip(si_oc(si), si_ob(si)->o);
+		res->flags |= CF_READ_NULL;
+		si_shutr(si);
+		return;
+
+	/* yield. */
+	case HLUA_E_AGAIN:
+		return;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		/* Display log. */
+		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
+		         rule->arg.hlua_rule->fcn.name, lua_tostring(hlua->T, -1));
+		lua_pop(hlua->T, 1);
+		goto error;
+
+	case HLUA_E_ERR:
+		/* Display log. */
+		SEND_ERR(px, "Lua applet tcp '%s' return an unknown error.\n",
+		         rule->arg.hlua_rule->fcn.name);
+		goto error;
+
+	default:
+		goto error;
+	}
+
+error:
+
+	/* For all other cases, just close the stream. */
+	si_shutw(si);
+	si_shutr(si);
+	ctx->ctx.hlua_apptcp.flags |= APPLET_DONE;
+}
+
+static void hlua_applet_tcp_release(struct appctx *ctx)
+{
+	task_free(ctx->ctx.hlua_apptcp.task);
+	ctx->ctx.hlua_apptcp.task = NULL;
+	hlua_ctx_destroy(&ctx->ctx.hlua_apptcp.hlua);
+}
+
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
  * succes case, else return ACT_RET_PRS_ERR.
  *
@@ -4731,6 +5188,103 @@ __LJMP static int hlua_register_action(lua_State *L)
 		/* pop the environment string. */
 		lua_pop(L, 1);
 	}
+	return ACT_RET_PRS_OK;
+}
+
+static enum act_parse_ret action_register_service_tcp(const char **args, int *cur_arg, struct proxy *px,
+                                                      struct act_rule *rule, char **err)
+{
+	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
+
+	/* Memory for the rule. */
+	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
+	if (!rule->arg.hlua_rule) {
+		memprintf(err, "out of memory error");
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* Reference the Lua function and store the reference. */
+	rule->arg.hlua_rule->fcn = *fcn;
+
+	/* TODO: later accept arguments. */
+	rule->arg.hlua_rule->args = NULL;
+
+	/* Add applet pointer in the rule. */
+	rule->applet.obj_type = OBJ_TYPE_APPLET;
+	rule->applet.name = fcn->name;
+	rule->applet.init = hlua_applet_tcp_init;
+	rule->applet.fct = hlua_applet_tcp_fct;
+	rule->applet.release = hlua_applet_tcp_release;
+	rule->applet.timeout = hlua_timeout_applet;
+
+	return 0;
+}
+
+/* This function is an LUA binding used for registering
+ * "sample-conv" functions. It expects a converter name used
+ * in the haproxy configuration file, and an LUA function.
+ */
+__LJMP static int hlua_register_service(lua_State *L)
+{
+	struct action_kw_list *akl;
+	const char *name;
+	const char *env;
+	int ref;
+	int len;
+	struct hlua_function *fcn;
+
+	MAY_LJMP(check_args(L, 3, "register_service"));
+
+	/* First argument : converter name. */
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+
+	/* Second argument : environment. */
+	env = MAY_LJMP(luaL_checkstring(L, 2));
+
+	/* Third argument : lua function. */
+	ref = MAY_LJMP(hlua_checkfunction(L, 3));
+
+	/* Check required environment. Only accepted "http" or "tcp". */
+	/* Allocate and fill the sample fetch keyword struct. */
+	akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
+	if (!akl)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn = calloc(1, sizeof(*fcn));
+	if (!fcn)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Fill fcn. */
+	len = strlen("<lua.>") + strlen(name) + 1;
+	fcn->name = calloc(1, len);
+	if (!fcn->name)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	snprintf((char *)fcn->name, len, "<lua.%s>", name);
+	fcn->function_ref = ref;
+
+	/* List head */
+	akl->list.n = akl->list.p = NULL;
+
+	/* converter keyword. */
+	len = strlen("lua.") + strlen(name) + 1;
+	akl->kw[0].kw = calloc(1, len);
+	if (!akl->kw[0].kw)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
+
+	if (strcmp(env, "tcp") == 0)
+		akl->kw[0].parse = action_register_service_tcp;
+	else
+		WILL_LJMP(luaL_error(L, "lua service environment '%s' is unknown. 'tcp' is expected."));
+
+	akl->kw[0].match_pfx = 0;
+	akl->kw[0].private = fcn;
+
+	/* End of array. */
+	memset(&akl->kw[1], 0, sizeof(*akl->kw));
+
+	/* Register this new converter */
+	service_keywords_register(akl);
 
 	return 0;
 }
@@ -4763,6 +5317,14 @@ static int hlua_task_timeout(char **args, int section_type, struct proxy *curpx,
 {
 	return hlua_read_timeout(args, section_type, curpx, defpx,
 	                         file, line, err, &hlua_timeout_task);
+}
+
+static int hlua_applet_timeout(char **args, int section_type, struct proxy *curpx,
+                               struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	return hlua_read_timeout(args, section_type, curpx, defpx,
+	                         file, line, err, &hlua_timeout_applet);
 }
 
 static int hlua_forced_yield(char **args, int section_type, struct proxy *curpx,
@@ -4860,6 +5422,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "lua-load",                 hlua_load },
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
+	{ CFG_GLOBAL, "tune.lua.applet-timeout",  hlua_applet_timeout },
 	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ 0, NULL, NULL },
@@ -5005,6 +5568,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
 	hlua_class_function(gL.T, "register_action", hlua_register_action);
+	hlua_class_function(gL.T, "register_service", hlua_register_service);
 	hlua_class_function(gL.T, "yield", hlua_yield);
 	hlua_class_function(gL.T, "set_nice", hlua_set_nice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
@@ -5261,6 +5825,37 @@ void hlua_init(void)
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
 	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_HTTP); /* register class session. */
 	class_http_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/*
+	 *
+	 * Register class AppletTCP
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create the __tostring identifier */
+	lua_pushstring(gL.T, "__tostring");
+	lua_pushstring(gL.T, CLASS_APPLET_TCP);
+	lua_pushcclosure(gL.T, hlua_dump_object, 1);
+	lua_rawset(gL.T, -3);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Register Lua functions. */
+	hlua_class_function(gL.T, "getline", hlua_applet_tcp_getline);
+	hlua_class_function(gL.T, "receive", hlua_applet_tcp_recv);
+	hlua_class_function(gL.T, "send",    hlua_applet_tcp_send);
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_APPLET_TCP); /* register class session. */
+	class_applet_tcp_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
 
 	/*
 	 *

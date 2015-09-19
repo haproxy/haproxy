@@ -17,6 +17,7 @@
 #define CLASS_CHANNEL      "Channel"
 #define CLASS_HTTP         "HTTP"
 #define CLASS_MAP          "Map"
+#define CLASS_APPLET_TCP   "AppletTCP"
 
 struct stream;
 
@@ -96,6 +97,13 @@ struct hlua_rule {
 struct hlua_txn {
 	struct stream *s;
 	struct proxy *p;
+};
+
+/* This struct contains the applet context. */
+struct hlua_appctx {
+	struct appctx *appctx;
+	luaL_Buffer b; /* buffer used to prepare strings. */
+	struct hlua_txn htxn;
 };
 
 /* This struc is used with sample fetches and sample converters. */

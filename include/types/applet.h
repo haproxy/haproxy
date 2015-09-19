@@ -116,6 +116,11 @@ struct appctx {
 			struct list wake_on_write;
 		} hlua;
 		struct {
+			struct hlua hlua;
+			int flags;
+			struct task *task;
+		} hlua_apptcp;
+		struct {
 			struct dns_resolvers *ptr;
 		} resolvers;
 		struct {
