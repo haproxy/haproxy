@@ -1,0 +1,654 @@
+                      HOW TO GET YOUR CODE ACCEPTED IN HAPROXY
+                     READ THIS CAREFULLY BEFORE SUBMITTING CODE
+
+THIS DOCUMENT PROVIDES SOME RULES TO FOLLOW WHEN SENDING CONTRIBUTIONS. PATCHES
+NOT FOLLOWING THESE RULES WILL SIMPLY BE REJECTED IN ORDER TO PROTECT ALL OTHER
+RESPECTFUL CONTRIBUTORS' VALUABLE TIME.
+
+
+Background
+----------
+
+During the development cycle of version 1.6, much more time was spent reviewing
+poor quality submissions, fixing them and troubleshooting the bugs they
+introduced than doing any development work. This is not acceptable as it ends
+up with people actually slowing down the project for the features they're the
+only ones interested in. On the other end of the scale, there are people who
+make the effort of polishing their work to contribute excellent quality work
+which doesn't even require a review. Contrary to what newcomers may think, it's
+very easy to reach that level of quality and get your changes accepted quickly,
+even late in the development cycle. It only requires that you make your homework
+and not rely on others to do it for you. The most important point is that
+HAProxy is a community-driven project, all involved participants must respect
+all other ones' time and work.
+
+
+Preparation
+-----------
+
+It is possible that you'll want to add a specific feature to satisfy your needs
+or one of your customers'. Contributions are welcome, however maintainers are
+often very picky about changes. Patches that change massive parts of the code,
+or that touch the core parts without any good reason will generally be rejected
+if those changes have not been discussed first.
+
+The proper place to discuss your changes is the HAProxy Mailing List. There are
+enough skilled readers to catch hazardous mistakes and to suggest improvements.
+There is no other place where you'll find as many skilled people on the project,
+and these people can help you get your code integrated quickly. You can
+subscribe to it by sending an empty e-mail at the following address :
+
+                        haproxy+subscribe@formilux.org
+
+If you have an idea about something to implement, *please* discuss it on the
+list first. It has already happened several times that two persons did the same
+thing simultaneously. This is a waste of time for both of them. It's also very
+common to see some changes rejected because they're done in a way that will
+conflict with future evolutions, or that does not leave a good feeling. It's
+always unpleasant for the person who did the work, and it is unpleasant in
+general because value people's time and efforts are valuable and would be better
+spent working on something else. That would not happen if these were discussed
+first. There is no problem posting work in progress to the list, it happens
+quite often in fact. Also, don't waste your time with the doc when submitting
+patches for review, only add the doc with the patch you consider ready to merge.
+
+Another important point concerns code portability. Haproxy requires gcc as the
+C compiler, and may or may not work with other compilers. However it's known to
+build using gcc 2.95 or any later version. As such, it is important to keep in
+mind that certain facilities offered by recent versions must not be used in the
+code :
+
+  - declarations mixed in the code (requires gcc >= 3.x and is a bad practice)
+  - GCC builtins without checking for their availability based on version and
+    architecture ;
+  - assembly code without any alternate portable form for other platforms
+  - use of stdbool.h, "bool", "false", "true" : simply use "int", "0", "1"
+  - in general, anything which requires C99 (such as declaring variables in
+    "for" statements)
+
+Since most of these restrictions are just a matter of coding style, it is
+normally not a problem to comply.
+
+If your work is very confidential and you can't publicly discuss it, you can
+also mail willy@haproxy.org directly about it, but your mail may be waiting
+several days in the queue before you get a response. Retransmit if you don't
+get a response by one week.
+
+If you'd like a feature to be added but you think you don't have the skills to
+implement it yourself, you should follow these steps :
+
+    1. discuss the feature on the mailing list. It is possible that someone
+       else has already implemented it, or that someone will tell you how to
+       proceed without it, or even why not to do it. It is also possible that
+       in fact it's quite easy to implement and people will guide you through
+       the process. That way you'll finally have YOUR patch merged, providing
+       the feature YOU need.
+
+    2. if you really can't code it yourself after discussing it, then you may
+       consider contacting someone to do the job for you. Some people on the
+       list might sometimes be OK with trying to do it.
+
+
+Rules : the 12 laws of patch contribution
+-----------------------------------------
+
+People contributing patches must apply the following rules. That may sound heavy
+at the beginning but it's common sense more than anything else and contributors
+do not think about them anymore after a few patches.
+
+1) Before modifying some code, you have read the LICENSE file ("main license")
+   coming with the sources, and all the files this file references. Certain
+   files may be covered by different licenses, in which case it will be
+   indicated in the files themselves. In any case, you agree to respect these
+   licenses and to contribute your changes under the same licenses. If you want
+   to create new files, they will be under the main license, or any license of
+   your choice that you have verified to be compatible with the main license,
+   and that will be explicitly mentionned in the affected files. The project's
+   maintainers are free to reject contributions proposing license changes they
+   feel are not appropriate or could cause future trouble.
+
+2) Your work may only be based on the latest development version. No development
+   is made on a stable branch. If your work needs to be applied to a stable
+   branch, it will first be applied to the development branch and only then will
+   be backported to the stable branch. You are responsible for ensuring that
+   your work correctly applies to the development version. If at any moment you
+   are going to work on restructuring something important which may impact other
+   contributors, the rule that applies is that the first sent is the first
+   served. However it is considered good practice and politeness to warn others
+   in advance if you know you're going to make changes that may force them to
+   re-adapt their code, because they did probably not expect to have to spend
+   more time discovering your changes and rebasing their work.
+
+3) You have read and understood "doc/codingstyle.txt", and you're actively
+   determined to respect it and to enforce it on your coworkers if you're going
+   to submit a team's work. We don't care what text editor you use, whether it's
+   an hex editor, cat, vi, emacs, Notepad, Word, or even Eclipse. The editor is
+   only the interface between you and the text file. What matters is what is in
+   the text file in the end. The editor is not an excuse for submitting poorly
+   indented code, which only proves that the person has no consideration for
+   quality and/or has done it in a hurry (probably worse). Please note that most
+   bugs were found in low-quality code. Reviewers know this and tend to be much
+   more reluctant to accept poorly formated code because by experience they
+   won't trust their author's ability to write correct code. It is also worth
+   noting that poor quality code is painful to read and may result in nobody
+   willing to waste their time even reviewing your work.
+
+4) The time it takes for you to polish your code is always much smaller than the
+   time it takes others to do it for you, because they always have to wonder if
+   what they see is intended (meaning they didn't understand something) or if it
+   is a mistake that needs to be fixed. And since there are less reviewers than
+   submitters, it is vital to spread the effort closer to where the code is
+   written and not closer to where it gets merged. For example if you have to
+   write a report for a customer that your boss wants to review before you send
+   it to the customer, will you throw on his desk a pile of paper with stains,
+   typos and copy-pastes everywhere ? Will you say "come on, OK I made a mistake
+   in the company's name but they will find it by themselves, it's obvious it
+   comes from us" ? No. When in doubt, simply ask for help on the mailing list.
+
+5) There are four levels of importance of quality in the project :
+
+   - The most important one, and by far, is the quality of the user-facing
+     documentation. This is the first contact for most users and it immediately
+     gives them an accurate idea of how the project is maintained. Dirty docs
+     necessarily belong to a dirty project. Be careful to the way the text you
+     add is presented and indented. Be very careful about typos, usual mistakes
+     such as double consonants when only one is needed or "it's" instead of
+     "its", don't mix US english and UK english in the same paragraph, etc.
+     When in doubt, check in a dictionary. Fixes for existing typos in the doc
+     are always welcome and chasing them is a good way to become familiar with
+     the project and to get other participants' respect and consideration.
+
+   - The second most important level is user-facing messages emitted by the
+     code. You must try to see all the messages your code produces to ensure
+     they are understandable outside of the context where you wrote them,
+     because the user often doesn't expect them. That's true for warnings, and
+     that's even more important for errors which prevent the program from
+     working and which require an immediate and well understood fix in the
+     configuration. It's much better to say "line 35: compression level must be
+     an integer between 1 and 9" than "invalid argument at line 35". In HAProxy,
+     error handling roughly represents half of the code, and that's about 3/4 of
+     the configuration parser. Take the time to do something you're proud of. A
+     good rule of thumb is to keep in mind that your code talks to a human and
+     tries to teach him/her how to proceed. It must then speak like a human.
+
+   - The third most important level is the code and its accompanying comments,
+     including the commit message which is a complement to your code and
+     comments. It's important for all other contributors that the code is
+     readable, fluid, understandable and that the commit message describes what
+     was done, the choices made, the possible alternatives you thought about,
+     the reason for picking this one and its limits if any. Comments should be
+     written where it's easy to have a doubt or after some error cases have been
+     wiped out and you want to explain what possibilities remain. All functions
+     must have a comment indicating what they take on input and what they
+     provide on output. Please adjust the comments when you copy-paste a
+     function or change its prototype, this type of lazy mistake is too common
+     and very confusing when reading code later to debug an issue. Do not forget
+     that others will feel really angry at you when they have to dig into your
+     code for a bug that your code caused and they feel like this code is dirty
+     or confusing, that the commit message doesn't explain anything useful and
+     that the patch should never have been accepted in the first place. That
+     will strongly impact your reputation and will definitely affect your
+     chances to contribute again!
+
+   - The fourth level of importance is in the technical documentation that you
+     may want to add with your code. Technical documentation is always welcome
+     as it helps others make the best use of your work and to go exactly in the
+     direction you thought about during the design. This is also what reduces
+     the risk that your design gets changed in the near future due to a misuse
+     and/or a poor understanding. All such documentation is actually considered
+     as a bonus. It is more important that this documentation exists than that
+     it looks clean. Sometimes just copy-pasting your draft notes in a file to
+     keep a record of design ideas is better than losing them. Please do your
+     best so that other ones can read your doc. If these docs require a special
+     tool such as a graphics utility, ensure that the file name makes it
+     unambiguous how to process it. So there are no rules here for the contents,
+     except one.  Please write the date in your file. Design docs tend to stay
+     forever and to remain long after they become obsolete. At this point that
+     can cause harm more than it can help. Writing the date in the document
+     helps developers guess the degree of validity and/or compare them with the
+     date of certain commits touching the same area.
+
+6) All text files and commit messages are written using the US-ASCII charset.
+   Please be careful that your contributions do not contain any character not
+   printable using this charset, as they will render differently in different
+   editors and/or terminals. Avoid latin1 and more importantly UTF-8 which some
+   editors tend to abuse to replace some US-ASCII characters with their
+   typographic equivalent which aren't readable anymore in other editors. The
+   only place where alternative charsets are tolerated is in your name in the
+   commit message, but it's at your own risk as it can be mangled during the
+   merge. Anyway if you have an e-mail address, you probably have a valid
+   US-ASCII representation for it as well.
+
+7) Be careful about comments when you move code around. It's not acceptable that
+   a block of code is moved to another place leaving irrelevant comments at the
+   old place, just like it's not acceptable that a function is duplicated without
+   the comments being adjusted. The example below started to become quite common
+   during the 1.6 cycle, it is not acceptable and wastes everyone's time :
+
+      /* Parse switching <str> to build rule <rule>. Returns 0 on error. */
+      int parse_switching_rule(const char *str, struct rule *rule)
+      {
+       ...
+      }
+
+      /* Parse switching <str> to build rule <rule>. Returns 0 on error. */
+      void execute_switching_rule(struct rule *rule)
+      {
+       ...
+      }
+
+   This patch is not acceptable either (and it's unfortunately not that rare) :
+
+    +   if (!session || !arg || list_is_empty(&session->rules->head))
+    +         return 0;
+    +
+        /* Check if session->rules is valid before dereferencing it */
+        if (!session->rules_allocated)
+              return 0;
+
+    -   if (!arg || list_is_empty(&session->rules->head))
+    -         return 0;
+    -
+
+8) Limit the length of your identifiers in the code. When your identifiers start
+   to sound like sentences, it's very hard for the reader to keep on track with
+   what operation they are observing. Also long names force expressions to fit
+   on several lines which also cause some difficulties to the reader. See the
+   example below :
+
+       int file_name_len_including_global_path;
+       int file_name_len_without_global_path;
+       int global_path_len_or_zero_if_default;
+
+       if (global_path)
+               global_path_len_or_zero_if_default = strlen(global_path);
+       else
+               global_path_len_or_zero_if_default = 0;
+
+       file_name_len_without_global_path = strlen(file_name);
+       file_name_len_including_global_path =
+               file_name_len_without_global_path + 1 + /* for '/' */
+               global_path_len_or_zero_if_default ?
+                       global_path_len_or_zero_if_default : default_path_len;
+
+   Compare it to this one :
+
+       int f, p;
+
+       p = global_path ? strlen(global_path) : default_path_len;
+       f = p + 1 + strlen(file_name);  /* 1 for '/' */
+
+   A good rule of thumb is that if your identifiers start to contain more than
+   3 words or more than 15 characters, they can become confusing. For function
+   names it's less important especially if these functions are rarely used or
+   are used in a complex context where it is important to differenciate between
+   their multiple variants.
+
+9) Your patches should be sent in "diff -up" format, which is also the format
+   used by Git. This means the "unified" diff format must be used exclusively,
+   and with the function name printed in the diff header of each block. That
+   significantly helps during reviews. Keep in mind that most reviews are done
+   on the patch and not on the code after applying the patch. Your diff must
+   keep some context (3 lines above and 3 lines below) so that there's no doubt
+   where the code has to be applied. Don't change code outside of the context of
+   your patch (eg: take care of not adding/removing empty lines once you remove
+   your debugging code). If you are using Git (which is strongly recommended),
+   please produce your patches using "git format-patch" and not "git diff", and
+   always use "git show" after doing a commit to ensure it looks good, and
+   enable syntax coloring that will automatically report in red the trailing
+   spaces or tabs that your patch added to the code and that must absolutely be
+   removed. These ones cause a real pain to apply patches later because they
+   mangle the context in an invisible way. Such patches with trailing spaces at
+   end of lines will be rejected.
+
+10) Please cut your work in series of patches that can be independantly reviewed
+    and merged. Each patch must do something on its own that you can explain to
+    someone without being ashamed of what you did. For example, you must not say
+    "This is the patch that implements SSL, it was tricky". There's clearly
+    something wrong there, your patch will be huge, will definitely break things
+    and nobody will be able to figure what exactly introduced the bug. However
+    it's much better to say "I needed to add some fields in the session to store
+    the SSL context so this patch does this and doesn't touch anything else, so
+    it's safe". Also when dealing with series, you will sometimes fix a bug that
+    one of your patches introduced. Please do merge these fixes (eg: using git
+    rebase -i and squash or fixup), as it is not acceptable to see patches which
+    introduce known bugs even if they're fixed later. Another benefit of cleanly
+    splitting patches is that if some of your patches need to be reworked after
+    a review, the other ones can still be merged so that you don't need to care
+    about them anymore. When sending multiple patches for review, prefer to send
+    one e-mail per patch than all patches in a single e-mail. The reason is that
+    not everyone is skilled in all areas nor has the time to review everything
+    at once. With one patch per e-mail, it's easy to comment on a single patch
+    without giving an opinion on the other ones, especially if a long thread
+    starts about one specific patch on the mailing list. "git send-email" does
+    that for you though it requires a few trials before getting it right.
+
+11) Please properly format your commit messages. While it's not strictly
+    required to use Git, it is strongly recommended because it helps you do the
+    cleanest job with the least effort. Patches always have the format of an
+    e-mail made of a subject, a description and the actual patch. If you're
+    sending a patch as an e-mail formated this way, it can quickly be applied
+    with limited effort so that's acceptable. But in any case, it is important
+    that there is a clean description of what the patch does, the motivation for
+    what it does, why it's the best way to do it, its impacts, and what it does
+    not yet cover. Also, in HAProxy, like many projects which take a great care
+    of maintaining stable branches, patches are reviewed later so that some of
+    them can be backported to stable releases. While reviewing hundreds of
+    patches can seem cumbersome, with a proper formating of the subject line it
+    actually becomes very easy. For example, here's how one can find patches
+    that need to be reviewed for backports (bugs and doc) between since commit
+    ID 827752e :
+
+        $ git log --oneline 827752e.. | grep 'BUG\|DOC'
+        0d79cf6 DOC: fix function name
+        bc96534 DOC: ssl: missing LF
+        10ec214 BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segf
+        bdc97a8 BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2
+        ba56d9c DOC: mention support for RFC 5077 TLS Ticket extension in start
+        f1650a8 DOC: clarify some points about SSL and the proxy protocol
+        b157d73 BUG/MAJOR: peers: fix current table pointer not re-initialized
+        e1ab808 BUG/MEDIUM: peers: fix wrong message id on stick table updates
+        cc79b00 BUG/MINOR: ssl: TLS Ticket Key rotation broken via socket comma
+        d8e42b6 DOC: add new file intro.txt
+        c7d7607 BUG/MEDIUM: lua: bad error processing
+        386a127 DOC: match several lua configuration option names to those impl
+        0f4eadd BUG/MEDIUM: counters: ensure that src_{inc,clr}_gpc0 creates a
+
+    It is made possible by the fact that subject lines are properly formated and
+    always respect the same principle : one part indicating the nature and
+    severity of the patch, another one to indicate which subsystem is affected,
+    and the last one is a succint description of the change, with the important
+    part at the beginning so that it's obvious what it does even when lines are
+    truncated like above. The whole stable maintenance process relies on this.
+    For this reason, it is mandatory to respect some easy rules regarding the
+    way the subject is built. Please see the section below for more information
+    regarding this formating.
+
+12) When submitting changes, please always CC the mailing list address so that
+    everyone gets a chance to spot any issue in your code. It will also serve
+    as an advertisement for your work, you'll get more testers quicker and
+    you'll feel better knowing that people really use your work. It is also
+    important to CC any author mentionned in the file you change, or a subsystem
+    maintainers whose address is mentionned in a MAINTAINERS file. Not everyone
+    reads the list on a daily basis so it's very easy to miss some changes.
+    Don't consider it as a failure when a reviewer tells you you have to modify
+    your patch, actually it's a success because now you know what is missing for
+    your work to get accepted.  That's why you should not hesitate to CC enough
+    people. Don't copy people who have no deal with your work area just because
+    you found their address on the list. That's the best way to appear careless
+    about their time and make them reject your changes in the future.
+
+
+Patch classifying rules
+-----------------------
+
+There are 3 criteria of particular importance in any patch :
+  - its nature (is it a fix for a bug, a new feature, an optimization, ...)
+  - its importance, which generally reflects the risk of merging/not merging it
+  - what area it applies to (eg: http, stats, startup, config, doc, ...)
+
+It's important to make these 3 criteria easy to spot in the patch's subject,
+because it's the first (and sometimes the only) thing which is read when
+reviewing patches to find which ones need to be backported to older versions.
+It also helps when trying to find which patch is the most likely to have caused
+a regression.
+
+Specifically, bugs must be clearly easy to spot so that they're never missed.
+Any patch fixing a bug must have the "BUG" tag in its subject. Most common
+patch types include :
+
+  - BUG      fix for a bug. The severity of the bug should also be indicated
+             when known. Similarly, if a backport is needed to older versions,
+             it should be indicated on the last line of the commit message. If
+             the bug has been identified as a regression brought by a specific
+             patch or version, this indication will be appreciated too. New
+             maintenance releases are generally emitted when a few of these
+             patches are merged. If the bug is a vulnerability for which a CVE
+             identifier was assigned before you publish the fix, you can mention
+             it in the commit message, it will help distro maintainers.
+
+  - CLEANUP  code cleanup, silence of warnings, etc... theorically no impact.
+             These patches will rarely be seen in stable branches, though they
+             may appear when they remove some annoyance or when they make
+             backporting easier. By nature, a cleanup is always of minor
+             importance and it's not needed to mention it.
+
+  - DOC      updates to any of the documentation files, including README. Many
+             documentation updates are backported since they don't impact the
+             product's stability and may help users avoid bugs. So please
+             indicate in the commit message if a backport is desired. When a
+             feature gets documented, it's preferred that the doc patch appears
+             in the same patch or after the feature patch, but not before, as it
+             becomes confusing when someone working on a code base including
+             only the doc patch won't understand why a documented feature does
+             not work as documented.
+
+  - REORG    code reorganization. Some blocks may be moved to other places,
+             some important checks might be swapped, etc... These changes
+             always present a risk of regression. For this reason, they should
+             never be mixed with any bug fix nor functional change. Code is
+             only moved as-is. Indicating the risk of breakage is highly
+             recommended. Minor breakage is tolerated in such patches if trying
+             to fix it at once makes the whole change even more confusing. That
+             may happen for example when some #ifdefs need to be propagated in
+             every file consecutive to the change.
+
+  - BUILD    updates or fixes for build issues. Changes to makefiles also fall
+             into this category. The risk of breakage should be indicated if
+             known. It is also appreciated to indicate what platforms and/or
+             configurations were tested after the change.
+
+  - OPTIM    some code was optimised. Sometimes if the regression risk is very
+             low and the gains significant, such patches may be merged in the
+             stable branch. Depending on the amount of code changed or replaced
+             and the level of trust the author has in the change, the risk of
+             regression should be indicated.
+
+  - RELEASE  release of a new version (development or stable).
+
+  - LICENSE  licensing updates (may impact distro packagers).
+
+
+When the patch cannot be categorized, it's best not to put any type tag. This is
+commonly the case for new features, which development versions are mostly made
+of.
+
+Additionally, the importance of the patch or severity of the bug it fixes must
+be indicated when relevant. A single upper-case word is preferred, among :
+
+  - MINOR    minor change, very low risk of impact. It is often the case for
+             code additions that don't touch live code. As a rule of thumb, a
+             patch tagged "MINOR" is safe enough to be backported to stable
+             branches. For a bug, it generally indicates an annoyance, nothing
+             more.
+
+  - MEDIUM   medium risk, may cause unexpected regressions of low importance or
+             which may quickly be discovered. In short, the patch is safe but
+             touches working areas and it is always possible that you missed
+             something you didn't know existed (eg: adding a "case" entry or
+             an error message after adding an error code to an enum). For a bug,
+             it generally indicates something odd which requires changing the
+             configuration in an undesired way to work around the issue.
+
+  - MAJOR    major risk of hidden regression. This happens when large parts of
+             the code are rearranged, when new timeouts are introduced, when
+             sensitive parts of the session scheduling are touched, etc... We
+             should only exceptionally find such patches in stable branches when
+             there is no other option to fix a design issue. For a bug, it
+             indicates severe reliability issues for which workarounds are
+             identified with or without performance impacts.
+
+  - CRITICAL medium-term reliability or security is at risk and workarounds,
+             if they exist, might not always be acceptable. An upgrade is
+             absolutely required. A maintenance release may be emitted even if
+             only one of these bugs are fixed. Note that this tag is only used
+             with bugs. Such patches must indicate what is the first version
+             affected, and if known, the commit ID which introduced the issue.
+
+The expected length of the commit message grows with the importance of the
+change. While a MINOR patch may sometimes be described in 1 or 2 lines, MAJOR
+or CRITICAL patches cannot have less than 10-15 lines to describe exactly the
+impacts otherwise the submitter's work will be considered as rough sabotage.
+
+For BUILD, DOC and CLEANUP types, this tag is not always relevant and may be
+omitted.
+
+The area the patch applies to is quite important, because some areas are known
+to be similar in older versions, suggesting a backport might be desirable, and
+conversely, some areas are known to be specific to one version. The area is a
+single-word lowercase name the contributor find clear enough to describe what
+part is being touched. The following tags are suggested but not limitative :
+
+  - examples  example files. Be careful, sometimes these files are packaged.
+
+  - tests     regression test files. No code is affected, no need to upgrade.
+
+  - init      initialization code, arguments parsing, etc...
+
+  - config    configuration parser, mostly used when adding new config keywords
+
+  - http      the HTTP engine
+
+  - stats     the stats reporting engine
+
+  - cli       the stats socket CLI
+
+  - checks    the health checks engine (eg: when adding new checks)
+
+  - sample    the sample fetch system (new fetch or converter functions)
+
+  - acl       the ACL processing core or some ACLs from other areas
+
+  - peers     the peer synchronization engine
+
+  - lua       the Lua scripting engine
+
+  - listeners everything related to incoming connection settings
+
+  - frontend  everything related to incoming connection processing
+
+  - backend   everything related to LB algorithms and server farm
+
+  - session   session processing and flags (very sensible, be careful)
+
+  - server    server connection management, queueing
+
+  - ssl       the SSL/TLS interface
+
+  - proxy     proxy maintenance (start/stop)
+
+  - log       log management
+
+  - poll      any of the pollers
+
+  - halog     the halog sub-component in the contrib directory
+
+  - contrib   any addition to the contrib directory
+
+Other names may be invented when more precise indications are meaningful, for
+instance : "cookie" which indicates cookie processing in the HTTP core. Last,
+indicating the name of the affected file is also a good way to quickly spot
+changes. Many commits were already tagged with "stream_sock" or "cfgparse" for
+instance.
+
+It is required that the type of change and the severity when relevant are
+indicated, as well as the touched area when relevant as well in the patch
+subject. Normally, we would have the 3 most often. The two first criteria should
+be present before a first colon (':'). If both are present, then they should be
+delimited with a slash ('/'). The 3rd criterion (area) should appear next, also
+followed by a colon. Thus, all of the following messages are valid :
+
+Examples of messages :
+  - DOC: document options forwardfor to logasap
+  - DOC/MAJOR: reorganize the whole document and change indenting
+  - BUG: stats: connection reset counters must be plain ascii, not HTML
+  - BUG/MINOR: stats: connection reset counters must be plain ascii, not HTML
+  - MEDIUM: checks: support multi-packet health check responses
+  - RELEASE: Released version 1.4.2
+  - BUILD: stats: stdint is not present on solaris
+  - OPTIM/MINOR: halog: make fgets parse more bytes by blocks
+  - REORG/MEDIUM: move syscall redefinition to specific places
+
+Please do not use square brackets anymore around the tags, because they induce
+more work when merging patches, which need to be hand-edited not to lose the
+enclosed part.
+
+In fact, one of the only square bracket tags that still makes sense is '[RFC]'
+at the beginning of the subject, when you're asking for someone to review your
+change before getting it merged. If the patch is OK to be merged, then it can
+be merge as-is and the '[RFC]' tag will automatically be removed. If you don't
+want it to be merged at all, you can simply state it in the message, or use an
+alternate 'WIP/' prefix in front of your tag tag ("work in progress").
+
+The tags are not rigid, follow your intuition first, and they may be readjusted
+when your patch is merged. It may happen that a same patch has a different tag
+in two distinct branches. The reason is that a bug in one branch may just be a
+cleanup or safety measure in the other one because the code cannot be triggered.
+
+
+Working with Git
+----------------
+
+For a more efficient interaction between the mainline code and your code, you
+are strongly encouraged to try the Git version control system :
+
+                        http://git-scm.com/
+
+It's very fast, lightweight and lets you undo/redo your work as often as you
+want, without making your mistakes visible to the rest of the world. It will
+definitely help you contribute quality code and take other people's feedback
+in consideration. In order to clone the HAProxy Git repository :
+
+   $ git clone http://git.haproxy.org/git/haproxy.git/       (development)
+
+If you decide to use Git for your developments, then your commit messages will
+have the subject line in the format described above, then the whole description
+of your work (mainly why you did it) will be in the body. You can directly send
+your commits to the mailing list, the format is convenient to read and process.
+
+It is recommended to create a branch for your work that is based on the master
+branch :
+
+   $ git checkout -b 20150920-fix-stats master
+
+You can then do your work and even experiment with multiple alternatives if you
+are not completely sure that your solution is the best one :
+
+   $ git checkout -b 20150920-fix-stats-v2
+
+Then reorder/merge/edit your patches :
+
+   $ git rebase -i master
+
+When you think you're ready, reread your whole patchset to ensure there is no
+formating or style issue :
+
+   $ git show master..
+
+And once you're satisfied, you should update your master branch to be sure that
+nothing changed during your work (only neede if you left it unattended for days
+or weeks) :
+
+   $ git checkout -b 20150920-fix-stats-rebased
+   $ git fetch origin master:master
+   $ git rebase master
+
+They can build a list of patches ready for submission like this :
+
+   $ git format-patch master
+
+The output files are the patches ready to be sent over e-mail, either via a
+regular e-mail or via git send-email (carefully check the man page). Don't
+destroy your other work branches until your patches get merged, it may happen
+that earlier designs will be preferred for various reasons. Patches should be
+sent to the mailing list : haproxy@formilux.org and CCed to relevant subsystem
+maintainers or authors of the modified files if their address appears at the
+top of the file.
+
+Please don't send pull-requests, they are really unconvenient. First, a pull
+implies a merge operation and the code doesn't move fast enough to justify the
+use of merges. Second, pull requests are not easily commented on by the
+project's participants, contrary to e-mails where anyone is allowed to have an
+opinion and to express it.
+
+-- end
