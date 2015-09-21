@@ -1765,9 +1765,9 @@ static struct task *process_peer_sync(struct task * task)
 	if (!peers->peers_fe) {
 		/* this one was never started, kill it */
 		signal_unregister_handler(peers->sighandler);
-		peers->sync_task = NULL;
 		task_delete(peers->sync_task);
 		task_free(peers->sync_task);
+		peers->sync_task = NULL;
 		return NULL;
 	}
 
