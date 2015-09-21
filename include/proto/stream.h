@@ -88,7 +88,8 @@ static inline enum obj_type *strm_orig(const struct stream *strm)
 
 /* Remove the refcount from the stream to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
- * ensuring that the pointer is valid first.
+ * ensuring that the pointer is valid first. We must be extremely careful not
+ * to touch the entries we inherited from the session.
  */
 static inline void stream_store_counters(struct stream *s)
 {
@@ -98,6 +99,10 @@ static inline void stream_store_counters(struct stream *s)
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
+
+		if (stkctr_entry(&s->sess->stkctr[i]))
+			continue;
+
 		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
@@ -109,7 +114,8 @@ static inline void stream_store_counters(struct stream *s)
 
 /* Remove the refcount from the stream counters tracked at the content level if
  * any, and clear the pointer to ensure this is only performed once. The caller
- * is responsible for ensuring that the pointer is valid first.
+ * is responsible for ensuring that the pointer is valid first. We must be
+ * extremely careful not to touch the entries we inherited from the session.
  */
 static inline void stream_stop_content_counters(struct stream *s)
 {
@@ -118,6 +124,9 @@ static inline void stream_stop_content_counters(struct stream *s)
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		if (!stkctr_entry(&s->stkctr[i]))
+			continue;
+
+		if (stkctr_entry(&s->sess->stkctr[i]))
 			continue;
 
 		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_CONTENT))
