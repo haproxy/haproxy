@@ -40,6 +40,7 @@ struct applet {
 	                                     expect 1 if ok, 0 if an error occurs, -1 if miss data. */
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
+	unsigned int timeout;              /* execution timeout. */
 };
 
 /* Context of a running applet. */
