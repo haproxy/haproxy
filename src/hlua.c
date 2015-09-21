@@ -907,6 +907,7 @@ void hlua_ctx_destroy(struct hlua *lua)
 	/* The thread is garbage collected by Lua. */
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
 	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+	lua->T = NULL;
 }
 
 /* This function is used to restore the Lua context when a coroutine
