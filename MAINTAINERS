@@ -22,8 +22,12 @@ Lua
 Maintainer: Thierry Fournier <tfournier@arpalert.org>
 Files: src/hlua.c, include/*/hlua.h
 
+Maps and pattern matching
+Maintainer: Thierry Fournier <tfournier@arpalert.org>
+Files: src/maps.c, src/pattern.c, include/*/maps.h, include/*/pattern.h
+
 DNS
-Maintainer: Baptiste Assmann <bassmann@haproxy.com>
+Maintainer: Baptiste Assmann <bedis9@gmail.com>
 Files: src/dns.c, include/*/dns.h
 
 SSL
@@ -33,4 +37,9 @@ Files: src/ssl_sock.c, include/*/ssl_sock.h
 PEERS
 Maintainer: Emeric Brun <ebrun@haproxy.com>
 Files: src/peers.c, include/*/peers.h
+
+DOC to HTML converter (dconv)
+Maintainer: Cyril Bonté <cyril.bonte@free.fr>
+Files: doc/*.txt
+Note: ask Cyril before changing any doc's format or structure.
 
