@@ -1,0 +1,36 @@
+This file contains a list of people who are responsible for certain parts of
+the HAProxy project and who have authority on them. This means that these
+people have to be consulted before doing any change in the parts they maintain,
+including when fixing bugs. These persons are allowed to reject any change on
+the parts they maintain, and in parallel they try their best to ensure these
+parts work well. Similarly, any change to these parts not being validated by
+them will be rejected.
+
+The best way to deal with such subsystems when sending patches is to send the
+patches to the mailing list and to CC these people. When no maintainer is
+listed for a subsystem, you can simply send your changes the usual way, and it
+is also a sign that if you want to strengthen your skills on certain parts you
+can become yourself a maintainer of the parts you care a lot about.
+
+Please do not ask them to troubleshoot your bugs, it's not their job eventhough
+they may occasionally help as time permits.
+
+List of maintainers
+-------------------
+
+Lua
+Maintainer: Thierry Fournier <tfournier@arpalert.org>
+Files: src/hlua.c, include/*/hlua.h
+
+DNS
+Maintainer: Baptiste Assmann <bassmann@haproxy.com>
+Files: src/dns.c, include/*/dns.h
+
+SSL
+Maintainer: Emeric Brun <ebrun@haproxy.com>
+Files: src/ssl_sock.c, include/*/ssl_sock.h
+
+PEERS
+Maintainer: Emeric Brun <ebrun@haproxy.com>
+Files: src/peers.c, include/*/peers.h
+
