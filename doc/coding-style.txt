@@ -1,4 +1,4 @@
-2011/12/30 - HAProxy coding style - Willy Tarreau <w@1wt.eu>
+2015/09/21 - HAProxy coding style - Willy Tarreau <w@1wt.eu>
 ------------------------------------------------------------
 
 A number of contributors are often embarrassed with coding style issues, they
@@ -10,6 +10,22 @@ patches to fix coding style only, they will be rejected, unless they belong to
 a patch series which needs these fixes prior to get code changes. Also, please
 avoid fixing coding style in the same patches as functional changes, they make
 code review harder.
+
+A good way to quickly validate your patch before submitting it is to pass it
+through the Linux kernel's checkpatch.pl utility which can be downloaded here :
+
+   http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl
+
+Running it with the following options relaxes its checks to accommodate to the
+extra degree of freedom that is tolerated in HAProxy's coding style compared to
+the stricter style used in the kernel :
+
+   checkpatch.pl -q --max-line-length=160 --no-tree --no-signoff \
+                 --ignore=LEADING_SPACE,CODE_INDENT,DEEP_INDENTATION \
+                 --ignore=ELSE_AFTER_BRACE  < patch
+
+You can take its output as hints instead of strict rules, but in general its
+output will be accurate and it may even spot some real bugs.
 
 When modifying a file, you must accept the terms of the license of this file
 which is recalled at the top of the file, or is explained in the LICENSE file,
@@ -198,9 +214,9 @@ Wrong :
   | }
 
 Note that a large portion of the code still does not conforms to this rule, as
-it took years to me to adapt to this more common standard which I now tend to
-prefer, as it avoids visual confusion when function declarations are broken on
-multiple lines :
+it took years to get all authors to adapt to this more common standard which
+is now preferred, as it avoids visual confusion when function declarations are
+broken on multiple lines :
 
 Right :
 
