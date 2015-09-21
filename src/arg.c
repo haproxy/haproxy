@@ -34,6 +34,7 @@ const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_USR]  = "user list",
 	[ARGT_MAP]  = "map",
 	[ARGT_REG]  = "regex",
+	[ARGT_VAR]  = "variable",
 	/* Unassigned types must never happen. Better crash during parsing if they do. */
 };
 
