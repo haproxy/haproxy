@@ -154,6 +154,7 @@ struct action_kw {
 	enum act_parse_ret (*parse)(const char **args, int *cur_arg, struct proxy *px,
 	                            struct act_rule *rule, char **err);
 	int match_pfx;
+	void *private;
 };
 
 struct action_kw_list {
