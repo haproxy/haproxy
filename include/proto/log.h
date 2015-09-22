@@ -39,7 +39,12 @@ extern char *log_format;
 extern char default_tcp_log_format[];
 extern char default_http_log_format[];
 extern char clf_http_log_format[];
+
+extern char default_host_tag_pid_log_format[];
+extern char rfc5424_host_tag_pid_log_format[];
+
 extern char *logheader;
+extern char *logheader_rfc5424;
 extern char *logline;
 
 
@@ -109,6 +114,11 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 void __send_log(struct proxy *p, int level, char *message, size_t size);
 
 /*
+ * returns log format for <fmt> or -1 if not found.
+ */
+int get_log_format(const char *fmt);
+
+/*
  * returns log level for <lev> or -1 if not found.
  */
 int get_log_level(const char *lev);
@@ -141,7 +151,7 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 /*
  * Write hostname, log_tag and pid to the log string
  */
-char *lf_host_tag_pid(char *dst, const char *hostname, const char *log_tag, int pid, size_t size);
+char *lf_host_tag_pid(char *dst, const char *format, const char *hostname, const char *log_tag, int pid, size_t size);
 
 
 #endif /* _PROTO_LOG_H */

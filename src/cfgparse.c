@@ -1572,7 +1572,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (logsrv->maxlen > global.max_syslog_len) {
 			global.max_syslog_len = logsrv->maxlen;
 			logheader = realloc(logheader, global.max_syslog_len + 1);
+			logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
 			logline = realloc(logline, global.max_syslog_len + 1);
+		}
+
+		/* after the length, a format may be specified */
+		if (strcmp(args[arg+2], "format") == 0) {
+			logsrv->format = get_log_format(args[arg+3]);
+			if (logsrv->format < 0) {
+				Alert("parsing [%s:%d] : unknown log format '%s'\n", file, linenum, args[arg+3]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			/* skip these two args */
+			arg += 2;
 		}
 
 		if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code))
@@ -5855,7 +5869,21 @@ stats_error_parsing:
 			if (logsrv->maxlen > global.max_syslog_len) {
 				global.max_syslog_len = logsrv->maxlen;
 				logheader = realloc(logheader, global.max_syslog_len + 1);
+				logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
 				logline = realloc(logline, global.max_syslog_len + 1);
+			}
+
+			/* after the length, a format may be specified */
+			if (strcmp(args[arg+2], "format") == 0) {
+				logsrv->format = get_log_format(args[arg+3]);
+				if (logsrv->format < 0) {
+					Alert("parsing [%s:%d] : unknown log format '%s'\n", file, linenum, args[arg+3]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				/* skip these two args */
+				arg += 2;
 			}
 
 			if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code))
@@ -7217,6 +7245,7 @@ int check_config_validity()
 		struct sticking_rule *mrule;
 		struct act_rule *trule;
 		struct act_rule *hrqrule;
+		struct logsrv *tmplogsrv;
 		unsigned int next_id;
 		int nbproc;
 
@@ -7819,25 +7848,62 @@ int check_config_validity()
 out_uri_auth_compat:
 
 		/* write a syslog header string that contains hostname, log_tag and pid */
-		curproxy->log_htp.str = lf_host_tag_pid(logheader,
-		                                        global.log_send_hostname ? global.log_send_hostname : "",
-		                                        curproxy->log_tag ? curproxy->log_tag : global.log_tag, pid,
-		                                        global.max_syslog_len);
+		list_for_each_entry(tmplogsrv, &curproxy->logsrvs, list) {
+			char *hdr;
+			struct chunk *htp;
+			char *htp_fmt;
+			char *host = global.log_send_hostname;
 
-		if ((curproxy->log_htp.str == NULL) ||
-		    (curproxy->log_htp.len = curproxy->log_htp.str - logheader) >= global.max_syslog_len) {
-			Alert("Proxy '%s': cannot write a syslog header string that contains "
-			      "hostname, log_tag and pid.\n",
-			      curproxy->id);
-			cfgerr++;
-		}
-		else {
-			curproxy->log_htp.str = (char *)malloc(curproxy->log_htp.len);
-			memcpy(curproxy->log_htp.str, logheader, curproxy->log_htp.len);
-			curproxy->log_htp.size = 0;
-		}
+			switch (tmplogsrv->format) {
+			case LOG_FORMAT_RFC3164:
+				hdr = logheader;
+				htp = &curproxy->log_htp;
+				htp_fmt = default_host_tag_pid_log_format;
+				host = host ? host : "";
+				break;
 
-		logheader[0] = 0;
+			case LOG_FORMAT_RFC5424:
+				hdr = logheader_rfc5424;
+				htp = &curproxy->log_htp_rfc5424;
+				htp_fmt = rfc5424_host_tag_pid_log_format;
+				break;
+
+			default:
+				continue; /* must never happen */
+			}
+
+			if (htp->str)
+				continue;
+
+			if (!host) {
+				int len = strlen(hostname);
+				host = malloc(len + 2);
+				snprintf(host, len + 2, "%s ", hostname);
+			}
+
+			htp->str = lf_host_tag_pid(hdr, htp_fmt, host,
+			                           curproxy->log_tag ? curproxy->log_tag : global.log_tag,
+			                           pid, global.max_syslog_len);
+
+			if ((host != global.log_send_hostname) && strlen(host))
+				free(host);
+
+			if ((htp->str == NULL) ||
+			    ((htp->len = htp->str - hdr) >= global.max_syslog_len)) {
+				Alert("Proxy '%s': cannot write a syslog header string that contains "
+				      "hostname, log_tag and pid.\n",
+				      curproxy->id);
+				cfgerr++;
+				goto out_host_tag_pid;
+			}
+
+			htp->str = (char *)malloc(htp->len);
+			memcpy(htp->str, hdr, htp->len);
+			htp->size = 0;
+
+			hdr[0] = 0;
+		}
+out_host_tag_pid:
 
 		/* compile the log format */
 		if (!(curproxy->cap & PR_CAP_FE)) {

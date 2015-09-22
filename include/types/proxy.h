@@ -346,7 +346,8 @@ struct proxy {
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
 	char *log_tag;                          /* override default syslog tag */
-	struct chunk log_htp;			/* a syslog header part that contains hostname, log_tag and pid */
+	struct chunk log_htp;			/* a syslog header part that contains hostname, log_tag and pid (RFC3164 format) */
+	struct chunk log_htp_rfc5424;		/* a syslog header part that contains hostname, log_tag and pid (RFC5424 format) */
 	char *header_unique_id; 		/* unique-id header */
 	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */

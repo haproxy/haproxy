@@ -41,6 +41,11 @@
 #include <proto/ssl_sock.h>
 #endif
 
+const char *log_formats[LOG_FORMATS] = {
+	[LOG_FORMAT_RFC3164] = "rfc3164",
+	[LOG_FORMAT_RFC5424] = "rfc5424"
+};
+
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
 	"auth", "syslog", "lpr", "news",
@@ -49,7 +54,6 @@ const char *log_facilities[NB_LOG_FACILITIES] = {
 	"local0", "local1", "local2", "local3",
 	"local4", "local5", "local6", "local7"
 };
-
 
 const char *log_levels[NB_LOG_LEVELS] = {
 	"emerg", "alert", "crit", "err",
@@ -151,10 +155,19 @@ char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %m
 char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
-/* This is a global syslog header, common to all outgoing messages. It
- * begins with time-based part and is updated by update_log_hdr().
+char default_host_tag_pid_log_format[] = "%s%s[%d]: ";
+char rfc5424_host_tag_pid_log_format[] = "%s%s %d - - ";
+
+/* This is a global syslog header, common to all outgoing messages in
+ * RFC3164 format. It begins with time-based part and is updated by
+ * update_log_hdr().
  */
 char *logheader = NULL;
+
+/* This is a global syslog header for messages in RFC5424 format. It is
+ * updated by update_log_hdr_rfc5424().
+ */
+char *logheader_rfc5424 = NULL;
 
 /* This is a global syslog message buffer, common to all outgoing
  * messages. It contains only the data part.
@@ -618,6 +631,20 @@ void qfprintf(FILE *out, const char *fmt, ...)
 }
 
 /*
+ * returns log format for <fmt> or -1 if not found.
+ */
+int get_log_format(const char *fmt)
+{
+	int format;
+
+	format = LOG_FORMATS - 1;
+	while (format >= 0 && strcmp(log_formats[format], fmt))
+		format--;
+
+	return format;
+}
+
+/*
  * returns log level for <lev> or -1 if not found.
  */
 int get_log_level(const char *lev)
@@ -630,7 +657,6 @@ int get_log_level(const char *lev)
 
 	return level;
 }
-
 
 /*
  * returns log facility for <fac> or -1 if not found.
@@ -739,12 +765,12 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 	return ret;
 }
 
-char *lf_host_tag_pid(char *dst, const char *hostname, const char *log_tag, int pid, size_t size)
+char *lf_host_tag_pid(char *dst, const char *format, const char *hostname, const char *log_tag, int pid, size_t size)
 {
 	char *ret = dst;
 	int iret;
 
-	iret = snprintf(dst, size, "%s%s[%d]: ", hostname, log_tag, pid);
+	iret = snprintf(dst, size, format, hostname, log_tag, pid);
 	if (iret < 0 || iret > size)
 		return NULL;
 	ret += iret;
@@ -752,10 +778,11 @@ char *lf_host_tag_pid(char *dst, const char *hostname, const char *log_tag, int 
 	return ret;
 }
 
-/* Re-generate the syslog header at the beginning of logheader once a second and
- * return the pointer to the first character after the header.
+/* Re-generate time-based part of the syslog header in RFC3164 format at
+ * the beginning of logheader once a second and return the pointer to the
+ * first character after it.
  */
-char *update_log_hdr()
+static char *update_log_hdr()
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
@@ -780,6 +807,43 @@ char *update_log_hdr()
 			hdr_len = global.max_syslog_len;
 
 		dataptr = logheader + hdr_len;
+	}
+
+	dataptr[0] = 0; // ensure we get rid of any previous attempt
+
+	return dataptr;
+}
+
+/* Re-generate time-based part of the syslog header in RFC5424 format at
+ * the beginning of logheader_rfc5424 once a second and return the pointer
+ * to the first character after it.
+ */
+static char *update_log_hdr_rfc5424()
+{
+	static long tvsec;
+	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
+
+	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
+		/* this string is rebuild only once a second */
+		struct tm tm;
+		int hdr_len;
+
+		tvsec = date.tv_sec;
+		get_localtime(tvsec, &tm);
+
+		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
+				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%s ",
+				   tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
+				   tm.tm_hour, tm.tm_min, tm.tm_sec,
+				   localtimezone);
+		/* WARNING: depending upon implementations, snprintf may return
+		 * either -1 or the number of bytes that would be needed to store
+		 * the total message. In both cases, we must adjust it.
+		 */
+		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
+			hdr_len = global.max_syslog_len;
+
+		dataptr = logheader_rfc5424 + hdr_len;
 	}
 
 	dataptr[0] = 0; // ensure we get rid of any previous attempt
@@ -828,8 +892,9 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 	struct logsrv *tmp = NULL;
 	int nblogger;
 	char *log_ptr;
-	char *hdr_ptr;
+	char *hdr, *hdr_ptr;
 	size_t hdr_size;
+	struct chunk *htp;
 
 	dataptr = message;
 
@@ -845,9 +910,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 
 	if (!logsrvs)
 		return;
-
-	hdr_ptr = update_log_hdr();
-	hdr_size = hdr_ptr - logheader;
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
@@ -883,6 +945,25 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 			shutdown(*plogfd, SHUT_RD);
 		}
 
+		switch (logsrv->format) {
+		case LOG_FORMAT_RFC3164:
+			hdr = logheader;
+			hdr_ptr = update_log_hdr();
+			htp = &p->log_htp;
+			break;
+
+		case LOG_FORMAT_RFC5424:
+			hdr = logheader_rfc5424;
+			hdr_ptr = update_log_hdr_rfc5424();
+			htp = &p->log_htp_rfc5424;
+			break;
+
+		default:
+			continue; /* must never happen */
+		}
+
+		hdr_size = hdr_ptr - hdr;
+
 		/* For each target, we may have a different facility.
 		 * We can also have a different log level for each message.
 		 * This induces variations in the message header length.
@@ -891,17 +972,17 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		 * and we change the pointer to the header accordingly.
 		 */
 		fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
-		hdr_ptr = logheader + 3; /* last digit of the log level */
+		hdr_ptr = hdr + 3; /* last digit of the log level */
 		do {
 			*hdr_ptr = '0' + fac_level % 10;
 			fac_level /= 10;
 			hdr_ptr--;
-		} while (fac_level && hdr_ptr > logheader);
+		} while (fac_level && hdr_ptr > hdr);
 		*hdr_ptr = '<';
 
 		log_ptr = dataptr;
 
-		hdr_max = hdr_size - (hdr_ptr - logheader);
+		hdr_max = hdr_size - (hdr_ptr - hdr);
 
 		if (unlikely(hdr_size >= logsrv->maxlen)) {
 			hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
@@ -909,7 +990,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		}
 
 		maxlen = logsrv->maxlen - hdr_max;
-		htp_max = p->log_htp.len;
+		htp_max = htp->len;
 
 		if (unlikely(htp_max >= maxlen)) {
 			htp_max = maxlen - 1;
@@ -930,7 +1011,7 @@ send:
 
 		iovec[0].iov_base = hdr_ptr;
 		iovec[0].iov_len = hdr_max;
-		iovec[1].iov_base = p->log_htp.str;
+		iovec[1].iov_base = htp->str;
 		iovec[1].iov_len = htp_max;
 		iovec[2].iov_base = dataptr;
 		iovec[2].iov_len = max;

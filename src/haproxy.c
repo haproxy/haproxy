@@ -1329,6 +1329,7 @@ void deinit(void)
 			free(log);
 		}
 		chunk_destroy(&p->log_htp);
+		chunk_destroy(&p->log_htp_rfc5424);
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
 			LIST_DEL(&lf->list);

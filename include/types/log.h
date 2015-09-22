@@ -37,6 +37,13 @@
 /* The array containing the names of the log levels. */
 extern const char *log_levels[];
 
+/* enum for log format */
+enum {
+	LOG_FORMAT_RFC3164 = 0,
+	LOG_FORMAT_RFC5424,
+	LOG_FORMATS,          /* number of supported log formats, must always be last */
+};
+
 /* lists of fields that can be logged */
 enum {
 
@@ -158,6 +165,7 @@ struct logformat_node {
 struct logsrv {
 	struct list list;
 	struct sockaddr_storage addr;
+	int format;
 	int facility;
 	int level;
 	int minlvl;
