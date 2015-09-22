@@ -417,7 +417,7 @@ static int peer_prepare_ackmsg(struct shared_table *st, char *msg, size_t size)
 	char *cursor, *datamsg;
 	uint32_t netinteger;
 
-	cursor = datamsg = trash.str + 2 + 5;
+	cursor = datamsg = msg + 2 + 5;
 
 	intencode(st->remote_id, &cursor);
 	netinteger = htonl(st->last_get);
