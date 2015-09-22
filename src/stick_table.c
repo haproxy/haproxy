@@ -255,9 +255,11 @@ struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local
 
 	/* If sync is enabled and update is local */
 	if (t->sync_task && local) {
-		/* If this entry was already pushed to a peer
-		   We want to push it again */
-		if ((int)(ts->upd.key - t->commitupdate) <= 0) {
+		/* If this entry is not in the tree
+		   or not scheduled for at least one peer */
+		if (!ts->upd.node.leaf_p
+		    || (int)(t->commitupdate - ts->upd.key) >= 0
+		    || (int)(ts->upd.key - t->localupdate) >= 0) {
 			ts->upd.key = ++t->update;
 			t->localupdate = t->update;
 			eb32_delete(&ts->upd);
