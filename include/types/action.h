@@ -93,6 +93,7 @@ struct act_rule {
 	short deny_status;                     /* HTTP status to return to user when denying */
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,
 	                              struct session *sess, struct stream *s); /* ptr to custom action */
+	struct action_kw *kw;
 	union {
 		struct {
 			char *realm;

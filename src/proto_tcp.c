@@ -1435,6 +1435,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		if (kw) {
 			arg++;
 			rule->from = ACT_F_TCP_RES_CNT;
+			rule->kw = kw;
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
@@ -1636,9 +1637,11 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		struct action_kw *kw;
 		if (where & SMP_VAL_FE_CON_ACC) {
 			kw = tcp_req_conn_action(args[arg]);
+			rule->kw = kw;
 			rule->from = ACT_F_TCP_REQ_CON;
 		} else {
 			kw = tcp_req_cont_action(args[arg]);
+			rule->kw = kw;
 			rule->from = ACT_F_TCP_REQ_CNT;
 		}
 		if (kw) {
