@@ -250,8 +250,8 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
 	/* construct message */
 
 	/* check if we need to send the update identifer */
-	if (st->last_pushed && ts->upd.key > st->last_pushed && (ts->upd.key - st->last_pushed) == 1) {
-		use_identifier = 0;
+	if (!st->last_pushed || ts->upd.key < st->last_pushed || ((ts->upd.key - st->last_pushed) != 1)) {
+		use_identifier = 1;
 	}
 
 	/* encode update identifier if needed */
