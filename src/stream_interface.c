@@ -1443,11 +1443,6 @@ void si_applet_done(struct stream_interface *si)
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 
-	/* get away from the active list if we can't work anymore. */
-	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) != SI_FL_WANT_PUT) &&
-	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) != SI_FL_WANT_GET))
-		appctx_pause(si_appctx(si));
-
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
@@ -1464,12 +1459,22 @@ void si_applet_done(struct stream_interface *si)
 	       (si_opposite(si)->state != SI_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
-		appctx_pause(si_appctx(si));
 	}
+
 	if (ic->flags & CF_READ_ACTIVITY)
 		ic->flags &= ~CF_READ_DONTWAIT;
 
 	stream_release_buffers(si_strm(si));
+
+	/* Get away from the active list if we can't work anymore.
+	 * We also do that if the main task has already scheduled, because it
+	 * saves a useless wakeup/pause/wakeup cycle causing one useless call
+	 * per session on average.
+	 */
+	if (task_in_rq(si_task(si)) ||
+	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) != SI_FL_WANT_PUT) &&
+	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) != SI_FL_WANT_GET)))
+		appctx_pause(si_appctx(si));
 }
 
 
