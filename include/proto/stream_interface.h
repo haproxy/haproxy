@@ -221,21 +221,6 @@ static inline struct appctx *si_appctx(struct stream_interface *si)
 	return objt_appctx(si->end);
 }
 
-/* Call the applet's main function when an appctx is attached to the stream
- * interface. Returns zero if no call was made, or non-zero if a call was made.
- */
-static inline int si_applet_call(struct stream_interface *si)
-{
-	struct appctx *appctx;
-
-	appctx = si_appctx(si);
-	if (appctx) {
-		appctx->applet->fct(appctx);
-		return 1;
-	}
-	return 0;
-}
-
 /* call the applet's release function if any. Needs to be called upon close() */
 static inline void si_applet_release(struct stream_interface *si)
 {
