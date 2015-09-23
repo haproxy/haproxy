@@ -934,7 +934,7 @@ static void sess_set_term_flags(struct stream *s)
 		if (s->si[1].state < SI_ST_REQ) {
 
 			strm_fe(s)->fe_counters.failed_req++;
-			if (strm_li(s)->counters)
+			if (strm_li(s) && strm_li(s)->counters)
 				strm_li(s)->counters->failed_req++;
 
 			s->flags |= SF_FINST_R;
