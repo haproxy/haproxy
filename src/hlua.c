@@ -911,9 +911,23 @@ void hlua_ctx_destroy(struct hlua *lua)
 	/* Purge all the pending signals. */
 	hlua_com_purge(lua);
 
-	/* The thread is garbage collected by Lua. */
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
 	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+
+	/* Forces a garbage collecting process. If the Lua program is finished
+	 * without error, we run the GC on the thread pointer. Its freed all
+	 * the unused memory.
+	 * If the thread is finnish with an error or is currently yielded,
+	 * it seems that the GC applied on the thread doesn't clean anything,
+	 * so e run the GC on the main thread.
+	 * NOTE: maybe this action locks all the Lua threads untiml the en of
+	 * the garbage collection.
+	 */
+	if (lua_status(lua->T) == LUA_OK)
+		lua_gc(lua->T, LUA_GCCOLLECT, 0);
+	else
+		lua_gc(gL.T, LUA_GCCOLLECT, 0);
+
 	lua->T = NULL;
 }
 
