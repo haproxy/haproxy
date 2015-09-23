@@ -51,6 +51,7 @@ void si_applet_done(struct stream_interface *si);
 void stream_int_update(struct stream_interface *si);
 void stream_int_update_conn(struct stream_interface *si);
 void stream_int_update_applet(struct stream_interface *si);
+void stream_int_notify(struct stream_interface *si);
 
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
