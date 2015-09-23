@@ -6011,8 +6011,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_appendf(&trash,
 				     "%p: proto=%s",
 				     curr_sess,
-				     strm_li(curr_sess)->proto->name);
-
+				     strm_li(curr_sess) ? strm_li(curr_sess)->proto->name : "?");
 
 			conn = objt_conn(strm_orig(curr_sess));
 			switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
