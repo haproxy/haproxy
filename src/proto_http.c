@@ -5284,7 +5284,7 @@ void http_end_txn_clean_session(struct stream *s)
 			si_idle_conn(&s->si[1], &srv->idle_conns);
 	}
 
-	s->req.analysers = strm_li(s)->analysers;
+	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
 	s->res.analysers = 0;
 }
 
