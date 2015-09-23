@@ -573,25 +573,36 @@ static int si_conn_wake_cb(struct connection *conn)
 			si_chk_rcv(si_opposite(si));
 	}
 
-	/* process producer side.
-	 * We might have some data the consumer is waiting for.
-	 * We can do fast-forwarding, but we avoid doing this for partial
-	 * buffers, because it is very likely that it will be done again
-	 * immediately afterwards once the following data is parsed (eg:
-	 * HTTP chunking).
+	/* Notify the other side when we've injected data into the IC that
+	 * needs to be forwarded. We can do fast-forwarding as soon as there
+	 * are output data, but we avoid doing this if some of the data are
+	 * not yet scheduled for being forwarded, because it is very likely
+	 * that it will be done again immediately afterwards once the following
+	 * data are parsed (eg: HTTP chunking). We only SI_FL_WAIT_ROOM once
+	 * we've emptied *some* of the output buffer, and not just when there
+	 * is available room, because applets are often forced to stop before
+	 * the buffer is full. We must not stop based on input data alone because
+	 * an HTTP parser might need more data to complete the parsing.
 	 */
-	if (((ic->flags & CF_READ_PARTIAL) && !channel_is_empty(ic)) &&
-	    (ic->pipe /* always try to send spliced data */ ||
-	     (si_ib(si)->i == 0 && (si_opposite(si)->flags & SI_FL_WAIT_DATA)))) {
-		int last_len = ic->pipe ? ic->pipe->data : 0;
+	if (!channel_is_empty(ic) &&
+	    (si_opposite(si)->flags & SI_FL_WAIT_DATA) &&
+	    (ic->buf->i == 0 || ic->pipe)) {
+		int new_len, last_len;
+
+		last_len = ic->buf->o;
+		if (ic->pipe)
+			last_len += ic->pipe->data;
 
 		si_chk_snd(si_opposite(si));
+
+		new_len = ic->buf->o;
+		if (ic->pipe)
+			new_len += ic->pipe->data;
 
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
 		 */
-		if (channel_may_recv(ic) &&
-		    (!last_len || !ic->pipe || ic->pipe->data < last_len))
+		if (channel_may_recv(ic) && new_len < last_len)
 			si->flags &= ~SI_FL_WAIT_ROOM;
 	}
 
