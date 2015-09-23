@@ -34,12 +34,23 @@ SSL
 Maintainer: Emeric Brun <ebrun@haproxy.com>
 Files: src/ssl_sock.c, include/*/ssl_sock.h
 
-PEERS
+Peers
 Maintainer: Emeric Brun <ebrun@haproxy.com>
 Files: src/peers.c, include/*/peers.h
 
-DOC to HTML converter (dconv)
+Doc to HTML converter (dconv)
 Maintainer: Cyril Bonté <cyril.bonte@free.fr>
 Files: doc/*.txt
 Note: ask Cyril before changing any doc's format or structure.
+
+Health checks
+Files: src/checks.c, include/*/checks.h
+Maintainers: Simon Horman for external-check, Baptiste Assmann for tcp-check
+Note: health checks are fragile and have been broken many times, so please
+      consult the relevant maintainers if you want to change these specific
+      parts.
+
+Mailers
+Maintainer: Simon Horman <horms@verge.net.au>
+Files: src/mailers.c, include/*/mailers.h
 
