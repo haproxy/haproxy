@@ -264,6 +264,52 @@ Core class
 
   :param integer milliseconds: the required milliseconds.
 
+.. js:function:: core.register_action(name, actions, func)
+
+  **context**: body
+
+  Register an Lua function executed as action. All the registered action can be
+  used in HAProxy with the prefix "lua.". An action gets a TXN object class as
+  input.
+
+  :param string name: is the name of the converter.
+  :param table actions: is a table of string describing the HAProxy actions who
+                        want to register to. The expected actions are 'tcp-req',
+                        'tcp-res', 'http-req' or 'http-res'.
+  :param function func: is the Lua function called to work as converter.
+
+  The prototype of the Lua function used as argument is:
+
+.. code-block:: lua
+
+  function(txn)
+..
+
+  * **txn** (*class TXN*): this is a TXN object used for manipulating the
+            current request or TCP stream.
+
+  Here, an exemple of action registration. the action juste send à 'Hello world'
+  in the logs.
+
+.. code-block:: lua
+
+  core.register_action("hello-world", { "tcp-req", "http-req" }, function(txn)
+     txn:Info("Hello world")
+  end)
+..
+
+  This example code is used in HAproxy configuration like this:
+
+::
+
+  frontend tcp_frt
+    mode tcp
+    tcp-request content lua.hello-world
+
+  frontend http_frt
+    mode http
+    http-request lua.hello-world
+
 .. js:function:: core.register_converters(name, func)
 
   **context**: body

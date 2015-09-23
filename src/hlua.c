@@ -4505,6 +4505,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, struct proxy *px,
                                               struct act_rule *rule, char **err)
 {
+	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
+
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = malloc(sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
@@ -4512,33 +4514,8 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 
-	/* The requiered arg is a function name. */
-	if (!args[*cur_arg]) {
-		memprintf(err, "expect Lua function name");
-		return ACT_RET_PRS_ERR;
-	}
-
-	/* Lookup for the symbol, and check if it is a function. */
-	lua_getglobal(gL.T, args[*cur_arg]);
-	if (lua_isnil(gL.T, -1)) {
-		lua_pop(gL.T, 1);
-		memprintf(err, "Lua function '%s' not found", args[*cur_arg]);
-		return ACT_RET_PRS_ERR;
-	}
-	if (!lua_isfunction(gL.T, -1)) {
-		lua_pop(gL.T, 1);
-		memprintf(err, "'%s' is not a function",  args[*cur_arg]);
-		return ACT_RET_PRS_ERR;
-	}
-
 	/* Reference the Lua function and store the reference. */
-	rule->arg.hlua_rule->fcn.function_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
-	rule->arg.hlua_rule->fcn.name = strdup(args[*cur_arg]);
-	if (!rule->arg.hlua_rule->fcn.name) {
-		memprintf(err, "out of memory error.");
-		return ACT_RET_PRS_ERR;
-	}
-	(*cur_arg)++;
+	rule->arg.hlua_rule->fcn = *fcn;
 
 	/* TODO: later accept arguments. */
 	rule->arg.hlua_rule->args = NULL;
@@ -4546,6 +4523,90 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = hlua_action;
 	return ACT_RET_PRS_OK;
+}
+
+/* This function is an LUA binding used for registering
+ * "sample-conv" functions. It expects a converter name used
+ * in the haproxy configuration file, and an LUA function.
+ */
+__LJMP static int hlua_register_action(lua_State *L)
+{
+	struct action_kw_list *akl;
+	const char *name;
+	int ref;
+	int len;
+	struct hlua_function *fcn;
+
+	MAY_LJMP(check_args(L, 3, "register_service"));
+
+	/* First argument : converter name. */
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+
+	/* Second argument : environment. */
+	if (lua_type(L, 2) != LUA_TTABLE)
+		WILL_LJMP(luaL_error(L, "register_action: second argument must be a table of strings"));
+
+	/* Third argument : lua function. */
+	ref = MAY_LJMP(hlua_checkfunction(L, 3));
+
+	/* browse the second argulent as an array. */
+	lua_pushnil(L);
+	while (lua_next(L, 2) != 0) {
+		if (lua_type(L, -1) != LUA_TSTRING)
+			WILL_LJMP(luaL_error(L, "register_action: second argument must be a table of strings"));
+
+		/* Check required environment. Only accepted "http" or "tcp". */
+		/* Allocate and fill the sample fetch keyword struct. */
+		akl = malloc(sizeof(*akl) + sizeof(struct action_kw) * 2);
+		if (!akl)
+			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		fcn = malloc(sizeof(*fcn));
+		if (!fcn)
+			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+		/* Fill fcn. */
+		fcn->name = strdup(name);
+		if (!fcn->name)
+			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		fcn->function_ref = ref;
+
+		/* List head */
+		akl->list.n = akl->list.p = NULL;
+
+		/* End of array. */
+		memset(&akl->kw[1], 0, sizeof(*akl->kw));
+
+		/* action keyword. */
+		len = strlen("lua.") + strlen(name) + 1;
+		akl->kw[0].kw = malloc(len);
+		if (!akl->kw[0].kw)
+			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+		snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
+
+		akl->kw[0].match_pfx = 0;
+		akl->kw[0].private = fcn;
+		akl->kw[0].parse = action_register_lua;
+
+		/* select the action registering point. */
+		if (strcmp(lua_tostring(L, -1), "tcp-req") == 0)
+			tcp_req_cont_keywords_register(akl);
+		else if (strcmp(lua_tostring(L, -1), "tcp-res") == 0)
+			tcp_res_cont_keywords_register(akl);
+		else if (strcmp(lua_tostring(L, -1), "http-req") == 0)
+			http_req_keywords_register(akl);
+		else if (strcmp(lua_tostring(L, -1), "http-res") == 0)
+			http_res_keywords_register(akl);
+		else
+			WILL_LJMP(luaL_error(L, "lua action environment '%s' is unknown. "
+			                        "'tcp-req', 'tcp-res', 'http-req' or 'http-res' "
+			                        "are expected.", lua_tostring(L, -1)));
+
+		/* pop the environment string. */
+		lua_pop(L, 1);
+	}
+
+	return 0;
 }
 
 static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
@@ -4678,26 +4739,6 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
-static struct action_kw_list http_req_kws = { { }, {
-	{ "lua", action_register_lua },
-	{ NULL, NULL }
-}};
-
-static struct action_kw_list http_res_kws = { { }, {
-	{ "lua", action_register_lua },
-	{ NULL, NULL }
-}};
-
-static struct action_kw_list tcp_req_cont_kws = { { }, {
-	{ "lua", action_register_lua },
-	{ NULL, NULL }
-}};
-
-static struct action_kw_list tcp_res_cont_kws = { { }, {
-	{ "lua", action_register_lua },
-	{ NULL, NULL }
-}};
-
 /* This function can fail with an abort() due to an Lua critical error.
  * We are in the initialisation process of HAProxy, this abort() is
  * tolerated.
@@ -4799,12 +4840,6 @@ void hlua_init(void)
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);
 
-	/* Register custom HTTP rules. */
-	http_req_keywords_register(&http_req_kws);
-	http_res_keywords_register(&http_res_kws);
-	tcp_req_cont_keywords_register(&tcp_req_cont_kws);
-	tcp_res_cont_keywords_register(&tcp_res_cont_kws);
-
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;
 	gL.flags = 0;
@@ -4843,6 +4878,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
+	hlua_class_function(gL.T, "register_action", hlua_register_action);
 	hlua_class_function(gL.T, "yield", hlua_yield);
 	hlua_class_function(gL.T, "set_nice", hlua_set_nice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
