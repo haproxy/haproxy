@@ -670,7 +670,7 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 			buf_offset = arg_p[2].data.sint >> 1;
 	}
 
-	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
+	if (!buf_size || buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
@@ -702,7 +702,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	if (!chn->buf)
 		return 0;
 
-	if (buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
+	if (!buf_size || buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
