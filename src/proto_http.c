@@ -10031,10 +10031,12 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 
 	if (!s)
 		return 0;
+	if (!s->txn) {
+		if (unlikely(!http_alloc_txn(s)))
+			return 0; /* not enough memory */
+		http_init_txn(s);
+	}
 	txn = s->txn;
-
-	if (!txn)
-		return 0;
 	msg = &txn->req;
 
 	/* Check for a dependency on a request */
