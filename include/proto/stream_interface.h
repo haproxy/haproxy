@@ -326,7 +326,8 @@ static inline void si_shutw(struct stream_interface *si)
 static inline void si_update(struct stream_interface *si)
 {
 	stream_int_update(si);
-	si->ops->update(si);
+	if (si->ops->update)
+		si->ops->update(si);
 }
 
 /* Calls chk_rcv on the connection using the data layer */
