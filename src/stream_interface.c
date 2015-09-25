@@ -1343,6 +1343,14 @@ void stream_sock_read0(struct stream_interface *si)
  */
 void si_applet_wake_cb(struct stream_interface *si)
 {
+	struct channel *ic = si_ic(si);
+
+	/* If the applet wants to write and the channel is closed, it's a
+	 * broken pipe and it must be reported.
+	 */
+	if ((si->flags & SI_FL_WANT_PUT) && (ic->flags & CF_SHUTR))
+		si->flags |= SI_FL_ERR;
+
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
 
