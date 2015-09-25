@@ -1448,6 +1448,11 @@ void deinit(void)
 
 	userlist_free(userlist);
 
+	cfg_unregister_sections();
+
+	free_trash_buffers();
+	chunk_destroy(&trash);
+
 	protocol_unbind_all();
 
 #if defined(USE_DEVICEATLAS)
@@ -1467,6 +1472,9 @@ void deinit(void)
 	free(fdinfo);         fdinfo  = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
+	free(static_table_key); static_table_key = NULL;
+	free(get_http_auth_buff); get_http_auth_buff = NULL;
+	free(swap_buffer);    swap_buffer = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
