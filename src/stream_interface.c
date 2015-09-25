@@ -1406,9 +1406,9 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
+		si_applet_release(si);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
-		si_applet_release(si);
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -1456,8 +1456,8 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	case SI_ST_QUE:
 	case SI_ST_TAR:
 		/* Note that none of these states may happen with applets */
-		si->state = SI_ST_DIS;
 		si_applet_release(si);
+		si->state = SI_ST_DIS;
 	default:
 		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;

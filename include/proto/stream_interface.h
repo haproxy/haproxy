@@ -164,7 +164,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		conn_free(conn);
 	}
 	else if ((appctx = objt_appctx(si->end))) {
-		if (appctx->applet->release)
+		if (appctx->applet->release && si->state < SI_ST_DIS)
 			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
 	}
@@ -231,7 +231,7 @@ static inline void si_applet_release(struct stream_interface *si)
 	struct appctx *appctx;
 
 	appctx = si_appctx(si);
-	if (appctx && appctx->applet->release)
+	if (appctx && appctx->applet->release && si->state < SI_ST_DIS)
 		appctx->applet->release(appctx);
 }
 
