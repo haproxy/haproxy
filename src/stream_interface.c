@@ -1341,7 +1341,7 @@ void stream_sock_read0(struct stream_interface *si)
  * may disable the applet's based on the channels and stream interface's final
  * states.
  */
-void si_applet_done(struct stream_interface *si)
+void si_applet_wake_cb(struct stream_interface *si)
 {
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);

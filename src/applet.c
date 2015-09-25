@@ -61,7 +61,7 @@ void applet_run_active()
 		si_applet_stop_put(si);
 
 		curr->applet->fct(curr);
-		si_applet_done(si);
+		si_applet_wake_cb(si);
 
 		if (applet_run_queue.n == &curr->runq) {
 			/* curr was left in the list, move it back to the active list */

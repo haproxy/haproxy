@@ -1735,7 +1735,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	bo_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
-	si_applet_done(&socket->s->si[0]);
+	si_applet_wake_cb(&socket->s->si[0]);
 
 	/* If the pattern reclaim to read all the data
 	 * in the connection, got out.
@@ -1912,7 +1912,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* update buffers. */
-	si_applet_done(&socket->s->si[0]);
+	si_applet_wake_cb(&socket->s->si[0]);
 	socket->s->req.rex = TICK_ETERNITY;
 	socket->s->res.wex = TICK_ETERNITY;
 
