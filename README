@@ -233,8 +233,25 @@ Sample configuration :
     frontend
 	bind *:8881
 	default_backend servers
-	http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
 
+There are two distinct methods available, one which leverages all HTTP headers
+and one which uses only a single HTTP header for the detection. The former
+method is highly recommended and more accurate.
+
+
+All HTTP headers
+
+
+      http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
+
+Single HTTP header (e.g. User-Agent)
+
+
+      http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
+
+Please find more information about DeviceAtlas and the detection methods at https://deviceatlas.com/resources .
 
 1.2) 51Degrees Device Detection
 -------------------------------
