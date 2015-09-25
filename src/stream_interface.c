@@ -774,13 +774,11 @@ void stream_int_update(struct stream_interface *si)
 	}
 }
 
-
-/* Updates the timers and flags of a stream interface attached to a connection,
- * depending on the buffers' flags. It should only be called once after the
- * buffer flags have settled down, and before they are cleared. It doesn't
- * harm to call it as often as desired (it just slightly hurts performance).
- * It is only meant to be called by upper layers after buffer flags have been
- * manipulated by analysers.
+/* Updates the polling status of a connection outside of the connection handler
+ * based on the channel's flags and the stream interface's flags. It needs to be
+ * called once after the channels' flags have settled down and the stream has
+ * been updated. It is not designed to be called from within the connection
+ * handler itself.
  */
 void stream_int_update_conn(struct stream_interface *si)
 {
@@ -788,61 +786,7 @@ void stream_int_update_conn(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 	struct connection *conn = __objt_conn(si->end);
 
-	/* Check if we need to close the read side */
-	if (!(ic->flags & CF_SHUTR)) {
-		/* Read not closed, update FD status and timeout for reads */
-		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
-			/* stop reading */
-			if (!(si->flags & SI_FL_WAIT_ROOM)) {
-				if (!(ic->flags & CF_DONT_READ)) /* full */
-					si->flags |= SI_FL_WAIT_ROOM;
-				ic->rex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start reading and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_ROOM;
-			if (!(ic->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ic->rex))
-				ic->rex = tick_add_ifset(now_ms, ic->rto);
-		}
-	}
-
-	/* Check if we need to close the write side */
-	if (!(oc->flags & CF_SHUTW)) {
-		/* Write not closed, update FD status and timeout for writes */
-		if (channel_is_empty(oc)) {
-			/* stop writing */
-			if (!(si->flags & SI_FL_WAIT_DATA)) {
-				if ((oc->flags & CF_SHUTW_NOW) == 0)
-					si->flags |= SI_FL_WAIT_DATA;
-				oc->wex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start writing and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_DATA;
-			if (!tick_isset(oc->wex)) {
-				oc->wex = tick_add_ifset(now_ms, oc->wto);
-				if (tick_isset(ic->rex) && !(si->flags & SI_FL_INDEP_STR)) {
-					/* Note: depending on the protocol, we don't know if we're waiting
-					 * for incoming data or not. So in order to prevent the socket from
-					 * expiring read timeouts during writes, we refresh the read timeout,
-					 * except if it was already infinite or if we have explicitly setup
-					 * independent streams.
-					 */
-					ic->rex = tick_add_ifset(now_ms, ic->rto);
-				}
-			}
-		}
-	}
+	stream_int_update(si);
 
 	/* now update the connection itself */
 	if (!(ic->flags & CF_SHUTR)) {
@@ -1533,70 +1477,16 @@ void si_applet_done(struct stream_interface *si)
 	stream_release_buffers(si_strm(si));
 }
 
-/* updates the timers and flags of a stream interface attached to an applet.
- * it's called from the upper layers after the buffers/channels have been
- * updated.
+
+/* Updates the activity status of an applet outside of the applet handler based
+ * on the channel's flags and the stream interface's flags. It needs to be
+ * called once after the channels' flags have settled down and the stream has
+ * been updated. It is not designed to be called from within the applet handler
+ * itself.
  */
 void stream_int_update_applet(struct stream_interface *si)
 {
-	struct channel *ic = si_ic(si);
-	struct channel *oc = si_oc(si);
-
-	/* Check if we need to close the read side */
-	if (!(ic->flags & CF_SHUTR)) {
-		/* Read not closed, update FD status and timeout for reads */
-		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
-			/* stop reading */
-			if (!(si->flags & SI_FL_WAIT_ROOM)) {
-				if (!(ic->flags & CF_DONT_READ)) /* full */
-					si->flags |= SI_FL_WAIT_ROOM;
-				ic->rex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start reading and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_ROOM;
-			if (!(ic->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ic->rex))
-				ic->rex = tick_add_ifset(now_ms, ic->rto);
-		}
-	}
-
-	/* Check if we need to close the write side */
-	if (!(oc->flags & CF_SHUTW)) {
-		/* Write not closed, update FD status and timeout for writes */
-		if (channel_is_empty(oc)) {
-			/* stop writing */
-			if (!(si->flags & SI_FL_WAIT_DATA)) {
-				if ((oc->flags & CF_SHUTW_NOW) == 0)
-					si->flags |= SI_FL_WAIT_DATA;
-				oc->wex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start writing and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_DATA;
-			if (!tick_isset(oc->wex)) {
-				oc->wex = tick_add_ifset(now_ms, oc->wto);
-				if (tick_isset(ic->rex) && !(si->flags & SI_FL_INDEP_STR)) {
-					/* Note: depending on the protocol, we don't know if we're waiting
-					 * for incoming data or not. So in order to prevent the socket from
-					 * expiring read timeouts during writes, we refresh the read timeout,
-					 * except if it was already infinite or if we have explicitly setup
-					 * independent streams.
-					 */
-					ic->rex = tick_add_ifset(now_ms, ic->rto);
-				}
-			}
-		}
-	}
+	stream_int_update(si);
 
 	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
 	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET))
