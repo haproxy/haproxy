@@ -4137,6 +4137,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
+			RESET_SAFE_LJMP(stream->hlua.T);
 			return 0;
 		}
 
@@ -4146,6 +4147,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		/* convert input sample and pust-it in the stack. */
 		if (!lua_checkstack(stream->hlua.T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
+			RESET_SAFE_LJMP(stream->hlua.T);
 			return 0;
 		}
 		hlua_smp2lua(stream->hlua.T, smp);
@@ -4156,6 +4158,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			for (; arg_p->type != ARGT_STOP; arg_p++) {
 				if (!lua_checkstack(stream->hlua.T, 1)) {
 					SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
+					RESET_SAFE_LJMP(stream->hlua.T);
 					return 0;
 				}
 				hlua_arg2lua(stream->hlua.T, arg_p);
@@ -4236,6 +4239,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua.T, 2)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
+			RESET_SAFE_LJMP(stream->hlua.T);
 			return 0;
 		}
 
@@ -4245,6 +4249,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		/* push arguments in the stack. */
 		if (!hlua_txn_new(stream->hlua.T, stream, smp->px)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
+			RESET_SAFE_LJMP(stream->hlua.T);
 			return 0;
 		}
 		stream->hlua.nargs = 1;
@@ -4254,10 +4259,12 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			/* Check stack available size. */
 			if (!lua_checkstack(stream->hlua.T, 1)) {
 				SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
+				RESET_SAFE_LJMP(stream->hlua.T);
 				return 0;
 			}
 			if (!lua_checkstack(stream->hlua.T, 1)) {
 				SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
+				RESET_SAFE_LJMP(stream->hlua.T);
 				return 0;
 			}
 			hlua_arg2lua(stream->hlua.T, arg_p);
@@ -4476,6 +4483,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		if (!lua_checkstack(s->hlua.T, 1)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
+			RESET_SAFE_LJMP(s->hlua.T);
 			return ACT_RET_CONT;
 		}
 
@@ -4486,6 +4494,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		if (!hlua_txn_new(s->hlua.T, s, px)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
+			RESET_SAFE_LJMP(s->hlua.T);
 			return ACT_RET_CONT;
 		}
 		s->hlua.nargs = 1;
@@ -4495,6 +4504,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			if (!lua_checkstack(s->hlua.T, 1)) {
 				SEND_ERR(px, "Lua function '%s': full stack.\n",
 				         rule->arg.hlua_rule->fcn.name);
+				RESET_SAFE_LJMP(s->hlua.T);
 				return ACT_RET_CONT;
 			}
 			lua_pushstring(s->hlua.T, *arg);
