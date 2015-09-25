@@ -8847,6 +8847,19 @@ int cfg_register_section(char *section_name,
 }
 
 /*
+ * free all config section entries
+ */
+void cfg_unregister_sections(void)
+{
+	struct cfg_section *cs, *ics;
+
+	list_for_each_entry_safe(cs, ics, &sections, list) {
+		LIST_DEL(&cs->list);
+		free(cs);
+	}
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
