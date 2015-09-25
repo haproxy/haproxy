@@ -155,8 +155,16 @@ char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %m
 char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
+/* Common printf format strings for hostname, log_tag and pid used in all
+ * outgoing syslog messages.
+ */
 char default_host_tag_pid_log_format[] = "%s%s[%d]: ";
-char rfc5424_host_tag_pid_log_format[] = "%s%s %d - - ";
+char rfc5424_host_tag_pid_log_format[] = "%s%s %d - ";
+
+/* Default string used for structured-data part in RFC5424 formatted
+ * syslog messages.
+ */
+char default_rfc5424_sd_log_format[] = "- ";
 
 /* This is a global syslog header, common to all outgoing messages in
  * RFC3164 format. It begins with time-based part and is updated by
@@ -173,6 +181,11 @@ char *logheader_rfc5424 = NULL;
  * messages. It contains only the data part.
  */
 char *logline = NULL;
+
+/* A global syslog message buffer, common to all RFC5424 syslog messages.
+ * Currently, it is used for generating the structured-data part.
+ */
+char *logline_rfc5424 = NULL;
 
 struct logformat_var_args {
 	char *name;
@@ -201,6 +214,8 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 		return "track-sc";
 	case ARGC_LOG:
 		return "log-format";
+	case ARGC_LOGSD:
+		return "log-format-sd";
 	case ARGC_HRQ:
 		return "http-request";
 	case ARGC_HRS:
@@ -782,17 +797,17 @@ char *lf_host_tag_pid(char *dst, const char *format, const char *hostname, const
  * the beginning of logheader once a second and return the pointer to the
  * first character after it.
  */
-static char *update_log_hdr()
+static char *update_log_hdr(const time_t time)
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
 
-	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
+	if (unlikely(time != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
 		int hdr_len;
 
-		tvsec = date.tv_sec;
+		tvsec = time;
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logheader, global.max_syslog_len,
@@ -818,17 +833,17 @@ static char *update_log_hdr()
  * the beginning of logheader_rfc5424 once a second and return the pointer
  * to the first character after it.
  */
-static char *update_log_hdr_rfc5424()
+static char *update_log_hdr_rfc5424(const time_t time)
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
 
-	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
+	if (unlikely(time != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
 		int hdr_len;
 
-		tvsec = date.tv_sec;
+		tvsec = time;
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
@@ -869,15 +884,17 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log(p, level, logline, data_len);
+	__send_log(p, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
- * It overrides the last byte of the vector with an LF character.
+ * It overrides the last byte of the message vector with an LF character.
+ * The arguments <sd> and <sd_size> are used for the structured-data part
+ * in RFC5424 formatted syslog messages.
  */
-void __send_log(struct proxy *p, int level, char *message, size_t size)
+void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd, size_t sd_size)
 {
 	static struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
 	static struct msghdr msghdr = {
@@ -895,6 +912,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
 	struct chunk *htp;
+	time_t time = date.tv_sec;
 
 	dataptr = message;
 
@@ -921,6 +939,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		int maxlen;
 		int hdr_max = 0;
 		int htp_max = 0;
+		int sd_max = 0;
 		int max = 1;
 		char backup;
 
@@ -948,14 +967,15 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		switch (logsrv->format) {
 		case LOG_FORMAT_RFC3164:
 			hdr = logheader;
-			hdr_ptr = update_log_hdr();
+			hdr_ptr = update_log_hdr(time);
 			htp = &p->log_htp;
 			break;
 
 		case LOG_FORMAT_RFC5424:
 			hdr = logheader_rfc5424;
-			hdr_ptr = update_log_hdr_rfc5424();
+			hdr_ptr = update_log_hdr_rfc5424(time);
 			htp = &p->log_htp_rfc5424;
+			sd_max = sd_size; /* the SD part allowed only in RFC5424 */
 			break;
 
 		default:
@@ -986,21 +1006,28 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 
 		if (unlikely(hdr_size >= logsrv->maxlen)) {
 			hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
+			sd_max = 0;
 			goto send;
 		}
 
 		maxlen = logsrv->maxlen - hdr_max;
-		htp_max = htp->len;
 
-		if (unlikely(htp_max >= maxlen)) {
+		if (unlikely(htp->len >= maxlen)) {
 			htp_max = maxlen - 1;
+			sd_max = 0;
 			goto send;
 		}
 
-		max = MIN(size, maxlen - htp_max);
+		htp_max = htp->len;
+		maxlen -= htp_max;
 
+		if (sd_max >= maxlen) {
+			sd_max = maxlen - 1;
+			goto send;
+		}
+
+		max = MIN(size, maxlen - sd_max);
 		log_ptr += max - 1;
-
 send:
 		/* insert a \n at the end of the message, but save what was
 		 * there first because we could have different max lengths
@@ -1013,8 +1040,10 @@ send:
 		iovec[0].iov_len = hdr_max;
 		iovec[1].iov_base = htp->str;
 		iovec[1].iov_len = htp_max;
-		iovec[2].iov_base = dataptr;
-		iovec[2].iov_len = max;
+		iovec[2].iov_base = sd;
+		iovec[2].iov_len = sd_max;
+		iovec[3].iov_base = dataptr;
+		iovec[3].iov_len = max;
 
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
@@ -1942,6 +1971,7 @@ void strm_log(struct stream *s)
 {
 	struct session *sess = s->sess;
 	int size, err, level;
+	int sd_size = 0;
 
 	/* if we don't want to log normal traffic, return now */
 	err = (s->flags & SF_REDISP) ||
@@ -1975,10 +2005,15 @@ void strm_log(struct stream *s)
 			build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
 
+	if (!LIST_ISEMPTY(&sess->fe->logformat_sd)) {
+		sd_size = build_logline(s, logline_rfc5424, global.max_syslog_len,
+		                        &sess->fe->logformat_sd);
+	}
+
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		sess->fe->log_count++;
-		__send_log(sess->fe, level, logline, size + 1);
+		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
 }

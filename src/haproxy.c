@@ -1227,6 +1227,10 @@ void deinit(void)
 		free(p->conf.uif_file);
 		free(p->lbprm.map.srv);
 
+		if (p->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+			free(p->conf.logformat_sd_string);
+		free(p->conf.lfsd_file);
+
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
 
@@ -1332,6 +1336,11 @@ void deinit(void)
 		chunk_destroy(&p->log_htp_rfc5424);
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
+			LIST_DEL(&lf->list);
+			free(lf);
+		}
+
+		list_for_each_entry_safe(lf, lfb, &p->logformat_sd, list) {
 			LIST_DEL(&lf->list);
 			free(lf);
 		}

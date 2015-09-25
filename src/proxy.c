@@ -741,6 +741,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->logsrvs);
 	LIST_INIT(&p->logformat);
+	LIST_INIT(&p->logformat_sd);
 	LIST_INIT(&p->format_unique_id);
 	LIST_INIT(&p->conf.bind);
 	LIST_INIT(&p->conf.listeners);

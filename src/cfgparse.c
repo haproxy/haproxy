@@ -1574,6 +1574,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			logheader = realloc(logheader, global.max_syslog_len + 1);
 			logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
 			logline = realloc(logline, global.max_syslog_len + 1);
+			logline_rfc5424 = realloc(logline_rfc5424, global.max_syslog_len + 1);
 		}
 
 		/* after the length, a format may be specified */
@@ -2722,6 +2723,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->conf.lfs_file = strdup(defproxy.conf.lfs_file);
 				curproxy->conf.lfs_line = defproxy.conf.lfs_line;
 			}
+
+			/* get either a pointer to the logformat string for RFC5424 structured-data or a copy of it */
+			curproxy->conf.logformat_sd_string = defproxy.conf.logformat_sd_string;
+			if (curproxy->conf.logformat_sd_string &&
+			    curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+				curproxy->conf.logformat_sd_string = strdup(curproxy->conf.logformat_sd_string);
+
+			if (defproxy.conf.lfsd_file) {
+				curproxy->conf.lfsd_file = strdup(defproxy.conf.lfsd_file);
+				curproxy->conf.lfsd_line = defproxy.conf.lfsd_line;
+			}
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -2837,6 +2849,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.conf.uif_file);
 		free(defproxy.log_tag);
 		free_email_alert(&defproxy);
+
+		if (defproxy.conf.logformat_sd_string != default_rfc5424_sd_log_format)
+			free(defproxy.conf.logformat_sd_string);
+		free(defproxy.conf.lfsd_file);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			chunk_destroy(&defproxy.errmsg[rc]);
@@ -5805,6 +5821,35 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 		}
 	}
+	else if (!strcmp(args[0], "log-format-sd")) {
+		if (!*(args[1])) {
+			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (*(args[2])) {
+			Alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+			free(curproxy->conf.logformat_sd_string);
+		curproxy->conf.logformat_sd_string = strdup(args[1]);
+
+		free(curproxy->conf.lfsd_file);
+		curproxy->conf.lfsd_file = strdup(curproxy->conf.args.file);
+		curproxy->conf.lfsd_line = curproxy->conf.args.line;
+
+		/* get a chance to improve log-format-sd error reporting by
+		 * reporting the correct line-number when possible.
+		 */
+		if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+			Warning("parsing [%s:%d] : backend '%s' : 'log-format-sd' directive is ignored in backends.\n",
+				file, linenum, curproxy->id);
+			err_code |= ERR_WARN;
+		}
+	}
 	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
@@ -5871,6 +5916,7 @@ stats_error_parsing:
 				logheader = realloc(logheader, global.max_syslog_len + 1);
 				logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
 				logline = realloc(logline, global.max_syslog_len + 1);
+				logline_rfc5424 = realloc(logline_rfc5424, global.max_syslog_len + 1);
 			}
 
 			/* after the length, a format may be specified */
@@ -7866,6 +7912,8 @@ out_uri_auth_compat:
 				hdr = logheader_rfc5424;
 				htp = &curproxy->log_htp_rfc5424;
 				htp_fmt = rfc5424_host_tag_pid_log_format;
+				if (!curproxy->conf.logformat_sd_string)
+					curproxy->conf.logformat_sd_string = default_rfc5424_sd_log_format;
 				break;
 
 			default:
@@ -7915,6 +7963,13 @@ out_host_tag_pid:
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = NULL;
 			curproxy->conf.lfs_line = 0;
+
+			if (curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+				free(curproxy->conf.logformat_sd_string);
+			curproxy->conf.logformat_sd_string = NULL;
+			free(curproxy->conf.lfsd_file);
+			curproxy->conf.lfsd_file = NULL;
+			curproxy->conf.lfsd_line = 0;
 		}
 
 		if (curproxy->conf.logformat_string) {
@@ -7923,6 +7978,17 @@ out_host_tag_pid:
 			curproxy->conf.args.line = curproxy->conf.lfs_line;
 			parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
 					       SMP_VAL_FE_LOG_END, curproxy->conf.lfs_file, curproxy->conf.lfs_line);
+			curproxy->conf.args.file = NULL;
+			curproxy->conf.args.line = 0;
+		}
+
+		if (curproxy->conf.logformat_sd_string) {
+			curproxy->conf.args.ctx = ARGC_LOGSD;
+			curproxy->conf.args.file = curproxy->conf.lfsd_file;
+			curproxy->conf.args.line = curproxy->conf.lfsd_line;
+			parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd, LOG_OPT_MANDATORY,
+					       SMP_VAL_FE_LOG_END, curproxy->conf.lfsd_file, curproxy->conf.lfsd_line);
+			add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
 		}
@@ -8287,7 +8353,8 @@ out_host_tag_pid:
 			curproxy->to_log &= ~LW_BYTES;
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (curproxy->cap & PR_CAP_FE) && !LIST_ISEMPTY(&curproxy->logformat) && LIST_ISEMPTY(&curproxy->logsrvs)) {
+		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->logsrvs) &&
+		    (!LIST_ISEMPTY(&curproxy->logformat) || !LIST_ISEMPTY(&curproxy->logformat_sd))) {
 			Warning("config : log format ignored for %s '%s' since it has no log address.\n",
 				proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;

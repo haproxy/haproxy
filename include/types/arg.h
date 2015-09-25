@@ -69,6 +69,7 @@ enum {
 	ARGC_STK,      /* sticking rule */
 	ARGC_TRK,      /* tracking rule */
 	ARGC_LOG,      /* log-format */
+	ARGC_LOGSD,    /* log-format-sd */
 	ARGC_HRQ,      /* http-request */
 	ARGC_HRS,      /* http-response */
 	ARGC_UIF,      /* unique-id-format */

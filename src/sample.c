@@ -1103,16 +1103,17 @@ int smp_resolve_args(struct proxy *p)
 		where = "in";
 		ctx = "sample fetch keyword";
 		switch (cur->ctx) {
-		case ARGC_STK: where = "in stick rule in"; break;
-		case ARGC_TRK: where = "in tracking rule in"; break;
-		case ARGC_LOG: where = "in log-format string in"; break;
-		case ARGC_HRQ: where = "in http-request header format string in"; break;
-		case ARGC_HRS: where = "in http-response header format string in"; break;
-		case ARGC_UIF: where = "in unique-id-format string in"; break;
-		case ARGC_RDR: where = "in redirect format string in"; break;
-		case ARGC_CAP: where = "in capture rule in"; break;
-		case ARGC_ACL: ctx = "ACL keyword"; break;
-		case ARGC_SRV: where = "in server directive in"; break;
+		case ARGC_STK:   where = "in stick rule in"; break;
+		case ARGC_TRK:   where = "in tracking rule in"; break;
+		case ARGC_LOG:   where = "in log-format string in"; break;
+		case ARGC_LOGSD: where = "in log-format-sd string in"; break;
+		case ARGC_HRQ:   where = "in http-request header format string in"; break;
+		case ARGC_HRS:   where = "in http-response header format string in"; break;
+		case ARGC_UIF:   where = "in unique-id-format string in"; break;
+		case ARGC_RDR:   where = "in redirect format string in"; break;
+		case ARGC_CAP:   where = "in capture rule in"; break;
+		case ARGC_ACL:   ctx = "ACL keyword"; break;
+		case ARGC_SRV:   where = "in server directive in"; break;
 		}
 
 		/* set a few default settings */
