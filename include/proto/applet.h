@@ -29,7 +29,7 @@
 #include <types/applet.h>
 #include <proto/connection.h>
 
-extern struct list applet_runq;
+extern struct list applet_active_queue;
 
 void applet_run_active();
 
@@ -75,7 +75,7 @@ static inline void appctx_free(struct appctx *appctx)
 static inline void appctx_wakeup(struct appctx *appctx)
 {
 	if (LIST_ISEMPTY(&appctx->runq))
-		LIST_ADDQ(&applet_runq, &appctx->runq);
+		LIST_ADDQ(&applet_active_queue, &appctx->runq);
 }
 
 /* removes an applet from the list of active applets */

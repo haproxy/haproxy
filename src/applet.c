@@ -19,14 +19,14 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
-struct list applet_runq = LIST_HEAD_INIT(applet_runq);
+struct list applet_active_queue = LIST_HEAD_INIT(applet_active_queue);
 
 void applet_run_active()
 {
 	struct appctx *curr, *back;
 	struct stream_interface *si;
 
-	list_for_each_entry_safe(curr, back, &applet_runq, runq) {
+	list_for_each_entry_safe(curr, back, &applet_active_queue, runq) {
 		si = curr->owner;
 
 		/* now we'll need a buffer */
