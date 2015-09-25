@@ -319,9 +319,10 @@ static inline void si_shutw(struct stream_interface *si)
 	si->ops->shutw(si);
 }
 
-/* Calls the data state update on the stream interfaace */
+/* Updates the stream interface and timers, then updates the data layer below */
 static inline void si_update(struct stream_interface *si)
 {
+	stream_int_update(si);
 	si->ops->update(si);
 }
 

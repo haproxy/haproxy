@@ -786,9 +786,6 @@ void stream_int_update_conn(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 	struct connection *conn = __objt_conn(si->end);
 
-	stream_int_update(si);
-
-	/* now update the connection itself */
 	if (!(ic->flags & CF_SHUTR)) {
 		/* Read not closed */
 		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic))
@@ -1486,8 +1483,6 @@ void si_applet_done(struct stream_interface *si)
  */
 void stream_int_update_applet(struct stream_interface *si)
 {
-	stream_int_update(si);
-
 	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
 	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET))
 		appctx_wakeup(si_appctx(si));
