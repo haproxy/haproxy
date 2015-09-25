@@ -380,6 +380,51 @@ Core class
     frontend example
        http-request redirect location /%[lua.hello]
 
+.. js:function:: core.register_service(name, mode, func)
+
+  **context**: body
+
+  Register an Lua function executed as a service. All the registered service can
+  be used in HAProxy with the prefix "lua.". A service gets an object class as
+  input according with the required mode.
+
+  :param string name: is the name of the converter.
+  :param string mode: is string describing the required mode. Only 'tcp' or
+                      'http' are allowed.
+  :param function func: is the Lua function called to work as converter.
+
+  The prototype of the Lua function used as argument is:
+
+.. code-block:: lua
+
+  function(applet)
+..
+
+  * **txn** (*class AppletTCP*) or (*class AppletHTTP*): this is an object used
+            for manipulating the current HTTP request or TCP stream.
+
+  Here, an exemple of service registration. the service just send à 'Hello world'
+  as an http response.
+
+.. code-block:: lua
+
+  core.register_service("hello-world", "http" }, function(txn)
+     local response = "Hello World !"
+     applet:set_status(200)
+     applet:add_header("content-length", string.length(response))
+     applet:add_header("content-type", "text/plain")
+     applet:start_reponse()
+     applet:send(response)
+  end)
+..
+
+  This example code is used in HAproxy configuration like this:
+
+::
+
+    frontend example
+       http-request use-service lua.hello-world
+
 .. js:function:: core.register_init(func)
 
   **context**: body
@@ -564,7 +609,7 @@ Channel class
   :param class_channel channel: The manipulated Channel.
   :returns: a string containig all the avalaible data or nil.
 
-.. js:function:: Channel.get_line(channel)
+.. js:function:: Channel.getline(channel)
 
   This function returns a string that contain the first line of the buffer. The
   data is consumed. If the data returned doesn't contains a final '\n' its
@@ -1041,26 +1086,30 @@ Socket class
   system resources. Garbage-collected objects are automatically closed before
   destruction, though.
 
-.. js:function:: Socket.connect(socket, address, port)
+.. js:function:: Socket.connect(socket, address[, port])
 
   Attempts to connect a socket object to a remote host.
 
-  Address can be an IP address or a host name. Port must be an integer number
-  in the range [1..64K).
 
   In case of error, the method returns nil followed by a string describing the
   error. In case of success, the method returns 1.
 
   :param class_socket socket: Is the manipulated Socket.
+  :param string address: can be an IP address or a host name. See below for more
+                         information.
+  :param integer port: must be an integer number in the range [1..64K].
   :returns: 1 or nil.
 
-  Note: The function Socket.connect is available and is a shortcut for the
-  creation of client sockets.
+  an address field extension permits to use the connect() function to connect to
+  other stream than TCP. The syntax containing a simpleipv4 or ipv6 address is
+  the basically expected format. This format requires the port.
 
-  Note: Starting with LuaSocket 2.0, the settimeout method affects the behavior
-  of connect, causing it to return with an error in case of a timeout. If that
-  happens, you can still call Socket.select with the socket in the sendt table.
-  The socket will be writable when the connection is established.
+  Other format accepted are a socket path like "/socket/path", it permits to
+  connect to a socket. abstract namespaces are supported with the prefix
+  "abns@", and finaly a filedescriotr can be passed with the prefix "fd@".
+  The prefix "ipv4@", "ipv6@" and "unix@" are also supported. The port can be
+  passed int the string. The syntax "127.0.0.1:1234" is valid. in this case, the
+  parameter *port* is ignored.
 
 .. js:function:: Socket.connect_ssl(socket, address, port)
 
@@ -1115,6 +1164,8 @@ Socket class
   * **number**: causes the method to read a specified number of bytes from the
                 Socket. Prefix is an optional string to be concatenated to the
                 beginning of any received data before return.
+
+  * **empty**: If the pattern is left empty, the default option is `*l`.
 
   If successful, the method returns the received pattern. In case of error, the
   method returns nil followed by an error message which can be the string
@@ -1297,6 +1348,110 @@ Map class
   :param class_map map: Is the class Map object.
   :param string str: Is the string used as key.
   :returns: a string containing the result or empty string if no match.
+
+AppletHTTP class
+===============
+
+.. js:class:: AppletHTTP
+
+  This class is used with applets that requires the 'http' mode. The http applet
+  can be registered with the *core.register_service()* function. They are used
+  for processing an http request like a server in back of HAProxy.
+
+  This is an hello world sample code:
+
+.. code-block:: lua
+  core.register_service("hello-world", "http" }, function(txn)
+     local response = "Hello World !"
+     applet:set_status(200)
+     applet:add_header("content-length", string.length(response))
+     applet:add_header("content-type", "text/plain")
+     applet:start_reponse()
+     applet:send(response)
+  end)
+
+
+.. js:function:: AppletHTTP.set_status(code)
+
+  This function sets the HTTP status code for the response. The allowed code are
+  from 100 to 599.
+
+  :param integer code: the status code returned to the client.
+
+.. js:function:: AppletHTTP.add_header(name, value)
+
+  This function add an header in the response. Duplicated headers are not
+  collapsed. The special header *content-length* is used to determinate the
+  response length. If it not exists, a *transfer-encoding: chunked* is set, and
+  all the write from the funcion *AppletHTTP:send()* become a chunk.
+
+  :param string name: the header name
+  :param string value: the header value
+
+.. js:function:: AppletHTTP.start_response()
+
+  This function indicates to the HTTP engine that it can process and send the
+  response headers. After this called we cannot add headers to the response; We
+  cannot use the *AppletHTTP:send()* function if the
+  *AppletHTTP:start_response()* is not called.
+
+.. js:function:: AppletHTTP.getline()
+
+  This function returns a string containing one line from the http body. If the
+  data returned doesn't contains a final '\\n' its assumed than its the last
+  available data before the end of stream.
+
+  :returns: a string. The string can be empty if we reach the end of the stream.
+
+.. js:function:: AppletHTTP.receive([size])
+
+  Reads data from the HTTP body, according to the specified read *size*. If the
+  *size* is missing, the function tries to read all the content of the stream
+  until the end. If the *size* is bigger than the http body, it returns the
+  amount of data avalaible.
+
+  :param integer size: the required read size.
+  :returns: always return a string,the string can be empty is the connexion is
+            closed.
+
+.. js:function:: AppletHTTP.send(msg)
+
+  Send the message *msg* on the http request body.
+
+  :param string msg: the message to send.
+
+AppletTCP class
+===============
+
+.. js:class:: AppletTCP
+
+  This class is used with applets that requires the 'tcp' mode. The tcp applet
+  can be registered with the *core.register_service()* function. They are used
+  for processing a tcp stream like a server in back of HAProxy.
+
+.. js:function:: AppletTCP.getline()
+
+  This function returns a string containing one line from the stream. If the
+  data returned doesn't contains a final '\\n' its assumed than its the last
+  available data before the end of stream.
+
+  :returns: a string. The string can be empty if we reach the end of the stream.
+
+.. js:function:: AppletTCP.receive([size])
+
+  Reads data from the TCP stream, according to the specified read *size*. If the
+  *size* is missing, the function tries to read all the content of the stream
+  until the end.
+
+  :param integer size: the required read size.
+  :returns: always return a string,the string can be empty is the connexion is
+            closed.
+
+.. js:function:: AppletTCP.send(msg)
+
+  Send the message on the stream.
+
+  :param string msg: the message to send.
 
 External Lua libraries
 ======================
