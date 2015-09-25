@@ -180,10 +180,13 @@ struct global {
 	struct {
 		void *atlasimgptr;
 		char *jsonpath;
+		char *cookiename;
+		size_t cookienamelen;
 		da_atlas_t atlas;
 		da_evidence_id_t useragentid;
 		da_severity_t loglevel;
 		char separator;
+		unsigned char daset:1;
 	} deviceatlas;
 #endif
 #ifdef USE_51DEGREES

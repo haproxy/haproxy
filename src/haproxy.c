@@ -181,8 +181,11 @@ struct global global = {
 #ifdef USE_DEVICEATLAS
 	.deviceatlas = {
 		.loglevel = DA_SEV_INFO,
-		.useragentid = 0,
 		.jsonpath = 0,
+		.cookiename = 0,
+		.cookienamelen = 0,
+		.useragentid = 0,
+		.daset = 0,
 		.separator = '|',
 	},
 #endif
