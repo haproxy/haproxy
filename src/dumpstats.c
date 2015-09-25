@@ -2482,13 +2482,7 @@ static void cli_io_handler(struct appctx *appctx)
 			bo_skip(si_oc(si), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
-		else {	/* output functions: first check if the output buffer is closed then abort */
-			if (res->flags & (CF_SHUTR_NOW|CF_SHUTR)) {
-				cli_release_handler(appctx);
-				appctx->st0 = STAT_CLI_END;
-				continue;
-			}
-
+		else {	/* output functions */
 			switch (appctx->st0) {
 			case STAT_CLI_PRINT:
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
