@@ -2554,8 +2554,7 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 #endif
 			default: /* abnormal state */
-				cli_release_handler(appctx);
-				appctx->st0 = STAT_CLI_PROMPT;
+				si->flags |= SI_FL_ERR;
 				break;
 			}
 
