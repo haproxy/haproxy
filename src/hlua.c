@@ -4364,9 +4364,6 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	sck->kw[0].out_type = SMP_T_STR;
 	sck->kw[0].private = fcn;
 
-	/* End of array. */
-	memset(&sck->kw[1], 0, sizeof(struct sample_conv));
-
 	/* Register this new converter */
 	sample_register_convs(sck);
 
@@ -4424,9 +4421,6 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	sfk->kw[0].use = SMP_USE_HTTP_ANY;
 	sfk->kw[0].val = 0;
 	sfk->kw[0].private = fcn;
-
-	/* End of array. */
-	memset(&sfk->kw[1], 0, sizeof(struct sample_fetch));
 
 	/* Register this new fetch. */
 	sample_register_fetches(sfk);
@@ -4646,9 +4640,6 @@ __LJMP static int hlua_register_action(lua_State *L)
 
 		/* List head */
 		akl->list.n = akl->list.p = NULL;
-
-		/* End of array. */
-		memset(&akl->kw[1], 0, sizeof(*akl->kw));
 
 		/* action keyword. */
 		len = strlen("lua.") + strlen(name) + 1;
