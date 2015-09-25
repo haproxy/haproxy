@@ -55,7 +55,7 @@ int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *
 
 
 /* returns a pointer to the stream the channel belongs to */
-static inline struct stream *chn_sess(const struct channel *chn)
+static inline struct stream *chn_strm(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
 		return LIST_ELEM(chn, struct stream *, res);

@@ -365,7 +365,7 @@ int stream_alloc_recv_buffer(struct channel *chn)
 	if (!(chn->flags & CF_ISRESP))
 		margin = global.tune.reserved_bufs;
 
-	s = chn_sess(chn);
+	s = chn_strm(chn);
 
 	b = b_alloc_margin(&chn->buf, margin);
 	if (b)
