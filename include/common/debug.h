@@ -23,6 +23,7 @@
 #define _COMMON_DEBUG_H
 
 #include <common/config.h>
+#include <common/memory.h>
 
 #ifdef DEBUG_FULL
 #define DPRINTF(x...) fprintf(x)
@@ -54,5 +55,16 @@
 		##args);                                           \
         } while (0)
 
+/* This one is useful to automatically apply poisonning on an area returned
+ * by malloc(). Only "p_" is required to make it work, and to define a poison
+ * byte using -dM.
+ */
+static inline void *p_malloc(size_t size)
+{
+	void *ret = malloc(size);
+	if (mem_poison_byte && ret)
+		memset(ret, mem_poison_byte, size);
+	return ret;
+}
 
 #endif /* _COMMON_DEBUG_H */
