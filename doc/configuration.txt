@@ -653,6 +653,11 @@ deviceatlas-separator <char>
   Sets the character separator for the API properties results. This directive
   is optional and set to | by default if not set.
 
+devicatlas-properties-cookie <name>
+  Sets the client cookie's name used for the detection if the DeviceAtlas Client-side
+  component was used during the request. This directive is optional and set to
+  DAPROPS by default if not set.
+
 external-check
   Allows the use of an external agent to perform health checks.
   This is disabled by default as a security precaution.
@@ -11405,7 +11410,7 @@ crc32([<avalanche>])
   not be used for security purposes as a 32-bit hash is trivial to break. See
   also "djb2", "sdbm", "wt6" and the "hash-type" directive.
 
-da-csv(<prop>[,<prop>*])
+da-csv-conv(<prop>[,<prop>*])
   Asks the DeviceAtlas converter to identify the User Agent string passed on
   input, and to emit a string made of the concatenation of the properties
   enumerated in argument, delimited by the separator defined by the global
