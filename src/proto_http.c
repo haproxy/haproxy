@@ -10993,7 +10993,7 @@ smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *
  * of values (cookie headers). This makes it faster to abort parsing when no
  * list is expected.
  */
-static char *
+char *
 extract_cookie_value(char *hdr, const char *hdr_end,
 		  char *cookie_name, size_t cookie_name_l, int list,
 		  char **value, int *value_l)
