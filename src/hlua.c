@@ -2365,6 +2365,57 @@ __LJMP static int hlua_socket_new(lua_State *L)
  *
  */
 
+/* The state between the channel data and the HTTP parser state can be
+ * unconsistent, so reset the parser and call it again. Warning, this
+ * action not revalidate the request and not send a 400 if the modified
+ * resuest is not valid.
+ *
+ * This function never fails. If dir is 0 we are a request, if it is 1
+ * its a response.
+ */
+static void hlua_resynchonize_proto(struct stream *stream, int dir)
+{
+	/* Protocol HTTP. */
+	if (stream->be->mode == PR_MODE_HTTP) {
+
+		if (dir == 0)
+			http_txn_reset_req(stream->txn);
+		else if (dir == 1)
+			http_txn_reset_res(stream->txn);
+
+		if (stream->txn->hdr_idx.v)
+			hdr_idx_init(&stream->txn->hdr_idx);
+
+		if (dir == 0)
+			http_msg_analyzer(&stream->txn->req, &stream->txn->hdr_idx);
+		else if (dir == 1)
+			http_msg_analyzer(&stream->txn->rsp, &stream->txn->hdr_idx);
+	}
+}
+
+/* Check the protocole integrity after the Lua manipulations.
+ * Close the stream and returns 0 if fails, otherwise returns 1.
+ */
+static int hlua_check_proto(struct stream *stream, int dir)
+{
+	const struct chunk msg = { .len = 0 };
+
+	/* Protocol HTTP. The message parsing state must be in accord
+	 * with the request or response state.
+	 */
+	if (stream->be->mode == PR_MODE_HTTP) {
+		if (dir == 0 && stream->txn->req.msg_state < HTTP_MSG_BODY) {
+			stream_int_retnclose(&stream->si[0], &msg);
+			return 0;
+		}
+		else if (dir == 1 && stream->txn->rsp.msg_state < HTTP_MSG_BODY) {
+			stream_int_retnclose(&stream->si[0], &msg);
+			return 0;
+		}
+	}
+	return 1;
+}
+
 /* Returns the struct hlua_channel join to the class channel in the
  * stack entry "ud" or throws an argument error.
  */
@@ -2469,6 +2520,7 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 		return 1;
 
 	chn->buf->i -= ret;
+	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
 
@@ -2516,6 +2568,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 	}
 	luaL_pushresult(&b);
 	buffer_replace2(chn->buf, chn->buf->p, chn->buf->p + len,  NULL, 0);
+	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
 
@@ -2559,6 +2612,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
+	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 
 	max = channel_recv_limit(chn) - buffer_len(chn->buf);
 	if (max == 0 && chn->buf->o == 0) {
@@ -4224,6 +4278,8 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	switch (hlua_ctx_resume(&stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
+		if (!hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ)))
+			return 0;
 		/* Convert the returned value in sample. */
 		hlua_lua2smp(stream->hlua.T, -1, smp);
 		lua_pop(stream->hlua.T, 1);
@@ -4234,11 +4290,13 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* yield. */
 	case HLUA_E_AGAIN:
+		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
+		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
 		         fcn->name, lua_tostring(stream->hlua.T, -1));
@@ -4246,6 +4304,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		return 0;
 
 	case HLUA_E_ERR:
+		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
 
@@ -4386,12 +4445,13 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 {
 	char **arg;
 	unsigned int analyzer;
+	int dir;
 
 	switch (rule->from) {
-	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; break;
-	case ACT_F_TCP_RES_CNT: analyzer = AN_RES_INSPECT        ; break;
-	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; break;
-	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; break;
+	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = 0; break;
+	case ACT_F_TCP_RES_CNT: analyzer = AN_RES_INSPECT        ; dir = 1; break;
+	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; dir = 0; break;
+	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; dir = 1; break;
 	default:
 		SEND_ERR(px, "Lua: internal error while execute action.\n");
 		return ACT_RET_CONT;
@@ -4461,6 +4521,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	switch (hlua_ctx_resume(&s->hlua, 1)) {
 	/* finished. */
 	case HLUA_E_OK:
+		if (!hlua_check_proto(s, dir))
+			return ACT_RET_ERR;
 		return ACT_RET_CONT;
 
 	/* yield. */
@@ -4487,6 +4549,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
+		if (!hlua_check_proto(s, dir))
+			return ACT_RET_ERR;
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua.T, -1));
@@ -4494,6 +4558,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 
 	case HLUA_E_ERR:
+		if (!hlua_check_proto(s, dir))
+			return ACT_RET_ERR;
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s' return an unknown error.\n",
 		         rule->arg.hlua_rule->fcn.name);
