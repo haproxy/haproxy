@@ -2586,7 +2586,7 @@ static void cli_io_handler(struct appctx *appctx)
 		}
 	}
 
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST) && (appctx->st0 != STAT_CLI_GETREQ)) {
+	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* Other side has closed, let's abort if we have no more processing to do
