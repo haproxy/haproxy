@@ -728,7 +728,6 @@ void stream_int_update_conn(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if (!(ic->flags & CF_DONT_READ)) /* full */
 					si->flags |= SI_FL_WAIT_ROOM;
-				conn_data_stop_recv(conn);
 				ic->rex = TICK_ETERNITY;
 			}
 		}
@@ -739,7 +738,6 @@ void stream_int_update_conn(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			conn_data_want_recv(conn);
 			if (!(ic->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ic->rex))
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 		}
@@ -753,7 +751,6 @@ void stream_int_update_conn(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((oc->flags & CF_SHUTW_NOW) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
-				conn_data_stop_send(conn);
 				oc->wex = TICK_ETERNITY;
 			}
 		}
@@ -764,7 +761,6 @@ void stream_int_update_conn(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
-			conn_data_want_send(conn);
 			if (!tick_isset(oc->wex)) {
 				oc->wex = tick_add_ifset(now_ms, oc->wto);
 				if (tick_isset(ic->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -779,6 +775,25 @@ void stream_int_update_conn(struct stream_interface *si)
 			}
 		}
 	}
+
+	/* now update the connection itself */
+	if (!(ic->flags & CF_SHUTR)) {
+		/* Read not closed */
+		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic))
+			__conn_data_stop_recv(conn);
+		else
+			__conn_data_want_recv(conn);
+	}
+
+	if (!(oc->flags & CF_SHUTW)) {
+		/* Write not closed */
+		if (channel_is_empty(oc))
+			__conn_data_stop_send(conn);
+		else
+			__conn_data_want_send(conn);
+	}
+
+	conn_cond_update_data_polling(conn);
 }
 
 /*
