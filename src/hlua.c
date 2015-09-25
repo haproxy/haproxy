@@ -233,7 +233,7 @@ __LJMP static inline void hlua_class_const_int(lua_State *L, const char *name,
 	WILL_LJMP(luaL_error(L, "full stack"));
 	lua_pushstring(L, name);
 	lua_pushinteger(L, value);
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 }
 __LJMP static inline void hlua_class_const_str(lua_State *L, const char *name,
                                         const char *value)
@@ -242,7 +242,7 @@ __LJMP static inline void hlua_class_const_str(lua_State *L, const char *name,
 		WILL_LJMP(luaL_error(L, "full stack"));
 	lua_pushstring(L, name);
 	lua_pushstring(L, value);
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 }
 __LJMP static inline void hlua_class_function(lua_State *L, const char *name,
                                        int (*function)(lua_State *L))
@@ -251,7 +251,7 @@ __LJMP static inline void hlua_class_function(lua_State *L, const char *name,
 		WILL_LJMP(luaL_error(L, "full stack"));
 	lua_pushstring(L, name);
 	lua_pushcclosure(L, function, 0);
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 }
 
 __LJMP static int hlua_dump_object(struct lua_State *L)
@@ -3564,37 +3564,37 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p)
 	lua_pushstring(L, "f");
 	if (!hlua_fetches_new(L, htxn, 0))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
 	if (!hlua_fetches_new(L, htxn, 1))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Create the "c" field that contains a list of converters. */
 	lua_pushstring(L, "c");
 	if (!hlua_converters_new(L, htxn, 0))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
 	if (!hlua_converters_new(L, htxn, 1))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Create the "req" field that contains the request channel object. */
 	lua_pushstring(L, "req");
 	if (!hlua_channel_new(L, &s->req))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Create the "res" field that contains the response channel object. */
 	lua_pushstring(L, "res");
 	if (!hlua_channel_new(L, &s->res))
 		return 0;
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Creates the HTTP object is the current proxy allows http. */
 	lua_pushstring(L, "http");
@@ -3604,7 +3604,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p)
 	}
 	else
 		lua_pushnil(L);
-	lua_settable(L, -3);
+	lua_rawset(L, -3);
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
@@ -4938,7 +4938,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "lookup", hlua_map_lookup);
 	hlua_class_function(gL.T, "slookup", hlua_map_slookup);
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -4982,7 +4982,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_in_len",  hlua_channel_get_in_len);
 	hlua_class_function(gL.T, "get_out_len", hlua_channel_get_out_len);
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -5035,10 +5035,10 @@ void hlua_init(void)
 		lua_pushstring(gL.T, trash.str);
 		lua_pushlightuserdata(gL.T, sf);
 		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
-		lua_settable(gL.T, -3);
+		lua_rawset(gL.T, -3);
 	}
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -5088,10 +5088,10 @@ void hlua_init(void)
 		lua_pushstring(gL.T, trash.str);
 		lua_pushlightuserdata(gL.T, sc);
 		lua_pushcclosure(gL.T, hlua_run_sample_conv, 1);
-		lua_settable(gL.T, -3);
+		lua_rawset(gL.T, -3);
 	}
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -5137,7 +5137,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "res_set_header", hlua_http_res_set_hdr);
 	hlua_class_function(gL.T, "res_set_status", hlua_http_res_set_status);
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -5179,7 +5179,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "Warning",     hlua_txn_log_warning);
 	hlua_class_function(gL.T, "Alert",       hlua_txn_log_alert);
 
-	lua_settable(gL.T, -3);
+	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
@@ -5217,12 +5217,12 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "setoption",   hlua_socket_setoption);
 	hlua_class_function(gL.T, "settimeout",  hlua_socket_settimeout);
 
-	lua_settable(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
+	lua_rawset(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
 
 	/* Register the garbage collector entry. */
 	lua_pushstring(gL.T, "__gc");
 	lua_pushcclosure(gL.T, hlua_socket_gc, 0);
-	lua_settable(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
+	lua_rawset(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
