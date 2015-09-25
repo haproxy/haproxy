@@ -8841,6 +8841,26 @@ struct http_txn *http_alloc_txn(struct stream *s)
 	return txn;
 }
 
+void http_txn_reset_req(struct http_txn *txn)
+{
+	txn->req.flags = 0;
+	txn->req.sol = txn->req.eol = txn->req.eoh = 0; /* relative to the buffer */
+	txn->req.next = 0;
+	txn->req.chunk_len = 0LL;
+	txn->req.body_len = 0LL;
+	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+}
+
+void http_txn_reset_res(struct http_txn *txn)
+{
+	txn->rsp.flags = 0;
+	txn->rsp.sol = txn->rsp.eol = txn->rsp.eoh = 0; /* relative to the buffer */
+	txn->rsp.next = 0;
+	txn->rsp.chunk_len = 0LL;
+	txn->rsp.body_len = 0LL;
+	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+}
+
 /*
  * Initialize a new HTTP transaction for stream <s>. It is assumed that all
  * the required fields are properly allocated and that we only need to (re)init
@@ -8861,18 +8881,9 @@ void http_init_txn(struct stream *s)
 	txn->cli_cookie = NULL;
 	txn->uri = NULL;
 
-	txn->req.flags = 0;
-	txn->req.sol = txn->req.eol = txn->req.eoh = 0; /* relative to the buffer */
-	txn->req.next = 0;
-	txn->rsp.flags = 0;
-	txn->rsp.sol = txn->rsp.eol = txn->rsp.eoh = 0; /* relative to the buffer */
-	txn->rsp.next = 0;
-	txn->req.chunk_len = 0LL;
-	txn->req.body_len = 0LL;
-	txn->rsp.chunk_len = 0LL;
-	txn->rsp.body_len = 0LL;
-	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
-	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+	http_txn_reset_req(txn);
+	http_txn_reset_res(txn);
+
 	txn->req.chn = &s->req;
 	txn->rsp.chn = &s->res;
 
