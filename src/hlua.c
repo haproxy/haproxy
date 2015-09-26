@@ -2192,6 +2192,9 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 
+	/* needed for the connection not to be closed */
+	conn->target = socket->s->target;
+
 	/* Parse ip address. */
 	conn->addr.to.ss_family = AF_UNSPEC;
 	if (!str2ip2(ip, &conn->addr.to, 0))
