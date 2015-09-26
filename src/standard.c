@@ -760,10 +760,12 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  *     that the caller will have to free(),
  *   - NULL if there was an explicit address that doesn't require resolution.
  *
+ * Hostnames are only resolved if <resolve> is non-null.
+ *
  * When a file descriptor is passed, its value is put into the s_addr part of
  * the address when cast to sockaddr_in and the address family is AF_UNSPEC.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn)
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
 {
 	static struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -862,7 +864,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 
 		if (str2ip2(str2, &ss, 0) == NULL) {
 			use_fqdn = 1;
-			if (str2ip(str2, &ss) == NULL) {
+			if (!resolve || str2ip2(str2, &ss, 1) == NULL) {
 				memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
 				goto out;
 			}

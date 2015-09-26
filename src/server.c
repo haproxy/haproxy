@@ -907,7 +907,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, &fqdn);
+			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, &fqdn, 1);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1174,7 +1174,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				int port1, port2;
 				struct protocol *proto;
 
-				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL, NULL, 1);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s' : %s\n",
 					      file, linenum, args[cur_arg], errmsg);
@@ -1383,7 +1383,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 
 				newsrv->conn_src.opts |= CO_SRC_BIND;
-				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, &errmsg, NULL, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, &errmsg, NULL, NULL, 1);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s %s' : %s\n",
 					      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
@@ -1483,7 +1483,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 							struct sockaddr_storage *sk;
 							int port1, port2;
 
-							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL, NULL);
+							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL, NULL, 1);
 							if (!sk) {
 								Alert("parsing [%s:%d] : '%s %s' : %s\n",
 								      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);

@@ -275,9 +275,10 @@ extern const char *invalid_domainchar(const char *name);
  * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
  * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
  * If <pfx> is non-null, it is used as a string prefix before any path-based
- * address (typically the path to a unix socket).
+ * address (typically the path to a unix socket). If use_dns is not true,
+ * the funtion cannot accept the DNS resolution.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn);
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn, int use_dns);
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
