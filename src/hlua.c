@@ -1582,11 +1582,11 @@ static void hlua_socket_handler(struct appctx *appctx)
 	appctx->ctx.hlua.connected = 1;
 
 	/* Wake the tasks which wants to write if the buffer have avalaible space. */
-	if (channel_may_recv(si_oc(si)))
+	if (channel_may_recv(si_ic(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
 
 	/* Wake the tasks which wants to read if the buffer contains data. */
-	if (channel_is_empty(si_ic(si)))
+	if (!channel_is_empty(si_oc(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 }
 
