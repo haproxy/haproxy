@@ -2403,15 +2403,22 @@ static int hlua_check_proto(struct stream *stream, int dir)
 {
 	const struct chunk msg = { .len = 0 };
 
-	/* Protocol HTTP. The message parsing state must be in accord
-	 * with the request or response state.
+	/* Protocol HTTP. The message parsing state must match the request or
+	 * response state. The problem that may happen is that Lua modifies
+	 * the request or response message *after* it was parsed, and corrupted
+	 * it so that it could not be processed anymore. We just need to verify
+	 * if the parser is still expected to run or not.
 	 */
 	if (stream->be->mode == PR_MODE_HTTP) {
-		if (dir == 0 && stream->txn->req.msg_state < HTTP_MSG_BODY) {
+		if (dir == 0 &&
+		    !(stream->req.analysers & AN_REQ_WAIT_HTTP) &&
+		    stream->txn->req.msg_state < HTTP_MSG_BODY) {
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
-		else if (dir == 1 && stream->txn->rsp.msg_state < HTTP_MSG_BODY) {
+		else if (dir == 1 &&
+		         !(stream->res.analysers & AN_RES_WAIT_HTTP) &&
+		         stream->txn->rsp.msg_state < HTTP_MSG_BODY) {
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
