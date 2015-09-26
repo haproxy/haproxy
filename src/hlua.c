@@ -2234,12 +2234,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		}
 	}
 
-	/* it is important not to call the wakeup function directly but to
-	 * pass through task_wakeup(), because this one knows how to apply
-	 * priorities to tasks.
-	 */
-	task_wakeup(socket->s->task, TASK_WOKEN_INIT);
-
 	hlua = hlua_gethlua(L);
 	appctx = objt_appctx(socket->s->si[0].end);
 
@@ -2248,6 +2242,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 */
 	si_applet_cant_get(&socket->s->si[0]);
 	si_applet_cant_put(&socket->s->si[0]);
+	appctx_wakeup(appctx);
 
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
