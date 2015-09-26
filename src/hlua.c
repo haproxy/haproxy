@@ -2189,18 +2189,22 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 __LJMP static int hlua_socket_connect(struct lua_State *L)
 {
 	struct hlua_socket *socket;
-	int port;
+	int port = -1;
 	const char *ip;
 	struct connection *conn;
 	struct hlua *hlua;
 	struct appctx *appctx;
+	int low, high;
+	struct sockaddr_storage *addr;
 
-	MAY_LJMP(check_args(L, 3, "connect"));
+	if (lua_gettop(L) < 2)
+		WILL_LJMP(luaL_error(L, "connect: need at least 2 arguments"));
 
 	/* Get args. */
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
-	port    = MAY_LJMP(luaL_checkinteger(L, 3));
+	if (lua_gettop(L) >= 3)
+		port = MAY_LJMP(luaL_checkinteger(L, 3));
 
 	conn = si_alloc_conn(&socket->s->si[1]);
 	if (!conn)
@@ -2210,15 +2214,25 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	conn->target = socket->s->target;
 
 	/* Parse ip address. */
-	conn->addr.to.ss_family = AF_UNSPEC;
-	if (!str2ip2(ip, &conn->addr.to, 0))
-		WILL_LJMP(luaL_error(L, "connect: cannot parse ip address '%s'", ip));
+	addr = str2sa_range(ip, &low, &high, NULL, NULL, NULL, 0);
+	if (!addr)
+		WILL_LJMP(luaL_error(L, "connect: cannot parse destination address '%s'", ip));
+	if (low != high)
+		WILL_LJMP(luaL_error(L, "connect: port ranges not supported : address '%s'", ip));
+	memcpy(&conn->addr.to, addr, sizeof(struct sockaddr_storage));
 
 	/* Set port. */
-	if (conn->addr.to.ss_family == AF_INET)
-		((struct sockaddr_in *)&conn->addr.to)->sin_port = htons(port);
-	else if (conn->addr.to.ss_family == AF_INET6)
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = htons(port);
+	if (low == 0) {
+		if (conn->addr.to.ss_family == AF_INET) {
+			if (port == -1)
+				WILL_LJMP(luaL_error(L, "connect: port missing"));
+			((struct sockaddr_in *)&conn->addr.to)->sin_port = htons(port);
+		} else if (conn->addr.to.ss_family == AF_INET6) {
+			if (port == -1)
+				WILL_LJMP(luaL_error(L, "connect: port missing"));
+			((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = htons(port);
+		}
+	}
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
