@@ -307,6 +307,8 @@ static inline void stream_offer_buffers()
 		__stream_offer_buffers(avail);
 }
 
+void service_keywords_register(struct action_kw_list *kw_list);
+
 #endif /* _PROTO_STREAM_H */
 
 /*

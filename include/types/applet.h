@@ -53,6 +53,7 @@ struct appctx {
 	unsigned int st2;          /* output state for stats, unused by peers  */
 	struct applet *applet;     /* applet this context refers to */
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
+	struct act_rule *rule;     /* rule associated with the applet. */
 
 	union {
 		struct {

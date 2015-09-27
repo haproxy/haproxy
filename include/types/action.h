@@ -24,6 +24,7 @@
 
 #include <common/regex.h>
 
+#include <types/applet.h>
 #include <types/stick_table.h>
 
 enum act_from {
@@ -101,6 +102,7 @@ struct act_rule {
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
 	                              struct session *sess, struct stream *s, int flags);
 	struct action_kw *kw;
+	struct applet applet;                  /* used for the applet registration. */
 	union {
 		struct {
 			char *realm;

@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/buffer.h>
 #include <common/debug.h>
@@ -24,6 +25,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/action.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
@@ -57,6 +59,9 @@ struct list streams;
 
 /* list of streams waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
+
+/* List of all use-service keywords. */
+static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 
 /* This function is called from the session handler which detects the end of
  * handshake, in order to complete initialization of a valid stream. It must be
@@ -1027,6 +1032,61 @@ static void sess_prepare_conn_req(struct stream *s)
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	si->state = SI_ST_ASS;
 	be_set_sess_last(s->be);
+}
+
+/* This function parses the use-service action ruleset. It executes
+ * the associated ACL and set an applet as a stream or txn final node.
+ * it returns ACT_RET_ERR if an error occurs, the proxy left in
+ * consistent state. It returns ACT_RET_STOP in succes case because
+ * use-service must be a terminal action. Returns ACT_RET_YIELD
+ * if the initialisation function require more data.
+ */
+enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
+                                    struct session *sess, struct stream *s, int flags)
+
+{
+	struct appctx *appctx;
+
+	/* Initialises the applet if it is required. */
+	if (flags & ACT_FLAG_FIRST) {
+		/* Register applet. this function schedules the applet. */
+		s->target = &rule->applet.obj_type;
+		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target))))
+			return ACT_RET_ERR;
+
+		/* Initialise the context. */
+		appctx = si_appctx(&s->si[1]);
+		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
+		appctx->rule = rule;
+	}
+	else
+		appctx = si_appctx(&s->si[1]);
+
+	/* Stops the applet sheduling, in case of the init function miss
+	 * some data.
+	 */
+	appctx_pause(appctx);
+	si_applet_stop_get(&s->si[1]);
+
+	/* Call initialisation. */
+	if (rule->applet.init)
+		switch (rule->applet.init(appctx, px, s)) {
+		case 0: return ACT_RET_ERR;
+		case 1: break;
+		default: return ACT_RET_YIELD;
+	}
+
+	/* Now we can schedule the applet. */
+	si_applet_cant_get(&s->si[1]);
+	appctx_wakeup(appctx);
+
+	if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+		sess->fe->fe_counters.intercepted_req++;
+
+	/* The flag SF_ASSIGNED prevent from server assignment. */
+	s->flags |= SF_ASSIGNED;
+
+	return ACT_RET_STOP;
 }
 
 /* This stream analyser checks the switching rules and changes the backend
@@ -3248,6 +3308,55 @@ smp_fetch_table_avl(const struct arg *args, struct sample *smp, const char *kw, 
 	return 1;
 }
 
+/* 0=OK, <0=Alert, >0=Warning */
+static enum act_parse_ret stream_parse_use_service(const char **args, int *cur_arg,
+                                                   struct proxy *px, struct act_rule *rule,
+                                                   char **err)
+{
+	struct action_kw *kw;
+
+	/* Check if the service name exists. */
+	if (*(args[*cur_arg]) == 0) {
+		memprintf(err, "'%s' expects a service name.", args[0]);
+		return -1;
+	}
+
+	/* lookup for keyword corresponding to a service. */
+	kw = action_lookup(&service_keywords, args[*cur_arg]);
+	if (!kw) {
+		memprintf(err, "'%s' unknown service name.", args[1]);
+		return ACT_RET_PRS_ERR;
+	}
+	(*cur_arg)++;
+
+	/* executes specific rule parser. */
+	rule->kw = kw;
+	if (kw->parse((const char **)args, cur_arg, px, rule, err) == ACT_RET_PRS_ERR)
+		return ACT_RET_PRS_ERR;
+
+	/* Register processing function. */
+	rule->action_ptr = process_use_service;
+	rule->action = ACT_CUSTOM;
+
+	return ACT_RET_PRS_OK;
+}
+
+void service_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_ADDQ(&service_keywords, &kw_list->list);
+}
+
+/* main configuration keyword registration. */
+static struct action_kw_list stream_tcp_keywords = { ILH, {
+	{ "use-service", stream_parse_use_service },
+	{ /* END */ }
+}};
+
+static struct action_kw_list stream_http_keywords = { ILH, {
+	{ "use-service", stream_parse_use_service },
+	{ /* END */ }
+}};
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -3368,6 +3477,8 @@ static void __stream_init(void)
 {
 	sample_register_fetches(&smp_fetch_keywords);
 	acl_register_keywords(&acl_kws);
+	tcp_req_cont_keywords_register(&stream_tcp_keywords);
+	http_req_keywords_register(&stream_http_keywords);
 }
 
 /*
