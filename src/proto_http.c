@@ -3497,6 +3497,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
 	const char *auth_realm;
+	int final;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -3709,7 +3710,11 @@ resume_execution:
 			}
 
 		case ACT_CUSTOM:
-			switch (rule->action_ptr(rule, px, s->sess, s, 0)) {
+			final = 0;
+			if (px->options & PR_O_ABRT_CLOSE)
+				final = (s->req.flags & (CF_SHUTR|CF_READ_NULL|CF_READ_ERROR));
+
+			switch (rule->action_ptr(rule, px, s->sess, s, final)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
@@ -3804,6 +3809,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	struct connection *cli_conn;
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
+	int final;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -3991,7 +3997,11 @@ resume_execution:
 			return HTTP_RULE_RES_DONE;
 
 		case ACT_CUSTOM:
-			switch (rule->action_ptr(rule, px, s->sess, s, 0)) {
+			final = 0;
+			if (px->options & PR_O_ABRT_CLOSE)
+				final = (s->req.flags & (CF_SHUTR|CF_READ_NULL|CF_READ_ERROR));
+
+			switch (rule->action_ptr(rule, px, s->sess, s, final)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
