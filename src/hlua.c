@@ -1034,8 +1034,6 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	int ret;
 	const char *msg;
 
-	HLUA_SET_RUN(lua);
-
 	/* If we want to resume the task, then check first the execution timeout.
 	 * if it is reached, we can interrupt the Lua processing.
 	 */
@@ -1050,7 +1048,10 @@ resume_execution:
 	lua_sethook(lua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
 
 	/* Remove all flags except the running flags. */
-	lua->flags = HLUA_RUN;
+	HLUA_SET_RUN(lua);
+	HLUA_CLR_CTRLYIELD(lua);
+	HLUA_CLR_WAKERESWR(lua);
+	HLUA_CLR_WAKEREQWR(lua);
 
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
