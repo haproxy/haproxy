@@ -923,9 +923,8 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * NOTE: maybe this action locks all the Lua threads untiml the en of
 	 * the garbage collection.
 	 */
-	if (lua_status(lua->T) == LUA_OK)
-		lua_gc(lua->T, LUA_GCCOLLECT, 0);
-	else
+	lua_gc(lua->T, LUA_GCCOLLECT, 0);
+	if (lua_status(lua->T) != LUA_OK)
 		lua_gc(gL.T, LUA_GCCOLLECT, 0);
 
 	lua->T = NULL;
@@ -1165,6 +1164,10 @@ timeout_reached:
 		ret = HLUA_E_ERRMSG;
 		break;
 	}
+
+	/* This GC permits to destroy some object when a Lua timeout strikes. */
+	if (ret != HLUA_E_AGAIN)
+		lua_gc(lua->T, LUA_GCCOLLECT, 0);
 
 	switch (ret) {
 	case HLUA_E_AGAIN:
