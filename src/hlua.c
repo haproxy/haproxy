@@ -923,9 +923,11 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * NOTE: maybe this action locks all the Lua threads untiml the en of
 	 * the garbage collection.
 	 */
-	lua_gc(lua->T, LUA_GCCOLLECT, 0);
-	if (lua_status(lua->T) != LUA_OK)
-		lua_gc(gL.T, LUA_GCCOLLECT, 0);
+	if (lua->flags & HLUA_MUST_GC) {
+		lua_gc(lua->T, LUA_GCCOLLECT, 0);
+		if (lua_status(lua->T) != LUA_OK)
+			lua_gc(gL.T, LUA_GCCOLLECT, 0);
+	}
 
 	lua->T = NULL;
 }
@@ -1166,7 +1168,8 @@ timeout_reached:
 	}
 
 	/* This GC permits to destroy some object when a Lua timeout strikes. */
-	if (ret != HLUA_E_AGAIN)
+	if (lua->flags & HLUA_MUST_GC &&
+	    ret != HLUA_E_AGAIN)
 		lua_gc(lua->T, LUA_GCCOLLECT, 0);
 
 	switch (ret) {
@@ -2252,6 +2255,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	si_applet_cant_get(&socket->s->si[0]);
 	si_applet_cant_put(&socket->s->si[0]);
 	appctx_wakeup(appctx);
+
+	hlua->flags |= HLUA_MUST_GC;
 
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
