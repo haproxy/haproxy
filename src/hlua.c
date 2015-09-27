@@ -4549,7 +4549,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(&s->hlua, 1)) {
+	switch (hlua_ctx_resume(&s->hlua, !(flags & ACT_FLAG_FINAL))) {
 	/* finished. */
 	case HLUA_E_OK:
 		if (!hlua_check_proto(s, dir))
