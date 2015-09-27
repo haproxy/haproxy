@@ -49,6 +49,7 @@ enum act_parse_ret {
 /* flags passed to custom actions */
 enum act_flag {
 	ACT_FLAG_NONE  = 0x00000000,  /* no flag */
+	ACT_FLAG_FINAL = 0x00000001,  /* last call, cannot yield */
 };
 
 enum act_name {
