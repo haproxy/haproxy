@@ -6359,8 +6359,8 @@ stats_error_parsing:
 		}
 
 		if (rc >= HTTP_ERR_SIZE) {
-			Warning("parsing [%s:%d] : status code %d not handled, error relocation will be ignored.\n",
-				file, linenum, errnum);
+			Warning("parsing [%s:%d] : status code %d not handled by '%s', error relocation will be ignored.\n",
+				file, linenum, errnum, args[0]);
 			free(err);
 		}
 	}
@@ -6419,8 +6419,8 @@ stats_error_parsing:
 		}
 
 		if (rc >= HTTP_ERR_SIZE) {
-			Warning("parsing [%s:%d] : status code %d not handled, error customization will be ignored.\n",
-				file, linenum, errnum);
+			Warning("parsing [%s:%d] : status code %d not handled by '%s', error customization will be ignored.\n",
+				file, linenum, errnum, args[0]);
 			err_code |= ERR_WARN;
 			free(err);
 		}
