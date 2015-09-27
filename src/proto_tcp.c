@@ -1038,6 +1038,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	struct stksess *ts;
 	struct stktable *t;
 	int partial;
+	int act_flags = 0;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1091,6 +1092,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		if (ret) {
+			act_flags |= ACT_FLAG_FIRST;
 resume_execution:
 			/* we have a matching rule. */
 			if (rule->action == ACT_ACTION_ALLOW) {
@@ -1166,7 +1168,10 @@ resume_execution:
 				if (!rule->action_ptr)
 					continue;
 
-				switch (rule->action_ptr(rule, s->be, s->sess, s, (partial & SMP_OPT_FINAL) ? ACT_FLAG_FINAL : 0)) {
+				if (partial & SMP_OPT_FINAL)
+					act_flags |= ACT_FLAG_FINAL;
+
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
 				case ACT_RET_ERR:
 				case ACT_RET_CONT:
 					continue;
@@ -1208,6 +1213,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	struct session *sess = s->sess;
 	struct act_rule *rule;
 	int partial;
+	int act_flags = 0;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1264,6 +1270,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		if (ret) {
+			act_flags |= ACT_FLAG_FIRST;
 resume_execution:
 			/* we have a matching rule. */
 			if (rule->action == ACT_ACTION_ALLOW) {
@@ -1295,7 +1302,11 @@ resume_execution:
 				/* Custom keywords. */
 				if (!rule->action_ptr)
 					continue;
-				switch (rule->action_ptr(rule, s->be, s->sess, s, (partial & SMP_OPT_FINAL) ? ACT_FLAG_FINAL : 0)) {
+
+				if (partial & SMP_OPT_FINAL)
+					act_flags |= ACT_FLAG_FINAL;
+
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
 				case ACT_RET_ERR:
 				case ACT_RET_CONT:
 					continue;
@@ -1383,7 +1394,7 @@ int tcp_exec_req_rules(struct session *sess)
 				/* Custom keywords. */
 				if (rule->action_ptr)
 					break;
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL)) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
 				case ACT_RET_YIELD:
 					/* yield is not allowed at this point. If this return code is
 					 * used it is a bug, so I prefer to abort the process.

@@ -50,6 +50,7 @@ enum act_parse_ret {
 enum act_flag {
 	ACT_FLAG_NONE  = 0x00000000,  /* no flag */
 	ACT_FLAG_FINAL = 0x00000001,  /* last call, cannot yield */
+	ACT_FLAG_FIRST = 0x00000002,  /* first call for this action */
 };
 
 enum act_name {
