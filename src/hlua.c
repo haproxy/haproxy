@@ -1555,12 +1555,10 @@ static void hlua_socket_handler(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct connection *c = objt_conn(si_opposite(si)->end);
 
-	/* Wakeup the main stream if the client connection is closed. */
-	if (!c || channel_output_closed(si_ic(si)) || channel_input_closed(si_oc(si))) {
-		if (appctx->ctx.hlua.socket) {
-			appctx->ctx.hlua.socket->s = NULL;
-			appctx->ctx.hlua.socket = NULL;
-		}
+	/* If the connection object is not avalaible, close all the
+	 * streams and wakeup everithing waiting for.
+	 */
+	if (!c) {
 		si_shutw(si);
 		si_shutr(si);
 		si_ic(si)->flags |= CF_READ_NULL;
@@ -1568,6 +1566,14 @@ static void hlua_socket_handler(struct appctx *appctx)
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
 		return;
 	}
+
+	/* If we cant write, wakeup the pending write signals. */
+	if (channel_output_closed(si_ic(si)))
+		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
+
+	/* If we cant read, wakeup the pending read signals. */
+	if (channel_input_closed(si_oc(si)))
+		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 
 	/* if the connection is not estabkished, inform the stream that we want
 	 * to be notified whenever the connection completes.
