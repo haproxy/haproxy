@@ -1165,7 +1165,7 @@ resume_execution:
 				/* Custom keywords. */
 				if (!rule->action_ptr)
 					continue;
-				switch (rule->action_ptr(rule, s->be, s->sess, s)) {
+				switch (rule->action_ptr(rule, s->be, s->sess, s, 0)) {
 				case ACT_RET_ERR:
 				case ACT_RET_CONT:
 					continue;
@@ -1294,7 +1294,7 @@ resume_execution:
 				/* Custom keywords. */
 				if (!rule->action_ptr)
 					continue;
-				switch (rule->action_ptr(rule, s->be, s->sess, s)) {
+				switch (rule->action_ptr(rule, s->be, s->sess, s, 0)) {
 				case ACT_RET_ERR:
 				case ACT_RET_CONT:
 					continue;
@@ -1382,7 +1382,7 @@ int tcp_exec_req_rules(struct session *sess)
 				/* Custom keywords. */
 				if (rule->action_ptr)
 					break;
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL)) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, 0)) {
 				case ACT_RET_YIELD:
 					/* yield is not allowed at this point. If this return code is
 					 * used it is a bug, so I prefer to abort the process.

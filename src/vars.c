@@ -481,7 +481,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struc
 
 /* Always returns ACT_RET_CONT even if an error occurs. */
 static enum act_return action_store(struct act_rule *rule, struct proxy *px,
-                                    struct session *sess, struct stream *s)
+                                    struct session *sess, struct stream *s, int flags)
 {
 	struct sample smp;
 	int dir;

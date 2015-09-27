@@ -1313,7 +1313,7 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 
 /* Always returns 1. */
 static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
-                                       struct session *sess, struct stream *s)
+                                       struct session *sess, struct stream *s, int flags)
 {
 	void *ptr;
 	struct stksess *ts;
@@ -1382,7 +1382,7 @@ static enum act_parse_ret parse_inc_gpc0(const char **args, int *arg, struct pro
 
 /* Always returns 1. */
 static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
-                                       struct session *sess, struct stream *s)
+                                       struct session *sess, struct stream *s, int flags)
 {
 	void *ptr;
 	struct stksess *ts;

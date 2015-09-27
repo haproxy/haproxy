@@ -4469,7 +4469,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
  * because the LUA returns a yield.
  */
 static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
-                                   struct session *sess, struct stream *s)
+                                   struct session *sess, struct stream *s, int flags)
 {
 	char **arg;
 	unsigned int analyzer;

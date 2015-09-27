@@ -3709,7 +3709,7 @@ resume_execution:
 			}
 
 		case ACT_CUSTOM:
-			switch (rule->action_ptr(rule, px, s->sess, s)) {
+			switch (rule->action_ptr(rule, px, s->sess, s, 0)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
@@ -3991,7 +3991,7 @@ resume_execution:
 			return HTTP_RULE_RES_DONE;
 
 		case ACT_CUSTOM:
-			switch (rule->action_ptr(rule, px, s->sess, s)) {
+			switch (rule->action_ptr(rule, px, s->sess, s, 0)) {
 			case ACT_RET_ERR:
 			case ACT_RET_CONT:
 				break;
@@ -12382,7 +12382,7 @@ void http_set_status(unsigned int status, struct stream *s)
  * occurs the action is canceled, but the rule processing continue.
  */
 enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
-                                         struct session *sess, struct stream *s)
+                                         struct session *sess, struct stream *s, int flags)
 {
 	chunk_reset(&trash);
 
@@ -12397,7 +12397,7 @@ enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px
 
 /* This function is just a compliant action wrapper for "set-status". */
 enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
-                                       struct session *sess, struct stream *s)
+                                       struct session *sess, struct stream *s, int flags)
 {
 	http_set_status(rule->arg.status.code, s);
 	return ACT_RET_CONT;
@@ -12495,7 +12495,7 @@ enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struc
  * processing continues.
  */
 enum act_return http_action_req_capture(struct act_rule *rule, struct proxy *px,
-                                        struct session *sess, struct stream *s)
+                                        struct session *sess, struct stream *s, int flags)
 {
 	struct sample *key;
 	struct cap_hdr *h = rule->arg.cap.hdr;
@@ -12527,7 +12527,7 @@ enum act_return http_action_req_capture(struct act_rule *rule, struct proxy *px,
  * error occurs the action is cancelled, but the rule processing continues.
  */
 enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                              struct session *sess, struct stream *s)
+                                              struct session *sess, struct stream *s, int flags)
 {
 	struct sample *key;
 	struct cap_hdr *h;
@@ -12695,7 +12695,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
  * error occurs the action is cancelled, but the rule processing continues.
  */
 enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                              struct session *sess, struct stream *s)
+                                              struct session *sess, struct stream *s, int flags)
 {
 	struct sample *key;
 	struct cap_hdr *h;
