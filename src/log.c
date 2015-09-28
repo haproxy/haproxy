@@ -922,7 +922,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	struct list *logsrvs = NULL;
 	struct logsrv *tmp = NULL;
 	int nblogger;
-	char *log_ptr;
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
 	struct chunk *htp;
@@ -954,8 +953,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		int hdr_max = 0;
 		int htp_max = 0;
 		int sd_max = 0;
-		int max = 1;
-		char backup;
+		int max = 0;
 
 		nblogger++;
 
@@ -1014,8 +1012,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		} while (fac_level && hdr_ptr > hdr);
 		*hdr_ptr = '<';
 
-		log_ptr = dataptr;
-
 		hdr_max = hdr_size - (hdr_ptr - hdr);
 
 		if (unlikely(hdr_size >= logsrv->maxlen)) {
@@ -1040,16 +1036,8 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			goto send;
 		}
 
-		max = MIN(size, maxlen - sd_max);
-		log_ptr += max - 1;
+		max = MIN(size, maxlen - sd_max) - 1;
 send:
-		/* insert a \n at the end of the message, but save what was
-		 * there first because we could have different max lengths
-		 * for different log targets.
-		 */
-		backup = *log_ptr;
-		*log_ptr = '\n';
-
 		iovec[0].iov_base = hdr_ptr;
 		iovec[0].iov_len = hdr_max;
 		iovec[1].iov_base = htp->str;
@@ -1058,13 +1046,13 @@ send:
 		iovec[2].iov_len = sd_max;
 		iovec[3].iov_base = dataptr;
 		iovec[3].iov_len = max;
+		iovec[4].iov_base = "\n"; /* insert a \n at the end of the message */
+		iovec[4].iov_len = 1;
 
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
-
-		*log_ptr = backup;
 
 		if (sent < 0) {
 			Alert("sendmsg logger #%d failed: %s (errno=%d)\n",

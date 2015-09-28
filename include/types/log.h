@@ -30,7 +30,7 @@
 
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8
-#define NB_MSG_IOVEC_ELEMENTS   4
+#define NB_MSG_IOVEC_ELEMENTS   5
 #define SYSLOG_PORT             514
 #define UNIQUEID_LEN            128
 
