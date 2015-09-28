@@ -1858,6 +1858,12 @@ int main(int argc, char **argv)
 
 			stop_proxy(curpeers->peers_fe);
 			/* disable this peer section so that it kills itself */
+			signal_unregister_handler(curpeers->sighandler);
+			task_delete(curpeers->sync_task);
+			task_free(curpeers->sync_task);
+			curpeers->sync_task = NULL;
+			task_free(curpeers->peers_fe->task);
+			curpeers->peers_fe->task = NULL;
 			curpeers->peers_fe = NULL;
 		}
 
