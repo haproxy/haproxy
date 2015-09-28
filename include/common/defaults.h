@@ -28,8 +28,8 @@
  * when reading HTTP headers, the proxy needs some spare space to add or rewrite
  * headers if needed. The size of this spare is defined with MAXREWRITE. So it
  * is not possible to process headers longer than BUFSIZE-MAXREWRITE bytes. By
- * default, BUFSIZE=16384 bytes and MAXREWRITE=BUFSIZE/2, so the maximum length
- * of headers accepted is 8192 bytes, which is in line with Apache's limits.
+ * default, BUFSIZE=16384 bytes and MAXREWRITE=min(1024,BUFSIZE/2), so the
+ * maximum length of headers accepted is 15360 bytes.
  */
 #ifndef BUFSIZE
 #define BUFSIZE	        16384
@@ -51,7 +51,7 @@
 
 // reserved buffer space for header rewriting
 #ifndef MAXREWRITE
-#define MAXREWRITE      (BUFSIZE / 2)
+#define MAXREWRITE      1024
 #endif
 
 #ifndef REQURI_LEN

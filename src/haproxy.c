@@ -150,7 +150,7 @@ struct global global = {
 	},
 	.tune = {
 		.bufsize = BUFSIZE,
-		.maxrewrite = MAXREWRITE,
+		.maxrewrite = -1,
 		.chksize = BUFSIZE,
 		.reserved_bufs = RESERVED_BUFS,
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
@@ -1017,6 +1017,9 @@ void init(int argc, char **argv)
 
 	if (global.tune.recv_enough == 0)
 		global.tune.recv_enough = MIN_RECV_AT_ONCE_ENOUGH;
+
+	if (global.tune.maxrewrite < 0)
+		global.tune.maxrewrite = MAXREWRITE;
 
 	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 		global.tune.maxrewrite = global.tune.bufsize / 2;
