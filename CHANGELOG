@@ -1,6 +1,141 @@
 ChangeLog :
 ===========
 
+2015/09/28 : 1.6-dev6
+    - BUG/MAJOR: can't enable a server through the stat socket
+    - MINOR: server: Macro definition for server-state
+    - MINOR: cli: new stats socket command: show servers state
+    - DOC: stats socket command: show servers state
+    - MINOR: config: new global directive server-state-base
+    - DOC: global directive server-state-base
+    - MINOR: config: new global section directive: server-state-file
+    - DOC: new global directive: server-state-file
+    - MINOR: config: new backend directives: load-server-state-from-file and server-state-file-name
+    - DOC: load-server-state-from-file
+    - MINOR: init: server state loaded from file
+    - MINOR: server: startup slowstart task when using seamless reload of HAProxy
+    - MINOR: cli: new stats socket command: show backend
+    - DOC: servers state seamless reload example
+    - BUG: dns: can't connect UDP socket on FreeBSD
+    - MINOR: cfgparse: New function cfg_unregister_sections()
+    - MINOR: chunk: New function free_trash_buffers()
+    - BUG/MEDIUM: main: Freeing a bunch of static pointers
+    - MINOR: proto_http: Externalisation of previously internal functions
+    - MINOR: global: Few new struct fields for da module
+    - MAJOR: da: Update of the DeviceAtlas API module
+    - DOC: DeviceAtlas new keywords
+    - DOC: README: DeviceAtlas sample configuration updates
+    - MEDIUM: log: replace sendto() with sendmsg() in __send_log()
+    - MEDIUM: log: use a separate buffer for the header and for the message
+    - MEDIUM: logs: remove the hostname, tag and pid part from the logheader
+    - MEDIUM: logs: add support for RFC5424 header format per logger
+    - MEDIUM: logs: add a new RFC5424 log-format for the structured-data
+    - DOC: mention support for the RFC5424 syslog message format
+    - MEDIUM: logs: have global.log_send_hostname not contain the trailing space
+    - MEDIUM: logs: pass the trailing "\n" as an iovec
+    - BUG/MEDIUM: peers: some table updates are randomly not pushed.
+    - BUG/MEDIUM: peers: same table updates re-pushed after a re-connect
+    - BUG/MINOR: fct peer_prepare_ackmsg should not use trash.
+    - MINOR: http: made CHECK_HTTP_MESSAGE_FIRST accessible to other functions
+    - MINOR: global: Added new fields for 51Degrees device detection
+    - DOC: Added more explanation for 51Degrees V3.2
+    - BUILD: Changed 51Degrees option to support V3.2
+    - MAJOR: 51d: Upgraded to support 51Degrees V3.2 and new features
+    - MINOR: 51d: Improved string handling for LRU cache
+    - DOC: add references to rise/fall for the fastinter explanation
+    - MINOR: support cpu-map feature through the compile option USE_CPU_AFFINITY on FreeBSD
+    - BUG/MAJOR: lua: potential unexpected aborts()
+    - BUG/MINOR: lua: breaks the log message if his size exceed one buffer
+    - MINOR: action: add private configuration
+    - MINOR: action: add reference to the original keywork matched for the called parser.
+    - MINOR: lua: change actions registration
+    - MEDIUM: proto_http: smp_prefetch_http initialize txn
+    - MINOR: channel: rename function chn_sess to chn_strm
+    - CLEANUP: lua: align defines
+    - MINOR: http: export http_get_path() function
+    - MINOR: http: export the get_reason() function
+    - MINOR: http: export function http_msg_analyzer()
+    - MINOR: http: split initialization
+    - MINOR: lua: reset pointer after use
+    - MINOR: lua: identify userdata objects
+    - MEDIUM: lua: use the function lua_rawset in place of lua_settable
+    - BUG/MAJOR: lua: segfault after the channel data is modified by some Lua action.
+    - CLEANUP: lua: use calloc in place of malloc
+    - BUG/MEDIUM: lua: longjmp function must be unregistered
+    - BUG/MEDIUM: lua: forces a garbage collection
+    - BUG/MEDIUM: lua: wakeup task on bad conditions
+    - MINOR: standard: avoid DNS resolution from the function str2sa_range()
+    - MINOR: lua: extend socket address to support non-IP families
+    - MINOR: lua/applet: the cosocket applet should use appctx_wakeup in place of task_wakeup
+    - BUG/MEDIUM: lua: socket destroy before reading pending data
+    - MEDIUM: lua: change the GC policy
+    - OPTIM/MEDIUM: lua: executes the garbage collector only when using cosocket
+    - BUG/MEDIUM: lua: don't reset undesired flags in hlua_ctx_resume
+    - MINOR: applet: add init function
+    - MINOR: applet: add an execution timeout
+    - MINOR: stream/applet: add use-service action
+    - MINOR: lua: add AppletTCP class and service
+    - MINOR: lua: add AppletHTTP class and service
+    - DOC: lua: some documentation update
+    - DOC: add the documentation about internal circular lists
+    - DOC: add a CONTRIBUTING file
+    - DOC: add a MAINTAINERS file
+    - BUG/MAJOR: peers: fix a crash when stopping peers on unbound processes
+    - DOC: update coding-style to reference checkpatch.pl
+    - BUG/MEDIUM: stick-tables: fix double-decrement of tracked entries
+    - BUG/MINOR: args: add name for ARGT_VAR
+    - DOC: add more entries to MAINTAINERS
+    - DOC: add more entries to MAINTAINERS
+    - CLEANUP: stream-int: remove obsolete function si_applet_call()
+    - BUG/MAJOR: cli: do not dereference strm_li()->proto->name
+    - BUG/MEDIUM: http: do not dereference strm_li(stream)
+    - BUG/MEDIUM: proxy: do not dereference strm_li(stream)
+    - BUG/MEDIUM: stream: do not dereference strm_li(stream)
+    - MINOR: stream-int: use si_release_endpoint() to close idle conns
+    - BUG/MEDIUM: payload: make req.payload and payload_lv aware of dynamic buffers
+    - BUG/MEDIUM: acl: always accept match "found"
+    - MINOR: applet: rename applet_runq to applet_active_queue
+    - BUG/MAJOR: applet: use a separate run queue to maintain list integrity
+    - MEDIUM: stream-int: split stream_int_update_conn() into si- and conn-specific parts
+    - MINOR: stream-int: implement a new stream_int_update() function
+    - MEDIUM: stream-int: factor out the stream update functions
+    - MEDIUM: stream-int: call stream_int_update() from si_update()
+    - MINOR: stream-int: export stream_int_update_*
+    - MINOR: stream-int: move the applet_pause call out of the stream updates
+    - MEDIUM: stream-int: clean up the conditions to enable reading in si_conn_wake_cb
+    - MINOR: stream-int: implement the stream_int_notify() function
+    - MEDIUM: stream-int: use the same stream notification function for applets and conns
+    - MEDIUM: stream-int: completely remove stream_int_update_embedded()
+    - MINOR: stream-int: rename si_applet_done() to si_applet_wake_cb()
+    - BUG/MEDIUM: applet: fix reporting of broken write situation
+    - BUG/MINOR: stats: do not call cli_release_handler 3 times
+    - BUG/MEDIUM: cli: properly handle closed output
+    - MINOR: cli: do not call the release handler on internal error.
+    - BUG/MEDIUM: stream-int: avoid double-call to applet->release
+    - DEBUG: add p_malloc() to return a poisonned memory area
+    - CLEANUP: lua: remove unneeded memset(0) after calloc()
+    - MINOR: lua: use the proper applet wakeup mechanism
+    - BUG/MEDIUM: lua: better fix for the protocol check
+    - BUG/MEDIUM: lua: properly set the target on the connection
+    - MEDIUM: actions: pass a new "flags" argument to custom actions
+    - MEDIUM: actions: add new flag ACT_FLAG_FINAL to notify about last call
+    - MEDIUM: http: pass ACT_FLAG_FINAL to custom actions
+    - MEDIUM: lua: only allow actions to yield if not in a final call
+    - DOC: clarify how to make use of abstract sockets in socat
+    - CLEANUP: config: make the errorloc/errorfile messages less confusing
+    - MEDIUM: action: add a new flag ACT_FLAG_FIRST
+    - BUG/MINOR: config: check that tune.bufsize is always positive
+    - MEDIUM: config: set tune.maxrewrite to 1024 by default
+    - DOC: add David Carlier as maintainer of da.c
+    - DOC: fix some broken unexpected unicode chars in the Lua doc.
+    - BUG/MEDIUM: proxy: ignore stopped peers
+    - BUG/MEDIUM: proxy: do not wake stopped proxies' tasks during soft_stop()
+    - MEDIUM: init: completely deallocate unused peers
+    - BUG/MEDIUM: tcp: fix inverted condition to call custom actions
+    - DOC: remove outdated actions lists on tcp-request/response
+    - MEDIUM: tcp: add new tcp action "silent-drop"
+    - DOC: add URLs to optional libraries in the README
+
 2015/09/14 : 1.6-dev5
     - MINOR: dns: dns_resolution structure update: time_t to unsigned int
     - BUG/MEDIUM: dns: DNS resolution doesn't start
