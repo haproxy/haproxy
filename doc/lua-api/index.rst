@@ -273,7 +273,7 @@ Core class
   input.
 
   :param string name: is the name of the converter.
-  :param table actions: is a table of string describing the HAProxy actions who
+  :param table actions: is a table of string describing the HAProxy actions who
                         want to register to. The expected actions are 'tcp-req',
                         'tcp-res', 'http-req' or 'http-res'.
   :param function func: is the Lua function called to work as converter.
@@ -288,7 +288,7 @@ Core class
   * **txn** (*class TXN*): this is a TXN object used for manipulating the
             current request or TCP stream.
 
-  Here, an exemple of action registration. the action juste send à 'Hello world'
+  Here, an exemple of action registration. the action juste send an 'Hello world'
   in the logs.
 
 .. code-block:: lua
@@ -389,7 +389,7 @@ Core class
   input according with the required mode.
 
   :param string name: is the name of the converter.
-  :param string mode: is string describing the required mode. Only 'tcp' or
+  :param string mode: is string describing the required mode. Only 'tcp' or
                       'http' are allowed.
   :param function func: is the Lua function called to work as converter.
 
@@ -403,7 +403,7 @@ Core class
   * **txn** (*class AppletTCP*) or (*class AppletHTTP*): this is an object used
             for manipulating the current HTTP request or TCP stream.
 
-  Here, an exemple of service registration. the service just send à 'Hello world'
+  Here, an exemple of service registration. the service just send an 'Hello world'
   as an http response.
 
 .. code-block:: lua
