@@ -8403,9 +8403,8 @@ tcp-request connection <action> [{if | unless} <condition>]
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
   Arguments :
-    <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc0", "track-sc1",
-                "track-sc2", and "expect-proxy". See below for more details.
+    <action>    defines the action to perform if the condition applies. See
+                below.
 
     <condition> is a standard layer4-only ACL-based condition (see section 7).
 
@@ -8551,10 +8550,8 @@ tcp-request content <action> [{if | unless} <condition>]
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
   Arguments :
-    <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc0", "track-sc1",
-                "track-sc2", "sc-inc-gpc0", "sc-set-gpt0", "capture" and "lua".
-                See "tcp-request connection" above for their signification.
+    <action>    defines the action to perform if the condition applies. See
+                below.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8755,9 +8752,8 @@ tcp-response content <action> [{if | unless} <condition>]
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
   Arguments :
-    <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "close", "reject", "lua",
-                "sc-inc-gpc0" and "sc-set-gpt0".
+    <action>    defines the action to perform if the condition applies. See
+                below.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
