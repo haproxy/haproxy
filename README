@@ -87,6 +87,9 @@ install it on target systems. Available build options for PCRE are :
     Warning! group references on Solaris seem broken. Use static-pcre whenever
     possible.
 
+If your system doesn't provide PCRE, you are encouraged to download it from
+http://www.pcre.org/ and build it yourself, it's fast and easy.
+
 Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
 is not present in all libcs and does not work in all of them either. Support in
 glibc was broken before 2.3. Some embedded libs may not properly work either,
@@ -104,6 +107,12 @@ automatically be linked with haproxy. Some systems also require libz, so if the
 build fails due to missing symbols such as deflateInit(), then try again with
 "ADDLIB=-lz".
 
+Your are strongly encouraged to always use an up-to-date version of OpenSSL, as
+found on https://www.openssl.org/ as vulnerabilities are occasionally found and
+you don't want them on your systems. HAProxy is known to build correctly on all
+currently supported branches (0.9.8, 1.0.0, 1.0.1 and 1.0.2 at the time of
+writing). Branch 1.0.2 is recommended for the richest features.
+
 To link OpenSSL statically against haproxy, build OpenSSL with the no-shared
 keyword and install it to a local directory, so your system is not affected :
 
@@ -116,11 +125,15 @@ include additional libs with ADDLIB if needed (in this case for example libdl):
 
     $ make TARGET=linux26 USE_OPENSSL=1 SSL_INC=$STATICLIBSSL/include SSL_LIB=$STATICLIBSSL/lib ADDLIB=-ldl
 
-It is also possible to include native support for ZLIB to benefit from HTTP
+It is also possible to include native support for zlib to benefit from HTTP
 compression. For this, pass "USE_ZLIB=1" on the "make" command line and ensure
 that zlib is present on the system. Alternatively it is possible to use libslz
 for a faster, memory less, but slightly less efficient compression, by passing
 "USE_SLZ=1".
+
+Zlib is commonly found on most systems, otherwise updates can be retrieved from
+http://www.zlib.net/. It is easy and fast to build. Libslz can be downloaded
+from http://1wt.eu/projects/libslz/ and is even easier to build.
 
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to
