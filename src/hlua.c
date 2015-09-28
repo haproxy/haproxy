@@ -889,7 +889,7 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
 	/* Set the wake timeout. If timeout is required, we set
 	 * the expiration time.
 	 */
-	hlua->wake_time = tick_first(timeout, hlua->expire);
+	hlua->wake_time = timeout;
 
 	hlua->flags |= flags;
 
@@ -1035,10 +1035,14 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 
 	/* If we cannot yield, update the clock and check the timeout. */
 	tv_update_date(0, 1);
-	if (tick_is_expired(hlua->expire, now_ms)) {
+	hlua->run_time += now_ms - hlua->start_time;
+	if (hlua->max_time && hlua->run_time >= hlua->max_time) {
 		lua_pushfstring(L, "execution timeout");
 		WILL_LJMP(lua_error(L));
 	}
+
+	/* Update the start time. */
+	hlua->start_time = now_ms;
 
 	/* Try to interrupt the process at the end of the current
 	 * unyieldable function.
@@ -1066,11 +1070,9 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	int ret;
 	const char *msg;
 
-	/* If we want to resume the task, then check first the execution timeout.
-	 * if it is reached, we can interrupt the Lua processing.
-	 */
-	if (tick_is_expired(lua->expire, now_ms))
-		goto timeout_reached;
+	/* Initialise run time counter. */
+	if (!HLUA_IS_RUNNING(lua))
+		lua->run_time = 0;
 
 resume_execution:
 
@@ -1085,6 +1087,9 @@ resume_execution:
 	HLUA_CLR_WAKERESWR(lua);
 	HLUA_CLR_WAKEREQWR(lua);
 
+	/* Update the start time. */
+	lua->start_time = now_ms;
+
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
 	switch (ret) {
@@ -1097,10 +1102,9 @@ resume_execution:
 		/* Check if the execution timeout is expired. It it is the case, we
 		 * break the Lua execution.
 		 */
-		if (tick_is_expired(lua->expire, now_ms)) {
-
-timeout_reached:
-
+		tv_update_date(0, 1);
+		lua->run_time += now_ms - lua->start_time;
+		if (lua->max_time && lua->run_time > lua->max_time) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
 			if (!lua_checkstack(lua->T, 1)) {
 				ret = HLUA_E_ERR;
@@ -4997,7 +5001,7 @@ static struct task *hlua_process_task(struct task *task)
 	 * execution timeouts.
 	 */
 	if (!HLUA_IS_RUNNING(hlua))
-		hlua->expire = tick_add_ifset(now_ms, hlua_timeout_task);
+		hlua->max_time = hlua_timeout_task;
 
 	/* Execute the Lua code. */
 	status = hlua_ctx_resume(hlua, 1);
@@ -5159,7 +5163,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
+		stream->hlua.max_time = hlua_timeout_session;
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua.T);
@@ -5261,7 +5265,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 
 		/* We must initialize the execution timeouts. */
-		stream->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
+		stream->hlua.max_time = hlua_timeout_session;
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua.T);
@@ -5501,7 +5505,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		RESET_SAFE_LJMP(s->hlua.T);
 
 		/* We must initialize the execution timeouts. */
-		s->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
+		s->hlua.max_time = hlua_timeout_session;
 	}
 
 	/* Execute the function. */
@@ -5606,7 +5610,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	}
 
 	/* Set timeout according with the applet configuration. */
-	hlua->expire = tick_add_ifset(now_ms, ctx->applet->timeout);
+	hlua->max_time = ctx->applet->timeout;
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua->T)) {
@@ -5779,7 +5783,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	}
 
 	/* Set timeout according with the applet configuration. */
-	hlua->expire = tick_add_ifset(now_ms, ctx->applet->timeout);
+	hlua->max_time = ctx->applet->timeout;
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua->T)) {

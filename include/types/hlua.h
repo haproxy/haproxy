@@ -47,7 +47,9 @@ struct hlua {
 	int nargs; /* The number of arguments in the stack at the start of execution. */
 	unsigned int flags; /* The current execution flags. */
 	int wake_time; /* The lua wants to be waked at this time, or before. */
-	int expire; /* Lua execution must be stopped over this time. */
+	unsigned int max_time; /* The max amount of execution time for an Lua process, in ms. */
+	unsigned int start_time; /* The ms time when the Lua starts the last execution. */
+	unsigned int run_time; /* Lua total execution time in ms. */
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */
