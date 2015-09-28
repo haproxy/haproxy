@@ -158,8 +158,8 @@ char *log_format = NULL;
 /* Common printf format strings for hostname, log_tag and pid used in all
  * outgoing syslog messages.
  */
-char default_host_tag_pid_log_format[] = "%s%s[%d]: ";
-char rfc5424_host_tag_pid_log_format[] = "%s%s %d - ";
+static char default_host_tag_pid_log_format[] = "%s%s%s[%d]: ";
+static char rfc5424_host_tag_pid_log_format[] = "%s%s%s %d - ";
 
 /* Default string used for structured-data part in RFC5424 formatted
  * syslog messages.
@@ -780,12 +780,26 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 	return ret;
 }
 
-char *lf_host_tag_pid(char *dst, const char *format, const char *hostname, const char *log_tag, int pid, size_t size)
+char *lf_host_tag_pid(char *dst, int format, const char *hostname, const char *log_tag, int pid, size_t size)
 {
 	char *ret = dst;
+	char *fmt;
 	int iret;
 
-	iret = snprintf(dst, size, format, hostname, log_tag, pid);
+	switch (format) {
+	case LOG_FORMAT_RFC3164:
+		fmt = default_host_tag_pid_log_format;
+		break;
+
+	case LOG_FORMAT_RFC5424:
+		fmt = rfc5424_host_tag_pid_log_format;
+		break;
+
+	default:
+		return NULL;
+	}
+
+	iret = snprintf(dst, size, fmt, hostname, strlen(hostname) ? " " : "", log_tag, pid);
 	if (iret < 0 || iret > size)
 		return NULL;
 	ret += iret;

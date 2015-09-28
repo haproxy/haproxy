@@ -1647,7 +1647,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "log-send-hostname")) { /* set the hostname in syslog header */
 		char *name;
-		int len;
 
 		if (global.log_send_hostname != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
@@ -1660,12 +1659,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			name = hostname;
 
-		len = strlen(name);
-
 		/* We'll add a space after the name to respect the log format */
 		free(global.log_send_hostname);
-		global.log_send_hostname = malloc(len + 2);
-		snprintf(global.log_send_hostname, len + 2, "%s ", name);
+		global.log_send_hostname = strdup(name);
 	}
 	else if (!strcmp(args[0], "server-state-base")) { /* path base where HAProxy can find server state files */
 		if (global.server_state_base != NULL) {
@@ -7897,23 +7893,19 @@ out_uri_auth_compat:
 		list_for_each_entry(tmplogsrv, &curproxy->logsrvs, list) {
 			char *hdr;
 			struct chunk *htp;
-			char *htp_fmt;
 			char *host = global.log_send_hostname;
 
 			switch (tmplogsrv->format) {
 			case LOG_FORMAT_RFC3164:
 				hdr = logheader;
 				htp = &curproxy->log_htp;
-				htp_fmt = default_host_tag_pid_log_format;
 				host = host ? host : "";
 				break;
 
 			case LOG_FORMAT_RFC5424:
 				hdr = logheader_rfc5424;
 				htp = &curproxy->log_htp_rfc5424;
-				htp_fmt = rfc5424_host_tag_pid_log_format;
-				if (!curproxy->conf.logformat_sd_string)
-					curproxy->conf.logformat_sd_string = default_rfc5424_sd_log_format;
+				host = host ? host : hostname;
 				break;
 
 			default:
@@ -7923,18 +7915,9 @@ out_uri_auth_compat:
 			if (htp->str)
 				continue;
 
-			if (!host) {
-				int len = strlen(hostname);
-				host = malloc(len + 2);
-				snprintf(host, len + 2, "%s ", hostname);
-			}
-
-			htp->str = lf_host_tag_pid(hdr, htp_fmt, host,
+			htp->str = lf_host_tag_pid(hdr, tmplogsrv->format, host,
 			                           curproxy->log_tag ? curproxy->log_tag : global.log_tag,
 			                           pid, global.max_syslog_len);
-
-			if ((host != global.log_send_hostname) && strlen(host))
-				free(host);
 
 			if ((htp->str == NULL) ||
 			    ((htp->len = htp->str - hdr) >= global.max_syslog_len)) {

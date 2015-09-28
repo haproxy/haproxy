@@ -40,9 +40,6 @@ extern char default_tcp_log_format[];
 extern char default_http_log_format[];
 extern char clf_http_log_format[];
 
-extern char default_host_tag_pid_log_format[];
-extern char rfc5424_host_tag_pid_log_format[];
-
 extern char default_rfc5424_sd_log_format[];
 
 extern char *logheader;
@@ -154,7 +151,7 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 /*
  * Write hostname, log_tag and pid to the log string
  */
-char *lf_host_tag_pid(char *dst, const char *format, const char *hostname, const char *log_tag, int pid, size_t size);
+char *lf_host_tag_pid(char *dst, int format, const char *hostname, const char *log_tag, int pid, size_t size);
 
 
 #endif /* _PROTO_LOG_H */
