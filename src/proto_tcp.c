@@ -1392,7 +1392,7 @@ int tcp_exec_req_rules(struct session *sess)
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr)
+				if (!rule->action_ptr)
 					break;
 				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
 				case ACT_RET_YIELD:
