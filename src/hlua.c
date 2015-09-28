@@ -5163,9 +5163,6 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua.T);
-
-		/* Set the currently running flag. */
-		HLUA_SET_RUN(&stream->hlua);
 	}
 
 	/* Execute the function. */
@@ -5268,9 +5265,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 		/* At this point the execution is safe. */
 		RESET_SAFE_LJMP(stream->hlua.T);
-
-		/* Set the currently running flag. */
-		HLUA_SET_RUN(&stream->hlua);
 	}
 
 	/* Execute the function. */
@@ -5508,9 +5502,6 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 		/* We must initialize the execution timeouts. */
 		s->hlua.expire = tick_add_ifset(now_ms, hlua_timeout_session);
-
-		/* Set the currently running flag. */
-		HLUA_SET_RUN(&s->hlua);
 	}
 
 	/* Execute the function. */
