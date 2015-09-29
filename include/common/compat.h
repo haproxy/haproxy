@@ -129,6 +129,11 @@
 #endif
 #endif
 
+/* FreeBSD doesn't define SOL_IP and prefers IPPROTO_IP */
+#ifndef SOL_IP
+#define SOL_IP IPPROTO_IP
+#endif
+
 /* If IPv6 is supported, define IN6_IS_ADDR_V4MAPPED() if missing. */
 #if defined(IPV6_TCLASS) && !defined(IN6_IS_ADDR_V4MAPPED)
 #define IN6_IS_ADDR_V4MAPPED(a) \
