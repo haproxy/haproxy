@@ -1431,8 +1431,10 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	if (!conn_ctrl_ready(conn))
 		goto out;
 
-	conn_sock_drain(conn);
 #ifdef TCP_QUICKACK
+	/* drain is needed only to send the quick ACK */
+	conn_sock_drain(conn);
+
 	/* re-enable quickack if it was disabled to ack all data and avoid
 	 * retransmits from the client that might trigger a real reset.
 	 */
