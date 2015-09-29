@@ -13200,16 +13200,6 @@ req_ssl_sni : string (deprecated)
      use_backend bk_allow if { req_ssl_sni -f allowed_sites }
      default_backend bk_sorry_page
 
-res.ssl_hello_type : integer
-rep_ssl_hello_type : integer (deprecated)
-  Returns an integer value containing the type of the SSL hello message found
-  in the response buffer if the buffer contains data that parses as a complete
-  SSL (v3 or superior) hello message. Note that this only applies to raw
-  contents found in the response buffer and not to contents deciphered via an
-  SSL data layer, so this will not work with "server" lines having the "ssl"
-  option. This is mostly used in ACL to detect presence of an SSL hello message
-  that is supposed to contain an SSL session ID usable for stickiness.
-
 req.ssl_st_ext : integer
   Returns 0 if the client didn't send a SessionTicket TLS Extension (RFC5077)
   Returns 1 if the client sent SessionTicket TLS Extension
@@ -13260,6 +13250,16 @@ res.payload_lv(<offset1>,<length>[,<offset2>]) : binary
   if prepended with a '+' or '-' sign.
 
   Example : please consult the example from the "stick store-response" keyword.
+
+res.ssl_hello_type : integer
+rep_ssl_hello_type : integer (deprecated)
+  Returns an integer value containing the type of the SSL hello message found
+  in the response buffer if the buffer contains data that parses as a complete
+  SSL (v3 or superior) hello message. Note that this only applies to raw
+  contents found in the response buffer and not to contents deciphered via an
+  SSL data layer, so this will not work with "server" lines having the "ssl"
+  option. This is mostly used in ACL to detect presence of an SSL hello message
+  that is supposed to contain an SSL session ID usable for stickiness.
 
 wait_end : boolean
   This fetch either returns true when the inspection period is over, or does
