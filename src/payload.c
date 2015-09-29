@@ -56,6 +56,141 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 	return 1;
 }
 
+/* Returns 0 if the client didn't send a SessionTicket Extension
+ * Returns 1 if the client sent SessionTicket Extension
+ * Returns 2 if the client also sent non-zero length SessionTicket
+ * Returns SMP_T_SINT data type
+ */
+static int
+smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	int hs_len, ext_len, bleft;
+	struct channel *chn;
+	unsigned char *data;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	if (!chn->buf)
+		goto not_ssl_hello;
+
+	bleft = chn->buf->i;
+	data = (unsigned char *)chn->buf->p;
+
+	/* Check for SSL/TLS Handshake */
+	if (!bleft)
+		goto too_short;
+	if (*data != 0x16)
+		goto not_ssl_hello;
+
+	/* Check for SSLv3 or later (SSL version >= 3.0) in the record layer*/
+	if (bleft < 3)
+		goto too_short;
+	if (data[1] < 0x03)
+		goto not_ssl_hello;
+
+	if (bleft < 5)
+		goto too_short;
+	hs_len = (data[3] << 8) + data[4];
+	if (hs_len < 1 + 3 + 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + 2)
+		goto not_ssl_hello; /* too short to have an extension */
+
+	data += 5; /* enter TLS handshake */
+	bleft -= 5;
+
+	/* Check for a complete client hello starting at <data> */
+	if (bleft < 1)
+		goto too_short;
+	if (data[0] != 0x01) /* msg_type = Client Hello */
+		goto not_ssl_hello;
+
+	/* Check the Hello's length */
+	if (bleft < 4)
+		goto too_short;
+	hs_len = (data[1] << 16) + (data[2] << 8) + data[3];
+	if (hs_len < 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + 2)
+		goto not_ssl_hello; /* too short to have an extension */
+
+	/* We want the full handshake here */
+	if (bleft < hs_len)
+		goto too_short;
+
+	data += 4;
+	/* Start of the ClientHello message */
+	if (data[0] < 0x03 || data[1] < 0x01) /* TLSv1 minimum */
+		goto not_ssl_hello;
+
+	ext_len = data[34]; /* session_id_len */
+	if (ext_len > 32 || ext_len > (hs_len - 35)) /* check for correct session_id len */
+		goto not_ssl_hello;
+
+	/* Jump to cipher suite */
+	hs_len -= 35 + ext_len;
+	data   += 35 + ext_len;
+
+	if (hs_len < 4 ||                               /* minimum one cipher */
+	    (ext_len = (data[0] << 8) + data[1]) < 2 || /* minimum 2 bytes for a cipher */
+	    ext_len > hs_len)
+		goto not_ssl_hello;
+
+	/* Jump to the compression methods */
+	hs_len -= 2 + ext_len;
+	data   += 2 + ext_len;
+
+	if (hs_len < 2 ||                       /* minimum one compression method */
+	    data[0] < 1 || data[0] > hs_len)    /* minimum 1 bytes for a method */
+		goto not_ssl_hello;
+
+	/* Jump to the extensions */
+	hs_len -= 1 + data[0];
+	data   += 1 + data[0];
+
+	if (hs_len < 2 ||                       /* minimum one extension list length */
+	    (ext_len = (data[0] << 8) + data[1]) > hs_len - 2) /* list too long */
+		goto not_ssl_hello;
+
+	hs_len = ext_len; /* limit ourselves to the extension length */
+	data += 2;
+
+	while (hs_len >= 4) {
+		int ext_type, ext_len;
+
+		ext_type = (data[0] << 8) + data[1];
+		ext_len  = (data[2] << 8) + data[3];
+
+		if (ext_len > hs_len - 4) /* Extension too long */
+			goto not_ssl_hello;
+
+		/* SesstionTicket extension */
+		if (ext_type == 35) {
+			smp->data.type = SMP_T_SINT;
+			/* SessionTicket also present */
+			if (ext_len > 0)
+				smp->data.u.sint = 2;
+			/* SessionTicket absent */
+			else
+				smp->data.u.sint = 1;
+			smp->flags = SMP_F_VOLATILE;
+			return 1;
+		}
+
+		hs_len -= 4 + ext_len;
+		data   += 4 + ext_len;
+	}
+	/* SessionTicket Extension not found */
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+	smp->flags = SMP_F_VOLATILE;
+	return 1;
+
+	/* server name not found */
+	goto not_ssl_hello;
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE;
+
+ not_ssl_hello:
+	return 0;
+}
+
 /* Returns TRUE if the client sent Supported Elliptic Curves Extension (0x000a)
  * Mainly used to detect if client supports ECC cipher suites.
  */
@@ -799,6 +934,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie_cnt",  smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "req.ssl_ec_ext",      smp_fetch_req_ssl_ec_ext, 0,                      NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
+	{ "req.ssl_st_ext",      smp_fetch_req_ssl_st_ext, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "req.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },

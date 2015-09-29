@@ -13210,6 +13210,17 @@ rep_ssl_hello_type : integer (deprecated)
   option. This is mostly used in ACL to detect presence of an SSL hello message
   that is supposed to contain an SSL session ID usable for stickiness.
 
+req.ssl_st_ext : integer
+  Returns 0 if the client didn't send a SessionTicket TLS Extension (RFC5077)
+  Returns 1 if the client sent SessionTicket TLS Extension
+  Returns 2 if the client also sent non-zero length TLS SessionTicket
+  Note that this only applies to raw contents found in the request buffer and
+  not to contents deciphered via an SSL data layer, so this will not work with
+  "bind" lines having the "ssl" option. This can for example be used to detect
+  whether the client sent a SessionTicket or not and stick it accordingly, if
+  no SessionTicket then stick on SessionID or don't stick as there's no server
+  side state is there when SessionTickets are in use.
+
 req.ssl_ver : integer
 req_ssl_ver : integer (deprecated)
   Returns an integer value containing the version of the SSL/TLS protocol of a
