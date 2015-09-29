@@ -1445,6 +1445,11 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	if (strm)
 		strm->si[0].flags |= SI_FL_NOLINGER;
 
+	/* We're on the client-facing side, we must force to disable lingering to
+	 * ensure we will use an RST exclusively and kill any pending data.
+	 */
+	fdtab[conn->t.sock.fd].linger_risk = 1;
+
 #ifdef TCP_REPAIR
 	if (setsockopt(conn->t.sock.fd, SOL_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
 		/* socket will be quiet now */
