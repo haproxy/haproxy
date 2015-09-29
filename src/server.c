@@ -1968,16 +1968,14 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			p = NULL;
 			errno = 0;
 			srv_uweight = strtol(params[3], &p, 10);
-			if ((p == params[3]) || errno == EINVAL || errno == ERANGE ||
-			    (srv_uweight < 0) || (srv_uweight > SRV_UWGHT_MAX))
+			if ((p == params[3]) || errno == EINVAL || errno == ERANGE || (srv_uweight > SRV_UWGHT_MAX))
 				chunk_appendf(msg, ", invalid srv_uweight value '%s'", params[3]);
 
 			/* validating srv_iweight */
 			p = NULL;
 			errno = 0;
 			srv_iweight = strtol(params[4], &p, 10);
-			if ((p == params[4]) || errno == EINVAL || errno == ERANGE ||
-			    (srv_iweight < 0) || (srv_iweight > SRV_UWGHT_MAX))
+			if ((p == params[4]) || errno == EINVAL || errno == ERANGE || (srv_iweight > SRV_UWGHT_MAX))
 				chunk_appendf(msg, ", invalid srv_iweight value '%s'", params[4]);
 
 			/* validating srv_last_time_change */
