@@ -665,7 +665,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = sa->ss_family ? sa->ss_family : AF_UNSPEC;
 		hints.ai_socktype = SOCK_DGRAM;
-		hints.ai_flags = AI_PASSIVE;
+		hints.ai_flags = 0;
 		hints.ai_protocol = 0;
 
 		if (getaddrinfo(str, NULL, &hints, &result) == 0) {
