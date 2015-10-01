@@ -1659,7 +1659,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			name = hostname;
 
-		/* We'll add a space after the name to respect the log format */
 		free(global.log_send_hostname);
 		global.log_send_hostname = strdup(name);
 	}
@@ -1701,8 +1700,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		free(global.log_tag);
-		global.log_tag = strdup(args[1]);
+		chunk_destroy(&global.log_tag);
+		chunk_initstr(&global.log_tag, strdup(args[1]));
 	}
 	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -2760,8 +2759,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->conf.uniqueid_format_string)
 			curproxy->conf.uniqueid_format_string = strdup(curproxy->conf.uniqueid_format_string);
 
-		if (defproxy.log_tag)
-			curproxy->log_tag = strdup(defproxy.log_tag);
+		chunk_dup(&curproxy->log_tag, &defproxy.log_tag);
 
 		if (defproxy.conf.uif_file) {
 			curproxy->conf.uif_file = strdup(defproxy.conf.uif_file);
@@ -2843,7 +2841,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.conf.uniqueid_format_string);
 		free(defproxy.conf.lfs_file);
 		free(defproxy.conf.uif_file);
-		free(defproxy.log_tag);
+		chunk_destroy(&defproxy.log_tag);
 		free_email_alert(&defproxy);
 
 		if (defproxy.conf.logformat_sd_string != default_rfc5424_sd_log_format)
@@ -5852,8 +5850,8 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		free(curproxy->log_tag);
-		curproxy->log_tag = strdup(args[1]);
+		chunk_destroy(&curproxy->log_tag);
+		chunk_initstr(&curproxy->log_tag, strdup(args[1]));
 	}
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {
 		/* delete previous herited or defined syslog servers */
@@ -7889,52 +7887,16 @@ int check_config_validity()
 		}
 out_uri_auth_compat:
 
-		/* write a syslog header string that contains hostname, log_tag and pid */
+		/* check whether we have a log server that uses RFC5424 log format */
 		list_for_each_entry(tmplogsrv, &curproxy->logsrvs, list) {
-			char *hdr;
-			struct chunk *htp;
-			char *host = global.log_send_hostname;
-
-			switch (tmplogsrv->format) {
-			case LOG_FORMAT_RFC3164:
-				hdr = logheader;
-				htp = &curproxy->log_htp;
-				host = host ? host : "";
+			if (tmplogsrv->format == LOG_FORMAT_RFC5424) {
+				if (!curproxy->conf.logformat_sd_string) {
+					/* set the default logformat_sd_string */
+					curproxy->conf.logformat_sd_string = default_rfc5424_sd_log_format;
+				}
 				break;
-
-			case LOG_FORMAT_RFC5424:
-				hdr = logheader_rfc5424;
-				htp = &curproxy->log_htp_rfc5424;
-				host = host ? host : hostname;
-				break;
-
-			default:
-				continue; /* must never happen */
 			}
-
-			if (htp->str)
-				continue;
-
-			htp->str = lf_host_tag_pid(hdr, tmplogsrv->format, host,
-			                           curproxy->log_tag ? curproxy->log_tag : global.log_tag,
-			                           pid, global.max_syslog_len);
-
-			if ((htp->str == NULL) ||
-			    ((htp->len = htp->str - hdr) >= global.max_syslog_len)) {
-				Alert("Proxy '%s': cannot write a syslog header string that contains "
-				      "hostname, log_tag and pid.\n",
-				      curproxy->id);
-				cfgerr++;
-				goto out_host_tag_pid;
-			}
-
-			htp->str = (char *)malloc(htp->len);
-			memcpy(htp->str, hdr, htp->len);
-			htp->size = 0;
-
-			hdr[0] = 0;
 		}
-out_host_tag_pid:
 
 		/* compile the log format */
 		if (!(curproxy->cap & PR_CAP_FE)) {

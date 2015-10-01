@@ -126,7 +126,7 @@ struct global {
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
-	char *log_tag;                  /* name for syslog */
+	struct chunk log_tag;           /* name for syslog */
 	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */
 	char *server_state_base;   /* path to a directory where server state files can be found */

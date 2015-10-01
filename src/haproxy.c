@@ -626,7 +626,7 @@ void init(int argc, char **argv)
 		progname = tmp + 1;
 
 	/* the process name is used for the logs only */
-	global.log_tag = strdup(progname);
+	chunk_initstr(&global.log_tag, strdup(progname));
 
 	argc--; argv++;
 	while (argc > 0) {
@@ -1335,8 +1335,6 @@ void deinit(void)
 			LIST_DEL(&log->list);
 			free(log);
 		}
-		chunk_destroy(&p->log_htp);
-		chunk_destroy(&p->log_htp_rfc5424);
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
 			LIST_DEL(&lf->list);
@@ -1478,7 +1476,7 @@ void deinit(void)
 #endif
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
-	free(global.log_tag); global.log_tag = NULL;
+	chunk_destroy(&global.log_tag);
 	free(global.chroot);  global.chroot = NULL;
 	free(global.pidfile); global.pidfile = NULL;
 	free(global.node);    global.node = NULL;

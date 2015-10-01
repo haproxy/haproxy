@@ -148,11 +148,6 @@ char *lf_ip(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_
  */
 char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node);
 
-/*
- * Write hostname, log_tag and pid to the log string
- */
-char *lf_host_tag_pid(char *dst, int format, const char *hostname, const char *log_tag, int pid, size_t size);
-
 
 #endif /* _PROTO_LOG_H */
 

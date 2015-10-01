@@ -41,9 +41,29 @@
 #include <proto/ssl_sock.h>
 #endif
 
-const char *log_formats[LOG_FORMATS] = {
-	[LOG_FORMAT_RFC3164] = "rfc3164",
-	[LOG_FORMAT_RFC5424] = "rfc5424"
+struct log_fmt {
+	char *name;
+	struct {
+		struct chunk sep1; /* first pid separator */
+		struct chunk sep2; /* second pid separator */
+	} pid;
+};
+
+static const struct log_fmt log_formats[LOG_FORMATS] = {
+	[LOG_FORMAT_RFC3164] = {
+		.name = "rfc3164",
+		.pid = {
+			.sep1 = { .str = "[",   .len = 1 },
+			.sep2 = { .str = "]: ", .len = 3 }
+		}
+	},
+	[LOG_FORMAT_RFC5424] = {
+		.name = "rfc5424",
+		.pid = {
+			.sep1 = { .str = " ",   .len = 1 },
+			.sep2 = { .str = " - ", .len = 3 }
+		}
+	}
 };
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
@@ -154,12 +174,6 @@ char default_http_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST
 char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %ms %ft %b %s %Tq %Tw %Tc %Tr %Tt %tsc %ac %fc %bc %sc %rc %sq %bq %CC %CS %hrl %hsl";
 char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
-
-/* Common printf format strings for hostname, log_tag and pid used in all
- * outgoing syslog messages.
- */
-static char default_host_tag_pid_log_format[] = "%s%s%s[%d]: ";
-static char rfc5424_host_tag_pid_log_format[] = "%s%s%s %d - ";
 
 /* Default string used for structured-data part in RFC5424 formatted
  * syslog messages.
@@ -653,7 +667,7 @@ int get_log_format(const char *fmt)
 	int format;
 
 	format = LOG_FORMATS - 1;
-	while (format >= 0 && strcmp(log_formats[format], fmt))
+	while (format >= 0 && strcmp(log_formats[format].name, fmt))
 		format--;
 
 	return format;
@@ -780,33 +794,6 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 	return ret;
 }
 
-char *lf_host_tag_pid(char *dst, int format, const char *hostname, const char *log_tag, int pid, size_t size)
-{
-	char *ret = dst;
-	char *fmt;
-	int iret;
-
-	switch (format) {
-	case LOG_FORMAT_RFC3164:
-		fmt = default_host_tag_pid_log_format;
-		break;
-
-	case LOG_FORMAT_RFC5424:
-		fmt = rfc5424_host_tag_pid_log_format;
-		break;
-
-	default:
-		return NULL;
-	}
-
-	iret = snprintf(dst, size, fmt, hostname, strlen(hostname) ? " " : "", log_tag, pid);
-	if (iret < 0 || iret > size)
-		return NULL;
-	ret += iret;
-
-	return ret;
-}
-
 /* Re-generate time-based part of the syslog header in RFC3164 format at
  * the beginning of logheader once a second and return the pointer to the
  * first character after it.
@@ -815,6 +802,8 @@ static char *update_log_hdr(const time_t time)
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
+	static struct chunk host = { NULL, 0, 0 };
+	static int sep = 0;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -824,10 +813,17 @@ static char *update_log_hdr(const time_t time)
 		tvsec = time;
 		get_localtime(tvsec, &tm);
 
+		if (unlikely(global.log_send_hostname != host.str)) {
+			host.str = global.log_send_hostname;
+			host.len = host.str ? strlen(host.str) : 0;
+			sep = host.len ? 1 : 0;
+		}
+
 		hdr_len = snprintf(logheader, global.max_syslog_len,
-				   "<<<<>%s %2d %02d:%02d:%02d ",
+				   "<<<<>%s %2d %02d:%02d:%02d %.*s%*s",
 				   monthname[tm.tm_mon],
-				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+				   host.len, host.str, sep, "");
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
@@ -861,10 +857,10 @@ static char *update_log_hdr_rfc5424(const time_t time)
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
-				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%s ",
+				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%s %s ",
 				   tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
-				   tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   localtimezone);
+				   tm.tm_hour, tm.tm_min, tm.tm_sec, localtimezone,
+				   global.log_send_hostname ? global.log_send_hostname : hostname);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
@@ -924,8 +920,11 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	int nblogger;
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
-	struct chunk *htp;
 	time_t time = date.tv_sec;
+	struct chunk *tag = &global.log_tag;
+	static int curr_pid;
+	static char pidstr[100];
+	static struct chunk pid;
 
 	dataptr = message;
 
@@ -937,10 +936,19 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		if (!LIST_ISEMPTY(&p->logsrvs)) {
 			logsrvs = &p->logsrvs;
 		}
+		if (p->log_tag.str) {
+			tag = &p->log_tag;
+		}
 	}
 
 	if (!logsrvs)
 		return;
+
+	if (unlikely(curr_pid != getpid())) {
+		curr_pid = getpid();
+		ltoa_o(curr_pid, pidstr, sizeof(pidstr));
+		chunk_initstr(&pid, pidstr);
+	}
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
@@ -948,10 +956,14 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		const struct logsrv *logsrv = tmp;
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
+		char *pid_sep1 = NULL, *pid_sep2 = NULL;
 		int sent;
 		int maxlen;
 		int hdr_max = 0;
-		int htp_max = 0;
+		int tag_max = 0;
+		int pid_sep1_max = 0;
+		int pid_max = 0;
+		int pid_sep2_max = 0;
 		int sd_max = 0;
 		int max = 0;
 
@@ -980,13 +992,11 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		case LOG_FORMAT_RFC3164:
 			hdr = logheader;
 			hdr_ptr = update_log_hdr(time);
-			htp = &p->log_htp;
 			break;
 
 		case LOG_FORMAT_RFC5424:
 			hdr = logheader_rfc5424;
 			hdr_ptr = update_log_hdr_rfc5424(time);
-			htp = &p->log_htp_rfc5424;
 			sd_max = sd_size; /* the SD part allowed only in RFC5424 */
 			break;
 
@@ -1014,6 +1024,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 
 		hdr_max = hdr_size - (hdr_ptr - hdr);
 
+		/* time-based header */
 		if (unlikely(hdr_size >= logsrv->maxlen)) {
 			hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
 			sd_max = 0;
@@ -1022,15 +1033,49 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 
 		maxlen = logsrv->maxlen - hdr_max;
 
-		if (unlikely(htp->len >= maxlen)) {
-			htp_max = maxlen - 1;
+		/* tag */
+		tag_max = tag->len;
+		if (unlikely(tag_max >= maxlen)) {
+			tag_max = maxlen - 1;
 			sd_max = 0;
 			goto send;
 		}
 
-		htp_max = htp->len;
-		maxlen -= htp_max;
+		maxlen -= tag_max;
 
+		/* first pid separator */
+		pid_sep1_max = log_formats[logsrv->format].pid.sep1.len;
+		if (unlikely(pid_sep1_max >= maxlen)) {
+			pid_sep1_max = maxlen - 1;
+			sd_max = 0;
+			goto send;
+		}
+
+		pid_sep1 = log_formats[logsrv->format].pid.sep1.str;
+		maxlen -= pid_sep1_max;
+
+		/* pid */
+		pid_max = pid.len;
+		if (unlikely(pid_max >= maxlen)) {
+			pid_max = maxlen - 1;
+			sd_max = 0;
+			goto send;
+		}
+
+		maxlen -= pid_max;
+
+		/* second pid separator */
+		pid_sep2_max = log_formats[logsrv->format].pid.sep2.len;
+		if (unlikely(pid_sep2_max >= maxlen)) {
+			pid_sep2_max = maxlen - 1;
+			sd_max = 0;
+			goto send;
+		}
+
+		pid_sep2 = log_formats[logsrv->format].pid.sep2.str;
+		maxlen -= pid_sep2_max;
+
+		/* structured-data */
 		if (sd_max >= maxlen) {
 			sd_max = maxlen - 1;
 			goto send;
@@ -1039,15 +1084,21 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		max = MIN(size, maxlen - sd_max) - 1;
 send:
 		iovec[0].iov_base = hdr_ptr;
-		iovec[0].iov_len = hdr_max;
-		iovec[1].iov_base = htp->str;
-		iovec[1].iov_len = htp_max;
-		iovec[2].iov_base = sd;
-		iovec[2].iov_len = sd_max;
-		iovec[3].iov_base = dataptr;
-		iovec[3].iov_len = max;
-		iovec[4].iov_base = "\n"; /* insert a \n at the end of the message */
-		iovec[4].iov_len = 1;
+		iovec[0].iov_len  = hdr_max;
+		iovec[1].iov_base = tag->str;
+		iovec[1].iov_len  = tag_max;
+		iovec[2].iov_base = pid_sep1;
+		iovec[2].iov_len  = pid_sep1_max;
+		iovec[3].iov_base = pid.str;
+		iovec[3].iov_len  = pid_max;
+		iovec[4].iov_base = pid_sep2;
+		iovec[4].iov_len  = pid_sep2_max;
+		iovec[5].iov_base = sd;
+		iovec[5].iov_len  = sd_max;
+		iovec[6].iov_base = dataptr;
+		iovec[6].iov_len  = max;
+		iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
+		iovec[7].iov_len  = 1;
 
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
