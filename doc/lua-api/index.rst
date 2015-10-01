@@ -43,11 +43,9 @@ functions. Lua have 6 execution context.
    like this: `function fcn()`.
 
 4. The **action context**. It is an Lua function conditionally executed. These
-   actions are declared by the HAProxy directives "`tcp-request content lua
-   <function>`", "`tcp-response content lua <function>`", "`http-request lua
-   <function>`" and "`http-response lua <function>`". The prototype of the
-   Lua called function is a function with doesn't returns anything and that take
-   an object of class TXN as entry. `function fcn(txn)`
+   actions are registered by the Lua directives "`core.register_action()`". The
+   prototype of the Lua called function is a function with doesn't returns
+   anything and that take an object of class TXN as entry. `function fcn(txn)`.
 
 5. The **sample-fetch context**. This function takes a TXN object as entry
    argument and returns a string. These types of function cannot execute any
@@ -80,16 +78,16 @@ HAProxy configuration file (`hello_world.conf`):
 
     listen proxy
        bind 127.0.0.1:10001
-       tcp-request content lua hello_world
+       tcp-request inspect-delay 1s
+       tcp-request content use-service lua.hello_world
 
 HAProxy Lua file (`hello_world.lua`):
 
 .. code-block:: lua
 
-    function hello_world(txn)
-       txn.res:send("hello world\n")
-       txn:done()
-    end
+    core.register_service("hello_world", "tcp", function(applet)
+       applet:send("hello world\n")
+    end)
 
 How to start HAProxy for testing this configuration:
 
