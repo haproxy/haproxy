@@ -574,6 +574,7 @@ The following keywords are supported in the "global" section :
    - tune.lua.maxmem
    - tune.lua.session-timeout
    - tune.lua.task-timeout
+   - tune.lua.service-timeout
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -1183,16 +1184,21 @@ tune.lua.maxmem
 
 tune.lua.session-timeout <timeout>
   This is the execution timeout for the Lua sessions. This is useful for
-  preventing infinite loops or spending too much time in Lua. This timeout has a
-  priority over other timeouts. For example, if this timeout is set to 4s and
-  you run a 5s sleep, the code will be interrupted with an error after waiting
-  4s.
+  preventing infinite loops or spending too much time in Lua. This timeout
+  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
+  not taked in account. The default timeout is 4s.
 
 tune.lua.task-timeout <timeout>
   Purpose is the same as "tune.lua.session-timeout", but this timeout is
   dedicated to the tasks. By default, this timeout isn't set because a task may
   remain alive during of the lifetime of HAProxy. For example, a task used to
   check servers.
+
+tune.lua.service-timeout <timeout>
+  This is the execution timeout for the Lua services. This is useful for
+  preventing infinite loops or spending too much time in Lua. This timeout
+  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
+  not taked in account. The default timeout is 4s.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
@@ -3412,7 +3418,6 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
               silent-drop |
-              lua <function name>
              }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -3687,10 +3692,6 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       designated by <sc-id>. If an error occurs, this action silently fails and
       the actions evaluation continues.
 
-    - "lua" is used to run a Lua function if the action is executed. The single
-      parameter is the name of the function to run. The prototype of the
-      function is documented in the API documentation.
-
     - set-var(<var-name>) <expr> :
       Is used to set the contents of a variable. The variable is declared
       inline.
@@ -3818,7 +3819,6 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 silent-drop |
-                lua <function name>
               }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
@@ -3974,10 +3974,6 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       more) values. This lookup is done by a linear search and can be expensive
       with large lists! It is the equivalent of the "set map" command from the
       stats socket, but can be triggered by an HTTP response.
-
-    - "lua" is used to run a Lua function if the action is executed. The single
-      parameter is the name of the function to run. The prototype of the
-      function is documented in the API documentation.
 
     - capture <sample> id <id> :
       captures sample expression <sample> from the response buffer, and converts
@@ -8643,7 +8639,6 @@ tcp-request content <action> [{if | unless} <condition>]
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - set-gpt0(<sc-id>) <int>
-    - lua <function>
     - set-var(<var-name>) <expr>
     - silent-drop
 
@@ -8674,11 +8669,6 @@ tcp-request content <action> [{if | unless} <condition>]
   are present when the rule is processed. The rule processing engine is able to
   wait until the inspect delay expires when the data to be tracked is not yet
   available.
-
-  The "lua" keyword is followed by a Lua function name. It is used to run a Lua
-  function if the action is executed. The single parameter is the name of the
-  function to run. The prototype of the function is documented in the API
-  documentation.
 
   The "set-var" is used to set the content of a variable. The variable is
   declared inline.
@@ -8849,9 +8839,6 @@ tcp-response content <action> [{if | unless} <condition>]
         or false (when used with "unless"). The first such rule executed ends
         the rules evaluation. Rejected session are immediately closed.
 
-    - lua <function>
-        Executes Lua.
-
     - set-var(<var-name>) <expr>
         Sets a variable.
 
@@ -8893,11 +8880,6 @@ tcp-response content <action> [{if | unless} <condition>]
   been buffered, otherwise no contents will match. In order to achieve this,
   the best solution involves detecting the HTTP protocol during the inspection
   period.
-
-  The "lua" keyword is followed by a Lua function name. It is used to run a Lua
-  function if the action is executed. The single parameter is the name of the
-  function to run. The prototype of the function is documented in the API
-  documentation.
 
   The "set-var" is used to set the content of a variable. The variable is
   declared inline.
