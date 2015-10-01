@@ -6369,7 +6369,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "lua-load",                 hlua_load },
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
-	{ CFG_GLOBAL, "tune.lua.applet-timeout",  hlua_applet_timeout },
+	{ CFG_GLOBAL, "tune.lua.service-timeout", hlua_applet_timeout },
 	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ 0, NULL, NULL },
