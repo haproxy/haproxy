@@ -408,12 +408,12 @@ Core class
 
 .. code-block:: lua
 
-  core.register_service("hello-world", "http" }, function(txn)
+  core.register_service("hello-world", "http" }, function(applet)
      local response = "Hello World !"
      applet:set_status(200)
-     applet:add_header("content-length", string.length(response))
+     applet:add_header("content-length", string.len(response))
      applet:add_header("content-type", "text/plain")
-     applet:start_reponse()
+     applet:start_response()
      applet:send(response)
   end)
 ..
@@ -1361,12 +1361,12 @@ AppletHTTP class
   This is an hello world sample code:
 
 .. code-block:: lua
-  core.register_service("hello-world", "http" }, function(txn)
+  core.register_service("hello-world", "http" }, function(applet)
      local response = "Hello World !"
      applet:set_status(200)
-     applet:add_header("content-length", string.length(response))
+     applet:add_header("content-length", string.len(response))
      applet:add_header("content-type", "text/plain")
-     applet:start_reponse()
+     applet:start_response()
      applet:send(response)
   end)
 
