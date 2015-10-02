@@ -1166,23 +1166,19 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (strcmp(args[2], "resolvers") == 0) {
 				struct dns_resolvers *presolvers;
 
-				if (!*args[3]) {
-					appctx->ctx.cli.msg = "Missing resolver section identifier.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				appctx->ctx.resolvers.ptr = NULL;
-				list_for_each_entry(presolvers, &dns_resolvers, list) {
-					if (strcmp(presolvers->id, args[3]) == 0) {
-						appctx->ctx.resolvers.ptr = presolvers;
-						break;
+				if (*args[3]) {
+					appctx->ctx.resolvers.ptr = NULL;
+					list_for_each_entry(presolvers, &dns_resolvers, list) {
+						if (strcmp(presolvers->id, args[3]) == 0) {
+							appctx->ctx.resolvers.ptr = presolvers;
+							break;
+						}
 					}
-				}
-				if (appctx->ctx.resolvers.ptr == NULL) {
-					appctx->ctx.cli.msg = "Can't find resolvers section.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
+					if (appctx->ctx.resolvers.ptr == NULL) {
+						appctx->ctx.cli.msg = "Can't find that resolvers section\n";
+						appctx->st0 = STAT_CLI_PRINT;
+						return 1;
+					}
 				}
 
 				appctx->st2 = STAT_ST_INIT;
@@ -6400,24 +6396,33 @@ static int stats_dump_resolvers_to_buffer(struct stream_interface *si)
 		/* fall through */
 
 	case STAT_ST_LIST:
-		presolvers = appctx->ctx.resolvers.ptr;
-		chunk_appendf(&trash, "Resolvers section %s\n", presolvers->id);
-		list_for_each_entry(pnameserver, &presolvers->nameserver_list, list) {
-			chunk_appendf(&trash, " nameserver %s:\n", pnameserver->id);
-			chunk_appendf(&trash, "  sent: %ld\n", pnameserver->counters.sent);
-			chunk_appendf(&trash, "  valid: %ld\n", pnameserver->counters.valid);
-			chunk_appendf(&trash, "  update: %ld\n", pnameserver->counters.update);
-			chunk_appendf(&trash, "  cname: %ld\n", pnameserver->counters.cname);
-			chunk_appendf(&trash, "  cname_error: %ld\n", pnameserver->counters.cname_error);
-			chunk_appendf(&trash, "  any_err: %ld\n", pnameserver->counters.any_err);
-			chunk_appendf(&trash, "  nx: %ld\n", pnameserver->counters.nx);
-			chunk_appendf(&trash, "  timeout: %ld\n", pnameserver->counters.timeout);
-			chunk_appendf(&trash, "  refused: %ld\n", pnameserver->counters.refused);
-			chunk_appendf(&trash, "  other: %ld\n", pnameserver->counters.other);
-			chunk_appendf(&trash, "  invalid: %ld\n", pnameserver->counters.invalid);
-			chunk_appendf(&trash, "  too_big: %ld\n", pnameserver->counters.too_big);
-			chunk_appendf(&trash, "  truncated: %ld\n", pnameserver->counters.truncated);
-			chunk_appendf(&trash, "  outdated: %ld\n", pnameserver->counters.outdated);
+		if (LIST_ISEMPTY(&dns_resolvers)) {
+			chunk_appendf(&trash, "No resolvers found\n");
+		}
+		else {
+			list_for_each_entry(presolvers, &dns_resolvers, list) {
+				if (appctx->ctx.resolvers.ptr != NULL && appctx->ctx.resolvers.ptr != presolvers)
+					continue;
+
+				chunk_appendf(&trash, "Resolvers section %s\n", presolvers->id);
+				list_for_each_entry(pnameserver, &presolvers->nameserver_list, list) {
+					chunk_appendf(&trash, " nameserver %s:\n", pnameserver->id);
+					chunk_appendf(&trash, "  sent: %ld\n", pnameserver->counters.sent);
+					chunk_appendf(&trash, "  valid: %ld\n", pnameserver->counters.valid);
+					chunk_appendf(&trash, "  update: %ld\n", pnameserver->counters.update);
+					chunk_appendf(&trash, "  cname: %ld\n", pnameserver->counters.cname);
+					chunk_appendf(&trash, "  cname_error: %ld\n", pnameserver->counters.cname_error);
+					chunk_appendf(&trash, "  any_err: %ld\n", pnameserver->counters.any_err);
+					chunk_appendf(&trash, "  nx: %ld\n", pnameserver->counters.nx);
+					chunk_appendf(&trash, "  timeout: %ld\n", pnameserver->counters.timeout);
+					chunk_appendf(&trash, "  refused: %ld\n", pnameserver->counters.refused);
+					chunk_appendf(&trash, "  other: %ld\n", pnameserver->counters.other);
+					chunk_appendf(&trash, "  invalid: %ld\n", pnameserver->counters.invalid);
+					chunk_appendf(&trash, "  too_big: %ld\n", pnameserver->counters.too_big);
+					chunk_appendf(&trash, "  truncated: %ld\n", pnameserver->counters.truncated);
+					chunk_appendf(&trash, "  outdated: %ld\n", pnameserver->counters.outdated);
+				}
+			}
 		}
 
 		/* display response */

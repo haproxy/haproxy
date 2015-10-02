@@ -16025,8 +16025,10 @@ show stat [<iid> <type> <sid>]
     A similar empty line appears at the end of the second block (stats) so that
     the reader knows the output has not been truncated.
 
-show stat resolvers <resolvers section id>
-  Dump statistics for the given resolvers section.
+show stat resolvers [<resolvers section id>]
+  Dump statistics for the given resolvers section, or all resolvers sections
+  if no section is supplied.
+
   For each name server, the following counters are reported:
     sent: number of DNS requests sent to this server
     valid: number of DNS valid responses received from this server
