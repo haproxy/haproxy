@@ -44,4 +44,28 @@ static inline struct action_kw *action_lookup(struct list *keywords, const char 
 	return NULL;
 }
 
+static inline void action_build_list(struct list *keywords, struct chunk *chk)
+{
+	struct action_kw_list *kw_list;
+	int i;
+	char *p;
+	char *end;
+	int l;
+
+	p = chk->str;
+	end = p + chk->size - 1;
+	list_for_each_entry(kw_list, keywords, list) {
+		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			l = snprintf(p, end - p, "'%s%s', ", kw_list->kw[i].kw, kw_list->kw[i].match_pfx ? "(*)" : "");
+			if (l > end - p)
+				continue;
+			p += l;
+		}
+	}
+	if (p > chk->str)
+		*(p-2) = '\0';
+	else
+		*p = '\0';
+}
+
 #endif /* _PROTO_ACTION_H */

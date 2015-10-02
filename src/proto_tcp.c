@@ -1521,9 +1521,10 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
+			action_build_list(&tcp_res_cont_keywords, &trash);
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'close', 'reject' or 'set-var' in %s '%s' (got '%s')",
-			          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+			          "'%s %s' expects 'accept', 'close', 'reject', %s in %s '%s' (got '%s')",
+			          args[0], args[1], trash.str, proxy_type_str(curpx), curpx->id, args[arg]);
 			return -1;
 		}
 	}
@@ -1731,10 +1732,14 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
+			if (where & SMP_VAL_FE_CON_ACC)
+				action_build_list(&tcp_req_conn_keywords, &trash);
+			else
+				action_build_list(&tcp_req_cont_keywords, &trash);
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d', "
-			          " or 'set-var' in %s '%s' (got '%s')",
-			          args[0], args[1], MAX_SESS_STKCTR-1, proxy_type_str(curpx),
+			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d', %s "
+			          "in %s '%s' (got '%s').\n",
+			          args[0], args[1], MAX_SESS_STKCTR-1, trash.str, proxy_type_str(curpx),
 			          curpx->id, args[arg]);
 			return -1;
 		}

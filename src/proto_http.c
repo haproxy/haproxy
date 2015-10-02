@@ -9470,8 +9470,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'set-var', 'set-src', but got '%s'%s.\n",
-		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
+		action_build_list(&http_req_keywords.list, &trash);
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', "
+		      "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', "
+		      "'set-src'%s%s, but got '%s'%s.\n",
+		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
@@ -9827,8 +9831,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', 'set-var' but got '%s'%s.\n",
-		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
+		action_build_list(&http_res_keywords.list, &trash);
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', "
+		      "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', "
+		      "'set-src'%s%s, but got '%s'%s.\n",
+		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
