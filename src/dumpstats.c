@@ -2480,6 +2480,8 @@ static void cli_io_handler(struct appctx *appctx)
 		}
 		else {	/* output functions */
 			switch (appctx->st0) {
+			case STAT_CLI_PROMPT:
+				break;
 			case STAT_CLI_PRINT:
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
 					appctx->st0 = STAT_CLI_PROMPT;
