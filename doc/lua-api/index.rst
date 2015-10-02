@@ -27,7 +27,7 @@ functions. Lua have 6 execution context.
    executed in initialisation mode. This section is use for configuring Lua
    bindings in HAProxy.
 
-2. The Lua **init context**. It is an Lua function executed just after the
+2. The Lua **init context**. It is a Lua function executed just after the
    HAProxy configuration parsing. The execution is in initialisation mode. In
    this context the HAProxy environment are already initialized. It is useful to
    check configuration, or initializing socket connections or tasks. These
@@ -35,14 +35,14 @@ functions. Lua have 6 execution context.
    `core.register_init()`. The prototype of the function is a simple function
    without return value and without parameters, like this: `function fcn()`.
 
-3. The Lua **task context**. It is an Lua function executed after the start
+3. The Lua **task context**. It is a Lua function executed after the start
    of the HAProxy scheduler, and just after the declaration of the task with the
    Lua function `core.register_task()`. This context can be concurrent with the
    traffic processing. It is executed in runtime mode. The prototype of the
    function is a simple function without return value and without parameters,
    like this: `function fcn()`.
 
-4. The **action context**. It is an Lua function conditionally executed. These
+4. The **action context**. It is a Lua function conditionally executed. These
    actions are registered by the Lua directives "`core.register_action()`". The
    prototype of the Lua called function is a function with doesn't returns
    anything and that take an object of class TXN as entry. `function fcn(txn)`.
@@ -59,7 +59,7 @@ functions. Lua have 6 execution context.
    in the original HAProxy sample-fetches, in this case, it cannot return the
    result. This case is not yet supported
 
-6. The **converter context**. It is an Lua function that takes a string as input
+6. The **converter context**. It is a Lua function that takes a string as input
    and returns another string as output. These types of function are stateless,
    it cannot access to any context. They don't execute any blocking function.
    The call prototype is `function string fcn(string)`. This function can be
@@ -114,7 +114,7 @@ Core class
    "core" class is basically provided with HAProxy. No `require` line is
    required to uses these function.
 
-   The "core" class is static, t is not possible to create a new object of this
+   The "core" class is static, it is not possible to create a new object of this
    type.
 
 .. js:attribute:: core.emerg
@@ -153,7 +153,7 @@ Core class
 
   **context**: body, init, task, action, sample-fetch, converter
 
-  This fucntion sends a log. The log is sent, according with the HAProxy
+  This function sends a log. The log is sent, according with the HAProxy
   configuration file, on the default syslog server if it is configured and on
   the stderr if it is allowed.
 
@@ -266,7 +266,7 @@ Core class
 
   **context**: body
 
-  Register an Lua function executed as action. All the registered action can be
+  Register a Lua function executed as action. All the registered action can be
   used in HAProxy with the prefix "lua.". An action gets a TXN object class as
   input.
 
@@ -312,7 +312,7 @@ Core class
 
   **context**: body
 
-  Register an Lua function executed as converter. All the registered converters
+  Register a Lua function executed as converter. All the registered converters
   can be used in HAProxy with the prefix "lua.". An converter get a string as
   input and return a string as output. The registered function can take up to 9
   values as parameter. All the value are strings.
@@ -338,7 +338,7 @@ Core class
 
   **context**: body
 
-  Register an Lua function executed as sample fetch. All the registered sample
+  Register a Lua function executed as sample fetch. All the registered sample
   fetchs can be used in HAProxy with the prefix "lua.". A Lua sample fetch
   return a string as output. The registered function can take up to 9 values as
   parameter. All the value are strings.
@@ -382,7 +382,7 @@ Core class
 
   **context**: body
 
-  Register an Lua function executed as a service. All the registered service can
+  Register a Lua function executed as a service. All the registered service can
   be used in HAProxy with the prefix "lua.". A service gets an object class as
   input according with the required mode.
 
@@ -1000,7 +1000,7 @@ TXN class
 
 .. js:function:: TXN.set_var(TXN, var, value)
 
-  Converts an Lua type in a HAProxy type and store it in a variable <var>.
+  Converts a Lua type in a HAProxy type and store it in a variable <var>.
 
   :param class_txn txn: The class txn object containing the data.
   :param string var: The variable name according with the HAProxy variable syntax.
