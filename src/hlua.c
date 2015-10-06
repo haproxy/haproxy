@@ -1261,7 +1261,7 @@ __LJMP static int hlua_del_acl(lua_State *L)
 
 	ref = pat_ref_lookup(name);
 	if (!ref)
-		WILL_LJMP(luaL_error(L, "'del_acl': unkown acl file '%s'", name));
+		WILL_LJMP(luaL_error(L, "'del_acl': unknown acl file '%s'", name));
 
 	pat_ref_delete(ref, key);
 	return 0;
@@ -1283,7 +1283,7 @@ static int hlua_del_map(lua_State *L)
 
 	ref = pat_ref_lookup(name);
 	if (!ref)
-		WILL_LJMP(luaL_error(L, "'del_map': unkown acl file '%s'", name));
+		WILL_LJMP(luaL_error(L, "'del_map': unknown acl file '%s'", name));
 
 	pat_ref_delete(ref, key);
 	return 0;
@@ -1305,7 +1305,7 @@ static int hlua_add_acl(lua_State *L)
 
 	ref = pat_ref_lookup(name);
 	if (!ref)
-		WILL_LJMP(luaL_error(L, "'add_acl': unkown acl file '%s'", name));
+		WILL_LJMP(luaL_error(L, "'add_acl': unknown acl file '%s'", name));
 
 	if (pat_ref_find_elt(ref, key) == NULL)
 		pat_ref_add(ref, key, NULL, NULL);
@@ -1331,7 +1331,7 @@ static int hlua_set_map(lua_State *L)
 
 	ref = pat_ref_lookup(name);
 	if (!ref)
-		WILL_LJMP(luaL_error(L, "'set_map': unkown map file '%s'", name));
+		WILL_LJMP(luaL_error(L, "'set_map': unknown map file '%s'", name));
 
 	if (pat_ref_find_elt(ref, key) != NULL)
 		pat_ref_set(ref, key, value, NULL);
