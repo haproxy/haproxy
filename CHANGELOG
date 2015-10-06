@@ -1,6 +1,28 @@
 ChangeLog :
 ===========
 
+2015/10/06 : 1.6-dev7
+    - MINOR: cli: Dump all resolvers stats if no resolver section is given
+    - BUG: config: external-check command validation is checking for incorrect arguments.
+    - DOC: documentation format cleanups
+    - DOC: lua: few typos.
+    - BUG/MEDIUM: str2ip: make getaddrinfo() consider local address selection policy
+    - BUG/MEDIUM: logs: segfault writing to log from Lua
+    - DOC: fix lua use-service example
+    - MINOR: payload: add support for tls session ticket ext
+    - MINOR: lua: remove the run flag
+    - MEDIUM: lua: change the timeout execution
+    - MINOR: lua: rename the tune.lua.applet-timeout
+    - DOC: lua: update Lua doc
+    - DOC: lua: update doc according with the last Lua changes
+    - MINOR: http/tcp: fill the avalaible actions
+    - DOC: reorder misplaced res.ssl_hello_type in the doc
+    - BUG/MINOR: tcp: make silent-drop always force a TCP reset
+    - CLEANUP: tcp: silent-drop: only drain the connection when quick-ack is disabled
+    - BUILD: tcp: use IPPROTO_IP when SOL_IP is not available
+    - BUILD: server: fix build warnings introduced by load-server-state
+    - BUG/MEDIUM: server: fix misuse of format string in load-server-state's warnings
+
 2015/09/28 : 1.6-dev6
     - BUG/MAJOR: can't enable a server through the stat socket
     - MINOR: server: Macro definition for server-state
