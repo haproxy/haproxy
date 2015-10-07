@@ -5755,6 +5755,16 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	txn = strm->txn;
 	msg = &txn->req;
 
+	/* We want two things in HTTP mode :
+	 *  - enforce server-close mode if we were in keep-alive, so that the
+	 *    applet is released after each response ;
+	 *  - enable request body transfer to the applet in order to resync
+	 *    with the response body.
+	 */
+	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
+	req->analysers |= AN_REQ_HTTP_XFER_BODY;
+
 	HLUA_INIT(hlua);
 	ctx->ctx.hlua_apphttp.left_bytes = -1;
 	ctx->ctx.hlua_apphttp.flags = 0;
