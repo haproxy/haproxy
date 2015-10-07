@@ -6155,9 +6155,11 @@ static void cli_release_handler(struct appctx *appctx)
 	}
 	else if (appctx->st0 == STAT_CLI_PRINT_FREE) {
 		free(appctx->ctx.cli.err);
+		appctx->ctx.cli.err = NULL;
 	}
 	else if (appctx->st0 == STAT_CLI_O_MLOOK) {
 		free(appctx->ctx.map.chunk.str);
+		appctx->ctx.map.chunk.str = NULL;
 	}
 }
 
