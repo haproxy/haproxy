@@ -1540,14 +1540,13 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (elt == refelt) {
+			list_for_each_entry(expr, &ref->pat, list)
+				pattern_delete(expr, elt);
+
 			LIST_DEL(&elt->list);
 			free(elt->sample);
 			free(elt->pattern);
 			free(elt);
-
-			list_for_each_entry(expr, &ref->pat, list)
-				pattern_delete(expr, elt);
-
 			return 1;
 		}
 	}
