@@ -416,7 +416,7 @@ void usage(char *name)
 	fprintf(stderr,
 		"Usage : %s [-f <cfgfile>]* [ -vdV"
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
-		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ]\n"
+		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ] [-- <cfgfile>*]\n"
 		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -dM[<byte>] poisons memory with <byte> (defaults to 0x50)\n"
@@ -701,6 +701,21 @@ void init(int argc, char **argv)
 						usage(progname);
 					nb_oldpids++;
 				}
+			}
+			else if (flag[0] == '-' && flag[1] == 0) { /* "--" */
+				/* now that's a cfgfile list */
+				argv++; argc--;
+				while (argc > 0) {
+					wl = (struct wordlist *)calloc(1, sizeof(*wl));
+					if (!wl) {
+						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
+						exit(1);
+					}
+					wl->s = *argv;
+					LIST_ADDQ(&cfg_cfgfiles, &wl->list);
+					argv++; argc--;
+				}
+				break;
 			}
 			else { /* >=2 args */
 				argv++; argc--;
