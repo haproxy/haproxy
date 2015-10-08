@@ -62,7 +62,7 @@
 static inline void *p_malloc(size_t size)
 {
 	void *ret = malloc(size);
-	if (mem_poison_byte && ret)
+	if (mem_poison_byte >= 0 && ret)
 		memset(ret, mem_poison_byte, size);
 	return ret;
 }

@@ -20,7 +20,7 @@
 #include <proto/log.h>
 
 static struct list pools = LIST_HEAD_INIT(pools);
-char mem_poison_byte = 0;
+int mem_poison_byte = -1;
 
 /* Try to find an existing shared pool with the same characteristics and
  * returns it, otherwise creates this one. NULL is returned if no memory

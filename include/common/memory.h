@@ -43,8 +43,8 @@ struct pool_head {
 	char name[12];		/* name of the pool */
 };
 
-/* poison each newly allocated area with this byte if not null */
-extern char mem_poison_byte;
+/* poison each newly allocated area with this byte if >= 0 */
+extern int mem_poison_byte;
 
 /*
  * This function destroys a pull by freeing it completely.
@@ -141,7 +141,7 @@ static inline void *pool_alloc2(struct pool_head *pool)
 	void *p;
 
 	p = pool_alloc_dirty(pool);
-	if (p && mem_poison_byte)
+	if (p && mem_poison_byte >= 0)
 		memset(p, mem_poison_byte, pool->size);
 	return p;
 }
