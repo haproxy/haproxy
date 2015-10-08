@@ -445,7 +445,7 @@ void usage(char *name)
 		"        -dG disables getaddrinfo() usage\n"
 #endif
 		"        -dV disables SSL verify on servers side\n"
-		"        -sf/-st [pid ]* finishes/terminates old pids. Must be last arguments.\n"
+		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"\n",
 		name, DEFAULT_MAXCONN, cfg_maxpconn);
 	exit(1);
@@ -688,17 +688,18 @@ void init(int argc, char **argv)
 					oldpids_sig = SIGUSR1; /* finish then exit */
 				else
 					oldpids_sig = SIGTERM; /* terminate immediately */
-				argv++; argc--;
 
-				if (argc > 0) {
-					oldpids = calloc(argc, sizeof(int));
-					while (argc > 0) {
-						oldpids[nb_oldpids] = atol(*argv);
-						if (oldpids[nb_oldpids] <= 0)
-							usage(progname);
-						argc--; argv++;
-						nb_oldpids++;
+				while (argc > 1 && argv[1][0] != '-') {
+					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
+					if (!oldpids) {
+						Alert("Cannot allocate old pid : out of memory.\n");
+						exit(1);
 					}
+					argc--; argv++;
+					oldpids[nb_oldpids] = atol(*argv);
+					if (oldpids[nb_oldpids] <= 0)
+						usage(progname);
+					nb_oldpids++;
 				}
 			}
 			else { /* >=2 args */
