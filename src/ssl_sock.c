@@ -1008,24 +1008,22 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
-SSL_CTX *
-ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, EVP_PKEY *capkey)
+static SSL_CTX *
+ssl_sock_do_create_cert(const char *servername, unsigned int serial,
+			struct bind_conf *bind_conf, SSL *ssl)
 {
+	X509         *cacert  = bind_conf->ca_sign_cert;
+	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
 	SSL_CTX      *ssl_ctx = NULL;
 	X509         *newcrt  = NULL;
 	EVP_PKEY     *pkey    = NULL;
-	RSA          *rsa;
 	X509_NAME    *name;
 	const EVP_MD *digest;
 	X509V3_CTX    ctx;
 	unsigned int  i;
 
-	/* Generate the public key */
-	if (!(rsa = RSA_generate_key(2048, 3, NULL, NULL)))
-		goto mkcert_error;
-	if (!(pkey = EVP_PKEY_new()))
-		goto mkcert_error;
-	if (EVP_PKEY_assign_RSA(pkey, rsa) != 1)
+	/* Get the private key of the defautl certificate and use it */
+	if (!(pkey = SSL_get_privatekey(ssl)))
 		goto mkcert_error;
 
 	/* Create the certificate */
@@ -1086,8 +1084,17 @@ ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, 
 		digest = EVP_dss1();
 	else if (EVP_PKEY_type (capkey->type) == EVP_PKEY_RSA)
 		digest = EVP_sha256();
-	else
-		goto mkcert_error;
+	else if (EVP_PKEY_type (capkey->type) == EVP_PKEY_EC)
+		digest = EVP_sha256();
+	else {
+		int nid;
+
+		if (EVP_PKEY_get_default_digest_nid(capkey, &nid) <= 0)
+			goto mkcert_error;
+		if (!(digest = EVP_get_digestbynid(nid)))
+			goto mkcert_error;
+	}
+
 	if (!(X509_sign(newcrt, capkey, digest)))
 		goto mkcert_error;
 
@@ -1102,25 +1109,31 @@ ssl_sock_create_cert(const char *servername, unsigned int serial, X509 *cacert, 
 		goto mkcert_error;
 
 	if (newcrt) X509_free(newcrt);
-	if (pkey)   EVP_PKEY_free(pkey);
+
 	return ssl_ctx;
 
  mkcert_error:
 	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
 	if (newcrt)  X509_free(newcrt);
-	if (pkey)    EVP_PKEY_free(pkey);
 	return NULL;
+}
+
+SSL_CTX *
+ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int serial)
+{
+	struct bind_conf *bind_conf = objt_listener(conn->target)->bind_conf;
+	return ssl_sock_do_create_cert(servername, serial, bind_conf, conn->xprt_ctx);
 }
 
 /* Do a lookup for a certificate in the LRU cache used to store generated
  * certificates. */
 SSL_CTX *
-ssl_sock_get_generated_cert(unsigned int serial, X509 *cacert)
+ssl_sock_get_generated_cert(unsigned int serial, struct bind_conf *bind_conf)
 {
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		lru = lru64_lookup(serial, ssl_ctx_lru_tree, cacert, 0);
+		lru = lru64_lookup(serial, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (lru && lru->domain)
 			return (SSL_CTX *)lru->data;
 	}
@@ -1130,17 +1143,17 @@ ssl_sock_get_generated_cert(unsigned int serial, X509 *cacert)
 /* Set a certificate int the LRU cache used to store generated
  * certificate. Return 0 on success, otherwise -1 */
 int
-ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, X509 *cacert)
+ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, struct bind_conf *bind_conf)
 {
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
+		lru = lru64_get(serial, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (!lru)
 			return -1;
 		if (lru->domain && lru->data)
 			lru->free((SSL_CTX *)lru->data);
-		lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
+		lru64_commit(lru, ssl_ctx, bind_conf->ca_sign_cert, 0, (void (*)(void *))SSL_CTX_free);
 		return 0;
 	}
 	return -1;
@@ -1154,10 +1167,9 @@ ssl_sock_generated_cert_serial(const void *data, size_t len)
 }
 
 static SSL_CTX *
-ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf)
+ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
 	X509         *cacert  = bind_conf->ca_sign_cert;
-	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
 	SSL_CTX      *ssl_ctx = NULL;
 	struct lru64 *lru     = NULL;
 	unsigned int  serial;
@@ -1168,12 +1180,12 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 		if (lru && lru->domain)
 			ssl_ctx = (SSL_CTX *)lru->data;
 		if (!ssl_ctx && lru) {
-			ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
+			ssl_ctx = ssl_sock_do_create_cert(servername, serial, bind_conf, ssl);
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 	}
 	else
-		ssl_ctx = ssl_sock_create_cert(servername, serial, cacert, capkey);
+		ssl_ctx = ssl_sock_do_create_cert(servername, serial, bind_conf, ssl);
 	return ssl_ctx;
 }
 
@@ -1199,7 +1211,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 			conn_get_to_addr(conn);
 			if (conn->flags & CO_FL_ADDR_TO_SET) {
 				serial = ssl_sock_generated_cert_serial(&conn->addr.to, get_addr_len(&conn->addr.to));
-				ctx = ssl_sock_get_generated_cert(serial, s->ca_sign_cert);
+				ctx = ssl_sock_get_generated_cert(serial, s);
 				if (ctx) {
 					/* switch ctx */
 					SSL_set_SSL_CTX(ssl, ctx);
@@ -1238,9 +1250,8 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	}
 	if (!node || container_of(node, struct sni_ctx, name)->neg) {
 		SSL_CTX *ctx;
-
 		if (s->generate_certs &&
-		    (ctx = ssl_sock_generate_certificate(servername, s))) {
+		    (ctx = ssl_sock_generate_certificate(servername, s, ssl))) {
 			/* switch ctx */
 			SSL_set_SSL_CTX(ssl, ctx);
 			return SSL_TLSEXT_ERR_OK;
