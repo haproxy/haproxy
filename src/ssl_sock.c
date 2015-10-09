@@ -1006,6 +1006,8 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
+
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
 static SSL_CTX *
@@ -1110,6 +1112,22 @@ ssl_sock_do_create_cert(const char *servername, unsigned int serial,
 
 	if (newcrt) X509_free(newcrt);
 
+	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh);
+#if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
+	{
+		const char *ecdhe = (bind_conf->ecdhe ? bind_conf->ecdhe : ECDHE_DEFAULT_CURVE);
+		EC_KEY     *ecc;
+		int         nid;
+
+		if ((nid = OBJ_sn2nid(ecdhe)) == NID_undef)
+			goto end;
+		if (!(ecc = EC_KEY_new_by_curve_name(nid)))
+			goto end;
+		SSL_CTX_set_tmp_ecdh(ssl_ctx, ecc);
+		EC_KEY_free(ecc);
+	}
+#endif
+ end:
 	return ssl_ctx;
 
  mkcert_error:
