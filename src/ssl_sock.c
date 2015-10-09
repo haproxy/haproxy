@@ -2500,9 +2500,11 @@ ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px)
 	if (!bind_conf || !bind_conf->generate_certs)
 		return err;
 
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if (global.tune.ssl_ctx_cache)
 		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
+#endif
 
 	if (!bind_conf->ca_sign_file) {
 		Alert("Proxy '%s': cannot enable certificate generation, "
@@ -3096,11 +3098,13 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 static void ssl_sock_close(struct connection *conn) {
 
 	if (conn->xprt_ctx) {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		if (!ssl_ctx_lru_tree && objt_listener(conn->target)) {
 			SSL_CTX *ctx = SSL_get_SSL_CTX(conn->xprt_ctx);
 			if (ctx != objt_listener(conn->target)->bind_conf->default_ctx)
 				SSL_CTX_free(ctx);
 		}
+#endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		sslconns--;
@@ -5368,7 +5372,9 @@ static void __ssl_sock_init(void)
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	lru64_destroy(ssl_ctx_lru_tree);
+#endif
 
 #ifndef OPENSSL_NO_DH
         if (local_dh_1024) {
