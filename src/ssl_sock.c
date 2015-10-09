@@ -2510,43 +2510,39 @@ ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px)
 		Alert("Proxy '%s': cannot enable certificate generation, "
 		      "no CA certificate File configured at [%s:%d].\n",
 		      px->id, bind_conf->file, bind_conf->line);
-		err++;
-	}
-
-	if (err)
 		goto load_error;
+	}
 
 	/* read in the CA certificate */
 	if (!(fp = fopen(bind_conf->ca_sign_file, "r"))) {
 		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
 		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		err++;
 		goto load_error;
 	}
 	if (!(cacert = PEM_read_X509(fp, NULL, NULL, NULL))) {
 		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
 		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		fclose (fp);
-		err++;
-		goto load_error;
+		goto read_error;
 	}
+	rewind(fp);
 	if (!(capkey = PEM_read_PrivateKey(fp, NULL, NULL, bind_conf->ca_sign_pass))) {
 		Alert("Proxy '%s': Failed to read CA private key file '%s' at [%s:%d].\n",
 		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		fclose (fp);
-		err++;
-		goto load_error;
+		goto read_error;
 	}
-	fclose (fp);
 
+	fclose (fp);
 	bind_conf->ca_sign_cert = cacert;
 	bind_conf->ca_sign_pkey = capkey;
 	return err;
 
- load_error:
-	bind_conf->generate_certs = 0;
+ read_error:
+	fclose (fp);
 	if (capkey) EVP_PKEY_free(capkey);
 	if (cacert) X509_free(cacert);
+ load_error:
+	bind_conf->generate_certs = 0;
+	err++;
 	return err;
 }
 
