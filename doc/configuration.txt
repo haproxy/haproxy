@@ -1776,18 +1776,18 @@ server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
 source                                    X          -         X         X
 srvtimeout                  (deprecated)  X          -         X         X
-stats admin                               -          -         X         X
-stats auth                                X          -         X         X
-stats enable                              X          -         X         X
-stats hide-version                        X          -         X         X
-stats http-request                        -          -         X         X
-stats realm                               X          -         X         X
-stats refresh                             X          -         X         X
-stats scope                               X          -         X         X
-stats show-desc                           X          -         X         X
-stats show-legends                        X          -         X         X
-stats show-node                           X          -         X         X
-stats uri                                 X          -         X         X
+stats admin                               -          X         X         X
+stats auth                                X          X         X         X
+stats enable                              X          X         X         X
+stats hide-version                        X          X         X         X
+stats http-request                        -          X         X         X
+stats realm                               X          X         X         X
+stats refresh                             X          X         X         X
+stats scope                               X          X         X         X
+stats show-desc                           X          X         X         X
+stats show-legends                        X          X         X         X
+stats show-node                           X          X         X         X
+stats uri                                 X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 stick match                               -          -         X         X
 stick on                                  -          -         X         X
