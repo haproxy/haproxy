@@ -525,21 +525,33 @@ The following keywords are supported in the "global" section :
    - ca-base
    - chroot
    - crt-base
+   - cpu-map
    - daemon
+   - description
+   - deviceatlas-json-file
+   - deviceatlas-log-level
+   - deviceatlas-separator
+   - deviceatlas-properties-cookie
    - external-check
    - gid
    - group
    - log
+   - log-tag
    - log-send-hostname
+   - lua-load
    - nbproc
+   - node
    - pidfile
    - uid
    - ulimit-n
    - user
    - stats
+   - ssl-default-bind-ciphers
+   - ssl-default-bind-options
+   - ssl-default-server-ciphers
+   - ssl-default-server-options
+   - ssl-dh-param-file
    - ssl-server-verify
-   - node
-   - description
    - unix-bind
    - 51degrees-data-file
    - 51degrees-property-name-list
@@ -556,6 +568,7 @@ The following keywords are supported in the "global" section :
    - maxsessrate
    - maxsslconn
    - maxsslrate
+   - maxzlibmem
    - noepoll
    - nokqueue
    - nopoll
@@ -564,6 +577,8 @@ The following keywords are supported in the "global" section :
    - spread-checks
    - server-state-base
    - server-state-file
+   - tune.buffers.limit
+   - tune.buffers.reserve
    - tune.bufsize
    - tune.chksize
    - tune.comp.maxlevel
