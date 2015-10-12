@@ -104,6 +104,10 @@
 #define __NR_epoll_create 254
 #define __NR_epoll_ctl    255
 #define __NR_epoll_wait   256
+#elif defined (__s390__) || defined(__s390x__)
+#define __NR_epoll_create 249
+#define __NR_epoll_ctl    250
+#define __NR_epoll_wait   251
 #endif /* $arch */
 #endif /* __NR_epoll_ctl */
 
@@ -121,6 +125,8 @@
 #define __NR_splice             468
 #elif defined (__i386__)
 #define __NR_splice             313
+#elif defined(__s390__) || defined(__s390x__)
+#define __NR_splace		306
 #endif /* $arch */
 #endif /* __NR_splice */
 
