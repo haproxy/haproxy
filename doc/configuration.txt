@@ -1722,10 +1722,11 @@ option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
 option logasap                       (*)  X          X         X         -
 option mysql-check                        X          -         X         X
-option pgsql-check                        X          -         X         X
 option nolinger                      (*)  X          X         X         X
 option originalto                         X          X         X         X
 option persist                       (*)  X          -         X         X
+option pgsql-check                        X          -         X         X
+option prefer-last-server            (*)  X          -         X         X
 option redispatch                    (*)  X          -         X         X
 option redis-check                        X          -         X         X
 option smtpchk                            X          -         X         X
