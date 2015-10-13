@@ -1,15 +1,11 @@
-Medium-long term roadmap - 2014/06/19
+Medium-long term roadmap - 2015/10/13
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.6 or later :
-  - POST parameter extraction and size/speed measurement to use in ACLs
-
+1.7 or later :
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
 
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
-
-  - avg connect time, response time, connect errors, response errors in stats
 
   - add the ability to only dump response errors to more easily detect
     anomalies without being polluted with attacks in requests.
@@ -17,10 +13,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - have multi-criteria analysers which subscribe to req flags, rsp flags, and
     stream interface changes. This would result in a single analyser to wait
     for the end of data transfer in HTTP.
-
-  - implement support for "connection freeze" after accept. A list of frozen
-    connections should be maintained so that it is possible to recycle them
-    when new file descriptors are required.
 
   - support for time-ordered priority queues with ability to add an offset
     based on request matching. Each session will have one ebtree node to be
@@ -39,13 +31,9 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - tcp-request session expect-proxy {L4|L5} if ...
 
-  - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
-
-  - wait on resource (time, mem, CPU, socket, buffers, server's conn, server's rate, ...)
+  - wait on resource (time, mem, CPU, socket, server's conn, server's rate, ...)
 
   - bandwidth limits
-
-  - create internal services and make stats, CLI, etc... part of that.
 
   - buddy servers to build defined lists of failovers. Detect loops during
     the config check.
@@ -80,8 +68,6 @@ Old, maybe obsolete points :
   - option minservers XXX : activates some spare servers when active servers
     are insufficient
 
-  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
-
   - initcwnd parameter for bind sockets : needed in kernel first
 
   - have a callback function which would be called after a server is selected,
@@ -95,17 +81,9 @@ Unsorted :
 
   - HTTP/2.0
 
-  - DNS requests on health checks
-
   - XML inspection (content-switching for SOAP requests)
 
-  - sync all stick-tables data, not just serverid.
-
-  - request, session and user variables
-
   - random cookie generator
-
-  - external checker
 
   - fastcgi to servers
 
