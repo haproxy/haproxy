@@ -10598,6 +10598,21 @@ ssl
 
   Supported in default-server: No
 
+tcp-ut <delay>
+  Sets the TCP User Timeout for all outgoing connections to this server. This
+  option is available on Linux since version 2.6.37. It allows haproxy to
+  configure a timeout for sockets which contain data not receiving an
+  acknoledgement for the configured delay. This is especially useful on
+  long-lived connections experiencing long idle periods such as remote
+  terminals or database connection pools, where the client and server timeouts
+  must remain high to allow a long period of idle, but where it is important to
+  detect that the server has disappeared in order to release all resources
+  associated with its connection (and the client's session). One typical use
+  case is also to force dead server connections to die when health checks are
+  too slow or during a soft reload since health checks are then disabled. The
+  argument is a delay expressed in milliseconds by default. This only works for
+  regular TCP connections, and is ignored for other protocols.
+
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by tracking
   another one. It is possible to track a server which itself tracks another

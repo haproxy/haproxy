@@ -39,7 +39,6 @@
 
 #include <types/global.h>
 #include <types/capture.h>
-#include <types/server.h>
 #include <types/connection.h>
 
 #include <proto/acl.h>
@@ -56,6 +55,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
+#include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
@@ -500,6 +500,11 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
+#ifdef TCP_USER_TIMEOUT
+	/* there is not much more we can do here when it fails, it's still minor */
+	if (srv && srv->tcp_ut)
+		setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &srv->tcp_ut, sizeof(srv->tcp_ut));
+#endif
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 
@@ -2310,6 +2315,31 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 }
 #endif
 
+#ifdef TCP_USER_TIMEOUT
+/* parse the "tcp-ut" server keyword */
+static int srv_parse_tcp_ut(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	const char *ptr = NULL;
+	unsigned int timeout;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP User Timeout value", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ptr = parse_time_err(args[*cur_arg + 1], &timeout, TIME_UNIT_MS);
+	if (ptr) {
+		memprintf(err, "'%s' : expects a positive delay in milliseconds", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (newsrv->addr.ss_family == AF_INET || newsrv->addr.ss_family == AF_INET6)
+		newsrv->tcp_ut = timeout;
+
+	return 0;
+}
+#endif
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "tcp-request",  tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
@@ -2385,6 +2415,12 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ NULL, NULL, 0 },
 }};
 
+static struct srv_kw_list srv_kws = { "TCP", { }, {
+#ifdef TCP_USER_TIMEOUT
+	{ "tcp-ut",        srv_parse_tcp_ut,        1,  0 }, /* set TCP user timeout on server */
+#endif
+	{ NULL, NULL, 0 },
+}};
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ "silent-drop", tcp_parse_silent_drop },
@@ -2421,6 +2457,7 @@ static void __tcp_protocol_init(void)
 	cfg_register_keywords(&cfg_kws);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
+	srv_register_keywords(&srv_kws);
 	tcp_req_conn_keywords_register(&tcp_req_conn_actions);
 	tcp_req_cont_keywords_register(&tcp_req_cont_actions);
 	tcp_res_cont_keywords_register(&tcp_res_cont_actions);

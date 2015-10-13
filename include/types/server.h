@@ -216,6 +216,7 @@ struct server {
 	time_t last_change;			/* last time, when the state was changed */
 
 	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
+	int tcp_ut;                             /* for TCP, user timeout */
 
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
