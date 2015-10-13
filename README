@@ -424,9 +424,9 @@ There is some documentation in the doc/ directory :
 
            http://cbonte.github.io/haproxy-dconv/configuration-1.5.html
 
-    - haproxy-en.txt / haproxy-fr.txt : these are the old outdated docs. You
-      should never need them. If you do, then please report what you didn't
-      find in the other ones.
+    - management.txt : it explains how to start haproxy, how to manage it at
+      runtime, how to manage it on multiple nodes, how to proceed with seamless
+      upgrades.
 
     - gpl.txt / lgpl.txt : the copy of the licenses covering the software. See
       the 'LICENSE' file at the top for more information.

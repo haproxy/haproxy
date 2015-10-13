@@ -78,6 +78,10 @@ to the mailing list whose responses are present in these documents.
     ensure you're running with all known fixes how to update it, complements and
     alternatives.
 
+  - management.txt : it explains how to start haproxy, how to manage it at
+    runtime, how to manage it on multiple nodes, how to proceed with seamless
+    upgrades.
+
   - configuration.txt : the reference manual details all configuration keywords
     and their options. It is used when a configuration change is needed.
 
