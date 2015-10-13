@@ -24,6 +24,9 @@
 #define _TYPES_COMP_H
 
 #if defined(USE_SLZ)
+#ifdef USE_ZLIB
+#error "Cannot build with both USE_SLZ and USE_ZLIB at the same time."
+#endif
 #include <slz.h>
 #elif defined(USE_ZLIB)
 #include <zlib.h>
