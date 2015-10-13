@@ -27,6 +27,8 @@ Summary
 7.    CPU usage
 8.    Logging
 9.    Statistics and monitoring
+9.1.      CSV format
+9.2.      Unix Socket commands
 10.   Tricks for easier configuration management
 11.   Well-known traps to avoid
 12.   Debugging and performance issues
@@ -861,6 +863,905 @@ anomalies such as a bot looping on the site, and block them.
 
 9. Statistics and monitoring
 ----------------------------
+
+It is possible to query HAProxy about its status. The most commonly used
+mechanism is the HTTP statistics page. This page also exposes an alternative
+CSV output format for monitoring tools. The same format is provided on the
+Unix socket.
+
+
+9.1. CSV format
+---------------
+
+The statistics may be consulted either from the unix socket or from the HTTP
+page. Both means provide a CSV format whose fields follow. The first line
+begins with a sharp ('#') and has one word per comma-delimited field which
+represents the title of the column. All other lines starting at the second one
+use a classical CSV format using a comma as the delimiter, and the double quote
+('"') as an optional text delimiter, but only if the enclosed text is ambiguous
+(if it contains a quote or a comma). The double-quote character ('"') in the
+text is doubled ('""'), which is the format that most tools recognize. Please
+do not insert any column before these ones in order not to break tools which
+use hard-coded column positions.
+
+In brackets after each field name are the types which may have a value for
+that field. The types are L (Listeners), F (Frontends), B (Backends), and
+S (Servers).
+
+  0. pxname [LFBS]: proxy name
+  1. svname [LFBS]: service name (FRONTEND for frontend, BACKEND for backend,
+     any name for server/listener)
+  2. qcur [..BS]: current queued requests. For the backend this reports the
+     number queued without a server assigned.
+  3. qmax [..BS]: max value of qcur
+  4. scur [LFBS]: current sessions
+  5. smax [LFBS]: max sessions
+  6. slim [LFBS]: configured session limit
+  7. stot [LFBS]: cumulative number of connections
+  8. bin [LFBS]: bytes in
+  9. bout [LFBS]: bytes out
+ 10. dreq [LFB.]: requests denied because of security concerns.
+     - For tcp this is because of a matched tcp-request content rule.
+     - For http this is because of a matched http-request or tarpit rule.
+ 11. dresp [LFBS]: responses denied because of security concerns.
+     - For http this is because of a matched http-request rule, or
+       "option checkcache".
+ 12. ereq [LF..]: request errors. Some of the possible causes are:
+     - early termination from the client, before the request has been sent.
+     - read error from the client
+     - client timeout
+     - client closed connection
+     - various bad requests from the client.
+     - request was tarpitted.
+ 13. econ [..BS]: number of requests that encountered an error trying to
+     connect to a backend server. The backend stat is the sum of the stat
+     for all servers of that backend, plus any connection errors not
+     associated with a particular server (such as the backend having no
+     active servers).
+ 14. eresp [..BS]: response errors. srv_abrt will be counted here also.
+     Some other errors are:
+     - write error on the client socket (won't be counted for the server stat)
+     - failure applying filters to the response.
+ 15. wretr [..BS]: number of times a connection to a server was retried.
+ 16. wredis [..BS]: number of times a request was redispatched to another
+     server. The server value counts the number of times that server was
+     switched away from.
+ 17. status [LFBS]: status (UP/DOWN/NOLB/MAINT/MAINT(via)...)
+ 18. weight [..BS]: total weight (backend), server weight (server)
+ 19. act [..BS]: number of active servers (backend), server is active (server)
+ 20. bck [..BS]: number of backup servers (backend), server is backup (server)
+ 21. chkfail [...S]: number of failed checks. (Only counts checks failed when
+     the server is up.)
+ 22. chkdown [..BS]: number of UP->DOWN transitions. The backend counter counts
+     transitions to the whole backend being down, rather than the sum of the
+     counters for each server.
+ 23. lastchg [..BS]: number of seconds since the last UP<->DOWN transition
+ 24. downtime [..BS]: total downtime (in seconds). The value for the backend
+     is the downtime for the whole backend, not the sum of the server downtime.
+ 25. qlimit [...S]: configured maxqueue for the server, or nothing in the
+     value is 0 (default, meaning no limit)
+ 26. pid [LFBS]: process id (0 for first instance, 1 for second, ...)
+ 27. iid [LFBS]: unique proxy id
+ 28. sid [L..S]: server id (unique inside a proxy)
+ 29. throttle [...S]: current throttle percentage for the server, when
+     slowstart is active, or no value if not in slowstart.
+ 30. lbtot [..BS]: total number of times a server was selected, either for new
+     sessions, or when re-dispatching. The server counter is the number
+     of times that server was selected.
+ 31. tracked [...S]: id of proxy/server if tracking is enabled.
+ 32. type [LFBS]: (0=frontend, 1=backend, 2=server, 3=socket/listener)
+ 33. rate [.FBS]: number of sessions per second over last elapsed second
+ 34. rate_lim [.F..]: configured limit on new sessions per second
+ 35. rate_max [.FBS]: max number of new sessions per second
+ 36. check_status [...S]: status of last health check, one of:
+        UNK     -> unknown
+        INI     -> initializing
+        SOCKERR -> socket error
+        L4OK    -> check passed on layer 4, no upper layers testing enabled
+        L4TOUT  -> layer 1-4 timeout
+        L4CON   -> layer 1-4 connection problem, for example
+                   "Connection refused" (tcp rst) or "No route to host" (icmp)
+        L6OK    -> check passed on layer 6
+        L6TOUT  -> layer 6 (SSL) timeout
+        L6RSP   -> layer 6 invalid response - protocol error
+        L7OK    -> check passed on layer 7
+        L7OKC   -> check conditionally passed on layer 7, for example 404 with
+                   disable-on-404
+        L7TOUT  -> layer 7 (HTTP/SMTP) timeout
+        L7RSP   -> layer 7 invalid response - protocol error
+        L7STS   -> layer 7 response error, for example HTTP 5xx
+ 37. check_code [...S]: layer5-7 code, if available
+ 38. check_duration [...S]: time in ms took to finish last health check
+ 39. hrsp_1xx [.FBS]: http responses with 1xx code
+ 40. hrsp_2xx [.FBS]: http responses with 2xx code
+ 41. hrsp_3xx [.FBS]: http responses with 3xx code
+ 42. hrsp_4xx [.FBS]: http responses with 4xx code
+ 43. hrsp_5xx [.FBS]: http responses with 5xx code
+ 44. hrsp_other [.FBS]: http responses with other codes (protocol error)
+ 45. hanafail [...S]: failed health checks details
+ 46. req_rate [.F..]: HTTP requests per second over last elapsed second
+ 47. req_rate_max [.F..]: max number of HTTP requests per second observed
+ 48. req_tot [.F..]: total number of HTTP requests received
+ 49. cli_abrt [..BS]: number of data transfers aborted by the client
+ 50. srv_abrt [..BS]: number of data transfers aborted by the server
+     (inc. in eresp)
+ 51. comp_in [.FB.]: number of HTTP response bytes fed to the compressor
+ 52. comp_out [.FB.]: number of HTTP response bytes emitted by the compressor
+ 53. comp_byp [.FB.]: number of bytes that bypassed the HTTP compressor
+     (CPU/BW limit)
+ 54. comp_rsp [.FB.]: number of HTTP responses that were compressed
+ 55. lastsess [..BS]: number of seconds since last session assigned to
+     server/backend
+ 56. last_chk [...S]: last health check contents or textual error
+ 57. last_agt [...S]: last agent check contents or textual error
+ 58. qtime [..BS]: the average queue time in ms over the 1024 last requests
+ 59. ctime [..BS]: the average connect time in ms over the 1024 last requests
+ 60. rtime [..BS]: the average response time in ms over the 1024 last requests
+     (0 for TCP)
+ 61. ttime [..BS]: the average total session time in ms over the 1024 last
+     requests
+
+
+9.2. Unix Socket commands
+-------------------------
+
+The stats socket is not enabled by default. In order to enable it, it is
+necessary to add one line in the global section of the haproxy configuration.
+A second line is recommended to set a larger timeout, always appreciated when
+issuing commands by hand :
+
+    global
+        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats timeout 2m
+
+It is also possible to add multiple instances of the stats socket by repeating
+the line, and make them listen to a TCP port instead of a UNIX socket. This is
+never done by default because this is dangerous, but can be handy in some
+situations :
+
+    global
+        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats socket ipv4@192.168.0.1:9999 level admin
+        stats timeout 2m
+
+To access the socket, an external utility such as "socat" is required. Socat is
+a swiss-army knife to connect anything to anything. We use it to connect
+terminals to the socket, or a couple of stdin/stdout pipes to it for scripts.
+The two main syntaxes we'll use are the following :
+
+    # socat /var/run/haproxy.sock stdio
+    # socat /var/run/haproxy.sock readline
+
+The first one is used with scripts. It is possible to send the output of a
+script to haproxy, and pass haproxy's output to another script. That's useful
+for retrieving counters or attack traces for example.
+
+The second one is only useful for issuing commands by hand. It has the benefit
+that the terminal is handled by the readline library which supports line
+editing and history, which is very convenient when issuing repeated commands
+(eg: watch a counter).
+
+The socket supports two operation modes :
+  - interactive
+  - non-interactive
+
+The non-interactive mode is the default when socat connects to the socket. In
+this mode, a single line may be sent. It is processed as a whole, responses are
+sent back, and the connection closes after the end of the response. This is the
+mode that scripts and monitoring tools use. It is possible to send multiple
+commands in this mode, they need to be delimited by a semi-colon (';'). For
+example :
+
+    # echo "show info;show stat;show table" | socat /var/run/haproxy stdio
+
+The interactive mode displays a prompt ('>') and waits for commands to be
+entered on the line, then processes them, and displays the prompt again to wait
+for a new command. This mode is entered via the "prompt" command which must be
+sent on the first line in non-interactive mode. The mode is a flip switch, if
+"prompt" is sent in interactive mode, it is disabled and the connection closes
+after processing the last command of the same line.
+
+For this reason, when debugging by hand, it's quite common to start with the
+"prompt" command :
+
+   # socat /var/run/haproxy readline
+   prompt
+   > show info
+   ...
+   >
+
+Since multiple commands may be issued at once, haproxy uses the empty line as a
+delimiter to mark an end of output for each command, and takes care of ensuring
+that no command can emit an empty line on output. A script can thus easily
+parse the output even when multiple commands were pipelined on a single line.
+
+It is important to understand that when multiple haproxy processes are started
+on the same sockets, any process may pick up the request and will output its
+own stats.
+
+The list of commands currently supported on the stats socket is provided below.
+If an unknown command is sent, haproxy displays the usage message which reminds
+all supported commands. Some commands support a more complex syntax, generally
+it will explain what part of the command is invalid when this happens.
+
+add acl <acl> <pattern>
+  Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
+  "show acl". This command does not verify if the entry already exists. This
+  command cannot be used if the reference <acl> is a file also used with a map.
+  In this case, you must use the command "add map" in place of "add acl".
+
+add map <map> <key> <value>
+  Add an entry into the map <map> to associate the value <value> to the key
+  <key>. This command does not verify if the entry already exists. It is
+  mainly used to fill a map after a clear operation. Note that if the reference
+  <map> is a file and is shared with a map, this map will contain also a new
+  pattern entry.
+
+clear counters
+  Clear the max values of the statistics counters in each proxy (frontend &
+  backend) and in each server. The cumulated counters are not affected. This
+  can be used to get clean counters after an incident, without having to
+  restart nor to clear traffic counters. This command is restricted and can
+  only be issued on sockets configured for levels "operator" or "admin".
+
+clear counters all
+  Clear all statistics counters in each proxy (frontend & backend) and in each
+  server. This has the same effect as restarting. This command is restricted
+  and can only be issued on sockets configured for level "admin".
+
+clear acl <acl>
+  Remove all entries from the acl <acl>. <acl> is the #<id> or the <file>
+  returned by "show acl". Note that if the reference <acl> is a file and is
+  shared with a map, this map will be also cleared.
+
+clear map <map>
+  Remove all entries from the map <map>. <map> is the #<id> or the <file>
+  returned by "show map". Note that if the reference <map> is a file and is
+  shared with a acl, this acl will be also cleared.
+
+clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
+  Remove entries from the stick-table <table>.
+
+  This is typically used to unblock some users complaining they have been
+  abusively denied access to a service, but this can also be used to clear some
+  stickiness entries matching a server that is going to be replaced (see "show
+  table" below for details).  Note that sometimes, removal of an entry will be
+  refused because it is currently tracked by a session. Retrying a few seconds
+  later after the session ends is usual enough.
+
+  In the case where no options arguments are given all entries will be removed.
+
+  When the "data." form is used entries matching a filter applied using the
+  stored data (see "stick-table" in section 4.2) are removed.  A stored data
+  type must be specified in <type>, and this data type must be stored in the
+  table otherwise an error is reported. The data is compared according to
+  <operator> with the 64-bit integer <value>.  Operators are the same as with
+  the ACLs :
+
+    - eq : match entries whose data is equal to this value
+    - ne : match entries whose data is not equal to this value
+    - le : match entries whose data is less than or equal to this value
+    - ge : match entries whose data is greater than or equal to this value
+    - lt : match entries whose data is less than this value
+    - gt : match entries whose data is greater than this value
+
+  When the key form is used the entry <key> is removed.  The key must be of the
+  same type as the table, which currently is limited to IPv4, IPv6, integer and
+  string.
+
+  Example :
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1 \
+          bytes_out_rate(60000)=187
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "clear table http_proxy key 127.0.0.1" | socat stdio /tmp/sock1
+
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:1
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+        $ echo "clear table http_proxy data.gpc0 eq 1" | socat stdio /tmp/sock1
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:1
+
+del acl <acl> [<key>|#<ref>]
+  Delete all the acl entries from the acl <acl> corresponding to the key <key>.
+  <acl> is the #<id> or the <file> returned by "show acl". If the <ref> is used,
+  this command delete only the listed reference. The reference can be found with
+  listing the content of the acl. Note that if the reference <acl> is a file and
+  is shared with a map, the entry will be also deleted in the map.
+
+del map <map> [<key>|#<ref>]
+  Delete all the map entries from the map <map> corresponding to the key <key>.
+  <map> is the #<id> or the <file> returned by "show map". If the <ref> is used,
+  this command delete only the listed reference. The reference can be found with
+  listing the content of the map. Note that if the reference <map> is a file and
+  is shared with a acl, the entry will be also deleted in the map.
+
+disable agent <backend>/<server>
+  Mark the auxiliary agent check as temporarily stopped.
+
+  In the case where an agent check is being run as a auxiliary check, due
+  to the agent-check parameter of a server directive, new checks are only
+  initialised when the agent is in the enabled. Thus, disable agent will
+  prevent any new agent checks from begin initiated until the agent
+  re-enabled using enable agent.
+
+  When an agent is disabled the processing of an auxiliary agent check that
+  was initiated while the agent was set as enabled is as follows: All
+  results that would alter the weight, specifically "drain" or a weight
+  returned by the agent, are ignored. The processing of agent check is
+  otherwise unchanged.
+
+  The motivation for this feature is to allow the weight changing effects
+  of the agent checks to be paused to allow the weight of a server to be
+  configured using set weight without being overridden by the agent.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+disable frontend <frontend>
+  Mark the frontend as temporarily stopped. This corresponds to the mode which
+  is used during a soft restart : the frontend releases the port but can be
+  enabled again if needed. This should be used with care as some non-Linux OSes
+  are unable to enable it back. This is intended to be used in environments
+  where stopping a proxy is not even imaginable but a misconfigured proxy must
+  be fixed. That way it's possible to release the port and bind it into another
+  process to restore operations. The frontend will appear with status "STOP"
+  on the stats page.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+disable health <backend>/<server>
+  Mark the primary health check as temporarily stopped. This will disable
+  sending of health checks, and the last health check result will be ignored.
+  The server will be in unchecked state and considered UP unless an auxiliary
+  agent check forces it down.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+disable server <backend>/<server>
+  Mark the server DOWN for maintenance. In this mode, no more checks will be
+  performed on the server until it leaves maintenance.
+  If the server is tracked by other servers, those servers will be set to DOWN
+  during the maintenance.
+
+  In the statistics page, a server DOWN for maintenance will appear with a
+  "MAINT" status, its tracking servers with the "MAINT(via)" one.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable agent <backend>/<server>
+  Resume auxiliary agent check that was temporarily stopped.
+
+  See "disable agent" for details of the effect of temporarily starting
+  and stopping an auxiliary agent.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable frontend <frontend>
+  Resume a frontend which was temporarily stopped. It is possible that some of
+  the listening ports won't be able to bind anymore (eg: if another process
+  took them since the 'disable frontend' operation). If this happens, an error
+  is displayed. Some operating systems might not be able to resume a frontend
+  which was disabled.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable health <backend>/<server>
+  Resume a primary health check that was temporarily stopped. This will enable
+  sending of health checks again. Please see "disable health" for details.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable server <backend>/<server>
+  If the server was previously marked as DOWN for maintenance, this marks the
+  server UP and checks are re-enabled.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+get map <map> <value>
+get acl <acl> <value>
+  Lookup the value <value> in the map <map> or in the ACL <acl>. <map> or <acl>
+  are the #<id> or the <file> returned by "show map" or "show acl". This command
+  returns all the matching patterns associated with this map. This is useful for
+  debugging maps and ACLs. The output format is composed by one line par
+  matching type. Each line is composed by space-delimited series of words.
+
+  The first two words are:
+
+     <match method>:   The match method applied. It can be "found", "bool",
+                       "int", "ip", "bin", "len", "str", "beg", "sub", "dir",
+                       "dom", "end" or "reg".
+
+     <match result>:   The result. Can be "match" or "no-match".
+
+  The following words are returned only if the pattern matches an entry.
+
+     <index type>:     "tree" or "list". The internal lookup algorithm.
+
+     <case>:           "case-insensitive" or "case-sensitive". The
+                       interpretation of the case.
+
+     <entry matched>:  match="<entry>". Return the matched pattern. It is
+                       useful with regular expressions.
+
+  The two last word are used to show the returned value and its type. With the
+  "acl" case, the pattern doesn't exist.
+
+     return=nothing:        No return because there are no "map".
+     return="<value>":      The value returned in the string format.
+     return=cannot-display: The value cannot be converted as string.
+
+     type="<type>":         The type of the returned sample.
+
+get weight <backend>/<server>
+  Report the current weight and the initial weight of server <server> in
+  backend <backend> or an error if either doesn't exist. The initial weight is
+  the one that appears in the configuration file. Both are normally equal
+  unless the current weight has been changed. Both the backend and the server
+  may be specified either by their name or by their numeric ID, prefixed with a
+  sharp ('#').
+
+help
+  Print the list of known keywords and their basic usage. The same help screen
+  is also displayed for unknown commands.
+
+prompt
+  Toggle the prompt at the beginning of the line and enter or leave interactive
+  mode. In interactive mode, the connection is not closed after a command
+  completes. Instead, the prompt will appear again, indicating the user that
+  the interpreter is waiting for a new command. The prompt consists in a right
+  angle bracket followed by a space "> ". This mode is particularly convenient
+  when one wants to periodically check information such as stats or errors.
+  It is also a good idea to enter interactive mode before issuing a "help"
+  command.
+
+quit
+  Close the connection when in interactive mode.
+
+set map <map> [<key>|#<ref>] <value>
+  Modify the value corresponding to each key <key> in a map <map>. <map> is the
+  #<id> or <file> returned by "show map". If the <ref> is used in place of
+  <key>, only the entry pointed by <ref> is changed. The new value is <value>.
+
+set maxconn frontend <frontend> <value>
+  Dynamically change the specified frontend's maxconn setting. Any positive
+  value is allowed including zero, but setting values larger than the global
+  maxconn does not make much sense. If the limit is increased and connections
+  were pending, they will immediately be accepted. If it is lowered to a value
+  below the current number of connections, new connections acceptation will be
+  delayed until the threshold is reached. The frontend might be specified by
+  either its name or its numeric ID prefixed with a sharp ('#').
+
+set maxconn global <maxconn>
+  Dynamically change the global maxconn setting within the range defined by the
+  initial global maxconn setting. If it is increased and connections were
+  pending, they will immediately be accepted. If it is lowered to a value below
+  the current number of connections, new connections acceptation will be
+  delayed until the threshold is reached. A value of zero restores the initial
+  setting.
+
+set rate-limit connections global <value>
+  Change the process-wide connection rate limit, which is set by the global
+  'maxconnrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of connections per second.
+
+set rate-limit http-compression global <value>
+  Change the maximum input compression rate, which is set by the global
+  'maxcomprate' setting. A value of zero disables the limitation. The value is
+  passed in number of kilobytes per second. The value is available in the "show
+  info" on the line "CompressBpsRateLim" in bytes.
+
+set rate-limit sessions global <value>
+  Change the process-wide session rate limit, which is set by the global
+  'maxsessrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of sessions per second.
+
+set rate-limit ssl-sessions global <value>
+  Change the process-wide SSL session rate limit, which is set by the global
+  'maxsslrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of sessions per second sent to the SSL stack. It applies
+  before the handshake in order to protect the stack against handshake abuses.
+
+set server <backend>/<server> addr <ip4 or ip6 address>
+  Replace the current IP address of a server by the one provided.
+
+set server <backend>/<server> agent [ up | down ]
+  Force a server's agent to a new state. This can be useful to immediately
+  switch a server's state regardless of some slow agent checks for example.
+  Note that the change is propagated to tracking servers if any.
+
+set server <backend>/<server> health [ up | stopping | down ]
+  Force a server's health to a new state. This can be useful to immediately
+  switch a server's state regardless of some slow health checks for example.
+  Note that the change is propagated to tracking servers if any.
+
+set server <backend>/<server> state [ ready | drain | maint ]
+  Force a server's administrative state to a new state. This can be useful to
+  disable load balancing and/or any traffic to a server. Setting the state to
+  "ready" puts the server in normal mode, and the command is the equivalent of
+  the "enable server" command. Setting the state to "maint" disables any traffic
+  to the server as well as any health checks. This is the equivalent of the
+  "disable server" command. Setting the mode to "drain" only removes the server
+  from load balancing but still allows it to be checked and to accept new
+  persistent connections. Changes are propagated to tracking servers if any.
+
+set server <backend>/<server> weight <weight>[%]
+  Change a server's weight to the value passed in argument. This is the exact
+  equivalent of the "set weight" command below.
+
+set ssl ocsp-response <response>
+  This command is used to update an OCSP Response for a certificate (see "crt"
+  on "bind" lines). Same controls are performed as during the initial loading of
+  the response. The <response> must be passed as a base64 encoded string of the
+  DER encoded response from the OCSP server.
+
+  Example:
+    openssl ocsp -issuer issuer.pem -cert server.pem \
+                 -host ocsp.issuer.com:80 -respout resp.der
+    echo "set ssl ocsp-response $(base64 -w 10000 resp.der)" | \
+                 socat stdio /var/run/haproxy.stat
+
+set ssl tls-key <id> <tlskey>
+  Set the next TLS key for the <id> listener to <tlskey>. This key becomes the
+  ultimate key, while the penultimate one is used for encryption (others just
+  decrypt). The oldest TLS key present is overwritten. <id> is either a numeric
+  #<id> or <file> returned by "show tls-keys". <tlskey> is a base64 encoded 48
+  bit TLS ticket key (ex. openssl rand -base64 48).
+
+set table <table> key <key> [data.<data_type> <value>]*
+  Create or update a stick-table entry in the table. If the key is not present,
+  an entry is inserted. See stick-table in section 4.2 to find all possible
+  values for <data_type>. The most likely use consists in dynamically entering
+  entries for source IP addresses, with a flag in gpc0 to dynamically block an
+  IP address or affect its quality of service. It is possible to pass multiple
+  data_types in a single call.
+
+set timeout cli <delay>
+  Change the CLI interface timeout for current connection. This can be useful
+  during long debugging sessions where the user needs to constantly inspect
+  some indicators without being disconnected. The delay is passed in seconds.
+
+set weight <backend>/<server> <weight>[%]
+  Change a server's weight to the value passed in argument. If the value ends
+  with the '%' sign, then the new weight will be relative to the initially
+  configured weight.  Absolute weights are permitted between 0 and 256.
+  Relative weights must be positive with the resulting absolute weight is
+  capped at 256.  Servers which are part of a farm running a static
+  load-balancing algorithm have stricter limitations because the weight
+  cannot change once set. Thus for these servers, the only accepted values
+  are 0 and 100% (or 0 and the initial weight). Changes take effect
+  immediately, though certain LB algorithms require a certain amount of
+  requests to consider changes. A typical usage of this command is to
+  disable a server during an update by setting its weight to zero, then to
+  enable it again after the update by setting it back to 100%. This command
+  is restricted and can only be issued on sockets configured for level
+  "admin". Both the backend and the server may be specified either by their
+  name or by their numeric ID, prefixed with a sharp ('#').
+
+show errors [<iid>]
+  Dump last known request and response errors collected by frontends and
+  backends. If <iid> is specified, the limit the dump to errors concerning
+  either frontend or backend whose ID is <iid>. This command is restricted
+  and can only be issued on sockets configured for levels "operator" or
+  "admin".
+
+  The errors which may be collected are the last request and response errors
+  caused by protocol violations, often due to invalid characters in header
+  names. The report precisely indicates what exact character violated the
+  protocol. Other important information such as the exact date the error was
+  detected, frontend and backend names, the server name (when known), the
+  internal session ID and the source address which has initiated the session
+  are reported too.
+
+  All characters are returned, and non-printable characters are encoded. The
+  most common ones (\t = 9, \n = 10, \r = 13 and \e = 27) are encoded as one
+  letter following a backslash. The backslash itself is encoded as '\\' to
+  avoid confusion. Other non-printable characters are encoded '\xNN' where
+  NN is the two-digits hexadecimal representation of the character's ASCII
+  code.
+
+  Lines are prefixed with the position of their first character, starting at 0
+  for the beginning of the buffer. At most one input line is printed per line,
+  and large lines will be broken into multiple consecutive output lines so that
+  the output never goes beyond 79 characters wide. It is easy to detect if a
+  line was broken, because it will not end with '\n' and the next line's offset
+  will be followed by a '+' sign, indicating it is a continuation of previous
+  line.
+
+  Example :
+        $ echo "show errors" | socat stdio /tmp/sock1
+    >>> [04/Mar/2009:15:46:56.081] backend http-in (#2) : invalid response
+          src 127.0.0.1, session #54, frontend fe-eth0 (#1), server s2 (#1)
+          response length 213 bytes, error at position 23:
+
+          00000  HTTP/1.0 200 OK\r\n
+          00017  header/bizarre:blah\r\n
+          00038  Location: blah\r\n
+          00054  Long-line: this is a very long line which should b
+          00104+ e broken into multiple lines on the output buffer,
+          00154+  otherwise it would be too large to print in a ter
+          00204+ minal\r\n
+          00211  \r\n
+
+    In the example above, we see that the backend "http-in" which has internal
+    ID 2 has blocked an invalid response from its server s2 which has internal
+    ID 1. The request was on session 54 initiated by source 127.0.0.1 and
+    received by frontend fe-eth0 whose ID is 1. The total response length was
+    213 bytes when the error was detected, and the error was at byte 23. This
+    is the slash ('/') in header name "header/bizarre", which is not a valid
+    HTTP character for a header name.
+
+show backend
+  Dump the list of backends available in the running process
+
+show info
+  Dump info about haproxy status on current process.
+
+show map [<map>]
+  Dump info about map converters. Without argument, the list of all available
+  maps is returned. If a <map> is specified, its contents are dumped. <map> is
+  the #<id> or <file>. The first column is a unique identifier. It can be used
+  as reference for the operation "del map" and "set map". The second column is
+  the pattern and the third column is the sample if available. The data returned
+  are not directly a list of available maps, but are the list of all patterns
+  composing any map. Many of these patterns can be shared with ACL.
+
+show acl [<acl>]
+  Dump info about acl converters. Without argument, the list of all available
+  acls is returned. If a <acl> is specified, its contents are dumped. <acl> if
+  the #<id> or <file>. The dump format is the same than the map even for the
+  sample value. The data returned are not a list of available ACL, but are the
+  list of all patterns composing any ACL. Many of these patterns can be shared
+  with maps.
+
+show pools
+  Dump the status of internal memory pools. This is useful to track memory
+  usage when suspecting a memory leak for example. It does exactly the same
+  as the SIGQUIT when running in foreground except that it does not flush
+  the pools.
+
+show servers state [<backend>]
+  Dump the state of the servers found in the running configuration. A backend
+  name or identifier may be provided to limit the output to this backend only.
+
+  The dump has the following format:
+   - first line contains the format version (1 in this specification);
+   - second line contains the column headers, prefixed by a sharp ('#');
+   - third line and next ones contain data;
+   - each line starting by a sharp ('#') is considered as a comment.
+
+  Since multiple versions of the ouptput may co-exist, below is the list of
+  fields and their order per file format version :
+   1:
+     be_id:                       Backend unique id.
+     be_name:                     Backend label.
+     srv_id:                      Server unique id (in the backend).
+     srv_name:                    Server label.
+     srv_addr:                    Server IP address.
+     srv_op_state:                Server operational state (UP/DOWN/...).
+                                  In source code: SRV_ST_*.
+     srv_admin_state:             Server administrative state (MAINT/DRAIN/...).
+                                  In source code: SRV_ADMF_*.
+     srv_uweight:                 User visible server's weight.
+     srv_iweight:                 Server's initial weight.
+     srv_time_since_last_change:  Time since last operational change.
+     srv_check_status:            Last health check status.
+     srv_check_result:            Last check result (FAILED/PASSED/...).
+                                  In source code: CHK_RES_*.
+     srv_check_health:            Checks rise / fall current counter.
+     srv_check_state:             State of the check (ENABLED/PAUSED/...).
+                                  In source code: CHK_ST_*.
+     srv_agent_state:             State of the agent check (ENABLED/PAUSED/...).
+                                  In source code: CHK_ST_*.
+     bk_f_forced_id:              Flag to know if the backend ID is forced by
+                                  configuration.
+     srv_f_forced_id:             Flag to know if the server's ID is forced by
+                                  configuration.
+
+show sess
+  Dump all known sessions. Avoid doing this on slow connections as this can
+  be huge. This command is restricted and can only be issued on sockets
+  configured for levels "operator" or "admin".
+
+show sess <id>
+  Display a lot of internal information about the specified session identifier.
+  This identifier is the first field at the beginning of the lines in the dumps
+  of "show sess" (it corresponds to the session pointer). Those information are
+  useless to most users but may be used by haproxy developers to troubleshoot a
+  complex bug. The output format is intentionally not documented so that it can
+  freely evolve depending on demands. You may find a description of all fields
+  returned in src/dumpstats.c
+
+  The special id "all" dumps the states of all sessions, which must be avoided
+  as much as possible as it is highly CPU intensive and can take a lot of time.
+
+show stat [<iid> <type> <sid>]
+  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
+  possible to dump only selected items :
+    - <iid> is a proxy ID, -1 to dump everything
+    - <type> selects the type of dumpable objects : 1 for frontends, 2 for
+       backends, 4 for servers, -1 for everything. These values can be ORed,
+       for example:
+          1 + 2     = 3   -> frontend + backend.
+          1 + 2 + 4 = 7   -> frontend + backend + server.
+    - <sid> is a server ID, -1 to dump everything from the selected proxy.
+
+  Example :
+        $ echo "show info;show stat" | socat stdio unix-connect:/tmp/sock1
+    >>> Name: HAProxy
+        Version: 1.4-dev2-49
+        Release_date: 2009/09/23
+        Nbproc: 1
+        Process_num: 1
+        (...)
+
+        # pxname,svname,qcur,qmax,scur,smax,slim,stot,bin,bout,dreq,  (...)
+        stats,FRONTEND,,,0,0,1000,0,0,0,0,0,0,,,,,OPEN,,,,,,,,,1,1,0, (...)
+        stats,BACKEND,0,0,0,0,1000,0,0,0,0,0,,0,0,0,0,UP,0,0,0,,0,250,(...)
+        (...)
+        www1,BACKEND,0,0,0,0,1000,0,0,0,0,0,,0,0,0,0,UP,1,1,0,,0,250, (...)
+
+        $
+
+    Here, two commands have been issued at once. That way it's easy to find
+    which process the stats apply to in multi-process mode. Notice the empty
+    line after the information output which marks the end of the first block.
+    A similar empty line appears at the end of the second block (stats) so that
+    the reader knows the output has not been truncated.
+
+show stat resolvers [<resolvers section id>]
+  Dump statistics for the given resolvers section, or all resolvers sections
+  if no section is supplied.
+
+  For each name server, the following counters are reported:
+    sent: number of DNS requests sent to this server
+    valid: number of DNS valid responses received from this server
+    update: number of DNS responses used to update the server's IP address
+    cname: number of CNAME responses
+    cname_error: CNAME errors encountered with this server
+    any_err: number of empty response (IE: server does not support ANY type)
+    nx: non existent domain response received from this server
+    timeout: how many time this server did not answer in time
+    refused: number of requests refused by this server
+    other: any other DNS errors
+    invalid: invalid DNS response (from a protocol point of view)
+    too_big: too big response
+    outdated: number of response arrived too late (after an other name server)
+
+show table
+  Dump general information on all known stick-tables. Their name is returned
+  (the name of the proxy which holds them), their type (currently zero, always
+  IP), their size in maximum possible number of entries, and the number of
+  entries currently in use.
+
+  Example :
+        $ echo "show table" | socat stdio /tmp/sock1
+    >>> # table: front_pub, type: ip, size:204800, used:171454
+    >>> # table: back_rdp, type: ip, size:204800, used:0
+
+show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
+  Dump contents of stick-table <name>. In this mode, a first line of generic
+  information about the table is reported as with "show table", then all
+  entries are dumped. Since this can be quite heavy, it is possible to specify
+  a filter in order to specify what entries to display.
+
+  When the "data." form is used the filter applies to the stored data (see
+  "stick-table" in section 4.2).  A stored data type must be specified
+  in <type>, and this data type must be stored in the table otherwise an
+  error is reported. The data is compared according to <operator> with the
+  64-bit integer <value>.  Operators are the same as with the ACLs :
+
+    - eq : match entries whose data is equal to this value
+    - ne : match entries whose data is not equal to this value
+    - le : match entries whose data is less than or equal to this value
+    - ge : match entries whose data is greater than or equal to this value
+    - lt : match entries whose data is less than this value
+    - gt : match entries whose data is greater than this value
+
+
+  When the key form is used the entry <key> is shown.  The key must be of the
+  same type as the table, which currently is limited to IPv4, IPv6, integer,
+  and string.
+
+  Example :
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1  \
+          bytes_out_rate(60000)=187
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "show table http_proxy data.gpc0 gt 0" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "show table http_proxy data.conn_rate gt 5" | \
+            socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "show table http_proxy key 127.0.0.2" | \
+            socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+  When the data criterion applies to a dynamic value dependent on time such as
+  a bytes rate, the value is dynamically computed during the evaluation of the
+  entry in order to decide whether it has to be dumped or not. This means that
+  such a filter could match for some time then not match anymore because as
+  time goes, the average event rate drops.
+
+  It is possible to use this to extract lists of IP addresses abusing the
+  service, in order to monitor them or even blacklist them in a firewall.
+  Example :
+        $ echo "show table http_proxy data.gpc0 gt 0" \
+          | socat stdio /tmp/sock1 \
+          | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
+          ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
+
+show tls-keys
+  Dump all loaded TLS ticket keys. The TLS ticket key reference ID and the
+  file from which the keys have been loaded is shown. Both of those can be
+  used to update the TLS keys using "set ssl tls-key".
+
+shutdown frontend <frontend>
+  Completely delete the specified frontend. All the ports it was bound to will
+  be released. It will not be possible to enable the frontend anymore after
+  this operation. This is intended to be used in environments where stopping a
+  proxy is not even imaginable but a misconfigured proxy must be fixed. That
+  way it's possible to release the port and bind it into another process to
+  restore operations. The frontend will not appear at all on the stats page
+  once it is terminated.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+shutdown session <id>
+  Immediately terminate the session matching the specified session identifier.
+  This identifier is the first field at the beginning of the lines in the dumps
+  of "show sess" (it corresponds to the session pointer). This can be used to
+  terminate a long-running session without waiting for a timeout or when an
+  endless transfer is ongoing. Such terminated sessions are reported with a 'K'
+  flag in the logs.
+
+shutdown sessions server <backend>/<server>
+  Immediately terminate all the sessions attached to the specified server. This
+  can be used to terminate long-running sessions after a server is put into
+  maintenance mode, for instance. Such terminated sessions are reported with a
+  'K' flag in the logs.
 
 
 10. Tricks for easier configuration management
