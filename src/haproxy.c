@@ -288,8 +288,10 @@ void display_build_opts()
 
 #ifdef USE_ZLIB
 	printf("Built with zlib version : " ZLIB_VERSION "\n");
+#elif defined(USE_SLZ)
+	printf("Built with libslz for stateless compression.\n");
 #else /* USE_ZLIB */
-	printf("Built without zlib support (USE_ZLIB not set)\n");
+	printf("Built without compression support (neither USE_ZLIB nor USE_SLZ are set)\n");
 #endif
 	printf("Compression algorithms supported :");
 	{
