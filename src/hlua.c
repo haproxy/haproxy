@@ -5275,7 +5275,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	switch (hlua_ctx_resume(&stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (!hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ)))
+		if (!hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES))
 			return 0;
 		/* Convert the returned value in sample. */
 		hlua_lua2smp(stream->hlua.T, -1, smp);
@@ -5287,13 +5287,13 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
+		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
+		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
 		         fcn->name, lua_tostring(stream->hlua.T, -1));
@@ -5301,7 +5301,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		return 0;
 
 	case HLUA_E_ERR:
-		hlua_check_proto(stream, !(smp->opt & SMP_OPT_DIR_REQ));
+		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
 
