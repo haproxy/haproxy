@@ -796,9 +796,12 @@ install-man:
 	install -d "$(DESTDIR)$(MANDIR)"/man1
 	install -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
 
+EXCLUDE_DOCUMENTATION = lgpl gpl coding-style
+DOCUMENTATION = $(filter-out $(EXCLUDE_DOCUMENTATION),$(patsubst doc/%.txt,%,$(wildcard doc/*.txt)))
+
 install-doc:
 	install -d "$(DESTDIR)$(DOCDIR)"
-	for x in configuration architecture haproxy-en haproxy-fr; do \
+	for x in $(DOCUMENTATION); do \
 		install -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
@@ -811,7 +814,7 @@ install: install-bin install-man install-doc
 
 uninstall:
 	rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
-	for x in configuration architecture haproxy-en haproxy-fr; do \
+	for x in $(DOCUMENTATION); do \
 		rm -f "$(DESTDIR)$(DOCDIR)"/$$x.txt ; \
 	done
 	-rmdir "$(DESTDIR)$(DOCDIR)"
