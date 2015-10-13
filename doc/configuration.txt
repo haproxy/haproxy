@@ -859,7 +859,8 @@ stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
   Connections to this socket will return various statistics outputs and even
   allow some commands to be issued to change some runtime settings. Please
-  consult section 9.2 "Unix Socket commands" for more details.
+  consult section 9.2 "Unix Socket commands" of Management Guide for more
+  details.
 
   All parameters supported by "bind" lines are supported, for instance to
   restrict access to some users or their access rights. Please consult
@@ -4233,7 +4234,7 @@ load-server-state-from-file { global | local | none }
 
   The format of the file is versionned and is very specific. To understand it,
   please read the documentation of the "show servers state" command (chapter
-  9.2).
+  9.2 of Management Guide).
 
   Arguments:
     global     load the content of the file pointed by the global directive
