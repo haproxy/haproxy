@@ -9794,6 +9794,12 @@ name <name>
   Sets an optional name for these sockets, which will be reported on the stats
   page.
 
+namespace <name>
+  On Linux, it is possible to specify which network namespace a socket will
+  belong to. This directive makes it possible to explicitly bind a listener to
+  a namespace different from the default one. Please refer to your operating
+  system's documentation to find more details about network namespaces.
+
 nice <nice>
   Sets the 'niceness' of connections initiated from the socket. Value must be
   in the range -1024..1024 inclusive, and defaults to zero. Positive values
@@ -10301,6 +10307,12 @@ minconn <minconn>
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
 
   Supported in default-server: Yes
+
+namespace <name>
+  On Linux, it is possible to specify which network namespace a socket will
+  belong to. This directive makes it possible to explicitly bind a server to
+  a namespace different from the default one. Please refer to your operating
+  system's documentation to find more details about network namespaces.
 
 no-ssl-reuse
   This option disables SSL session reuse when SSL is used to communicate with
