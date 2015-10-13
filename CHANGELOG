@@ -1,6 +1,50 @@
 ChangeLog :
 ===========
 
+2015/10/13 : 1.6.0
+    - BUG/MINOR: Handle interactive mode in cli handler
+    - DOC: global section missing parameters
+    - DOC: backend section missing parameters
+    - DOC: stats paramaters available in frontend
+    - MINOR: lru: do not allocate useless memory in lru64_lookup
+    - BUG/MINOR: http: Add OPTIONS in supported http methods (found by find_http_meth)
+    - BUG/MINOR: ssl: fix management of the cache where forged certificates are stored
+    - MINOR: ssl: Release Servers SSL context when HAProxy is shut down
+    - MINOR: ssl: Read the file used to generate certificates in any order
+    - MINOR: ssl: Add support for EC for the CA used to sign generated certificates
+    - MINOR: ssl: Add callbacks to set DH/ECDH params for generated certificates
+    - BUG/MEDIUM: logs: fix time zone offset format in RFC5424
+    - BUILD: Fix the build on OSX (htonll/ntohll)
+    - BUILD: enable build on Linux/s390x
+    - BUG/MEDIUM: lua: direction test failed
+    - MINOR: lua: fix a spelling error in some error messages
+    - CLEANUP: cli: ensure we can never double-free error messages
+    - BUG/MEDIUM: lua: force server-close mode on Lua services
+    - MEDIUM: init: support more command line arguments after pid list
+    - MEDIUM: init: support a list of files on the command line
+    - MINOR: debug: enable memory poisonning to use byte 0
+    - BUILD: ssl: fix build error introduced by recent commit
+    - BUG/MINOR: config: make the stats socket pass the correct proxy to the parsers
+    - MEDIUM: server: implement TCP_USER_TIMEOUT on the server
+    - DOC: mention the "namespace" options for bind and server lines
+    - DOC: add the "management" documentation
+    - DOC: move the stats socket documentation from config to management
+    - MINOR: examples: update haproxy.spec to mention new docs
+    - DOC: mention management.txt in README
+    - DOC: remove haproxy-{en,fr}.txt
+    - BUILD: properly report when USE_ZLIB and USE_SLZ are used together
+    - MINOR: init: report use of libslz instead of "no compression"
+    - CLEANUP: examples: remove some obsolete and confusing files
+    - CLEANUP: examples: remove obsolete configuration file samples
+    - CLEANUP: examples: fix the example file content-sw-sample.cfg
+    - CLEANUP: examples: update sample file option-http_proxy.cfg
+    - CLEANUP: examples: update sample file ssl.cfg
+    - CLEANUP: tests: move a test file from examples/ to tests/
+    - CLEANUP: examples: shut up warnings in transparent proxy example
+    - CLEANUP: tests: removed completely obsolete test files
+    - DOC: update ROADMAP to remove what was done in 1.6
+    - BUG/MEDIUM: pattern: fixup use_after_free in the pat_ref_delete_by_id
+
 2015/10/06 : 1.6-dev7
     - MINOR: cli: Dump all resolvers stats if no resolver section is given
     - BUG: config: external-check command validation is checking for incorrect arguments.

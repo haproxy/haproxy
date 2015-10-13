@@ -1,22 +1,24 @@
                          ----------------------
                              HAProxy how-to
                          ----------------------
-                             version 1.6-dev
+                             version 1.6.0
                              willy tarreau
-                               2015/09/28
+                               2015/10/13
 
 
 1) How to build it
 ------------------
 
-First, please note that this version is a development version, so in general if
-you are not used to build from sources or if you don't have the time to track
-very frequent updates, it is recommended that instead you switch to the stable
-version (1.5) or follow the packaged updates provided by your software vendor
-or Linux distribution. Most of them are taking this task seriously and are
-doing a good job. If for any reason you'd prefer a different version than the
-one packaged for your system, or to get some commercial support, other choices
-are available at :
+This version is a stable version, which means that it belongs to a branch which
+will get some fixes for bugs as they are discovered. Versions which include the
+suffix "-dev" are development versions and should be avoided in production. If
+you are not used to build from sources or if you are not used to follow updates
+then it is recommended that instead you use the packages provided by your
+software vendor or Linux distribution. Most of them are taking this task
+seriously and are doing a good job at backporting important fixes. If for any
+reason you'd prefer a different version than the one packaged for your system,
+you want to be certain to have all the fixes or to get some commercial support,
+other choices are available at :
 
                         http://www.haproxy.com/
 
@@ -40,6 +42,7 @@ and assign it to the TARGET variable :
   - linux2628   for Linux 2.6.28, 3.x, and above (enables splice and tproxy)
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 10 (others untested)
+  - netbsd      for NetBSD
   - osx         for Mac OS/X
   - openbsd     for OpenBSD 3.1 and above
   - aix51       for AIX 5.1
@@ -422,7 +425,7 @@ There is some documentation in the doc/ directory :
       huge and that it's generally more convenient to review Cyril Bonté's
       HTML translation online here :
 
-           http://cbonte.github.io/haproxy-dconv/configuration-1.5.html
+           http://cbonte.github.io/haproxy-dconv/configuration-1.6.html
 
     - management.txt : it explains how to start haproxy, how to manage it at
       runtime, how to manage it on multiple nodes, how to proceed with seamless
