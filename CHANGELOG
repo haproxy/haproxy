@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2015/10/13 : 1.7-dev0
+    - exact copy of 1.6.0
+
 2015/10/13 : 1.6.0
     - BUG/MINOR: Handle interactive mode in cli handler
     - DOC: global section missing parameters
