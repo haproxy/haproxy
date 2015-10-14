@@ -68,3 +68,4 @@ tests/test_hashes
 !/include
 !/src
 !/tests
+!/debian
