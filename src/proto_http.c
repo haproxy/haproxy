@@ -1961,7 +1961,6 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 		return 0;
 
 	cur_end = msg->chn->buf->p + msg->sl.rq.l;
-	delta = 0;
 
 	if (msg->sl.rq.u_l == 0) {
 		/* HTTP/0.9 requests *must* have a request URI, per RFC 1945 */
