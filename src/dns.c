@@ -504,6 +504,8 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
 					return DNS_RESP_INVALID;
 				if (memcmp(ptr, dn_name, dn_name_len) != 0)
 					return DNS_RESP_WRONG_NAME;
+
+				reader += (dn_name_len + 1);
 			}
 			else {
 				reader += (len + 1);
