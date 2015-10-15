@@ -280,11 +280,10 @@ int dns_send_query(struct dns_resolution *resolution)
 {
 	struct dns_resolvers *resolvers;
 	struct dns_nameserver *nameserver;
-	int ret, send_error, bufsize, fd;
+	int ret, bufsize, fd;
 
 	resolvers = resolution->resolvers;
 
-	ret = send_error = 0;
 	bufsize = dns_build_query(resolution->query_id, resolution->query_type, resolution->hostname_dn,
 			resolution->hostname_dn_len, trash.str, trash.size);
 
