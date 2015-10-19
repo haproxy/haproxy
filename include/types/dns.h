@@ -161,7 +161,8 @@ struct dns_resolution {
 	unsigned int last_status_change;	/* time of the latest DNS resolution status change */
 	int query_id;			/* DNS query ID dedicated for this resolution */
 	struct eb32_node qid;		/* ebtree query id */
-	int query_type;			/* query type to send. By default DNS_RTYPE_ANY */
+	int query_type;
+		/* query type to send. By default DNS_RTYPE_A or DNS_RTYPE_AAAA depending on resolver_family_priority */
 	int status;			/* status of the resolution being processed RSLV_STATUS_* */
 	int step;			/* */
 	int try;			/* current resolution try */

@@ -102,7 +102,11 @@ void dns_reset_resolution(struct dns_resolution *resolution)
 	resolution->qid.key = 0;
 
 	/* default values */
-	resolution->query_type = DNS_RTYPE_ANY;
+	if (resolution->resolver_family_priority == AF_INET) {
+		resolution->query_type = DNS_RTYPE_A;
+	} else {
+		resolution->query_type = DNS_RTYPE_AAAA;
+	}
 
 	/* the second resolution in the queue becomes the first one */
 	LIST_DEL(&resolution->list);

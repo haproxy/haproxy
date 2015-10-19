@@ -2214,11 +2214,15 @@ int trigger_resolution(struct server *s)
 	resolution->query_id = query_id;
 	resolution->qid.key = query_id;
 	resolution->step = RSLV_STEP_RUNNING;
-	resolution->query_type = DNS_RTYPE_ANY;
+	resolution->resolver_family_priority = s->resolver_family_priority;
+	if (resolution->resolver_family_priority == AF_INET) {
+		resolution->query_type = DNS_RTYPE_A;
+	} else {
+		resolution->query_type = DNS_RTYPE_AAAA;
+	}
 	resolution->try = resolvers->resolve_retries;
 	resolution->try_cname = 0;
 	resolution->nb_responses = 0;
-	resolution->resolver_family_priority = s->resolver_family_priority;
 	eb32_insert(&resolvers->query_ids, &resolution->qid);
 
 	dns_send_query(resolution);
