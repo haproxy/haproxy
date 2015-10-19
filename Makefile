@@ -98,7 +98,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
 #    generic, linux22, linux24, linux24e, linux26, solaris,
-#    freebsd, openbsd, netbsd, cygwin, custom, aix51, aix52
+#    freebsd, openbsd, netbsd, cygwin, haiku, custom, aix51, aix52
 TARGET =
 
 #### TARGET CPU
@@ -218,6 +218,12 @@ USE_POLL   = default
 ifeq ($(TARGET),generic)
   # generic system target has nothing specific
   USE_POLL   = implicit
+  USE_TPROXY = implicit
+else
+ifeq ($(TARGET),haiku)
+  # For Haiku
+  TARGET_LDFLAGS = -lnetwork
+  USE_POLL = implicit
   USE_TPROXY = implicit
 else
 ifeq ($(TARGET),linux22)
@@ -347,6 +353,7 @@ endif # linux26
 endif # linux24e
 endif # linux24
 endif # linux22
+endif # haiku
 endif # generic
 
 

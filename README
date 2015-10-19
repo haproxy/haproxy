@@ -47,6 +47,7 @@ and assign it to the TARGET variable :
   - aix51       for AIX 5.1
   - aix52       for AIX 5.2
   - cygwin      for Cygwin
+  - haiku       for Haiku
   - generic     for any other OS or version.
   - custom      to manually adjust every setting
 
