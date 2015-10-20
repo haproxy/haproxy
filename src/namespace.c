@@ -97,14 +97,13 @@ int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol
 	int sock;
 
 #ifdef CONFIG_HAP_NS
-	if (default_namespace < 0 ||
-	    (ns && setns(ns->fd, CLONE_NEWNET) == -1))
+	if (default_namespace >= 0 && ns && setns(ns->fd, CLONE_NEWNET) == -1)
 		return -1;
 #endif
 	sock = socket(domain, type, protocol);
 
 #ifdef CONFIG_HAP_NS
-	if (ns && setns(default_namespace, CLONE_NEWNET) == -1) {
+	if (default_namespace >= 0 && ns && setns(default_namespace, CLONE_NEWNET) == -1) {
 		close(sock);
 		return -1;
 	}
