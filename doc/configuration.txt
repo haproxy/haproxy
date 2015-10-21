@@ -2770,6 +2770,7 @@ declare capture [ request | response ] len <length>
   for use in the response.
 
   See also: "capture-req", "capture-res" (sample converters),
+            "capture.req.hdr", "capture.res.hdr" (sample fetches),
             "http-request capture" and "http-response capture".
 
 
@@ -11841,16 +11842,16 @@ capture-req(<id>)
   is. If the slot doesn't exist, the capture fails silently.
 
   See also: "declare capture", "http-request capture",
-            "http-response capture", "req.hdr.capture" and
-            "res.hdr.capture" (sample fetches).
+            "http-response capture", "capture.req.hdr" and
+            "capture.res.hdr" (sample fetches).
 
 capture-res(<id>)
   Capture the string entry in the response slot <id> and returns the entry as
   is. If the slot doesn't exist, the capture fails silently.
 
   See also: "declare capture", "http-request capture",
-            "http-response capture", "req.hdr.capture" and
-            "res.hdr.capture" (sample fetches).
+            "http-response capture", "capture.req.hdr" and
+            "capture.res.hdr" (sample fetches).
 
 sdbm([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the SDBM
