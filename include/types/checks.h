@@ -176,6 +176,8 @@ struct check {
 						 * rise to rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
 	int type;				/* Check type, one of PR_O2_*_CHK */
+	char *send_string;			/* optionally send a string when connecting to the agent */
+	int send_string_len;			/* length of agent command string */
 	struct server *server;			/* back-pointer to server */
 	char **argv;				/* the arguments to use if running a process-based check */
 	char **envp;				/* the environment to use if running a process-based check */

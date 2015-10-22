@@ -1412,6 +1412,7 @@ void deinit(void)
 			free(s->check.bo);
 			free(s->agent.bi);
 			free(s->agent.bo);
+			free(s->agent.send_string);
 			free((char*)s->conf.file);
 #ifdef USE_OPENSSL
 			if (s->use_ssl || s->check.use_ssl)

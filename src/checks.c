@@ -1459,6 +1459,10 @@ static int connect_conn_chk(struct task *t)
 		}
 	}
 
+	if ((check->type & PR_O2_LB_AGENT_CHK) && check->send_string_len) {
+		bo_putblk(check->bo, check->send_string, check->send_string_len);
+	}
+
 	/* prepare a new connection */
 	conn_init(conn);
 

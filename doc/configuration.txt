@@ -10058,6 +10058,13 @@ agent-check
 
   Supported in default-server: No
 
+agent-send <string>
+  If this option is specified, haproxy will send the given string (verbatim)
+  to the agent server upon connection. You could, for example, encode
+  the backend name into this string, which would enable your agent to send
+  different responses based on the backend. Make sure to include a '\n' if
+  you want to terminate your request with a newline.
+
 agent-inter <delay>
   The "agent-inter" parameter sets the interval between two agent checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
