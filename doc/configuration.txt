@@ -2398,7 +2398,7 @@ capture request header <name> len <length>
   Example:
         capture request header Host len 15
         capture request header X-Forwarded-For len 15
-        capture request header Referrer len 15
+        capture request header Referer len 15
 
   See also : "capture cookie", "capture response header" as well as section 8
              about logging.
