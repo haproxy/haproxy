@@ -1646,6 +1646,38 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 				return 1;
 			}
+			else if (strcmp(args[2], "server") == 0) {
+				struct server *sv;
+				int v;
+
+				sv = expect_server_admin(s, si, args[3]);
+				if (!sv)
+					return 1;
+
+				if (!*args[4]) {
+					appctx->ctx.cli.msg = "Integer value expected.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				v = atoi(args[4]);
+				if (v < 0) {
+					appctx->ctx.cli.msg = "Value out of range.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				if (sv->maxconn == sv->minconn) { // static maxconn
+					sv->maxconn = sv->minconn = v;
+				} else { // dynamic maxconn
+					sv->maxconn = v;
+				}
+
+				if (may_dequeue_tasks(sv, sv->proxy))
+					process_srv_queue(sv);
+
+				return 1;
+			}
 			else if (strcmp(args[2], "global") == 0) {
 				int v;
 
@@ -1681,7 +1713,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 			else {
-				appctx->ctx.cli.msg = "'set maxconn' only supports 'frontend' and 'global'.\n";
+				appctx->ctx.cli.msg = "'set maxconn' only supports 'frontend', 'server', and 'global'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}

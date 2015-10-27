@@ -1356,6 +1356,11 @@ set maxconn frontend <frontend> <value>
   delayed until the threshold is reached. The frontend might be specified by
   either its name or its numeric ID prefixed with a sharp ('#').
 
+set maxconn server <backend/server> <value>
+  Dynamically change the specified server's maxconn setting. Any positive
+  value is allowed including zero, but setting values larger than the global
+  maxconn does not make much sense.
+
 set maxconn global <maxconn>
   Dynamically change the global maxconn setting within the range defined by the
   initial global maxconn setting. If it is increased and connections were
