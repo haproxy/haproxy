@@ -34,6 +34,15 @@
 #define MEM_F_SHARED	0
 #endif
 
+/* reserve an extra void* at the end of a pool for linking */
+#ifdef DEBUG_MEMORY_POOLS
+#define POOL_EXTRA (sizeof(void *))
+#define POOL_LINK(pool, item) (void **)(((char *)item) + (pool->size))
+#else
+#define POOL_EXTRA (0)
+#define POOL_LINK(pool, item) ((void **)(item))
+#endif
+
 struct pool_head {
 	void **free_list;
 	struct list list;	/* list of all known pools */
@@ -113,7 +122,7 @@ static inline void *pool_get_first(struct pool_head *pool)
 	void *p;
 
 	if ((p = pool->free_list) != NULL) {
-		pool->free_list = *(void **)pool->free_list;
+		pool->free_list = *POOL_LINK(pool, p);
 		pool->used++;
 	}
 	return p;
@@ -162,7 +171,7 @@ static inline void *pool_alloc2(struct pool_head *pool)
 static inline void pool_free2(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-                *(void **)ptr= (void *)pool->free_list;
+		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
                 pool->free_list = (void *)ptr;
                 pool->used--;
 	}

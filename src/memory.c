@@ -33,14 +33,16 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	struct list *start;
 	unsigned int align;
 
-	/* We need to store at least a (void *) in the chunks. Since we know
+	/* We need to store a (void *) at the end of the chunks. Since we know
 	 * that the malloc() function will never return such a small size,
 	 * let's round the size up to something slightly bigger, in order to
 	 * ease merging of entries. Note that the rounding is a power of two.
+	 * This extra (void *) is not accounted for in the size computation
+	 * so that the visible parts outside are not affected.
 	 */
 
 	align = 16;
-	size  = (size + align - 1) & -align;
+	size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
 
 	start = &pools;
 	pool = NULL;
@@ -99,7 +101,7 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		if (pool->limit && pool->allocated >= pool->limit)
 			return NULL;
 
-		ptr = MALLOC(pool->size);
+		ptr = MALLOC(pool->size + POOL_EXTRA);
 		if (!ptr) {
 			if (failed)
 				return NULL;
@@ -110,7 +112,7 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		if (++pool->allocated > avail)
 			break;
 
-		*(void **)ptr = (void *)pool->free_list;
+		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
 		pool->free_list = ptr;
 	}
 	pool->used++;
@@ -129,7 +131,7 @@ void pool_flush2(struct pool_head *pool)
 	next = pool->free_list;
 	while (next) {
 		temp = next;
-		next = *(void **)temp;
+		next = *POOL_LINK(pool, temp);
 		pool->allocated--;
 		FREE(temp);
 	}
@@ -158,7 +160,7 @@ void pool_gc2()
 		while (next &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = next;
-			next = *(void **)temp;
+			next = *POOL_LINK(entry, temp);
 			entry->allocated--;
 			FREE(temp);
 		}
