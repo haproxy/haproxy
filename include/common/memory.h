@@ -28,7 +28,11 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
+#ifndef DEBUG_DONT_SHARE_POOLS
 #define MEM_F_SHARED	0x1
+#else
+#define MEM_F_SHARED	0
+#endif
 
 struct pool_head {
 	void **free_list;
