@@ -251,22 +251,32 @@ Sample configuration :
 
 There are two distinct methods available, one which leverages all HTTP headers
 and one which uses only a single HTTP header for the detection. The former
-method is highly recommended and more accurate.
+method is highly recommended and more accurate. There are several possible use
+cases.
 
+# To transmit the DeviceAtlas data downstream to the target application
+
+All HTTP headers via the sample / fetch
+
+    http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
+Single HTTP header (e.g. User-Agent) via the convertor
+
+    http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+
+# Mobile content switching with ACL
 
 All HTTP headers
 
+    acl is_mobile da-csv-fetch(mobileDevice) 1
 
-      http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+Single HTTP header
 
-
-Single HTTP header (e.g. User-Agent)
-
-
-      http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+    acl device_type_tablet req.fhdr(User-Agent),da-csv-conv(primaryHardwareType) "Tablet"
 
 
 Please find more information about DeviceAtlas and the detection methods at https://deviceatlas.com/resources .
+
 
 1.2) 51Degrees Device Detection
 -------------------------------
