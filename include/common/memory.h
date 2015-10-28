@@ -53,6 +53,7 @@ struct pool_head {
 	unsigned int size;	/* chunk size */
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
+	unsigned int failed;	/* failed allocations */
 	char name[12];		/* name of the pool */
 };
 
@@ -94,6 +95,9 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
  */
 void dump_pools_to_trash();
 void dump_pools(void);
+int pool_total_failures();
+unsigned long pool_total_allocated();
+unsigned long pool_total_used();
 
 /*
  * This function frees whatever can be freed in pool <pool>.

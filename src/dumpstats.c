@@ -2672,6 +2672,9 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             "Uptime: %dd %dh%02dm%02ds\n"
 	             "Uptime_sec: %d\n"
 	             "Memmax_MB: %d\n"
+		     "PoolAlloc_MB: %d\n"
+		     "PoolUsed_MB: %d\n"
+		     "PoolFailed: %d\n"
 	             "Ulimit-n: %d\n"
 	             "Maxsock: %d\n"
 	             "Maxconn: %d\n"
@@ -2724,6 +2727,9 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60),
 	             up,
 	             global.rlimit_memmax,
+		     (int)(pool_total_allocated() / 1048576L),
+		     (int)(pool_total_used() / 1048576L),
+		     pool_total_failures(),
 	             global.rlimit_nofile,
 	             global.maxsock, global.maxconn, global.hardmaxconn,
 	             actconn, totalconn, global.req_count,
