@@ -124,6 +124,10 @@ static inline void *pool_get_first(struct pool_head *pool)
 	if ((p = pool->free_list) != NULL) {
 		pool->free_list = *POOL_LINK(pool, p);
 		pool->used++;
+#ifdef DEBUG_MEMORY_POOLS
+		/* keep track of where the element was allocated from */
+		*POOL_LINK(pool, p) = (void *)pool;
+#endif
 	}
 	return p;
 }
@@ -154,8 +158,16 @@ static inline void *pool_alloc2(struct pool_head *pool)
 	void *p;
 
 	p = pool_alloc_dirty(pool);
-	if (p && mem_poison_byte >= 0)
+#ifdef DEBUG_MEMORY_POOLS
+	if (p) {
+		/* keep track of where the element was allocated from */
+		*POOL_LINK(pool, p) = (void *)pool;
+	}
+#endif
+	if (p && mem_poison_byte >= 0) {
 		memset(p, mem_poison_byte, pool->size);
+	}
+
 	return p;
 }
 
@@ -171,6 +183,11 @@ static inline void *pool_alloc2(struct pool_head *pool)
 static inline void pool_free2(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
+#ifdef DEBUG_MEMORY_POOLS
+		/* we'll get late corruption if we refill to the wrong pool or double-free */
+		if (*POOL_LINK(pool, ptr) != (void *)pool)
+			*(int *)0 = 0;
+#endif
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
                 pool->free_list = (void *)ptr;
                 pool->used--;

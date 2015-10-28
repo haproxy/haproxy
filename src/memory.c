@@ -116,6 +116,10 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		pool->free_list = ptr;
 	}
 	pool->used++;
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, ptr) = (void *)pool;
+#endif
 	return ptr;
 }
 
