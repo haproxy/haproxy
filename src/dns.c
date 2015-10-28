@@ -628,8 +628,11 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 		else
 			ptr = reader;
 
-		if (cname && memcmp(ptr, cname, cnamelen))
-			return DNS_UPD_NAME_ERROR;
+		if (cname) {
+			if (memcmp(ptr, cname, cnamelen)) {
+				return DNS_UPD_NAME_ERROR;
+			}
+		}
 		else if (memcmp(ptr, dn_name, dn_name_len))
 			return DNS_UPD_NAME_ERROR;
 
