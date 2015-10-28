@@ -2620,6 +2620,17 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			}
 			goto stop_resolution;
 
+		case DNS_UPD_NAME_ERROR:
+			/* if this is not the last expected response, we ignore it */
+			if (resolution->nb_responses < nameserver->resolvers->count_nameservers)
+				return 0;
+			/* update resolution status to OTHER error type */
+			if (resolution->status != RSLV_STATUS_OTHER) {
+				resolution->status = RSLV_STATUS_OTHER;
+				resolution->last_status_change = now_ms;
+			}
+			goto stop_resolution;
+
 		default:
 			goto invalid;
 
