@@ -1642,7 +1642,7 @@ int main(int argc, char **argv)
 
 	if (global.rlimit_memmax) {
 		limit.rlim_cur = limit.rlim_max =
-			global.rlimit_memmax * 1048576 / global.nbproc;
+			global.rlimit_memmax * 1048576ULL / global.nbproc;
 #ifdef RLIMIT_AS
 		if (setrlimit(RLIMIT_AS, &limit) == -1) {
 			Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
