@@ -94,7 +94,7 @@ check() {
   $BIN -c -q -V -f $CFG
 }
 
-quiet_check()
+quiet_check() {
   $BIN -c -q -f $CFG
 }
 
