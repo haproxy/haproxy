@@ -5278,8 +5278,8 @@ void http_end_txn_clean_session(struct stream *s)
 	channel_auto_read(&s->res);
 	channel_auto_close(&s->res);
 
-	/* we're in keep-alive with an idle connection, monitor it */
-	if (srv_conn) {
+	/* we're in keep-alive with an idle connection, monitor it if not already done */
+	if (srv_conn && LIST_ISEMPTY(&srv_conn->list)) {
 		srv = objt_server(srv_conn->target);
 		if (!srv)
 			si_idle_conn(&s->si[1], NULL);
