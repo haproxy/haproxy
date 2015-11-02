@@ -2262,6 +2262,15 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		list_for_each_entry(newnameserver, &curr_resolvers->nameserver_list, list) {
+			/* Error if two resolvers owns the same name */
+			if (strcmp(newnameserver->id, args[1]) == 0) {
+				Alert("Parsing [%s:%d]: nameserver '%s' has same name as another nameserver (declared at %s:%d).\n",
+					file, linenum, args[1], curr_resolvers->conf.file, curr_resolvers->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+		}
+
 		if ((newnameserver = (struct dns_nameserver *)calloc(1, sizeof(struct dns_nameserver))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
