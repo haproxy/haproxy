@@ -2450,31 +2450,32 @@ __LJMP static int hlua_socket_new(lua_State *L)
  * action not revalidate the request and not send a 400 if the modified
  * resuest is not valid.
  *
- * This function never fails. If dir is 0 we are a request, if it is 1
- * its a response.
+ * This function never fails. The direction is set using dir, which equals
+ * either SMP_OPT_DIR_REQ or SMP_OPT_DIR_RES.
  */
 static void hlua_resynchonize_proto(struct stream *stream, int dir)
 {
 	/* Protocol HTTP. */
 	if (stream->be->mode == PR_MODE_HTTP) {
 
-		if (dir == 0)
+		if (dir == SMP_OPT_DIR_REQ)
 			http_txn_reset_req(stream->txn);
-		else if (dir == 1)
+		else if (dir == SMP_OPT_DIR_RES)
 			http_txn_reset_res(stream->txn);
 
 		if (stream->txn->hdr_idx.v)
 			hdr_idx_init(&stream->txn->hdr_idx);
 
-		if (dir == 0)
+		if (dir == SMP_OPT_DIR_REQ)
 			http_msg_analyzer(&stream->txn->req, &stream->txn->hdr_idx);
-		else if (dir == 1)
+		else if (dir == SMP_OPT_DIR_RES)
 			http_msg_analyzer(&stream->txn->rsp, &stream->txn->hdr_idx);
 	}
 }
 
-/* Check the protocole integrity after the Lua manipulations.
- * Close the stream and returns 0 if fails, otherwise returns 1.
+/* Check the protocole integrity after the Lua manipulations. Close the stream
+ * and returns 0 if fails, otherwise returns 1. The direction is set using dir,
+ * which equals either SMP_OPT_DIR_REQ or SMP_OPT_DIR_RES.
  */
 static int hlua_check_proto(struct stream *stream, int dir)
 {
@@ -2487,13 +2488,13 @@ static int hlua_check_proto(struct stream *stream, int dir)
 	 * if the parser is still expected to run or not.
 	 */
 	if (stream->be->mode == PR_MODE_HTTP) {
-		if (dir == 0 &&
+		if (dir == SMP_OPT_DIR_REQ &&
 		    !(stream->req.analysers & AN_REQ_WAIT_HTTP) &&
 		    stream->txn->req.msg_state < HTTP_MSG_BODY) {
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
-		else if (dir == 1 &&
+		else if (dir == SMP_OPT_DIR_RES &&
 		         !(stream->res.analysers & AN_RES_WAIT_HTTP) &&
 		         stream->txn->rsp.msg_state < HTTP_MSG_BODY) {
 			stream_int_retnclose(&stream->si[0], &msg);
@@ -5439,10 +5440,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	int dir;
 
 	switch (rule->from) {
-	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = 0; break;
-	case ACT_F_TCP_RES_CNT: analyzer = AN_RES_INSPECT        ; dir = 1; break;
-	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; dir = 0; break;
-	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; dir = 1; break;
+	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_TCP_RES_CNT: analyzer = AN_RES_INSPECT        ; dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_HTTP_REQ:    analyzer = AN_REQ_HTTP_PROCESS_FE; dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_HTTP_RES:    analyzer = AN_RES_HTTP_PROCESS_BE; dir = SMP_OPT_DIR_RES; break;
 	default:
 		SEND_ERR(px, "Lua: internal error while execute action.\n");
 		return ACT_RET_CONT;
