@@ -100,6 +100,7 @@ struct hlua_rule {
 struct hlua_txn {
 	struct stream *s;
 	struct proxy *p;
+	int dir;                /* SMP_OPT_DIR_{REQ,RES} */
 };
 
 /* This struct contains the applet context. */
@@ -114,6 +115,7 @@ struct hlua_smp {
 	struct stream *s;
 	struct proxy *p;
 	int stringsafe;
+	int dir;                /* SMP_OPT_DIR_{REQ,RES} */
 };
 
 /* This struct contains data used with sleep functions. */
