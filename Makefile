@@ -805,10 +805,9 @@ install-doc:
 		install -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
-install-bin: haproxy haproxy-systemd-wrapper
+install-bin: haproxy $(EXTRA)
 	install -d "$(DESTDIR)$(SBINDIR)"
-	install haproxy "$(DESTDIR)$(SBINDIR)"
-	install haproxy-systemd-wrapper "$(DESTDIR)$(SBINDIR)"
+	install haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
 install: install-bin install-man install-doc
 
