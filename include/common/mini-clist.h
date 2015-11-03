@@ -111,6 +111,7 @@ struct cond_wordlist {
  * which contains list head <lh>, which is known as element <el> in
  * struct pt.
  */
+#undef LIST_PREV
 #define LIST_PREV(lh, pt, el) (LIST_ELEM((lh)->p, pt, el))
 
 /*
