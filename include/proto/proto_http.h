@@ -147,6 +147,11 @@ int val_hdr(struct arg *arg, char **err_msg);
 int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
                   const struct arg *args, struct sample *smp, int req_vol);
 
+enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags);
+enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags);
+
 /* Note: these functions *do* modify the sample. Even in case of success, at
  * least the type and uint value are modified.
  */

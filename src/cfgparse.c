@@ -7751,6 +7751,32 @@ int check_config_validity()
 			}
 		}
 
+		/* parse http-request capture rules to ensure id really exists */
+		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
+			if (hrqrule->action  != ACT_CUSTOM ||
+			    hrqrule->action_ptr != http_action_req_capture_by_id)
+				continue;
+
+			if (hrqrule->arg.capid.idx >= curproxy->nb_req_cap) {
+				Alert("Proxy '%s': unable to find capture id '%d' referenced by http-request capture rule.\n",
+				      curproxy->id, hrqrule->arg.capid.idx);
+				cfgerr++;
+			}
+		}
+
+		/* parse http-response capture rules to ensure id really exists */
+		list_for_each_entry(hrqrule, &curproxy->http_res_rules, list) {
+			if (hrqrule->action  != ACT_CUSTOM ||
+			    hrqrule->action_ptr != http_action_res_capture_by_id)
+				continue;
+
+			if (hrqrule->arg.capid.idx >= curproxy->nb_rsp_cap) {
+				Alert("Proxy '%s': unable to find capture id '%d' referenced by http-response capture rule.\n",
+				      curproxy->id, hrqrule->arg.capid.idx);
+				cfgerr++;
+			}
+		}
+
 		/* find the target table for 'http-request' layer 7 rules */
 		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
 			struct proxy *target;

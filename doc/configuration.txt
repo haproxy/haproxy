@@ -3655,6 +3655,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       the captured string in a previously declared capture slot. This is useful
       to run captures in backends. The slot id can be declared by a previous
       directive "http-request capture" or with the "declare capture" keyword.
+      If the slot <id> doesn't exist, then HAProxy fails parsing the
+      configuration to prevent unexpected behavior at run time.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current request. These rules
@@ -4003,6 +4005,8 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       This is useful to run captures in backends. The slot id can be declared by
       a previous directive "http-response capture" or with the "declare capture"
       keyword.
+      If the slot <id> doesn't exist, then HAProxy fails parsing the
+      configuration to prevent unexpected behavior at run time.
 
     - "redirect" : this performs an HTTP redirection based on a redirect rule.
       This supports a format string similarly to "http-request redirect" rules,
