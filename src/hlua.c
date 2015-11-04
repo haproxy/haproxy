@@ -4819,10 +4819,6 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		htxn->s->txn->req.msg_state = HTTP_MSG_CLOSED;
 		htxn->s->txn->rsp.msg_state = HTTP_MSG_DONE;
 
-		/* Trim any possible response */
-		oc->buf->i = 0;
-		htxn->s->txn->rsp.next = htxn->s->txn->rsp.sov = 0;
-
 		/* Note that if we want to support keep-alive, we need
 		 * to bypass the close/shutr_now calls below, but that
 		 * may only be done if the HTTP request was already
