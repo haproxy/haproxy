@@ -2330,12 +2330,16 @@ void apply_server_state(void)
 		version = 0;
 
 		/* first character of first line of the file must contain the version of the export */
-		fgets(mybuf, SRV_STATE_LINE_MAXLEN, f);
+		if (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f) == NULL) {
+			Warning("Can't read first line of the server state file '%s'\n", filepath);
+			goto fileclose;
+		}
+
 		cur = mybuf;
 		version = atoi(cur);
 		if ((version < SRV_STATE_FILE_VERSION_MIN) ||
 		    (version > SRV_STATE_FILE_VERSION_MAX))
-			continue;
+			goto fileclose;
 
 		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
 			int bk_f_forced_id = 0;
@@ -2462,6 +2466,7 @@ void apply_server_state(void)
 			/* now we can proceed with server's state update */
 			srv_update_state(srv, version, srv_params);
 		}
+fileclose:
 		fclose(f);
 	}
 }
