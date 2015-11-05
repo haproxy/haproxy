@@ -399,21 +399,24 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 	data = (const unsigned char *)req->buf->p;
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
-		if (bleft < 5)
+		if (bleft < 11)
 			goto too_short;
 
-		version = (data[1] << 16) + data[2]; /* version: major, minor */
+		version = (data[1] << 16) + data[2]; /* record layer version: major, minor */
 		msg_len = (data[3] <<  8) + data[4]; /* record length */
 
 		/* format introduced with SSLv3 */
 		if (version < 0x00030000)
 			goto not_ssl;
 
-		/* message length between 1 and 2^14 + 2048 */
-		if (msg_len < 1 || msg_len > ((1<<14) + 2048))
+		/* message length between 6 and 2^14 + 2048 */
+		if (msg_len < 6 || msg_len > ((1<<14) + 2048))
 			goto not_ssl;
 
 		bleft -= 5; data += 5;
+
+		/* return the client hello client version, not the record layer version */
+		version = (data[4] << 16) + data[5]; /* client hello version: major, minor */
 	} else {
 		/* SSLv2 header format, only supported for hello (msg type 1) */
 		int rlen, plen, cilen, silen, chlen;
