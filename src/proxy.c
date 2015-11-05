@@ -1130,8 +1130,6 @@ void resume_proxies(void)
  */
 int stream_set_backend(struct stream *s, struct proxy *be)
 {
-	struct filter *filter;
-
 	if (s->flags & SF_BE_ASSIGNED)
 		return 1;
 	s->be = be;
@@ -1140,19 +1138,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		be->be_counters.conn_max = be->beconn;
 	proxy_inc_be_ctr(be);
 
-	if (strm_fe(s) != be) {
-		list_for_each_entry(filter, &be->filters, list) {
-			struct filter *f = pool_alloc2(pool2_filter);
-			if (!f)
-				return 0; /* not enough memory */
-			memset(f, 0, sizeof(*f));
-			f->id    = filter->id;
-			f->ops   = filter->ops;
-			f->conf  = filter->conf;
-			f->is_backend_filter = 1;
-			LIST_ADDQ(&s->strm_flt.filters, &f->list);
-		}
-	}
+	if (flt_set_stream_backend(s, be) < 0)
+		return 0;
 
 	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;

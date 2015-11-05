@@ -76,6 +76,7 @@
 #include <common/version.h>
 
 #include <types/capture.h>
+#include <types/compression.h>
 #include <types/filters.h>
 #include <types/global.h>
 #include <types/acl.h>

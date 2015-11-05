@@ -32,6 +32,8 @@
 #include <zlib.h>
 #endif
 
+#include <common/buffer.h>
+
 struct comp {
 	struct comp_algo *algos;
 	struct comp_type *types;

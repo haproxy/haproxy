@@ -69,8 +69,6 @@
 #include <proto/pattern.h>
 #include <proto/vars.h>
 
-#include <proto/flt_http_comp.h> /* NOTE: temporary include, will be removed very soon */
-
 const char HTTP_100[] =
 	"HTTP/1.1 100 Continue\r\n\r\n";
 
@@ -4193,10 +4191,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (!(s->flags & SF_FINST_MASK))
 			s->flags |= SF_FINST_R;
 
-		/* we may want to compress the stats page */
-		if (sess->fe->comp || s->be->comp)
-			select_compression_request_header(s, req->buf);
-
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
 		req->analysers &= (AN_REQ_HTTP_BODY | AN_FLT_END);
 		req->analysers &= ~AN_FLT_XFER_DATA;
@@ -4334,9 +4328,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		req->flags,
 		req->buf->i,
 		req->analysers);
-
-	if (sess->fe->comp || s->be->comp)
-		select_compression_request_header(s, req->buf);
 
 	/*
 	 * Right now, we know that we have processed the entire headers
@@ -4942,15 +4933,11 @@ void http_end_txn_clean_session(struct stream *s)
 
 		if (fe->mode == PR_MODE_HTTP) {
 			fe->fe_counters.p.http.rsp[n]++;
-			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (be->mode == PR_MODE_HTTP)) {
 			be->be_counters.p.http.rsp[n]++;
 			be->be_counters.p.http.cum_req++;
-			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				be->be_counters.p.http.comp_rsp++;
 		}
 	}
 
@@ -6289,7 +6276,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	    (txn->status >= 100 && txn->status < 200) ||
 	    txn->status == 204 || txn->status == 304) {
 		msg->flags |= HTTP_MSGF_XFER_LEN;
-		s->comp_algo = NULL;
 		goto skip_content_length;
 	}
 
@@ -6338,9 +6324,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->flags |= HTTP_MSGF_CNT_LEN | HTTP_MSGF_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
 	}
-
-	if (sess->fe->comp || s->be->comp)
-		select_compression_response_header(s, rep->buf);
 
 skip_content_length:
 	/* Now we have to check if we need to modify the Connection header.
@@ -7038,8 +7021,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (msg->sov > 0)
 		msg->sov -= ret;
 
-	if ((s->comp_algo == NULL || msg->msg_state >= HTTP_MSG_TRAILERS) &&
-	    LIST_ISEMPTY(&s->strm_flt.filters))
+	if (LIST_ISEMPTY(&s->strm_flt.filters))
 		msg->chunk_len -= channel_forward(res, msg->chunk_len);
 
 	if (res->flags & CF_SHUTW)
@@ -7073,7 +7055,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * Similarly, with keep-alive on the client side, we don't want to forward a
 	 * close.
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo || !msg->body_len ||
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || !msg->body_len ||
+	    (msg->flags & HTTP_MSGF_COMPRESSING) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		channel_dont_close(res);
@@ -7086,7 +7069,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * flag with the last block of forwarded data, which would cause an
 	 * additional delay to be observed by the receiver.
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo)
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || (msg->flags & HTTP_MSGF_COMPRESSING))
 		res->flags |= CF_EXPECT_MORE;
 
 	/* the stream handler will take care of timeouts and errors */
@@ -8809,12 +8792,6 @@ void http_end_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
 	struct proxy *fe = strm_fe(s);
-
-	/* release any possible compression context */
-	if (s->flags & SF_COMP_READY)
-		s->comp_algo->end(&s->comp_ctx);
-	s->comp_algo = NULL;
-	s->flags &= ~SF_COMP_READY;
 
 	/* these ones will have been dynamically allocated */
 	pool_free2(pool2_requri, txn->uri);

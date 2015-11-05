@@ -43,6 +43,9 @@ int  flt_check(struct proxy *p);
 
 int  flt_stream_start(struct stream *s);
 void flt_stream_stop(struct stream *s);
+int  flt_set_stream_backend(struct stream *s, struct proxy *be);
+int  flt_stream_init(struct stream *s);
+void flt_stream_release(struct stream *s, int only_backend);
 
 int  flt_http_headers(struct stream *s, struct http_msg *msg);
 int  flt_http_start_chunk(struct stream *s, struct http_msg *msg);

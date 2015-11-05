@@ -21,18 +21,9 @@
 #ifndef _PROTO_FLT_HTTP_COMP_H
 #define _PROTO_FLT_HTTP_COMP_H
 
-/* NOTE: This is a temporary header file. It will be removed when the
- * compression filter will added */
+#include <types/proxy.h>
 
-#include <common/buffer.h>
-#include <types/stream.h>
-
-int select_compression_request_header(struct stream *s, struct buffer *req);
-int select_compression_response_header(struct stream *s, struct buffer *res);
-
-int http_compression_buffer_init(struct stream *s, struct buffer *in, struct buffer *out);
-int http_compression_buffer_add_data(struct stream *s, struct buffer *in, struct buffer *out);
-int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buffer **out, int end);
+int check_legacy_http_comp_flt(struct proxy *proxy);
 
 
-#endif /* _PROTO_FLT_HTTP_COMP_H */
+#endif // _PROTO_FLT_HTTP_COMP_H

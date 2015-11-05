@@ -76,7 +76,6 @@ static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *origin)
 {
 	struct stream *s;
-	struct filter *filter, *back;
 	struct connection *conn = objt_conn(origin);
 	struct appctx *appctx   = objt_appctx(origin);
 
@@ -147,7 +146,6 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	 * when the default backend is assigned.
 	 */
 	s->be  = sess->fe;
-	s->comp_algo = NULL;
 	s->req.buf = s->res.buf = NULL;
 	s->req_cap = NULL;
 	s->res_cap = NULL;
@@ -217,19 +215,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 
 	HLUA_INIT(&s->hlua);
 
-	LIST_INIT(&s->strm_flt.filters);
-	memset(s->strm_flt.current, 0, sizeof(s->strm_flt.current));
-	list_for_each_entry(filter, &sess->fe->filters, list) {
-		struct filter *f = pool_alloc2(pool2_filter);
-		if (!f)
-			goto out_fail_accept;
-		memset(f, 0, sizeof(*f));
-		f->id    = filter->id;
-		f->ops   = filter->ops;
-		f->conf  = filter->conf;
-		LIST_ADDQ(&s->strm_flt.filters, &f->list);
-	}
-	if (flt_stream_start(s) < 0)
+	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
 
 	/* finish initialization of the accepted file descriptor */
@@ -250,10 +236,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 
 	/* Error unrolling */
  out_fail_accept:
-	list_for_each_entry_safe(filter, back, &s->strm_flt.filters, list) {
-		LIST_DEL(&filter->list);
-		pool_free2(pool2_filter, filter);
-	}
+	flt_stream_release(s, 0);
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
 	return NULL;
@@ -268,7 +251,6 @@ static void stream_free(struct stream *s)
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
 	struct connection *cli_conn = objt_conn(sess->origin);
-	struct filter *filter, *fback;
 	int i;
 
 	if (s->pend_pos)
@@ -330,10 +312,7 @@ static void stream_free(struct stream *s)
 	}
 
 	flt_stream_stop(s);
-	list_for_each_entry_safe(filter, fback, &s->strm_flt.filters, list) {
-		LIST_DEL(&filter->list);
-		pool_free2(pool2_filter, filter);
-	}
+	flt_stream_release(s, 0);
 
 	if (fe) {
 		pool_free2(fe->rsp_cap_pool, s->res_cap);
@@ -2552,15 +2531,11 @@ struct task *process_stream(struct task *t)
 
 		if (sess->fe->mode == PR_MODE_HTTP) {
 			sess->fe->fe_counters.p.http.rsp[n]++;
-			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				sess->fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
 			s->be->be_counters.p.http.rsp[n]++;
 			s->be->be_counters.p.http.cum_req++;
-			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				s->be->be_counters.p.http.comp_rsp++;
 		}
 	}
 

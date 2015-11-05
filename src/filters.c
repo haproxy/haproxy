@@ -24,6 +24,7 @@
 
 #include <proto/compression.h>
 #include <proto/filters.h>
+#include <proto/flt_http_comp.h>
 #include <proto/proto_http.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -259,6 +260,7 @@ flt_check(struct proxy *proxy)
 		if (filter->ops->check)
 			err += filter->ops->check(proxy, filter);
 	}
+	err += check_legacy_http_comp_flt(proxy);
 	return err;
 }
 
@@ -276,6 +278,60 @@ flt_deinit(struct proxy *proxy)
 			filter->ops->deinit(proxy, filter);
 		LIST_DEL(&filter->list);
 		pool_free2(pool2_filter, filter);
+	}
+}
+
+/* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
+static int
+flt_stream_add_filter(struct stream *s, struct filter *filter,
+			  int is_backend)
+{
+	struct filter *f = pool_alloc2(pool2_filter);
+	if (!f) /* not enough memory */
+		return -1;
+	memset(f, 0, sizeof(*f));
+	f->id    = filter->id;
+	f->ops   = filter->ops;
+	f->conf  = filter->conf;
+	f->is_backend_filter = is_backend;
+	LIST_ADDQ(&s->strm_flt.filters, &f->list);
+	return 0;
+}
+
+/*
+ * Called when a stream is created. It attaches all frontend filters to the
+ * stream. Returns -1 if an error occurs, 0 otherwise.
+ */
+int
+flt_stream_init(struct stream *s)
+{
+	struct filter *filter;
+
+	LIST_INIT(&s->strm_flt.filters);
+	memset(s->strm_flt.current, 0, sizeof(s->strm_flt.current));
+	list_for_each_entry(filter, &strm_fe(s)->filters, list) {
+		if (flt_stream_add_filter(s, filter, 0) < 0)
+			return -1;
+	}
+	return 0;
+}
+
+/*
+ * Called when a stream is closed or when analyze ends (For an HTTP stream, this
+ * happens after each request/response exchange). When analyze ends, backend
+ * filters are removed. When the stream is closed, all filters attached to the
+ * stream are removed.
+ */
+void
+flt_stream_release(struct stream *s, int only_backend)
+{
+	struct filter *filter, *back;
+
+	list_for_each_entry_safe(filter, back, &s->strm_flt.filters, list) {
+		if (!only_backend || filter->is_backend_filter) {
+			LIST_DEL(&filter->list);
+			pool_free2(pool2_filter, filter);
+		}
 	}
 }
 
@@ -309,6 +365,26 @@ flt_stream_stop(struct stream *s)
 		if (filter->ops->stream_stop)
 			filter->ops->stream_stop(s, filter);
 	}
+}
+
+/*
+ * Called when a backend is set for a stream. If the frontend and the backend
+ * are the same, this function does nothing. Else it attaches all backend
+ * filters to the stream. Returns -1 if an error occurs, 0 otherwise.
+ */
+int
+flt_set_stream_backend(struct stream *s, struct proxy *be)
+{
+	struct filter *filter;
+
+	if (strm_fe(s) == be)
+		return 0;
+
+	list_for_each_entry(filter, &be->filters, list) {
+		if (flt_stream_add_filter(s, filter, 1) < 0)
+			return -1;
+	}
+	return 0;
 }
 
 int
@@ -691,8 +767,6 @@ end:
 	/* Check if 'channel_end_analyze' callback has been called for the
 	 * request and the response. */
 	if (!(s->req.analysers & AN_FLT_END) && !(s->res.analysers & AN_FLT_END)) {
-		struct filter *filter, *back;
-
 		/* When we are waiting for a new request, so we must reset
 		 * stream analyzers. The input must not be closed the request
 		 * channel, else it is useless to wait. */
@@ -701,12 +775,8 @@ end:
 			s->res.analysers = 0;
 		}
 
-		list_for_each_entry_safe(filter, back, &s->strm_flt.filters, list) {
-			if (filter->is_backend_filter) {
-				LIST_DEL(&filter->list);
-				pool_free2(pool2_filter, filter);
-			}
-		}
+		/* Remove backend filters from the list */
+		flt_stream_release(s, 1);
 	}
 	else if (ret) {
 		/* Analyzer ends only for one channel. So wake up the stream to
