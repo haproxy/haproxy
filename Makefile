@@ -569,7 +569,7 @@ OPTIONS_OBJS  += src/dlmalloc.o
 endif
 
 ifneq ($(USE_OPENSSL),)
-# OpenSSL is packaged in various forms and with various dependences.
+# OpenSSL is packaged in various forms and with various dependencies.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
 # reason why it's added by default. Some even need -lz, then you'll need to
 # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
@@ -614,6 +614,9 @@ OPTIONS_OBJS    += src/hlua.o
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
+ifeq ($(USE_PCRE),)
+$(error the DeviceAtlas module needs the PCRE library in order to compile)
+endif
 # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
 # to DeviceAtlas headers and libraries if needed.
 DEVICEATLAS_SRC =
