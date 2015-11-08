@@ -406,7 +406,7 @@ Core class
 
 .. code-block:: lua
 
-  core.register_service("hello-world", "http" }, function(applet)
+  core.register_service("hello-world", "http", function(applet)
      local response = "Hello World !"
      applet:set_status(200)
      applet:add_header("content-length", string.len(response))
@@ -430,7 +430,7 @@ Core class
   Register a function executed after the configuration parsing. This is useful
   to check any parameters.
 
-  :param fuction func: is the Lua function called to work as initializer.
+  :param function func: is the Lua function called to work as initializer.
 
   The prototype of the Lua function used as argument is:
 
@@ -449,7 +449,7 @@ Core class
   main scheduler starts. For example this type of tasks can be executed to
   perform complex health checks.
 
-  :param fuction func: is the Lua function called to work as initializer.
+  :param function func: is the Lua function called to work as initializer.
 
   The prototype of the Lua function used as argument is:
 
@@ -561,7 +561,7 @@ Converters class
   * applying hash on input string (djb2, crc32, sdbm, wt6),
   * format date,
   * json escape,
-  * extracting prefered language comparing two lists,
+  * extracting preferred language comparing two lists,
   * turn to lower or upper chars,
   * deal with stick tables.
 
@@ -595,7 +595,7 @@ Channel class
   If the buffer cant receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
-  :returns: a string containig all the avalaible data or nil.
+  :returns: a string containing all the available data or nil.
 
 .. js:function:: Channel.get(channel)
 
@@ -605,7 +605,7 @@ Channel class
   If the buffer cant receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
-  :returns: a string containig all the avalaible data or nil.
+  :returns: a string containing all the available data or nil.
 
 .. js:function:: Channel.getline(channel)
 
@@ -628,7 +628,7 @@ Channel class
 
   :param class_channel channel: The manipulated Channel.
   :param string string: The data which will sent.
-  :returns: an integer containing the amount of butes copyed or -1.
+  :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: Channel.append(channel, string)
 
@@ -640,7 +640,7 @@ Channel class
 
   :param class_channel channel: The manipulated Channel.
   :param string string: The data which will sent.
-  :returns: an integer containing the amount of butes copyed or -1.
+  :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: Channel.send(channel, string)
 
@@ -649,21 +649,21 @@ Channel class
 
   :param class_channel channel: The manipulated Channel.
   :param string string: The data which will sent.
-  :returns: an integer containing the amount of butes copyed or -1.
+  :returns: an integer containing the amount of bytes copied or -1.
 
 .. js:function:: Channel.get_in_length(channel)
 
   This function returns the length of the input part of the buffer.
 
   :param class_channel channel: The manipulated Channel.
-  :returns: an integer containing the amount of avalaible bytes.
+  :returns: an integer containing the amount of available bytes.
 
 .. js:function:: Channel.get_out_length(channel)
 
   This function returns the length of the output part of the buffer.
 
   :param class_channel channel: The manipulated Channel.
-  :returns: an integer containing the amount of avalaible bytes.
+  :returns: an integer containing the amount of available bytes.
 
 .. js:function:: Channel.forward(channel, int)
 
@@ -1359,7 +1359,7 @@ AppletHTTP class
   This is an hello world sample code:
 
 .. code-block:: lua
-  core.register_service("hello-world", "http" }, function(applet)
+  core.register_service("hello-world", "http", function(applet)
      local response = "Hello World !"
      applet:set_status(200)
      applet:add_header("content-length", string.len(response))
