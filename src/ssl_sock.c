@@ -1118,9 +1118,10 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
 static SSL_CTX *
-ssl_sock_do_create_cert(const char *servername, unsigned int serial,
-			struct bind_conf *bind_conf, SSL *ssl)
+ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
+	static unsigned int serial = 0;
+
 	X509         *cacert  = bind_conf->ca_sign_cert;
 	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
 	SSL_CTX      *ssl_ctx = NULL;
@@ -1143,7 +1144,9 @@ ssl_sock_do_create_cert(const char *servername, unsigned int serial,
 	 * number */
 	if (X509_set_version(newcrt, 2L) != 1)
 		goto mkcert_error;
-	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), serial);
+	if (!serial)
+		serial = now_ms;
+	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), serial++);
 
 	/* Set duration for the certificate */
 	if (!X509_gmtime_adj(X509_get_notBefore(newcrt), (long)-60*60*24) ||
@@ -1248,21 +1251,22 @@ ssl_sock_do_create_cert(const char *servername, unsigned int serial,
 }
 
 SSL_CTX *
-ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int serial)
+ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key)
 {
 	struct bind_conf *bind_conf = objt_listener(conn->target)->bind_conf;
-	return ssl_sock_do_create_cert(servername, serial, bind_conf, conn->xprt_ctx);
+
+	return ssl_sock_do_create_cert(servername, bind_conf, conn->xprt_ctx);
 }
 
 /* Do a lookup for a certificate in the LRU cache used to store generated
  * certificates. */
 SSL_CTX *
-ssl_sock_get_generated_cert(unsigned int serial, struct bind_conf *bind_conf)
+ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf)
 {
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		lru = lru64_lookup(serial, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
+		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (lru && lru->domain)
 			return (SSL_CTX *)lru->data;
 	}
@@ -1272,12 +1276,12 @@ ssl_sock_get_generated_cert(unsigned int serial, struct bind_conf *bind_conf)
 /* Set a certificate int the LRU cache used to store generated
  * certificate. Return 0 on success, otherwise -1 */
 int
-ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, struct bind_conf *bind_conf)
+ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_conf *bind_conf)
 {
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		lru = lru64_get(serial, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
+		lru = lru64_get(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (!lru)
 			return -1;
 		if (lru->domain && lru->data)
@@ -1288,9 +1292,9 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int serial, struct bind_c
 	return -1;
 }
 
-/* Compute the serial that will be used to create/set/get a certificate. */
+/* Compute the key of the certificate. */
 unsigned int
-ssl_sock_generated_cert_serial(const void *data, size_t len)
+ssl_sock_generated_cert_key(const void *data, size_t len)
 {
 	return XXH32(data, len, ssl_ctx_lru_seed);
 }
@@ -1304,21 +1308,21 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 	X509         *cacert  = bind_conf->ca_sign_cert;
 	SSL_CTX      *ssl_ctx = NULL;
 	struct lru64 *lru     = NULL;
-	unsigned int  serial;
+	unsigned int  key;
 
-	serial = ssl_sock_generated_cert_serial(servername, strlen(servername));
+	key = ssl_sock_generated_cert_key(servername, strlen(servername));
 	if (ssl_ctx_lru_tree) {
-		lru = lru64_get(serial, ssl_ctx_lru_tree, cacert, 0);
+		lru = lru64_get(key, ssl_ctx_lru_tree, cacert, 0);
 		if (lru && lru->domain)
 			ssl_ctx = (SSL_CTX *)lru->data;
 		if (!ssl_ctx && lru) {
-			ssl_ctx = ssl_sock_do_create_cert(servername, serial, bind_conf, ssl);
+			ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
 	}
 	else {
-		ssl_ctx = ssl_sock_do_create_cert(servername, serial, bind_conf, ssl);
+		ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
 		/* No LRU cache, this CTX will be released as soon as the session dies */
 		SSL_CTX_free(ssl_ctx);
@@ -1342,13 +1346,13 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	if (!servername) {
 		if (s->generate_certs) {
 			struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
-			unsigned int serial;
+			unsigned int key;
 			SSL_CTX *ctx;
 
 			conn_get_to_addr(conn);
 			if (conn->flags & CO_FL_ADDR_TO_SET) {
-				serial = ssl_sock_generated_cert_serial(&conn->addr.to, get_addr_len(&conn->addr.to));
-				ctx = ssl_sock_get_generated_cert(serial, s);
+				key = ssl_sock_generated_cert_key(&conn->addr.to, get_addr_len(&conn->addr.to));
+				ctx = ssl_sock_get_generated_cert(key, s);
 				if (ctx) {
 					/* switch ctx */
 					SSL_set_SSL_CTX(ssl, ctx);

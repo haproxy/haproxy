@@ -71,10 +71,10 @@ void tlskeys_finalize_config(void);
 int ssl_sock_load_global_dh_param_from_file(const char *filename);
 #endif
 
-SSL_CTX *ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int serial);
-SSL_CTX *ssl_sock_get_generated_cert(unsigned int serial, struct bind_conf *bind_conf);
-int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int serial, struct bind_conf *bind_conf);
-unsigned int ssl_sock_generated_cert_serial(const void *data, size_t len);
+SSL_CTX *ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key);
+SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
+int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
+unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
 
 #endif /* _PROTO_SSL_SOCK_H */
 
