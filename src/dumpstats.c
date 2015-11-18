@@ -2816,7 +2816,7 @@ static void dump_servers_state(struct proxy *backend, struct chunk *buf)
 				"\n",
 				backend->uuid, backend->id,
 				srv->puid, srv->id, srv_addr,
-				srv->state, srv->admin, srv->uweight, srv->iweight, srv_time_since_last_change,
+				srv->state, srv->admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
 				srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
 				bk_f_forced_id, srv_f_forced_id);
 
