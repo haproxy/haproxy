@@ -5342,6 +5342,13 @@ int http_sync_req_state(struct stream *s)
 		 */
 		s->si[1].flags |= SI_FL_NOHALF;
 
+		/* In any case we've finished parsing the request so we must
+		 * disable Nagle when sending data because 1) we're not going
+		 * to shut this side, and 2) the server is waiting for us to
+		 * send pending data.
+		 */
+		chn->flags |= CF_NEVER_WAIT;
+
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
 
@@ -5356,7 +5363,6 @@ int http_sync_req_state(struct stream *s)
 			/* if any side switches to tunnel mode, the other one does too */
 			channel_auto_read(chn);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
-			chn->flags |= CF_NEVER_WAIT;
 			goto wait_other_side;
 		}
 
@@ -5389,7 +5395,6 @@ int http_sync_req_state(struct stream *s)
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
 				channel_auto_read(chn);
 				txn->req.msg_state = HTTP_MSG_TUNNEL;
-				chn->flags |= CF_NEVER_WAIT;
 			}
 		}
 
