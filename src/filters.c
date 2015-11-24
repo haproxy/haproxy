@@ -295,6 +295,7 @@ flt_stream_add_filter(struct stream *s, struct filter *filter,
 	f->conf  = filter->conf;
 	f->is_backend_filter = is_backend;
 	LIST_ADDQ(&s->strm_flt.filters, &f->list);
+	s->strm_flt.has_filters = 1;
 	return 0;
 }
 
@@ -309,6 +310,7 @@ flt_stream_init(struct stream *s)
 
 	LIST_INIT(&s->strm_flt.filters);
 	memset(s->strm_flt.current, 0, sizeof(s->strm_flt.current));
+	s->strm_flt.has_filters = 0;
 	list_for_each_entry(filter, &strm_fe(s)->filters, list) {
 		if (flt_stream_add_filter(s, filter, 0) < 0)
 			return -1;
@@ -333,6 +335,8 @@ flt_stream_release(struct stream *s, int only_backend)
 			pool_free2(pool2_filter, filter);
 		}
 	}
+	if (LIST_ISEMPTY(&s->strm_flt.filters))
+		s->strm_flt.has_filters = 0;
 }
 
 /*
@@ -393,9 +397,6 @@ flt_http_headers(struct stream *s, struct http_msg *msg)
 	struct filter *filter;
 	int            ret = 1;
 
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
-
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops  && filter->ops->http_headers) {
 			ret = filter->ops->http_headers(s, filter, msg);
@@ -418,9 +419,6 @@ int
 flt_http_start_chunk(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
-
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
 
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops->http_start_chunk) {
@@ -450,12 +448,6 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	unsigned int   buf_i;
 	int            ret = 0;
 
-	/* No filter, consume all available data */
-	if (LIST_ISEMPTY(&s->strm_flt.filters)) {
-		ret = MIN(msg->chunk_len, msg->chn->buf->i - msg->next);
-		goto end;
-	}
-
 	/* Save buffer state */
 	buf_i = msg->chn->buf->i;
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
@@ -483,7 +475,6 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	}
 	/* Restore the original buffer state */
 	msg->chn->buf->i = buf_i;
- end:
 	return ret;
 }
 
@@ -491,9 +482,6 @@ int
 flt_http_end_chunk(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
-
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
 
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops->http_end_chunk) {
@@ -512,9 +500,6 @@ int
 flt_http_last_chunk(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
-
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
 
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops->http_last_chunk) {
@@ -543,9 +528,6 @@ flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
 
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
-
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops->http_chunk_trailers) {
 			ret = filter->ops->http_chunk_trailers(s, filter, msg);
@@ -570,9 +552,6 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
 
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
-
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (filter->ops->http_end) {
 			ret = filter->ops->http_end(s, filter, msg);
@@ -594,9 +573,6 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
 
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		return;
-
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
 		if (filter->ops->http_reset)
 			filter->ops->http_reset(s, filter, msg);
@@ -611,9 +587,6 @@ void
 flt_http_reply(struct stream *s, short status, const struct chunk *msg)
 {
 	struct filter *filter;
-
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		return;
 
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
 		if (filter->ops->http_reply)
@@ -635,10 +608,6 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 {
 	struct filter *filter = NULL;
 	int            ret = len;
-
-	/* No filter, forward all data */
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
 
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
 		if (filter->ops->http_forward_data) {
@@ -719,9 +688,6 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		goto end;
-
 	RESUME_FILTER_LOOP(s, chn) {
 		if (filter->ops->channel_analyze) {
 			ret = filter->ops->channel_analyze(s, filter, chn, an_bit);
@@ -732,7 +698,6 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
  check_result:
 	ret = handle_analyzer_result(s, chn, 0, ret);
- end:
 	return ret;
 }
 

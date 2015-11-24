@@ -128,6 +128,7 @@ struct stream {
 	struct {
 		struct list    filters;
 		struct filter *current[2];        /* 0: request, 1: response */
+		char           has_filters;
 	} strm_flt;
 
 	struct task *task;              /* the task associated with this stream */

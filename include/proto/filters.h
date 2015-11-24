@@ -35,6 +35,50 @@
 #define FLT_NXT(flt, chn) ((flt)->next[CHN_IDX(chn)])
 #define FLT_FWD(flt, chn) ((flt)->fwd[CHN_IDX(chn)])
 
+#define HAS_FILTERS(strm) ((strm)->strm_flt.has_filters)
+
+#define FLT_STRM_CB_IMPL_0(strm, call)					\
+	do {								\
+		if (HAS_FILTERS(strm)) { call; }			\
+	} while (0)
+#define FLT_STRM_CB_IMPL_1(strm, call, default_ret, ...)		\
+	(HAS_FILTERS(strm) ? call : default_ret)
+#define FLT_STRM_CB_IMPL_2(strm, call, default_ret, on_error)		\
+	({								\
+		int _ret;						\
+		if (HAS_FILTERS(strm)) {				\
+			_ret = call;					\
+			if (_ret < 0) { on_error; }			\
+		}							\
+		else							\
+			_ret = default_ret;				\
+		_ret;							\
+	})
+#define FLT_STRM_CB_IMPL_3(strm, call, default_ret, on_error, on_wait)	\
+	({								\
+		int _ret;						\
+		if (HAS_FILTERS(strm)) {				\
+			_ret = call;					\
+			if (_ret < 0) { on_error; }			\
+			if (!_ret)    { on_wait;  }			\
+		}							\
+		else							\
+			_ret = default_ret;				\
+		_ret;							\
+	})
+
+#define FLT_STRM_CB_IMPL_X(strm, call, A, B, C, CB_IMPL, ...) CB_IMPL
+
+#define FLT_STRM_CB(strm, call, ...)					\
+	FLT_STRM_CB_IMPL_X(strm, call, ##__VA_ARGS__,			\
+			   FLT_STRM_CB_IMPL_3(strm, call, ##__VA_ARGS__), \
+			   FLT_STRM_CB_IMPL_2(strm, call, ##__VA_ARGS__), \
+			   FLT_STRM_CB_IMPL_1(strm, call, ##__VA_ARGS__), \
+			   FLT_STRM_CB_IMPL_0(strm, call))
+
+#define CALL_FILTER_ANALYZER(analyzer, strm, chn, bit)			\
+	if (!HAS_FILTERS(strm) || analyzer((strm), (chn), bit)) ; else break
+
 extern struct pool_head *pool2_filter;
 
 int  flt_init(struct proxy *p);
