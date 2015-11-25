@@ -28,6 +28,7 @@
 #include <common/regex.h>
 
 #include <types/hdr_idx.h>
+#include <types/sample.h>
 
 /* These are the flags that are found in txn->flags */
 
