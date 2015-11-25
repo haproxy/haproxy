@@ -414,7 +414,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		}
 
 		/* register the capture. */
-		hdr = calloc(sizeof(struct cap_hdr), 1);
+		hdr = calloc(1, sizeof(struct cap_hdr));
 		hdr->name = NULL; /* not a header capture */
 		hdr->namelen = 0;
 		hdr->len = len;
