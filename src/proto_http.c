@@ -11578,10 +11578,11 @@ find_url_param_pos(const char **chunks,
 }
 
 /*
- * Given a url parameter name and a query string, returns its value and size
- * into *value and *value_l respectively, and returns non-zero. An empty
- * url_param_name matches the first available parameter. If the parameter is
- * not found, zero is returned and value/value_l are not touched.
+ * Given a url parameter name and a query string, find the next value.
+ * An empty url_param_name matches the first available parameter.
+ * If the parameter is found, 1 is returned and *vstart / *vend are updated to
+ * respectively provide a pointer to the value and its end.
+ * Otherwise, 0 is returned and vstart/vend are not modified.
  */
 static int
 find_next_url_param(const char **chunks,
@@ -11660,7 +11661,7 @@ find_next_url_param(const char **chunks,
 
 	*vstart = value_start;
 	*vend = value_end;
-	return value_end != value_start;
+	return 1;
 }
 
 /* This scans a URL-encoded query string. It takes an optionally wrapping
