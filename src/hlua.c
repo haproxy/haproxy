@@ -6475,7 +6475,6 @@ void hlua_init(void)
 		"ssl",
 		"verify",
 		"none",
-		"force-sslv3",
 		NULL
 	};
 #endif
