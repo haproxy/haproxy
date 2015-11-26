@@ -134,7 +134,7 @@ struct global global = {
 	.nbproc = 1,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
-#ifdef DEFAULT_MAXZLIBMEM
+#if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
 	.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
 #else
 	.maxzlibmem = 0,
