@@ -3302,7 +3302,7 @@ static enum act_parse_ret stream_parse_use_service(const char **args, int *cur_a
 	/* Check if the service name exists. */
 	if (*(args[*cur_arg]) == 0) {
 		memprintf(err, "'%s' expects a service name.", args[0]);
-		return -1;
+		return ACT_RET_PRS_ERR;
 	}
 
 	/* lookup for keyword corresponding to a service. */
