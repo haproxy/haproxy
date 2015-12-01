@@ -34,28 +34,13 @@ struct flt_ops comp_ops;
 
 static struct buffer *tmpbuf = &buf_empty;
 
-struct comp_chunk {
-	unsigned int start;   /* start of the chunk relative to FLT_FWD offset */
-	unsigned int end;     /* end of the chunk relative to FLT_FWD offset */
-	int          skip;    /* if set to 1, the chunk is skipped. Otherwise it is compressed */
-	int          is_last; /* if set, this is the last chunk. Data after this
-			       * chunk will be forwarded as it is. */
-	struct list  list;
-};
-
 struct comp_state {
 	struct comp_ctx  *comp_ctx;   /* compression context */
 	struct comp_algo *comp_algo;  /* compression algorithm if not NULL */
-	struct list  comp_chunks;     /* data chunks that should be compressed or skipped */
-	unsigned int first;           /* offset of the first chunk. Data before
-				       * this offset will be forwarded as it
-				       * is. */
+	int sov;
+	int consumed;
+	int initialized;
 };
-
-static int add_comp_chunk(struct comp_state *st, unsigned int start,
-			  unsigned int len, int skip, int is_last);
-static int skip_input_data(struct filter *filter, struct http_msg *msg,
-			   unsigned int consumed);
 
 static int select_compression_request_header(struct comp_state *st,
 					     struct stream *s,
@@ -70,7 +55,7 @@ static int http_compression_buffer_add_data(struct comp_state *st,
 					    struct buffer *out, int sz);
 static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 				       struct buffer **in, struct buffer **out,
-				       unsigned int consumed, int end);
+				       int end);
 
 /***********************************************************************/
 static int
@@ -104,11 +89,12 @@ comp_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 		if (!(st = malloc(sizeof(*st))))
 			return -1;
 
-		LIST_INIT(&st->comp_chunks);
-		st->comp_algo = NULL;
-		st->comp_ctx = NULL;
-		st->first    = 0;
-		filter->ctx  = st;
+		st->comp_algo   = NULL;
+		st->comp_ctx    = NULL;
+		st->sov         = 0;
+		st->consumed    = 0;
+		st->initialized = 0;
+		filter->ctx     = st;
 	}
 	return 1;
 }
@@ -125,6 +111,8 @@ comp_analyze(struct stream *s, struct filter *filter, struct channel *chn,
 	switch (an_bit) {
 		case AN_RES_HTTP_PROCESS_BE:
 			select_compression_response_header(st, s, &s->txn->rsp);
+			if (st->comp_algo)
+				st->sov = s->txn->rsp.sov;
 			break;
 	}
   end:
@@ -135,15 +123,9 @@ static int
 comp_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct comp_state *st = filter->ctx;
-	struct comp_chunk *cc, *back;
 
 	if (!st || !(chn->flags & CF_ISRESP))
 		goto end;
-
-	list_for_each_entry_safe(cc, back, &st->comp_chunks, list) {
-		LIST_DEL(&cc->list);
-		free(cc);
-	}
 
 	if (!st->comp_algo || !s->txn->status)
 		goto release_ctx;
@@ -177,11 +159,10 @@ comp_http_headers(struct stream *s, struct filter *filter,
 }
 
 static int
-comp_skip_http_chunk_envelope(struct stream *s, struct filter *filter,
-			      struct http_msg *msg)
+comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
-	unsigned int       start;
+	unsigned int       len;
 	int                ret;
 
 	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
@@ -189,227 +170,100 @@ comp_skip_http_chunk_envelope(struct stream *s, struct filter *filter,
 		return 1;
 	}
 
-	start = FLT_NXT(filter, msg->chn) - FLT_FWD(filter, msg->chn);
-	/* If this is the last chunk, we flag it */
-	if (msg->chunk_len == 0 && msg->msg_state == HTTP_MSG_CHUNK_SIZE)
-		ret = add_comp_chunk(st, start, 0, 1, 1);
-	else
-		ret = add_comp_chunk(st, start, msg->sol, 1, 0);
+	len = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
+	if (!len)
+		return len;
 
-	return !ret ? 1 : -1;
+	if (!st->initialized) {
+		b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
+		ret = http_compression_buffer_init(msg->chn->buf, tmpbuf);
+		b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
+		if (ret < 0) {
+			msg->chn->flags |= CF_WAKE_WRITE;
+			return 0;
+		}
+	}
+	b_adv(msg->chn->buf, FLT_NXT(filter, msg->chn));
+	ret = http_compression_buffer_add_data(st, msg->chn->buf, tmpbuf, len);
+	b_rew(msg->chn->buf, FLT_NXT(filter, msg->chn));
+	if (ret < 0)
+		return ret;
+
+	st->initialized = 1;
+	msg->next      += ret;
+	msg->chunk_len -= ret;
+	FLT_NXT(filter, msg->chn) = msg->next;
+	return 0;
 }
 
 static int
-comp_http_data(struct stream *s, struct filter *filter,
-		  struct http_msg *msg)
+comp_http_chunk_trailers(struct stream *s, struct filter *filter,
+			 struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
-	unsigned int       start;
-	int                is_last, ret;
+	int                ret;
 
-	ret = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
 	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
 		flt_set_forward_data(filter, msg->chn);
-		goto end;
+		return 1;
 	}
-	if (!ret)
-		goto end;
 
-	start   = FLT_NXT(filter, msg->chn) - FLT_FWD(filter, msg->chn);
-	is_last = (!(msg->flags & HTTP_MSGF_TE_CHNK) &&
-		   (msg->chunk_len == ret - msg->next + FLT_NXT(filter, msg->chn)));
+	if (!st->initialized)
+		return 1;
 
-	if (add_comp_chunk(st, start, ret, 0, is_last) == -1)
-		ret = -1;
- end:
-	return ret;
+	st->consumed = msg->next - st->sov;
+	b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
+	ret = http_compression_buffer_end(st, s, &msg->chn->buf, &tmpbuf, 1);
+	if (ret < 0)
+		return ret;
+
+	st->initialized = 0;
+	st->sov         = 0;
+	msg->next       = ret;
+	FLT_NXT(filter, msg->chn) = ret;
+	FLT_FWD(filter, msg->chn) = 0;
+	return 1;
 }
+
 
 static int
 comp_http_forward_data(struct stream *s, struct filter *filter,
 		       struct http_msg *msg, unsigned int len)
 {
 	struct comp_state *st = filter->ctx;
-	struct comp_chunk *cc, *back;
-	unsigned int       sz, consumed = 0, compressed = 0;
-	int                is_last = 0, ret = len;
+	int                ret;
 
 	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
 		flt_set_forward_data(filter, msg->chn);
-		goto end;
+		ret = len;
+		return ret;
 	}
 
-	/* no data to forward or no chunk or the first chunk is too far */
-	if (!len || LIST_ISEMPTY(&st->comp_chunks))
-		goto end;
-	if (st->first > len) {
-		consumed = len;
-		goto update_chunks;
-	}
-
-	/* initialize the buffer used to write compressed data */
-	b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-	ret = http_compression_buffer_init(msg->chn->buf, tmpbuf);
-	b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-	if (ret < 0) {
-		msg->chn->flags |= CF_WAKE_WRITE;
-		return 0;
-	}
-
-	/* Loop on all chunks */
-	list_for_each_entry_safe(cc, back, &st->comp_chunks, list) {
-		/* current chunk must not be handled yet */
-		if (len <= cc->start) {
-			consumed = len;
-			break;
-		}
-
-		/* Get the number of bytes that must be handled in the current
-		 * chunk */
-		sz = MIN(len, cc->end) - cc->start;
-
-		if (cc->skip) {
-			/* No compression for this chunk, data must be
-			 * skipped. This happens when the HTTP response is
-			 * chunked, the chunk envelope is skipped. */
-			ret = sz;
-		}
-		else {
-			/* Compress the chunk */
-			b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + cc->start);
-			ret = http_compression_buffer_add_data(st, msg->chn->buf, tmpbuf, sz);
-			b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + cc->start);
-			if (ret < 0)
-				goto end;
-			compressed += ret;
-		}
-
-		/* Update the chunk by removing consumed bytes. If all bytes are
-		 * consumed, the chunk is removed from the list and we
-		 * loop. Otherwise, we stop here. */
-		cc->start += ret;
-		consumed = cc->start;
-		if (cc->start != cc->end)
-			break;
-
-		/* Remember if this is the last chunk */
-		is_last = cc->is_last;
-		LIST_DEL(&cc->list);
-		free(cc);
-	}
-
-	if (compressed) {
-		/* Some data was compressed so we can switch buffers to replace
-		 * uncompressed data by compressed ones. */
-		b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-		ret = http_compression_buffer_end(st, s, &msg->chn->buf, &tmpbuf,
-						  consumed - st->first, is_last);
-		b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-	}
-	else {
-		/* Here some data was consumed but no compression was
-		 * preformed. This means that all consumed data must be
-		 * skipped.
-		 */
-		ret = skip_input_data(filter, msg, consumed);
-	}
-
-	if (is_last && !(msg->flags & HTTP_MSGF_TE_CHNK)) {
-		/* At the end of data, if the original response was not
-		 * chunked-encoded, we must write the empty chunk 0<CRLF>, and
-		 * terminate the (empty) trailers section with a last <CRLF>. If
-		 * we're forwarding a chunked-encoded response, these parts are
-		 * preserved and not rewritten.
-		 */
-		char *p = bi_end(msg->chn->buf);
-		memcpy(p, "0\r\n\r\n", 5);
-		msg->chn->buf->i += 5;
-		ret += 5;
-	}
-
-	/* Then, the last step. We need to update state of other filters. */
-	if (ret >= 0) {
-		flt_change_forward_size(filter, msg->chn, -(consumed - st->first - ret));
-		msg->next -= (consumed - st->first - ret);
-		ret += st->first;
-	}
-
- update_chunks:
-	/* Now, we need to update all remaining chunks to keep them synchronized
-	 * with the next position of buf->p. If the chunk list is empty, we
-	 * forward remaining data, if any. */
-	st->first -= MIN(st->first, consumed);
-	if (LIST_ISEMPTY(&st->comp_chunks))
-		ret += len - consumed;
-	else {
-		list_for_each_entry(cc, &st->comp_chunks, list) {
-			cc->start -= consumed;
-			cc->end   -= consumed;
-		}
-	}
-
- end:
-	return ret;
-}
-
-/***********************************************************************/
-static int
-add_comp_chunk(struct comp_state *st, unsigned int start, unsigned int len,
-	       int skip, int is_last)
-{
-	struct comp_chunk *cc;
-
-	if (!(cc = malloc(sizeof(*cc))))
+	/* To work, previous filters MUST forward all data */
+	if (FLT_FWD(filter, msg->chn) + len != FLT_NXT(filter, msg->chn)) {
+		Warning("HTTP compression failed: unexpected behavior of previous filters\n");
 		return -1;
-	cc->start   = start;
-	cc->end     = start + len;
-	cc->skip    = skip;
-	cc->is_last = is_last;
+	}
 
-	if (LIST_ISEMPTY(&st->comp_chunks))
-		st->first = cc->start;
+	if (!st->initialized) {
+		ret = len;
+		st->sov = ((st->sov > ret) ?  (st->sov-ret) : 0);
+		return ret;
+	}
 
-	LIST_ADDQ(&st->comp_chunks, &cc->list);
-	return 0;
-}
+	st->consumed = len - st->sov;
+	b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
+	ret = http_compression_buffer_end(st, s, &msg->chn->buf, &tmpbuf,
+					  msg->msg_state == HTTP_MSG_ENDING);
+	if (ret < 0)
+		return ret;
 
-/* This function might be moved in a filter function, probably with others to
- * add/remove/move/replace buffer data */
-static int
-skip_input_data(struct filter *filter, struct http_msg *msg,
-		unsigned int consumed)
-{
-	struct comp_state *st = filter->ctx;
-	int                block1, block2;
-
-	/* 1. Copy input data, skipping consumed ones. */
-	b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first + consumed);
-	block1 = msg->chn->buf->i;
-	if (block1 > bi_contig_data(msg->chn->buf))
-		block1 = bi_contig_data(msg->chn->buf);
-	block2 = msg->chn->buf->i - block1;
-
-	memcpy(trash.str, bi_ptr(msg->chn->buf), block1);
-	if (block2 > 0)
-		memcpy(trash.str + block1, msg->chn->buf->data, block2);
-	trash.len = block1 + block2;
-	b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first + consumed);
-
-	/* 2. Then write back these data at the right place in the buffer */
-	b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-	block1 = trash.len;
-	if (block1 > bi_contig_data(msg->chn->buf))
-		block1 = bi_contig_data(msg->chn->buf);
-	block2 = trash.len - block1;
-
-	memcpy(bi_ptr(msg->chn->buf), trash.str, block1);
-	if (block2 > 0)
-		memcpy(msg->chn->buf->data, trash.str + block1, block2);
-	b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->first);
-
-	/* Then adjut the input size */
-	msg->chn->buf->i -= consumed;
-	return 0;
+	st->initialized = 0;
+	st->sov         = 0;
+	msg->next       = ret;
+	FLT_NXT(filter, msg->chn) = ret;
+	FLT_FWD(filter, msg->chn) = 0;
+	return ret;
 }
 
 /***********************************************************************/
@@ -740,7 +594,7 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 static int
 http_compression_buffer_end(struct comp_state *st, struct stream *s,
 			    struct buffer **in, struct buffer **out,
-			    unsigned int consumed, int end)
+			    int end)
 {
 	struct buffer *ib = *in, *ob = *out;
 	char *tail;
@@ -804,21 +658,39 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	*tail++ = '\r';
 	*tail++ = '\n';
 
+	/* At the end of data, we must write the empty chunk 0<CRLF>,
+	 * and terminate the trailers section with a last <CRLF>. If
+	 * we're forwarding a chunked-encoded response, we'll have a
+	 * trailers section after the empty chunk which needs to be
+	 * forwarded and which will provide the last CRLF. Otherwise
+	 * we write it ourselves.
+	 */
+	if (end) {
+		struct http_msg *msg = &s->txn->rsp;
+
+		memcpy(tail, "0\r\n", 3);
+		tail += 3;
+		if (msg->msg_state == HTTP_MSG_ENDING) {
+			memcpy(tail, "\r\n", 2);
+			tail += 2;
+		}
+	}
+
 	ob->i = tail - ob->p;
 	to_forward = ob->i;
 
 	/* update input rate */
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
-		update_freq_ctr(&global.comp_bps_in, consumed);
-		strm_fe(s)->fe_counters.comp_in += consumed;
-		s->be->be_counters.comp_in      += consumed;
+		update_freq_ctr(&global.comp_bps_in, st->consumed);
+		strm_fe(s)->fe_counters.comp_in += st->consumed;
+		s->be->be_counters.comp_in      += st->consumed;
 	} else {
-		strm_fe(s)->fe_counters.comp_byp += consumed;
-		s->be->be_counters.comp_byp      += consumed;
+		strm_fe(s)->fe_counters.comp_byp += st->consumed;
+		s->be->be_counters.comp_byp      += st->consumed;
 	}
 
 	/* copy the remaining data in the tmp buffer. */
-	b_adv(ib, consumed);
+	b_adv(ib, st->consumed);
 	if (ib->i > 0) {
 		left = bi_contig_data(ib);
 		memcpy(ob->p + ob->i, bi_ptr(ib), left);
@@ -854,10 +726,8 @@ struct flt_ops comp_ops = {
 	.channel_end_analyze   = comp_end_analyze,
 
 	.http_headers      = comp_http_headers,
-	.http_start_chunk  = comp_skip_http_chunk_envelope,
-	.http_end_chunk    = comp_skip_http_chunk_envelope,
-	.http_last_chunk   = comp_skip_http_chunk_envelope,
 	.http_data         = comp_http_data,
+	.http_chunk_trailers = comp_http_chunk_trailers,
 	.http_forward_data = comp_http_forward_data,
 };
 

@@ -2214,9 +2214,10 @@ static int http_forward_trailers(struct http_msg *msg)
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
-		const char *ptr = b_ptr(buf, msg->next + msg->sol);
-		const char *stop = bi_end(buf);
-		int bytes;
+		const char *start = b_ptr(buf, msg->next + msg->sol);
+		const char *stop  = bi_end(buf);
+		const char *ptr   = start;
+		int bytes = 0;
 
 		/* scan current line and stop at LF or CRLF */
 		while (1) {
@@ -2248,19 +2249,17 @@ static int http_forward_trailers(struct http_msg *msg)
 		if (p2 >= buf->data + buf->size)
 			p2 = buf->data;
 
-		bytes = p2 - b_ptr(buf, msg->next + msg->sol);
+		bytes = p2 - start;
 		if (bytes < 0)
 			bytes += buf->size;
+		msg->sol += bytes;
 
 		/* LF/CRLF at beginning of line => end of trailers at p2.
 		 * Everything was scheduled for forwarding, there's nothing left
-		 * from this message.
-		 */
-		if (p1 == b_ptr(buf, msg->next + msg->sol)) {
-			msg->sol += bytes;
+		 * from this message. */
+		if (p1 == start)
 			return 1;
-		}
-		msg->sol += bytes;
+
 		/* OK, next line then */
 	}
 }
@@ -5541,27 +5540,15 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			if (!msg->sol) {
-				ret = http_parse_chunk_size(msg);
-				if (ret == 0)
-					goto missing_data;
-				else if (ret < 0) {
-					stream_inc_http_err_ctr(s);
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
-					goto return_bad_req;
-				}
+			ret = http_parse_chunk_size(msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0) {
+				stream_inc_http_err_ctr(s);
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
+				goto return_bad_req;
 			}
-			if (msg->chunk_len)
-				FLT_STRM_CB(s, flt_http_start_chunk(s, msg),
-					    /* default_ret */ 1,
-					    /* on_error    */ goto return_bad_req,
-					    /* on_wait     */ goto missing_data);
-			else
-				FLT_STRM_CB(s, flt_http_last_chunk(s, msg),
-					    /* default_ret */ 1,
-					    /* on_error    */ goto return_bad_req,
-					    /* on_wait     */ goto missing_data);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
@@ -5569,41 +5556,31 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */
-			if (!msg->sol) {
-				ret = http_skip_chunk_crlf(msg);
-				if (ret == 0)
-					goto missing_data;
-				else if (ret < 0) {
-					stream_inc_http_err_ctr(s);
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
-					goto return_bad_req;
-				}
+			ret = http_skip_chunk_crlf(msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0) {
+				stream_inc_http_err_ctr(s);
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
+				goto return_bad_req;
 			}
-			FLT_STRM_CB(s, flt_http_end_chunk(s, msg),
-				    /* default_ret */ 1,
-				    /* on_error    */ goto return_bad_req,
-				    /* on_wait     */ goto missing_data);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
-			ret = 1;
-			if (!msg->sol) {
-				ret = http_forward_trailers(msg);
-				if (ret < 0) {
-					stream_inc_http_err_ctr(s);
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
-					goto return_bad_req;
-				}
+			ret = http_forward_trailers(msg);
+			if (ret < 0) {
+				stream_inc_http_err_ctr(s);
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
+				goto return_bad_req;
 			}
 			FLT_STRM_CB(s, flt_http_chunk_trailers(s, msg),
 				    /* default_ret */ 1,
-				    /* on_error    */ goto return_bad_req,
-				    /* on_wait     */ goto missing_data);
+				    /* on_error    */ goto return_bad_req);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			if (!ret)
@@ -6866,20 +6843,14 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 		case HTTP_MSG_CHUNK_CRLF - HTTP_MSG_DATA:
 			/* we want the CRLF after the data */
-			if (!msg->sol) {
-				ret = http_skip_chunk_crlf(msg);
-				if (ret == 0)
-					goto missing_data;
-				else if (ret < 0) {
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, sess->fe);
-					goto return_bad_res;
-				}
+			ret = http_skip_chunk_crlf(msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, sess->fe);
+				goto return_bad_res;
 			}
-			FLT_STRM_CB(s, flt_http_end_chunk(s, msg),
-				    /* default_ret */ 1,
-				    /* on_error    */ goto return_bad_res,
-				    /* on_wait     */ goto missing_data);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
@@ -6890,46 +6861,33 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			if (!msg->sol) {
-				ret = http_parse_chunk_size(msg);
-				if (ret == 0)
-					goto missing_data;
-				else if (ret < 0) {
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, sess->fe);
-					goto return_bad_res;
-				}
+			ret = http_parse_chunk_size(msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, sess->fe);
+				goto return_bad_res;
 			}
-			if (msg->chunk_len)
-				FLT_STRM_CB(s, flt_http_start_chunk(s, msg),
-					    /* default_ret */ 1,
-					    /* on_error    */ goto return_bad_res,
-					    /* on_wait     */ goto missing_data);
-			else
-				FLT_STRM_CB(s, flt_http_last_chunk(s, msg),
-					    /* default_ret */ 1,
-					    /* on_error    */ goto return_bad_res,
-					    /* on_wait     */ goto missing_data);
 			msg->next += msg->sol;
 			msg->sol   = 0;
-			msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
-			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-			break;
+			if (msg->chunk_len) {
+				msg->msg_state = HTTP_MSG_DATA;
+				break;
+			}
+			msg->msg_state = HTTP_MSG_TRAILERS;
+			/* fall through */
 
 		case HTTP_MSG_TRAILERS - HTTP_MSG_DATA:
-			ret = 1;
-			if (!msg->sol) {
-				ret = http_forward_trailers(msg);
-				if (ret < 0) {
-					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, sess->fe);
-					goto return_bad_res;
-				}
+			ret = http_forward_trailers(msg);
+			if (ret < 0) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, sess->fe);
+				goto return_bad_res;
 			}
 			FLT_STRM_CB(s, flt_http_chunk_trailers(s, msg),
 				    /* default_ret */ 1,
-				    /* on_error    */ goto return_bad_res,
-				    /* on_wait     */ goto missing_data);
+				    /* on_error    */ goto return_bad_res);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			if (!ret)

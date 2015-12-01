@@ -415,23 +415,6 @@ flt_http_headers(struct stream *s, struct http_msg *msg)
 	return ret;
 }
 
-int
-flt_http_start_chunk(struct stream *s, struct http_msg *msg)
-{
-	int ret = 1;
-
-	RESUME_FILTER_LOOP(s, msg->chn) {
-		if (filter->ops->http_start_chunk) {
-			ret = filter->ops->http_start_chunk(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
-		}
-		FLT_NXT(filter, msg->chn) += msg->sol;
-	} RESUME_FILTER_END;
- end:
-	return ret;
-}
-
 /*
  * Calls 'http_data' callback for all "data" filters attached to a stream. This
  * function is called when incoming data are available (excluding chunks
@@ -451,9 +434,14 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	/* Save buffer state */
 	buf_i = msg->chn->buf->i;
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		/* If the HTTP parser is ahead, we update the next offset of the
+		 * current filter. This happens for chunked messages, at the
+		 * begining of a new chunk. */
+		if (msg->next > FLT_NXT(filter, msg->chn))
+			FLT_NXT(filter, msg->chn) = msg->next;
 		if (filter->ops->http_data && !flt_want_forward_data(filter, msg->chn)) {
 			ret = filter->ops->http_data(s, filter, msg);
-			if (ret < 0)
+			if (ret <= 0)
 				break;
 		}
 		else {
@@ -466,7 +454,7 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 			ret = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
 		}
 
-		/* Increase FLT_NXT offset of the current filter */
+		/* Update the next offset of the current filter */
 		FLT_NXT(filter, msg->chn) += ret;
 
 		/* And set this value as the bound for the next filter. It will
@@ -477,43 +465,6 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	msg->chn->buf->i = buf_i;
 	return ret;
 }
-
-int
-flt_http_end_chunk(struct stream *s, struct http_msg *msg)
-{
-	int ret = 1;
-
-	RESUME_FILTER_LOOP(s, msg->chn) {
-		if (filter->ops->http_end_chunk) {
-			ret = filter->ops->http_end_chunk(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
-		}
-		flt_reset_forward_data(filter, msg->chn);
-		FLT_NXT(filter, msg->chn) += msg->sol;
-	} RESUME_FILTER_END;
- end:
-	return ret;
-}
-
-int
-flt_http_last_chunk(struct stream *s, struct http_msg *msg)
-{
-	int ret = 1;
-
-	RESUME_FILTER_LOOP(s, msg->chn) {
-		if (filter->ops->http_last_chunk) {
-			ret = filter->ops->http_last_chunk(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
-		}
-		flt_reset_forward_data(filter, msg->chn);
-		FLT_NXT(filter, msg->chn) += msg->sol;
-	} RESUME_FILTER_END;
- end:
-	return ret;
-}
-
 
 /*
  * Calls 'http_chunk_trailers' callback for all "data" filters attached to a
@@ -526,17 +477,23 @@ flt_http_last_chunk(struct stream *s, struct http_msg *msg)
 int
 flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 {
-	int ret = 1;
+	struct filter *filter;
+	int            ret = 1;
 
-	RESUME_FILTER_LOOP(s, msg->chn) {
+	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		/* Be sure to set the next offset of the filter at the right
+		 * place. This is really useful when the first part of the
+		 * trailers was parsed. */
+		FLT_NXT(filter, msg->chn) = msg->next;
 		if (filter->ops->http_chunk_trailers) {
 			ret = filter->ops->http_chunk_trailers(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
+			if (ret < 0)
+				break;
 		}
+		/* Update the next offset of the current filter. Here all data
+		 * are always consumed. */
 		FLT_NXT(filter, msg->chn) += msg->sol;
-	} RESUME_FILTER_END;
-end:
+	}
 	return ret;
 }
 
@@ -610,6 +567,11 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 	int            ret = len;
 
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		/* If the HTTP parser is ahead, we update the next offset of the
+		 * current filter. This happens for chunked messages, when the
+		 * chunk envelope is parsed. */
+		if (msg->next > FLT_NXT(filter, msg->chn))
+			FLT_NXT(filter, msg->chn) = msg->next;
 		if (filter->ops->http_forward_data) {
 			/*  Remove bytes that the current filter considered as
 			 *  forwarded */

@@ -92,10 +92,7 @@ int  flt_stream_init(struct stream *s);
 void flt_stream_release(struct stream *s, int only_backend);
 
 int  flt_http_headers(struct stream *s, struct http_msg *msg);
-int  flt_http_start_chunk(struct stream *s, struct http_msg *msg);
 int  flt_http_data(struct stream *s, struct http_msg *msg);
-int  flt_http_last_chunk(struct stream *s, struct http_msg *msg);
-int  flt_http_end_chunk(struct stream *s, struct http_msg *msg);
 int  flt_http_chunk_trailers(struct stream *s, struct http_msg *msg);
 int  flt_http_end(struct stream *s, struct http_msg *msg);
 void flt_http_reset(struct stream *s, struct http_msg *msg);

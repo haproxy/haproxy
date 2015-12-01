@@ -105,25 +105,9 @@ struct flt_kw_list {
  *                          Returns a negative value if an error occurs, 0 if
  *                          it needs to read more data (or to wait for some
  *                          reason), any other value otherwise.
- *  - http_start_chunk    : Called when we start to process a new chunk
- *                          (for chunk-encoded request/response only). At this
- *                          step, the chunk length is known and non-null.
- *                          Returns a negative value if an error occurs, 0 if
- *                          it needs to read more data (or to wait for some
- *                          reason), any other value otherwise.
  *  - http_data           : Called when unparsed body data are available.
  *                          Returns a negative value if an error occurs, else
  *                          the number of consumed bytes.
- *  - http_last_chunk     : Called when the last chunk (with a zero length) is
- *                          received.
- *                          Returns a negative value if an error occurs, 0 if
- *                          it needs to read more data (or to wait for some
- *                          reason), any other value otherwise.
- *  - http_end_chunk      : Called at the end of a chunk (expect for the last
- *                          one).
- *                          Returns a negative value if an error occurs, 0 if
- *                          it needs to read more data (or to wait for some
- *                          reason), any other value otherwise.
  *  - http_chunk_trailers : Called when part of trailer headers of a
  *                          chunk-encoded request/response are ready to be
  *                          processed.
@@ -177,10 +161,7 @@ struct flt_ops {
 	 * HTTP callbacks
 	 */
 	int  (*http_headers)       (struct stream *s, struct filter *f, struct http_msg *msg);
-	int  (*http_start_chunk)   (struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_data)          (struct stream *s, struct filter *f, struct http_msg *msg);
-	int  (*http_last_chunk)    (struct stream *s, struct filter *f, struct http_msg *msg);
-	int  (*http_end_chunk)     (struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_chunk_trailers)(struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_end)           (struct stream *s, struct filter *f, struct http_msg *msg);
 	void (*http_reset)         (struct stream *s, struct filter *f, struct http_msg *msg);
