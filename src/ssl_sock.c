@@ -1582,6 +1582,191 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, 
 	return order;
 }
 
+
+/* The following code is used for loading multiple crt files into
+ * SSL_CTX's based on CN/SAN
+ */
+#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+/* This is used to preload the certifcate, private key
+ * and Cert Chain of a file passed in via the crt
+ * argument
+ *
+ * This way, we do not have to read the file multiple times
+ */
+struct cert_key_and_chain {
+	X509 *cert;
+	EVP_PKEY *key;
+	unsigned int num_chain_certs;
+	/* This is an array of X509 pointers */
+	X509 **chain_certs;
+};
+
+/* Frees the contents of a cert_key_and_chain
+ */
+static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
+{
+	int i;
+
+	if (!ckch)
+		return;
+
+	/* Free the certificate and set pointer to NULL */
+	if (ckch->cert)
+		X509_free(ckch->cert);
+	ckch->cert = NULL;
+
+	/* Free the key and set pointer to NULL */
+	if (ckch->key)
+		EVP_PKEY_free(ckch->key);
+	ckch->key = NULL;
+
+	/* Free each certificate in the chain */
+	for (i = 0; i < ckch->num_chain_certs; i++) {
+		if (ckch->chain_certs[i])
+			X509_free(ckch->chain_certs[i]);
+	}
+
+	/* Free the chain obj itself and set to NULL */
+	if (ckch->num_chain_certs > 0) {
+		free(ckch->chain_certs);
+		ckch->num_chain_certs = 0;
+		ckch->chain_certs = NULL;
+	}
+
+}
+
+/* checks if a key and cert exists in the ckch
+ */
+static int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
+{
+	return (ckch->cert != NULL && ckch->key != NULL);
+}
+
+
+/* Loads the contents of a crt file (path) into a cert_key_and_chain
+ * This allows us to carry the contents of the file without having to
+ * read the file multiple times.
+ *
+ * returns:
+ *      0 on Success
+ *      1 on SSL Failure
+ *      2 on file not found
+ */
+static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
+{
+
+	BIO *in;
+	X509 *ca = NULL;
+	int ret = 1;
+
+	ssl_sock_free_cert_key_and_chain_contents(ckch);
+
+	in = BIO_new(BIO_s_file());
+	if (in == NULL)
+		goto end;
+
+	if (BIO_read_filename(in, path) <= 0)
+		goto end;
+
+	/* Read Certificate */
+	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+	if (ckch->cert == NULL) {
+		memprintf(err, "%sunable to load certificate from file '%s'.\n",
+				err && *err ? *err : "", path);
+		goto end;
+	}
+
+	/* Read Private Key */
+	ckch->key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	if (ckch->key == NULL) {
+		memprintf(err, "%sunable to load private key from file '%s'.\n",
+				err && *err ? *err : "", path);
+		goto end;
+	}
+
+	/* Read Certificate Chain */
+	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+		/* Grow the chain certs */
+		ckch->num_chain_certs++;
+		ckch->chain_certs = realloc(ckch->chain_certs, (ckch->num_chain_certs * sizeof(X509 *)));
+
+		/* use - 1 here since we just incremented it above */
+		ckch->chain_certs[ckch->num_chain_certs - 1] = ca;
+	}
+	ret = ERR_get_error();
+	if (ret && (ERR_GET_LIB(ret) != ERR_LIB_PEM && ERR_GET_REASON(ret) != PEM_R_NO_START_LINE)) {
+		memprintf(err, "%sunable to load certificate chain from file '%s'.\n",
+				err && *err ? *err : "", path);
+		ret = 1;
+		goto end;
+	}
+
+	ret = 0;
+
+end:
+
+	ERR_clear_error();
+	if (in)
+		BIO_free(in);
+
+	/* Something went wrong in one of the reads */
+	if (ret != 0)
+		ssl_sock_free_cert_key_and_chain_contents(ckch);
+
+	return ret;
+}
+
+/* Loads the info in ckch into ctx
+ * Currently, this does not process any information about ocsp, dhparams or
+ * sctl
+ * Returns
+ *     0 on success
+ *     1 on failure
+ */
+static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
+{
+	int i = 0;
+
+	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
+		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
+				err && *err ? *err : "", path);
+		return 1;
+	}
+
+	if (!SSL_CTX_use_certificate(ctx, ckch->cert)) {
+		memprintf(err, "%sunable to load SSL certificate into SSL Context '%s'.\n",
+				err && *err ? *err : "", path);
+		return 1;
+	}
+
+	/* This only happens for OpenSSL Versions < 1.0.2
+	 * Otherwise ctx->extra_certs will always be NULL
+	 */
+	if (ctx->extra_certs != NULL) {
+		sk_X509_pop_free(ctx->extra_certs, X509_free);
+		ctx->extra_certs = NULL;
+	}
+
+	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
+	for (i = 0; i < ckch->num_chain_certs; i++) {
+		if (!SSL_CTX_add1_chain_cert(ctx, ckch->chain_certs[i])) {
+			memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
+					err && *err ? *err : "", path);
+			return 1;
+		}
+	}
+
+	if (SSL_CTX_check_private_key(ctx) <= 0) {
+		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+				err && *err ? *err : "", path);
+		return 1;
+	}
+
+	return 0;
+}
+
+#endif /* #if OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
+
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
