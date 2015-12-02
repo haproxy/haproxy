@@ -161,6 +161,7 @@
 #define AN_FLT_START_BE         0x02000000
 #define AN_FLT_END              0x04000000
 #define AN_FLT_XFER_DATA        0x08000000
+#define AN_FLT_HTTP_HDRS        0x10000000
 
 #define AN_FLT_ALL_FE           0x0d000000
 #define AN_FLT_ALL_BE           0x0e000000

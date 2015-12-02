@@ -755,6 +755,12 @@ static void sess_establish(struct stream *s)
 	}
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
+
+	/* Be sure to filter response headers if the backend is an HTTP proxy
+	 * and if there are filters attached to the stream. */
+	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
+		rep->analysers |= AN_FLT_HTTP_HDRS;
+
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
 		req->flags |= CF_WAKE_ONCE;
@@ -1854,6 +1860,12 @@ struct task *process_stream(struct task *t)
 					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_STICKING_RULES);
 				}
 
+				if (ana_list & AN_FLT_HTTP_HDRS) {
+					if (!flt_analyze_http_headers(s, req, AN_FLT_HTTP_HDRS))
+						break;
+					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_HTTP_HDRS);
+				}
+
 				if (ana_list & AN_FLT_XFER_DATA) {
 					if (!flt_xfer_data(s, req, AN_FLT_XFER_DATA))
 						break;
@@ -1978,6 +1990,12 @@ struct task *process_stream(struct task *t)
 					if (!http_process_res_common(s, res, AN_RES_HTTP_PROCESS_BE, s->be))
 						break;
 					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_HTTP_PROCESS_BE);
+				}
+
+				if (ana_list & AN_FLT_HTTP_HDRS) {
+					if (!flt_analyze_http_headers(s, res, AN_FLT_HTTP_HDRS))
+						break;
+					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_HTTP_HDRS);
 				}
 
 				if (ana_list & AN_FLT_XFER_DATA) {

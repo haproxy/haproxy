@@ -4191,7 +4191,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			s->flags |= SF_FINST_R;
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers &= (AN_REQ_HTTP_BODY | AN_FLT_END);
+		req->analysers &= (AN_REQ_HTTP_BODY | AN_FLT_HTTP_HDRS | AN_FLT_END);
 		req->analysers &= ~AN_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 		goto done;
@@ -5462,16 +5462,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * an "Expect: 100-continue" header.
 	 */
 	if (msg->msg_state == HTTP_MSG_BODY) {
-		/* we have msg->sov which points to the first byte of message
-		 * body, and req->buf.p still points to the beginning of the
-		 * message. We forward the headers now, as we don't need them
-		 * anymore, and we want to flush them.
-		 */
-		FLT_STRM_CB(s, flt_http_headers(s, msg),
-			    /* default_ret */ 1,
-			    /* on_error    */ goto return_bad_req,
-			    /* on_wait     */ return 0);
-
 		/* The previous analysers guarantee that the state is somewhere
 		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
 		 * msg->next are always correct.
@@ -6774,16 +6764,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	channel_auto_close(res);
 
 	if (msg->msg_state == HTTP_MSG_BODY) {
-		/* we have msg->sov which points to the first byte of message
-		 * body, and res->buf.p still points to the beginning of the
-		 * message. We forward the headers now, as we don't need them
-		 * anymore, and we want to flush them.
-		 */
-		FLT_STRM_CB(s, flt_http_headers(s, msg),
-			    /* default_ret */ 1,
-			    /* on_error    */ goto return_bad_res,
-			    /* on_wait     */ return 0);
-
 		/* The previous analysers guarantee that the state is somewhere
 		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
 		 * msg->next are always correct.

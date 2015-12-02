@@ -91,17 +91,17 @@ int  flt_set_stream_backend(struct stream *s, struct proxy *be);
 int  flt_stream_init(struct stream *s);
 void flt_stream_release(struct stream *s, int only_backend);
 
-int  flt_http_headers(struct stream *s, struct http_msg *msg);
 int  flt_http_data(struct stream *s, struct http_msg *msg);
 int  flt_http_chunk_trailers(struct stream *s, struct http_msg *msg);
 int  flt_http_end(struct stream *s, struct http_msg *msg);
-void flt_http_reset(struct stream *s, struct http_msg *msg);
-
-void flt_http_reply(struct stream *s, short status, const struct chunk *msg);
 int  flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len);
+
+void flt_http_reset(struct stream *s, struct http_msg *msg);
+void flt_http_reply(struct stream *s, short status, const struct chunk *msg);
 
 int  flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
 int  flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
+int  flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit);
 int  flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
 
 int  flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit);

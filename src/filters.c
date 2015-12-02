@@ -391,30 +391,6 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 	return 0;
 }
 
-int
-flt_http_headers(struct stream *s, struct http_msg *msg)
-{
-	struct filter *filter;
-	int            ret = 1;
-
-	RESUME_FILTER_LOOP(s, msg->chn) {
-		if (filter->ops  && filter->ops->http_headers) {
-			ret = filter->ops->http_headers(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
-		}
-	} RESUME_FILTER_END;
-
-	/* We increase FLT_NXT offset after all processing on headers because
-	 * any filter can alter them. So the definitive size of headers
-	 * (msg->sov) is only known when all filters have been called. */
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
-		FLT_NXT(filter, msg->chn) = msg->sov;
-	}
- end:
-	return ret;
-}
-
 /*
  * Calls 'http_data' callback for all "data" filters attached to a stream. This
  * function is called when incoming data are available (excluding chunks
@@ -659,8 +635,41 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	} RESUME_FILTER_END;
 
  check_result:
-	ret = handle_analyzer_result(s, chn, 0, ret);
-	return ret;
+	return handle_analyzer_result(s, chn, 0, ret);
+}
+
+/*
+ * This function do the same that the previsous one, but for the
+ * AN_FLT_HTTP_HDRS analyzer. The difference is what is done when all filters
+ * have been called. Returns 0 if an error occurs or if it needs to wait, any
+ * other value otherwise.
+ */
+int
+flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit)
+{
+	struct filter   *filter;
+	struct http_msg *msg;
+	int              ret = 1;
+
+	RESUME_FILTER_LOOP(s, chn) {
+		if (filter->ops->channel_analyze) {
+			ret = filter->ops->channel_analyze(s, filter, chn, an_bit);
+			if (ret <= 0)
+				BREAK_EXECUTION(s, chn, check_result);
+		}
+	} RESUME_FILTER_END;
+
+	/* We increase next offset of all "data" filters after all processing on
+	 * headers because any filter can alter them. So the definitive size of
+	 * headers (msg->sov) is only known when all filters have been
+	 * called. */
+	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
+	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		FLT_NXT(filter, msg->chn) = msg->sov;
+	}
+
+ check_result:
+	return handle_analyzer_result(s, chn, an_bit, ret);
 }
 
 /*

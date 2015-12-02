@@ -108,13 +108,16 @@ comp_analyze(struct stream *s, struct filter *filter, struct channel *chn,
 	if (!strm_fe(s)->comp && !s->be->comp)
 		goto end;
 
-	switch (an_bit) {
-		case AN_RES_HTTP_PROCESS_BE:
+	if (an_bit == AN_FLT_HTTP_HDRS) {
+		if (!(chn->flags & CF_ISRESP))
+			select_compression_request_header(st, s, &s->txn->req);
+		else {
 			select_compression_response_header(st, s, &s->txn->rsp);
 			if (st->comp_algo)
 				st->sov = s->txn->rsp.sov;
-			break;
+		}
 	}
+
   end:
 	return 1;
 }
@@ -142,19 +145,6 @@ comp_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 	free(st);
 	filter->ctx = NULL;
  end:
-	return 1;
-}
-
-static int
-comp_http_headers(struct stream *s, struct filter *filter,
-		  struct http_msg *msg)
-{
-	struct comp_state *st = filter->ctx;
-
-	if (strm_fe(s)->comp || s->be->comp) {
-		if (!(msg->chn->flags & CF_ISRESP))
-			select_compression_request_header(st, s, msg);
-	}
 	return 1;
 }
 
@@ -725,10 +715,9 @@ struct flt_ops comp_ops = {
 	.channel_analyze       = comp_analyze,
 	.channel_end_analyze   = comp_end_analyze,
 
-	.http_headers      = comp_http_headers,
-	.http_data         = comp_http_data,
-	.http_chunk_trailers = comp_http_chunk_trailers,
-	.http_forward_data = comp_http_forward_data,
+	.http_data             = comp_http_data,
+	.http_chunk_trailers   = comp_http_chunk_trailers,
+	.http_forward_data     = comp_http_forward_data,
 };
 
 static int

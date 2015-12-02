@@ -8438,6 +8438,10 @@ out_uri_auth_compat:
 			if (!LIST_ISEMPTY(&curproxy->filters)) {
 				curproxy->fe_req_ana |= AN_FLT_ALL_FE;
 				curproxy->fe_rsp_ana |= AN_FLT_ALL_FE;
+				if (curproxy->mode == PR_MODE_HTTP) {
+					curproxy->fe_req_ana |= AN_FLT_HTTP_HDRS;
+					curproxy->fe_rsp_ana |= AN_FLT_HTTP_HDRS;
+				}
 			}
 		}
 
@@ -8464,6 +8468,10 @@ out_uri_auth_compat:
 			if (!LIST_ISEMPTY(&curproxy->filters)) {
 				curproxy->be_req_ana |= AN_FLT_ALL_BE;
 				curproxy->be_rsp_ana |= AN_FLT_ALL_BE;
+				if (curproxy->mode == PR_MODE_HTTP) {
+					curproxy->be_req_ana |= AN_FLT_HTTP_HDRS;
+					curproxy->be_rsp_ana |= AN_FLT_HTTP_HDRS;
+				}
 			}
 		}
 	}
