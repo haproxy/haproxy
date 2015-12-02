@@ -1,3 +1,4 @@
+
 /*
  * SSL/TLS transport layer over SOCK_STREAM sockets
  *
@@ -1601,6 +1602,32 @@ struct cert_key_and_chain {
 	X509 **chain_certs;
 };
 
+/* The order here matters for picking a default context,
+ * keep the most common keytype at the bottom of the list
+ */
+const char *SSL_SOCK_KEYTYPE_NAMES[] = {
+	"dsa",
+	"ecdsa",
+	"rsa"
+};
+#define SSL_SOCK_NUM_KEYTYPES 3
+#define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
+
+struct key_combo_ctx {
+	SSL_CTX *ctx;
+	int order;
+};
+
+/* Map used for processing multiple keypairs for a single purpose
+ *
+ * This maps CN/SNI name to certificate type
+ */
+struct sni_keytype {
+	int keytypes;			  /* BITMASK for keytypes */
+	struct ebmb_node name;    /* node holding the servername value */
+};
+
+
 /* Frees the contents of a cert_key_and_chain
  */
 static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
@@ -1739,19 +1766,11 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		return 1;
 	}
 
-	/* This only happens for OpenSSL Versions < 1.0.2
-	 * Otherwise ctx->extra_certs will always be NULL
-	 */
-	if (ctx->extra_certs != NULL) {
-		sk_X509_pop_free(ctx->extra_certs, X509_free);
-		ctx->extra_certs = NULL;
-	}
-
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
 	for (i = 0; i < ckch->num_chain_certs; i++) {
 		if (!SSL_CTX_add1_chain_cert(ctx, ckch->chain_certs[i])) {
-			memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
-					err && *err ? *err : "", path);
+			memprintf(err, "%sunable to load chain certificate #%d into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
+					err && *err ? *err : "", (i+1), path);
 			return 1;
 		}
 	}
@@ -1763,6 +1782,247 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 
 	return 0;
+}
+
+
+static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root *sni_keytypes, int key_index)
+{
+	struct sni_keytype *s_kt = NULL;
+	struct ebmb_node *node;
+	int i;
+
+	for (i = 0; i < trash.size; i++) {
+		if (!str[i])
+			break;
+		trash.str[i] = tolower(str[i]);
+	}
+	trash.str[i] = 0;
+	node = ebst_lookup(sni_keytypes, trash.str);
+	if (!node) {
+		/* CN not found in tree */
+		s_kt = malloc(sizeof(struct sni_keytype) + i + 1);
+		/* Using memcpy here instead of strncpy.
+		 * strncpy will cause sig_abrt errors under certain versions of gcc with -O2
+		 * See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60792
+		 */
+		memcpy(s_kt->name.key, trash.str, i+1);
+		s_kt->keytypes = 0;
+		ebst_insert(sni_keytypes, &s_kt->name);
+	} else {
+		/* CN found in tree */
+		s_kt = container_of(node, struct sni_keytype, name);
+	}
+
+	/* Mark that this CN has the keytype of key_index via keytypes mask */
+	s_kt->keytypes |= 1<<key_index;
+
+}
+
+
+/* Given a path that does not exist, try to check for path.rsa, path.dsa and path.ecdsa files.
+ * If any are found, group these files into a set of SSL_CTX*
+ * based on shared and unique CN and SAN entries. Add these SSL_CTX* to the SNI tree.
+ *
+ * This will allow the user to explictly group multiple cert/keys for a single purpose
+ *
+ * Returns
+ *     0 on success
+ *     1 on failure
+ */
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, char **err)
+{
+	char fp[MAXPATHLEN+1] = {0};
+	int n = 0;
+	int i = 0;
+	struct cert_key_and_chain certs_and_keys[SSL_SOCK_NUM_KEYTYPES] = { {0} };
+	struct eb_root sni_keytypes_map = { {0} };
+	struct ebmb_node *node;
+	struct ebmb_node *next;
+	/* Array of SSL_CTX pointers corresponding to each possible combo
+	 * of keytypes
+	 */
+	struct key_combo_ctx key_combos[SSL_SOCK_POSSIBLE_KT_COMBOS] = { {0} };
+	int rv = 0;
+	X509_NAME *xname = NULL;
+	char *str = NULL;
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	STACK_OF(GENERAL_NAME) *names = NULL;
+#endif
+
+	/* Load all possible certs and keys */
+	for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+		struct stat buf;
+
+		snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+		if (stat(fp, &buf) == 0) {
+			if (ssl_sock_load_crt_file_into_ckch(fp, &certs_and_keys[n], err) == 1) {
+				rv = 1;
+				goto end;
+			}
+		}
+	}
+
+	/* Process each ckch and update keytypes for each CN/SAN
+	 * for example, if CN/SAN www.a.com is associated with
+	 * certs with keytype 0 and 2, then at the end of the loop,
+	 * www.a.com will have:
+	 *     keyindex = 0 | 1 | 4 = 5
+	 */
+	for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+
+		if (!ssl_sock_is_ckch_valid(&certs_and_keys[n]))
+			continue;
+
+		/* A lot of the following code is OpenSSL boilerplate for processing CN's and SAN's,
+		 * so the line that contains logic is marked via comments
+		 */
+		xname = X509_get_subject_name(certs_and_keys[n].cert);
+		i = -1;
+		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
+			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
+
+			if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+				/* Important line is here */
+				ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
+
+				OPENSSL_free(str);
+				str = NULL;
+			}
+		}
+
+		/* Do the above logic for each SAN */
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		names = X509_get_ext_d2i(certs_and_keys[n].cert, NID_subject_alt_name, NULL, NULL);
+		if (names) {
+			for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+
+				if (name->type == GEN_DNS) {
+					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+						/* Important line is here */
+						ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
+
+						OPENSSL_free(str);
+						str = NULL;
+					}
+				}
+			}
+		}
+#endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
+	}
+
+	/* If no files found, return error */
+	if (eb_is_empty(&sni_keytypes_map)) {
+		memprintf(err, "%sunable to load SSL certificate file '%s' file does not exist.\n",
+		          err && *err ? *err : "", path);
+		rv = 1;
+		goto end;
+	}
+
+	/* We now have a map of CN/SAN to keytypes that are loaded in
+	 * Iterate through the map to create the SSL_CTX's (if needed)
+	 * and add each CTX to the SNI tree
+	 *
+	 * Some math here:
+	 *   There are 2^n - 1 possibile combinations, each unique
+	 *   combination is denoted by the key in the map. Each key
+	 *   has a value between 1 and 2^n - 1. Conveniently, the array
+	 *   of SSL_CTX* is sized 2^n. So, we can simply use the i'th
+	 *   entry in the array to correspond to the unique combo (key)
+	 *   associated with i. This unique key combo (i) will be associated
+	 *   with combos[i-1]
+	 */
+
+	node = ebmb_first(&sni_keytypes_map);
+	while (node) {
+		SSL_CTX *cur_ctx;
+
+		str = (char *)container_of(node, struct sni_keytype, name)->name.key;
+		i = container_of(node, struct sni_keytype, name)->keytypes;
+		cur_ctx = key_combos[i-1].ctx;
+
+		if (cur_ctx == NULL) {
+			/* need to create SSL_CTX */
+			cur_ctx = SSL_CTX_new(SSLv23_server_method());
+			if (cur_ctx == NULL) {
+				memprintf(err, "%sunable to allocate SSL context.\n",
+				          err && *err ? *err : "");
+				rv = 1;
+				goto end;
+			}
+
+			/* Load all info into SSL_CTX */
+			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+				if (i & (1<<n)) {
+					/* Key combo contains ckch[n] */
+					snprintf(trash.str, trash.size, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+					if (ssl_sock_put_ckch_into_ctx(trash.str, &certs_and_keys[n], cur_ctx, err) != 0) {
+						SSL_CTX_free(cur_ctx);
+						rv = 1;
+						goto end;
+					}
+				}
+			}
+
+			/* Load DH params into the ctx to support DHE keys */
+#ifndef OPENSSL_NO_DH
+			if (ssl_dh_ptr_index >= 0)
+				SSL_CTX_set_ex_data(cur_ctx, ssl_dh_ptr_index, NULL);
+
+			rv = ssl_sock_load_dh_params(cur_ctx, NULL);
+			if (rv < 0) {
+				if (err)
+					memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
+							*err ? *err : "", path);
+				rv = 1;
+				goto end;
+			}
+#endif
+
+			/* Update key_combos */
+			key_combos[i-1].ctx = cur_ctx;
+		}
+
+		/* Update SNI Tree */
+		ssl_sock_add_cert_sni(cur_ctx, bind_conf, str, key_combos[i-1].order++);
+		node = ebmb_next(node);
+	}
+
+
+	/* Mark a default context if none exists, using the ctx that has the most shared keys */
+	if (!bind_conf->default_ctx) {
+		for (i = SSL_SOCK_POSSIBLE_KT_COMBOS - 1; i >= 0; i--) {
+			if (key_combos[i].ctx) {
+				bind_conf->default_ctx = key_combos[i].ctx;
+				break;
+			}
+		}
+	}
+
+end:
+
+	if (names)
+		sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
+
+	for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
+		ssl_sock_free_cert_key_and_chain_contents(&certs_and_keys[n]);
+
+	node = ebmb_first(&sni_keytypes_map);
+	while (node) {
+		next = ebmb_next(node);
+		ebmb_delete(node);
+		node = next;
+	}
+
+	return rv;
+}
+#else
+/* This is a dummy, that just logs an error and returns error */
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, char **err)
+{
+	memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+	          err && *err ? *err : "", path, strerror(errno));
+	return 1;
 }
 
 #endif /* #if OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
@@ -1956,43 +2216,50 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
 
-	if (!(dir = opendir(path)))
-		return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, 0, err);
+	if (stat(path, &buf) == 0) {
+		dir = opendir(path);
+		if (!dir)
+			return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, 0, err);
 
-	/* strip trailing slashes, including first one */
-	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
-		*end = 0;
+		/* strip trailing slashes, including first one */
+		for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
+			*end = 0;
 
-	n = scandir(path, &de_list, 0, alphasort);
-	if (n < 0) {
-		memprintf(err, "%sunable to scan directory '%s' : %s.\n",
-			  err && *err ? *err : "", path, strerror(errno));
-		cfgerr++;
-	}
-	else {
-		for (i = 0; i < n; i++) {
-			struct dirent *de = de_list[i];
-
-			end = strrchr(de->d_name, '.');
-			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl")))
-				goto ignore_entry;
-
-			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
-			if (stat(fp, &buf) != 0) {
-				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
-					  err && *err ? *err : "", fp, strerror(errno));
-				cfgerr++;
-				goto ignore_entry;
-			}
-			if (!S_ISREG(buf.st_mode))
-				goto ignore_entry;
-			cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, 0, err);
-	ignore_entry:
-			free(de);
+		n = scandir(path, &de_list, 0, alphasort);
+		if (n < 0) {
+			memprintf(err, "%sunable to scan directory '%s' : %s.\n",
+			          err && *err ? *err : "", path, strerror(errno));
+			cfgerr++;
 		}
-		free(de_list);
+		else {
+			for (i = 0; i < n; i++) {
+				struct dirent *de = de_list[i];
+
+				end = strrchr(de->d_name, '.');
+				if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl")))
+					goto ignore_entry;
+
+				snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
+				if (stat(fp, &buf) != 0) {
+					memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+					          err && *err ? *err : "", fp, strerror(errno));
+					cfgerr++;
+					goto ignore_entry;
+				}
+				if (!S_ISREG(buf.st_mode))
+					goto ignore_entry;
+				cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, 0, err);
+ignore_entry:
+				free(de);
+			}
+			free(de_list);
+		}
+		closedir(dir);
+		return cfgerr;
 	}
-	closedir(dir);
+
+	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, curproxy, NULL, err);
+
 	return cfgerr;
 }
 
