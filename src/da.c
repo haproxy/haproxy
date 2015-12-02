@@ -232,7 +232,7 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 	char useragentbuf[1024] = { 0 };
 	int i;
 
-	if (global.deviceatlas.daset == 0) {
+	if (global.deviceatlas.daset == 0 || smp->data.u.str.len == 0) {
 		return 1;
 	}
 
