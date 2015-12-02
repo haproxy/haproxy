@@ -180,7 +180,7 @@ struct global global = {
 #endif
 #ifdef USE_DEVICEATLAS
 	.deviceatlas = {
-		.loglevel = DA_SEV_INFO,
+		.loglevel = 0,
 		.jsonpath = 0,
 		.cookiename = 0,
 		.cookienamelen = 0,
@@ -400,6 +400,9 @@ void display_build_opts()
 	printf("Built with network namespace support\n");
 #endif
 
+#ifdef USE_DEVICEATLAS
+    printf("Built with DeviceAtlas support\n");
+#endif
 #ifdef USE_51DEGREES
 	printf("Built with 51Degrees support\n");
 #endif
