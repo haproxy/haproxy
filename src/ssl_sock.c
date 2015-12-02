@@ -2283,6 +2283,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 {
 	char thisline[LINESIZE];
 	FILE *f;
+	struct stat buf;
 	int linenum = 0;
 	int cfgerr = 0;
 
@@ -2341,7 +2342,12 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 		if (!arg)
 			continue;
 
-		cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, &args[1], arg-1, err);
+		if (stat(args[0], &buf) == 0) {
+			cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, &args[1], arg-1, err);
+		} else {
+			cfgerr = ssl_sock_load_multi_cert(args[0], bind_conf, curproxy, NULL, err);
+		}
+
 		if (cfgerr) {
 			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
 			break;
