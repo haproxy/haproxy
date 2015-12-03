@@ -310,11 +310,11 @@ for .o and .h, but will default to 51DEGREES_SRC. Make sure to replace
 
 To make with 51Degrees Pattern algorithm use the following command line.
 
-    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/pattern
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/pattern
 
 To use the 51Degrees Trie algorithm use the following command line.
 
-    $ make TARGET=linux26 USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/trie
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/trie
 
 A data file containing information about devices, browsers, operating systems
 and their associated signatures is then needed. 51Degrees provide a free
@@ -324,17 +324,19 @@ Trie data.
 
 The configuration file needs to set the following parameters:
 
-    51degrees-data-file           path to the Pattern or Trie data file
-    51degrees-property-name-list  list of 51Degrees properties to detect
-    51degrees-property-separator  separator to use between values
-    51degrees-cache-size          LRU-based cache size (disabled by default)
+    global
+        51degrees-data-file           path to the Pattern or Trie data file
+        51degrees-property-name-list  list of 51Degrees properties to detect
+        51degrees-property-separator  separator to use between values
+        51degrees-cache-size          LRU-based cache size (disabled by default)
 
 The following is an example of the settings for Pattern.
 
-    51degrees-data-file '51D_REPO_PATH'/data/51Degrees-LiteV3.2.dat
-    51degrees-property-name-list IsTablet DeviceType IsMobile
-    51degrees-property-separator ,
-    51degrees-cache-size 10000
+    global
+        51degrees-data-file '51D_REPO_PATH'/data/51Degrees-LiteV3.2.dat
+        51degrees-property-name-list IsTablet DeviceType IsMobile
+        51degrees-property-separator ,
+        51degrees-cache-size 10000
 
 HAProxy needs a way to pass device information to the backend servers. This is
 done by using the 51d converter or fetch method, which intercepts the HTTP
@@ -361,6 +363,8 @@ validity of the result can be returned when used with the Pattern method. The
 following example shows how Method, Difference and Rank could be included as one
 new HTTP header X-51D-Stats.
 
+    frontend http-in
+        ...
         http-request set-header X-51D-Stats %[51d.all(Method,Difference,Rank)]
 
 These values indicate how confident 51Degrees is in the result that that was
@@ -373,6 +377,8 @@ modest performance improvement can be obtained by only passing one HTTP header
 to the detection method with the 51d.single converter. The following example
 uses the User-Agent HTTP header only for detection.
 
+    frontend http-in
+        ...
         http-request set-header X-51D-DeviceTypeMobileTablet %[req.fhdr(User-Agent),51d.single(DeviceType,IsMobile,IsTablet)]
 
 Any HTTP header could be used inplace of User-Agent by changing the parameter
@@ -382,6 +388,7 @@ When compiled to use the Trie detection method the trie format data file needs
 to be provided. Changing the extension of the data file from dat to trie will
 use the correct data.
 
+    global
         51degrees-data-file '51D_REPO_PATH'/data/51Degrees-LiteV3.2.trie
 
 When used with Trie the Method, Difference and Rank properties are not
