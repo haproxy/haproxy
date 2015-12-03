@@ -63,7 +63,7 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 			goto resume_execution;				\
 		}							\
 									\
-		list_for_each_entry(filter, &s->strm_flt.filters, list) {	\
+		list_for_each_entry(filter, &strm_flt(s)->filters, list) { \
 		  resume_execution:
 
 #define RESUME_FILTER_END					\
@@ -294,8 +294,8 @@ flt_stream_add_filter(struct stream *s, struct filter *filter,
 	f->ops   = filter->ops;
 	f->conf  = filter->conf;
 	f->is_backend_filter = is_backend;
-	LIST_ADDQ(&s->strm_flt.filters, &f->list);
-	s->strm_flt.has_filters = 1;
+	LIST_ADDQ(&strm_flt(s)->filters, &f->list);
+	strm_flt(s)->has_filters = 1;
 	return 0;
 }
 
@@ -308,9 +308,8 @@ flt_stream_init(struct stream *s)
 {
 	struct filter *filter;
 
-	LIST_INIT(&s->strm_flt.filters);
-	memset(s->strm_flt.current, 0, sizeof(s->strm_flt.current));
-	s->strm_flt.has_filters = 0;
+	memset(strm_flt(s), 0, sizeof(*strm_flt(s)));
+	LIST_INIT(&strm_flt(s)->filters);
 	list_for_each_entry(filter, &strm_fe(s)->filters, list) {
 		if (flt_stream_add_filter(s, filter, 0) < 0)
 			return -1;
@@ -329,14 +328,14 @@ flt_stream_release(struct stream *s, int only_backend)
 {
 	struct filter *filter, *back;
 
-	list_for_each_entry_safe(filter, back, &s->strm_flt.filters, list) {
+	list_for_each_entry_safe(filter, back, &strm_flt(s)->filters, list) {
 		if (!only_backend || filter->is_backend_filter) {
 			LIST_DEL(&filter->list);
 			pool_free2(pool2_filter, filter);
 		}
 	}
-	if (LIST_ISEMPTY(&s->strm_flt.filters))
-		s->strm_flt.has_filters = 0;
+	if (LIST_ISEMPTY(&strm_flt(s)->filters))
+		strm_flt(s)->has_filters = 0;
 }
 
 /*
@@ -349,7 +348,7 @@ flt_stream_start(struct stream *s)
 {
 	struct filter *filter;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->stream_start && filter->ops->stream_start(s, filter) < 0)
 			return -1;
 	}
@@ -365,7 +364,7 @@ flt_stream_stop(struct stream *s)
 {
 	struct filter *filter;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->stream_stop)
 			filter->ops->stream_stop(s, filter);
 	}
@@ -403,13 +402,16 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 int
 flt_http_data(struct stream *s, struct http_msg *msg)
 {
-	struct filter *filter = NULL;
+	struct filter *filter;
+	struct buffer *buf = msg->chn->buf;
 	unsigned int   buf_i;
 	int            ret = 0;
 
 	/* Save buffer state */
-	buf_i = msg->chn->buf->i;
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	buf_i = buf->i;
+
+	buf->i = MIN(msg->chunk_len + msg->next, buf->i);
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		/* If the HTTP parser is ahead, we update the next offset of the
 		 * current filter. This happens for chunked messages, at the
 		 * begining of a new chunk. */
@@ -419,26 +421,26 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 			ret = filter->ops->http_data(s, filter, msg);
 			if (ret <= 0)
 				break;
+
+			/* Update the next offset of the current filter */
+			FLT_NXT(filter, msg->chn) += ret;
+
+			/* And set this value as the bound for the next
+			 * filter. It will not able to parse more data than this
+			 * one. */
+			buf->i = FLT_NXT(filter, msg->chn);
 		}
 		else {
-			/* msg->chunk_len is the remaining size of data to parse
-			 * in the body (or in the current chunk for
-			 * chunk-encoded messages) from the HTTP parser point of
-			 * view (relatively to msg->next). To have it from the
-			 * filter point of view, we need to be add (msg->next
-			 * -FLT_NEXT) to it. */
-			ret = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
+			/* Consume all available data and update the next offset
+			 * of the current filter. buf->i is untouched here. */
+			ret = buf->i - FLT_NXT(filter, msg->chn);
+			FLT_NXT(filter, msg->chn) = buf->i;
 		}
-
-		/* Update the next offset of the current filter */
-		FLT_NXT(filter, msg->chn) += ret;
-
-		/* And set this value as the bound for the next filter. It will
-		 * not able to parse more data than the current one. */
-		msg->chn->buf->i = FLT_NXT(filter, msg->chn);
 	}
+
 	/* Restore the original buffer state */
-	msg->chn->buf->i = buf_i;
+	buf->i = buf_i;
+
 	return ret;
 }
 
@@ -454,9 +456,9 @@ int
 flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
-	int            ret = 1;
+	int ret = 1;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		/* Be sure to set the next offset of the filter at the right
 		 * place. This is really useful when the first part of the
 		 * trailers was parsed. */
@@ -506,7 +508,7 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->http_reset)
 			filter->ops->http_reset(s, filter, msg);
 	}
@@ -521,7 +523,7 @@ flt_http_reply(struct stream *s, short status, const struct chunk *msg)
 {
 	struct filter *filter;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->http_reply)
 			filter->ops->http_reply(s, filter, status, msg);
 	}
@@ -539,10 +541,10 @@ flt_http_reply(struct stream *s, short status, const struct chunk *msg)
 int
 flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 {
-	struct filter *filter = NULL;
+	struct filter *filter;
 	int            ret = len;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		/* If the HTTP parser is ahead, we update the next offset of the
 		 * current filter. This happens for chunked messages, when the
 		 * chunk envelope is parsed. */
@@ -571,7 +573,7 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 
 	/* Finally, adjust filters offsets by removing data that HAProxy will
 	 * forward. */
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		FLT_NXT(filter, msg->chn) -= ret;
 		FLT_FWD(filter, msg->chn) -= ret;
 	}
@@ -600,8 +602,8 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		if (an_bit == AN_FLT_START_BE && !filter->is_backend_filter)
 			continue;
 
-		filter->next[CHN_IDX(chn)] = 0;
-		filter->fwd[CHN_IDX(chn)]  = 0;
+		FLT_NXT(filter, chn) = 0;
+		FLT_FWD(filter, chn) = 0;
 
 		if (filter->ops->channel_start_analyze) {
 			ret = filter->ops->channel_start_analyze(s, filter, chn);
@@ -664,7 +666,7 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	 * headers (msg->sov) is only known when all filters have been
 	 * called. */
 	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		FLT_NXT(filter, msg->chn) = msg->sov;
 	}
 
@@ -688,7 +690,8 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	 * so we do not need to check the filter list's emptiness. */
 
 	RESUME_FILTER_LOOP(s, chn) {
-		filter->next[CHN_IDX(chn)] = 0;
+		FLT_NXT(filter, chn) = 0;
+		FLT_FWD(filter, chn) = 0;
 
 		if (filter->ops->channel_end_analyze) {
 			ret = filter->ops->channel_end_analyze(s, filter, chn);
@@ -736,33 +739,40 @@ static int
 flt_data(struct stream *s, struct channel *chn)
 {
 	struct filter *filter = NULL;
+	struct buffer *buf = chn->buf;
 	unsigned int   buf_i;
-	int            ret = chn->buf->i;
+	int            ret = 0;
 
 	/* Save buffer state */
-	buf_i = chn->buf->i;
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	buf_i = buf->i;
+
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->tcp_data && !flt_want_forward_data(filter, chn)) {
 			ret = filter->ops->tcp_data(s, filter, chn);
 			if (ret < 0)
 				break;
-		}
-		else
-			ret = chn->buf->i - FLT_NXT(filter, chn);
 
-		/* Increase next offset of the current filter */
-		FLT_NXT(filter, chn) += ret;
+			/* Increase next offset of the current filter */
+			FLT_NXT(filter, chn) += ret;
+
+			/* And set this value as the bound for the next
+			 * filter. It will not able to parse more data than the
+			 * current one. */
+			buf->i = FLT_NXT(filter, chn);
+		}
+		else {
+			/* Consume all available data */
+			FLT_NXT(filter, chn) = buf->i;
+		}
 
 		/* Update <ret> value to be sure to have the last one when we
 		 * exit from the loop. */
 		ret = FLT_NXT(filter, chn);
-
-		/* And set this value as the bound for the next filter. It will
-		 * not able to parse more data than the current one. */
-		chn->buf->i = FLT_NXT(filter, chn);
 	}
-	// Restore the original buffer state
+
+	/* Restore the original buffer state */
 	chn->buf->i = buf_i;
+
 	return ret;
 }
 
@@ -780,11 +790,12 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 	struct filter *filter = NULL;
 	int            ret = len;
 
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (filter->ops->tcp_forward_data) {
 			/* Remove bytes that the current filter considered as
 			 * forwarded */
-			ret = filter->ops->tcp_forward_data(s, filter, chn, ret - FLT_FWD(filter, chn));
+			ret = filter->ops->tcp_forward_data(s, filter, chn,
+							    ret - FLT_FWD(filter, chn));
 			if (ret < 0)
 				goto end;
 		}
@@ -803,7 +814,7 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 
 	/* Adjust forward counter and next offset of filters by removing data
 	 * that HAProxy will consider as forwarded. */
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		FLT_NXT(filter, chn) -= ret;
 		FLT_FWD(filter, chn) -= ret;
 	}

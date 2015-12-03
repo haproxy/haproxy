@@ -110,6 +110,14 @@ void           flt_register_keywords(struct flt_kw_list *kwl);
 struct flt_kw *flt_find_kw(const char *kw);
 void           flt_dump_kws(char **out);
 
+/* Helper function that returns the "global" state of filters attached to a
+ * stream. */
+static inline struct strm_flt *
+strm_flt(struct stream *s)
+{
+	return &s->strm_flt;
+}
+
 static inline void
 flt_set_forward_data(struct filter *filter, struct channel *chn)
 {
@@ -145,7 +153,7 @@ flt_change_next_size(struct filter *filter, struct channel *chn, int len)
 	struct stream *s = chn_strm(chn);
 	struct filter *f;
 
-	list_for_each_entry(f, &s->strm_flt.filters, list) {
+	list_for_each_entry(f, &strm_flt(s)->filters, list) {
 		if (f == filter)
 			break;
 		FLT_NXT(f, chn) += len;
@@ -169,7 +177,7 @@ flt_change_forward_size(struct filter *filter, struct channel *chn, int len)
 	struct filter *f;
 	int before = 1;
 
-	list_for_each_entry(f, &s->strm_flt.filters, list) {
+	list_for_each_entry(f, &strm_flt(s)->filters, list) {
 		if (f == filter)
 			before = 0;
 		if (before)

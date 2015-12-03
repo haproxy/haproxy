@@ -197,6 +197,12 @@ struct filter {
 	struct list     list;              /* Next filter for the same proxy/stream */
 };
 
+struct strm_flt {
+	struct list    filters;
+	struct filter *current[2]; // 0: request, 1: response
+	int            has_filters;
+};
+
 #endif /* _TYPES_FILTERS_H */
 
 /*

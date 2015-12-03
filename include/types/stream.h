@@ -125,12 +125,6 @@ struct stream {
 
 	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
 
-	struct {
-		struct list    filters;
-		struct filter *current[2];        /* 0: request, 1: response */
-		char           has_filters;
-	} strm_flt;
-
 	struct task *task;              /* the task associated with this stream */
 	struct list list;               /* position in global streams list */
 	struct list by_srv;             /* position in server stream list */
@@ -145,6 +139,8 @@ struct stream {
 	/* 4 unused bytes here */
 
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
+
+	struct strm_flt strm_flt;               /* current state of filters active on this stream */
 
 	char **req_cap;                         /* array of captures from the request (may be NULL) */
 	char **res_cap;                         /* array of captures from the response (may be NULL) */

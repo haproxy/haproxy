@@ -871,7 +871,7 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 	if (!(txn || !(txn->rsp.flags & HTTP_MSGF_COMPRESSING)))
 		return 0;
 
-	list_for_each_entry(filter, &smp->strm->strm_flt.filters, list) {
+	list_for_each_entry(filter, &strm_flt(smp->strm)->filters, list) {
 		if (filter->id != http_comp_flt_id)
 			continue;
 
