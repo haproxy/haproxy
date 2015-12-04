@@ -172,6 +172,15 @@ struct flt_ops {
 				 unsigned int len);
 };
 
+/* Flags set on a filter instance */
+#define FLT_FL_IS_BACKEND_FILTER  0x0001 /* The filter is a backend filter */
+#define FLT_FL_IS_REQ_DATA_FILTER 0x0002 /* The filter will parse data on the request channel */
+#define FLT_FL_IS_RSP_DATA_FILTER 0x0004 /* The filter will parse data on the response channel */
+
+
+/* Flags set on the stream, common to all filters attached to its stream */
+#define STRM_FLT_FL_HAS_FILTERS          0x0001 /* The stream has at least one filter */
+
 /*
  * Structure representing the state of a filter. When attached to a proxy, only
  * <ops> and <conf> field (and optionnaly <id>) are set. All other fields are
@@ -188,8 +197,7 @@ struct filter {
 	struct flt_ops *ops;               /* The filter callbacks */
 	void           *conf;              /* The filter configuration */
 	void           *ctx;               /* The filter context (opaque) */
-	int             is_backend_filter; /* Flag to specify if the filter is a "backend" filter */
-	unsigned int    flags[2];          /* 0: request, 1: response */
+	unsigned short  flags;             /* FLT_FL_* */
 	unsigned int    next[2];           /* Offset, relative to buf->p, to the next byte to parse for a specific channel
 	                                    * 0: request channel, 1: response channel */
 	unsigned int    fwd[2];            /* Offset, relative to buf->p, to the next byte to forward for a specific channel
@@ -197,10 +205,18 @@ struct filter {
 	struct list     list;              /* Next filter for the same proxy/stream */
 };
 
+/*
+ * Structure reprensenting the "global" state of filters attached to a stream.
+ */
 struct strm_flt {
-	struct list    filters;
-	struct filter *current[2]; // 0: request, 1: response
-	int            has_filters;
+	struct list    filters;               /* List of filters attached to a stream */
+	struct filter *current[2];            /* From which filter resume processing, for a specific channel.
+	                                       * This is used for resumable callbacks only,
+	                                       * If NULL, we start from the first filter.
+	                                       * 0: request channel, 1: response channel */
+	unsigned short flags;                 /* STRM_FL_* */
+	unsigned char  nb_req_data_filters;   /* Number of data filters registerd on the request channel */
+	unsigned char  nb_rsp_data_filters;   /* Number of data filters registerd on the response channel */
 };
 
 #endif /* _TYPES_FILTERS_H */

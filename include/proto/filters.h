@@ -35,18 +35,27 @@
 #define FLT_NXT(flt, chn) ((flt)->next[CHN_IDX(chn)])
 #define FLT_FWD(flt, chn) ((flt)->fwd[CHN_IDX(chn)])
 
-#define HAS_FILTERS(strm) ((strm)->strm_flt.has_filters)
+#define HAS_FILTERS(strm)           ((strm)->strm_flt.flags & STRM_FLT_FL_HAS_FILTERS)
 
-#define FLT_STRM_CB_IMPL_0(strm, call)					\
+#define HAS_REQ_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_req_data_filters != 0)
+#define HAS_RSP_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_rsp_data_filters != 0)
+#define HAS_DATA_FILTERS(strm, chn) ((chn->flags & CF_ISRESP) ? HAS_RSP_DATA_FILTERS(strm) : HAS_REQ_DATA_FILTERS(strm))
+
+#define IS_REQ_DATA_FILTER(flt)  ((flt)->flags & FLT_FL_IS_REQ_DATA_FILTER)
+#define IS_RSP_DATA_FILTER(flt)  ((flt)->flags & FLT_FL_IS_RSP_DATA_FILTER)
+#define IS_DATA_FILTER(flt, chn) ((chn->flags & CF_ISRESP) ? IS_RSP_DATA_FILTER(flt) : IS_REQ_DATA_FILTER(flt))
+
+#define FLT_STRM_CB(strm, call)						\
 	do {								\
 		if (HAS_FILTERS(strm)) { call; }			\
 	} while (0)
-#define FLT_STRM_CB_IMPL_1(strm, call, default_ret, ...)		\
-	(HAS_FILTERS(strm) ? call : default_ret)
-#define FLT_STRM_CB_IMPL_2(strm, call, default_ret, on_error)		\
+
+#define FLT_STRM_DATA_CB_IMPL_1(strm, chn, call, default_ret)	        \
+	(HAS_DATA_FILTERS(strm, chn) ? call : default_ret)
+#define FLT_STRM_DATA_CB_IMPL_2(strm, chn, call, default_ret, on_error)	\
 	({								\
 		int _ret;						\
-		if (HAS_FILTERS(strm)) {				\
+		if (HAS_DATA_FILTERS(strm, chn)) {			\
 			_ret = call;					\
 			if (_ret < 0) { on_error; }			\
 		}							\
@@ -54,10 +63,10 @@
 			_ret = default_ret;				\
 		_ret;							\
 	})
-#define FLT_STRM_CB_IMPL_3(strm, call, default_ret, on_error, on_wait)	\
+#define FLT_STRM_DATA_CB_IMPL_3(strm, chn, call, default_ret, on_error, on_wait) \
 	({								\
 		int _ret;						\
-		if (HAS_FILTERS(strm)) {				\
+		if (HAS_DATA_FILTERS(strm, chn)) {			\
 			_ret = call;					\
 			if (_ret < 0) { on_error; }			\
 			if (!_ret)    { on_wait;  }			\
@@ -67,14 +76,14 @@
 		_ret;							\
 	})
 
-#define FLT_STRM_CB_IMPL_X(strm, call, A, B, C, CB_IMPL, ...) CB_IMPL
+#define FLT_STRM_DATA_CB_IMPL_X(strm, chn, call, A, B, C, DATA_CB_IMPL, ...) \
+	DATA_CB_IMPL
 
-#define FLT_STRM_CB(strm, call, ...)					\
-	FLT_STRM_CB_IMPL_X(strm, call, ##__VA_ARGS__,			\
-			   FLT_STRM_CB_IMPL_3(strm, call, ##__VA_ARGS__), \
-			   FLT_STRM_CB_IMPL_2(strm, call, ##__VA_ARGS__), \
-			   FLT_STRM_CB_IMPL_1(strm, call, ##__VA_ARGS__), \
-			   FLT_STRM_CB_IMPL_0(strm, call))
+#define FLT_STRM_DATA_CB(strm, chn, call, ...)				\
+	FLT_STRM_DATA_CB_IMPL_X(strm, chn, call, ##__VA_ARGS__,		\
+				FLT_STRM_DATA_CB_IMPL_3(strm, chn, call, ##__VA_ARGS__), \
+				FLT_STRM_DATA_CB_IMPL_2(strm, chn, call, ##__VA_ARGS__), \
+				FLT_STRM_DATA_CB_IMPL_1(strm, chn, call, ##__VA_ARGS__))
 
 #define CALL_FILTER_ANALYZER(analyzer, strm, chn, bit)			\
 	if (!HAS_FILTERS(strm) || analyzer((strm), (chn), bit)) ; else break
@@ -118,24 +127,40 @@ strm_flt(struct stream *s)
 	return &s->strm_flt;
 }
 
+/* Registers a filter to a channel. If a filter was already registered, this
+ * function do nothing. Once registered, the filter becomes a "data" filter for
+ * this channel. */
 static inline void
-flt_set_forward_data(struct filter *filter, struct channel *chn)
+register_data_filter(struct stream *s, struct channel *chn, struct filter *filter)
 {
-	filter->flags[CHN_IDX(chn)] |= FILTER_FL_FORWARD_DATA;
+	if (!IS_DATA_FILTER(filter, chn)) {
+		if (chn->flags & CF_ISRESP) {
+			filter->flags |= FLT_FL_IS_RSP_DATA_FILTER;
+			strm_flt(s)->nb_rsp_data_filters++;
+		}
+		else  {
+			filter->flags |= FLT_FL_IS_REQ_DATA_FILTER;
+			strm_flt(s)->nb_req_data_filters++;
+		}
+	}
 }
 
+/* Unregisters a "data" filter from a channel. */
 static inline void
-flt_reset_forward_data(struct filter *filter, struct channel *chn)
+unregister_data_filter(struct stream *s, struct channel *chn, struct filter *filter)
 {
-	filter->flags[CHN_IDX(chn)] &= ~FILTER_FL_FORWARD_DATA;
-}
+	if (IS_DATA_FILTER(filter, chn)) {
+		if (chn->flags & CF_ISRESP) {
+			filter->flags &= ~FLT_FL_IS_RSP_DATA_FILTER;
+			strm_flt(s)->nb_rsp_data_filters--;
 
-static inline int
-flt_want_forward_data(struct filter *filter, const struct channel *chn)
-{
-	return filter->flags[CHN_IDX(chn)] & FILTER_FL_FORWARD_DATA;
+		}
+		else  {
+			filter->flags &= ~FLT_FL_IS_REQ_DATA_FILTER;
+			strm_flt(s)->nb_req_data_filters--;
+		}
+	}
 }
-
 
 /* This function must be called when a filter alter incoming data. It updates
  * next offset value of all filter's predecessors. Do not call this function

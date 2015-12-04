@@ -57,23 +57,23 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
 	do {								\
 		struct filter *filter;					\
 									\
-		if ((strm)->strm_flt.current[CHN_IDX(chn)]) {		\
-			filter = (strm)->strm_flt.current[CHN_IDX(chn)]; \
-			(strm)->strm_flt.current[CHN_IDX(chn)] = NULL;	\
+		if (strm_flt(strm)->current[CHN_IDX(chn)]) {	\
+			filter = strm_flt(strm)->current[CHN_IDX(chn)]; \
+			strm_flt(strm)->current[CHN_IDX(chn)] = NULL; \
 			goto resume_execution;				\
 		}							\
 									\
 		list_for_each_entry(filter, &strm_flt(s)->filters, list) { \
-		  resume_execution:
+		resume_execution:
 
 #define RESUME_FILTER_END					\
 		}						\
 	} while(0)
 
-#define BREAK_EXECUTION(strm, chn, label)			\
-	do {							\
-		(strm)->strm_flt.current[CHN_IDX(chn)] = filter;	\
-		goto label;					\
+#define BREAK_EXECUTION(strm, chn, label)				\
+	do {								\
+		strm_flt(strm)->current[CHN_IDX(chn)] = filter;	\
+		goto label;						\
 	} while (0)
 
 
@@ -283,8 +283,7 @@ flt_deinit(struct proxy *proxy)
 
 /* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
 static int
-flt_stream_add_filter(struct stream *s, struct filter *filter,
-			  int is_backend)
+flt_stream_add_filter(struct stream *s, struct filter *filter, unsigned int flags)
 {
 	struct filter *f = pool_alloc2(pool2_filter);
 	if (!f) /* not enough memory */
@@ -293,9 +292,9 @@ flt_stream_add_filter(struct stream *s, struct filter *filter,
 	f->id    = filter->id;
 	f->ops   = filter->ops;
 	f->conf  = filter->conf;
-	f->is_backend_filter = is_backend;
+	f->flags |= flags;
 	LIST_ADDQ(&strm_flt(s)->filters, &f->list);
-	strm_flt(s)->has_filters = 1;
+	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
 }
 
@@ -329,13 +328,13 @@ flt_stream_release(struct stream *s, int only_backend)
 	struct filter *filter, *back;
 
 	list_for_each_entry_safe(filter, back, &strm_flt(s)->filters, list) {
-		if (!only_backend || filter->is_backend_filter) {
+		if (!only_backend || (filter->flags & FLT_FL_IS_BACKEND_FILTER)) {
 			LIST_DEL(&filter->list);
 			pool_free2(pool2_filter, filter);
 		}
 	}
 	if (LIST_ISEMPTY(&strm_flt(s)->filters))
-		strm_flt(s)->has_filters = 0;
+		strm_flt(s)->flags &= ~STRM_FLT_FL_HAS_FILTERS;
 }
 
 /*
@@ -384,7 +383,7 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 		return 0;
 
 	list_for_each_entry(filter, &be->filters, list) {
-		if (flt_stream_add_filter(s, filter, 1) < 0)
+		if (flt_stream_add_filter(s, filter, FLT_FL_IS_BACKEND_FILTER) < 0)
 			return -1;
 	}
 	return 0;
@@ -410,31 +409,38 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	/* Save buffer state */
 	buf_i = buf->i;
 
-	buf->i = MIN(msg->chunk_len + msg->next, buf->i);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		unsigned int *nxt;
+
+		/* Call "data" filters only */
+		if (!IS_DATA_FILTER(filter, msg->chn))
+			continue;
+
 		/* If the HTTP parser is ahead, we update the next offset of the
 		 * current filter. This happens for chunked messages, at the
 		 * begining of a new chunk. */
-		if (msg->next > FLT_NXT(filter, msg->chn))
-			FLT_NXT(filter, msg->chn) = msg->next;
-		if (filter->ops->http_data && !flt_want_forward_data(filter, msg->chn)) {
+		nxt = &FLT_NXT(filter, msg->chn);
+		if (msg->next > *nxt)
+			*nxt = msg->next;
+
+		if (filter->ops->http_data) {
 			ret = filter->ops->http_data(s, filter, msg);
-			if (ret <= 0)
+			if (ret < 0)
 				break;
 
 			/* Update the next offset of the current filter */
-			FLT_NXT(filter, msg->chn) += ret;
+			*nxt += ret;
 
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than this
 			 * one. */
-			buf->i = FLT_NXT(filter, msg->chn);
+			buf->i = *nxt;
 		}
 		else {
 			/* Consume all available data and update the next offset
 			 * of the current filter. buf->i is untouched here. */
-			ret = buf->i - FLT_NXT(filter, msg->chn);
-			FLT_NXT(filter, msg->chn) = buf->i;
+			ret = MIN(msg->chunk_len + msg->next, buf->i) - *nxt;
+			*nxt += ret;
 		}
 	}
 
@@ -456,13 +462,21 @@ int
 flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
-	int ret = 1;
+	int            ret = 1;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		unsigned int *nxt;
+
+		/* Call "data" filters only */
+		if (!IS_DATA_FILTER(filter, msg->chn))
+			continue;
+
 		/* Be sure to set the next offset of the filter at the right
 		 * place. This is really useful when the first part of the
 		 * trailers was parsed. */
-		FLT_NXT(filter, msg->chn) = msg->next;
+		nxt = &FLT_NXT(filter, msg->chn);
+		*nxt = msg->next;
+
 		if (filter->ops->http_chunk_trailers) {
 			ret = filter->ops->http_chunk_trailers(s, filter, msg);
 			if (ret < 0)
@@ -470,7 +484,7 @@ flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 		}
 		/* Update the next offset of the current filter. Here all data
 		 * are always consumed. */
-		FLT_NXT(filter, msg->chn) += msg->sol;
+		*nxt += msg->sol;
 	}
 	return ret;
 }
@@ -493,7 +507,6 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 			if (ret <= 0)
 				BREAK_EXECUTION(s, msg->chn, end);
 		}
-		flt_reset_forward_data(filter, msg->chn);
 	} RESUME_FILTER_END;
 end:
 	return ret;
@@ -545,27 +558,35 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 	int            ret = len;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		unsigned int *nxt, *fwd;
+
+		/* Call "data" filters only */
+		if (!IS_DATA_FILTER(filter, msg->chn))
+			continue;
+
 		/* If the HTTP parser is ahead, we update the next offset of the
 		 * current filter. This happens for chunked messages, when the
 		 * chunk envelope is parsed. */
-		if (msg->next > FLT_NXT(filter, msg->chn))
-			FLT_NXT(filter, msg->chn) = msg->next;
+		nxt = &FLT_NXT(filter, msg->chn);
+		fwd = &FLT_FWD(filter, msg->chn);
+		if (msg->next > *nxt)
+			*nxt = msg->next;
+
 		if (filter->ops->http_forward_data) {
-			/*  Remove bytes that the current filter considered as
-			 *  forwarded */
-			ret = filter->ops->http_forward_data(s, filter, msg,
-							     ret - FLT_FWD(filter, msg->chn));
+			/* Remove bytes that the current filter considered as
+			 * forwarded */
+			ret = filter->ops->http_forward_data(s, filter, msg, ret - *fwd);
 			if (ret < 0)
 				goto end;
 		}
 
 		/* Adjust bytes that the current filter considers as
 		 * forwarded */
-		FLT_FWD(filter, msg->chn) += ret;
+		*fwd += ret;
 
 		/* And set this value as the bound for the next filter. It will
 		 * not able to forward more data than the current one. */
-		ret = FLT_FWD(filter, msg->chn);
+		ret = *fwd;
 	}
 
 	if (!ret)
@@ -574,6 +595,8 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 	/* Finally, adjust filters offsets by removing data that HAProxy will
 	 * forward. */
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		if (!IS_DATA_FILTER(filter, msg->chn))
+			continue;
 		FLT_NXT(filter, msg->chn) -= ret;
 		FLT_FWD(filter, msg->chn) -= ret;
 	}
@@ -599,7 +622,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	 * so we do not need to check the filter list's emptiness. */
 
 	RESUME_FILTER_LOOP(s, chn) {
-		if (an_bit == AN_FLT_START_BE && !filter->is_backend_filter)
+		if (an_bit == AN_FLT_START_BE && !(filter->flags & FLT_FL_IS_BACKEND_FILTER))
 			continue;
 
 		FLT_NXT(filter, chn) = 0;
@@ -649,9 +672,8 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 int
 flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
-	struct filter   *filter;
-	struct http_msg *msg;
-	int              ret = 1;
+	struct filter *filter;
+	int            ret = 1;
 
 	RESUME_FILTER_LOOP(s, chn) {
 		if (filter->ops->channel_analyze) {
@@ -665,9 +687,13 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	 * headers because any filter can alter them. So the definitive size of
 	 * headers (msg->sov) is only known when all filters have been
 	 * called. */
-	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		FLT_NXT(filter, msg->chn) = msg->sov;
+		/* Handle "data" filters only */
+		if (!IS_DATA_FILTER(filter, chn))
+			continue;
+
+		FLT_NXT(filter, chn) = ((chn->flags & CF_ISRESP)
+					? s->txn->rsp.sov : s->txn->req.sov);
 	}
 
  check_result:
@@ -686,12 +712,10 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
-	/* If this function is called, this means there is at least one filter,
-	 * so we do not need to check the filter list's emptiness. */
-
 	RESUME_FILTER_LOOP(s, chn) {
 		FLT_NXT(filter, chn) = 0;
 		FLT_FWD(filter, chn) = 0;
+		unregister_data_filter(s, chn, filter);
 
 		if (filter->ops->channel_end_analyze) {
 			ret = filter->ops->channel_end_analyze(s, filter, chn);
@@ -738,7 +762,7 @@ end:
 static int
 flt_data(struct stream *s, struct channel *chn)
 {
-	struct filter *filter = NULL;
+	struct filter *filter;
 	struct buffer *buf = chn->buf;
 	unsigned int   buf_i;
 	int            ret = 0;
@@ -747,27 +771,35 @@ flt_data(struct stream *s, struct channel *chn)
 	buf_i = buf->i;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (filter->ops->tcp_data && !flt_want_forward_data(filter, chn)) {
+		unsigned int *nxt;
+
+		/* Call "data" filters only */
+		if (!IS_DATA_FILTER(filter, chn))
+			continue;
+
+		nxt = &FLT_NXT(filter, chn);
+		if (filter->ops->tcp_data) {
 			ret = filter->ops->tcp_data(s, filter, chn);
 			if (ret < 0)
 				break;
 
 			/* Increase next offset of the current filter */
-			FLT_NXT(filter, chn) += ret;
+			*nxt += ret;
 
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than the
 			 * current one. */
-			buf->i = FLT_NXT(filter, chn);
+			buf->i = *nxt;
 		}
 		else {
 			/* Consume all available data */
-			FLT_NXT(filter, chn) = buf->i;
+			*nxt = buf->i;
 		}
 
 		/* Update <ret> value to be sure to have the last one when we
-		 * exit from the loop. */
-		ret = FLT_NXT(filter, chn);
+		 * exit from the loop. This value will be used to know how much
+		 * data are "forwardable" */
+		ret = *nxt;
 	}
 
 	/* Restore the original buffer state */
@@ -787,40 +819,46 @@ flt_data(struct stream *s, struct channel *chn)
 static int
 flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 {
-	struct filter *filter = NULL;
+	struct filter *filter;
 	int            ret = len;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		unsigned int *fwd;
+
+		/* Call "data" filters only */
+		if (!IS_DATA_FILTER(filter, chn))
+			continue;
+
+		fwd = &FLT_FWD(filter, chn);
 		if (filter->ops->tcp_forward_data) {
 			/* Remove bytes that the current filter considered as
 			 * forwarded */
-			ret = filter->ops->tcp_forward_data(s, filter, chn,
-							    ret - FLT_FWD(filter, chn));
+			ret = filter->ops->tcp_forward_data(s, filter, chn, ret - *fwd);
 			if (ret < 0)
 				goto end;
 		}
 
-		/* Adjust bytes taht the current filter considers as
+		/* Adjust bytes that the current filter considers as
 		 * forwarded */
-		FLT_FWD(filter, chn) += ret;
+		*fwd += ret;
 
 		/* And set this value as the bound for the next filter. It will
 		 * not able to forward more data than the current one. */
-		ret = FLT_FWD(filter, chn);
+		ret = *fwd;
 	}
 
 	if (!ret)
 		goto end;
 
-	/* Adjust forward counter and next offset of filters by removing data
-	 * that HAProxy will consider as forwarded. */
+	/* Finally, adjust filters offsets by removing data that HAProxy will
+	 * forward. */
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		if (!IS_DATA_FILTER(filter, chn))
+			continue;
 		FLT_NXT(filter, chn) -= ret;
 		FLT_FWD(filter, chn) -= ret;
 	}
 
-	/* Consume data that all filters consider as forwarded. */
-	b_adv(chn->buf, ret);
  end:
 	return ret;
 }
@@ -838,8 +876,9 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
-	/* If this function is called, this means there is at least one filter,
-	 * so we do not need to check the filter list's emptiness. */
+	/* If there is no "data" filters, we do nothing */
+	if (!HAS_DATA_FILTERS(s, chn))
+		goto end;
 
 	/* Be sure that the output is still opened. Else we stop the data
 	 * filtering. */
@@ -856,6 +895,9 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	ret = flt_forward_data(s, chn, ret);
 	if (ret < 0)
 		goto end;
+
+	/* Consume data that all filters consider as forwarded. */
+	b_adv(chn->buf, ret);
 
 	/* Stop waiting data if the input in closed and no data is pending or if
 	 * the output is closed. */

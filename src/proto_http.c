@@ -6800,9 +6800,9 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 		msg->chunk_len += len;
 		msg->body_len  += len;
 	}
-	ret = FLT_STRM_CB(s, flt_http_data(s, msg),
-			  /* default_ret */ MIN(msg->chunk_len, chn->buf->i - msg->next),
-			  /* on_error    */ goto error);
+	ret = FLT_STRM_DATA_CB(s, chn, flt_http_data(s, msg),
+			       /* default_ret */ MIN(msg->chunk_len, chn->buf->i - msg->next),
+			       /* on_error    */ goto error);
 	msg->next     += ret;
 	msg->chunk_len -= ret;
 	if (msg->chunk_len) {
@@ -6821,26 +6821,26 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
   ending:
 	/* we may have some pending data starting at res->buf->p such as a last
 	 * chunk of data or trailers. */
-	ret = FLT_STRM_CB(s, flt_http_forward_data(s, msg, msg->next),
-			  /* default_ret */ msg->next,
-			  /* on_error    */ goto error);
+	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
+			       /* default_ret */ msg->next,
+			       /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
 	if (msg->next)
 		goto missing_data_or_waiting;
 
-	FLT_STRM_CB(s, flt_http_end(s, msg),
-		    /* default_ret */ 1,
-		    /* on_error    */ goto error,
-		    /* on_wait     */ goto waiting);
+	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
+			 /* default_ret */ 1,
+			 /* on_error    */ goto error,
+			 /* on_wait     */ goto waiting);
 	msg->msg_state = HTTP_MSG_DONE;
 	return 1;
 
   missing_data_or_waiting:
 	/* we may have some pending data starting at chn->buf->p */
-	ret = FLT_STRM_CB(s, flt_http_forward_data(s, msg, msg->next),
-			  /* default_ret */ msg->next,
-			  /* on_error    */ goto error);
+	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
+			       /* default_ret */ msg->next,
+			       /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
@@ -6866,10 +6866,10 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
   switch_states:
 	switch (msg->msg_state) {
 		case HTTP_MSG_DATA:
-			ret = FLT_STRM_CB(s, flt_http_data(s, msg),
-					  /* default_ret */ MIN(msg->chunk_len, chn->buf->i - msg->next),
-					  /* on_error    */ goto error);
-			msg->next     += ret;
+			ret = FLT_STRM_DATA_CB(s, chn, flt_http_data(s, msg),
+					       /* default_ret */ MIN(msg->chunk_len, chn->buf->i - msg->next),
+					       /* on_error    */ goto error);
+			msg->next      += ret;
 			msg->chunk_len -= ret;
 			if (msg->chunk_len) {
 				/* input empty or output full */
@@ -6917,9 +6917,9 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			ret = http_forward_trailers(msg);
 			if (ret < 0)
 				goto chunk_parsing_error;
-			FLT_STRM_CB(s, flt_http_chunk_trailers(s, msg),
-				    /* default_ret */ 1,
-				    /* on_error    */ goto error);
+			FLT_STRM_DATA_CB(s, chn, flt_http_chunk_trailers(s, msg),
+					 /* default_ret */ 1,
+					 /* on_error    */ goto error);
 			msg->next += msg->sol;
 			msg->sol   = 0;
 			if (!ret)
@@ -6938,7 +6938,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
   ending:
 	/* we may have some pending data starting at res->buf->p such as a last
 	 * chunk of data or trailers. */
-	ret = FLT_STRM_CB(s, flt_http_forward_data(s, msg, msg->next),
+	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
 			  /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
@@ -6946,7 +6946,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	if (msg->next)
 		goto missing_data_or_waiting;
 
-	FLT_STRM_CB(s, flt_http_end(s, msg),
+	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
 		    /* default_ret */ 1,
 		    /* on_error    */ goto error,
 		    /* on_wait     */ goto waiting);
@@ -6955,7 +6955,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
   missing_data_or_waiting:
 	/* we may have some pending data starting at chn->buf->p */
-	ret = FLT_STRM_CB(s, flt_http_forward_data(s, msg, msg->next),
+	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
 			  /* on_error    */ goto error);
 	b_adv(chn->buf, ret);

@@ -113,8 +113,10 @@ comp_analyze(struct stream *s, struct filter *filter, struct channel *chn,
 			select_compression_request_header(st, s, &s->txn->req);
 		else {
 			select_compression_response_header(st, s, &s->txn->rsp);
-			if (st->comp_algo)
+			if (st->comp_algo) {
 				st->sov = s->txn->rsp.sov;
+				register_data_filter(s, chn, filter);
+			}
 		}
 	}
 
@@ -155,10 +157,8 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 	unsigned int       len;
 	int                ret;
 
-	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
-		flt_set_forward_data(filter, msg->chn);
+	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo)
 		return 1;
-	}
 
 	len = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
 	if (!len)
@@ -193,11 +193,6 @@ comp_http_chunk_trailers(struct stream *s, struct filter *filter,
 	struct comp_state *st = filter->ctx;
 	int                ret;
 
-	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
-		flt_set_forward_data(filter, msg->chn);
-		return 1;
-	}
-
 	if (!st->initialized)
 		return 1;
 
@@ -222,12 +217,6 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 {
 	struct comp_state *st = filter->ctx;
 	int                ret;
-
-	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo) {
-		flt_set_forward_data(filter, msg->chn);
-		ret = len;
-		return ret;
-	}
 
 	/* To work, previous filters MUST forward all data */
 	if (FLT_FWD(filter, msg->chn) + len != FLT_NXT(filter, msg->chn)) {
