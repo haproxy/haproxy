@@ -1719,7 +1719,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					/* scan the tcp-check ruleset to ensure a port has been configured */
 					l = &newsrv->proxy->tcpcheck_rules;
 					list_for_each_entry(n, l, list) {
-						r = (struct tcpcheck_rule *)n->list.p;
+						r = (struct tcpcheck_rule *)n->list.n;
 						if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
 							Alert("parsing [%s:%d] : server %s has neither service port nor check port, and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
 							      file, linenum, newsrv->id);
