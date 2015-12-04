@@ -1709,6 +1709,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				/* search the first action (connect / send / expect) in the list */
+				l = &newsrv->proxy->tcpcheck_rules;
+				list_for_each_entry(n, l, list) {
+					r = (struct tcpcheck_rule *)n->list.n;
+					if (r->action != TCPCHK_ACT_COMMENT)
+						break;
+				}
 				if ((r->action != TCPCHK_ACT_CONNECT) || !r->port) {
 					Alert("parsing [%s:%d] : server %s has neither service port nor check port nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
 					      file, linenum, newsrv->id);
