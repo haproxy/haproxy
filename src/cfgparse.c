@@ -2804,6 +2804,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (defproxy.email_alert.myhostname)
 			curproxy->email_alert.myhostname = strdup(defproxy.email_alert.myhostname);
 		curproxy->email_alert.level = defproxy.email_alert.level;
+		curproxy->email_alert.set = defproxy.email_alert.set;
 
 		goto out;
 	}
