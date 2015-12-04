@@ -7470,7 +7470,7 @@ int check_config_validity()
 			    free_email_alert(curproxy);
 		    }
 		    if (!curproxy->email_alert.myhostname)
-			    curproxy->email_alert.myhostname = hostname;
+			    curproxy->email_alert.myhostname = strdup(hostname);
 		}
 
 		if (curproxy->check_command) {
