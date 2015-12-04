@@ -3342,7 +3342,7 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 	va_end(argp);
 
 	if (len < 0) {
-		Alert("Email alert [%s] could format message\n", p->id);
+		Alert("Email alert [%s] could not format message\n", p->id);
 		return;
 	}
 
