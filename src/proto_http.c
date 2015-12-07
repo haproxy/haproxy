@@ -5120,6 +5120,7 @@ void http_end_txn_clean_session(struct stream *s)
 {
 	int prev_status = s->txn->status;
 	struct proxy *fe = strm_fe(s);
+	struct proxy *be = s->be;
 	struct connection *srv_conn;
 	struct server *srv;
 	unsigned int prev_flags = s->txn->flags;
@@ -5142,7 +5143,7 @@ void http_end_txn_clean_session(struct stream *s)
 	}
 
 	if (s->flags & SF_BE_ASSIGNED) {
-		s->be->beconn--;
+		be->beconn--;
 		if (unlikely(s->srv_conn))
 			sess_change_server(s, NULL);
 	}
@@ -5163,11 +5164,11 @@ void http_end_txn_clean_session(struct stream *s)
 				fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
-		    (s->be->mode == PR_MODE_HTTP)) {
-			s->be->be_counters.p.http.rsp[n]++;
-			s->be->be_counters.p.http.cum_req++;
+		    (be->mode == PR_MODE_HTTP)) {
+			be->be_counters.p.http.rsp[n]++;
+			be->be_counters.p.http.cum_req++;
 			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				s->be->be_counters.p.http.comp_rsp++;
+				be->be_counters.p.http.comp_rsp++;
 		}
 	}
 
@@ -5207,7 +5208,7 @@ void http_end_txn_clean_session(struct stream *s)
 			s->flags &= ~SF_CURR_SESS;
 			objt_server(s->target)->cur_sess--;
 		}
-		if (may_dequeue_tasks(objt_server(s->target), s->be))
+		if (may_dequeue_tasks(objt_server(s->target), be))
 			process_srv_queue(objt_server(s->target));
 	}
 
@@ -5286,7 +5287,7 @@ void http_end_txn_clean_session(struct stream *s)
 		if (!srv)
 			si_idle_conn(&s->si[1], NULL);
 		else if ((srv_conn->flags & CO_FL_PRIVATE) ||
-			 ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR))
+			 ((be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR))
 			si_idle_conn(&s->si[1], &srv->priv_conns);
 		else if (prev_flags & TX_NOT_FIRST)
 			/* note: we check the request, not the connection, but
