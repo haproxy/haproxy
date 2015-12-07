@@ -34,6 +34,10 @@
 #define CHN_IDX(chn)     (((chn)->flags & CF_ISRESP) == CF_ISRESP)
 #define FLT_NXT(flt, chn) ((flt)->next[CHN_IDX(chn)])
 #define FLT_FWD(flt, chn) ((flt)->fwd[CHN_IDX(chn)])
+#define flt_req_nxt(flt) ((flt)->next[0])
+#define flt_rsp_nxt(flt) ((flt)->next[1])
+#define flt_req_fwd(flt) ((flt)->fwd[0])
+#define flt_rsp_fwd(flt) ((flt)->fwd[1])
 
 #define HAS_FILTERS(strm)           ((strm)->strm_flt.flags & STRM_FLT_FL_HAS_FILTERS)
 
@@ -181,7 +185,8 @@ flt_change_next_size(struct filter *filter, struct channel *chn, int len)
 	list_for_each_entry(f, &strm_flt(s)->filters, list) {
 		if (f == filter)
 			break;
-		FLT_NXT(f, chn) += len;
+		if (IS_DATA_FILTER(filter, chn))
+			FLT_NXT(f, chn) += len;
 	}
 }
 
@@ -205,9 +210,11 @@ flt_change_forward_size(struct filter *filter, struct channel *chn, int len)
 	list_for_each_entry(f, &strm_flt(s)->filters, list) {
 		if (f == filter)
 			before = 0;
-		if (before)
-			FLT_FWD(f, chn) += len;
-		FLT_NXT(f, chn) += len;
+		if (IS_DATA_FILTER(filter, chn)) {
+			if (before)
+				FLT_FWD(f, chn) += len;
+			FLT_NXT(f, chn) += len;
+		}
 	}
 }
 

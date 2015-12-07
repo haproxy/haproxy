@@ -154,35 +154,36 @@ static int
 comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
+	struct buffer     *buf = msg->chn->buf;
+	unsigned int      *nxt = &flt_rsp_nxt(filter);
 	unsigned int       len;
 	int                ret;
 
-	if (!(msg->chn->flags & CF_ISRESP) || !st->comp_algo)
-		return 1;
-
-	len = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
+	len = MIN(msg->chunk_len + msg->next, buf->i) - *nxt;
 	if (!len)
 		return len;
 
 	if (!st->initialized) {
-		b_adv(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
-		ret = http_compression_buffer_init(msg->chn->buf, tmpbuf);
-		b_rew(msg->chn->buf, FLT_FWD(filter, msg->chn) + st->sov);
+		unsigned int fwd = flt_rsp_fwd(filter) + st->sov;
+
+		b_adv(buf, fwd);
+		ret = http_compression_buffer_init(buf, tmpbuf);
+		b_rew(buf, fwd);
 		if (ret < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
 			return 0;
 		}
 	}
-	b_adv(msg->chn->buf, FLT_NXT(filter, msg->chn));
-	ret = http_compression_buffer_add_data(st, msg->chn->buf, tmpbuf, len);
-	b_rew(msg->chn->buf, FLT_NXT(filter, msg->chn));
+	b_adv(buf, *nxt);
+	ret = http_compression_buffer_add_data(st, buf, tmpbuf, len);
+	b_rew(buf, *nxt);
 	if (ret < 0)
 		return ret;
 
 	st->initialized = 1;
 	msg->next      += ret;
 	msg->chunk_len -= ret;
-	FLT_NXT(filter, msg->chn) = msg->next;
+	*nxt            = msg->next;
 	return 0;
 }
 
@@ -541,15 +542,13 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 	int block1, block2;
 
 	if (!sz)
-		return 0;
+		goto end;
 
 	/* select the smallest size between the announced chunk size, the input
 	 * data, and the available output buffer size. The compressors are
 	 * assumed to be able to process all the bytes we pass to them at
 	 * once. */
-	data_process_len = sz;
-	data_process_len = MIN(out->size - buffer_len(out), data_process_len);
-
+	data_process_len = MIN(out->size - buffer_len(out), sz);
 
 	block1 = data_process_len;
 	if (block1 > bi_contig_data(in))
@@ -558,11 +557,14 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 
 	/* compressors return < 0 upon error or the amount of bytes read */
 	consumed_data = st->comp_algo->add_data(st->comp_ctx, bi_ptr(in), block1, out);
-	if (consumed_data >= 0 && block2 > 0) {
-		consumed_data = st->comp_algo->add_data(st->comp_ctx, in->data, block2, out);
-		if (consumed_data >= 0)
-			consumed_data += block1;
-	}
+	if (consumed_data != block1 || !block2)
+		goto end;
+	consumed_data = st->comp_algo->add_data(st->comp_ctx, in->data, block2, out);
+	if (consumed_data < 0)
+		goto end;
+	consumed_data += block1;
+
+ end:
 	return consumed_data;
 }
 

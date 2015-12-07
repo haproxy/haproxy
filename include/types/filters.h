@@ -56,17 +56,6 @@ struct flt_kw_list {
 };
 
 /*
- * Filter flags set for a specific filter on channel
- *
- *  - FILTER_FL_FORWARD_DATA : When this flag is set, the rest of the data is
- *                             directly forwarded. For chunk-encoded HTTP
- *                             messages, this flag is reseted between each
- *                             chunks.
- */
-#define FILTER_FL_FORWARD_DATA 0x00000001
-
-
-/*
  * Callbacks available on a filter:
  *
  *  - init                : Initializes the filter for a proxy. Returns a
