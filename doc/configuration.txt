@@ -3769,8 +3769,13 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
   It is important to know that http-request rules are processed very early in
   the HTTP processing, just after "block" rules and before "reqdel" or "reqrep"
-  rules. That way, headers added by "add-header"/"set-header" are visible by
-  almost all further ACL rules.
+  or "reqadd" rules. That way, headers added by "add-header"/"set-header" are
+  visible by almost all further ACL rules.
+
+  Using "reqadd"/"reqdel"/"reqrep" to manipulate request headers is discouraged
+  in newer versions (>= 1.5). But if you need to use regular expression to
+  delete headers, you can still use "reqdel". Also please use
+  "http-request deny/allow/tarpit" instead of "reqdeny"/"reqpass"/"reqtarpit".
 
   Example:
         acl nagios src 192.168.129.3
@@ -4070,9 +4075,14 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
   There is no limit to the number of http-response statements per instance.
 
   It is important to know that http-response rules are processed very early in
-  the HTTP processing, before "reqdel" or "reqrep" rules. That way, headers
-  added by "add-header"/"set-header" are visible by almost all further ACL
+  the HTTP processing, before "rspdel" or "rsprep" or "rspadd" rules. That way,
+  headers added by "add-header"/"set-header" are visible by almost all further ACL
   rules.
+
+  Using "rspadd"/"rspdel"/"rsprep" to manipulate request headers is discouraged
+  in newer versions (>= 1.5). But if you need to use regular expression to
+  delete headers, you can still use "rspdel". Also please use
+  "http-response deny" instead of "rspdeny".
 
   Example:
          acl key_acl res.hdr(X-Acl-Key) -m found
@@ -6642,8 +6652,8 @@ reqadd  <string> [{if | unless} <cond>]
      acl is-ssl  dst_port       81
      reqadd      X-Proto:\ SSL  if is-ssl
 
-  See also: "rspadd", section 6 about HTTP header manipulation, and section 7
-            about ACLs.
+  See also: "rspadd", "http-request", section 6 about HTTP header manipulation,
+            and section 7 about ACLs.
 
 
 reqallow  <search> [{if | unless} <cond>]
@@ -6677,8 +6687,8 @@ reqiallow <search> [{if | unless} <cond>] (ignore case)
      reqiallow ^Host:\ www\.
      reqideny  ^Host:\ .*\.local
 
-  See also: "reqdeny", "block", section 6 about HTTP header manipulation, and
-            section 7 about ACLs.
+  See also: "reqdeny", "block", "http-request",  section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
 reqdel  <search> [{if | unless} <cond>]
@@ -6711,8 +6721,8 @@ reqidel <search> [{if | unless} <cond>]  (ignore case)
      reqidel ^X-Forwarded-For:.*
      reqidel ^Cookie:.*SERVER=
 
-  See also: "reqadd", "reqrep", "rspdel", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "reqadd", "reqrep", "rspdel", "http-request", section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 reqdeny  <search> [{if | unless} <cond>]
@@ -6750,8 +6760,8 @@ reqideny <search> [{if | unless} <cond>]  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "rspdeny", "block", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "reqallow", "rspdeny", "block", "http-request", section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 reqpass  <search> [{if | unless} <cond>]
@@ -6785,8 +6795,8 @@ reqipass <search> [{if | unless} <cond>]  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "reqdeny", "block", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "reqallow", "reqdeny", "block", "http-request", section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 reqrep  <search> <string> [{if | unless} <cond>]
@@ -6827,8 +6837,8 @@ reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
      # replace "www.mydomain.com" with "www" in the host name.
      reqirep ^Host:\ www.mydomain.com   Host:\ www
 
-  See also: "reqadd", "reqdel", "rsprep", "tune.bufsize", section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
+  See also: "reqadd", "reqdel", "rsprep", "tune.bufsize", "http-request",
+            section 6 about HTTP header manipulation, and section 7 about ACLs.
 
 
 reqtarpit  <search> [{if | unless} <cond>]
@@ -6872,8 +6882,8 @@ reqitarpit <search> [{if | unless} <cond>]  (ignore case)
      acl badguys src 10.1.0.3 172.16.13.20/28
      reqitarpit . if badguys
 
-  See also: "reqallow", "reqdeny", "reqpass", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "reqallow", "reqdeny", "reqpass", "http-request",  section 6
+            about HTTP header manipulation, and section 7 about ACLs.
 
 
 retries <value>
@@ -6918,8 +6928,8 @@ rspadd <string> [{if | unless} <cond>]
   and not to traffic generated by HAProxy, such as health-checks or error
   responses.
 
-  See also: "reqadd", section 6 about HTTP header manipulation, and section 7
-            about ACLs.
+  See also: "rspdel" "reqadd", "http-response", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
 rspdel  <search> [{if | unless} <cond>]
@@ -6952,8 +6962,8 @@ rspidel <search> [{if | unless} <cond>]  (ignore case)
      # remove the Server header from responses
      rspidel ^Server:.*
 
-  See also: "rspadd", "rsprep", "reqdel", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "rspadd", "rsprep", "reqdel", "http-response",  section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 rspdeny  <search> [{if | unless} <cond>]
@@ -6990,8 +7000,8 @@ rspideny <search> [{if | unless} <cond>]  (ignore case)
      # Ensure that no content type matching ms-word will leak
      rspideny  ^Content-type:\.*/ms-word
 
-  See also: "reqdeny", "acl", "block", section 6 about HTTP header manipulation
-            and section 7 about ACLs.
+  See also: "reqdeny", "acl", "block", "http-response",  section 6 about
+            HTTP header manipulation and section 7 about ACLs.
 
 
 rsprep  <search> <string> [{if | unless} <cond>]
@@ -7031,8 +7041,8 @@ rspirep <search> <string> [{if | unless} <cond>]  (ignore case)
      # replace "Location: 127.0.0.1:8080" with "Location: www.mydomain.com"
      rspirep ^Location:\ 127.0.0.1:8080    Location:\ www.mydomain.com
 
-  See also: "rspadd", "rspdel", "reqrep", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "rspadd", "rspdel", "reqrep", "http-response", section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 server <name> <address>[:[port]] [param*]
