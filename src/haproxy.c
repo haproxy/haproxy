@@ -25,6 +25,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -47,9 +48,7 @@
 #include <syslog.h>
 #include <grp.h>
 #ifdef USE_CPU_AFFINITY
-#define __USE_GNU
 #include <sched.h>
-#undef __USE_GNU
 #ifdef __FreeBSD__
 #include <sys/param.h>
 #include <sys/cpuset.h>
