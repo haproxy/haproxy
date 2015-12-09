@@ -32,6 +32,16 @@
 #define DNS_MAX_NAME_SIZE	255
 #define DNS_MAX_UDP_MESSAGE	512
 
+/* DNS minimun record size: 1 char + 1 NULL + type + class */
+#define DNS_MIN_RECORD_SIZE	( 1 + 1 + 2 + 2 )
+
+/* maximum number of query records in a DNS response
+ * For now, we allow only one */
+#define DNS_MAX_QUERY_RECORDS 1
+
+/* maximum number of answer record in a DNS response */
+#define DNS_MAX_ANSWER_RECORDS ((DNS_MAX_UDP_MESSAGE - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE)
+
 /* DNS error messages */
 #define DNS_TOO_LONG_FQDN	"hostname too long"
 #define DNS_LABEL_TOO_LONG	"one label too long"
