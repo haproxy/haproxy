@@ -154,6 +154,8 @@ enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct prox
 enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags);
 
+int parse_qvalue(const char *qvalue, const char **end);
+
 /* Note: these functions *do* modify the sample. Even in case of success, at
  * least the type and uint value are modified.
  */
