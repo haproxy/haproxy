@@ -132,6 +132,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 void free_http_req_rules(struct list *r);
 void free_http_res_rules(struct list *r);
+void http_reply_and_close(struct stream *s, short status, struct chunk *msg);
 struct chunk *http_error_message(struct stream *s, int msgnum);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt, int dir);

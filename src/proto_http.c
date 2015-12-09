@@ -963,6 +963,12 @@ struct chunk *http_error_message(struct stream *s, int msgnum)
 		return &http_err_chunks[msgnum];
 }
 
+void
+http_reply_and_close(struct stream *s, short status, struct chunk *msg)
+{
+	stream_int_retnclose(&s->si[0], msg);
+}
+
 /*
  * returns a known method among HTTP_METH_* or HTTP_METH_OTHER for all unknown
  * ones.
@@ -2804,8 +2810,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			}
 
 			txn->status = 400;
-			stream_int_retnclose(&s->si[0], NULL);
 			msg->msg_state = HTTP_MSG_ERROR;
+			http_reply_and_close(s, txn->status, NULL);
 			req->analysers = 0;
 
 			stream_inc_http_req_ctr(s);
@@ -2836,8 +2842,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				stream_inc_http_err_ctr(s);
 			}
 			txn->status = 408;
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_408));
 			req->analysers = 0;
 
 			stream_inc_http_req_ctr(s);
@@ -2865,8 +2871,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 			txn->status = 400;
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 			req->analysers = 0;
 
 			stream_inc_http_err_ctr(s);
@@ -2928,7 +2934,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		s->logs.logwait = 0;
 		s->logs.level = 0;
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-		stream_int_retnclose(&s->si[0], NULL);
+		http_reply_and_close(s, txn->status, NULL);
 		return 0;
 	}
 
@@ -2996,7 +3002,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (ret) {
 				/* we fail this request, let's return 503 service unavail */
 				txn->status = 503;
-				stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_503));
+				http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_503));
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 				goto return_prx_cond;
@@ -3005,7 +3011,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* nothing to fail, let's reply normaly */
 		txn->status = 200;
-		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_200));
+		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_200));
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 		goto return_prx_cond;
@@ -3239,7 +3245,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
@@ -3561,7 +3567,7 @@ resume_execution:
 			 */
 			chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
 			txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
-			stream_int_retnclose(&s->si[0], &trash);
+			http_reply_and_close(s, txn->status, &trash);
 			stream_inc_http_err_ctr(s);
 			return HTTP_RULE_RES_ABRT;
 
@@ -4275,7 +4281,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			memcpy(trash.str + trash.len, "\r\nConnection: close\r\n\r\n", 23);
 			trash.len += 23;
 		}
-		stream_int_retnclose(&s->si[0], &trash);
+		http_reply_and_close(s, txn->status, &trash);
 		req->chn->analysers = 0;
 	}
 
@@ -4359,7 +4365,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
 			txn->status = 500;
 			s->logs.tv_request = now;
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_500));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
@@ -4489,7 +4495,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	txn->flags |= TX_CLDENY;
 	txn->status = http_err_codes[txn->rule_deny_status];
 	s->logs.tv_request = now;
-	stream_int_retnclose(&s->si[0], http_error_message(s, txn->rule_deny_status));
+	http_reply_and_close(s, txn->status, http_error_message(s, txn->rule_deny_status));
 	stream_inc_http_err_ctr(s);
 	sess->fe->fe_counters.denied_req++;
 	if (sess->fe != s->be)
@@ -4509,7 +4515,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
@@ -4581,7 +4587,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
 			req->analysers = 0;
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_500));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
@@ -4856,7 +4862,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	req->analysers = 0;
-	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
@@ -4897,7 +4903,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 
 	txn->status = 500;
 	if (!(req->flags & CF_READ_ERROR))
-		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_500));
+		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
@@ -5010,7 +5016,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
-		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_408));
+		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_408));
 
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_CLITO;
@@ -5043,7 +5049,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
  return_bad_req: /* let's centralize all bad requests */
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -5917,10 +5923,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (txn->status) {
 		/* Note: we don't send any error if some data were already sent */
-		stream_int_retnclose(&s->si[0], NULL);
+		http_reply_and_close(s, txn->status, NULL);
 	} else {
 		txn->status = 400;
-		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 	}
 	req->analysers = 0;
 	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
@@ -5939,10 +5945,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (txn->status) {
 		/* Note: we don't send any error if some data were already sent */
-		stream_int_retnclose(&s->si[0], NULL);
+		http_reply_and_close(s, txn->status, NULL);
 	} else {
 		txn->status = 502;
-		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
+		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 	}
 	req->analysers = 0;
 	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
@@ -6085,7 +6091,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_PRXCOND;
@@ -6120,7 +6126,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
@@ -6145,7 +6151,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 504;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_504));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVTO;
@@ -6166,7 +6172,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			txn->status = 400;
 			channel_truncate(rep);
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_CLICL;
@@ -6195,7 +6201,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
-			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
+			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
@@ -6577,7 +6583,7 @@ skip_content_length:
 	s->logs.level = 0;
 	s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 	channel_truncate(rep);
-	stream_int_retnclose(&s->si[0], NULL);
+	http_reply_and_close(s, txn->status, NULL);
 	return 0;
 }
 
@@ -6676,7 +6682,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				s->logs.t_data = -1; /* was not a valid response */
 				s->si[1].flags |= SI_FL_NOLINGER;
 				channel_truncate(rep);
-				stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
+				http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
 				if (!(s->flags & SF_FINST_MASK))
@@ -7213,7 +7219,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
-	stream_int_retnclose(&s->si[0], NULL);
+	http_reply_and_close(s, txn->status, NULL);
 	res->analysers = 0;
 	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
 	if (objt_server(s->target))
@@ -7233,7 +7239,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
-	stream_int_retnclose(&s->si[0], NULL);
+	http_reply_and_close(s, txn->status, NULL);
 	res->analysers = 0;
 	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
 
