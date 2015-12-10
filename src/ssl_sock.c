@@ -158,12 +158,43 @@ static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 
+#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+/* The order here matters for picking a default context,
+ * keep the most common keytype at the bottom of the list
+ */
+const char *SSL_SOCK_KEYTYPE_NAMES[] = {
+	"dsa",
+	"ecdsa",
+	"rsa"
+};
+#define SSL_SOCK_NUM_KEYTYPES 3
+#endif
+
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+/*
+ * struct alignment works here such that the key.key is the same as key_data
+ * Do not change the placement of key_data
+ */
 struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
 	struct chunk response;
 	long expire;
+};
+
+struct ocsp_cbk_arg {
+	int is_single;
+	int single_kt;
+	union {
+		struct certificate_ocsp *s_ocsp;
+		/*
+		 * m_ocsp will have multiple entries dependent on key type
+		 * Entry 0 - DSA
+		 * Entry 1 - ECDSA
+		 * Entry 2 - RSA
+		 */
+		struct certificate_ocsp *m_ocsp[SSL_SOCK_NUM_KEYTYPES];
+	};
 };
 
 /*
@@ -556,13 +587,54 @@ void tlskeys_finalize_config(void)
 
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 
+int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype)
+{
+	switch (evp_keytype) {
+	case EVP_PKEY_RSA:
+		return 2;
+	case EVP_PKEY_DSA:
+		return 0;
+	case EVP_PKEY_EC:
+		return 1;
+	}
+
+	return -1;
+}
+
 /*
  * Callback used to set OCSP status extension content in server hello.
  */
 int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 {
-	struct certificate_ocsp *ocsp = (struct certificate_ocsp *)arg;
-	char* ssl_buf;
+	struct certificate_ocsp *ocsp;
+	struct ocsp_cbk_arg *ocsp_arg;
+	char *ssl_buf;
+	EVP_PKEY *ssl_pkey;
+	int key_type;
+	int index;
+
+	ocsp_arg = (struct ocsp_cbk_arg *)arg;
+
+	ssl_pkey = SSL_get_privatekey(ssl);
+	if (!ssl_pkey)
+		return SSL_TLSEXT_ERR_NOACK;
+
+	key_type = EVP_PKEY_type(ssl_pkey->type);
+
+	if (ocsp_arg->is_single && ocsp_arg->single_kt == key_type)
+		ocsp = ocsp_arg->s_ocsp;
+	else {
+		/* For multiple certs per context, we have to find the correct OCSP response based on
+		 * the certificate type
+		 */
+		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
+
+		if (index < 0)
+			return SSL_TLSEXT_ERR_NOACK;
+
+		ocsp = ocsp_arg->m_ocsp[index];
+
+	}
 
 	if (!ocsp ||
 	    !ocsp->response.str ||
@@ -679,8 +751,40 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	if (iocsp == ocsp)
 		ocsp = NULL;
 
-	SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
-	SSL_CTX_set_tlsext_status_arg(ctx, iocsp);
+	if (!ctx->tlsext_status_cb) {
+		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(struct ocsp_cbk_arg));
+
+		cb_arg->is_single = 1;
+		cb_arg->s_ocsp = iocsp;
+		cb_arg->single_kt = EVP_PKEY_type(X509_get_pubkey(x)->type);
+
+		SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
+		SSL_CTX_set_tlsext_status_arg(ctx, cb_arg);
+	} else {
+		/*
+		 * If the ctx has a status CB, then we have previously set an OCSP staple for this ctx
+		 * Update that cb_arg with the new cert's staple
+		 */
+		struct ocsp_cbk_arg *cb_arg = (struct ocsp_cbk_arg *) ctx->tlsext_status_arg;
+		struct certificate_ocsp *tmp_ocsp;
+		int index;
+
+		/*
+		 * The following few lines will convert cb_arg from a single ocsp to multi ocsp
+		 * the order of operations below matter, take care when changing it
+		 */
+		tmp_ocsp = cb_arg->s_ocsp;
+		index = ssl_sock_get_ocsp_arg_kt_index(cb_arg->single_kt);
+		cb_arg->s_ocsp = NULL;
+		cb_arg->m_ocsp[index] = tmp_ocsp;
+		cb_arg->is_single = 0;
+		cb_arg->single_kt = 0;
+
+		index = ssl_sock_get_ocsp_arg_kt_index(EVP_PKEY_type(X509_get_pubkey(x)->type));
+		if (index >= 0 && !cb_arg->m_ocsp[index])
+			cb_arg->m_ocsp[index] = iocsp;
+
+	}
 
 	ret = 0;
 
@@ -1602,15 +1706,6 @@ struct cert_key_and_chain {
 	X509 **chain_certs;
 };
 
-/* The order here matters for picking a default context,
- * keep the most common keytype at the bottom of the list
- */
-const char *SSL_SOCK_KEYTYPE_NAMES[] = {
-	"dsa",
-	"ecdsa",
-	"rsa"
-};
-#define SSL_SOCK_NUM_KEYTYPES 3
 #define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
 
 struct key_combo_ctx {
@@ -1951,7 +2046,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 				goto end;
 			}
 
-			/* Load all info into SSL_CTX */
+			/* Load all required certs/keys/chains/OCSPs info into SSL_CTX */
 			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 				if (i & (1<<n)) {
 					/* Key combo contains ckch[n] */
@@ -1961,6 +2056,18 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 						rv = 1;
 						goto end;
 					}
+
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+					/* Load OCSP Info into context */
+					if (ssl_sock_load_ocsp(cur_ctx, trash.str) < 0) {
+						if (err)
+							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
+							          *err ? *err : "", path);
+						SSL_CTX_free(cur_ctx);
+						rv = 1;
+						goto end;
+					}
+#endif
 				}
 			}
 
