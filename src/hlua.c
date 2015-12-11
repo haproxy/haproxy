@@ -3476,6 +3476,7 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_http(lua_State *L, int ud)
 static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_appctx *appctx;
+	struct hlua_txn htxn;
 	struct stream_interface *si = ctx->owner;
 	struct stream *s = si_strm(si);
 	struct proxy *px = s->be;
@@ -3532,6 +3533,17 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	/* Stores the http version. */
 	lua_pushstring(L, "version");
 	lua_pushlstring(L, txn->req.chn->buf->p + txn->req.sl.rq.v, txn->req.sl.rq.v_l);
+	lua_settable(L, -3);
+
+	/* creates an array of headers. hlua_http_get_headers() crates and push
+	 * the array on the top of the stack.
+	 */
+	lua_pushstring(L, "headers");
+	htxn.s = s;
+	htxn.p = px;
+	htxn.dir = SMP_OPT_DIR_REQ;
+	if (!hlua_http_get_headers(L, &htxn, &htxn.s->txn->req))
+		return 0;
 	lua_settable(L, -3);
 
 	/* Get path and qs */
