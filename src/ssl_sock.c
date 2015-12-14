@@ -168,6 +168,8 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 	"rsa"
 };
 #define SSL_SOCK_NUM_KEYTYPES 3
+#else
+#define SSL_SOCK_NUM_KEYTYPES 1
 #endif
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
