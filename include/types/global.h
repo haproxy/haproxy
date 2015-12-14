@@ -115,7 +115,8 @@ struct global {
 	int maxpipes;		/* max # of pipes */
 	int maxsock;		/* max # of sockets */
 	int rlimit_nofile;	/* default ulimit-n value : 0=unset */
-	int rlimit_memmax;	/* default ulimit-d in megs value : 0=unset */
+	int rlimit_memmax_all;	/* default all-process memory limit in megs ; 0=unset */
+	int rlimit_memmax;	/* default per-process memory limit in megs ; 0=unset */
 	long maxzlibmem;        /* max RAM for zlib in bytes */
 	int mode;
 	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */

@@ -581,7 +581,7 @@ void init(int argc, char **argv)
     
 
 #ifdef HAPROXY_MEMMAX
-	global.rlimit_memmax = HAPROXY_MEMMAX;
+	global.rlimit_memmax_all = HAPROXY_MEMMAX;
 #endif
 
 	tv_update_date(-1,-1);
@@ -729,7 +729,7 @@ void init(int argc, char **argv)
 				switch (*flag) {
 				case 'C' : change_dir = *argv; break;
 				case 'n' : cfg_maxconn = atol(*argv); break;
-				case 'm' : global.rlimit_memmax = atol(*argv); break;
+				case 'm' : global.rlimit_memmax_all = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
 				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
 				case 'f' :
@@ -792,6 +792,22 @@ void init(int argc, char **argv)
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		Alert("Fatal errors found in configuration.\n");
 		exit(1);
+	}
+
+	/* recompute the amount of per-process memory depending on nbproc and
+	 * the shared SSL cache size (allowed to exist in all processes).
+	 */
+	if (global.rlimit_memmax_all) {
+#if defined (USE_OPENSSL) && !defined(USE_PRIVATE_CACHE)
+		int64_t ssl_cache_bytes = global.tune.sslcachesize * 200LL;
+
+		global.rlimit_memmax =
+			((((int64_t)global.rlimit_memmax_all * 1048576LL) -
+			  ssl_cache_bytes) / global.nbproc +
+			 ssl_cache_bytes + 1048575LL) / 1048576LL;
+#else
+		global.rlimit_memmax = global.rlimit_memmax_all / global.nbproc;
+#endif
 	}
 
 #ifdef CONFIG_HAP_NS
@@ -1645,7 +1661,7 @@ int main(int argc, char **argv)
 
 	if (global.rlimit_memmax) {
 		limit.rlim_cur = limit.rlim_max =
-			global.rlimit_memmax * 1048576ULL / global.nbproc;
+			global.rlimit_memmax * 1048576ULL;
 #ifdef RLIMIT_AS
 		if (setrlimit(RLIMIT_AS, &limit) == -1) {
 			Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",

@@ -223,11 +223,13 @@ list of options is :
     generally be the "select" poller, which cannot be disabled and is limited
     to 1024 file descriptors.
 
-  -m <limit> : limit the total allocatable memory to <limit> megabytes per
-    process. This may cause some connection refusals or some slowdowns
+  -m <limit> : limit the total allocatable memory to <limit> megabytes across
+    all processes. This may cause some connection refusals or some slowdowns
     depending on the amount of memory needed for normal operations. This is
-    mostly used to force the process to work in a constrained resource usage
-    scenario.
+    mostly used to force the processes to work in a constrained resource usage
+    scenario. It is important to note that the memory is not shared between
+    processes, so in a multi-process scenario, this value is first divided by
+    global.nbproc before forking.
 
   -n <limit> : limits the per-process connection limit to <limit>. This is
     equivalent to the global section's keyword "maxconn". It has precedence
