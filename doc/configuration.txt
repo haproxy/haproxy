@@ -593,6 +593,7 @@ The following keywords are supported in the "global" section :
    - tune.pipesize
    - tune.rcvbuf.client
    - tune.rcvbuf.server
+   - tune.recv_enough
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
@@ -1279,6 +1280,13 @@ tune.rcvbuf.server <number>
   However it can sometimes help to set it to very low values (eg: 4096) in
   order to save kernel memory by preventing it from buffering too large amounts
   of received data. Lower values will significantly increase CPU usage though.
+
+tune.recv_enough <number>
+  Haproxy uses some hints to detect that a short read indicates the end of the
+  socket buffers. One of them is that a read returns more than <recv_enough>
+  bytes, which defaults to 10136 (7 segments of 1448 each). This default value
+  may be changed by this setting to better deal with workloads involving lots
+  of short messages such as telnet or SSH sessions.
 
 tune.sndbuf.client <number>
 tune.sndbuf.server <number>
