@@ -9668,6 +9668,55 @@ crt <cert>
   valid Signed Certificate Timestamp List, as described in RFC. File is parsed
   to check basic syntax, but no signatures are verified.
 
+  There are cases where it is desirable support multiple key types (RSA/ECDSA)
+  in the cipher suites offered to the clients. This allows clients that support
+  EC certificates to be able to use EC ciphers, while simultaneously supporting
+  older, RSA only clients.
+
+  In order to provide this functionality, multiple PEM files, each with a
+  different key type, are required. To associate these PEM files into a
+  "cert bundle" that is recognized by haproxy, they must be named in the
+  following way: All PEM files that are to be bundled must have the same base
+  name, with a suffix indicating the key type. Currently, three suffixes are
+  supported: rsa, dsa and ecdsa. For example, if www.example.com has two PEM
+  files, an RSA file and an ECDSA file, they must be named: "example.pem.rsa"
+  and "example.pem.ecdsa". The first part of the filename is arbitrary; only the
+  suffix matters. To load this bundle into haproxy, specify the base name only:
+
+  Example :  bind :8443 ssl crt example.pem
+
+  Note that the suffix is not given to haproxy, this tells haproxy to look for
+  a cert bundle.
+
+  Haproxy will load all PEM files in the bundle at the same time to try to
+  support multiple key types. PEM files are combined based on Common Name
+  (CN) and Subject Alternative Name (SAN) to support SNI lookups. This means
+  that even if you give haproxy a cert bundle, if there are no shared CN/SAN
+  entries in the certificates in that bundle, haproxy will not be able to
+  provide multi-cert support.
+
+  Assuming bundle in the example above contained the following:
+
+              Filename     |       CN        |        SAN
+        -------------------+-----------------+-------------------
+         example.pem.rsa   | www.example.com | rsa.example.com
+        -------------------+-----------------+--+----------------
+         example.pem.ecdsa | www.example.com | ecdsa.example.com
+        -------------------+-----------------+-------------------
+
+  Users connecting with an SNI of "www.example.com" will be able
+  to use both RSA and ECDSA cipher suites. Users connecting with an SNI of
+  "rsa.example.com" will only be able to use RSA cipher suites, and users
+  connecting with "ecdsa.example.com" will only be able to use ECDSA cipher
+  suites.
+
+  If a directory name is given as the <cert> argument, haproxy will
+  automatically search and load bundled files in that directory.
+
+  OSCP files (.ocsp) and issuer files (.issuer) are supported with multi-cert
+  bundling. Each certificate can have its own .ocsp and .issuer file. At this
+  time, sctl is not supported in multi-certificate bundling.
+
 crt-ignore-err <errors>
   This setting is only available when support for OpenSSL was built in. Sets a
   comma separated list of errorIDs to ignore during verify at depth == 0.  If
@@ -9689,6 +9738,10 @@ crt-list <file>
   multiple times. See the "crt" option for more information. The default
   certificate is still needed to meet OpenSSL expectations. If it is not used,
   the 'strict-sni' option may be used.
+
+  Multi-cert bundling (see "crt") is support with crt-list, as long as only the
+  base name is given in the crt-list. Due to the nature of bundling, all SNI
+  filters given to a multi-cert bundle entry are ignored.
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
