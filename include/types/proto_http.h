@@ -296,10 +296,12 @@ enum {
  *                             to a byte matching the current state.
  *
  *  - sol (start of line)    : start of current line before MSG_BODY. Starting
- *                             from MSG_BODY, contains the length of the last
- *                             parsed chunk size so that when added to sov it
- *                             always points to the beginning of the current
- *                             data chunk.
+ *                             from MSG_BODY and until MSG_TRAILERS, contains
+ *                             the length of the last parsed chunk size so that
+ *                             when added to sov it always points to the
+ *                             beginning of the current data chunk.
+ *                             in MSG_TRAILERS state, it contains the length of
+ *                             the last parsed part of the trailer headers.
  *
  *  - eol (End of Line)      : Before HTTP_MSG_BODY, relative offset in the
  *                             buffer of the first byte which marks the end of

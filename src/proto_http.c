@@ -2095,13 +2095,13 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 	return;
 }
 
-/* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to
- * the first byte of data after the chunk size, so that we know we can forward
- * exactly msg->next bytes. msg->sol contains the exact number of bytes forming
- * the chunk size. That way it is always possible to differentiate between the
- * start of the body and the start of the data.
- * Return >0 on success, 0 when some data is missing, <0 on error.
- * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
+/* Parse the chunk size at msg->next. Once done, caller should adjust ->next to
+ * point to the first byte of data after the chunk size, so that we know we can
+ * forward exactly msg->next bytes. msg->sol contains the exact number of bytes
+ * forming the chunk size. That way it is always possible to differentiate
+ * between the start of the body and the start of the data.  Return the number
+ * of byte parsed on success, 0 when some data is missing, <0 on error.  Note:
+ * this function is designed to parse wrapped CRLF at the end of the buffer.
  */
 static inline int http_parse_chunk_size(struct http_msg *msg)
 {
@@ -2181,40 +2181,42 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 			goto error;
 	}
 
-	/* OK we found our CRLF and now <ptr> points to the next byte,
-	 * which may or may not be present. We save that into ->next,
-	 * and the number of bytes parsed into msg->sol.
+	/* OK we found our CRLF and now <ptr> points to the next byte, which may
+	 * or may not be present. We save the number of bytes parsed into
+	 * msg->sol.
 	 */
 	msg->sol = ptr - ptr_old;
 	if (unlikely(ptr < ptr_old))
 		msg->sol += buf->size;
 	msg->chunk_len = chunk;
 	msg->body_len += chunk;
-	return 1;
+	return msg->sol;
  error:
 	msg->err_pos = buffer_count(buf, buf->p, ptr);
 	return -1;
 }
 
-/* This function skips trailers in the buffer associated with HTTP
- * message <msg>. The first visited position is msg->next. If the end of
- * the trailers is found, it is automatically scheduled to be forwarded,
- * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
- * If not enough data are available, the function does not change anything
- * except maybe msg->next if it could parse some lines, and returns zero.
- * If a parse error is encountered, the function returns < 0 and does not
- * change anything except maybe msg->next. Note that the message must
- * already be in HTTP_MSG_TRAILERS state before calling this function,
- * which implies that all non-trailers data have already been scheduled for
- * forwarding, and that msg->next exactly matches the length of trailers
- * already parsed and not forwarded. It is also important to note that this
- * function is designed to be able to parse wrapped headers at end of buffer.
+/* This function skips trailers in the buffer associated with HTTP message
+ * <msg>. The first visited position is msg->next. If the end of the trailers is
+ * found, the function returns >0. So, the caller can automatically schedul it
+ * to be forwarded, and switch msg->msg_state to HTTP_MSG_DONE. If not enough
+ * data are available, the function does not change anything except maybe
+ * msg->sol if it could parse some lines, and returns zero.  If a parse error
+ * is encountered, the function returns < 0 and does not change anything except
+ * maybe msg->sol. Note that the message must already be in HTTP_MSG_TRAILERS
+ * state before calling this function, which implies that all non-trailers data
+ * have already been scheduled for forwarding, and that msg->next exactly
+ * matches the length of trailers already parsed and not forwarded. It is also
+ * important to note that this function is designed to be able to parse wrapped
+ * headers at end of buffer.
  */
 static int http_forward_trailers(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->chn->buf;
 
-	/* we have msg->next which points to next line. Look for CRLF. */
+	/* we have msg->next which points to next line. Look for CRLF. But
+	 * first, we reset msg->sol */
+	msg->sol = 0;
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
 		const char *start = b_ptr(buf, msg->next + msg->sol);
@@ -2267,15 +2269,15 @@ static int http_forward_trailers(struct http_msg *msg)
 	}
 }
 
-/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF
- * or a possible LF alone at the end of a chunk. It automatically adjusts
- * msg->next in order to include this part into the next forwarding phase.
- * Note that the caller must ensure that ->p points to the first byte to parse.
- * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
- * not enough data are available, the function does not change anything and
- * returns zero. If a parse error is encountered, the function returns < 0 and
- * does not change anything. Note: this function is designed to parse wrapped
- * CRLF at the end of the buffer.
+/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
+ * a possible LF alone at the end of a chunk. The caller should adjust msg->next
+ * in order to include this part into the next forwarding phase.  Note that the
+ * caller must ensure that ->p points to the first byte to parse.  It returns
+ * the number of bytes parsed on success, so the caller can set msg_state to
+ * HTTP_MSG_CHUNK_SIZE. If not enough data are available, the function does not
+ * change anything and returns zero. If a parse error is encountered, the
+ * function returns < 0. Note: this function is designed to parse wrapped CRLF
+ * at the end of the buffer.
  */
 static inline int http_skip_chunk_crlf(struct http_msg *msg)
 {
@@ -2303,8 +2305,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 		msg->err_pos = buffer_count(buf, buf->p, ptr);
 		return -1;
 	}
-	msg->sol = bytes;
-	return 1;
+	return bytes;
 }
 
 /* Parses a qvalue and returns it multipled by 1000, from 0 to 1000. If the
@@ -4760,8 +4761,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
 		}
-		msg->next += msg->sol;
-		msg->sol   = 0;
+		msg->next += ret;
 		msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	}
 
@@ -6889,8 +6889,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 				goto missing_data_or_waiting;
 			if (ret < 0)
 				goto chunk_parsing_error;
-			msg->next += msg->sol;
-			msg->sol   = 0;
+			msg->next += ret;
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 			/* fall through for HTTP_MSG_CHUNK_SIZE */
 
@@ -6904,8 +6903,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 				goto missing_data_or_waiting;
 			if (ret < 0)
 				goto chunk_parsing_error;
-			msg->next += msg->sol;
-			msg->sol   = 0;
+			msg->next += ret;
 			if (msg->chunk_len) {
 				msg->msg_state = HTTP_MSG_DATA;
 				goto switch_states;
@@ -6921,7 +6919,6 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 					 /* default_ret */ 1,
 					 /* on_error    */ goto error);
 			msg->next += msg->sol;
-			msg->sol   = 0;
 			if (!ret)
 				goto missing_data_or_waiting;
 			break;

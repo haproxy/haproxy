@@ -87,7 +87,9 @@ msg.sol  : start of line. Points to the beginning of the current header line
            states starting with DATA. For chunked encoded messages, this sum
            always corresponds to the beginning of the current chunk of data as
            it appears in the buffer, or to be more precise, it corresponds to
-           the first of the remaining bytes of chunked data to be inspected.
+           the first of the remaining bytes of chunked data to be inspected. In
+           TRAILERS state, it contains the length of the last parsed part of
+           the trailer headers.
 
 msg.eoh  : end of headers. Points to the CRLF (or LF) preceeding the body and
            marking the end of headers. It is where new headers are appended.
