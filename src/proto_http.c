@@ -6845,7 +6845,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	msg->next -= ret;
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;
-	if (!HAS_FILTERS(s))
+	if (!HAS_DATA_FILTERS(s, chn))
 		msg->chunk_len -= channel_forward(chn, msg->chunk_len);
   waiting:
 	return 0;
@@ -6959,7 +6959,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	msg->next -= ret;
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;
-	if (!HAS_FILTERS(s))
+	if (!HAS_DATA_FILTERS(s, chn))
 		msg->chunk_len -= channel_forward(chn, msg->chunk_len);
   waiting:
 	return 0;
