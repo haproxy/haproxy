@@ -1092,7 +1092,7 @@ switchstate:
 							ts = stktable_store(st->table, newts, 0);
 							newts = NULL; /* don't reuse it */
 
-							ts->upd.key= (++st->table->update)+(2^31);
+							ts->upd.key= (++st->table->update)+(2147483648U);
 							eb = eb32_insert(&st->table->updates, &ts->upd);
 							if (eb != &ts->upd) {
 								eb32_delete(eb);
@@ -1555,7 +1555,6 @@ incomplete:
 			}
 			case PEER_SESS_ST_EXIT:
 				repl = snprintf(trash.str, trash.size, "%d\n", appctx->st1);
-
 				if (bi_putblk(si_ic(si), trash.str, repl) == -1)
 					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
