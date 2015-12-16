@@ -395,6 +395,7 @@ int stktable_init(struct stktable *t)
 	if (t->size) {
 		memset(&t->keys, 0, sizeof(t->keys));
 		memset(&t->exps, 0, sizeof(t->exps));
+		t->updates = EB_ROOT_UNIQUE;
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->data_size + t->key_size, MEM_F_SHARED);
 
