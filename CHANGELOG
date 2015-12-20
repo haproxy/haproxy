@@ -1,6 +1,88 @@
 ChangeLog :
 ===========
 
+2015/12/20 : 1.7-dev1
+    - DOC: specify that stats socket doc (section 9.2) is in management
+    - BUILD: install only relevant and existing documentation
+    - CLEANUP: don't ignore debian/ directory if present
+    - BUG/MINOR: dns: parsing error of some DNS response
+    - BUG/MEDIUM: namespaces: don't fail if no namespace is used
+    - BUG/MAJOR: ssl: free the generated SSL_CTX if the LRU cache is disabled
+    - MEDIUM: dns: Don't use the ANY query type
+    - BUILD: ssl: fix build error introduced in commit 7969a3 with OpenSSL < 1.0.0
+    - DOC: fix a typo for a "deviceatlas" keyword
+    - FIX: small typo in an example using the "Referer" header
+    - MINOR: cli: ability to set per-server maxconn
+    - DEBUG/MINOR: memory: add a build option to disable memory pools sharing
+    - DEBUG/MEDIUM: memory: optionally protect free data in pools
+    - DEBUG/MEDIUM: memory: add optional control pool memory operations
+    - MEDIUM: memory: add accounting for failed allocations
+    - BUG/MEDIUM: config: count memory limits on 64 bits, not 32
+    - BUG/MAJOR: dns: first DNS response packet not matching queried hostname may lead to a loop
+    - BUG/MINOR: dns: unable to parse CNAMEs response
+    - BUG/MINOR: examples/haproxy.init: missing brace in quiet_check()
+    - DOC: deviceatlas: more example use cases.
+    - MINOR: config: allow IPv6 bracketed literals
+    - BUG/BUILD: replace haproxy-systemd-wrapper with $(EXTRA) in install-bin.
+    - BUILD: add Haiku as supported target.
+    - BUG/MAJOR: http: don't requeue an idle connection that is already queued
+    - DOC: typo on capture.res.hdr and capture.req.hdr
+    - BUG/MINOR: dns: check for duplicate nameserver id in a resolvers section was missing
+    - CLEANUP: use direction names in place of numeric values
+    - BUG/MEDIUM: lua: sample fetches based on response doesn't work
+    - MINOR: check: add agent-send server parameter
+    - BUG/MINOR: http rule: http capture 'id' rule points to a non existing id
+    - BUG/MINOR: server: check return value of fgets() in apply_server_state()
+    - BUG/MINOR: acl: don't use record layer in req_ssl_ver
+    - BUILD: freebsd: double declaration
+    - BUG/MEDIUM: lua: clean output buffer
+    - BUILD: check for libressl to be able to build against it
+    - DOC: lua-api/index.rst small example fixes, spelling correction.
+    - DOC: lua: architecture and first steps
+    - DOC: relation between timeout http-request and option http-buffer-request
+    - BUILD: Make deviceatlas require PCRE
+    - BUG: http: do not abort keep-alive connections on server timeout
+    - BUG/MEDIUM: http: switch the request channel to no-delay once done.
+    - BUG/MINOR: lua: don't force-sslv3 LUA's SSL socket
+    - BUILD/MINOR: http: proto_http.h needs sample.h
+    - BUG/MEDIUM: http: don't enable auto-close on the response side
+    - BUG/MEDIUM: stream: fix half-closed timeout handling
+    - CLEANUP: compression: don't allocate DEFAULT_MAXZLIBMEM without USE_ZLIB
+    - BUG/MEDIUM: cli: changing compression rate-limiting must require admin level
+    - BUG/MEDIUM: sample: urlp can't match an empty value
+    - BUILD: dumpstats: silencing warning for printf format specifier / time_t
+    - CLEANUP: proxy: calloc call inverted arguments
+    - MINOR: da: silent logging by default and displaying DeviceAtlas support if built.
+    - BUG/MEDIUM: da: stop DeviceAtlas processing in the convertor if there is no input.
+    - DOC: Edited 51Degrees section of README/
+    - BUG/MEDIUM: checks: email-alert not working when declared in defaults
+    - BUG/MINOR: checks: email-alert causes a segfault when an unknown mailers section is configured
+    - BUG/MINOR: checks: typo in an email-alert error message
+    - BUG/MINOR: tcpcheck: conf parsing error when no port configured on server and last rule is a CONNECT with no port
+    - BUG/MINOR: tcpcheck: conf parsing error when no port configured on server and first rule(s) is (are) COMMENT
+    - BUG/MEDIUM: http: fix http-reuse when frontend and backend differ
+    - DOC: prefer using http-request/response over reqXXX/rspXXX directives
+    - CLEANUP: haproxy: using _GNU_SOURCE instead of __USE_GNU macro.
+    - MINOR: ssl: Added cert_key_and_chain struct
+    - MEDIUM: ssl: Added support for creating SSL_CTX with multiple certs
+    - MINOR: ssl: Added multi cert support for crt-list config keyword
+    - MEDIUM: ssl: Added multi cert support for loading crt directories
+    - MEDIUM: ssl: Added support for Multi-Cert OCSP Stapling
+    - BUILD: ssl: set SSL_SOCK_NUM_KEYTYPES with openssl < 1.0.2
+    - MINOR: config: make tune.recv_enough configurable
+    - BUG/MEDIUM: config: properly adjust maxconn with nbproc when memmax is forced
+    - DOC: ssl: Adding docs for Multi-Cert bundling
+    - BUG/MEDIUM: peers: table entries learned from a remote are pushed to others after a random delay.
+    - BUG/MEDIUM: peers: old stick table updates could be repushed.
+    - MINOR: lua: service/applet can have access to the HTTP headers when a POST is received
+    - REORG/MINOR: lua: convert boolean "int" to bitfield
+    - BUG/MEDIUM: lua: Lua applets must not fetch samples using http_txn
+    - BUG/MINOR: lua: Lua applets must not use http_txn
+    - BUG/MEDIUM: lua: Forbid HTTP applets from being called from tcp rulesets
+    - BUG/MAJOR: lua: Do not force the HTTP analysers in use-services
+    - CLEANUP: lua: bad error messages
+    - CONTRIB: initiate a debugging suite to make debugging easier
+
 2015/10/13 : 1.7-dev0
     - exact copy of 1.6.0
 
