@@ -6101,7 +6101,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 	int len;
 	struct hlua_function *fcn;
 
-	MAY_LJMP(check_args(L, 3, "register_service"));
+	MAY_LJMP(check_args(L, 3, "register_action"));
 
 	/* First argument : converter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
