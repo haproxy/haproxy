@@ -6062,6 +6062,17 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 {
 	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
 
+	/* HTTP applets are forbidden in tcp-request rules.
+	 * HTTP applet request requires everything initilized by
+	 * "http_process_request" (analyzer flag AN_REQ_HTTP_INNER).
+	 * The applet will be immediately initilized, but its before
+	 * the call of this analyzer.
+	 */
+	if (rule->from != ACT_F_HTTP_REQ) {
+		memprintf(err, "HTTP applets are forbidden from 'tcp-request' rulesets");
+		return ACT_RET_PRS_ERR;
+	}
+
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
