@@ -115,6 +115,7 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define APPLET_HDR_SENT 0x04 /* Response header sent. */
 #define APPLET_CHUNKED  0x08 /* Use transfer encoding chunked. */
 #define APPLET_LAST_CHK 0x10 /* Last chunk sent. */
+#define APPLET_HTTP11   0x20 /* Last chunk sent. */
 
 #define HTTP_100C "HTTP/1.1 100 Continue\r\n\r\n"
 
@@ -3969,9 +3970,6 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 {
 	struct chunk *tmp = get_trash_chunk();
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
-	struct stream *s = si_strm(si);
-	struct http_txn *txn = s->txn;
 	const char *name;
 	const char *value;
 	int id;
@@ -3981,7 +3979,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 
 	/* Use the same http version than the request. */
 	chunk_appendf(tmp, "HTTP/1.%c %d %s\r\n",
-	              txn->req.flags & HTTP_MSGF_VER_11 ? '1' : '0',
+	              appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11 ? '1' : '0',
 	              appctx->appctx->ctx.hlua_apphttp.status,
 	              get_reason(appctx->appctx->ctx.hlua_apphttp.status));
 
@@ -4077,7 +4075,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	 * respected by haproxy. HAProcy considers that the application cloe the connection
 	 * and it keep the connection from the client open.
 	 */
-	if (txn->req.flags & HTTP_MSGF_VER_11 && !hdr_connection)
+	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11 && !hdr_connection)
 		chunk_appendf(tmp, "Connection: close\r\n");
 
 	/* If we dont have a content-length set, we must announce a transfer enconding
@@ -5788,6 +5786,9 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	HLUA_INIT(hlua);
 	ctx->ctx.hlua_apphttp.left_bytes = -1;
 	ctx->ctx.hlua_apphttp.flags = 0;
+
+	if (txn->req.flags & HTTP_MSGF_VER_11)
+		ctx->ctx.hlua_apphttp.flags |= APPLET_HTTP11;
 
 	/* Create task used by signal to wakeup applets. */
 	task = task_new();
