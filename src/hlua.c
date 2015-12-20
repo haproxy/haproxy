@@ -5781,7 +5781,6 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 */
 	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
-	req->analysers |= AN_REQ_HTTP_XFER_BODY;
 
 	HLUA_INIT(hlua);
 	ctx->ctx.hlua_apphttp.left_bytes = -1;
@@ -5876,7 +5875,6 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	struct stream_interface *si = ctx->owner;
 	struct stream *strm = si_strm(si);
 	struct channel *res = si_ic(si);
-	struct channel *req = si_oc(si);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
 	struct hlua *hlua = &ctx->ctx.hlua_apphttp.hlua;
@@ -5893,12 +5891,6 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua) &&
 	    !(ctx->ctx.hlua_apphttp.flags & APPLET_DONE)) {
-
-		/* enable the minimally required analyzers to handle keep-alive
-		 * and compression on the HTTP response
-		 */
-		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) |
-		                 AN_REQ_HTTP_XFER_BODY | AN_REQ_HTTP_INNER;
 
 		/* Wait for full HTTP analysys. */
 		if (unlikely(strm->txn->req.msg_state < HTTP_MSG_BODY)) {
