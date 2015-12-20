@@ -3009,6 +3009,14 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	/* Get traditionnal arguments. */
 	hsmp = MAY_LJMP(hlua_checkfetches(L, 1));
 
+	/* Check execution authorization. */
+	if (f->use & SMP_USE_HTTP_ANY &&
+	    !(hsmp->flags & HLUA_F_MAY_USE_HTTP)) {
+		lua_pushfstring(L, "the sample-fetch '%s' needs an HTTP parser which "
+		                   "is not available in Lua services", f->kw);
+		WILL_LJMP(lua_error(L));
+	}
+
 	/* Get extra arguments. */
 	for (i = 0; i < lua_gettop(L) - 1; i++) {
 		if (i >= ARGM_NBARGS)
@@ -4628,13 +4636,13 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, htxn, 0))
+	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_HTTP))
 		return 0;
 	lua_rawset(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, htxn, HLUA_F_AS_STRING))
+	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_HTTP | HLUA_F_AS_STRING))
 		return 0;
 	lua_rawset(L, -3);
 

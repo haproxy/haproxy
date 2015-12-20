@@ -30,6 +30,7 @@ struct stream;
 #define HLUA_MUST_GC   0x00000020
 
 #define HLUA_F_AS_STRING    0x01
+#define HLUA_F_MAY_USE_HTTP 0x02
 
 enum hlua_exec {
 	HLUA_E_OK = 0,
