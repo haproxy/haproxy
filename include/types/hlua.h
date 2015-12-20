@@ -29,6 +29,8 @@ struct stream;
 #define HLUA_EXIT      0x00000010
 #define HLUA_MUST_GC   0x00000020
 
+#define HLUA_F_AS_STRING    0x01
+
 enum hlua_exec {
 	HLUA_E_OK = 0,
 	HLUA_E_AGAIN,  /* LUA yield, must resume the stack execution later, when
@@ -114,7 +116,7 @@ struct hlua_appctx {
 struct hlua_smp {
 	struct stream *s;
 	struct proxy *p;
-	int stringsafe;
+	unsigned int flags;     /* LUA_F_OPT_* */
 	int dir;                /* SMP_OPT_DIR_{REQ,RES} */
 };
 

@@ -2961,7 +2961,7 @@ __LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
 /* This function creates and push in the stack a fetch object according
  * with a current TXN.
  */
-static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
+static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
 {
 	struct hlua_smp *hsmp;
 
@@ -2980,7 +2980,7 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 	hsmp->s = txn->s;
 	hsmp->p = txn->p;
 	hsmp->dir = txn->dir;
-	hsmp->stringsafe = stringsafe;
+	hsmp->flags = flags;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_fetches_ref);
@@ -3035,7 +3035,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	smp.strm = hsmp->s;
 	smp.opt = hsmp->dir & SMP_OPT_DIR;
 	if (!f->process(args, &smp, f->kw, f->private)) {
-		if (hsmp->stringsafe)
+		if (hsmp->flags & HLUA_F_AS_STRING)
 			lua_pushstring(L, "");
 		else
 			lua_pushnil(L);
@@ -3043,7 +3043,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	}
 
 	/* Convert the returned sample in lua value. */
-	if (hsmp->stringsafe)
+	if (hsmp->flags & HLUA_F_AS_STRING)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
@@ -3069,7 +3069,7 @@ __LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
 /* This function creates and push in the stack a Converters object
  * according with a current TXN.
  */
-static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
+static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, unsigned int flags)
 {
 	struct hlua_smp *hsmp;
 
@@ -3088,7 +3088,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 	hsmp->s = txn->s;
 	hsmp->p = txn->p;
 	hsmp->dir = txn->dir;
-	hsmp->stringsafe = stringsafe;
+	hsmp->flags = flags;
 
 	/* Pop a class stream metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_converters_ref);
@@ -3158,7 +3158,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	smp.strm = hsmp->s;
 	smp.opt = hsmp->dir & SMP_OPT_DIR;
 	if (!conv->process(args, &smp, conv->private)) {
-		if (hsmp->stringsafe)
+		if (hsmp->flags & HLUA_F_AS_STRING)
 			lua_pushstring(L, "");
 		else
 			lua_pushnil(L);
@@ -3166,7 +3166,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Convert the returned sample in lua value. */
-	if (hsmp->stringsafe)
+	if (hsmp->flags & HLUA_F_AS_STRING)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
@@ -3222,7 +3222,7 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, &appctx->htxn, 1))
+	if (!hlua_fetches_new(L, &appctx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3234,7 +3234,7 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, &appctx->htxn, 1))
+	if (!hlua_converters_new(L, &appctx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3509,7 +3509,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, &appctx->htxn, 1))
+	if (!hlua_fetches_new(L, &appctx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3521,7 +3521,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, &appctx->htxn, 1))
+	if (!hlua_converters_new(L, &appctx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -4634,7 +4634,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, htxn, 1))
+	if (!hlua_fetches_new(L, htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_rawset(L, -3);
 
@@ -4646,7 +4646,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, htxn, 1))
+	if (!hlua_converters_new(L, htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_rawset(L, -3);
 
