@@ -2501,14 +2501,14 @@ compression offload
                  data.
 
     gzip         applies gzip compression. This setting is only available when
-                 support for zlib was built in.
+                 support for zlib or libslz was built in.
 
     deflate      same as "gzip", but with deflate algorithm and zlib format.
                  Note that this algorithm has ambiguous support on many
                  browsers and no support at all from recent ones. It is
                  strongly recommended not to use it for anything else than
                  experimentation. This setting is only available when support
-                 for zlib was built in.
+                 for zlib or libslz was built in.
 
     raw-deflate  same as "deflate" without the zlib wrapper, and used as an
                  alternative when the browser wants "deflate". All major
@@ -2517,7 +2517,7 @@ compression offload
                  and some versions of Safari. Do not use it in conjunction
                  with "deflate", use either one or the other since both react
                  to the same Accept-Encoding token. This setting is only
-                 available when support for zlib was built in.
+                 available when support for zlib or libslz was built in.
 
   Compression will be activated depending on the Accept-Encoding request
   header. With identity, it does not take care of that header.
