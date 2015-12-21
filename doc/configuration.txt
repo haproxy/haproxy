@@ -3066,7 +3066,7 @@ email-alert myhostname <hostname>
 
   Arguments :
 
-    <emailaddr> is the to email address to use when sending email alerts
+    <hostname> is the hostname to use when communicating with mailers
 
   By default the systems hostname is used.
 
