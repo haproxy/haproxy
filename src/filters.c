@@ -687,13 +687,19 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 end:
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
-	if (!(s->req.analysers & AN_FLT_END) &&
-	    !(s->res.analysers & AN_FLT_END) &&
-	    s->txn && (s->txn->flags & TX_WAIT_NEXT_RQ)) {
+
+	/* Check if 'channel_end_analyze' callback has been called for the
+	 * request and the response. */
+	if (!(s->req.analysers & AN_FLT_END) && !(s->res.analysers & AN_FLT_END)) {
 		struct filter *filter, *back;
 
-		s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
-		s->res.analysers = 0;
+		/* When we are waiting for a new request, so we must reset
+		 * stream analyzers. The input must not be closed the request
+		 * channel, else it is useless to wait. */
+		if (s->txn && (s->txn->flags & TX_WAIT_NEXT_RQ) && !channel_input_closed(&s->req)) {
+			s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
+			s->res.analysers = 0;
+		}
 
 		list_for_each_entry_safe(filter, back, &s->strm_flt.filters, list) {
 			if (filter->is_backend_filter) {
