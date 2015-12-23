@@ -362,11 +362,12 @@ static inline int si_connect(struct stream_interface *si)
 		/* we're in the process of establishing a connection */
 		si->state = SI_ST_CON;
 	}
-	else if (!channel_is_empty(si_oc(si))) {
-		/* reuse the existing connection, we'll have to send a
-		 * request there.
-		 */
-		conn_data_want_send(conn);
+	else {
+		/* reuse the existing connection */
+		if (!channel_is_empty(si_oc(si))) {
+			/* we'll have to send a request there. */
+			conn_data_want_send(conn);
+		}
 
 		/* the connection is established */
 		si->state = SI_ST_EST;
