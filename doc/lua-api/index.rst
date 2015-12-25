@@ -1094,13 +1094,6 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :param string var: The variable name according with the HAProxy variable syntax.
 
-.. js:function:: TXN.get_headers(txn)
-
-  This function returns an array of headers.
-
-  :param class_txn txn: The class txn object containing the data.
-  :returns: an array of headers.
-
 .. js:function:: TXN.done(txn)
 
   This function terminates processing of the transaction and the associated
