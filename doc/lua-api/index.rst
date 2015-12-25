@@ -1109,12 +1109,6 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
 
-
-
-
-
-
-
 .. js:function:: TXN.set_loglevel(txn, loglevel)
 
   Is used to change the log level of the current request. The "loglevel" must
@@ -1488,7 +1482,7 @@ AppletHTTP class
   transaction, so some sample fecthes related to the HTTP dependant
   values (hdr, path, ...) are not available.
 
-.. js:attribute:: AppletHTTP.method (string)
+.. js:attribute:: AppletHTTP.method
 
   :returns: string
 
@@ -1539,60 +1533,67 @@ AppletHTTP class
   AppletHTTP.headers["host"][0] = "www.test.com"
   AppletHTTP.headers["accept"][0] = "audio/basic q=1"
   AppletHTTP.headers["accept"][1] = "audio/*, q=0.2"
-  AppletHTTP.headers["accept"][2] = "*.*, q=0.1"
+  AppletHTTP.headers["accept"][2] = "*/*, q=0.1"
 ..
 
 .. js:attribute:: AppletHTTP.headers
 
   Contains an array containing all the request headers.
 
-.. js:function:: AppletHTTP.set_status(code)
+.. js:function:: AppletHTTP.set_status(applet, code)
 
   This function sets the HTTP status code for the response. The allowed code are
   from 100 to 599.
 
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param integer code: the status code returned to the client.
 
-.. js:function:: AppletHTTP.add_header(name, value)
+.. js:function:: AppletHTTP.add_header(applet, name, value)
 
   This function add an header in the response. Duplicated headers are not
   collapsed. The special header *content-length* is used to determinate the
   response length. If it not exists, a *transfer-encoding: chunked* is set, and
   all the write from the funcion *AppletHTTP:send()* become a chunk.
 
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string name: the header name
   :param string value: the header value
 
-.. js:function:: AppletHTTP.start_response()
+.. js:function:: AppletHTTP.start_response(applet)
 
   This function indicates to the HTTP engine that it can process and send the
   response headers. After this called we cannot add headers to the response; We
   cannot use the *AppletHTTP:send()* function if the
   *AppletHTTP:start_response()* is not called.
 
-.. js:function:: AppletHTTP.getline()
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+
+.. js:function:: AppletHTTP.getline(applet)
 
   This function returns a string containing one line from the http body. If the
   data returned doesn't contains a final '\\n' its assumed than its the last
   available data before the end of stream.
 
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :returns: a string. The string can be empty if we reach the end of the stream.
 
-.. js:function:: AppletHTTP.receive([size])
+.. js:function:: AppletHTTP.receive(applet, [size])
 
   Reads data from the HTTP body, according to the specified read *size*. If the
   *size* is missing, the function tries to read all the content of the stream
   until the end. If the *size* is bigger than the http body, it returns the
   amount of data avalaible.
 
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param integer size: the required read size.
   :returns: always return a string,the string can be empty is the connexion is
             closed.
 
-.. js:function:: AppletHTTP.send(msg)
+.. js:function:: AppletHTTP.send(applet, msg)
 
   Send the message *msg* on the http request body.
 
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string msg: the message to send.
 
 .. _applettcp_class:
@@ -1631,28 +1632,31 @@ AppletTCP class
 
   This attribute contains a Fetches class object.
 
-.. js:function:: AppletTCP.getline()
+.. js:function:: AppletTCP.getline(applet)
 
   This function returns a string containing one line from the stream. If the
   data returned doesn't contains a final '\\n' its assumed than its the last
   available data before the end of stream.
 
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
   :returns: a string. The string can be empty if we reach the end of the stream.
 
-.. js:function:: AppletTCP.receive([size])
+.. js:function:: AppletTCP.receive(applet, [size])
 
   Reads data from the TCP stream, according to the specified read *size*. If the
   *size* is missing, the function tries to read all the content of the stream
   until the end.
 
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param integer size: the required read size.
   :returns: always return a string,the string can be empty is the connexion is
             closed.
 
-.. js:function:: AppletTCP.send(msg)
+.. js:function:: AppletTCP.send(appletmsg)
 
   Send the message on the stream.
 
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param string msg: the message to send.
 
 External Lua libraries
