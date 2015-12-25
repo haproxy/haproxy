@@ -1596,6 +1596,24 @@ AppletHTTP class
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string msg: the message to send.
 
+.. js:function:: AppletHTTP.get_priv(applet)
+
+  Return Lua data stored in the current transaction (with the
+  `AppletHTTP.set_priv()`) function. If no data are stored, it returns a nil
+  value.
+
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+  :returns: the opaque data previsously stored, or nil if nothing is
+     avalaible.
+
+.. js:function:: AppletHTTP.set_priv(applet, data)
+
+  Store any data in the current HAProxy transaction. This action replace the
+  old stored data.
+
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+  :param opaque data: The data which is stored in the transaction.
+
 .. _applettcp_class:
 
 AppletTCP class
@@ -1658,6 +1676,24 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param string msg: the message to send.
+
+.. js:function:: AppletTCP.get_priv(applet)
+
+  Return Lua data stored in the current transaction (with the
+  `AppletTCP.set_priv()`) function. If no data are stored, it returns a nil
+  value.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :returns: the opaque data previsously stored, or nil if nothing is
+     avalaible.
+
+.. js:function:: AppletTCP.set_priv(applet, data)
+
+  Store any data in the current HAProxy transaction. This action replace the
+  old stored data.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :param opaque data: The data which is stored in the transaction.
 
 External Lua libraries
 ======================

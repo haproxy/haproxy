@@ -3254,6 +3254,37 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 	return 1;
 }
 
+__LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream *s = appctx->htxn.s;
+	struct hlua *hlua = &s->hlua;
+
+	MAY_LJMP(check_args(L, 2, "set_priv"));
+
+	/* Remove previous value. */
+	if (hlua->Mref != -1)
+		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+
+	/* Get and store new value. */
+	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
+	hlua->Mref = luaL_ref(L, LUA_REGISTRYINDEX); /* pop the previously pushed value. */
+
+	return 0;
+}
+
+__LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream *s = appctx->htxn.s;
+	struct hlua *hlua = &s->hlua;
+
+	/* Push configuration index in the stack. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
+
+	return 1;
+}
+
 /* If expected data not yet available, it returns a yield. This function
  * consumes the data in the buffer. It returns a string containing the
  * data. This string can be empty.
@@ -3592,6 +3623,37 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	/* Pop a class stream metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_applet_http_ref);
 	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+__LJMP static int hlua_applet_http_set_priv(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream *s = appctx->htxn.s;
+	struct hlua *hlua = &s->hlua;
+
+	MAY_LJMP(check_args(L, 2, "set_priv"));
+
+	/* Remove previous value. */
+	if (hlua->Mref != -1)
+		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+
+	/* Get and store new value. */
+	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
+	hlua->Mref = luaL_ref(L, LUA_REGISTRYINDEX); /* pop the previously pushed value. */
+
+	return 0;
+}
+
+__LJMP static int hlua_applet_http_get_priv(lua_State *L)
+{
+	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream *s = appctx->htxn.s;
+	struct hlua *hlua = &s->hlua;
+
+	/* Push configuration index in the stack. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
 
 	return 1;
 }
@@ -6826,9 +6888,11 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "getline", hlua_applet_tcp_getline);
-	hlua_class_function(gL.T, "receive", hlua_applet_tcp_recv);
-	hlua_class_function(gL.T, "send",    hlua_applet_tcp_send);
+	hlua_class_function(gL.T, "getline",  hlua_applet_tcp_getline);
+	hlua_class_function(gL.T, "receive",  hlua_applet_tcp_recv);
+	hlua_class_function(gL.T, "send",     hlua_applet_tcp_send);
+	hlua_class_function(gL.T, "set_priv", hlua_applet_tcp_set_priv);
+	hlua_class_function(gL.T, "get_priv", hlua_applet_tcp_get_priv);
 
 	lua_settable(gL.T, -3);
 
@@ -6857,6 +6921,8 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
+	hlua_class_function(gL.T, "set_priv",       hlua_applet_http_set_priv);
+	hlua_class_function(gL.T, "get_priv",       hlua_applet_http_get_priv);
 	hlua_class_function(gL.T, "getline",        hlua_applet_http_getline);
 	hlua_class_function(gL.T, "receive",        hlua_applet_http_recv);
 	hlua_class_function(gL.T, "send",           hlua_applet_http_send);
