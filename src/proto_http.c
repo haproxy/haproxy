@@ -11497,7 +11497,7 @@ static inline int fix_pointer_if_wrap(const char **chunks, const char **ptr)
  * Example: if query_string is "yo=mama;ye=daddy" and url_param_name is "ye",
  * the function will return query_string+8.
  *
- * Warning:this function returns a pointer that can be point to the first chunk
+ * Warning: this function returns a pointer that can point to the first chunk
  * or the second chunk. The caller must be check the position before using the
  * result.
  */
@@ -11513,7 +11513,7 @@ find_url_param_pos(const char **chunks,
 
 	pos  = bufs[0];
 	last = bufs[1];
-	while (pos <= last) {
+	while (pos < last) {
 		/* Check the equal. */
 		equal = pos + url_param_name_l;
 		if (fix_pointer_if_wrap(chunks, &equal)) {
@@ -11552,8 +11552,8 @@ find_url_param_pos(const char **chunks,
 
 			} else {
 				/* process a simple comparison. */
-				if (memcmp(pos, url_param_name, url_param_name_l) == 0) {
-					return pos; }
+				if (memcmp(pos, url_param_name, url_param_name_l) == 0)
+					return pos;
 				pos += url_param_name_l + 1;
 				if (fix_pointer_if_wrap(chunks, &pos))
 					last = bufs[2];
@@ -11562,7 +11562,7 @@ find_url_param_pos(const char **chunks,
 
 		while (1) {
 			/* Look for the next delimiter. */
-			while (pos <= last && !is_param_delimiter(*pos, delim))
+			while (pos < last && !is_param_delimiter(*pos, delim))
 				pos++;
 			if (pos < last)
 				break;
@@ -11601,7 +11601,7 @@ find_next_url_param(const char **chunks,
 		                               url_param_name, url_param_name_l,
 		                               delim);
 		/* Check for wrapping. */
-		if (arg_start > qs_end)
+		if (arg_start >= qs_end)
 			qs_end = chunks[3];
 	}
 	if (!arg_start)
@@ -11612,10 +11612,9 @@ find_next_url_param(const char **chunks,
 			/* looks for the first argument. */
 			value_start = memchr(arg_start, '=', qs_end - arg_start);
 			if (!value_start) {
-
 				/* Check for wrapping. */
 				if (arg_start >= chunks[0] &&
-				    arg_start <= chunks[1] &&
+				    arg_start < chunks[1] &&
 				    chunks[2]) {
 					arg_start = chunks[2];
 					qs_end = chunks[3];
@@ -11637,7 +11636,7 @@ find_next_url_param(const char **chunks,
 			qs_end = chunks[3];
 
 			/* Check for overflow. */
-			if (value_start > qs_end)
+			if (value_start >= qs_end)
 				return 0;
 		}
 	}
@@ -11651,7 +11650,7 @@ find_next_url_param(const char **chunks,
 			break;
 		/* process buffer wrapping. */
 		if (value_end >= chunks[0] &&
-		    value_end <= chunks[1] &&
+		    value_end < chunks[1] &&
 		    chunks[2]) {
 			value_end = chunks[2];
 			qs_end = chunks[3];
