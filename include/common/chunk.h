@@ -102,6 +102,44 @@ static inline int chunk_strcpy(struct chunk *chk, const char *str)
 	return 1;
 }
 
+/* appends str after <chk> followed by a trailing zero. Returns 0 in
+ * case of failure.
+ */
+static inline int chunk_strcat(struct chunk *chk, const char *str)
+{
+	size_t len;
+
+	len = strlen(str);
+
+	if (unlikely(chk->len + len >= chk->size))
+		return 0;
+
+	memcpy(chk->str + chk->len, str, len + 1);
+	chk->len += len;
+	return 1;
+}
+
+/* Adds a trailing zero to the current chunk and returns the pointer to the
+ * following part. The purpose is to be able to use a chunk as a series of
+ * short independant strings with chunk_* functions, which do not need to be
+ * released. Returns NULL if no space is available to ensure that the new
+ * string will have its own trailing zero. For example :
+ *   chunk_init(&trash);
+ *   pid = chunk_newstr(&trash);
+ *   chunk_appendf(&trash, "%d", getpid()));
+ *   name = chunk_newstr(&trash);
+ *   chunk_appendf(&trash, "%s", gethosname());
+ *   printf("hostname=<%s>, pid=<%d>\n", name, pid);
+ */
+static inline char *chunk_newstr(struct chunk *chk)
+{
+	if (chk->len + 1 >= chk->size)
+		return NULL;
+
+	chk->str[chk->len++] = 0;
+	return chk->str + chk->len;
+}
+
 static inline void chunk_drop(struct chunk *chk)
 {
 	chk->str  = NULL;
