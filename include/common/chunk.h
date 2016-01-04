@@ -84,17 +84,20 @@ static inline void chunk_initstr(struct chunk *chk, char *str)
 	chk->size = 0;			/* mark it read-only */
 }
 
+/* copies str into <chk> followed by a trailing zero. Returns 0 in
+ * case of failure.
+ */
 static inline int chunk_strcpy(struct chunk *chk, const char *str)
 {
 	size_t len;
 
 	len = strlen(str);
 
-	if (unlikely(len > chk->size))
+	if (unlikely(len >= chk->size))
 		return 0;
 
 	chk->len  = len;
-	memcpy(chk->str, str, len);
+	memcpy(chk->str, str, len + 1);
 
 	return 1;
 }
