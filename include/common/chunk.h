@@ -117,18 +117,28 @@ static inline void chunk_destroy(struct chunk *chk)
 
 /*
  * frees the destination chunk if already allocated, allocates a new string,
- * and copies the source into it. The pointer to the destination string is
- * returned, or NULL if the allocation fails or if any pointer is NULL..
+ * and copies the source into it. The new chunk will have extra room for a
+ * trailing zero unless the source chunk was actually full. The pointer to
+ * the destination string is returned, or NULL if the allocation fails or if
+ * any pointer is NULL.
  */
 static inline char *chunk_dup(struct chunk *dst, const struct chunk *src)
 {
 	if (!dst || !src || !src->str)
 		return NULL;
-	if (dst->str)
+
+	if (dst->size)
 		free(dst->str);
 	dst->len = src->len;
-	dst->str = (char *)malloc(dst->len);
+	dst->size = src->len;
+	if (dst->size < src->size || !src->size)
+		dst->size++;
+
+	dst->str = (char *)malloc(dst->size);
 	memcpy(dst->str, src->str, dst->len);
+	if (dst->len < dst->size)
+		dst->str[dst->len] = 0;
+
 	return dst->str;
 }
 
