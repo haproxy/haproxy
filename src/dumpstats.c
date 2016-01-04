@@ -3229,13 +3229,55 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	int i;
 
 	if (!(px->cap & PR_CAP_FE))
 		return 0;
 
 	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
 		return 0;
+
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
+	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
+	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
+	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
+	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
+	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+	}
+
+	/* requests : req_rate, req_rate_max, req_tot, */
+	stats[ST_F_REQ_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
+	stats[ST_F_REQ_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
+	stats[ST_F_REQ_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
+
+	/* compression: in, out, bypassed, responses */
+	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
+	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
+	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
+	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash,
@@ -3377,73 +3419,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              px->state == PR_STFULL ? "FULL" : "STOP");
 	}
 	else { /* CSV mode */
-		chunk_appendf(&trash,
-		              /* pxid, name, queue cur, queue max, */
-		              "%s,FRONTEND,,,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%d,%lld,"
-		              /* bytes : in, out */
-		              "%lld,%lld,"
-		              /* denied: req, resp */
-		              "%lld,%lld,"
-		              /* errors : request, connect, response */
-		              "%lld,,,"
-		              /* warnings: retries, redispatches */
-		              ",,"
-		              /* server status : reflect frontend status */
-		              "%s,"
-		              /* rest of server: nothing */
-		              ",,,,,,,,"
-		              /* pid, iid, sid, throttle, lbtot, tracked, type */
-		              "%d,%d,0,,,,%d,"
-		              /* rate, rate_lim, rate_max */
-		              "%u,%u,%u,"
-		              /* check_status, check_code, check_duration */
-		              ",,,",
-		              px->id,
-		              px->feconn, px->fe_counters.conn_max, px->maxconn, px->fe_counters.cum_sess,
-		              px->fe_counters.bytes_in, px->fe_counters.bytes_out,
-		              px->fe_counters.denied_req, px->fe_counters.denied_resp,
-		              px->fe_counters.failed_req,
-		              px->state == PR_STREADY ? "OPEN" :
-		              px->state == PR_STFULL ? "FULL" : "STOP",
-		              relative_pid, px->uuid, STATS_TYPE_FE,
-		              read_freq_ctr(&px->fe_sess_per_sec),
-		              px->fe_sps_lim, px->fe_counters.sps_max);
-
-		/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
-			for (i=1; i<6; i++)
-				chunk_appendf(&trash, "%lld,", px->fe_counters.p.http.rsp[i]);
-			chunk_appendf(&trash, "%lld,", px->fe_counters.p.http.rsp[0]);
-		}
-		else
-			chunk_appendf(&trash, ",,,,,,");
-
-		/* failed health analyses */
-		chunk_appendf(&trash, ",");
-
-		/* requests : req_rate, req_rate_max, req_tot, */
-		chunk_appendf(&trash, "%u,%u,%lld,",
-		              read_freq_ctr(&px->fe_req_per_sec),
-		              px->fe_counters.p.http.rps_max, px->fe_counters.p.http.cum_req);
-
-		/* errors: cli_aborts, srv_aborts */
-		chunk_appendf(&trash, ",,");
-
-		/* compression: in, out, bypassed */
-		chunk_appendf(&trash, "%lld,%lld,%lld,",
-		              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp);
-
-		/* compression: comp_rsp */
-		chunk_appendf(&trash, "%lld,",
-		              px->fe_counters.p.http.comp_rsp);
-
-		/* lastsess, last_chk, last_agt, qtime, ctime, rtime, ttime, */
-		chunk_appendf(&trash, ",,,,,,,");
-
-		/* finish with EOL */
-		chunk_appendf(&trash, "\n");
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
 	}
 	return 1;
 }
