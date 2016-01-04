@@ -396,6 +396,9 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_TTIME]          = "ttime",
 };
 
+/* one line of stats */
+static struct field stats[ST_F_TOTAL_FIELDS];
+
 static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
@@ -3201,6 +3204,21 @@ static int stats_dump_pools_to_buffer(struct stream_interface *si)
 		si_applet_cant_put(si);
 		return 0;
 	}
+	return 1;
+}
+
+/* Dump all fields from <stats> into <out> using CSV format */
+static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
+{
+	int field;
+
+	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+		if (!stats_emit_raw_data_field(out, &stats[field]))
+			return 0;
+		if (!chunk_strcat(out, ","))
+			return 0;
+	}
+	chunk_strcat(&trash, "\n");
 	return 1;
 }
 
