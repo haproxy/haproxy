@@ -741,24 +741,13 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
  */
 static void stats_dump_csv_header()
 {
-	chunk_appendf(&trash,
-	              "# pxname,svname,"
-	              "qcur,qmax,"
-	              "scur,smax,slim,stot,"
-	              "bin,bout,"
-	              "dreq,dresp,"
-	              "ereq,econ,eresp,"
-	              "wretr,wredis,"
-	              "status,weight,act,bck,"
-	              "chkfail,chkdown,lastchg,downtime,qlimit,"
-	              "pid,iid,sid,throttle,lbtot,tracked,type,"
-	              "rate,rate_lim,rate_max,"
-	              "check_status,check_code,check_duration,"
-	              "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
-	              "req_rate,req_rate_max,req_tot,"
-	              "cli_abrt,srv_abrt,"
-	              "comp_in,comp_out,comp_byp,comp_rsp,lastsess,last_chk,last_agt,qtime,ctime,rtime,ttime,"
-	              "\n");
+	int field;
+
+	chunk_appendf(&trash, "# ");
+	for (field = 0; field < ST_F_TOTAL_FIELDS; field++)
+		chunk_appendf(&trash, "%s,", stat_field_names[field]);
+
+	chunk_appendf(&trash, "\n");
 }
 
 /* print a string of text buffer to <out>. The format is :
