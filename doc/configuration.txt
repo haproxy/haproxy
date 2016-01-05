@@ -9668,10 +9668,10 @@ crt <cert>
   valid Signed Certificate Timestamp List, as described in RFC. File is parsed
   to check basic syntax, but no signatures are verified.
 
-  There are cases where it is desirable support multiple key types (RSA/ECDSA)
-  in the cipher suites offered to the clients. This allows clients that support
-  EC certificates to be able to use EC ciphers, while simultaneously supporting
-  older, RSA only clients.
+  There are cases where it is desirable to support multiple key types, e.g. RSA
+  and ECDSA in the cipher suites offered to the clients. This allows clients
+  that support EC certificates to be able to use EC ciphers, while
+  simultaneously supporting older, RSA only clients.
 
   In order to provide this functionality, multiple PEM files, each with a
   different key type, are required. To associate these PEM files into a
@@ -9685,7 +9685,7 @@ crt <cert>
 
   Example :  bind :8443 ssl crt example.pem
 
-  Note that the suffix is not given to haproxy, this tells haproxy to look for
+  Note that the suffix is not given to haproxy; this tells haproxy to look for
   a cert bundle.
 
   Haproxy will load all PEM files in the bundle at the same time to try to
@@ -9700,7 +9700,7 @@ crt <cert>
               Filename     |       CN        |        SAN
         -------------------+-----------------+-------------------
          example.pem.rsa   | www.example.com | rsa.example.com
-        -------------------+-----------------+--+----------------
+        -------------------+-----------------+-------------------
          example.pem.ecdsa | www.example.com | ecdsa.example.com
         -------------------+-----------------+-------------------
 
@@ -9739,8 +9739,8 @@ crt-list <file>
   certificate is still needed to meet OpenSSL expectations. If it is not used,
   the 'strict-sni' option may be used.
 
-  Multi-cert bundling (see "crt") is support with crt-list, as long as only the
-  base name is given in the crt-list. Due to the nature of bundling, all SNI
+  Multi-cert bundling (see "crt") is supported with crt-list, as long as only
+  the base name is given in the crt-list. Due to the nature of bundling, all SNI
   filters given to a multi-cert bundle entry are ignored.
 
 defer-accept
