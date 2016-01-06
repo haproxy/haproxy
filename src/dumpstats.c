@@ -3433,6 +3433,25 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
+	stats[ST_F_SCUR]     = mkf_u32(0, l->nbconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, l->counters->conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, l->counters->cum_conn);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, l->counters->bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, l->counters->bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, l->counters->denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
+	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? "OPEN" : "FULL");
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash, "<tr class=socket>");
 		if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
@@ -3506,50 +3525,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	}
 	else { /* CSV mode */
-		chunk_appendf(&trash,
-		              /* pxid, name, queue cur, queue max, */
-		              "%s,%s,,,"
-		              /* sessions: current, max, limit, total */
-		              "%d,%d,%d,%lld,"
-		              /* bytes: in, out */
-		              "%lld,%lld,"
-		              /* denied: req, resp */
-		              "%lld,%lld,"
-		              /* errors: request, connect, response */
-		              "%lld,,,"
-		              /* warnings: retries, redispatches */
-		              ",,"
-		              /* server status: reflect listener status */
-		              "%s,"
-		              /* rest of server: nothing */
-		              ",,,,,,,,"
-		              /* pid, iid, sid, throttle, lbtot, tracked, type */
-		              "%d,%d,%d,,,,%d,"
-		              /* rate, rate_lim, rate_max */
-		              ",,,"
-		              /* check_status, check_code, check_duration */
-		              ",,,"
-		              /* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		              ",,,,,,"
-		              /* failed health analyses */
-		              ","
-		              /* requests : req_rate, req_rate_max, req_tot, */
-		              ",,,"
-		              /* errors: cli_aborts, srv_aborts */
-		              ",,"
-		              /* compression: in, out, bypassed, comp_rsp */
-		              ",,,,"
-			      /* lastsess, last_chk, last_agt, qtime, ctime, rtime, ttime, */
-			      ",,,,,,,"
-		              "\n",
-		              px->id, l->name,
-		              l->nbconn, l->counters->conn_max,
-		              l->maxconn, l->counters->cum_conn,
-		              l->counters->bytes_in, l->counters->bytes_out,
-		              l->counters->denied_req, l->counters->denied_resp,
-		              l->counters->failed_req,
-		              (l->nbconn < l->maxconn) ? "OPEN" : "FULL",
-		              relative_pid, px->uuid, l->luid, STATS_TYPE_SO);
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
 	}
 	return 1;
 }
