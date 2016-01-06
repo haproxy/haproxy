@@ -4093,7 +4093,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<a class=lfsb href=\"#%s/Backend\">Backend</a>"
 		              "",
 		              (flags & ST_SHLGNDS)?"<u>":"",
-		              px->id, px->id);
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_PXNAME));
 
 		if (flags & ST_SHLGNDS) {
 			/* balancing */
@@ -4118,8 +4118,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
 		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H(px->nbpend) /* or px->totpend ? */, U2H(px->be_counters.nbpend_max),
-		              U2H(read_freq_ctr(&px->be_sess_per_sec)), U2H(px->be_counters.sps_max));
+		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32),
+		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
@@ -4127,9 +4127,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H(px->beconn), U2H(px->be_counters.conn_max), U2H(px->fullconn),
-		              U2H(px->be_counters.cum_conn),
-		              U2H(px->be_counters.cum_conn));
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_STOT].u.u64),
+		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
@@ -4145,24 +4145,24 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
 				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
 			              "",
-			              U2H(px->be_counters.p.http.cum_req),
-			              U2H(px->be_counters.p.http.rsp[1]),
-			              U2H(px->be_counters.p.http.rsp[2]),
-			              U2H(px->be_counters.p.http.comp_rsp),
-			              px->be_counters.p.http.rsp[2] ?
-			              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.rsp[2]) : 0,
-			              U2H(px->be_counters.p.http.rsp[3]),
-			              U2H(px->be_counters.p.http.rsp[4]),
-			              U2H(px->be_counters.p.http.rsp[5]),
-			              U2H(px->be_counters.p.http.rsp[0]),
+			              U2H(stats[ST_F_REQ_TOT].u.u64),
+			              U2H(stats[ST_F_HRSP_1XX].u.u64),
+			              U2H(stats[ST_F_HRSP_2XX].u.u64),
+			              U2H(stats[ST_F_COMP_RSP].u.u64),
+			              stats[ST_F_HRSP_2XX].u.u64 ?
+			              (int)(100 * stats[ST_F_COMP_RSP].u.u64 / stats[ST_F_HRSP_2XX].u.u64) : 0,
+			              U2H(stats[ST_F_HRSP_3XX].u.u64),
+			              U2H(stats[ST_F_HRSP_4XX].u.u64),
+			              U2H(stats[ST_F_HRSP_5XX].u.u64),
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
 			              U2H(px->be_counters.intercepted_req));
 		}
 
-		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES)));
-		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES)));
+		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
 		if (px->mode == PR_MODE_HTTP)
-			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES)));
-		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES)));
+			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
@@ -4171,9 +4171,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              /* bytes: in */
 		              "<td>%s</td>"
 		              "",
-		              U2H(px->be_counters.cum_lbconn),
-		              human_time(be_lastsession(px), 1),
-		              U2H(px->be_counters.bytes_in));
+		              U2H(stats[ST_F_LBTOT].u.u64),
+		              human_time(stats[ST_F_LASTSESS].u.s32, 1),
+		              U2H(stats[ST_F_BIN].u.u64));
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
@@ -4184,16 +4184,16 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 			      "<tr><th>Compression bypass:</th><td>%s</td></tr>"
 			      "<tr><th>Total bytes saved:</th><td>%s</td><td>(%d%%)</td></tr>"
 			      "</table></div>%s</td>",
-		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "<u>":"",
-		              U2H(px->be_counters.bytes_out),
-		              U2H(px->be_counters.bytes_out),
-		              U2H(px->be_counters.comp_in),
-			      U2H(px->be_counters.comp_out),
-			      px->be_counters.comp_in ? (int)(px->be_counters.comp_out * 100 / px->be_counters.comp_in) : 0,
-			      U2H(px->be_counters.comp_byp),
-			      U2H(px->be_counters.comp_in - px->be_counters.comp_out),
-			      px->be_counters.bytes_out ? (int)((px->be_counters.comp_in - px->be_counters.comp_out) * 100 / px->be_counters.bytes_out) : 0,
-		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "</u>":"");
+		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "<u>":"",
+		              U2H(stats[ST_F_BOUT].u.u64),
+		              U2H(stats[ST_F_BOUT].u.u64),
+		              U2H(stats[ST_F_COMP_IN].u.u64),
+			      U2H(stats[ST_F_COMP_OUT].u.u64),
+			      stats[ST_F_COMP_IN].u.u64 ? (int)(stats[ST_F_COMP_OUT].u.u64 * 100 / stats[ST_F_COMP_IN].u.u64) : 0,
+			      U2H(stats[ST_F_COMP_BYP].u.u64),
+			      U2H(stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_BYP].u.u64),
+			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
+		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
 
 		chunk_appendf(&trash,
 		              /* denied: req, resp */
@@ -4211,17 +4211,16 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
 		              "<td class=ac>%d</td><td class=ac>%d</td>"
 		              "",
-		              U2H(px->be_counters.denied_req), U2H(px->be_counters.denied_resp),
-		              U2H(px->be_counters.failed_conns),
-		              U2H(px->be_counters.failed_resp),
-		              px->be_counters.cli_aborts,
-		              px->be_counters.srv_aborts,
-		              px->be_counters.retries, px->be_counters.redispatches,
-		              human_time(now.tv_sec - px->last_change, 1),
-		              (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
-		              "<font color=\"red\"><b>DOWN</b></font>",
-		              (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
-		              px->srv_act, px->srv_bck);
+		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
+		              U2H(stats[ST_F_ECON].u.u64),
+		              U2H(stats[ST_F_ERESP].u.u64),
+		              (long long)stats[ST_F_CLI_ABRT].u.u64,
+		              (long long)stats[ST_F_SRV_ABRT].u.u64,
+		              (long long)stats[ST_F_WRETR].u.u64, (long long)stats[ST_F_WREDIS].u.u64,
+		              human_time(stats[ST_F_LASTCHG].u.u32, 1),
+		              strcmp(field_str(stats, ST_F_STATUS), "DOWN") ? field_str(stats, ST_F_STATUS) : "<font color=\"red\"><b>DOWN</b></font>",
+		              stats[ST_F_WEIGHT].u.u32,
+		              stats[ST_F_ACT].u.u32, stats[ST_F_BCK].u.u32);
 
 		chunk_appendf(&trash,
 		              /* rest of backend: nothing, down transitions, total downtime, throttle */
@@ -4229,8 +4228,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td>%s</td>"
 		              "<td></td>"
 		              "</tr>",
-		              px->down_trans,
-		              px->srv?human_time(be_downtime(px), 1):"&nbsp;");
+		              stats[ST_F_CHKDOWN].u.u32,
+		              px->srv ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
 	}
 	else { /* CSV mode */
 		/* dump everything */
