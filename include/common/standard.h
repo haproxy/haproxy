@@ -388,25 +388,34 @@ char *encode_chunk(char *start, char *stop,
  * the input string is null-terminated.
  *
  * If <quote> is 0, the result is returned escaped but without double quote.
- * Is it useful if the escaped string is used between double quotes in the
+ * It is useful if the escaped string is used between double quotes in the
  * format.
  *
- *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0));
+ *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0, &trash));
  *
- * If the <quote> is 1, the converter put the quotes only if any character is
- * escaped. If the <quote> is 2, the converter put always the quotes.
+ * If <quote> is 1, the converter puts the quotes only if any character is
+ * escaped. If <quote> is 2, the converter always puts the quotes.
  *
- * <output> is a struct chunk used for storing the output string if any
- * change will be done.
+ * <output> is a struct chunk used for storing the output string.
  *
- * The function returns the converted string on this output. If an error
- * occurs, the function return an empty string. This type of output is useful
+ * The function returns the converted string on its output. If an error
+ * occurs, the function returns an empty string. This type of output is useful
  * for using the function directly as printf() argument.
  *
- * If the output buffer is too short to conatin the input string, the result
+ * If the output buffer is too short to contain the input string, the result
  * is truncated.
+ *
+ * This function appends the encoding to the existing output chunk. Please
+ * use csv_enc() instead if you want to replace the output chunk.
  */
-const char *csv_enc(const char *str, int quote, struct chunk *output);
+const char *csv_enc_append(const char *str, int quote, struct chunk *output);
+
+/* same as above but the output chunk is reset first */
+static inline const char *csv_enc(const char *str, int quote, struct chunk *output)
+{
+	chunk_reset(output);
+	return csv_enc_append(str, quote, output);
+}
 
 /* Decode an URL-encoded string in-place. The resulting string might
  * be shorter. If some forbidden characters are found, the conversion is
