@@ -3463,9 +3463,9 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              "<td class=ac><a name=\"%s/+%s\"></a>%s"
 		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
 		              "",
-		              px->id, l->name,
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
 		              (flags & ST_SHLGNDS)?"<u>":"",
-		              px->id, l->name, l->name);
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
 		if (flags & ST_SHLGNDS) {
 			char str[INET6_ADDRSTRLEN];
@@ -3490,7 +3490,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 			}
 
 			/* id */
-			chunk_appendf(&trash, "id: %d</div>", l->luid);
+			chunk_appendf(&trash, "id: %d</div>", stats[ST_F_SID].u.u32);
 		}
 
 		chunk_appendf(&trash,
@@ -3505,8 +3505,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              "<td>%s</td><td>%s</td>"
 		              "",
 		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H(l->nbconn), U2H(l->counters->conn_max), U2H(l->maxconn),
-		              U2H(l->counters->cum_conn), U2H(l->counters->bytes_in), U2H(l->counters->bytes_out));
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_STOT].u.u64), U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64));
 
 		chunk_appendf(&trash,
 		              /* denied: req, resp */
@@ -3520,9 +3520,9 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              /* rest of server: nothing */
 		              "<td class=ac colspan=8></td></tr>"
 		              "",
-		              U2H(l->counters->denied_req), U2H(l->counters->denied_resp),
-		              U2H(l->counters->failed_req),
-		              (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
+		              U2H(stats[ST_F_EREQ].u.u64),
+		              (stats[ST_F_SCUR].u.u32 < stats[ST_F_SLIM].u.u32) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	}
 	else { /* CSV mode */
 		/* dump everything */
