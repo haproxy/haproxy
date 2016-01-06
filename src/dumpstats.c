@@ -3547,6 +3547,20 @@ enum srv_stats_state {
 	SRV_STATS_STATE_COUNT, /* Must be last */
 };
 
+static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
+	[SRV_STATS_STATE_DOWN]			= "DOWN",
+	[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent)",
+	[SRV_STATS_STATE_GOING_UP]		= "DOWN %d/%d",
+	[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d",
+	[SRV_STATS_STATE_UP]			= "UP",
+	[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d",
+	[SRV_STATS_STATE_NOLB]			= "NOLB",
+	[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d",
+	[SRV_STATS_STATE_DRAIN]			= "DRAIN",
+	[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
+	[SRV_STATS_STATE_NO_CHECK]		= "no check"
+};
+
 enum srv_stats_colour {
 	SRV_STATS_COLOUR_DOWN = 0,
 	SRV_STATS_COLOUR_GOING_UP,
@@ -3581,8 +3595,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	struct server *via, *ref;
 	char str[INET6_ADDRSTRLEN];
 	struct chunk src;
-	int i;
-
+	struct chunk *out = get_trash_chunk();
+	char *fld_status;
 	/* we have "via" which is the tracked server as described in the configuration,
 	 * and "ref" which is the checked server and the end of the chain.
 	 */
@@ -3590,6 +3604,116 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	ref = via;
 	while (ref->track)
 		ref = ref->track;
+
+	chunk_reset(out);
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
+	stats[ST_F_QCUR]     = mkf_u32(0, sv->nbpend);
+	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, sv->counters.nbpend_max);
+	stats[ST_F_SCUR]     = mkf_u32(0, sv->cur_sess);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
+
+	if (sv->maxconn)
+		stats[ST_F_SLIM] = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
+
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_secu);
+	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
+	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
+	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
+	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
+
+	/* status */
+	fld_status = chunk_newstr(out);
+	if (sv->admin & SRV_ADMF_IMAINT)
+		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
+	else if (sv->admin & SRV_ADMF_MAINT)
+		chunk_appendf(out, "MAINT");
+	else
+		chunk_appendf(out,
+			      srv_hlt_st[state],
+			      (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+			      (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
+
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
+	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
+	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
+
+	/* check failures: unique, fatal; last change, total downtime */
+	if (sv->check.state & CHK_ST_ENABLED) {
+		stats[ST_F_CHKFAIL]  = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
+		stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, sv->counters.down_trans);
+		stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
+		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, srv_downtime(sv));
+	}
+
+	if (sv->maxqueue)
+		stats[ST_F_QLIMIT]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
+
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
+
+	if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
+		stats[ST_F_THROTTLE] = mkf_u32(FN_AVG, server_throttle_rate(sv));
+
+	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
+
+	if (sv->track) {
+		char *fld_track = chunk_newstr(out);
+
+		chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
+		stats[ST_F_TRACKED] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
+	}
+
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
+	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
+	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, sv->counters.sps_max);
+
+	if (sv->check.state & CHK_ST_ENABLED) {
+		const char *fld_chksts;
+
+		fld_chksts = chunk_newstr(out);
+		chunk_strcat(out, get_check_status_info(sv->check.status));
+		stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+
+		if (sv->check.status >= HCHK_STATUS_L57DATA)
+			stats[ST_F_CHECK_CODE] = mkf_u32(FN_OUTPUT, sv->check.code);
+
+		if (sv->check.status >= HCHK_STATUS_CHECKED)
+			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
+	}
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_HRSP_1XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
+	}
+
+	stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
+	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
+	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
+
+	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
+
+	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
+
+	stats[ST_F_QTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES));
+	stats[ST_F_CTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES));
+	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
+	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
@@ -3686,6 +3810,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
 			unsigned long long tot;
+			int i;
 			for (tot = i = 0; i < 6; i++)
 				tot += sv->counters.p.http.rsp[i];
 
@@ -3847,161 +3972,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
 	else { /* CSV mode */
-		struct chunk *out = get_trash_chunk();
-		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
-			[SRV_STATS_STATE_DOWN]			= "DOWN,",
-			[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent),",
-			[SRV_STATS_STATE_GOING_UP]		= "DOWN %d/%d,",
-			[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d,",
-			[SRV_STATS_STATE_UP]			= "UP,",
-			[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d,",
-			[SRV_STATS_STATE_NOLB]			= "NOLB,",
-			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d,",
-			[SRV_STATS_STATE_DRAIN]			= "DRAIN,",
-			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent),",
-			[SRV_STATS_STATE_NO_CHECK]		= "no check,"
-		};
-
-		chunk_appendf(&trash,
-		              /* pxid, name */
-		              "%s,%s,"
-		              /* queue : current, max */
-		              "%d,%d,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%s,%lld,"
-		              /* bytes : in, out */
-		              "%lld,%lld,"
-		              /* denied: req, resp */
-		              ",%lld,"
-		              /* errors : request, connect, response */
-		              ",%lld,%lld,"
-		              /* warnings: retries, redispatches */
-		              "%lld,%lld,"
-		              "",
-		              px->id, sv->id,
-		              sv->nbpend, sv->counters.nbpend_max,
-		              sv->cur_sess, sv->counters.cur_sess_max, LIM2A(sv->maxconn, ""), sv->counters.cum_sess,
-		              sv->counters.bytes_in, sv->counters.bytes_out,
-		              sv->counters.failed_secu,
-		              sv->counters.failed_conns, sv->counters.failed_resp,
-		              sv->counters.retries, sv->counters.redispatches);
-
-		/* status */
-		if (sv->admin & SRV_ADMF_IMAINT)
-			chunk_appendf(&trash, "MAINT (via %s/%s),", via->proxy->id, via->id);
-		else if (sv->admin & SRV_ADMF_MAINT)
-			chunk_appendf(&trash, "MAINT,");
-		else
-			chunk_appendf(&trash,
-			              srv_hlt_st[state],
-			              (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			              (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
-
-		chunk_appendf(&trash,
-		              /* weight, active, backup */
-		              "%d,%d,%d,"
-		              "",
-		              (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
-		              (sv->flags & SRV_F_BACKUP) ? 0 : 1,
-		              (sv->flags & SRV_F_BACKUP) ? 1 : 0);
-
-		/* check failures: unique, fatal; last change, total downtime */
-		if (sv->check.state & CHK_ST_ENABLED)
-			chunk_appendf(&trash,
-			              "%lld,%lld,%d,%d,",
-			              sv->counters.failed_checks, sv->counters.down_trans,
-			              (int)(now.tv_sec - sv->last_change), srv_downtime(sv));
-		else
-			chunk_appendf(&trash, ",,,,");
-
-		/* queue limit, pid, iid, sid, */
-		chunk_appendf(&trash,
-		              "%s,"
-		              "%d,%d,%d,",
-		              LIM2A(sv->maxqueue, ""),
-		              relative_pid, px->uuid, sv->puid);
-
-		/* throttle */
-		if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
-			chunk_appendf(&trash, "%d", server_throttle_rate(sv));
-
-		/* sessions: lbtot */
-		chunk_appendf(&trash, ",%lld,", sv->counters.cum_lbconn);
-
-		/* tracked */
-		if (sv->track)
-			chunk_appendf(&trash, "%s/%s,",
-			              sv->track->proxy->id, sv->track->id);
-		else
-			chunk_appendf(&trash, ",");
-
-		/* type */
-		chunk_appendf(&trash, "%d,", STATS_TYPE_SV);
-
-		/* rate */
-		chunk_appendf(&trash, "%u,,%u,",
-		              read_freq_ctr(&sv->sess_per_sec),
-		              sv->counters.sps_max);
-
-		if (sv->check.state & CHK_ST_ENABLED) {
-			/* check_status */
-			chunk_appendf(&trash, "%s,", csv_enc(get_check_status_info(sv->check.status), 1, out));
-
-			/* check_code */
-			if (sv->check.status >= HCHK_STATUS_L57DATA)
-				chunk_appendf(&trash, "%u,", sv->check.code);
-			else
-				chunk_appendf(&trash, ",");
-
-			/* check_duration */
-			if (sv->check.status >= HCHK_STATUS_CHECKED)
-				chunk_appendf(&trash, "%lu,", sv->check.duration);
-			else
-				chunk_appendf(&trash, ",");
-
-		}
-		else
-			chunk_appendf(&trash, ",,,");
-
-		/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
-			for (i=1; i<6; i++)
-				chunk_appendf(&trash, "%lld,", sv->counters.p.http.rsp[i]);
-
-			chunk_appendf(&trash, "%lld,", sv->counters.p.http.rsp[0]);
-		}
-		else
-			chunk_appendf(&trash, ",,,,,,");
-
-		/* failed health analyses */
-		chunk_appendf(&trash, "%lld,",  sv->counters.failed_hana);
-
-		/* requests : req_rate, req_rate_max, req_tot, */
-		chunk_appendf(&trash, ",,,");
-
-		/* errors: cli_aborts, srv_aborts */
-		chunk_appendf(&trash, "%lld,%lld,",
-		              sv->counters.cli_aborts, sv->counters.srv_aborts);
-
-		/* compression: in, out, bypassed, comp_rsp */
-		chunk_appendf(&trash, ",,,,");
-
-		/* lastsess */
-		chunk_appendf(&trash, "%d,", srv_lastsession(sv));
-
-		/* capture of last check and agent statuses */
-		chunk_appendf(&trash, "%s,", ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? csv_enc(cstr(sv->check.desc), 1, out) : "");
-		chunk_appendf(&trash, "%s,", ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? csv_enc(cstr(sv->agent.desc), 1, out) : "");
-
-		/* qtime, ctime, rtime, ttime, */
-		chunk_appendf(&trash, "%u,%u,%u,%u,",
-		              swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES),
-		              swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES),
-		              swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES),
-		              swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
-
-		/* finish with EOL */
-		chunk_appendf(&trash, "\n");
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
 	}
 	return 1;
 }
