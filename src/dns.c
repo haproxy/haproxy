@@ -1164,6 +1164,7 @@ struct task *dns_process_resolve(struct task *t)
 {
 	struct dns_resolvers *resolvers = t->context;
 	struct dns_resolution *resolution, *res_back;
+	int res_preferred_afinet, res_preferred_afinet6;
 
 	/* timeout occurs inevitably for the first element of the FIFO queue */
 	if (LIST_ISEMPTY(&resolvers->curr_resolution)) {
@@ -1192,6 +1193,19 @@ struct task *dns_process_resolve(struct task *t)
 		}
 
 		resolution->try -= 1;
+
+		res_preferred_afinet = resolution->resolver_family_priority == AF_INET && resolution->query_type == DNS_RTYPE_A;
+		res_preferred_afinet6 = resolution->resolver_family_priority == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+
+		/* let's change the query type if needed */
+		if (res_preferred_afinet6) {
+			/* fallback from AAAA to A */
+			resolution->query_type = DNS_RTYPE_A;
+		}
+		else if (res_preferred_afinet) {
+			/* fallback from A to AAAA */
+			resolution->query_type = DNS_RTYPE_AAAA;
+		}
 
 		/* resend the DNS query */
 		dns_send_query(resolution);
