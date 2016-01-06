@@ -3640,6 +3640,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			      (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
+	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
 	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
@@ -3648,7 +3649,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	if (sv->check.state & CHK_ST_ENABLED) {
 		stats[ST_F_CHKFAIL]  = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
 		stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, sv->counters.down_trans);
-		stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
 		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, srv_downtime(sv));
 	}
 
@@ -3735,20 +3735,20 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		else
 			chunk_appendf(&trash,
 			              "<tr class=\"%s_%s\">",
-			              (sv->flags & SRV_F_BACKUP) ? "backup" : "active", srv_stats_colour_st[colour]);
+			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", srv_stats_colour_st[colour]);
 
 		if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
 			chunk_appendf(&trash,
 			              "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
-			              sv->id);
+			              field_str(stats, ST_F_SVNAME));
 
 		chunk_appendf(&trash,
 		              "<td class=ac><a name=\"%s/%s\"></a>%s"
 		              "<a class=lfsb href=\"#%s/%s\">%s</a>"
-			      "",
-		              px->id, sv->id,
+		              "",
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
 		              (flags & ST_SHLGNDS) ? "<u>" : "",
-		              px->id, sv->id, sv->id);
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
 		if (flags & ST_SHLGNDS) {
 			chunk_appendf(&trash, "<div class=tips>");
@@ -3771,13 +3771,13 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			}
 
 			/* id */
-			chunk_appendf(&trash, "id: %d", sv->puid);
+			chunk_appendf(&trash, "id: %d", stats[ST_F_SID].u.u32);
 
 			/* cookie */
 			if (sv->cookie) {
 				chunk_appendf(&trash, ", cookie: '");
 
-				chunk_initlen(&src, sv->cookie, 0, strlen(sv->cookie));
+				chunk_initstr(&src, sv->cookie);
 				chunk_htmlencode(&trash, &src);
 
 				chunk_appendf(&trash, "'");
@@ -3793,9 +3793,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
 		              (flags & ST_SHLGNDS) ? "</u>" : "",
-		              U2H(sv->nbpend), U2H(sv->counters.nbpend_max), LIM2A(sv->maxqueue, "-"),
-		              U2H(read_freq_ctr(&sv->sess_per_sec)), U2H(sv->counters.sps_max));
-
+		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32), LIM2A(stats[ST_F_QLIMIT].u.u32, "-"),
+		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
@@ -3803,16 +3802,20 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H(sv->cur_sess), U2H(sv->counters.cur_sess_max), LIM2A(sv->maxconn, "-"),
-		              U2H(sv->counters.cum_sess),
-		              U2H(sv->counters.cum_sess));
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), LIM2A(stats[ST_F_SLIM].u.u32, "-"),
+		              U2H(stats[ST_F_STOT].u.u64),
+		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
 			unsigned long long tot;
-			int i;
-			for (tot = i = 0; i < 6; i++)
-				tot += sv->counters.p.http.rsp[i];
+
+			tot  = stats[ST_F_HRSP_OTHER].u.u64;
+			tot += stats[ST_F_HRSP_1XX].u.u64;
+			tot += stats[ST_F_HRSP_2XX].u.u64;
+			tot += stats[ST_F_HRSP_3XX].u.u64;
+			tot += stats[ST_F_HRSP_4XX].u.u64;
+			tot += stats[ST_F_HRSP_5XX].u.u64;
 
 			chunk_appendf(&trash,
 			              "<tr><th>Cum. HTTP responses:</th><td>%s</td></tr>"
@@ -3824,27 +3827,27 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "",
 			              U2H(tot),
-			              U2H(sv->counters.p.http.rsp[1]), tot ? (int)(100*sv->counters.p.http.rsp[1] / tot) : 0,
-			              U2H(sv->counters.p.http.rsp[2]), tot ? (int)(100*sv->counters.p.http.rsp[2] / tot) : 0,
-			              U2H(sv->counters.p.http.rsp[3]), tot ? (int)(100*sv->counters.p.http.rsp[3] / tot) : 0,
-			              U2H(sv->counters.p.http.rsp[4]), tot ? (int)(100*sv->counters.p.http.rsp[4] / tot) : 0,
-			              U2H(sv->counters.p.http.rsp[5]), tot ? (int)(100*sv->counters.p.http.rsp[5] / tot) : 0,
-			              U2H(sv->counters.p.http.rsp[0]), tot ? (int)(100*sv->counters.p.http.rsp[0] / tot) : 0);
+			              U2H(stats[ST_F_HRSP_1XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_1XX].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_HRSP_2XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_2XX].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_HRSP_3XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_3XX].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_HRSP_4XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_4XX].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_HRSP_5XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_5XX].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_OTHER].u.u64 / tot) : 0);
 		}
 
 		chunk_appendf(&trash, "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>");
-		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES)));
-		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES)));
+		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_CTIME].u.u32));
 		if (px->mode == PR_MODE_HTTP)
-			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES)));
-		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES)));
+			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
 		              /* sessions: lbtot, last */
 		              "<td>%s</td><td>%s</td>",
-		              U2H(sv->counters.cum_lbconn),
-		              human_time(srv_lastsession(sv), 1));
+		              U2H(stats[ST_F_LBTOT].u.u64),
+		              human_time(stats[ST_F_LASTSESS].u.s32, 1));
 
 		chunk_appendf(&trash,
 		              /* bytes : in, out */
@@ -3858,28 +3861,36 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              /* warnings: retries, redispatches */
 		              "<td>%lld</td><td>%lld</td>"
 		              "",
-		              U2H(sv->counters.bytes_in), U2H(sv->counters.bytes_out),
-		              U2H(sv->counters.failed_secu),
-		              U2H(sv->counters.failed_conns),
-		              U2H(sv->counters.failed_resp),
-		              sv->counters.cli_aborts,
-		              sv->counters.srv_aborts,
-		              sv->counters.retries, sv->counters.redispatches);
+		              U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64),
+		              U2H(stats[ST_F_DRESP].u.u64),
+		              U2H(stats[ST_F_ECON].u.u64),
+		              U2H(stats[ST_F_ERESP].u.u64),
+		              (long long)stats[ST_F_CLI_ABRT].u.u64,
+		              (long long)stats[ST_F_SRV_ABRT].u.u64,
+		              (long long)stats[ST_F_WRETR].u.u64,
+			      (long long)stats[ST_F_WREDIS].u.u64);
 
-		/* status, lest check */
+		/* status, last change */
 		chunk_appendf(&trash, "<td class=ac>");
 
+		/* FIXME!!!!
+		 *   LASTCHG should contain the last change for *this* server and must be computed
+		 * properly above, as was done below, ie: this server if maint, otherwise ref server
+		 * if tracking. Note that ref is either local or remote depending on tracking.
+		 */
+
+
 		if (sv->admin & SRV_ADMF_MAINT) {
-			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - sv->last_change, 1));
+			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash, "MAINT");
 		}
 		else if ((ref->agent.state & CHK_ST_ENABLED) && !(sv->agent.health) && (ref->state == SRV_ST_STOPPED)) {
-			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
+			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			/* DOWN (agent) */
 			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
 		}
 		else if (ref->check.state & CHK_ST_ENABLED) {
-			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
+			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
 			              (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
@@ -3901,9 +3912,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 			chunk_appendf(&trash, "<div class=tips>%s",
 				      get_check_status_description(sv->agent.status));
-			if (*sv->agent.desc) {
+			if (*field_str(stats, ST_F_LAST_AGT)) {
 				chunk_appendf(&trash, ": ");
-				chunk_initlen(&src, sv->agent.desc, 0, strlen(sv->agent.desc));
+				chunk_initstr(&src, field_str(stats, ST_F_LAST_AGT));
 				chunk_htmlencode(&trash, &src);
 			}
 			chunk_appendf(&trash, "</div></u>");
@@ -3912,19 +3923,19 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
 			              (sv->check.state & CHK_ST_INPROGRESS) ? "* " : "",
-			              get_check_status_info(sv->check.status));
+			              field_str(stats, ST_F_CHECK_STATUS));
 
-			if (sv->check.status >= HCHK_STATUS_L57DATA)
-				chunk_appendf(&trash, "/%d", sv->check.code);
+			if (stats[ST_F_CHECK_CODE].type)
+				chunk_appendf(&trash, "/%d", stats[ST_F_CHECK_CODE].u.u32);
 
-			if (sv->check.status >= HCHK_STATUS_CHECKED && sv->check.duration >= 0)
-				chunk_appendf(&trash, " in %lums", sv->check.duration);
+			if (stats[ST_F_CHECK_DURATION].type && stats[ST_F_CHECK_DURATION].u.u64 >= 0)
+				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_CHECK_DURATION].u.u64);
 
 			chunk_appendf(&trash, "<div class=tips>%s",
 				      get_check_status_description(sv->check.status));
-			if (*sv->check.desc) {
+			if (*field_str(stats, ST_F_LAST_CHK)) {
 				chunk_appendf(&trash, ": ");
-				chunk_initlen(&src, sv->check.desc, 0, strlen(sv->check.desc));
+				chunk_initstr(&src, field_str(stats, ST_F_LAST_CHK));
 				chunk_htmlencode(&trash, &src);
 			}
 			chunk_appendf(&trash, "</div></u>");
@@ -3938,36 +3949,45 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              /* act, bck */
 		              "<td class=ac>%s</td><td class=ac>%s</td>"
 		              "",
-		              (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
-		              (sv->flags & SRV_F_BACKUP) ? "-" : "Y",
-		              (sv->flags & SRV_F_BACKUP) ? "Y" : "-");
+		              stats[ST_F_WEIGHT].u.u32,
+		              stats[ST_F_BCK].u.u32 ? "-" : "Y",
+		              stats[ST_F_BCK].u.u32 ? "Y" : "-");
+
+		/*
+		 * FIXME!!!
+		 * here we count failed_checks from the ref while the CSV counts
+		 * them from the server itself. The CSV needs to be fixed to use
+		 * the ref as well. Also HANAFAIL is only reported if ref->observe
+		 * while there's no such limit in the CSV.
+		 *
+		 */
 
 		/* check failures: unique, fatal, down time */
 		if (sv->check.state & CHK_ST_ENABLED) {
-			chunk_appendf(&trash, "<td><u>%lld", ref->counters.failed_checks);
+			chunk_appendf(&trash, "<td><u>%lld", (long long)stats[ST_F_CHKFAIL].u.u64);
 
 			if (ref->observe)
-				chunk_appendf(&trash, "/%lld", ref->counters.failed_hana);
+				chunk_appendf(&trash, "/%lld", (long long)stats[ST_F_HANAFAIL].u.u64);
 
 			chunk_appendf(&trash,
 			              "<div class=tips>Failed Health Checks%s</div></u></td>"
 			              "<td>%lld</td><td>%s</td>"
 			              "",
 			              ref->observe ? "/Health Analyses" : "",
-			              ref->counters.down_trans, human_time(srv_downtime(sv), 1));
+			              (long long)stats[ST_F_CHKDOWN].u.u64, human_time(stats[ST_F_DOWNTIME].u.u32, 1));
 		}
-		else if (!(sv->admin & SRV_ADMF_FMAINT) && sv != ref) {
+		else if (!(sv->admin & SRV_ADMF_FMAINT) && field_format(stats, ST_F_TRACKED) == FF_STR) {
 			/* tracking a server */
 			chunk_appendf(&trash,
-			              "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\">via %s/%s</a></td>",
-			              via->proxy->id, via->id, via->proxy->id, via->id);
+			              "<td class=ac colspan=3><a class=lfsb href=\"#%s\">via %s</a></td>",
+			              field_str(stats, ST_F_TRACKED), field_str(stats, ST_F_TRACKED));
 		}
 		else
 			chunk_appendf(&trash, "<td colspan=3></td>");
 
 		/* throttle */
-		if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
-			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", server_throttle_rate(sv));
+		if (stats[ST_F_THROTTLE].type)
+			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", stats[ST_F_THROTTLE].u.u32);
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
@@ -4075,7 +4095,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 			/* cookie */
 			if (px->cookie_name) {
 				chunk_appendf(&trash, ", cookie: '");
-				chunk_initlen(&src, px->cookie_name, 0, strlen(px->cookie_name));
+				chunk_initstr(&src, px->cookie_name);
 				chunk_htmlencode(&trash, &src);
 				chunk_appendf(&trash, "'");
 			}
