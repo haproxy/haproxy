@@ -4014,13 +4014,71 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct chunk src;
-	int i;
 
 	if (!(px->cap & PR_CAP_BE))
 		return 0;
 
 	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_BE)))
 		return 0;
+
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
+	stats[ST_F_QCUR]     = mkf_u32(0, px->nbpend);
+	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
+	stats[ST_F_SCUR]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->beconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->be_counters.conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
+	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
+	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
+	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, px->be_counters.retries);
+	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);
+	stats[ST_F_BCK]      = mkf_u32(0, px->srv_bck);
+	stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, px->down_trans);
+	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - px->last_change);
+	stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, px->srv ? be_downtime(px) : 0);
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
+	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
+	stats[ST_F_RATE]     = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
+	stats[ST_F_RATE_MAX] = mkf_u32(0, px->be_counters.sps_max);
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_REQ_TOT]     = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
+		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
+	}
+
+	stats[ST_F_CLI_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
+	stats[ST_F_SRV_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
+
+	/* compression: in, out, bypassed, responses */
+	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->be_counters.comp_in);
+	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->be_counters.comp_out);
+	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->be_counters.comp_byp);
+	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
+	stats[ST_F_LASTSESS]     = mkf_s32(FN_AGE, be_lastsession(px));
+
+	stats[ST_F_QTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES));
+	stats[ST_F_CTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES));
+	stats[ST_F_RTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES));
+	stats[ST_F_TTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash, "<tr class=\"backend\">");
@@ -4175,90 +4233,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              px->srv?human_time(be_downtime(px), 1):"&nbsp;");
 	}
 	else { /* CSV mode */
-		chunk_appendf(&trash,
-		              /* pxid, name */
-		              "%s,BACKEND,"
-		              /* queue : current, max */
-		              "%d,%d,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%d,%lld,"
-		              /* bytes : in, out */
-		              "%lld,%lld,"
-		              /* denied: req, resp */
-		              "%lld,%lld,"
-		              /* errors : request, connect, response */
-		              ",%lld,%lld,"
-		              /* warnings: retries, redispatches */
-		              "%lld,%lld,"
-		              /* backend status: reflect backend status (up/down): we display UP
-		               * if the backend has known working servers or if it has no server at
-		               * all (eg: for stats). Then we display the total weight, number of
-		               * active and backups. */
-		              "%s,"
-		              "%d,%d,%d,"
-		              /* rest of backend: nothing, down transitions, last change, total downtime */
-		              ",%d,%d,%d,,"
-		              /* pid, iid, sid, throttle, lbtot, tracked, type */
-		              "%d,%d,0,,%lld,,%d,"
-		              /* rate, rate_lim, rate_max, */
-		              "%u,,%u,"
-		              /* check_status, check_code, check_duration */
-		              ",,,",
-		              px->id,
-		              px->nbpend /* or px->totpend ? */, px->be_counters.nbpend_max,
-		              px->beconn, px->be_counters.conn_max, px->fullconn, px->be_counters.cum_conn,
-		              px->be_counters.bytes_in, px->be_counters.bytes_out,
-		              px->be_counters.denied_req, px->be_counters.denied_resp,
-		              px->be_counters.failed_conns, px->be_counters.failed_resp,
-		              px->be_counters.retries, px->be_counters.redispatches,
-		              (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
-		              (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
-		              px->srv_act, px->srv_bck,
-		              px->down_trans, (int)(now.tv_sec - px->last_change),
-		              px->srv?be_downtime(px):0,
-		              relative_pid, px->uuid,
-		              px->be_counters.cum_lbconn, STATS_TYPE_BE,
-		              read_freq_ctr(&px->be_sess_per_sec),
-		              px->be_counters.sps_max);
-
-		/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
-			for (i=1; i<6; i++)
-				chunk_appendf(&trash, "%lld,", px->be_counters.p.http.rsp[i]);
-			chunk_appendf(&trash, "%lld,", px->be_counters.p.http.rsp[0]);
-		}
-		else
-			chunk_appendf(&trash, ",,,,,,");
-
-		/* failed health analyses */
-		chunk_appendf(&trash, ",");
-
-		/* requests : req_rate, req_rate_max, req_tot, */
-		chunk_appendf(&trash, ",,,");
-
-		/* errors: cli_aborts, srv_aborts */
-		chunk_appendf(&trash, "%lld,%lld,",
-			      px->be_counters.cli_aborts, px->be_counters.srv_aborts);
-
-		/* compression: in, out, bypassed */
-		chunk_appendf(&trash, "%lld,%lld,%lld,",
-			      px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp);
-
-		/* compression: comp_rsp */
-		chunk_appendf(&trash, "%lld,", px->be_counters.p.http.comp_rsp);
-
-		/* lastsess, last_chk, last_agt, */
-		chunk_appendf(&trash, "%d,,,", be_lastsession(px));
-
-		/* qtime, ctime, rtime, ttime, */
-		chunk_appendf(&trash, "%u,%u,%u,%u,",
-		              swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES),
-		              swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES),
-		              swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES),
-		              swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
-
-		/* finish with EOL */
-		chunk_appendf(&trash, "\n");
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
 	}
 	return 1;
 }
