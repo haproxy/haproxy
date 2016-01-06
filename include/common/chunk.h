@@ -77,9 +77,10 @@ static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, int l
 	return 1;
 }
 
-static inline void chunk_initstr(struct chunk *chk, char *str)
+/* this is only for temporary manipulation, the chunk is read-only */
+static inline void chunk_initstr(struct chunk *chk, const char *str)
 {
-	chk->str = str;
+	chk->str = (char *)str;
 	chk->len = strlen(str);
 	chk->size = 0;			/* mark it read-only */
 }
