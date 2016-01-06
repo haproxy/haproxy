@@ -1188,21 +1188,19 @@ struct task *dns_process_resolve(struct task *t)
 
 			/* notify the result to the requester */
 			resolution->requester_error_cb(resolution, DNS_RESP_TIMEOUT);
+			goto out;
 		}
 
 		resolution->try -= 1;
 
-		/* check current resolution status */
-		if (resolution->step == RSLV_STEP_RUNNING) {
-			/* resend the DNS query */
-			dns_send_query(resolution);
+		/* resend the DNS query */
+		dns_send_query(resolution);
 
-			/* check if we have more than one resolution in the list */
-			if (dns_check_resolution_queue(resolvers) > 1) {
-				/* move the rsolution to the end of the list */
-				LIST_DEL(&resolution->list);
-				LIST_ADDQ(&resolvers->curr_resolution, &resolution->list);
-			}
+		/* check if we have more than one resolution in the list */
+		if (dns_check_resolution_queue(resolvers) > 1) {
+			/* move the rsolution to the end of the list */
+			LIST_DEL(&resolution->list);
+			LIST_ADDQ(&resolvers->curr_resolution, &resolution->list);
 		}
 	}
 
