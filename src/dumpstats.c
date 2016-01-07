@@ -3588,14 +3588,15 @@ static const char *srv_stats_colour_st[SRV_STATS_COLOUR_COUNT] = {
  * The caller is responsible for clearing the trash if needed. Returns non-zero
  * if it emits anything, zero otherwise.
  */
-static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv,
-			       enum srv_stats_state state, enum srv_stats_colour colour)
+static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct server *via, *ref;
 	char str[INET6_ADDRSTRLEN];
 	struct chunk src;
 	struct chunk *out = get_trash_chunk();
+	enum srv_stats_state state;
+	enum srv_stats_colour colour;
 	char *fld_status;
 	/* we have "via" which is the tracked server as described in the configuration,
 	 * and "ref" which is the checked server and the end of the chain.
@@ -3604,6 +3605,59 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	ref = via;
 	while (ref->track)
 		ref = ref->track;
+
+	if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
+		if ((ref->check.state & CHK_ST_ENABLED) &&
+		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
+			state = SRV_STATS_STATE_UP_GOING_DOWN;
+			colour = SRV_STATS_COLOUR_GOING_DOWN;
+		} else {
+			state = SRV_STATS_STATE_UP;
+			colour = SRV_STATS_COLOUR_UP;
+		}
+
+		if (state == SRV_STATS_STATE_UP && !ref->uweight)
+			colour = SRV_STATS_COLOUR_DRAINING;
+
+		if (sv->admin & SRV_ADMF_DRAIN) {
+			if (ref->agent.state & CHK_ST_ENABLED)
+				state = SRV_STATS_STATE_DRAIN_AGENT;
+			else if (state == SRV_STATS_STATE_UP_GOING_DOWN)
+				state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
+			else
+				state = SRV_STATS_STATE_DRAIN;
+		}
+
+		if (state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
+			state = SRV_STATS_STATE_NO_CHECK;
+			colour = SRV_STATS_COLOUR_NO_CHECK;
+		}
+	}
+	else if (sv->state == SRV_ST_STOPPING) {
+		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
+		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
+			state = SRV_STATS_STATE_NOLB;
+			colour = SRV_STATS_COLOUR_NOLB;
+		} else {
+			state = SRV_STATS_STATE_NOLB_GOING_DOWN;
+			colour = SRV_STATS_COLOUR_GOING_DOWN;
+		}
+	}
+	else {	/* stopped */
+		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
+			state = SRV_STATS_STATE_DOWN_AGENT;
+			colour = SRV_STATS_COLOUR_DOWN;
+		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
+			state = SRV_STATS_STATE_DOWN; /* DOWN */
+			colour = SRV_STATS_COLOUR_DOWN;
+		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
+			state = SRV_STATS_STATE_GOING_UP;
+			colour = SRV_STATS_COLOUR_GOING_UP;
+		} else {
+			state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
+			colour = SRV_STATS_COLOUR_DOWN;
+		}
+	}
 
 	chunk_reset(out);
 	memset(&stats, 0, sizeof(stats));
@@ -4467,9 +4521,6 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 	case STAT_PX_ST_SV:
 		/* stats.sv has been initialized above */
 		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
-			enum srv_stats_state sv_state;
-			enum srv_stats_colour sv_colour;
-
 			if (buffer_almost_full(rep->buf)) {
 				si_applet_cant_put(si);
 				return 0;
@@ -4489,66 +4540,17 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			while (svs->track)
 				svs = svs->track;
 
-			if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
-				if ((svs->check.state & CHK_ST_ENABLED) &&
-				    (svs->check.health < svs->check.rise + svs->check.fall - 1)) {
-					sv_state = SRV_STATS_STATE_UP_GOING_DOWN;
-					sv_colour = SRV_STATS_COLOUR_GOING_DOWN;
-				} else {
-					sv_state = SRV_STATS_STATE_UP;
-					sv_colour = SRV_STATS_COLOUR_UP;
-				}
-
-				if (sv_state == SRV_STATS_STATE_UP && !svs->uweight)
-					sv_colour = SRV_STATS_COLOUR_DRAINING;
-
-				if (sv->admin & SRV_ADMF_DRAIN) {
-					if (svs->agent.state & CHK_ST_ENABLED)
-						sv_state = SRV_STATS_STATE_DRAIN_AGENT;
-					else if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN)
-						sv_state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
-					else
-						sv_state = SRV_STATS_STATE_DRAIN;
-				}
-
-				if (sv_state == SRV_STATS_STATE_UP && !(svs->check.state & CHK_ST_ENABLED)) {
-					sv_state = SRV_STATS_STATE_NO_CHECK;
-					sv_colour = SRV_STATS_COLOUR_NO_CHECK;
-				}
-			}
-			else if (sv->state == SRV_ST_STOPPING) {
-				if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
-				    (svs->check.health == svs->check.rise + svs->check.fall - 1)) {
-					sv_state = SRV_STATS_STATE_NOLB;
-					sv_colour = SRV_STATS_COLOUR_NOLB;
-				} else {
-					sv_state = SRV_STATS_STATE_NOLB_GOING_DOWN;
-					sv_colour = SRV_STATS_COLOUR_GOING_DOWN;
-				}
-			}
-			else {	/* stopped */
-				if ((svs->agent.state & CHK_ST_ENABLED) && !svs->agent.health) {
-					sv_state = SRV_STATS_STATE_DOWN_AGENT;
-					sv_colour = SRV_STATS_COLOUR_DOWN;
-				} else if ((svs->check.state & CHK_ST_ENABLED) && !svs->check.health) {
-					sv_state = SRV_STATS_STATE_DOWN; /* DOWN */
-					sv_colour = SRV_STATS_COLOUR_DOWN;
-				} else if ((svs->agent.state & CHK_ST_ENABLED) || (svs->check.state & CHK_ST_ENABLED)) {
-					sv_state = SRV_STATS_STATE_GOING_UP;
-					sv_colour = SRV_STATS_COLOUR_GOING_UP;
-				} else {
-					sv_state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
-					sv_colour = SRV_STATS_COLOUR_DOWN;
-				}
-			}
-
-			if (((sv_state <= 1) || (sv->admin & SRV_ADMF_MAINT)) && (appctx->ctx.stats.flags & STAT_HIDE_DOWN)) {
-				/* do not report servers which are DOWN */
-				appctx->ctx.stats.sv = sv->next;
+			/* do not report servers which are DOWN and not changing state */
+			if ((appctx->ctx.stats.flags & STAT_HIDE_DOWN) &&
+			    ((sv->admin & SRV_ADMF_MAINT) || /* server is in maintenance */
+			     (sv->state == SRV_ST_STOPPED && /* server is down */
+			      (!((svs->agent.state | svs->check.state) & CHK_ST_ENABLED) ||
+			       ((svs->agent.state & CHK_ST_ENABLED) && !svs->agent.health) ||
+			       ((svs->check.state & CHK_ST_ENABLED) && !svs->check.health))))) {
 				continue;
 			}
 
-			if (stats_dump_sv_stats(si, px, uri ? uri->flags : 0, sv, sv_state, sv_colour)) {
+			if (stats_dump_sv_stats(si, px, uri ? uri->flags : 0, sv)) {
 				if (bi_putchk(rep, &trash) == -1) {
 					si_applet_cant_put(si);
 					return 0;
