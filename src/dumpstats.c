@@ -3937,20 +3937,21 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
 			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
-		else if ((ref->agent.state & CHK_ST_ENABLED) && !(sv->agent.health) && (ref->state == SRV_ST_STOPPED)) {
-			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
+		else if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
+			 (ref->agent.state & CHK_ST_ENABLED) && !(sv->agent.health)) {
 			/* DOWN (agent) */
+			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
 		}
 		else if (ref->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			              (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
+			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? ref->check.health : ref->check.health - ref->check.rise + 1,
+			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? ref->check.rise : ref->check.fall);
 		}
 
-		if ((sv->state == SRV_ST_STOPPED) &&
+		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
 		    ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) && !(sv->agent.health)) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
