@@ -3784,7 +3784,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			[SRV_STATS_STATE_NO_CHECK]		= "<i>no check</i>",
 		};
 
-		if (sv->admin & SRV_ADMF_MAINT)
+		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
 		else
 			chunk_appendf(&trash,
@@ -3934,9 +3934,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		 */
 
 
-		if (sv->admin & SRV_ADMF_MAINT) {
-			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
-			chunk_appendf(&trash, "MAINT");
+		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
+			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
 		else if ((ref->agent.state & CHK_ST_ENABLED) && !(sv->agent.health) && (ref->state == SRV_ST_STOPPED)) {
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
@@ -4030,8 +4029,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              ref->observe ? "/Health Analyses" : "",
 			              (long long)stats[ST_F_CHKDOWN].u.u64, human_time(stats[ST_F_DOWNTIME].u.u32, 1));
 		}
-		else if (!(sv->admin & SRV_ADMF_FMAINT) && field_format(stats, ST_F_TRACKED) == FF_STR) {
-			/* tracking a server */
+		else if (strcmp(field_str(stats, ST_F_STATUS), "MAINT") != 0 && field_format(stats, ST_F_TRACKED) == FF_STR) {
+			/* tracking a server (hence inherited maint would appear as "MAINT (via...)" */
 			chunk_appendf(&trash,
 			              "<td class=ac colspan=3><a class=lfsb href=\"#%s\">via %s</a></td>",
 			              field_str(stats, ST_F_TRACKED), field_str(stats, ST_F_TRACKED));
