@@ -3946,7 +3946,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
 		}
-		else if (ref->check.state & CHK_ST_ENABLED) {
+		else if (stats[ST_F_CHECK_STATUS].type) {
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
@@ -3976,7 +3976,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			}
 			chunk_appendf(&trash, "</div></u>");
 		}
-		else if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+		else if (stats[ST_F_CHECK_STATUS].type) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s",
 			              field_str(stats, ST_F_CHECK_STATUS));
