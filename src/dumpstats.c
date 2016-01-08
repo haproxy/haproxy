@@ -3248,69 +3248,18 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 	return 1;
 }
 
-/* Dumps a frontend's line to the trash for the current proxy <px> and uses
- * the state from stream interface <si>. The caller is responsible for clearing
- * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+/* Dump all fields from <stats> for proxy <px> into trash using the HTML format.
+ * A column is reserved for the checkbox is <admin> is non-null. The caller's
+ * flags may be passed in <flags> (eg: SHLGNDS to show the legends).
  */
-static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+static int stats_dump_fields_html(const struct field *stats, int admin, unsigned int flags, struct proxy *px)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
-
-	if (!(px->cap & PR_CAP_FE))
-		return 0;
-
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
-		return 0;
-
-	memset(&stats, 0, sizeof(stats));
-
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
-	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
-	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
-	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
-	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
-	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
-	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
-	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
-
-	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-	if (px->mode == PR_MODE_HTTP) {
-		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
-		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
-		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
-		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
-		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
-		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
-	}
-
-	/* requests : req_rate, req_rate_max, req_tot, */
-	stats[ST_F_REQ_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
-	stats[ST_F_REQ_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
-	stats[ST_F_REQ_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
-
-	/* compression: in, out, bypassed, responses */
-	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
-	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
-	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
-	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
-
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
 		chunk_appendf(&trash,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
-		if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
+		if (admin) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(&trash, "<td></td>");
 		}
@@ -3442,6 +3391,72 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
+	}
+	return 1;
+}
+
+/* Dumps a frontend's line to the trash for the current proxy <px> and uses
+ * the state from stream interface <si>. The caller is responsible for clearing
+ * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+ */
+static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!(px->cap & PR_CAP_FE))
+		return 0;
+
+	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
+		return 0;
+
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
+	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
+	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
+	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
+	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
+	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+	}
+
+	/* requests : req_rate, req_rate_max, req_tot, */
+	stats[ST_F_REQ_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
+	stats[ST_F_REQ_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
+	stats[ST_F_REQ_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
+
+	/* compression: in, out, bypassed, responses */
+	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
+	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
+	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
+	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
+
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		int admin;
+
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, 0, px);
 	}
 	else { /* CSV mode */
 		/* dump everything */
