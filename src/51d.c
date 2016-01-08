@@ -127,23 +127,52 @@ static int _51d_conv_check(struct arg *arg, struct sample_conv *conv,
 }
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
+static void _51d_lru_free(void *cache_entry)
+{
+	struct chunk *ptr = cache_entry;
+
+	if (!ptr)
+		return;
+
+	free(ptr->str);
+	free(ptr);
+}
+
+/* Allocates memory freeing space in the cache if necessary.
+*/
+static void *_51d_malloc(int size)
+{
+	void *ptr = malloc(size);
+
+	if (!ptr) {
+		/* free the oldest 10 entries from lru to free up some memory
+		 * then try allocating memory again */
+		lru64_kill_oldest(_51d_lru_tree, 10);
+		ptr = malloc(size);
+	}
+
+	return ptr;
+}
+
 /* Insert the data associated with the sample into the cache as a fresh item.
  */
 static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru, void* domain)
 {
-	struct chunk *cache_entry = (struct chunk*)malloc(sizeof(struct chunk));
+	struct chunk *cache_entry = _51d_malloc(sizeof(struct chunk));
 
 	if (!cache_entry)
 		return;
 
-	cache_entry->str = malloc(smp->data.u.str.len + 1);
-	if (!cache_entry->str)
+	cache_entry->str = _51d_malloc(smp->data.u.str.len + 1);
+	if (!cache_entry->str) {
+		free(cache_entry);
 		return;
+	}
 
 	memcpy(cache_entry->str, smp->data.u.str.str, smp->data.u.str.len);
 	cache_entry->str[smp->data.u.str.len] = 0;
 	cache_entry->len = smp->data.u.str.len;
-	lru64_commit(lru, cache_entry, domain, 0, free);
+	lru64_commit(lru, cache_entry, domain, 0, _51d_lru_free);
 }
 
 /* Retrieves the data from the cache and sets the sample data to this string.
