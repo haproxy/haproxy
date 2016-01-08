@@ -3818,20 +3818,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
-			[SRV_STATS_STATE_DOWN]			= "DOWN",
-			[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent)",
-			[SRV_STATS_STATE_GOING_UP]		= "DN %d/%d &uarr;",
-			[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d &darr;",
-			[SRV_STATS_STATE_UP]			= "UP",
-			[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d &darr;",
-			[SRV_STATS_STATE_NOLB]			= "NOLB",
-			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d &darr;",
-			[SRV_STATS_STATE_DRAIN]			= "DRAIN",
-			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
-			[SRV_STATS_STATE_NO_CHECK]		= "<i>no check</i>",
-		};
-
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
 		else
@@ -3985,18 +3971,17 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
 			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
-		else if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
-			 stats[ST_F_AGENT_STATUS].type && !stats[ST_F_AGENT_HEALTH].u.u32) {
-			/* DOWN (agent) */
-			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
-			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
+		else if (memcmp(field_str(stats, ST_F_STATUS), "no check", 5) == 0) {
+			chunk_strcat(&trash, "<i>no check</i>");
 		}
-		else if (stats[ST_F_CHECK_STATUS].type) {
-			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
-			chunk_appendf(&trash,
-			              srv_hlt_st[state],
-			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? stats[ST_F_CHECK_HEALTH].u.u32 : stats[ST_F_CHECK_HEALTH].u.u32 - stats[ST_F_CHECK_RISE].u.u32 + 1,
-			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? stats[ST_F_CHECK_RISE].u.u32 : stats[ST_F_CHECK_FALL].u.u32);
+		else {
+			chunk_appendf(&trash, "%s %s", human_time(stats[ST_F_LASTCHG].u.u32, 1), field_str(stats, ST_F_STATUS));
+			if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) {
+				if (stats[ST_F_CHECK_HEALTH].u.u32)
+					chunk_strcat(&trash, " &uarr;");
+			}
+			else if (stats[ST_F_CHECK_HEALTH].u.u32 < stats[ST_F_CHECK_RISE].u.u32 + stats[ST_F_CHECK_FALL].u.u32 - 1)
+				chunk_strcat(&trash, " &darr;");
 		}
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
