@@ -3897,6 +3897,18 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 	return 1;
 }
 
+static int stats_dump_one_line(const struct field *stats, unsigned int flags, struct proxy *px, struct appctx *appctx)
+{
+	int admin;
+
+	admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
+		return stats_dump_fields_html(stats, admin, flags, px);
+	else
+		return stats_dump_fields_csv(&trash, stats);
+}
+
 /* Dumps a frontend's line to the trash for the current proxy <px> and uses
  * the state from stream interface <si>. The caller is responsible for clearing
  * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
@@ -3961,17 +3973,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	stats[ST_F_CONN_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.cps_max);
 	stats[ST_F_CONN_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
 
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, 0, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
+	return stats_dump_one_line(stats, 0, px, appctx);
 }
 
 /* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
@@ -4031,17 +4033,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		}
 	}
 
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, flags, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
+	return stats_dump_one_line(stats, flags, px, appctx);
 }
 
 enum srv_stats_state {
@@ -4300,17 +4292,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 	}
 
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, flags, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
+	return stats_dump_one_line(stats, flags, px, appctx);
 }
 
 /* Dumps a line for backend <px> to the trash for and uses the state from stream
@@ -4396,17 +4378,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_RTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES));
 	stats[ST_F_TTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
 
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, flags, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
+	return stats_dump_one_line(stats, flags, px, appctx);
 }
 
 /* Dumps the HTML table header for proxy <px> to the trash for and uses the state from
