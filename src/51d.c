@@ -17,8 +17,6 @@ struct _51d_property_names {
 };
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-#define _51DEGREES_CONV_CACHE_KEY "_51d_conv"
-#define _51DEGREES_FETCH_CACHE_KEY "_51d_fetch"
 static struct lru64_head *_51d_lru_tree = NULL;
 static unsigned long long _51d_lru_seed;
 #endif
@@ -131,14 +129,13 @@ static int _51d_conv_check(struct arg *arg, struct sample_conv *conv,
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 /* Insert the data associated with the sample into the cache as a fresh item.
  */
-static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru)
+static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru, void* domain)
 {
 	struct chunk *cache_entry = (struct chunk*)malloc(sizeof(struct chunk));
 
 	if (!cache_entry)
 		return;
 
-	smp->flags |= SMP_F_CONST;
 	cache_entry->str = malloc(smp->data.u.str.len + 1);
 	if (!cache_entry->str)
 		return;
@@ -146,7 +143,7 @@ static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru)
 	memcpy(cache_entry->str, smp->data.u.str.str, smp->data.u.str.len);
 	cache_entry->str[smp->data.u.str.len] = 0;
 	cache_entry->len = smp->data.u.str.len;
-	lru64_commit(lru, cache_entry, _51DEGREES_CONV_CACHE_KEY, 0, free);
+	lru64_commit(lru, cache_entry, domain, 0, free);
 }
 
 /* Retrieves the data from the cache and sets the sample data to this string.
@@ -154,7 +151,6 @@ static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru)
 static void _51d_retrieve_cache_entry(struct sample *smp, struct lru64 *lru)
 {
 	struct chunk *cache_entry = (struct chunk*)lru->data;
-	smp->flags |= SMP_F_CONST;
 	smp->data.u.str.str = cache_entry->str;
 	smp->data.u.str.len = cache_entry->len;
 }
@@ -336,6 +332,9 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 	CHECK_HTTP_MESSAGE_FIRST();
 	smp->data.type = SMP_T_STR;
 
+	/* Flags the sample to show it uses constant memory*/
+	smp->flags |= SMP_F_CONST;
+
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 
 	/* Get only the headers needed for device detection so they can be used
@@ -354,7 +353,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 	/* Check the cache to see if there's results for these headers already. */
 	if (_51d_lru_tree) {
 		lru = lru64_get(_51d_req_hash(args, ws),
-		                _51d_lru_tree, _51DEGREES_FETCH_CACHE_KEY, 0);
+		                _51d_lru_tree, (void*)args, 0);
 		if (lru && lru->domain) {
 			_51d_retrieve_cache_entry(smp, lru);
 			return 1;
@@ -380,7 +379,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
 	if (lru) {
-		_51d_insert_cache_entry(smp, lru);
+		_51d_insert_cache_entry(smp, lru, (void*)args);
 	}
 #endif
 
@@ -394,6 +393,9 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	struct lru64 *lru = NULL;
 #endif
 
+	/* Flags the sample to show it uses constant memory*/
+	smp->flags |= SMP_F_CONST;
+
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 
 	/* Look in the list. */
@@ -401,7 +403,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		unsigned long long seed = _51d_lru_seed ^ (long)args;
 
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
-		                _51d_lru_tree, _51DEGREES_CONV_CACHE_KEY, 0);
+		                _51d_lru_tree, (void*)args, 0);
 		if (lru && lru->domain) {
 			_51d_retrieve_cache_entry(smp, lru);
 			return 1;
@@ -434,7 +436,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
 	if (lru) {
-		_51d_insert_cache_entry(smp, lru);
+		_51d_insert_cache_entry(smp, lru, (void*)args);
 	}
 #endif
 
