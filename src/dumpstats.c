@@ -3587,28 +3587,6 @@ static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
 	[SRV_STATS_STATE_NO_CHECK]		= "no check"
 };
 
-enum srv_stats_colour {
-	SRV_STATS_COLOUR_DOWN = 0,
-	SRV_STATS_COLOUR_GOING_UP,
-	SRV_STATS_COLOUR_GOING_DOWN,
-	SRV_STATS_COLOUR_UP,
-	SRV_STATS_COLOUR_NOLB,
-	SRV_STATS_COLOUR_DRAINING,
-	SRV_STATS_COLOUR_NO_CHECK,
-
-	SRV_STATS_COLOUR_COUNT, /* Must be last */
-};
-
-static const char *srv_stats_colour_st[SRV_STATS_COLOUR_COUNT] = {
-	[SRV_STATS_COLOUR_DOWN]		= "down",
-	[SRV_STATS_COLOUR_GOING_UP]	= "going_up",
-	[SRV_STATS_COLOUR_GOING_DOWN]	= "going_down",
-	[SRV_STATS_COLOUR_UP]		= "up",
-	[SRV_STATS_COLOUR_NOLB]		= "nolb",
-	[SRV_STATS_COLOUR_DRAINING]	= "draining",
-	[SRV_STATS_COLOUR_NO_CHECK]	= "no_check",
-};
-
 /* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
  * from stream interface <si>, stats flags <flags>, and server state <state>.
  * The caller is responsible for clearing the trash if needed. Returns non-zero
@@ -3622,7 +3600,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	struct chunk src;
 	struct chunk *out = get_trash_chunk();
 	enum srv_stats_state state;
-	enum srv_stats_colour colour;
 	char *fld_status;
 	/* we have "via" which is the tracked server as described in the configuration,
 	 * and "ref" which is the checked server and the end of the chain.
@@ -3636,14 +3613,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if ((ref->check.state & CHK_ST_ENABLED) &&
 		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
 			state = SRV_STATS_STATE_UP_GOING_DOWN;
-			colour = SRV_STATS_COLOUR_GOING_DOWN;
 		} else {
 			state = SRV_STATS_STATE_UP;
-			colour = SRV_STATS_COLOUR_UP;
 		}
-
-		if (state == SRV_STATS_STATE_UP && !ref->uweight)
-			colour = SRV_STATS_COLOUR_DRAINING;
 
 		if (sv->admin & SRV_ADMF_DRAIN) {
 			if (ref->agent.state & CHK_ST_ENABLED)
@@ -3656,32 +3628,25 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if (state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
 			state = SRV_STATS_STATE_NO_CHECK;
-			colour = SRV_STATS_COLOUR_NO_CHECK;
 		}
 	}
 	else if (sv->state == SRV_ST_STOPPING) {
 		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
 		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
 			state = SRV_STATS_STATE_NOLB;
-			colour = SRV_STATS_COLOUR_NOLB;
 		} else {
 			state = SRV_STATS_STATE_NOLB_GOING_DOWN;
-			colour = SRV_STATS_COLOUR_GOING_DOWN;
 		}
 	}
 	else {	/* stopped */
 		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
 			state = SRV_STATS_STATE_DOWN_AGENT;
-			colour = SRV_STATS_COLOUR_DOWN;
 		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
 			state = SRV_STATS_STATE_DOWN; /* DOWN */
-			colour = SRV_STATS_COLOUR_DOWN;
 		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
 			state = SRV_STATS_STATE_GOING_UP;
-			colour = SRV_STATS_COLOUR_GOING_UP;
 		} else {
 			state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
-			colour = SRV_STATS_COLOUR_DOWN;
 		}
 	}
 
@@ -3849,12 +3814,50 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	}
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		const char *style;
+
+		/* determine the style to use depending on the server's state,
+		 * its health and weight. There isn't a 1-to-1 mapping between
+		 * state and styles for the cases where the server is (still)
+		 * up. The reason is that we don't want to report nolb and
+		 * drain with the same color.
+		 */
+
+		if (strcmp(field_str(stats, ST_F_STATUS), "DOWN") == 0 ||
+		    strcmp(field_str(stats, ST_F_STATUS), "DOWN (agent)") == 0) {
+			style = "down";
+		}
+		else if (strcmp(field_str(stats, ST_F_STATUS), "DOWN ") == 0) {
+			style = "going_up";
+		}
+		else if (strcmp(field_str(stats, ST_F_STATUS), "NOLB ") == 0) {
+			style = "going_down";
+		}
+		else if (strcmp(field_str(stats, ST_F_STATUS), "NOLB") == 0) {
+			style = "nolb";
+		}
+		else if (strcmp(field_str(stats, ST_F_STATUS), "no check") == 0) {
+			style = "no_check";
+		}
+		else if (!stats[ST_F_CHKFAIL].type ||
+			 stats[ST_F_CHECK_HEALTH].u.u32 == stats[ST_F_CHECK_RISE].u.u32 + stats[ST_F_CHECK_FALL].u.u32 - 1) {
+			/* no check or max health = UP */
+			if (stats[ST_F_WEIGHT].u.u32)
+				style = "up";
+			else
+				style = "draining";
+		}
+		else {
+			style = "going_down";
+		}
+
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
 		else
 			chunk_appendf(&trash,
 			              "<tr class=\"%s_%s\">",
-			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", srv_stats_colour_st[colour]);
+			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
+
 
 		if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
 			chunk_appendf(&trash,
