@@ -4441,6 +4441,14 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 	struct channel *rep = si_ic(si);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
+	unsigned int flags;
+
+	if (uri)
+		flags = uri->flags;
+	else if (strm_li(s)->bind_conf->level >= ACCESS_LVL_OPER)
+		flags = ST_SHLGNDS | ST_SHNODE | ST_SHDESC;
+	else
+		flags = ST_SHNODE | ST_SHDESC;
 
 	chunk_reset(&trash);
 
@@ -4532,7 +4540,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			}
 
 			/* print the frontend */
-			if (stats_dump_li_stats(si, px, l, uri ? uri->flags : 0)) {
+			if (stats_dump_li_stats(si, px, l, flags)) {
 				if (bi_putchk(rep, &trash) == -1) {
 					si_applet_cant_put(si);
 					return 0;
@@ -4576,7 +4584,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				continue;
 			}
 
-			if (stats_dump_sv_stats(si, px, uri ? uri->flags : 0, sv)) {
+			if (stats_dump_sv_stats(si, px, flags, sv)) {
 				if (bi_putchk(rep, &trash) == -1) {
 					si_applet_cant_put(si);
 					return 0;
@@ -4589,7 +4597,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 
 	case STAT_PX_ST_BE:
 		/* print the backend */
-		if (stats_dump_be_stats(si, px, uri ? uri->flags : 0)) {
+		if (stats_dump_be_stats(si, px, flags)) {
 			if (bi_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
