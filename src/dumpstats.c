@@ -3474,7 +3474,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, l->counters->denied_req);
 	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
 	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? "OPEN" : "FULL");
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
@@ -3564,7 +3564,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              "",
 		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
 		              U2H(stats[ST_F_EREQ].u.u64),
-		              (stats[ST_F_SCUR].u.u32 < stats[ST_F_SLIM].u.u32) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+		              field_str(stats, ST_F_STATUS));
 	}
 	else { /* CSV mode */
 		/* dump everything */
