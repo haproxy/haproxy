@@ -1014,6 +1014,8 @@ S (Servers).
         L7STS   -> agent reported "fail", "stop", or "down"
  63. agent_code [...S]: numeric code reported by agent if any (unused for now)
  64. agent_duration [...S]: time in ms taken to finish last check
+ 65. check_desc [...S]: short human-readable description of check_status
+ 66. agent_desc [...S]: short human-readable description of agent_status
 
 
 9.2. Unix Socket commands

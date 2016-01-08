@@ -325,6 +325,8 @@ enum stat_field {
 	ST_F_AGENT_STATUS,
 	ST_F_AGENT_CODE,
 	ST_F_AGENT_DURATION,
+	ST_F_CHECK_DESC,
+	ST_F_AGENT_DESC,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -400,6 +402,8 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGENT_STATUS]   = "agent_status",
 	[ST_F_AGENT_CODE]     = "agent_code",
 	[ST_F_AGENT_DURATION] = "agent_duration",
+	[ST_F_CHECK_DESC]     = "check_desc",
+	[ST_F_AGENT_DESC]     = "agent_desc",
 };
 
 /* one line of stats */
@@ -3750,6 +3754,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if (sv->check.status >= HCHK_STATUS_CHECKED)
 			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
+
+		stats[ST_F_CHECK_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
+		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
 	}
 
 	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
@@ -3767,6 +3774,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if (sv->agent.status >= HCHK_STATUS_CHECKED)
 			stats[ST_F_AGENT_DURATION] = mkf_u64(FN_DURATION, sv->agent.duration);
+
+		stats[ST_F_AGENT_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
+		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
 	}
 
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
@@ -3783,12 +3793,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
 	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
 	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
-
-	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
-
-	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
-		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
 
 	stats[ST_F_QTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES));
 	stats[ST_F_CTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES));
@@ -3989,8 +3993,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			if (stats[ST_F_AGENT_DURATION].type && stats[ST_F_AGENT_DURATION].u.u64 >= 0)
 				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_AGENT_DURATION].u.u64);
 
-			chunk_appendf(&trash, "<div class=tips>%s",
-				      get_check_status_description(sv->agent.status));
+			chunk_appendf(&trash, "<div class=tips>%s", field_str(stats, ST_F_AGENT_DESC));
+
 			if (*field_str(stats, ST_F_LAST_AGT)) {
 				chunk_appendf(&trash, ": ");
 				chunk_initstr(&src, field_str(stats, ST_F_LAST_AGT));
@@ -4009,8 +4013,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			if (stats[ST_F_CHECK_DURATION].type && stats[ST_F_CHECK_DURATION].u.u64 >= 0)
 				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_CHECK_DURATION].u.u64);
 
-			chunk_appendf(&trash, "<div class=tips>%s",
-				      get_check_status_description(sv->check.status));
+			chunk_appendf(&trash, "<div class=tips>%s", field_str(stats, ST_F_CHECK_DESC));
+
 			if (*field_str(stats, ST_F_LAST_CHK)) {
 				chunk_appendf(&trash, ": ");
 				chunk_initstr(&src, field_str(stats, ST_F_LAST_CHK));
