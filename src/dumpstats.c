@@ -3254,6 +3254,8 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
  */
 static int stats_dump_fields_html(const struct field *stats, int admin, unsigned int flags, struct proxy *px)
 {
+	struct chunk src;
+
 	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
 		chunk_appendf(&trash,
 		              /* name, queue */
@@ -3453,405 +3455,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
 	}
-	return 1;
-}
-
-/* Dumps a frontend's line to the trash for the current proxy <px> and uses
- * the state from stream interface <si>. The caller is responsible for clearing
- * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
- */
-static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-
-	if (!(px->cap & PR_CAP_FE))
-		return 0;
-
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
-		return 0;
-
-	memset(&stats, 0, sizeof(stats));
-
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
-	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
-	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
-	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
-	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
-	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
-	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
-	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
-
-	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-	if (px->mode == PR_MODE_HTTP) {
-		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
-		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
-		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
-		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
-		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
-		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
-	}
-
-	/* requests : req_rate, req_rate_max, req_tot, */
-	stats[ST_F_REQ_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
-	stats[ST_F_REQ_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
-	stats[ST_F_REQ_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
-
-	/* compression: in, out, bypassed, responses */
-	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
-	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
-	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
-	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
-
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, 0, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
-}
-
-/* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
- * from stream interface <si>, and stats flags <flags>. The caller is responsible
- * for clearing the trash if needed. Returns non-zero if it emits anything, zero
- * otherwise.
- */
-static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	struct chunk *out = get_trash_chunk();
-
-	chunk_reset(out);
-	memset(&stats, 0, sizeof(stats));
-
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
-	stats[ST_F_SCUR]     = mkf_u32(0, l->nbconn);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, l->counters->conn_max);
-	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, l->counters->cum_conn);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, l->counters->bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, l->counters->bytes_out);
-	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, l->counters->denied_req);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
-	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
-
-	if (flags & ST_SHLGNDS) {
-		char str[INET6_ADDRSTRLEN];
-		int port;
-
-		port = get_host_port(&l->addr);
-		switch (addr_to_str(&l->addr, str, sizeof(str))) {
-		case AF_INET:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "%s:%d", str, port);
-			break;
-		case AF_INET6:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "[%s]:%d", str, port);
-			break;
-		case AF_UNIX:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
-			break;
-		case -1:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_strcat(out, strerror(errno));
-			break;
-		default: /* address family not supported */
-			break;
-		}
-	}
-
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		int admin;
-
-		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
-		stats_dump_fields_html(stats, admin, flags, px);
-	}
-	else { /* CSV mode */
-		/* dump everything */
-		stats_dump_fields_csv(&trash, stats);
-	}
-	return 1;
-}
-
-enum srv_stats_state {
-	SRV_STATS_STATE_DOWN = 0,
-	SRV_STATS_STATE_DOWN_AGENT,
-	SRV_STATS_STATE_GOING_UP,
-	SRV_STATS_STATE_UP_GOING_DOWN,
-	SRV_STATS_STATE_UP,
-	SRV_STATS_STATE_NOLB_GOING_DOWN,
-	SRV_STATS_STATE_NOLB,
-	SRV_STATS_STATE_DRAIN_GOING_DOWN,
-	SRV_STATS_STATE_DRAIN,
-	SRV_STATS_STATE_DRAIN_AGENT,
-	SRV_STATS_STATE_NO_CHECK,
-
-	SRV_STATS_STATE_COUNT, /* Must be last */
-};
-
-static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
-	[SRV_STATS_STATE_DOWN]			= "DOWN",
-	[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent)",
-	[SRV_STATS_STATE_GOING_UP]		= "DOWN %d/%d",
-	[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d",
-	[SRV_STATS_STATE_UP]			= "UP",
-	[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d",
-	[SRV_STATS_STATE_NOLB]			= "NOLB",
-	[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d",
-	[SRV_STATS_STATE_DRAIN]			= "DRAIN",
-	[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
-	[SRV_STATS_STATE_NO_CHECK]		= "no check"
-};
-
-/* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
- * from stream interface <si>, stats flags <flags>, and server state <state>.
- * The caller is responsible for clearing the trash if needed. Returns non-zero
- * if it emits anything, zero otherwise.
- */
-static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	struct server *via, *ref;
-	char str[INET6_ADDRSTRLEN];
-	struct chunk src;
-	struct chunk *out = get_trash_chunk();
-	enum srv_stats_state state;
-	char *fld_status;
-	/* we have "via" which is the tracked server as described in the configuration,
-	 * and "ref" which is the checked server and the end of the chain.
-	 */
-	via = sv->track ? sv->track : sv;
-	ref = via;
-	while (ref->track)
-		ref = ref->track;
-
-	if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
-		if ((ref->check.state & CHK_ST_ENABLED) &&
-		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
-			state = SRV_STATS_STATE_UP_GOING_DOWN;
-		} else {
-			state = SRV_STATS_STATE_UP;
-		}
-
-		if (sv->admin & SRV_ADMF_DRAIN) {
-			if (ref->agent.state & CHK_ST_ENABLED)
-				state = SRV_STATS_STATE_DRAIN_AGENT;
-			else if (state == SRV_STATS_STATE_UP_GOING_DOWN)
-				state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
-			else
-				state = SRV_STATS_STATE_DRAIN;
-		}
-
-		if (state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
-			state = SRV_STATS_STATE_NO_CHECK;
-		}
-	}
-	else if (sv->state == SRV_ST_STOPPING) {
-		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
-		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
-			state = SRV_STATS_STATE_NOLB;
-		} else {
-			state = SRV_STATS_STATE_NOLB_GOING_DOWN;
-		}
-	}
-	else {	/* stopped */
-		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
-			state = SRV_STATS_STATE_DOWN_AGENT;
-		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
-			state = SRV_STATS_STATE_DOWN; /* DOWN */
-		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
-			state = SRV_STATS_STATE_GOING_UP;
-		} else {
-			state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
-		}
-	}
-
-	chunk_reset(out);
-	memset(&stats, 0, sizeof(stats));
-
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
-	stats[ST_F_QCUR]     = mkf_u32(0, sv->nbpend);
-	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, sv->counters.nbpend_max);
-	stats[ST_F_SCUR]     = mkf_u32(0, sv->cur_sess);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
-
-	if (sv->maxconn)
-		stats[ST_F_SLIM] = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
-
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_secu);
-	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
-	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
-	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
-	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
-
-	/* status */
-	fld_status = chunk_newstr(out);
-	if (sv->admin & SRV_ADMF_IMAINT)
-		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
-	else if (sv->admin & SRV_ADMF_MAINT)
-		chunk_appendf(out, "MAINT");
-	else
-		chunk_appendf(out,
-			      srv_hlt_st[state],
-			      (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			      (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
-
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
-	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
-	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
-	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
-	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
-
-	/* check failures: unique, fatal; last change, total downtime */
-	if (sv->check.state & CHK_ST_ENABLED) {
-		stats[ST_F_CHKFAIL]  = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
-		stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, sv->counters.down_trans);
-		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, srv_downtime(sv));
-	}
-
-	if (sv->maxqueue)
-		stats[ST_F_QLIMIT]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
-
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
-
-	if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
-		stats[ST_F_THROTTLE] = mkf_u32(FN_AVG, server_throttle_rate(sv));
-
-	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
-
-	if (sv->track) {
-		char *fld_track = chunk_newstr(out);
-
-		chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
-		stats[ST_F_TRACKED] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
-	}
-
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
-	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
-	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, sv->counters.sps_max);
-
-	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
-		const char *fld_chksts;
-
-		fld_chksts = chunk_newstr(out);
-		chunk_strcat(out, "* "); // for check in progress
-		chunk_strcat(out, get_check_status_info(sv->check.status));
-		if (!(sv->check.state & CHK_ST_INPROGRESS))
-			fld_chksts += 2; // skip "* "
-		stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
-
-		if (sv->check.status >= HCHK_STATUS_L57DATA)
-			stats[ST_F_CHECK_CODE] = mkf_u32(FN_OUTPUT, sv->check.code);
-
-		if (sv->check.status >= HCHK_STATUS_CHECKED)
-			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
-
-		stats[ST_F_CHECK_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
-		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
-		stats[ST_F_CHECK_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
-		stats[ST_F_CHECK_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
-		stats[ST_F_CHECK_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
-	}
-
-	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
-		const char *fld_chksts;
-
-		fld_chksts = chunk_newstr(out);
-		chunk_strcat(out, "* "); // for check in progress
-		chunk_strcat(out, get_check_status_info(sv->agent.status));
-		if (!(sv->agent.state & CHK_ST_INPROGRESS))
-			fld_chksts += 2; // skip "* "
-		stats[ST_F_AGENT_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
-
-		if (sv->agent.status >= HCHK_STATUS_L57DATA)
-			stats[ST_F_AGENT_CODE] = mkf_u32(FN_OUTPUT, sv->agent.code);
-
-		if (sv->agent.status >= HCHK_STATUS_CHECKED)
-			stats[ST_F_AGENT_DURATION] = mkf_u64(FN_DURATION, sv->agent.duration);
-
-		stats[ST_F_AGENT_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
-		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
-		stats[ST_F_AGENT_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
-		stats[ST_F_AGENT_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
-		stats[ST_F_AGENT_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
-	}
-
-	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-	if (px->mode == PR_MODE_HTTP) {
-		stats[ST_F_HRSP_1XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
-		stats[ST_F_HRSP_2XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
-		stats[ST_F_HRSP_3XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
-		stats[ST_F_HRSP_4XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
-		stats[ST_F_HRSP_5XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
-		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
-	}
-
-	if (ref->observe)
-		stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
-
-	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
-	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
-	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
-
-	stats[ST_F_QTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES));
-	stats[ST_F_CTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES));
-	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
-	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
-
-	if (flags & ST_SHLGNDS) {
-		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
-		case AF_INET:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "%s:%d", str, get_host_port(&sv->addr));
-			break;
-		case AF_INET6:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "[%s]:%d", str, get_host_port(&sv->addr));
-			break;
-		case AF_UNIX:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
-			break;
-		case -1:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_strcat(out, strerror(errno));
-			break;
-		default: /* address family not supported */
-			break;
-		}
-
-		if (sv->cookie)
-			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
-	}
-
-	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV) {
 		const char *style;
 
 		/* determine the style to use depending on the server's state,
@@ -3897,7 +3501,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
 
 
-		if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
+		if (admin)
 			chunk_appendf(&trash,
 			              "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_F_SVNAME));
@@ -4126,6 +3730,409 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", stats[ST_F_THROTTLE].u.u32);
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
+	}
+	return 1;
+}
+
+/* Dumps a frontend's line to the trash for the current proxy <px> and uses
+ * the state from stream interface <si>. The caller is responsible for clearing
+ * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+ */
+static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!(px->cap & PR_CAP_FE))
+		return 0;
+
+	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
+		return 0;
+
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
+	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
+	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_FE);
+	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
+	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
+	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+	}
+
+	/* requests : req_rate, req_rate_max, req_tot, */
+	stats[ST_F_REQ_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
+	stats[ST_F_REQ_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
+	stats[ST_F_REQ_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
+
+	/* compression: in, out, bypassed, responses */
+	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
+	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
+	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
+	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
+
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		int admin;
+
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, 0, px);
+	}
+	else { /* CSV mode */
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
+	}
+	return 1;
+}
+
+/* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
+ * from stream interface <si>, and stats flags <flags>. The caller is responsible
+ * for clearing the trash if needed. Returns non-zero if it emits anything, zero
+ * otherwise.
+ */
+static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct chunk *out = get_trash_chunk();
+
+	chunk_reset(out);
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
+	stats[ST_F_SCUR]     = mkf_u32(0, l->nbconn);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, l->counters->conn_max);
+	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, l->counters->cum_conn);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, l->counters->bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, l->counters->bytes_out);
+	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, l->counters->denied_req);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
+	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+
+	if (flags & ST_SHLGNDS) {
+		char str[INET6_ADDRSTRLEN];
+		int port;
+
+		port = get_host_port(&l->addr);
+		switch (addr_to_str(&l->addr, str, sizeof(str))) {
+		case AF_INET:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "%s:%d", str, port);
+			break;
+		case AF_INET6:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "[%s]:%d", str, port);
+			break;
+		case AF_UNIX:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+			break;
+		case -1:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_strcat(out, strerror(errno));
+			break;
+		default: /* address family not supported */
+			break;
+		}
+	}
+
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		int admin;
+
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, flags, px);
+	}
+	else { /* CSV mode */
+		/* dump everything */
+		stats_dump_fields_csv(&trash, stats);
+	}
+	return 1;
+}
+
+enum srv_stats_state {
+	SRV_STATS_STATE_DOWN = 0,
+	SRV_STATS_STATE_DOWN_AGENT,
+	SRV_STATS_STATE_GOING_UP,
+	SRV_STATS_STATE_UP_GOING_DOWN,
+	SRV_STATS_STATE_UP,
+	SRV_STATS_STATE_NOLB_GOING_DOWN,
+	SRV_STATS_STATE_NOLB,
+	SRV_STATS_STATE_DRAIN_GOING_DOWN,
+	SRV_STATS_STATE_DRAIN,
+	SRV_STATS_STATE_DRAIN_AGENT,
+	SRV_STATS_STATE_NO_CHECK,
+
+	SRV_STATS_STATE_COUNT, /* Must be last */
+};
+
+static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
+	[SRV_STATS_STATE_DOWN]			= "DOWN",
+	[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent)",
+	[SRV_STATS_STATE_GOING_UP]		= "DOWN %d/%d",
+	[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d",
+	[SRV_STATS_STATE_UP]			= "UP",
+	[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d",
+	[SRV_STATS_STATE_NOLB]			= "NOLB",
+	[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d",
+	[SRV_STATS_STATE_DRAIN]			= "DRAIN",
+	[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
+	[SRV_STATS_STATE_NO_CHECK]		= "no check"
+};
+
+/* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
+ * from stream interface <si>, stats flags <flags>, and server state <state>.
+ * The caller is responsible for clearing the trash if needed. Returns non-zero
+ * if it emits anything, zero otherwise.
+ */
+static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct server *via, *ref;
+	char str[INET6_ADDRSTRLEN];
+	struct chunk *out = get_trash_chunk();
+	enum srv_stats_state state;
+	char *fld_status;
+	/* we have "via" which is the tracked server as described in the configuration,
+	 * and "ref" which is the checked server and the end of the chain.
+	 */
+	via = sv->track ? sv->track : sv;
+	ref = via;
+	while (ref->track)
+		ref = ref->track;
+
+	if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
+		if ((ref->check.state & CHK_ST_ENABLED) &&
+		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
+			state = SRV_STATS_STATE_UP_GOING_DOWN;
+		} else {
+			state = SRV_STATS_STATE_UP;
+		}
+
+		if (sv->admin & SRV_ADMF_DRAIN) {
+			if (ref->agent.state & CHK_ST_ENABLED)
+				state = SRV_STATS_STATE_DRAIN_AGENT;
+			else if (state == SRV_STATS_STATE_UP_GOING_DOWN)
+				state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
+			else
+				state = SRV_STATS_STATE_DRAIN;
+		}
+
+		if (state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
+			state = SRV_STATS_STATE_NO_CHECK;
+		}
+	}
+	else if (sv->state == SRV_ST_STOPPING) {
+		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
+		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
+			state = SRV_STATS_STATE_NOLB;
+		} else {
+			state = SRV_STATS_STATE_NOLB_GOING_DOWN;
+		}
+	}
+	else {	/* stopped */
+		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
+			state = SRV_STATS_STATE_DOWN_AGENT;
+		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
+			state = SRV_STATS_STATE_DOWN; /* DOWN */
+		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
+			state = SRV_STATS_STATE_GOING_UP;
+		} else {
+			state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
+		}
+	}
+
+	chunk_reset(out);
+	memset(&stats, 0, sizeof(stats));
+
+	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
+	stats[ST_F_QCUR]     = mkf_u32(0, sv->nbpend);
+	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, sv->counters.nbpend_max);
+	stats[ST_F_SCUR]     = mkf_u32(0, sv->cur_sess);
+	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
+
+	if (sv->maxconn)
+		stats[ST_F_SLIM] = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
+
+	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
+	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
+	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_secu);
+	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
+	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
+	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
+	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
+
+	/* status */
+	fld_status = chunk_newstr(out);
+	if (sv->admin & SRV_ADMF_IMAINT)
+		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
+	else if (sv->admin & SRV_ADMF_MAINT)
+		chunk_appendf(out, "MAINT");
+	else
+		chunk_appendf(out,
+			      srv_hlt_st[state],
+			      (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+			      (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
+
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
+	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
+	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
+	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
+
+	/* check failures: unique, fatal; last change, total downtime */
+	if (sv->check.state & CHK_ST_ENABLED) {
+		stats[ST_F_CHKFAIL]  = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
+		stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, sv->counters.down_trans);
+		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, srv_downtime(sv));
+	}
+
+	if (sv->maxqueue)
+		stats[ST_F_QLIMIT]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
+
+	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
+	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
+
+	if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
+		stats[ST_F_THROTTLE] = mkf_u32(FN_AVG, server_throttle_rate(sv));
+
+	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
+
+	if (sv->track) {
+		char *fld_track = chunk_newstr(out);
+
+		chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
+		stats[ST_F_TRACKED] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
+	}
+
+	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
+	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
+	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, sv->counters.sps_max);
+
+	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+		const char *fld_chksts;
+
+		fld_chksts = chunk_newstr(out);
+		chunk_strcat(out, "* "); // for check in progress
+		chunk_strcat(out, get_check_status_info(sv->check.status));
+		if (!(sv->check.state & CHK_ST_INPROGRESS))
+			fld_chksts += 2; // skip "* "
+		stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+
+		if (sv->check.status >= HCHK_STATUS_L57DATA)
+			stats[ST_F_CHECK_CODE] = mkf_u32(FN_OUTPUT, sv->check.code);
+
+		if (sv->check.status >= HCHK_STATUS_CHECKED)
+			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
+
+		stats[ST_F_CHECK_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
+		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
+		stats[ST_F_CHECK_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
+		stats[ST_F_CHECK_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
+		stats[ST_F_CHECK_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
+	}
+
+	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+		const char *fld_chksts;
+
+		fld_chksts = chunk_newstr(out);
+		chunk_strcat(out, "* "); // for check in progress
+		chunk_strcat(out, get_check_status_info(sv->agent.status));
+		if (!(sv->agent.state & CHK_ST_INPROGRESS))
+			fld_chksts += 2; // skip "* "
+		stats[ST_F_AGENT_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+
+		if (sv->agent.status >= HCHK_STATUS_L57DATA)
+			stats[ST_F_AGENT_CODE] = mkf_u32(FN_OUTPUT, sv->agent.code);
+
+		if (sv->agent.status >= HCHK_STATUS_CHECKED)
+			stats[ST_F_AGENT_DURATION] = mkf_u64(FN_DURATION, sv->agent.duration);
+
+		stats[ST_F_AGENT_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
+		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
+		stats[ST_F_AGENT_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
+		stats[ST_F_AGENT_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
+		stats[ST_F_AGENT_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
+	}
+
+	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+	if (px->mode == PR_MODE_HTTP) {
+		stats[ST_F_HRSP_1XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
+		stats[ST_F_HRSP_2XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
+		stats[ST_F_HRSP_3XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
+		stats[ST_F_HRSP_4XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
+		stats[ST_F_HRSP_5XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
+		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
+	}
+
+	if (ref->observe)
+		stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+
+	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
+	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
+	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
+
+	stats[ST_F_QTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES));
+	stats[ST_F_CTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES));
+	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
+	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
+
+	if (flags & ST_SHLGNDS) {
+		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
+		case AF_INET:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "%s:%d", str, get_host_port(&sv->addr));
+			break;
+		case AF_INET6:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "[%s]:%d", str, get_host_port(&sv->addr));
+			break;
+		case AF_UNIX:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+			break;
+		case -1:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_strcat(out, strerror(errno));
+			break;
+		default: /* address family not supported */
+			break;
+		}
+
+		if (sv->cookie)
+			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
+	}
+
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		int admin;
+
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, flags, px);
 	}
 	else { /* CSV mode */
 		/* dump everything */
