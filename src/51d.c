@@ -329,9 +329,9 @@ static void _51d_process_match(const struct arg *args, struct sample *smp)
 			}
 		}
 #endif
-		if (!found) {
+		if (!found)
 			chunk_appendf(temp, "%s", no_data);
-		}
+
 		/* Add separator. */
 		chunk_appendf(temp, "%c", global._51degrees.property_separator);
 		++i;
@@ -408,9 +408,8 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
-	if (lru) {
+	if (lru)
 		_51d_insert_cache_entry(smp, lru, (void*)args);
-	}
 #endif
 
 	return 1;
@@ -465,9 +464,8 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
-	if (lru) {
+	if (lru)
 		_51d_insert_cache_entry(smp, lru, (void*)args);
-	}
 #endif
 
 	return 1;
@@ -480,7 +478,7 @@ void _51d_init_http_headers()
 	const fiftyoneDegreesAsciiString *headerName;
 	fiftyoneDegreesDataSet *ds = &global._51degrees.data_set;
 	global._51degrees.header_count = ds->httpHeadersCount;
-	global._51degrees.header_names = (struct chunk*)malloc(global._51degrees.header_count * sizeof(struct chunk));
+	global._51degrees.header_names = malloc(global._51degrees.header_count * sizeof(struct chunk));
 	for (index = 0; index < global._51degrees.header_count; index++) {
 		headerName = fiftyoneDegreesGetString(ds, ds->httpHeaders[index].headerNameOffset);
 		(global._51degrees.header_names + index)->str = (char*)&headerName->firstByte;
@@ -497,8 +495,8 @@ void _51d_init_http_headers()
 	global._51degrees.header_count = fiftyoneDegreesGetHttpHeaderCount();
 	global._51degrees.device_offsets.firstOffset = (fiftyoneDegreesDeviceOffset*)malloc(
 		global._51degrees.header_count * sizeof(fiftyoneDegreesDeviceOffset));
-	global._51degrees.header_names = (struct chunk*)malloc(global._51degrees.header_count * sizeof(struct chunk));
-	global._51degrees.header_offsets = (int32_t*)malloc(global._51degrees.header_count * sizeof(int32_t));
+	global._51degrees.header_names = malloc(global._51degrees.header_count * sizeof(struct chunk));
+	global._51degrees.header_offsets = malloc(global._51degrees.header_count * sizeof(int32_t));
 	for (index = 0; index < global._51degrees.header_count; index++) {
 		global._51degrees.header_offsets[index] = fiftyoneDegreesGetHttpHeaderNameOffset(index);
 		global._51degrees.header_names[index].str = (char*)fiftyoneDegreesGetHttpHeaderNamePointer(index);
