@@ -3731,6 +3731,157 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
+	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
+		chunk_appendf(&trash, "<tr class=\"backend\">");
+		if (admin) {
+			/* Column sub-heading for Enable or Disable server */
+			chunk_appendf(&trash, "<td></td>");
+		}
+		chunk_appendf(&trash,
+		              "<td class=ac>"
+		              /* name */
+		              "%s<a name=\"%s/Backend\"></a>"
+		              "<a class=lfsb href=\"#%s/Backend\">Backend</a>"
+		              "",
+		              (flags & ST_SHLGNDS)?"<u>":"",
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_PXNAME));
+
+		if (flags & ST_SHLGNDS) {
+			/* balancing */
+			chunk_appendf(&trash, "<div class=tips>balancing: %s",
+			              backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
+
+			/* cookie */
+			if (stats[ST_F_COOKIE].type) {
+				chunk_appendf(&trash, ", cookie: '");
+				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
+				chunk_htmlencode(&trash, &src);
+				chunk_appendf(&trash, "'");
+			}
+			chunk_appendf(&trash, "</div>");
+		}
+
+		chunk_appendf(&trash,
+		              "%s</td>"
+		              /* queue : current, max */
+		              "<td>%s</td><td>%s</td><td></td>"
+		              /* sessions rate : current, max, limit */
+		              "<td>%s</td><td>%s</td><td></td>"
+		              "",
+		              (flags & ST_SHLGNDS)?"</u>":"",
+		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32),
+		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
+
+		chunk_appendf(&trash,
+		              /* sessions: current, max, limit, total */
+		              "<td>%s</td><td>%s</td><td>%s</td>"
+		              "<td><u>%s<div class=tips><table class=det>"
+		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
+		              "",
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_STOT].u.u64),
+		              U2H(stats[ST_F_STOT].u.u64));
+
+		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+		if (px->mode == PR_MODE_HTTP) {
+			chunk_appendf(&trash,
+			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>&nbsp;&nbsp;Compressed 2xx:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 3xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- other responses:</th><td>%s</td></tr>"
+			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
+			              "",
+			              U2H(stats[ST_F_REQ_TOT].u.u64),
+			              U2H(stats[ST_F_HRSP_1XX].u.u64),
+			              U2H(stats[ST_F_HRSP_2XX].u.u64),
+			              U2H(stats[ST_F_COMP_RSP].u.u64),
+			              stats[ST_F_HRSP_2XX].u.u64 ?
+			              (int)(100 * stats[ST_F_COMP_RSP].u.u64 / stats[ST_F_HRSP_2XX].u.u64) : 0,
+			              U2H(stats[ST_F_HRSP_3XX].u.u64),
+			              U2H(stats[ST_F_HRSP_4XX].u.u64),
+			              U2H(stats[ST_F_HRSP_5XX].u.u64),
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
+			              U2H(px->be_counters.intercepted_req));
+		}
+
+		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
+		if (px->mode == PR_MODE_HTTP)
+			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
+		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
+
+		chunk_appendf(&trash,
+		              "</table></div></u></td>"
+		              /* sessions: lbtot, last */
+		              "<td>%s</td><td>%s</td>"
+		              /* bytes: in */
+		              "<td>%s</td>"
+		              "",
+		              U2H(stats[ST_F_LBTOT].u.u64),
+		              human_time(stats[ST_F_LASTSESS].u.s32, 1),
+		              U2H(stats[ST_F_BIN].u.u64));
+
+		chunk_appendf(&trash,
+			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
+		              "<td>%s%s<div class=tips><table class=det>"
+			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression in:</th><td>%s</td></tr>"
+			      "<tr><th>Compression out:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "<tr><th>Compression bypass:</th><td>%s</td></tr>"
+			      "<tr><th>Total bytes saved:</th><td>%s</td><td>(%d%%)</td></tr>"
+			      "</table></div>%s</td>",
+		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "<u>":"",
+		              U2H(stats[ST_F_BOUT].u.u64),
+		              U2H(stats[ST_F_BOUT].u.u64),
+		              U2H(stats[ST_F_COMP_IN].u.u64),
+			      U2H(stats[ST_F_COMP_OUT].u.u64),
+			      stats[ST_F_COMP_IN].u.u64 ? (int)(stats[ST_F_COMP_OUT].u.u64 * 100 / stats[ST_F_COMP_IN].u.u64) : 0,
+			      U2H(stats[ST_F_COMP_BYP].u.u64),
+			      U2H(stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_BYP].u.u64),
+			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
+		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
+
+		chunk_appendf(&trash,
+		              /* denied: req, resp */
+		              "<td>%s</td><td>%s</td>"
+		              /* errors : request, connect */
+		              "<td></td><td>%s</td>"
+		              /* errors : response */
+		              "<td><u>%s<div class=tips>Connection resets during transfers: %lld client, %lld server</div></u></td>"
+		              /* warnings: retries, redispatches */
+		              "<td>%lld</td><td>%lld</td>"
+		              /* backend status: reflect backend status (up/down): we display UP
+		               * if the backend has known working servers or if it has no server at
+		               * all (eg: for stats). Then we display the total weight, number of
+		               * active and backups. */
+		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
+		              "<td class=ac>%d</td><td class=ac>%d</td>"
+		              "",
+		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
+		              U2H(stats[ST_F_ECON].u.u64),
+		              U2H(stats[ST_F_ERESP].u.u64),
+		              (long long)stats[ST_F_CLI_ABRT].u.u64,
+		              (long long)stats[ST_F_SRV_ABRT].u.u64,
+		              (long long)stats[ST_F_WRETR].u.u64, (long long)stats[ST_F_WREDIS].u.u64,
+		              human_time(stats[ST_F_LASTCHG].u.u32, 1),
+		              strcmp(field_str(stats, ST_F_STATUS), "DOWN") ? field_str(stats, ST_F_STATUS) : "<font color=\"red\"><b>DOWN</b></font>",
+		              stats[ST_F_WEIGHT].u.u32,
+		              stats[ST_F_ACT].u.u32, stats[ST_F_BCK].u.u32);
+
+		chunk_appendf(&trash,
+		              /* rest of backend: nothing, down transitions, total downtime, throttle */
+		              "<td class=ac>&nbsp;</td><td>%d</td>"
+		              "<td>%s</td>"
+		              "<td></td>"
+		              "</tr>",
+		              stats[ST_F_CHKDOWN].u.u32,
+		              stats[ST_F_DOWNTIME].type ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
+	}
 	return 1;
 }
 
@@ -4148,7 +4299,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, int flags)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct chunk src;
 
 	if (!(px->cap & PR_CAP_BE))
 		return 0;
@@ -4222,155 +4372,10 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_TTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		chunk_appendf(&trash, "<tr class=\"backend\">");
-		if (px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
-			/* Column sub-heading for Enable or Disable server */
-			chunk_appendf(&trash, "<td></td>");
-		}
-		chunk_appendf(&trash,
-		              "<td class=ac>"
-		              /* name */
-		              "%s<a name=\"%s/Backend\"></a>"
-		              "<a class=lfsb href=\"#%s/Backend\">Backend</a>"
-		              "",
-		              (flags & ST_SHLGNDS)?"<u>":"",
-		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_PXNAME));
+		int admin;
 
-		if (flags & ST_SHLGNDS) {
-			/* balancing */
-			chunk_appendf(&trash, "<div class=tips>balancing: %s",
-			              backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
-
-			/* cookie */
-			if (stats[ST_F_COOKIE].type) {
-				chunk_appendf(&trash, ", cookie: '");
-				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
-				chunk_htmlencode(&trash, &src);
-				chunk_appendf(&trash, "'");
-			}
-			chunk_appendf(&trash, "</div>");
-		}
-
-		chunk_appendf(&trash,
-		              "%s</td>"
-		              /* queue : current, max */
-		              "<td>%s</td><td>%s</td><td></td>"
-		              /* sessions rate : current, max, limit */
-		              "<td>%s</td><td>%s</td><td></td>"
-		              "",
-		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32),
-		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
-
-		chunk_appendf(&trash,
-		              /* sessions: current, max, limit, total */
-		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td><u>%s<div class=tips><table class=det>"
-		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
-		              "",
-		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SLIM].u.u32),
-		              U2H(stats[ST_F_STOT].u.u64),
-		              U2H(stats[ST_F_STOT].u.u64));
-
-		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
-			chunk_appendf(&trash,
-			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
-			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
-			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
-			              "<tr><th>&nbsp;&nbsp;Compressed 2xx:</th><td>%s</td><td>(%d%%)</td></tr>"
-			              "<tr><th>- HTTP 3xx responses:</th><td>%s</td></tr>"
-			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
-			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
-			              "<tr><th>- other responses:</th><td>%s</td></tr>"
-			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
-				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
-			              "",
-			              U2H(stats[ST_F_REQ_TOT].u.u64),
-			              U2H(stats[ST_F_HRSP_1XX].u.u64),
-			              U2H(stats[ST_F_HRSP_2XX].u.u64),
-			              U2H(stats[ST_F_COMP_RSP].u.u64),
-			              stats[ST_F_HRSP_2XX].u.u64 ?
-			              (int)(100 * stats[ST_F_COMP_RSP].u.u64 / stats[ST_F_HRSP_2XX].u.u64) : 0,
-			              U2H(stats[ST_F_HRSP_3XX].u.u64),
-			              U2H(stats[ST_F_HRSP_4XX].u.u64),
-			              U2H(stats[ST_F_HRSP_5XX].u.u64),
-			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
-			              U2H(px->be_counters.intercepted_req));
-		}
-
-		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
-		if (px->mode == PR_MODE_HTTP)
-			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
-
-		chunk_appendf(&trash,
-		              "</table></div></u></td>"
-		              /* sessions: lbtot, last */
-		              "<td>%s</td><td>%s</td>"
-		              /* bytes: in */
-		              "<td>%s</td>"
-		              "",
-		              U2H(stats[ST_F_LBTOT].u.u64),
-		              human_time(stats[ST_F_LASTSESS].u.s32, 1),
-		              U2H(stats[ST_F_BIN].u.u64));
-
-		chunk_appendf(&trash,
-			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
-		              "<td>%s%s<div class=tips><table class=det>"
-			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
-			      "<tr><th>Compression in:</th><td>%s</td></tr>"
-			      "<tr><th>Compression out:</th><td>%s</td><td>(%d%%)</td></tr>"
-			      "<tr><th>Compression bypass:</th><td>%s</td></tr>"
-			      "<tr><th>Total bytes saved:</th><td>%s</td><td>(%d%%)</td></tr>"
-			      "</table></div>%s</td>",
-		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "<u>":"",
-		              U2H(stats[ST_F_BOUT].u.u64),
-		              U2H(stats[ST_F_BOUT].u.u64),
-		              U2H(stats[ST_F_COMP_IN].u.u64),
-			      U2H(stats[ST_F_COMP_OUT].u.u64),
-			      stats[ST_F_COMP_IN].u.u64 ? (int)(stats[ST_F_COMP_OUT].u.u64 * 100 / stats[ST_F_COMP_IN].u.u64) : 0,
-			      U2H(stats[ST_F_COMP_BYP].u.u64),
-			      U2H(stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_BYP].u.u64),
-			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
-		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
-
-		chunk_appendf(&trash,
-		              /* denied: req, resp */
-		              "<td>%s</td><td>%s</td>"
-		              /* errors : request, connect */
-		              "<td></td><td>%s</td>"
-		              /* errors : response */
-		              "<td><u>%s<div class=tips>Connection resets during transfers: %lld client, %lld server</div></u></td>"
-		              /* warnings: retries, redispatches */
-		              "<td>%lld</td><td>%lld</td>"
-		              /* backend status: reflect backend status (up/down): we display UP
-		               * if the backend has known working servers or if it has no server at
-		               * all (eg: for stats). Then we display the total weight, number of
-		               * active and backups. */
-		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
-		              "<td class=ac>%d</td><td class=ac>%d</td>"
-		              "",
-		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
-		              U2H(stats[ST_F_ECON].u.u64),
-		              U2H(stats[ST_F_ERESP].u.u64),
-		              (long long)stats[ST_F_CLI_ABRT].u.u64,
-		              (long long)stats[ST_F_SRV_ABRT].u.u64,
-		              (long long)stats[ST_F_WRETR].u.u64, (long long)stats[ST_F_WREDIS].u.u64,
-		              human_time(stats[ST_F_LASTCHG].u.u32, 1),
-		              strcmp(field_str(stats, ST_F_STATUS), "DOWN") ? field_str(stats, ST_F_STATUS) : "<font color=\"red\"><b>DOWN</b></font>",
-		              stats[ST_F_WEIGHT].u.u32,
-		              stats[ST_F_ACT].u.u32, stats[ST_F_BCK].u.u32);
-
-		chunk_appendf(&trash,
-		              /* rest of backend: nothing, down transitions, total downtime, throttle */
-		              "<td class=ac>&nbsp;</td><td>%d</td>"
-		              "<td>%s</td>"
-		              "<td></td>"
-		              "</tr>",
-		              stats[ST_F_CHKDOWN].u.u32,
-		              stats[ST_F_DOWNTIME].type ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, flags, px);
 	}
 	else { /* CSV mode */
 		/* dump everything */
