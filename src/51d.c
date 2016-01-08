@@ -384,6 +384,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 		lru = lru64_get(_51d_req_hash(args, ws),
 		                _51d_lru_tree, (void*)args, 0);
 		if (lru && lru->domain) {
+			fiftyoneDegreesWorksetPoolRelease(global._51degrees.pool, ws);
 			_51d_retrieve_cache_entry(smp, lru);
 			return 1;
 		}
