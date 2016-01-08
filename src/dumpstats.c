@@ -3733,7 +3733,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		const char *fld_chksts;
 
 		fld_chksts = chunk_newstr(out);
+		chunk_strcat(out, "* "); // for check in progress
 		chunk_strcat(out, get_check_status_info(sv->check.status));
+		if (!(sv->check.state & CHK_ST_INPROGRESS))
+			fld_chksts += 2; // skip "* "
 		stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
 
 		if (sv->check.status >= HCHK_STATUS_L57DATA)
@@ -3975,8 +3978,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		}
 		else if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 			chunk_appendf(&trash,
-			              "</td><td class=ac><u> %s%s",
-			              (sv->check.state & CHK_ST_INPROGRESS) ? "* " : "",
+			              "</td><td class=ac><u> %s",
 			              field_str(stats, ST_F_CHECK_STATUS));
 
 			if (stats[ST_F_CHECK_CODE].type)
