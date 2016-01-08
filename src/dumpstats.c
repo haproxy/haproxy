@@ -333,6 +333,7 @@ enum stat_field {
 	ST_F_AGENT_RISE,
 	ST_F_AGENT_FALL,
 	ST_F_AGENT_HEALTH,
+	ST_F_ADDR,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -416,6 +417,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGENT_RISE]     = "agent_rise",
 	[ST_F_AGENT_FALL]     = "agent_fall",
 	[ST_F_AGENT_HEALTH]   = "agent_health",
+	[ST_F_ADDR]           = "addr",
 };
 
 /* one line of stats */
@@ -3819,6 +3821,28 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
 	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
 
+	if (flags & ST_SHLGNDS) {
+		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
+		case AF_INET:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "%s:%d", str, get_host_port(&sv->addr));
+			break;
+		case AF_INET6:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "[%s]:%d", str, get_host_port(&sv->addr));
+			break;
+		case AF_UNIX:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+			break;
+		case -1:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_strcat(out, strerror(errno));
+			break;
+		default: /* address family not supported */
+			break;
+		}
+	}
+
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
@@ -3843,22 +3867,12 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (flags & ST_SHLGNDS) {
 			chunk_appendf(&trash, "<div class=tips>");
 
-			switch (addr_to_str(&sv->addr, str, sizeof(str))) {
-			case AF_INET:
-				chunk_appendf(&trash, "IPv4: %s:%d, ", str, get_host_port(&sv->addr));
-				break;
-			case AF_INET6:
-				chunk_appendf(&trash, "IPv6: [%s]:%d, ", str, get_host_port(&sv->addr));
-				break;
-			case AF_UNIX:
-				chunk_appendf(&trash, "unix, ");
-				break;
-			case -1:
-				chunk_appendf(&trash, "(%s), ", strerror(errno));
-				break;
-			default: /* address family not supported */
-				break;
-			}
+			if (isdigit(*field_str(stats, ST_F_ADDR)))
+				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR) == '[')
+				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR))
+				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
 
 			/* id */
 			chunk_appendf(&trash, "id: %d", stats[ST_F_SID].u.u32);

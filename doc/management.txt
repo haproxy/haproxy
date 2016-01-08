@@ -1022,6 +1022,7 @@ S (Servers).
  70. agent_rise [...S]: agent's "rise" parameter, normally 1
  71. agent_fall [...S]: agent's "fall" parameter, normally 1
  72. agent_health [...S]: agent's health parameter, between 0 and rise+fall-1
+ 73. addr [...S]: server's address:port. IPv6 has brackets around the address.
 
 
 9.2. Unix Socket commands
