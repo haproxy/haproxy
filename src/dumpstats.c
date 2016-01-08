@@ -3807,7 +3807,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
 	}
 
-	stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+	if (ref->observe)
+		stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+
 	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
 	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
 	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
@@ -4038,27 +4040,18 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              stats[ST_F_BCK].u.u32 ? "-" : "Y",
 		              stats[ST_F_BCK].u.u32 ? "Y" : "-");
 
-		/*
-		 * FIXME!!!
-		 * here we count failed_checks from the ref while the CSV counts
-		 * them from the server itself. The CSV needs to be fixed to use
-		 * the ref as well. Also HANAFAIL is only reported if ref->observe
-		 * while there's no such limit in the CSV.
-		 *
-		 */
-
 		/* check failures: unique, fatal, down time */
-		if (sv->check.state & CHK_ST_ENABLED) {
+		if (stats[ST_F_CHKFAIL].type) {
 			chunk_appendf(&trash, "<td><u>%lld", (long long)stats[ST_F_CHKFAIL].u.u64);
 
-			if (ref->observe)
+			if (stats[ST_F_HANAFAIL].type)
 				chunk_appendf(&trash, "/%lld", (long long)stats[ST_F_HANAFAIL].u.u64);
 
 			chunk_appendf(&trash,
 			              "<div class=tips>Failed Health Checks%s</div></u></td>"
 			              "<td>%lld</td><td>%s</td>"
 			              "",
-			              ref->observe ? "/Health Analyses" : "",
+			              stats[ST_F_HANAFAIL].type ? "/Health Analyses" : "",
 			              (long long)stats[ST_F_CHKDOWN].u.u64, human_time(stats[ST_F_DOWNTIME].u.u32, 1));
 		}
 		else if (strcmp(field_str(stats, ST_F_STATUS), "MAINT") != 0 && field_format(stats, ST_F_TRACKED) == FF_STR) {
