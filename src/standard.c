@@ -1443,8 +1443,8 @@ char *encode_chunk(char *start, char *stop,
  *
  *    printf("..., \"%s\", ...\r\n", csv_enc(str, 0, &trash));
  *
- * If <quote> is 1, the converter puts the quotes only if any character is
- * escaped. If <quote> is 2, the converter always puts the quotes.
+ * If <quote> is 1, the converter puts the quotes only if any reserved character
+ * is present. If <quote> is 2, the converter always puts the quotes.
  *
  * <output> is a struct chunk used for storing the output string.
  *
@@ -1455,20 +1455,29 @@ char *encode_chunk(char *start, char *stop,
  * If the output buffer is too short to contain the input string, the result
  * is truncated.
  *
- * This function appends the encoding to the existing output chunk. Please
- * use csv_enc() instead if you want to replace the output chunk.
+ * This function appends the encoding to the existing output chunk, and it
+ * guarantees that it starts immediately at the first available character of
+ * the chunk. Please use csv_enc() instead if you want to replace the output
+ * chunk.
  */
 const char *csv_enc_append(const char *str, int quote, struct chunk *output)
 {
 	char *end = output->str + output->size;
-	char *out = output->str + output->len + 1; /* +1 for reserving space for a first <"> */
+	char *out = output->str + output->len;
 	char *ptr = out;
+
+	if (quote == 1) {
+		/* automatic quoting: first verify if we'll have to quote the string */
+		if (!strpbrk(str, "\n\r,\""))
+			quote = 0;
+	}
+
+	if (quote)
+		*ptr++ = '"';
 
 	while (*str && ptr < end - 2) { /* -2 for reserving space for <"> and \0. */
 		*ptr = *str;
 		if (*str == '"') {
-			if (quote == 1)
-				quote = 2;
 			ptr++;
 			if (ptr >= end - 2) {
 				ptr--;
@@ -1476,21 +1485,13 @@ const char *csv_enc_append(const char *str, int quote, struct chunk *output)
 			}
 			*ptr = '"';
 		}
-		if (quote == 1 && ( *str == '\r' || *str == '\n' || *str == ',') )
-			quote = 2;
 		ptr++;
 		str++;
 	}
 
-	if (quote < 2) {
-		*ptr = '\0';
-		output->len = ptr - output->str;
-		return out;
-	}
+	if (quote)
+		*ptr++ = '"';
 
-	/* quote == 2 : add quotes */
-	*--out = '"';
-	*++ptr = '"';
 	*ptr = '\0';
 	output->len = ptr - output->str;
 	return out;
