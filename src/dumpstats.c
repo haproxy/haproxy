@@ -3729,7 +3729,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
 	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, sv->counters.sps_max);
 
-	if (sv->check.state & CHK_ST_ENABLED) {
+	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 		const char *fld_chksts;
 
 		fld_chksts = chunk_newstr(out);
