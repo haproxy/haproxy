@@ -3392,6 +3392,67 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
 	}
+	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
+		chunk_appendf(&trash, "<tr class=socket>");
+		if (admin) {
+			/* Column sub-heading for Enable or Disable server */
+			chunk_appendf(&trash, "<td></td>");
+		}
+
+		chunk_appendf(&trash,
+		              /* frontend name, listener name */
+		              "<td class=ac><a name=\"%s/+%s\"></a>%s"
+		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
+		              "",
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
+		              (flags & ST_SHLGNDS)?"<u>":"",
+		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
+
+		if (flags & ST_SHLGNDS) {
+			chunk_appendf(&trash, "<div class=tips>");
+
+			if (isdigit(*field_str(stats, ST_F_ADDR)))
+				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR) == '[')
+				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR))
+				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
+
+			/* id */
+			chunk_appendf(&trash, "id: %d</div>", stats[ST_F_SID].u.u32);
+		}
+
+		chunk_appendf(&trash,
+			      /* queue */
+		              "%s</td><td colspan=3></td>"
+		              /* sessions rate: current, max, limit */
+		              "<td colspan=3>&nbsp;</td>"
+		              /* sessions: current, max, limit, total, lbtot, lastsess */
+		              "<td>%s</td><td>%s</td><td>%s</td>"
+		              "<td>%s</td><td>&nbsp;</td><td>&nbsp;</td>"
+		              /* bytes: in, out */
+		              "<td>%s</td><td>%s</td>"
+		              "",
+		              (flags & ST_SHLGNDS)?"</u>":"",
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_STOT].u.u64), U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64));
+
+		chunk_appendf(&trash,
+		              /* denied: req, resp */
+		              "<td>%s</td><td>%s</td>"
+		              /* errors: request, connect, response */
+		              "<td>%s</td><td></td><td></td>"
+		              /* warnings: retries, redispatches */
+		              "<td></td><td></td>"
+		              /* server status: reflect listener status */
+		              "<td class=ac>%s</td>"
+		              /* rest of server: nothing */
+		              "<td class=ac colspan=8></td></tr>"
+		              "",
+		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
+		              U2H(stats[ST_F_EREQ].u.u64),
+		              field_str(stats, ST_F_STATUS));
+	}
 	return 1;
 }
 
@@ -3522,64 +3583,10 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	}
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		chunk_appendf(&trash, "<tr class=socket>");
-		if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
-			/* Column sub-heading for Enable or Disable server */
-			chunk_appendf(&trash, "<td></td>");
-		}
-		chunk_appendf(&trash,
-		              /* frontend name, listener name */
-		              "<td class=ac><a name=\"%s/+%s\"></a>%s"
-		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
-		              "",
-		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
-		              (flags & ST_SHLGNDS)?"<u>":"",
-		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
+		int admin;
 
-		if (flags & ST_SHLGNDS) {
-			chunk_appendf(&trash, "<div class=tips>");
-
-			if (isdigit(*field_str(stats, ST_F_ADDR)))
-				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
-			else if (*field_str(stats, ST_F_ADDR) == '[')
-				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
-			else if (*field_str(stats, ST_F_ADDR))
-				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
-
-			/* id */
-			chunk_appendf(&trash, "id: %d</div>", stats[ST_F_SID].u.u32);
-		}
-
-		chunk_appendf(&trash,
-			      /* queue */
-		              "%s</td><td colspan=3></td>"
-		              /* sessions rate: current, max, limit */
-		              "<td colspan=3>&nbsp;</td>"
-		              /* sessions: current, max, limit, total, lbtot, lastsess */
-		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td>%s</td><td>&nbsp;</td><td>&nbsp;</td>"
-		              /* bytes: in, out */
-		              "<td>%s</td><td>%s</td>"
-		              "",
-		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
-		              U2H(stats[ST_F_STOT].u.u64), U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64));
-
-		chunk_appendf(&trash,
-		              /* denied: req, resp */
-		              "<td>%s</td><td>%s</td>"
-		              /* errors: request, connect, response */
-		              "<td>%s</td><td></td><td></td>"
-		              /* warnings: retries, redispatches */
-		              "<td></td><td></td>"
-		              /* server status: reflect listener status */
-		              "<td class=ac>%s</td>"
-		              /* rest of server: nothing */
-		              "<td class=ac colspan=8></td></tr>"
-		              "",
-		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
-		              U2H(stats[ST_F_EREQ].u.u64),
-		              field_str(stats, ST_F_STATUS));
+		admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+		stats_dump_fields_html(stats, admin, flags, px);
 	}
 	else { /* CSV mode */
 		/* dump everything */
