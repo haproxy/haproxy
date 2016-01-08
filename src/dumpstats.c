@@ -3458,7 +3458,9 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
+	struct chunk *out = get_trash_chunk();
 
+	chunk_reset(out);
 	memset(&stats, 0, sizeof(stats));
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
@@ -3478,6 +3480,32 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
 	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
 
+	if (flags & ST_SHLGNDS) {
+		char str[INET6_ADDRSTRLEN];
+		int port;
+
+		port = get_host_port(&l->addr);
+		switch (addr_to_str(&l->addr, str, sizeof(str))) {
+		case AF_INET:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "%s:%d", str, port);
+			break;
+		case AF_INET6:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_appendf(out, "[%s]:%d", str, port);
+			break;
+		case AF_UNIX:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+			break;
+		case -1:
+			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+			chunk_strcat(out, strerror(errno));
+			break;
+		default: /* address family not supported */
+			break;
+		}
+	}
+
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash, "<tr class=socket>");
 		if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
@@ -3494,26 +3522,14 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
 		if (flags & ST_SHLGNDS) {
-			char str[INET6_ADDRSTRLEN];
-			int port;
-
 			chunk_appendf(&trash, "<div class=tips>");
 
-			port = get_host_port(&l->addr);
-			switch (addr_to_str(&l->addr, str, sizeof(str))) {
-			case AF_INET:
-				chunk_appendf(&trash, "IPv4: %s:%d, ", str, port);
-				break;
-			case AF_INET6:
-				chunk_appendf(&trash, "IPv6: [%s]:%d, ", str, port);
-				break;
-			case AF_UNIX:
-				chunk_appendf(&trash, "unix, ");
-				break;
-			case -1:
-				chunk_appendf(&trash, "(%s), ", strerror(errno));
-				break;
-			}
+			if (isdigit(*field_str(stats, ST_F_ADDR)))
+				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR) == '[')
+				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
+			else if (*field_str(stats, ST_F_ADDR))
+				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
 
 			/* id */
 			chunk_appendf(&trash, "id: %d</div>", stats[ST_F_SID].u.u32);
