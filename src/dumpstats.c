@@ -322,6 +322,9 @@ enum stat_field {
 	ST_F_CTIME,
 	ST_F_RTIME,
 	ST_F_TTIME,
+	ST_F_AGENT_STATUS,
+	ST_F_AGENT_CODE,
+	ST_F_AGENT_DURATION,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -394,6 +397,9 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CTIME]          = "ctime",
 	[ST_F_RTIME]          = "rtime",
 	[ST_F_TTIME]          = "ttime",
+	[ST_F_AGENT_STATUS]   = "agent_status",
+	[ST_F_AGENT_CODE]     = "agent_code",
+	[ST_F_AGENT_DURATION] = "agent_duration",
 };
 
 /* one line of stats */
@@ -3746,6 +3752,23 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
 	}
 
+	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+		const char *fld_chksts;
+
+		fld_chksts = chunk_newstr(out);
+		chunk_strcat(out, "* "); // for check in progress
+		chunk_strcat(out, get_check_status_info(sv->agent.status));
+		if (!(sv->agent.state & CHK_ST_INPROGRESS))
+			fld_chksts += 2; // skip "* "
+		stats[ST_F_AGENT_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+
+		if (sv->agent.status >= HCHK_STATUS_L57DATA)
+			stats[ST_F_AGENT_CODE] = mkf_u32(FN_OUTPUT, sv->agent.code);
+
+		if (sv->agent.status >= HCHK_STATUS_CHECKED)
+			stats[ST_F_AGENT_DURATION] = mkf_u64(FN_DURATION, sv->agent.duration);
+	}
+
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 	if (px->mode == PR_MODE_HTTP) {
 		stats[ST_F_HRSP_1XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
@@ -3941,7 +3964,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
 		else if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
-			 (ref->agent.state & CHK_ST_ENABLED) && !(sv->agent.health)) {
+			 stats[ST_F_AGENT_STATUS].type && !(sv->agent.health)) {
 			/* DOWN (agent) */
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
@@ -3955,17 +3978,16 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		}
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
-		    ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) && !(sv->agent.health)) {
+		    stats[ST_F_AGENT_STATUS].type && !(sv->agent.health)) {
 			chunk_appendf(&trash,
-			              "</td><td class=ac><u> %s%s",
-			              (sv->agent.state & CHK_ST_INPROGRESS) ? "* " : "",
-			              get_check_status_info(sv->agent.status));
+			              "</td><td class=ac><u> %s",
+			              field_str(stats, ST_F_AGENT_STATUS));
 
-			if (sv->agent.status >= HCHK_STATUS_L57DATA)
-				chunk_appendf(&trash, "/%d", sv->agent.code);
+			if (stats[ST_F_AGENT_CODE].type)
+				chunk_appendf(&trash, "/%d", stats[ST_F_AGENT_CODE].u.u32);
 
-			if (sv->agent.status >= HCHK_STATUS_CHECKED && sv->agent.duration >= 0)
-				chunk_appendf(&trash, " in %lums", sv->agent.duration);
+			if (stats[ST_F_AGENT_DURATION].type && stats[ST_F_AGENT_DURATION].u.u64 >= 0)
+				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_AGENT_DURATION].u.u64);
 
 			chunk_appendf(&trash, "<div class=tips>%s",
 				      get_check_status_description(sv->agent.status));

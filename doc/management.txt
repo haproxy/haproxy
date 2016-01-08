@@ -1002,6 +1002,18 @@ S (Servers).
      (0 for TCP)
  61. ttime [..BS]: the average total session time in ms over the 1024 last
      requests
+ 62. agent_status [...S]: status of last agent check, one of:
+        UNK     -> unknown
+        INI     -> initializing
+        SOCKERR -> socket error
+        L4OK    -> check passed on layer 4, no upper layers testing enabled
+        L4TOUT  -> layer 1-4 timeout
+        L4CON   -> layer 1-4 connection problem, for example
+                   "Connection refused" (tcp rst) or "No route to host" (icmp)
+        L7OK    -> agent reported "up"
+        L7STS   -> agent reported "fail", "stop", or "down"
+ 63. agent_code [...S]: numeric code reported by agent if any (unused for now)
+ 64. agent_duration [...S]: time in ms taken to finish last check
 
 
 9.2. Unix Socket commands
