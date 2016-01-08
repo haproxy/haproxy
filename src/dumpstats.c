@@ -327,6 +327,12 @@ enum stat_field {
 	ST_F_AGENT_DURATION,
 	ST_F_CHECK_DESC,
 	ST_F_AGENT_DESC,
+	ST_F_CHECK_RISE,
+	ST_F_CHECK_FALL,
+	ST_F_CHECK_HEALTH,
+	ST_F_AGENT_RISE,
+	ST_F_AGENT_FALL,
+	ST_F_AGENT_HEALTH,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -404,6 +410,12 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGENT_DURATION] = "agent_duration",
 	[ST_F_CHECK_DESC]     = "check_desc",
 	[ST_F_AGENT_DESC]     = "agent_desc",
+	[ST_F_CHECK_RISE]     = "check_rise",
+	[ST_F_CHECK_FALL]     = "check_fall",
+	[ST_F_CHECK_HEALTH]   = "check_health",
+	[ST_F_AGENT_RISE]     = "agent_rise",
+	[ST_F_AGENT_FALL]     = "agent_fall",
+	[ST_F_AGENT_HEALTH]   = "agent_health",
 };
 
 /* one line of stats */
@@ -3757,6 +3769,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		stats[ST_F_CHECK_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
 		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
+		stats[ST_F_CHECK_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
+		stats[ST_F_CHECK_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
+		stats[ST_F_CHECK_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
 	}
 
 	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
@@ -3777,6 +3792,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		stats[ST_F_AGENT_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
 		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
+		stats[ST_F_AGENT_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
+		stats[ST_F_AGENT_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
+		stats[ST_F_AGENT_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
 	}
 
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
@@ -3968,7 +3986,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
 		else if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
-			 stats[ST_F_AGENT_STATUS].type && !(sv->agent.health)) {
+			 stats[ST_F_AGENT_STATUS].type && !stats[ST_F_AGENT_HEALTH].u.u32) {
 			/* DOWN (agent) */
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
@@ -3977,12 +3995,12 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? ref->check.health : ref->check.health - ref->check.rise + 1,
-			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? ref->check.rise : ref->check.fall);
+			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? stats[ST_F_CHECK_HEALTH].u.u32 : stats[ST_F_CHECK_HEALTH].u.u32 - stats[ST_F_CHECK_RISE].u.u32 + 1,
+			              (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) ? stats[ST_F_CHECK_RISE].u.u32 : stats[ST_F_CHECK_FALL].u.u32);
 		}
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
-		    stats[ST_F_AGENT_STATUS].type && !(sv->agent.health)) {
+		    stats[ST_F_AGENT_STATUS].type && !stats[ST_F_AGENT_HEALTH].u.u32) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s",
 			              field_str(stats, ST_F_AGENT_STATUS));
