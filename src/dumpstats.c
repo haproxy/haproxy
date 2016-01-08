@@ -334,6 +334,7 @@ enum stat_field {
 	ST_F_AGENT_FALL,
 	ST_F_AGENT_HEALTH,
 	ST_F_ADDR,
+	ST_F_COOKIE,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -418,6 +419,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGENT_FALL]     = "agent_fall",
 	[ST_F_AGENT_HEALTH]   = "agent_health",
 	[ST_F_ADDR]           = "addr",
+	[ST_F_COOKIE]         = "cookie",
 };
 
 /* one line of stats */
@@ -3841,6 +3843,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		default: /* address family not supported */
 			break;
 		}
+
+		if (sv->cookie)
+			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 	}
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
@@ -3878,12 +3883,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "id: %d", stats[ST_F_SID].u.u32);
 
 			/* cookie */
-			if (sv->cookie) {
+			if (stats[ST_F_COOKIE].type) {
 				chunk_appendf(&trash, ", cookie: '");
-
-				chunk_initstr(&src, sv->cookie);
+				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
 				chunk_htmlencode(&trash, &src);
-
 				chunk_appendf(&trash, "'");
 			}
 
@@ -4139,6 +4142,10 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
 	stats[ST_F_RATE]     = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
 	stats[ST_F_RATE_MAX] = mkf_u32(0, px->be_counters.sps_max);
+	if (flags & ST_SHLGNDS) {
+		if (px->cookie_name)
+			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
+	}
 
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 	if (px->mode == PR_MODE_HTTP) {
@@ -4187,9 +4194,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 			              backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
 
 			/* cookie */
-			if (px->cookie_name) {
+			if (stats[ST_F_COOKIE].type) {
 				chunk_appendf(&trash, ", cookie: '");
-				chunk_initstr(&src, px->cookie_name);
+				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
 				chunk_htmlencode(&trash, &src);
 				chunk_appendf(&trash, "'");
 			}
