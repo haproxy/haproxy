@@ -3260,25 +3260,25 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 	return 1;
 }
 
-/* Dump all fields from <stats> into trash using the HTML format. A column is
+/* Dump all fields from <stats> into <out> using the HTML format. A column is
  * reserved for the checkbox is ST_SHOWADMIN is set in <flags>. Some extra info
  * are provided if ST_SHLGNDS is present in <flags>.
  */
-static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
+static int stats_dump_fields_html(struct chunk *out, const struct field *stats, unsigned int flags)
 {
 	struct chunk src;
 
 	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
 		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
-			chunk_appendf(&trash, "<td></td>");
+			chunk_appendf(out, "<td></td>");
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "<td class=ac>"
 		              "<a name=\"%s/Frontend\"></a>"
 		              "<a class=lfsb href=\"#%s/Frontend\">Frontend</a></td>"
@@ -3286,7 +3286,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              "",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_PXNAME));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* sessions rate : current */
 		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Current connection rate:</th><td>%s/s</td></tr>"
@@ -3297,11 +3297,11 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              U2H(stats[ST_F_RATE].u.u32));
 
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr><th>Current request rate:</th><td>%s/s</td></tr>",
 			              U2H(stats[ST_F_REQ_RATE].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "</table></div></u></td>"
 		              /* sessions rate : max */
 		              "<td><u>%s<div class=tips><table class=det>"
@@ -3313,17 +3313,17 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              U2H(stats[ST_F_RATE_MAX].u.u32));
 
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr><th>Max request rate:</th><td>%s/s</td></tr>",
 			              U2H(stats[ST_F_REQ_RATE_MAX].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "</table></div></u></td>"
 		              /* sessions rate : limit */
 		              "<td>%s</td>",
 		              LIM2A(stats[ST_F_RATE_LIM].u.u32, "-"));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
 		              "<td><u>%s<div class=tips><table class=det>"
@@ -3337,7 +3337,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
@@ -3361,7 +3361,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			              U2H(stats[ST_F_INTERCEPTED].u.u64));
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "</table></div></u></td>"
 		              /* sessions: lbtot, lastsess */
 		              "<td></td><td></td>"
@@ -3370,7 +3370,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              "",
 		              U2H(stats[ST_F_BIN].u.u64));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
 		              "<td>%s%s<div class=tips><table class=det>"
 			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
@@ -3390,7 +3390,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
 		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* denied: req, resp */
 		              "<td>%s</td><td>%s</td>"
 		              /* errors : request, connect, response */
@@ -3407,13 +3407,13 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              field_str(stats, ST_F_STATUS));
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
-		chunk_appendf(&trash, "<tr class=socket>");
+		chunk_appendf(out, "<tr class=socket>");
 		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
-			chunk_appendf(&trash, "<td></td>");
+			chunk_appendf(out, "<td></td>");
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* frontend name, listener name */
 		              "<td class=ac><a name=\"%s/+%s\"></a>%s"
 		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
@@ -3423,20 +3423,20 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
 		if (flags & ST_SHLGNDS) {
-			chunk_appendf(&trash, "<div class=tips>");
+			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit(*field_str(stats, ST_F_ADDR)))
-				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR) == '[')
-				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR))
-				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "%s, ", field_str(stats, ST_F_ADDR));
 
 			/* id */
-			chunk_appendf(&trash, "id: %d</div>", stats[ST_F_SID].u.u32);
+			chunk_appendf(out, "id: %d</div>", stats[ST_F_SID].u.u32);
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 			      /* queue */
 		              "%s</td><td colspan=3></td>"
 		              /* sessions rate: current, max, limit */
@@ -3451,7 +3451,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
 		              U2H(stats[ST_F_STOT].u.u64), U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* denied: req, resp */
 		              "<td>%s</td><td>%s</td>"
 		              /* errors: request, connect, response */
@@ -3506,19 +3506,19 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		}
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
-			chunk_appendf(&trash, "<tr class=\"maintain\">");
+			chunk_appendf(out, "<tr class=\"maintain\">");
 		else
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr class=\"%s_%s\">",
 			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
 
 
 		if (flags & ST_SHOWADMIN)
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_F_SVNAME));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "<td class=ac><a name=\"%s/%s\"></a>%s"
 		              "<a class=lfsb href=\"#%s/%s\">%s</a>"
 		              "",
@@ -3527,30 +3527,30 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
 		if (flags & ST_SHLGNDS) {
-			chunk_appendf(&trash, "<div class=tips>");
+			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit(*field_str(stats, ST_F_ADDR)))
-				chunk_appendf(&trash, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR) == '[')
-				chunk_appendf(&trash, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR))
-				chunk_appendf(&trash, "%s, ", field_str(stats, ST_F_ADDR));
+				chunk_appendf(out, "%s, ", field_str(stats, ST_F_ADDR));
 
 			/* id */
-			chunk_appendf(&trash, "id: %d", stats[ST_F_SID].u.u32);
+			chunk_appendf(out, "id: %d", stats[ST_F_SID].u.u32);
 
 			/* cookie */
 			if (stats[ST_F_COOKIE].type) {
-				chunk_appendf(&trash, ", cookie: '");
+				chunk_appendf(out, ", cookie: '");
 				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
-				chunk_htmlencode(&trash, &src);
-				chunk_appendf(&trash, "'");
+				chunk_htmlencode(out, &src);
+				chunk_appendf(out, "'");
 			}
 
-			chunk_appendf(&trash, "</div>");
+			chunk_appendf(out, "</div>");
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* queue : current, max, limit */
 		              "%s</td><td>%s</td><td>%s</td><td>%s</td>"
 		              /* sessions rate : current, max, limit */
@@ -3560,7 +3560,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32), LIM2A(stats[ST_F_QLIMIT].u.u32, "-"),
 		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
 		              "<td><u>%s<div class=tips><table class=det>"
@@ -3581,7 +3581,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			tot += stats[ST_F_HRSP_4XX].u.u64;
 			tot += stats[ST_F_HRSP_5XX].u.u64;
 
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr><th>Cum. HTTP responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
@@ -3599,21 +3599,21 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_OTHER].u.u64 / tot) : 0);
 		}
 
-		chunk_appendf(&trash, "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>");
-		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_CTIME].u.u32));
+		chunk_appendf(out, "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>");
+		chunk_appendf(out, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(out, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_CTIME].u.u32));
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
-			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
+			chunk_appendf(out, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
+		chunk_appendf(out, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "</table></div></u></td>"
 		              /* sessions: lbtot, last */
 		              "<td>%s</td><td>%s</td>",
 		              U2H(stats[ST_F_LBTOT].u.u64),
 		              human_time(stats[ST_F_LASTSESS].u.s32, 1));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* bytes : in, out */
 		              "<td>%s</td><td>%s</td>"
 		              /* denied: req, resp */
@@ -3635,7 +3635,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			      (long long)stats[ST_F_WREDIS].u.u64);
 
 		/* status, last change */
-		chunk_appendf(&trash, "<td class=ac>");
+		chunk_appendf(out, "<td class=ac>");
 
 		/* FIXME!!!!
 		 *   LASTCHG should contain the last change for *this* server and must be computed
@@ -3645,66 +3645,66 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
-			chunk_appendf(&trash, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
+			chunk_appendf(out, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
 		else if (memcmp(field_str(stats, ST_F_STATUS), "no check", 5) == 0) {
-			chunk_strcat(&trash, "<i>no check</i>");
+			chunk_strcat(out, "<i>no check</i>");
 		}
 		else {
-			chunk_appendf(&trash, "%s %s", human_time(stats[ST_F_LASTCHG].u.u32, 1), field_str(stats, ST_F_STATUS));
+			chunk_appendf(out, "%s %s", human_time(stats[ST_F_LASTCHG].u.u32, 1), field_str(stats, ST_F_STATUS));
 			if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) {
 				if (stats[ST_F_CHECK_HEALTH].u.u32)
-					chunk_strcat(&trash, " &uarr;");
+					chunk_strcat(out, " &uarr;");
 			}
 			else if (stats[ST_F_CHECK_HEALTH].u.u32 < stats[ST_F_CHECK_RISE].u.u32 + stats[ST_F_CHECK_FALL].u.u32 - 1)
-				chunk_strcat(&trash, " &darr;");
+				chunk_strcat(out, " &darr;");
 		}
 
 		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
 		    stats[ST_F_AGENT_STATUS].type && !stats[ST_F_AGENT_HEALTH].u.u32) {
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "</td><td class=ac><u> %s",
 			              field_str(stats, ST_F_AGENT_STATUS));
 
 			if (stats[ST_F_AGENT_CODE].type)
-				chunk_appendf(&trash, "/%d", stats[ST_F_AGENT_CODE].u.u32);
+				chunk_appendf(out, "/%d", stats[ST_F_AGENT_CODE].u.u32);
 
 			if (stats[ST_F_AGENT_DURATION].type && stats[ST_F_AGENT_DURATION].u.u64 >= 0)
-				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_AGENT_DURATION].u.u64);
+				chunk_appendf(out, " in %lums", (long)stats[ST_F_AGENT_DURATION].u.u64);
 
-			chunk_appendf(&trash, "<div class=tips>%s", field_str(stats, ST_F_AGENT_DESC));
+			chunk_appendf(out, "<div class=tips>%s", field_str(stats, ST_F_AGENT_DESC));
 
 			if (*field_str(stats, ST_F_LAST_AGT)) {
-				chunk_appendf(&trash, ": ");
+				chunk_appendf(out, ": ");
 				chunk_initstr(&src, field_str(stats, ST_F_LAST_AGT));
-				chunk_htmlencode(&trash, &src);
+				chunk_htmlencode(out, &src);
 			}
-			chunk_appendf(&trash, "</div></u>");
+			chunk_appendf(out, "</div></u>");
 		}
 		else if (stats[ST_F_CHECK_STATUS].type) {
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "</td><td class=ac><u> %s",
 			              field_str(stats, ST_F_CHECK_STATUS));
 
 			if (stats[ST_F_CHECK_CODE].type)
-				chunk_appendf(&trash, "/%d", stats[ST_F_CHECK_CODE].u.u32);
+				chunk_appendf(out, "/%d", stats[ST_F_CHECK_CODE].u.u32);
 
 			if (stats[ST_F_CHECK_DURATION].type && stats[ST_F_CHECK_DURATION].u.u64 >= 0)
-				chunk_appendf(&trash, " in %lums", (long)stats[ST_F_CHECK_DURATION].u.u64);
+				chunk_appendf(out, " in %lums", (long)stats[ST_F_CHECK_DURATION].u.u64);
 
-			chunk_appendf(&trash, "<div class=tips>%s", field_str(stats, ST_F_CHECK_DESC));
+			chunk_appendf(out, "<div class=tips>%s", field_str(stats, ST_F_CHECK_DESC));
 
 			if (*field_str(stats, ST_F_LAST_CHK)) {
-				chunk_appendf(&trash, ": ");
+				chunk_appendf(out, ": ");
 				chunk_initstr(&src, field_str(stats, ST_F_LAST_CHK));
-				chunk_htmlencode(&trash, &src);
+				chunk_htmlencode(out, &src);
 			}
-			chunk_appendf(&trash, "</div></u>");
+			chunk_appendf(out, "</div></u>");
 		}
 		else
-			chunk_appendf(&trash, "</td><td>");
+			chunk_appendf(out, "</td><td>");
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* weight */
 		              "</td><td class=ac>%d</td>"
 		              /* act, bck */
@@ -3716,12 +3716,12 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 
 		/* check failures: unique, fatal, down time */
 		if (stats[ST_F_CHKFAIL].type) {
-			chunk_appendf(&trash, "<td><u>%lld", (long long)stats[ST_F_CHKFAIL].u.u64);
+			chunk_appendf(out, "<td><u>%lld", (long long)stats[ST_F_CHKFAIL].u.u64);
 
 			if (stats[ST_F_HANAFAIL].type)
-				chunk_appendf(&trash, "/%lld", (long long)stats[ST_F_HANAFAIL].u.u64);
+				chunk_appendf(out, "/%lld", (long long)stats[ST_F_HANAFAIL].u.u64);
 
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<div class=tips>Failed Health Checks%s</div></u></td>"
 			              "<td>%lld</td><td>%s</td>"
 			              "",
@@ -3730,26 +3730,26 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		}
 		else if (strcmp(field_str(stats, ST_F_STATUS), "MAINT") != 0 && field_format(stats, ST_F_TRACKED) == FF_STR) {
 			/* tracking a server (hence inherited maint would appear as "MAINT (via...)" */
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<td class=ac colspan=3><a class=lfsb href=\"#%s\">via %s</a></td>",
 			              field_str(stats, ST_F_TRACKED), field_str(stats, ST_F_TRACKED));
 		}
 		else
-			chunk_appendf(&trash, "<td colspan=3></td>");
+			chunk_appendf(out, "<td colspan=3></td>");
 
 		/* throttle */
 		if (stats[ST_F_THROTTLE].type)
-			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", stats[ST_F_THROTTLE].u.u32);
+			chunk_appendf(out, "<td class=ac>%d %%</td></tr>\n", stats[ST_F_THROTTLE].u.u32);
 		else
-			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
+			chunk_appendf(out, "<td class=ac>-</td></tr>\n");
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
-		chunk_appendf(&trash, "<tr class=\"backend\">");
+		chunk_appendf(out, "<tr class=\"backend\">");
 		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
-			chunk_appendf(&trash, "<td></td>");
+			chunk_appendf(out, "<td></td>");
 		}
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "<td class=ac>"
 		              /* name */
 		              "%s<a name=\"%s/Backend\"></a>"
@@ -3760,20 +3760,20 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 
 		if (flags & ST_SHLGNDS) {
 			/* balancing */
-			chunk_appendf(&trash, "<div class=tips>balancing: %s",
+			chunk_appendf(out, "<div class=tips>balancing: %s",
 			              field_str(stats, ST_F_ALGO));
 
 			/* cookie */
 			if (stats[ST_F_COOKIE].type) {
-				chunk_appendf(&trash, ", cookie: '");
+				chunk_appendf(out, ", cookie: '");
 				chunk_initstr(&src, field_str(stats, ST_F_COOKIE));
-				chunk_htmlencode(&trash, &src);
-				chunk_appendf(&trash, "'");
+				chunk_htmlencode(out, &src);
+				chunk_appendf(out, "'");
 			}
-			chunk_appendf(&trash, "</div>");
+			chunk_appendf(out, "</div>");
 		}
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "%s</td>"
 		              /* queue : current, max */
 		              "<td>%s</td><td>%s</td><td></td>"
@@ -3784,7 +3784,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32),
 		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
 		              "<td><u>%s<div class=tips><table class=det>"
@@ -3796,7 +3796,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
-			chunk_appendf(&trash,
+			chunk_appendf(out,
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
@@ -3821,13 +3821,13 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			              U2H(stats[ST_F_INTERCEPTED].u.u64));
 		}
 
-		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(out, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
+		chunk_appendf(out, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
-			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
-		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
+			chunk_appendf(out, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
+		chunk_appendf(out, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              "</table></div></u></td>"
 		              /* sessions: lbtot, last */
 		              "<td>%s</td><td>%s</td>"
@@ -3838,7 +3838,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              human_time(stats[ST_F_LASTSESS].u.s32, 1),
 		              U2H(stats[ST_F_BIN].u.u64));
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
 		              "<td>%s%s<div class=tips><table class=det>"
 			      "<tr><th>Response bytes in:</th><td>%s</td></tr>"
@@ -3858,7 +3858,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
 		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* denied: req, resp */
 		              "<td>%s</td><td>%s</td>"
 		              /* errors : request, connect */
@@ -3885,7 +3885,7 @@ static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 		              stats[ST_F_WEIGHT].u.u32,
 		              stats[ST_F_ACT].u.u32, stats[ST_F_BCK].u.u32);
 
-		chunk_appendf(&trash,
+		chunk_appendf(out,
 		              /* rest of backend: nothing, down transitions, total downtime, throttle */
 		              "<td class=ac>&nbsp;</td><td>%d</td>"
 		              "<td>%s</td>"
@@ -3903,7 +3903,7 @@ static int stats_dump_one_line(const struct field *stats, unsigned int flags, st
 		flags |= ST_SHOWADMIN;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-		return stats_dump_fields_html(stats, flags);
+		return stats_dump_fields_html(&trash, stats, flags);
 	else
 		return stats_dump_fields_csv(&trash, stats);
 }
