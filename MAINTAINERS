@@ -58,3 +58,6 @@ DeviceAtlas device identification
 Maintainer: David Carlier <dcarlier@afilias.info>
 Files: src/da.c, include/*/da.h
 
+51Degrees device identification
+Maintainer: Ben Shillito <ben@51degrees.com>
+Files: src/51d.c
