@@ -1523,6 +1523,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
+			if (strcmp(args[2], "typed") == 0)
+				appctx->ctx.stats.flags |= STAT_FMT_TYPED;
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
@@ -3075,6 +3077,27 @@ static int stats_dump_info_fields(struct chunk *out, const struct field *info)
 	return 1;
 }
 
+/* Dump all fields from <info> into <out> using the "show info typed" format */
+static int stats_dump_typed_info_fields(struct chunk *out, const struct field *info)
+{
+	int field;
+
+	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+		if (!field_format(info, field))
+			continue;
+
+		if (!chunk_appendf(out, "%d.%s.%u:", field, info_field_names[field], info[INF_PROCESS_NUM].u.u32))
+			return 0;
+		if (!stats_emit_field_tags(out, &info[field], ':'))
+			return 0;
+		if (!stats_emit_typed_data_field(out, &info[field]))
+			return 0;
+		if (!chunk_strcat(out, "\n"))
+			return 0;
+	}
+	return 1;
+}
+
 /* This function dumps information onto the stream interface's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
@@ -3083,6 +3106,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	struct chunk *out = get_trash_chunk();
+	struct appctx *appctx = __objt_appctx(si->end);
 
 #ifdef USE_OPENSSL
 	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
@@ -3163,7 +3187,11 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
 
 	chunk_reset(&trash);
-	stats_dump_info_fields(&trash, info);
+
+	if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
+		stats_dump_typed_info_fields(&trash, info);
+	else
+		stats_dump_info_fields(&trash, info);
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
 		si_applet_cant_put(si);
