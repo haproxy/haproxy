@@ -4091,7 +4091,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_BCK]      = mkf_u32(0, px->srv_bck);
 	stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, px->down_trans);
 	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - px->last_change);
-	stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, px->srv ? be_downtime(px) : 0);
+	if (px->srv)
+		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, be_downtime(px));
+
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
@@ -4275,7 +4277,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td></td>"
 		              "</tr>",
 		              stats[ST_F_CHKDOWN].u.u32,
-		              px->srv ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
+		              stats[ST_F_DOWNTIME].type ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
 	}
 	else { /* CSV mode */
 		/* dump everything */
