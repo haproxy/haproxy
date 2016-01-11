@@ -2815,6 +2815,7 @@ static void cli_io_handler(struct appctx *appctx)
 static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
+	struct chunk *out = get_trash_chunk();
 
 #ifdef USE_OPENSSL
 	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
@@ -2826,6 +2827,73 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
 	}
 #endif
+
+	chunk_reset(out);
+	memset(&info, 0, sizeof(info));
+
+	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
+	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_VERSION);
+	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_DATE);
+
+	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
+	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, relative_pid);
+	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
+
+	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
+	chunk_appendf(out, "%ud %uh%02um%02us", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+
+	info[INF_UPTIME_SEC]                     = mkf_u32(FN_DURATION, up);
+	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+	info[INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+	info[INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
+	info[INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
+	info[INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
+	info[INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
+	info[INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
+	info[INF_CURR_CONN]                      = mkf_u32(0, actconn);
+	info[INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
+	info[INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
+#ifdef USE_OPENSSL
+	info[INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
+	info[INF_CURR_SSL_CONNS]                 = mkf_u32(0, sslconns);
+	info[INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, totalsslconns);
+#endif
+	info[INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
+	info[INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
+	info[INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
+	info[INF_CONN_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	info[INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
+	info[INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
+	info[INF_SESS_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	info[INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
+	info[INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
+
+#ifdef USE_OPENSSL
+	info[INF_SSL_RATE]                       = mkf_u32(FN_RATE, ssl_sess_rate);
+	info[INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
+	info[INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
+	info[INF_SSL_FRONTEND_KEY_RATE]          = mkf_u32(0, ssl_key_rate);
+	info[INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
+	info[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = mkf_u32(0, ssl_reuse);
+	info[INF_SSL_BACKEND_KEY_RATE]           = mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	info[INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
+	info[INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
+	info[INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
+#endif
+	info[INF_COMPRESS_BPS_IN]                = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	info[INF_COMPRESS_BPS_OUT]               = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	info[INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
+#ifdef USE_ZLIB
+	info[INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
+	info[INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
+#endif
+	info[INF_TASKS]                          = mkf_u32(0, nb_tasks_cur);
+	info[INF_RUN_QUEUE]                      = mkf_u32(0, run_queue_cur);
+	info[INF_IDLE_PCT]                       = mkf_u32(FN_AVG, idle_pct);
+	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
+	if (global.desc)
+		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
 
 	chunk_printf(&trash,
 	             "Name: " PRODUCT_NAME "\n"
