@@ -1025,6 +1025,7 @@ S (Servers).
  73. addr [L..S]: address:port or "unix". IPv6 has brackets around the address.
  74: cookie [..BS]: server's cookie value or backend's cookie name
  75: mode [LFBS]: proxy mode (tcp, http, health, unknown)
+ 76: algo [..B.]: load balancing algorithm
 
 
 9.2. Unix Socket commands
