@@ -3260,11 +3260,11 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 	return 1;
 }
 
-/* Dump all fields from <stats> into trash using the HTML format.
- * A column is reserved for the checkbox is <admin> is non-null. The caller's
- * flags may be passed in <flags> (eg: SHLGNDS to show the legends).
+/* Dump all fields from <stats> into trash using the HTML format. A column is
+ * reserved for the checkbox is ST_SHOWADMIN is set in <flags>. Some extra info
+ * are provided if ST_SHLGNDS is present in <flags>.
  */
-static int stats_dump_fields_html(const struct field *stats, int admin, unsigned int flags)
+static int stats_dump_fields_html(const struct field *stats, unsigned int flags)
 {
 	struct chunk src;
 
@@ -3273,7 +3273,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
-		if (admin) {
+		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(&trash, "<td></td>");
 		}
@@ -3408,7 +3408,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
 		chunk_appendf(&trash, "<tr class=socket>");
-		if (admin) {
+		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(&trash, "<td></td>");
 		}
@@ -3513,7 +3513,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
 
 
-		if (admin)
+		if (flags & ST_SHOWADMIN)
 			chunk_appendf(&trash,
 			              "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_F_SVNAME));
@@ -3745,7 +3745,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
 		chunk_appendf(&trash, "<tr class=\"backend\">");
-		if (admin) {
+		if (flags & ST_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(&trash, "<td></td>");
 		}
@@ -3899,12 +3899,11 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 
 static int stats_dump_one_line(const struct field *stats, unsigned int flags, struct proxy *px, struct appctx *appctx)
 {
-	int admin;
-
-	admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
+	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
+		flags |= ST_SHOWADMIN;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-		return stats_dump_fields_html(stats, admin, flags);
+		return stats_dump_fields_html(stats, flags);
 	else
 		return stats_dump_fields_csv(&trash, stats);
 }
