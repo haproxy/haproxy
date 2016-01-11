@@ -130,6 +130,130 @@ enum {
 	ST_ADM_ACTION_START,
 };
 
+
+/* Show Info fields for CLI output. For any field added here, please add the text
+ * representation in the info_field_names array below. Please only append at the end,
+ * before the INF_TOTAL_FIELDS entry, and never insert anything in the middle
+ * nor at the beginning.
+ */
+enum info_field {
+	INF_NAME,
+	INF_VERSION,
+	INF_RELEASE_DATE,
+	INF_NBPROC,
+	INF_PROCESS_NUM,
+	INF_PID,
+	INF_UPTIME,
+	INF_UPTIME_SEC,
+	INF_MEMMAX_MB,
+	INF_POOL_ALLOC_MB,
+	INF_POOL_USED_MB,
+	INF_POOL_FAILED,
+	INF_ULIMIT_N,
+	INF_MAXSOCK,
+	INF_MAXCONN,
+	INF_HARD_MAXCONN,
+	INF_CURR_CONN,
+	INF_CUM_CONN,
+	INF_CUM_REQ,
+	INF_MAX_SSL_CONNS,
+	INF_CURR_SSL_CONNS,
+	INF_CUM_SSL_CONNS,
+	INF_MAXPIPES,
+	INF_PIPES_USED,
+	INF_PIPES_FREE,
+	INF_CONN_RATE,
+	INF_CONN_RATE_LIMIT,
+	INF_MAX_CONN_RATE,
+	INF_SESS_RATE,
+	INF_SESS_RATE_LIMIT,
+	INF_MAX_SESS_RATE,
+	INF_SSL_RATE,
+	INF_SSL_RATE_LIMIT,
+	INF_MAX_SSL_RATE,
+	INF_SSL_FRONTEND_KEY_RATE,
+	INF_SSL_FRONTEND_MAX_KEY_RATE,
+	INF_SSL_FRONTEND_SESSION_REUSE_PCT,
+	INF_SSL_BACKEND_KEY_RATE,
+	INF_SSL_BACKEND_MAX_KEY_RATE,
+	INF_SSL_CACHE_LOOKUPS,
+	INF_SSL_CACHE_MISSES,
+	INF_COMPRESS_BPS_IN,
+	INF_COMPRESS_BPS_OUT,
+	INF_COMPRESS_BPS_RATE_LIM,
+	INF_ZLIB_MEM_USAGE,
+	INF_MAX_ZLIB_MEM_USAGE,
+	INF_TASKS,
+	INF_RUN_QUEUE,
+	INF_IDLE_PCT,
+	INF_NODE,
+	INF_DESCRIPTION,
+
+	/* must always be the last one */
+	INF_TOTAL_FIELDS
+};
+
+/* These are the field names for each INF_* field position. Please pay attention
+ * to always use the exact same name except that the strings for new names must
+ * be lower case or CamelCase while the enum entries must be upper case.
+ */
+const char *info_field_names[INF_TOTAL_FIELDS] = {
+	[INF_NAME]                           = "Name",
+	[INF_VERSION]                        = "Version",
+	[INF_RELEASE_DATE]                   = "Release_date",
+	[INF_NBPROC]                         = "Nbproc",
+	[INF_PROCESS_NUM]                    = "Process_num",
+	[INF_PID]                            = "Pid",
+	[INF_UPTIME]                         = "Uptime",
+	[INF_UPTIME_SEC]                     = "Uptime_sec",
+	[INF_MEMMAX_MB]                      = "Memmax_MB",
+	[INF_POOL_ALLOC_MB]                  = "PoolAlloc_MB",
+	[INF_POOL_USED_MB]                   = "PoolUsed_MB",
+	[INF_POOL_FAILED]                    = "PoolFailed",
+	[INF_ULIMIT_N]                       = "Ulimit-n",
+	[INF_MAXSOCK]                        = "Maxsock",
+	[INF_MAXCONN]                        = "Maxconn",
+	[INF_HARD_MAXCONN]                   = "Hard_maxconn",
+	[INF_CURR_CONN]                      = "CurrConns",
+	[INF_CUM_CONN]                       = "CumConns",
+	[INF_CUM_REQ]                        = "CumReq",
+	[INF_MAX_SSL_CONNS]                  = "MaxSslConns",
+	[INF_CURR_SSL_CONNS]                 = "CurrSslConns",
+	[INF_CUM_SSL_CONNS]                  = "CumSslConns",
+	[INF_MAXPIPES]                       = "Maxpipes",
+	[INF_PIPES_USED]                     = "PipesUsed",
+	[INF_PIPES_FREE]                     = "PipesFree",
+	[INF_CONN_RATE]                      = "ConnRate",
+	[INF_CONN_RATE_LIMIT]                = "ConnRateLimit",
+	[INF_MAX_CONN_RATE]                  = "MaxConnRate",
+	[INF_SESS_RATE]                      = "SessRate",
+	[INF_SESS_RATE_LIMIT]                = "SessRateLimit",
+	[INF_MAX_SESS_RATE]                  = "MaxSessRate",
+	[INF_SSL_RATE]                       = "SslRate",
+	[INF_SSL_RATE_LIMIT]                 = "SslRateLimit",
+	[INF_MAX_SSL_RATE]                   = "MaxSslRate",
+	[INF_SSL_FRONTEND_KEY_RATE]          = "SslFrontendKeyRate",
+	[INF_SSL_FRONTEND_MAX_KEY_RATE]      = "SslFrontendMaxKeyRate",
+	[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = "SslFrontendSessionReuse_pct",
+	[INF_SSL_BACKEND_KEY_RATE]           = "SslBackendKeyRate",
+	[INF_SSL_BACKEND_MAX_KEY_RATE]       = "SslBackendMaxKeyRate",
+	[INF_SSL_CACHE_LOOKUPS]              = "SslCacheLookups",
+	[INF_SSL_CACHE_MISSES]               = "SslCacheMisses",
+	[INF_COMPRESS_BPS_IN]                = "CompressBpsIn",
+	[INF_COMPRESS_BPS_OUT]               = "CompressBpsOut",
+	[INF_COMPRESS_BPS_RATE_LIM]          = "CompressBpsRateLim",
+	[INF_ZLIB_MEM_USAGE]                 = "ZlibMemUsage",
+	[INF_MAX_ZLIB_MEM_USAGE]             = "MaxZlibMemUsage",
+	[INF_TASKS]                          = "Tasks",
+	[INF_RUN_QUEUE]                      = "Run_queue",
+	[INF_IDLE_PCT]                       = "Idle_pct",
+	[INF_NODE]                           = "node",
+	[INF_DESCRIPTION]                    = "description",
+};
+
+/* one line of stats */
+static struct field info[INF_TOTAL_FIELDS];
+
 static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
