@@ -335,6 +335,7 @@ enum stat_field {
 	ST_F_AGENT_HEALTH,
 	ST_F_ADDR,
 	ST_F_COOKIE,
+	ST_F_MODE,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -420,6 +421,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_AGENT_HEALTH]   = "agent_health",
 	[ST_F_ADDR]           = "addr",
 	[ST_F_COOKIE]         = "cookie",
+	[ST_F_MODE]           = "mode",
 };
 
 /* one line of stats */
@@ -3284,7 +3286,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(read_freq_ctr(&px->fe_conn_per_sec)),
 		              U2H(stats[ST_F_RATE].u.u32));
 
-		if (px->mode == PR_MODE_HTTP)
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
 			chunk_appendf(&trash,
 			              "<tr><th>Current request rate:</th><td>%s/s</td></tr>",
 			              U2H(stats[ST_F_REQ_RATE].u.u32));
@@ -3300,7 +3302,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(px->fe_counters.cps_max),
 		              U2H(stats[ST_F_RATE_MAX].u.u32));
 
-		if (px->mode == PR_MODE_HTTP)
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
 			chunk_appendf(&trash,
 			              "<tr><th>Max request rate:</th><td>%s/s</td></tr>",
 			              U2H(stats[ST_F_REQ_RATE_MAX].u.u32));
@@ -3324,7 +3326,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
 			chunk_appendf(&trash,
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
@@ -3559,7 +3561,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
 			unsigned long long tot;
 
 			tot  = stats[ST_F_HRSP_OTHER].u.u64;
@@ -3590,7 +3592,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		chunk_appendf(&trash, "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>");
 		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
 		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_CTIME].u.u32));
-		if (px->mode == PR_MODE_HTTP)
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
 			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
 		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
@@ -3783,7 +3785,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
-		if (px->mode == PR_MODE_HTTP) {
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
 			chunk_appendf(&trash,
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
@@ -3811,7 +3813,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 
 		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
 		chunk_appendf(&trash, "<tr><th>- Connect time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_QTIME].u.u32));
-		if (px->mode == PR_MODE_HTTP)
+		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
 			chunk_appendf(&trash, "<tr><th>- Response time:</th><td>%s</td><td>ms</td></tr>", U2H(stats[ST_F_RTIME].u.u32));
 		chunk_appendf(&trash, "<tr><th>- Total time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_TTIME].u.u32));
 
@@ -3903,6 +3905,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
+	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 	stats[ST_F_SCUR]     = mkf_u32(0, px->feconn);
 	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->fe_counters.conn_max);
 	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
@@ -3970,6 +3973,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
+	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 	stats[ST_F_SCUR]     = mkf_u32(0, l->nbconn);
 	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, l->counters->conn_max);
 	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
@@ -4121,6 +4125,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
+	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 	stats[ST_F_QCUR]     = mkf_u32(0, sv->nbpend);
 	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, sv->counters.nbpend_max);
 	stats[ST_F_SCUR]     = mkf_u32(0, sv->cur_sess);
@@ -4310,6 +4315,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
+	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 	stats[ST_F_QCUR]     = mkf_u32(0, px->nbpend);
 	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
 	stats[ST_F_SCUR]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->beconn);
