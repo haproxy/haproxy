@@ -3260,11 +3260,11 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 	return 1;
 }
 
-/* Dump all fields from <stats> for proxy <px> into trash using the HTML format.
+/* Dump all fields from <stats> into trash using the HTML format.
  * A column is reserved for the checkbox is <admin> is non-null. The caller's
  * flags may be passed in <flags> (eg: SHLGNDS to show the legends).
  */
-static int stats_dump_fields_html(const struct field *stats, int admin, unsigned int flags, struct proxy *px)
+static int stats_dump_fields_html(const struct field *stats, int admin, unsigned int flags)
 {
 	struct chunk src;
 
@@ -3904,7 +3904,7 @@ static int stats_dump_one_line(const struct field *stats, unsigned int flags, st
 	admin = (px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN);
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-		return stats_dump_fields_html(stats, admin, flags, px);
+		return stats_dump_fields_html(stats, admin, flags);
 	else
 		return stats_dump_fields_csv(&trash, stats);
 }
