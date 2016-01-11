@@ -3086,6 +3086,14 @@ int http_handle_stats(struct stream *s, struct channel *req)
 		}
 	}
 
+	for (h = lookup; h <= uri + msg->sl.rq.u_l - 6; h++) {
+		if (memcmp(h, ";typed", 6) == 0) {
+			appctx->ctx.stats.flags &= ~STAT_FMT_HTML;
+			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+			break;
+		}
+	}
+
 	for (h = lookup; h <= uri + msg->sl.rq.u_l - 8; h++) {
 		if (memcmp(h, ";st=", 4) == 0) {
 			int i;

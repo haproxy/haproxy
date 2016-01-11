@@ -1517,7 +1517,11 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->ctx.stats.iid = atoi(args[2]);
 				appctx->ctx.stats.type = atoi(args[3]);
 				appctx->ctx.stats.sid = atoi(args[4]);
+				if (strcmp(args[5], "typed") == 0)
+					appctx->ctx.stats.flags |= STAT_FMT_TYPED;
 			}
+			else if (strcmp(args[2], "typed") == 0)
+				appctx->ctx.stats.flags |= STAT_FMT_TYPED;
 
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
@@ -3348,6 +3352,34 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 	return 1;
 }
 
+/* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
+static int stats_dump_fields_typed(struct chunk *out, const struct field *stats)
+{
+	int field;
+
+	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+		if (!stats[field].type)
+			continue;
+
+		chunk_appendf(out, "%c.%u.%u.%d.%s.%u:",
+		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
+		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
+		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
+		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
+		              '?',
+		              stats[ST_F_IID].u.u32, stats[ST_F_SID].u.u32,
+		              field, stat_field_names[field], stats[ST_F_PID].u.u32);
+
+		if (!stats_emit_field_tags(out, &stats[field], ':'))
+			return 0;
+		if (!stats_emit_typed_data_field(out, &stats[field]))
+			return 0;
+		if (!chunk_strcat(out, "\n"))
+			return 0;
+	}
+	return 1;
+}
+
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
  * reserved for the checkbox is ST_SHOWADMIN is set in <flags>. Some extra info
  * are provided if ST_SHLGNDS is present in <flags>.
@@ -3992,6 +4024,8 @@ static int stats_dump_one_line(const struct field *stats, unsigned int flags, st
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 		return stats_dump_fields_html(&trash, stats, flags);
+	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
+		return stats_dump_fields_typed(&trash, stats);
 	else
 		return stats_dump_fields_csv(&trash, stats);
 }
@@ -5158,7 +5192,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_HEAD:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 			stats_dump_html_head(uri);
-		else
+		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
 			stats_dump_csv_header();
 
 		if (bi_putchk(rep, &trash) == -1) {
