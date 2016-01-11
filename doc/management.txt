@@ -899,7 +899,7 @@ S (Servers).
   4. scur [LFBS]: current sessions
   5. smax [LFBS]: max sessions
   6. slim [LFBS]: configured session limit
-  7. stot [LFBS]: cumulative number of connections
+  7. stot [LFBS]: cumulative number of sessions
   8. bin [LFBS]: bytes in
   9. bout [LFBS]: bytes out
  10. dreq [LFB.]: requests denied because of security concerns.
@@ -1026,6 +1026,9 @@ S (Servers).
  74: cookie [..BS]: server's cookie value or backend's cookie name
  75: mode [LFBS]: proxy mode (tcp, http, health, unknown)
  76: algo [..B.]: load balancing algorithm
+ 77: conn_rate [.F..]: number of connections over the last elapsed second
+ 78: conn_rate_max [.F..]: highest known conn_rate
+ 79: conn_tot [.F..]: cumulative number of connections
 
 
 9.2. Unix Socket commands

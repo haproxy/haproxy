@@ -337,6 +337,9 @@ enum stat_field {
 	ST_F_COOKIE,
 	ST_F_MODE,
 	ST_F_ALGO,
+	ST_F_CONN_RATE,
+	ST_F_CONN_RATE_MAX,
+	ST_F_CONN_TOT,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -424,6 +427,9 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_COOKIE]         = "cookie",
 	[ST_F_MODE]           = "mode",
 	[ST_F_ALGO]           = "algo",
+	[ST_F_CONN_RATE]      = "conn_rate",
+	[ST_F_CONN_RATE_MAX]  = "conn_rate_max",
+	[ST_F_CONN_TOT]       = "conn_tot",
 };
 
 /* one line of stats */
@@ -3285,7 +3291,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              "<tr><th>Current session rate:</th><td>%s/s</td></tr>"
 		              "",
 		              U2H(stats[ST_F_RATE].u.u32),
-		              U2H(read_freq_ctr(&px->fe_conn_per_sec)),
+		              U2H(stats[ST_F_CONN_RATE].u.u32),
 		              U2H(stats[ST_F_RATE].u.u32));
 
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
@@ -3301,7 +3307,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              "<tr><th>Max session rate:</th><td>%s/s</td></tr>"
 		              "",
 		              U2H(stats[ST_F_RATE_MAX].u.u32),
-		              U2H(px->fe_counters.cps_max),
+		              U2H(stats[ST_F_CONN_RATE_MAX].u.u32),
 		              U2H(stats[ST_F_RATE_MAX].u.u32));
 
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0)
@@ -3322,9 +3328,9 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 		              "<tr><th>Cum. connections:</th><td>%s</td></tr>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H(stats[ST_F_SCUR].u.u32), U2H(px->fe_counters.conn_max), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
 		              U2H(stats[ST_F_STOT].u.u64),
-		              U2H(px->fe_counters.cum_conn),
+		              U2H(stats[ST_F_CONN_TOT].u.u64),
 		              U2H(stats[ST_F_STOT].u.u64));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
@@ -3946,6 +3952,11 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
 	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
 	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
+
+	/* connections : conn_rate, conn_rate_max, conn_tot, conn_max */
+	stats[ST_F_CONN_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
+	stats[ST_F_CONN_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.cps_max);
+	stats[ST_F_CONN_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		int admin;
