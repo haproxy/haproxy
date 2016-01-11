@@ -2824,6 +2824,25 @@ static int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
 	}
 }
 
+/* Dump all fields from <info> into <out> using the "show info" format (name: value) */
+static int stats_dump_info_fields(struct chunk *out, const struct field *info)
+{
+	int field;
+
+	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+		if (!field_format(info, field))
+			continue;
+
+		if (!chunk_appendf(out, "%s: ", info_field_names[field]))
+			return 0;
+		if (!stats_emit_raw_data_field(out, &info[field]))
+			return 0;
+		if (!chunk_strcat(out, "\n"))
+			return 0;
+	}
+	return 1;
+}
+
 /* This function dumps information onto the stream interface's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
