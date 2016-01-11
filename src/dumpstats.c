@@ -340,6 +340,7 @@ enum stat_field {
 	ST_F_CONN_RATE,
 	ST_F_CONN_RATE_MAX,
 	ST_F_CONN_TOT,
+	ST_F_INTERCEPTED,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
@@ -430,6 +431,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CONN_RATE]      = "conn_rate",
 	[ST_F_CONN_RATE_MAX]  = "conn_rate_max",
 	[ST_F_CONN_TOT]       = "conn_tot",
+	[ST_F_INTERCEPTED]    = "intercepted",
 };
 
 /* one line of stats */
@@ -3356,7 +3358,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
-			              U2H(px->fe_counters.intercepted_req));
+			              U2H(stats[ST_F_INTERCEPTED].u.u64));
 		}
 
 		chunk_appendf(&trash,
@@ -3816,7 +3818,7 @@ static int stats_dump_fields_html(const struct field *stats, int admin, unsigned
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
-			              U2H(px->be_counters.intercepted_req));
+			              U2H(stats[ST_F_INTERCEPTED].u.u64));
 		}
 
 		chunk_appendf(&trash, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
@@ -3940,6 +3942,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
 		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
 		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+		stats[ST_F_INTERCEPTED] = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
 	}
 
 	/* requests : req_rate, req_rate_max, req_tot, */
@@ -4375,6 +4378,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
 		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
 		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
+		stats[ST_F_INTERCEPTED] = mkf_u64(FN_COUNTER, px->be_counters.intercepted_req);
 	}
 
 	stats[ST_F_CLI_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);

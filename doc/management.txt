@@ -1029,6 +1029,7 @@ S (Servers).
  77: conn_rate [.F..]: number of connections over the last elapsed second
  78: conn_rate_max [.F..]: highest known conn_rate
  79: conn_tot [.F..]: cumulative number of connections
+ 80: intercepted [.FB.]: cum. number of intercepted requests (monitor, stats)
 
 
 9.2. Unix Socket commands
