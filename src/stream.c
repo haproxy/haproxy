@@ -667,7 +667,8 @@ static int sess_update_st_cer(struct stream *s)
 	 */
 	if (objt_server(s->target) &&
 	    (s->be->options & PR_O_REDISP) && !(s->flags & SF_FORCE_PRST) &&
-	    ((((s->be->redispatch_after > 0) &&
+	    ((__objt_server(s->target)->state < SRV_ST_RUNNING) ||
+	     (((s->be->redispatch_after > 0) &&
 	       ((s->be->conn_retries - si->conn_retries) %
 	        s->be->redispatch_after == 0)) ||
 	      ((s->be->redispatch_after < 0) &&
