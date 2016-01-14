@@ -1870,7 +1870,14 @@ int main(int argc, char **argv)
 
 		if (proc == global.nbproc) {
 			if (global.mode & MODE_SYSTEMD) {
+				int i;
+
 				protocol_unbind_all();
+				for (i = 1; i < argc; i++) {
+					memset(argv[i], '\0', strlen(argv[i]));
+				}
+				/* it's OK because "-Ds -f x" is the shortest form going here */
+				memcpy(argv[0] + strlen(argv[0]), "-master", 8);
 				for (proc = 0; proc < global.nbproc; proc++)
 					while (waitpid(children[proc], NULL, 0) == -1 && errno == EINTR);
 			}
