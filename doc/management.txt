@@ -755,7 +755,7 @@ one first layer running on multiple processes and in charge for the heavy
 processing, passing the traffic to a second layer running in a single process.
 This mechanism is suited to SSL and compression which are the two CPU-heavy
 features. Instances can easily be chained over UNIX sockets (which are cheaper
-than TCP sockets and which do not waste ports), adn the proxy protocol which is
+than TCP sockets and which do not waste ports), and the proxy protocol which is
 useful to pass client information to the next stage. When doing so, it is
 generally a good idea to bind all the single-process tasks to process number 1
 and extra tasks to next processes, as this will make it easier to generate

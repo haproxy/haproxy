@@ -1307,7 +1307,7 @@ persistent connections per user).
 
 Even if you disable keep-alive, if the server takes a long time to respond,
 you still have a high risk of multiple users clicking at the same time and
-having their requests unserved because of server saturation. To workaround
+having their requests unserved because of server saturation. To walk around
 the problem, you increase the concurrent connection limit on the servers,
 but their performance stalls under higher loads.
 
