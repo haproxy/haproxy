@@ -472,7 +472,7 @@ dead. Of course, you can simply enable TCP health-checks, but it sometimes
 happens that intermediate firewalls between the proxies and the remote servers
 acknowledge the TCP connection themselves, showing an always-up server. Since
 this is generally encountered on long-distance communications, which often
-involve SSL, an SSL health-check has been implemented to workaround this issue.
+involve SSL, an SSL health-check has been implemented to work around this issue.
 It sends SSL Hello messages to the remote server, which in turns replies with
 SSL Hello messages. Setting it up is very easy :
 
@@ -1307,7 +1307,7 @@ persistent connections per user).
 
 Even if you disable keep-alive, if the server takes a long time to respond,
 you still have a high risk of multiple users clicking at the same time and
-having their requests unserved because of server saturation. To walk around
+having their requests unserved because of server saturation. To work around
 the problem, you increase the concurrent connection limit on the servers,
 but their performance stalls under higher loads.
 

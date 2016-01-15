@@ -2926,7 +2926,7 @@ errorfile <code> <file>
 
   Example :
         errorfile 400 /etc/haproxy/errorfiles/400badreq.http
-        errorfile 408 /dev/null  # workaround Chrome pre-connect bug
+        errorfile 408 /dev/null  # work around Chrome pre-connect bug
         errorfile 403 /etc/haproxy/errorfiles/403forbid.http
         errorfile 503 /etc/haproxy/errorfiles/503sorry.http
 
@@ -2956,7 +2956,7 @@ errorloc302 <code> <url>
   client to fetch the designated URL using the same HTTP method. This can be
   quite problematic in case of non-GET methods such as POST, because the URL
   sent to the client might not be allowed for something other than GET. To
-  workaround this problem, please use "errorloc303" which send the HTTP 303
+  work around this problem, please use "errorloc303" which send the HTTP 303
   status code, indicating to the client that the URL must be fetched with a GET
   request.
 
@@ -10128,7 +10128,7 @@ agent-check
   parameter. Warning though, it is not a good idea to stop an agent after it
   reports "down", since only an agent reporting "up" will be able to turn the
   server up again. Note that the CLI on the Unix stats socket is also able to
-  force an agent's result in order to workaround a bogus agent if needed.
+  force an agent's result in order to work around a bogus agent if needed.
 
   Requires the "agent-port" parameter to be set. See also the "agent-inter"
   parameter.
