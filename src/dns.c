@@ -796,7 +796,7 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 /*
  * returns the query id contained in a DNS response
  */
-int dns_response_get_query_id(unsigned char *resp)
+unsigned short dns_response_get_query_id(unsigned char *resp)
 {
 	/* read the query id from the response */
 	return resp[0] * 256 + resp[1];

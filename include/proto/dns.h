@@ -44,6 +44,6 @@ void dns_print_current_resolutions(struct dns_resolvers *resolvers);
 void dns_update_resolvers_timeout(struct dns_resolvers *resolvers);
 void dns_reset_resolution(struct dns_resolution *resolution);
 int dns_check_resolution_queue(struct dns_resolvers *resolvers);
-int dns_response_get_query_id(unsigned char *resp);
+unsigned short dns_response_get_query_id(unsigned char *resp);
 
 #endif // _PROTO_DNS_H
