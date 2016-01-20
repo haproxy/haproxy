@@ -2167,9 +2167,11 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	}
 
  out:
-	if (msg->len)
+	if (msg->len) {
+		chunk_appendf(msg, "\n");
 		Warning("server-state application failed for server '%s/%s'%s",
 		        srv->proxy->id, srv->id, msg->str);
+	}
 }
 
 /* This function parses all the proxies and only take care of the backends (since we're looking for server)
