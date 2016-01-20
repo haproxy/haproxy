@@ -2317,6 +2317,13 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (!port1 && !port2) {
+			Alert("parsing [%s:%d] : '%s %s' : no UDP port specified\n",
+				file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		newnameserver->addr = *sk;
 	}
 	else if (strcmp(args[0], "hold") == 0) { /* hold periods */
