@@ -3971,6 +3971,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				if (val > INT_MAX) {
+					Alert("parsing [%s:%d] : Expire value [%u]ms exceeds maxmimum value of 24.85 days.\n",
+					      file, linenum, val);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 				curproxy->table.expire = val;
 				myidx++;
 			}
