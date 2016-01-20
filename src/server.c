@@ -1921,7 +1921,6 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	/* fields since version 1
 	 * and common to all other upcoming versions
 	 */
-	struct sockaddr_storage addr;
 	enum srv_state srv_op_state;
 	enum srv_admin srv_admin_state;
 	unsigned srv_uweight, srv_iweight;
@@ -2155,9 +2154,19 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			/* update server IP only if DNS resolution is used on the server */
 			if (srv->resolution) {
+				struct sockaddr_storage addr;
+
 				memset(&addr, 0, sizeof(struct sockaddr_storage));
-				if (str2ip2(params[0], &addr, 0))
-					memcpy(&srv->addr, &addr, sizeof(struct sockaddr_storage));
+
+				if (str2ip2(params[0], &addr, AF_UNSPEC)) {
+					int port;
+
+					/* save the port, applies the new IP then reconfigure the port */
+					get_host_port(&srv->addr);
+					srv->addr.ss_family = addr.ss_family;
+					str2ip2(params[0], &srv->addr, srv->addr.ss_family);
+					set_host_port(&srv->addr, port);
+				}
 				else
 					chunk_appendf(msg, ", can't parse IP: %s", params[0]);
 			}
