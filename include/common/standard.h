@@ -866,6 +866,15 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size);
  */
 char *localdate2str_log(char *dst, struct tm *tm, size_t size);
 
+/* These 3 functions parses date string and fills the
+ * corresponding broken-down time in <tm>. In succes case,
+ * it returns 1, otherwise, it returns 0.
+ */
+int parse_http_date(const char *date, int len, struct tm *tm);
+int parse_imf_date(const char *date, int len, struct tm *tm);
+int parse_rfc850_date(const char *date, int len, struct tm *tm);
+int parse_asctime_date(const char *date, int len, struct tm *tm);
+
 /* Dynamically allocates a string of the proper length to hold the formatted
  * output. NULL is returned on error. The caller is responsible for freeing the
  * memory area using free(). The resulting string is returned in <out> if the

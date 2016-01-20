@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -24,9 +25,16 @@
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/standard.h>
+#include <common/tools.h>
 #include <types/global.h>
 #include <proto/dns.h>
 #include <eb32tree.h>
+
+/* This macro returns false if the test __x is false. Many
+ * of the following parsing function must be abort the processing
+ * if it returns 0, so this macro is useful for writing light code.
+ */
+#define RET0_UNLESS(__x) do { if (!(__x)) return 0; } while (0)
 
 /* enough to store NB_ITOA_STR integers of :
  *   2^64-1 = 18446744073709551615 or
@@ -2540,6 +2548,369 @@ char *localdate2str_log(char *dst, struct tm *tm, size_t size)
 	*dst = '\0';
 
 	return dst;
+}
+
+/* This function check a char. It returns true and updates
+ * <date> and <len> pointer to the new position if the
+ * character is found.
+ */
+static inline int parse_expect_char(const char **date, int *len, char c)
+{
+	if (*len < 1 || **date != c)
+		return 0;
+	(*len)--;
+	(*date)++;
+	return 1;
+}
+
+/* This function expects a string <str> of len <l>. It return true and updates.
+ * <date> and <len> if the string matches, otherwise, it returns false.
+ */
+static inline int parse_strcmp(const char **date, int *len, char *str, int l)
+{
+	if (*len < l || strncmp(*date, str, l) != 0)
+		return 0;
+	(*len) -= l;
+	(*date) += l;
+	return 1;
+}
+
+/* This macro converts 3 chars name in integer. */
+#define STR2I3(__a, __b, __c) ((__a) * 65536 + (__b) * 256 + (__c))
+
+/* day-name     = %x4D.6F.6E ; "Mon", case-sensitive
+ *              / %x54.75.65 ; "Tue", case-sensitive
+ *              / %x57.65.64 ; "Wed", case-sensitive
+ *              / %x54.68.75 ; "Thu", case-sensitive
+ *              / %x46.72.69 ; "Fri", case-sensitive
+ *              / %x53.61.74 ; "Sat", case-sensitive
+ *              / %x53.75.6E ; "Sun", case-sensitive
+ *
+ * This array must be alphabetically sorted
+ */
+static inline int parse_http_dayname(const char **date, int *len, struct tm *tm)
+{
+	if (*len < 3)
+		return 0;
+	switch (STR2I3((*date)[0], (*date)[1], (*date)[2])) {
+	case STR2I3('M','o','n'): tm->tm_wday = 1;  break;
+	case STR2I3('T','u','e'): tm->tm_wday = 2;  break;
+	case STR2I3('W','e','d'): tm->tm_wday = 3;  break;
+	case STR2I3('T','h','u'): tm->tm_wday = 4;  break;
+	case STR2I3('F','r','i'): tm->tm_wday = 5;  break;
+	case STR2I3('S','a','t'): tm->tm_wday = 6;  break;
+	case STR2I3('S','u','n'): tm->tm_wday = 7;  break;
+	default: return 0;
+	}
+	*len -= 3;
+	*date  += 3;
+	return 1;
+}
+
+/* month        = %x4A.61.6E ; "Jan", case-sensitive
+ *              / %x46.65.62 ; "Feb", case-sensitive
+ *              / %x4D.61.72 ; "Mar", case-sensitive
+ *              / %x41.70.72 ; "Apr", case-sensitive
+ *              / %x4D.61.79 ; "May", case-sensitive
+ *              / %x4A.75.6E ; "Jun", case-sensitive
+ *              / %x4A.75.6C ; "Jul", case-sensitive
+ *              / %x41.75.67 ; "Aug", case-sensitive
+ *              / %x53.65.70 ; "Sep", case-sensitive
+ *              / %x4F.63.74 ; "Oct", case-sensitive
+ *              / %x4E.6F.76 ; "Nov", case-sensitive
+ *              / %x44.65.63 ; "Dec", case-sensitive
+ *
+ * This array must be alphabetically sorted
+ */
+static inline int parse_http_monthname(const char **date, int *len, struct tm *tm)
+{
+	if (*len < 3)
+		return 0;
+	switch (STR2I3((*date)[0], (*date)[1], (*date)[2])) {
+	case STR2I3('J','a','n'): tm->tm_mon = 0;  break;
+	case STR2I3('F','e','b'): tm->tm_mon = 1;  break;
+	case STR2I3('M','a','r'): tm->tm_mon = 2;  break;
+	case STR2I3('A','p','r'): tm->tm_mon = 3;  break;
+	case STR2I3('M','a','y'): tm->tm_mon = 4;  break;
+	case STR2I3('J','u','n'): tm->tm_mon = 5;  break;
+	case STR2I3('J','u','l'): tm->tm_mon = 6;  break;
+	case STR2I3('A','u','g'): tm->tm_mon = 7;  break;
+	case STR2I3('S','e','p'): tm->tm_mon = 8;  break;
+	case STR2I3('O','c','t'): tm->tm_mon = 9;  break;
+	case STR2I3('N','o','v'): tm->tm_mon = 10; break;
+	case STR2I3('D','e','c'): tm->tm_mon = 11; break;
+	default: return 0;
+	}
+	*len -= 3;
+	*date  += 3;
+	return 1;
+}
+
+/* day-name-l   = %x4D.6F.6E.64.61.79    ; "Monday", case-sensitive
+ *        / %x54.75.65.73.64.61.79       ; "Tuesday", case-sensitive
+ *        / %x57.65.64.6E.65.73.64.61.79 ; "Wednesday", case-sensitive
+ *        / %x54.68.75.72.73.64.61.79    ; "Thursday", case-sensitive
+ *        / %x46.72.69.64.61.79          ; "Friday", case-sensitive
+ *        / %x53.61.74.75.72.64.61.79    ; "Saturday", case-sensitive
+ *        / %x53.75.6E.64.61.79          ; "Sunday", case-sensitive
+ *
+ * This array must be alphabetically sorted
+ */
+static inline int parse_http_ldayname(const char **date, int *len, struct tm *tm)
+{
+	if (*len < 6) /* Minimum length. */
+		return 0;
+	switch (STR2I3((*date)[0], (*date)[1], (*date)[2])) {
+	case STR2I3('M','o','n'):
+		RET0_UNLESS(parse_strcmp(date, len, "Monday", 6));
+		tm->tm_wday = 1;
+		return 1;
+	case STR2I3('T','u','e'):
+		RET0_UNLESS(parse_strcmp(date, len, "Tuesday", 7));
+		tm->tm_wday = 2;
+		return 1;
+	case STR2I3('W','e','d'):
+		RET0_UNLESS(parse_strcmp(date, len, "Wednesday", 9));
+		tm->tm_wday = 3;
+		return 1;
+	case STR2I3('T','h','u'):
+		RET0_UNLESS(parse_strcmp(date, len, "Thursday", 8));
+		tm->tm_wday = 4;
+		return 1;
+	case STR2I3('F','r','i'):
+		RET0_UNLESS(parse_strcmp(date, len, "Friday", 6));
+		tm->tm_wday = 5;
+		return 1;
+	case STR2I3('S','a','t'):
+		RET0_UNLESS(parse_strcmp(date, len, "Saturday", 8));
+		tm->tm_wday = 6;
+		return 1;
+	case STR2I3('S','u','n'):
+		RET0_UNLESS(parse_strcmp(date, len, "Sunday", 6));
+		tm->tm_wday = 7;
+		return 1;
+	}
+	return 0;
+}
+
+/* This function parses exactly 1 digit and returns the numeric value in "digit". */
+static inline int parse_digit(const char **date, int *len, int *digit)
+{
+	if (*len < 1 || **date < '0' || **date > '9')
+		return 0;
+	*digit = (**date - '0');
+	(*date)++;
+	(*len)--;
+	return 1;
+}
+
+/* This function parses exactly 2 digits and returns the numeric value in "digit". */
+static inline int parse_2digit(const char **date, int *len, int *digit)
+{
+	int value;
+
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) = value * 10;
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) += value;
+
+	return 1;
+}
+
+/* This function parses exactly 4 digits and returns the numeric value in "digit". */
+static inline int parse_4digit(const char **date, int *len, int *digit)
+{
+	int value;
+
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) = value * 1000;
+
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) += value * 100;
+
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) += value * 10;
+
+	RET0_UNLESS(parse_digit(date, len, &value));
+	(*digit) += value;
+
+	return 1;
+}
+
+/* time-of-day  = hour ":" minute ":" second
+ *              ; 00:00:00 - 23:59:60 (leap second)
+ *
+ * hour         = 2DIGIT
+ * minute       = 2DIGIT
+ * second       = 2DIGIT
+ */
+static inline int parse_http_time(const char **date, int *len, struct tm *tm)
+{
+	RET0_UNLESS(parse_2digit(date, len, &tm->tm_hour)); /* hour 2DIGIT */
+	RET0_UNLESS(parse_expect_char(date, len, ':'));     /* expect ":"  */
+	RET0_UNLESS(parse_2digit(date, len, &tm->tm_min));  /* min 2DIGIT  */
+	RET0_UNLESS(parse_expect_char(date, len, ':'));     /* expect ":"  */
+	RET0_UNLESS(parse_2digit(date, len, &tm->tm_sec));  /* sec 2DIGIT  */
+	return 1;
+}
+
+/* From RFC7231
+ * https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+ *
+ * IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
+ * ; fixed length/zone/capitalization subset of the format
+ * ; see Section 3.3 of [RFC5322]
+ *
+ *
+ * date1        = day SP month SP year
+ *              ; e.g., 02 Jun 1982
+ *
+ * day          = 2DIGIT
+ * year         = 4DIGIT
+ *
+ * GMT          = %x47.4D.54 ; "GMT", case-sensitive
+ *
+ * time-of-day  = hour ":" minute ":" second
+ *              ; 00:00:00 - 23:59:60 (leap second)
+ *
+ * hour         = 2DIGIT
+ * minute       = 2DIGIT
+ * second       = 2DIGIT
+ *
+ * DIGIT        = decimal 0-9
+ */
+int parse_imf_date(const char *date, int len, struct tm *tm)
+{
+	RET0_UNLESS(parse_http_dayname(&date, &len, tm));     /* day-name */
+	RET0_UNLESS(parse_expect_char(&date, &len, ','));     /* expect "," */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_2digit(&date, &len, &tm->tm_mday)); /* day 2DIGIT */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_http_monthname(&date, &len, tm));   /* Month */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_4digit(&date, &len, &tm->tm_year)); /* year = 4DIGIT */
+	tm->tm_year -= 1900;
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_http_time(&date, &len, tm));        /* Parse time. */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_strcmp(&date, &len, "GMT", 3));     /* GMT = %x47.4D.54 ; "GMT", case-sensitive */
+	tm->tm_isdst = -1;
+	tm->tm_gmtoff = 0;
+	return 1;
+}
+
+/* From RFC7231
+ * https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+ *
+ * rfc850-date  = day-name-l "," SP date2 SP time-of-day SP GMT
+ * date2        = day "-" month "-" 2DIGIT
+ *              ; e.g., 02-Jun-82
+ *
+ * day          = 2DIGIT
+ */
+int parse_rfc850_date(const char *date, int len, struct tm *tm)
+{
+	int year;
+
+	RET0_UNLESS(parse_http_ldayname(&date, &len, tm));    /* Read the day name */
+	RET0_UNLESS(parse_expect_char(&date, &len, ','));     /* expect "," */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_2digit(&date, &len, &tm->tm_mday)); /* day 2DIGIT */
+	RET0_UNLESS(parse_expect_char(&date, &len, '-'));     /* expect "-" */
+	RET0_UNLESS(parse_http_monthname(&date, &len, tm));   /* Month */
+	RET0_UNLESS(parse_expect_char(&date, &len, '-'));     /* expect "-" */
+
+	/* year = 2DIGIT
+	 *
+	 * Recipients of a timestamp value in rfc850-(*date) format, which uses a
+	 * two-digit year, MUST interpret a timestamp that appears to be more
+	 * than 50 years in the future as representing the most recent year in
+	 * the past that had the same last two digits.
+	 */
+	RET0_UNLESS(parse_2digit(&date, &len, &tm->tm_year));
+
+	/* expect SP */
+	if (!parse_expect_char(&date, &len, ' ')) {
+		/* Maybe we have the date with 4 digits. */
+		RET0_UNLESS(parse_2digit(&date, &len, &year));
+		tm->tm_year = (tm->tm_year * 100 + year) - 1900;
+		/* expect SP */
+		RET0_UNLESS(parse_expect_char(&date, &len, ' '));
+	} else {
+		/* I fix 60 as pivot: >60: +1900, <60: +2000. Note that the
+		 * tm_year is the number of year since 1900, so for +1900, we
+		 * do nothing, and for +2000, we add 100.
+		 */
+		if (tm->tm_year <= 60)
+			tm->tm_year += 100;
+	}
+
+	RET0_UNLESS(parse_http_time(&date, &len, tm));    /* Parse time. */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' ')); /* expect SP */
+	RET0_UNLESS(parse_strcmp(&date, &len, "GMT", 3)); /* GMT = %x47.4D.54 ; "GMT", case-sensitive */
+	tm->tm_isdst = -1;
+	tm->tm_gmtoff = 0;
+
+	return 1;
+}
+
+/* From RFC7231
+ * https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+ *
+ * asctime-date = day-name SP date3 SP time-of-day SP year
+ * date3        = month SP ( 2DIGIT / ( SP 1DIGIT ))
+ *              ; e.g., Jun  2
+ *
+ * HTTP-date is case sensitive.  A sender MUST NOT generate additional
+ * whitespace in an HTTP-date beyond that specifically included as SP in
+ * the grammar.
+ */
+int parse_asctime_date(const char *date, int len, struct tm *tm)
+{
+	RET0_UNLESS(parse_http_dayname(&date, &len, tm));   /* day-name */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));   /* expect SP */
+	RET0_UNLESS(parse_http_monthname(&date, &len, tm)); /* expect month */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));   /* expect SP */
+
+	/* expect SP and 1DIGIT or 2DIGIT */
+	if (parse_expect_char(&date, &len, ' '))
+		RET0_UNLESS(parse_digit(&date, &len, &tm->tm_mday));
+	else
+		RET0_UNLESS(parse_2digit(&date, &len, &tm->tm_mday));
+
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_http_time(&date, &len, tm));        /* Parse time. */
+	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
+	RET0_UNLESS(parse_4digit(&date, &len, &tm->tm_year)); /* year = 4DIGIT */
+	tm->tm_year -= 1900;
+	tm->tm_isdst = -1;
+	tm->tm_gmtoff = 0;
+	return 1;
+}
+
+/* From RFC7231
+ * https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+ *
+ * HTTP-date    = IMF-fixdate / obs-date
+ * obs-date     = rfc850-date / asctime-date
+ *
+ * parses an HTTP date in the RFC format and is accepted
+ * alternatives. <date> is the strinf containing the date,
+ * len is the len of the string. <tm> is filled with the
+ * parsed time. We must considers this time as GMT.
+ */
+int parse_http_date(const char *date, int len, struct tm *tm)
+{
+	if (parse_imf_date(date, len, tm))
+		return 1;
+
+	if (parse_rfc850_date(date, len, tm))
+		return 1;
+
+	if (parse_asctime_date(date, len, tm))
+		return 1;
+
+	return 0;
 }
 
 /* Dynamically allocates a string of the proper length to hold the formatted
