@@ -24,6 +24,7 @@
 #include <proto/channel.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
+#include <proto/hlua_fcn.h>
 #include <proto/map.h>
 #include <proto/obj_type.h>
 #include <proto/pattern.h>
@@ -6632,6 +6633,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "Warning", hlua_log_warning);
 	hlua_class_function(gL.T, "Alert", hlua_log_alert);
 	hlua_class_function(gL.T, "done", hlua_done);
+	hlua_fcn_reg_core_fcn(gL.T);
 
 	lua_setglobal(gL.T, "core");
 
