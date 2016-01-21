@@ -270,6 +270,20 @@ Core class
   :param string filename: the filename that reference the map entries.
   :param string key: the key which will be deleted.
 
+.. js:function:: core.now()
+
+  **context**: body, init, task, action
+
+  This function returns the current time. The time returned is fixed by the
+  HAProxy core and assures than the hour will be monotnic and that the system
+  call 'gettimeofday' will not be called too. The time is refreshed between each
+  Lua execution or resume, so two consecutive call to the function "now" will
+  probably returns the same result.
+
+  :returns: an array which contains two entries "sec" and "usec". "sec"
+    contains the current at the epoch format, and "usec" contains the
+    current microseconds.
+
 .. js:function:: core.msleep(milliseconds)
 
   **context**: body, init, task, action

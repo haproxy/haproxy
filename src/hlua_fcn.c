@@ -7,6 +7,21 @@
 #include <lua.h>
 #include <lualib.h>
 
+#include <common/time.h>
+
+/* This function return the current date at epoch format in milliseconds. */
+int hlua_now(lua_State *L)
+{
+	lua_newtable(L);
+	lua_pushstring(L, "sec");
+	lua_pushinteger(L, now.tv_sec);
+	lua_rawset(L, -3);
+	lua_pushstring(L, "usec");
+	lua_pushinteger(L, now.tv_usec);
+	lua_rawset(L, -3);
+	return 1;
+}
+
 static void hlua_array_add_fcn(lua_State *L, const char *name,
                                int (*function)(lua_State *L))
 {
@@ -17,5 +32,6 @@ static void hlua_array_add_fcn(lua_State *L, const char *name,
 
 int hlua_fcn_reg_core_fcn(lua_State *L)
 {
-	return 0;
+	hlua_array_add_fcn(L, "now", hlua_now);
+	return 1;
 }
