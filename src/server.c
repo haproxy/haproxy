@@ -2162,7 +2162,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					int port;
 
 					/* save the port, applies the new IP then reconfigure the port */
-					get_host_port(&srv->addr);
+					port = get_host_port(&srv->addr);
 					srv->addr.ss_family = addr.ss_family;
 					str2ip2(params[0], &srv->addr, srv->addr.ss_family);
 					set_host_port(&srv->addr, port);
