@@ -6591,6 +6591,12 @@ void hlua_init(void)
 	/* Initialise lua. */
 	luaL_openlibs(gL.T);
 
+	/* Set safe environment for the initialisation. */
+	if (!SET_SAFE_LJMP(gL.T)) {
+		fprintf(stderr, "Lua init: critical error.\n");
+		exit(1);
+	}
+
 	/*
 	 *
 	 * Create "core" object.
@@ -7151,4 +7157,6 @@ void hlua_init(void)
 	/* Initialize SSL server. */
 	ssl_sock_prepare_srv_ctx(&socket_ssl, &socket_proxy);
 #endif
+
+	RESET_SAFE_LJMP(gL.T);
 }
