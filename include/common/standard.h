@@ -880,6 +880,12 @@ extern void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr);
  */
 extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
 
+/* compare two struct sockaddr_storage and return:
+ *  0 (true)  if the addr is the same in both
+ *  1 (false) if the addr is not the same in both
+ */
+int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2);
+
 char *human_time(int t, short hz_div);
 
 extern const char *monthname[];

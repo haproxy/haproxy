@@ -2558,6 +2558,36 @@ int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr)
 	return 0;
 }
 
+/* compare two struct sockaddr_storage and return:
+ *  0 (true)  if the addr is the same in both
+ *  1 (false) if the addr is not the same in both
+ *  -1 (unable) if one of the addr is not AF_INET*
+ */
+int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2)
+{
+	if ((ss1->ss_family != AF_INET) && (ss1->ss_family != AF_INET6))
+		return -1;
+
+	if ((ss2->ss_family != AF_INET) && (ss2->ss_family != AF_INET6))
+		return -1;
+
+	if (ss1->ss_family != ss2->ss_family)
+		return 1;
+
+	switch (ss1->ss_family) {
+		case AF_INET:
+			return memcmp(&((struct sockaddr_in *)ss1)->sin_addr,
+				      &((struct sockaddr_in *)ss2)->sin_addr,
+				      sizeof(struct in_addr)) != 0;
+		case AF_INET6:
+			return memcmp(&((struct sockaddr_in6 *)ss1)->sin6_addr,
+				      &((struct sockaddr_in6 *)ss2)->sin6_addr,
+				      sizeof(struct in6_addr)) != 0;
+	}
+
+	return 1;
+}
+
 char *human_time(int t, short hz_div) {
 	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
 	char *p = rv;
