@@ -1316,7 +1316,6 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
-	void *ptr;
 	struct stksess *ts;
 	struct stkctr *stkctr;
 
@@ -1325,16 +1324,25 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 		stkctr = &s->stkctr[rule->arg.gpc.sc];
 	else
 		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+
 	ts = stkctr_entry(stkctr);
-	if (!ts)
-		return ACT_RET_CONT;
+	if (ts) {
+		void *ptr1, *ptr2;
 
-	/* Store the sample in the required sc, and ignore errors. */
-	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
-	if (!ptr)
-		return ACT_RET_CONT;
+		/* First, update gpc0_rate if it's tracked. Second, update its gpc0 if tracked. */
+		ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0_RATE);
+		if (ptr1)
+			update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
+					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
 
-	stktable_data_cast(ptr, gpc0)++;
+		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
+		if (ptr2)
+			stktable_data_cast(ptr2, gpc0)++;
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		if (ptr1 || ptr2)
+			stktable_touch(stkctr->table, ts, 1);
+	}
 	return ACT_RET_CONT;
 }
 
@@ -1394,14 +1402,18 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 		stkctr = &s->stkctr[rule->arg.gpt.sc];
 	else
 		stkctr = &sess->stkctr[rule->arg.gpt.sc];
+
 	ts = stkctr_entry(stkctr);
 	if (!ts)
 		return ACT_RET_CONT;
 
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
-	if (ptr)
+	if (ptr) {
 		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
+		stktable_touch(stkctr->table, ts, 1);
+	}
+
 	return ACT_RET_CONT;
 }
 
