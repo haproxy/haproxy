@@ -5591,7 +5591,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
+			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
 			              conn->flags,
 			              conn->t.sock.fd,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
