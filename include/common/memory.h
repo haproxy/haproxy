@@ -33,6 +33,7 @@
 #else
 #define MEM_F_SHARED	0
 #endif
+#define MEM_F_EXACT	0x2
 
 /* reserve an extra void* at the end of a pool for linking */
 #ifdef DEBUG_MEMORY_POOLS
