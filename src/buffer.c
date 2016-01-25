@@ -36,7 +36,7 @@ int init_buffer()
 {
 	void *buffer;
 
-	pool2_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED);
+	pool2_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool2_buffer)
 		return 0;
 
