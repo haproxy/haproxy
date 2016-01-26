@@ -5176,6 +5176,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 		     "Content-Type: text/plain\r\n"
 		     "Connection: close\r\n"
 		     "Location: %s;st=%s%s%s%s\r\n"
+		     "Content-length: 0\r\n"
 		     "\r\n",
 		     uri->uri_prefix,
 		     ((appctx->ctx.stats.st_code > STAT_STATUS_INIT) &&
