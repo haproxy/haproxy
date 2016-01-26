@@ -504,7 +504,7 @@ int uxst_connect_server(struct connection *conn, int data, int delack)
 		else if (errno == EAGAIN || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
 			char *msg;
 			if (errno == EAGAIN || errno == EADDRNOTAVAIL) {
-				msg = "no free ports";
+				msg = "can't connect to destination unix socket, check backlog size on the server";
 				conn->err_code = CO_ER_FREE_PORTS;
 			}
 			else {
