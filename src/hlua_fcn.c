@@ -9,6 +9,47 @@
 
 #include <common/time.h>
 
+/* Return true if the data in stack[<ud>] is an object of
+ * type <class_ref>.
+ */
+static int hlua_metaistype(lua_State *L, int ud, int class_ref)
+{
+	if (!lua_getmetatable(L, ud))
+		return 0;
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_ref);
+	if (!lua_rawequal(L, -1, -2)) {
+		lua_pop(L, 2);
+		return 0;
+	}
+
+	lua_pop(L, 2);
+	return 1;
+}
+
+/* Return an object of the expected type, or throws an error. */
+void *hlua_checkudata(lua_State *L, int ud, int class_ref)
+{
+	void *p;
+
+	/* Check if the stack entry is an array. */
+	if (!lua_istable(L, ud))
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Check if the metadata have the expected type. */
+	if (!hlua_metaistype(L, ud, class_ref))
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Push on the stack at the entry [0] of the table. */
+	lua_rawgeti(L, ud, 0);
+	/* Check if this entry is userdata. */
+	p = lua_touserdata(L, -1);
+	if (!p)
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Remove the entry returned by lua_rawgeti(). */
+	lua_pop(L, 1);
+	/* Return the associated struct. */
+	return p;
+}
+
 /* This function return the current date at epoch format in milliseconds. */
 int hlua_now(lua_State *L)
 {
