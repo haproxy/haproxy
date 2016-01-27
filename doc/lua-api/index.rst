@@ -533,6 +533,14 @@ Core class
 
   :returns: A :ref:`socket_class` object.
 
+.. js:function:: core.concat()
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  This function retruns a new concat object.
+
+  :returns: A :ref:`concat_class` object.
+
 .. js:function:: core.done(data)
 
   **context**: body, init, task, action, sample-fetch, converter
@@ -552,6 +560,76 @@ Core class
 
   Give back the hand at the HAProxy scheduler. It is used when the LUA
   processing consumes a lot of processing time.
+
+.. _concat_class:
+
+Concat class
+============
+
+.. js:class:: Concat
+
+  This class provides a fast way for string concatenation. The way using native
+  Lua concatenation like the code below is slow for some reasons.
+
+.. code-block:: lua
+
+  str = "string1"
+  str = str .. ", string2"
+  str = str .. ", string3"
+..
+
+  For each concatenation, Lua:
+  * allocate memory for the result,
+  * catenate the two string copying the strings in the new memory bloc,
+  * free the old memory block containing the string whoch is no longer used.
+  This process does many memory move, allocation and free. In addition, the
+  memory is not really freed, it is just mark mark as unsused and wait for the
+  garbage collector.
+
+  The Concat class provide an alternative way for catenating strings. It uses
+  the internal Lua mechanism (it does not allocate memory), but it doesn't copy
+  the data more than once.
+
+  On my computer, the following loops spends 0.2s for the Concat method and
+  18.5s for the pure Lua implementation. So, the Concat class is about 1000x
+  faster than the embedded solution.
+
+.. code-block:: lua
+
+  for j = 1, 100 do
+    c = core.concat()
+    for i = 1, 20000 do
+      c:add("#####")
+    end
+  end
+..
+
+.. code-block:: lua
+
+  for j = 1, 100 do
+    c = ""
+    for i = 1, 20000 do
+      c = c .. "#####"
+    end
+  end
+..
+
+.. js:function:: Concat.add(concat, string)
+
+  This function adds a string to the current concatenated string.
+
+  :param class_concat concat: A :ref:`concat_class` which contains the currently
+    builded string.
+  :param string string: A new string to concatenate to the current builded
+    string.
+
+.. js:function:: Concat.dump(concat)
+
+  This function returns the concanated string.
+
+  :param class_concat concat: A :ref:`concat_class` which contains the currently
+    builded string.
+  :returns: the concatenated string
 
 .. _fetches_class:
 

@@ -9,6 +9,9 @@
 
 #include <common/time.h>
 
+/* Contains the class reference of the concat object. */
+static int class_concat_ref;
+
 /* Return an object of the expected type, or throws an error. */
 void *hlua_checkudata(lua_State *L, int ud, int class_ref)
 {
@@ -118,12 +121,97 @@ static void hlua_array_add_fcn(lua_State *L, const char *name,
 	lua_rawset(L, -3);
 }
 
+static luaL_Buffer *hlua_check_concat(lua_State *L, int ud)
+{
+	return (luaL_Buffer *)(hlua_checkudata(L, ud, class_concat_ref));
+}
+
+static int hlua_concat_add(lua_State *L)
+{
+	luaL_Buffer *b;
+	const char *str;
+	size_t l;
+
+	/* First arg must be a concat object. */
+	b = hlua_check_concat(L, 1);
+
+	/* Second arg must be a string. */
+	str = luaL_checklstring(L, 2, &l);
+
+	luaL_addlstring(b, str, l);
+	return 0;
+}
+
+static int hlua_concat_dump(lua_State *L)
+{
+	luaL_Buffer *b;
+
+	/* First arg must be a concat object. */
+	b = hlua_check_concat(L, 1);
+
+	/* Push the soncatenated strng in the stack. */
+	luaL_pushresult(b);
+	return 1;
+}
+
+int hlua_concat_new(lua_State *L)
+{
+	luaL_Buffer *b;
+
+	lua_newtable(L);
+	b = lua_newuserdata(L, sizeof(luaL_Buffer));
+	lua_rawseti(L, -2, 0);
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_concat_ref);
+	lua_setmetatable(L, -2);
+
+	luaL_buffinit(L, b);
+	return 1;
+}
+
+static int concat_tostring(lua_State *L)
+{
+	const void *ptr = lua_topointer(L, 1);
+	lua_pushfstring(L, "Concat object: %p", ptr);
+	return 1;
+}
+
+static int hlua_concat_init(lua_State *L)
+{
+	/* Creates the buffered concat object. */
+	lua_newtable(L);
+
+	lua_pushstring(L, "__tostring");
+	lua_pushcclosure(L, concat_tostring, 0);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "__index"); /* Creates the index entry. */
+	lua_newtable(L); /* The "__index" content. */
+
+	lua_pushstring(L, "add");
+	lua_pushcclosure(L, hlua_concat_add, 0);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "dump");
+	lua_pushcclosure(L, hlua_concat_dump, 0);
+	lua_settable(L, -3);
+
+	lua_settable(L, -3); /* Sets the __index entry. */
+	class_concat_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+	return 1;
+}
+
 int hlua_fcn_reg_core_fcn(lua_State *L)
 {
+	if (!hlua_concat_init(L))
+		return 0;
+
 	hlua_array_add_fcn(L, "now", hlua_now);
 	hlua_array_add_fcn(L, "http_date", hlua_http_date);
 	hlua_array_add_fcn(L, "imf_date", hlua_imf_date);
 	hlua_array_add_fcn(L, "rfc850_date", hlua_rfc850_date);
 	hlua_array_add_fcn(L, "asctime_date", hlua_asctime_date);
+	hlua_array_add_fcn(L, "concat", hlua_concat_new);
 	return 5;
 }
