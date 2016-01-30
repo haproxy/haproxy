@@ -2588,6 +2588,27 @@ int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2)
 	return 1;
 }
 
+/* copy IP address from <source> into <dest>
+ * the caller must allocate and clear <dest> before calling.
+ * Returns a pointer to the destination.
+ */
+struct sockaddr_storage *ipcpy(struct sockaddr_storage *source, struct sockaddr_storage *dest)
+{
+	dest->ss_family = source->ss_family;
+
+	/* copy new addr and apply it */
+	switch (source->ss_family) {
+		case AF_INET:
+			((struct sockaddr_in *)dest)->sin_addr.s_addr = ((struct sockaddr_in *)source)->sin_addr.s_addr;
+			break;
+		case AF_INET6:
+			memcpy(((struct sockaddr_in6 *)dest)->sin6_addr.s6_addr, ((struct sockaddr_in6 *)source)->sin6_addr.s6_addr, sizeof(struct in6_addr));
+			break;
+	}
+
+	return dest;
+}
+
 char *human_time(int t, short hz_div) {
 	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
 	char *p = rv;

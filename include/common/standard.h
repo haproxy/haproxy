@@ -886,6 +886,12 @@ extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
  */
 int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2);
 
+/* copy ip from <source> into <dest>
+ * the caller must clear <dest> before calling.
+ * Returns a pointer to the destination
+ */
+struct sockaddr_storage *ipcpy(struct sockaddr_storage *source, struct sockaddr_storage *dest);
+
 char *human_time(int t, short hz_div);
 
 extern const char *monthname[];
