@@ -5257,6 +5257,10 @@ void http_end_txn_clean_session(struct stream *s)
 			srv_conn->flags |= CO_FL_PRIVATE;
 	}
 
+	/* Never ever allow to reuse a connection from a non-reuse backend */
+	if (srv_conn && (be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+		srv_conn->flags |= CO_FL_PRIVATE;
+
 	if (fe->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
@@ -5292,8 +5296,7 @@ void http_end_txn_clean_session(struct stream *s)
 		srv = objt_server(srv_conn->target);
 		if (!srv)
 			si_idle_conn(&s->si[1], NULL);
-		else if ((srv_conn->flags & CO_FL_PRIVATE) ||
-			 ((be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR))
+		else if (srv_conn->flags & CO_FL_PRIVATE)
 			si_idle_conn(&s->si[1], &srv->priv_conns);
 		else if (prev_flags & TX_NOT_FIRST)
 			/* note: we check the request, not the connection, but
