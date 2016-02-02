@@ -1088,8 +1088,10 @@ int connect_server(struct stream *s)
 
 			if (srv_conn->owner) {
 				si_detach_endpoint(srv_conn->owner);
-				if (old_conn && !(old_conn->flags & CO_FL_PRIVATE))
+				if (old_conn && !(old_conn->flags & CO_FL_PRIVATE)) {
 					si_attach_conn(srv_conn->owner, old_conn);
+					si_idle_conn(srv_conn->owner, NULL);
+				}
 			}
 			si_attach_conn(&s->si[1], srv_conn);
 			reuse = 1;
