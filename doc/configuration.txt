@@ -2620,11 +2620,11 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               of complex combinations of "Set-cookie" and "Cache-control"
               headers is left to the application. The application can then
               decide whether or not it is appropriate to emit a persistence
-              cookie. Since all responses should be monitored, this mode only
-              works in HTTP close mode. Unless the application behaviour is
-              very complex and/or broken, it is advised not to start with this
-              mode for new deployments. This keyword is incompatible with
-              "insert" and "prefix".
+              cookie. Since all responses should be monitored, this mode
+              doesn't work in HTTP tunnel mode. Unless the application
+              behaviour is very complex and/or broken, it is advised not to
+              start with this mode for new deployments. This keyword is
+              incompatible with "insert" and "prefix".
 
     insert    This keyword indicates that the persistence cookie will have to
               be inserted by haproxy in server responses if the client did not
@@ -2650,7 +2650,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               and a delimiter. The prefix will be removed from all client
               requests so that the server still finds the cookie it emitted.
               Since all requests and responses are subject to being modified,
-              this mode requires the HTTP close mode. The "prefix" keyword is
+              this mode doesn't work with tunnel mode. The "prefix" keyword is
               not compatible with "rewrite" and "insert". Note: it is highly
               recommended not to use "indirect" with "prefix", otherwise server
               cookie updates would not be sent to clients.
@@ -5347,11 +5347,9 @@ no option http-use-proxy-header
 
   By setting this option in a frontend, haproxy can automatically switch to use
   that non-standard header if it sees proxied requests. A proxied request is
-  defined here as one where the URI begins with neither a '/' nor a '*'. The
-  choice of header only affects requests passing through proxies making use of
-  one of the "httpclose", "forceclose" and "http-server-close" options. Note
-  that this option can only be specified in a frontend and will affect the
-  request along its whole life.
+  defined here as one where the URI begins with neither a '/' nor a '*'. This
+  is incompatible with the HTTP tunnel mode. Note that this option can only be
+  specified in a frontend and will affect the request along its whole life.
 
   Also, when this option is set, a request which requires authentication will
   automatically switch to use proxy authentication headers if it is itself a
@@ -5500,10 +5498,8 @@ no option http_proxy
 
   No host address resolution is performed, so this only works when pure IP
   addresses are passed. Since this option's usage perimeter is rather limited,
-  it will probably be used only by experts who know they need exactly it. Last,
-  if the clients are susceptible of sending keep-alive requests, it will be
-  needed to add "option httpclose" to ensure that all requests will correctly
-  be analyzed.
+  it will probably be used only by experts who know they need exactly it. This
+  is incompatible with the HTTP tunnel mode.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -14773,7 +14769,7 @@ Most common cases :
     spent accepting these connections will inevitably slightly delay processing
     of other connections, and it can happen that request times in the order of
     a few tens of milliseconds are measured after a few thousands of new
-    connections have been accepted at once. Setting "option http-server-close"
+    connections have been accepted at once. Using one of the keep-alive modes
     may display larger request times since "Tq" also measures the time spent
     waiting for additional requests.
 
