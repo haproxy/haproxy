@@ -432,8 +432,7 @@ struct proxy {
 						 * this backend. If not specified or void, then the backend
 						 * name is used
 						 */
-
-	struct list filters;
+	struct list filter_configs;		/* list of the filters that are declared on this proxy */
 };
 
 struct switching_rule {

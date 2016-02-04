@@ -8435,7 +8435,7 @@ out_uri_auth_compat:
 			curproxy->fe_req_ana |= AN_REQ_SWITCHING_RULES;
 
 			/* Add filters analyzers if needed */
-			if (!LIST_ISEMPTY(&curproxy->filters)) {
+			if (!LIST_ISEMPTY(&curproxy->filter_configs)) {
 				curproxy->fe_req_ana |= AN_FLT_ALL_FE;
 				curproxy->fe_rsp_ana |= AN_FLT_ALL_FE;
 				if (curproxy->mode == PR_MODE_HTTP) {
@@ -8465,7 +8465,7 @@ out_uri_auth_compat:
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 
 			/* Add filters analyzers if needed */
-			if (!LIST_ISEMPTY(&curproxy->filters)) {
+			if (!LIST_ISEMPTY(&curproxy->filter_configs)) {
 				curproxy->be_req_ana |= AN_FLT_ALL_BE;
 				curproxy->be_rsp_ana |= AN_FLT_ALL_BE;
 				if (curproxy->mode == PR_MODE_HTTP) {

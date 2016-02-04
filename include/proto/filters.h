@@ -29,6 +29,10 @@
 
 #include <proto/channel.h>
 
+#define FLT_ID(flt)   (flt)->config->id
+#define FLT_CONF(flt) (flt)->config->conf
+#define FLT_OPS(flt)  (flt)->config->ops
+
 /* Useful macros to access per-channel values. It can be safely used inside
  * filters. */
 #define CHN_IDX(chn)     (((chn)->flags & CF_ISRESP) == CF_ISRESP)

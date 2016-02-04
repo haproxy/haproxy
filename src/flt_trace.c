@@ -70,15 +70,15 @@ stream_pos(const struct stream *s)
  **************************************************************************/
 /* Initialize the filter. Returns -1 on error, else 0. */
 static int
-trace_init(struct proxy *px, struct filter *filter)
+trace_init(struct proxy *px, struct flt_conf *fconf)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = fconf->conf;
 
 	if (conf->name)
 		memprintf(&conf->name, "%s/%s", conf->name, px->id);
 	else
 		memprintf(&conf->name, "TRACE/%s", px->id);
-	filter->conf = conf;
+	fconf->conf = conf;
 	TRACE(conf, "filter initialized [read random=%s - fwd random=%s]",
 	      (conf->rand_parsing ? "true" : "false"),
 	      (conf->rand_forwarding ? "true" : "false"));
@@ -87,22 +87,22 @@ trace_init(struct proxy *px, struct filter *filter)
 
 /* Free ressources allocated by the trace filter. */
 static void
-trace_deinit(struct proxy *px, struct filter *filter)
+trace_deinit(struct proxy *px, struct flt_conf *fconf)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = fconf->conf;
 
 	if (conf) {
 		TRACE(conf, "filter deinitialized");
 		free(conf->name);
 		free(conf);
 	}
-	filter->conf = NULL;
+	fconf->conf = NULL;
 }
 
 /* Check configuration of a trace filter for a specified proxy.
  * Return 1 on error, else 0. */
 static int
-trace_check(struct proxy *px, struct filter *filter)
+trace_check(struct proxy *px, struct flt_conf *fconf)
 {
 	return 0;
 }
@@ -114,7 +114,7 @@ trace_check(struct proxy *px, struct filter *filter)
 static int
 trace_stream_start(struct stream *s, struct filter *filter)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s",
 		   __FUNCTION__);
@@ -125,7 +125,7 @@ trace_stream_start(struct stream *s, struct filter *filter)
 static void
 trace_stream_stop(struct stream *s, struct filter *filter)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s",
 		   __FUNCTION__);
@@ -139,7 +139,7 @@ static int
 trace_chn_start_analyze(struct stream *s, struct filter *filter,
 			struct channel *chn)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
@@ -153,7 +153,7 @@ static int
 trace_chn_analyze(struct stream *s, struct filter *filter,
 		  struct channel *chn, unsigned an_bit)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 	char                *ana;
 
 	switch (an_bit) {
@@ -236,7 +236,7 @@ static int
 trace_chn_end_analyze(struct stream *s, struct filter *filter,
 		      struct channel *chn)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
@@ -251,7 +251,7 @@ static int
 trace_http_data(struct stream *s, struct filter *filter,
 		      struct http_msg *msg)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 	int avail = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
 	int ret   = avail;
 
@@ -273,7 +273,7 @@ static int
 trace_http_chunk_trailers(struct stream *s, struct filter *filter,
 			  struct http_msg *msg)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
@@ -285,7 +285,7 @@ static int
 trace_http_end(struct stream *s, struct filter *filter,
 	       struct http_msg *msg)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
@@ -297,7 +297,7 @@ static void
 trace_http_reset(struct stream *s, struct filter *filter,
 		 struct http_msg *msg)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
@@ -308,7 +308,7 @@ static void
 trace_http_reply(struct stream *s, struct filter *filter, short status,
 		 const struct chunk *msg)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__, "-", proxy_mode(s), stream_pos(s));
@@ -318,7 +318,7 @@ static int
 trace_http_forward_data(struct stream *s, struct filter *filter,
 			struct http_msg *msg, unsigned int len)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 	int                  ret  = len;
 
 	if (ret && conf->rand_forwarding)
@@ -342,7 +342,7 @@ trace_http_forward_data(struct stream *s, struct filter *filter,
 static int
 trace_tcp_data(struct stream *s, struct filter *filter, struct channel *chn)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 	int                  avail = chn->buf->i - FLT_NXT(filter, chn);
 	int                  ret  = avail;
 
@@ -363,7 +363,7 @@ static int
 trace_tcp_forward_data(struct stream *s, struct filter *filter, struct channel *chn,
 		 unsigned int len)
 {
-	struct trace_config *conf = filter->conf;
+	struct trace_config *conf = FLT_CONF(filter);
 	int                  ret  = len;
 
 	if (ret && conf->rand_forwarding)
@@ -414,7 +414,7 @@ struct flt_ops trace_ops = {
 /* Return -1 on error, else 0 */
 static int
 parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
-		struct filter *filter, char **err)
+		struct flt_conf *fconf, char **err)
 {
 	struct trace_config *conf;
 	int                  pos = *cur_arg;
@@ -452,10 +452,10 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 			pos++;
 		}
 		*cur_arg = pos;
-		filter->ops  = &trace_ops;
+		fconf->ops  = &trace_ops;
 	}
 
-	filter->conf = conf;
+	fconf->conf = conf;
 	return 0;
 
  error:

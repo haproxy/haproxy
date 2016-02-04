@@ -62,7 +62,7 @@ static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 /***********************************************************************/
 static int
-comp_flt_init(struct proxy *px, struct filter *filter)
+comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 {
 
 	if (!tmpbuf->size && b_alloc(&tmpbuf) == NULL)
@@ -73,7 +73,7 @@ comp_flt_init(struct proxy *px, struct filter *filter)
 }
 
 static void
-comp_flt_deinit(struct proxy *px, struct filter *filter)
+comp_flt_deinit(struct proxy *px, struct flt_conf *fconf)
 {
 	if (tmpbuf->size)
 		b_free(&tmpbuf);
@@ -830,20 +830,20 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 
 static int
 parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
-					 struct filter *filter, char **err)
+			 struct flt_conf *fconf, char **err)
 {
-	struct filter *flt, *back;
+	struct flt_conf *fc, *back;
 
-	list_for_each_entry_safe(flt, back, &px->filters, list) {
-		if (flt->id == http_comp_flt_id) {
+	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
+		if (fc->id == http_comp_flt_id) {
 			memprintf(err, "%s: Proxy supports only one compression filter\n", px->id);
 			return -1;
 		}
 	}
 
-	filter->id   = http_comp_flt_id;
-	filter->conf = NULL;
-	filter->ops  = &comp_ops;
+	fconf->id   = http_comp_flt_id;
+	fconf->conf = NULL;
+	fconf->ops  = &comp_ops;
 	(*cur_arg)++;
 
 	return 0;
@@ -853,14 +853,14 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 int
 check_legacy_http_comp_flt(struct proxy *proxy)
 {
-	struct filter *filter;
+	struct flt_conf *fconf;
 	int err = 0;
 
 	if (proxy->comp == NULL)
 		goto end;
-	if (!LIST_ISEMPTY(&proxy->filters)) {
-		list_for_each_entry(filter, &proxy->filters, list) {
-			if (filter->id == http_comp_flt_id)
+	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
+		list_for_each_entry(fconf, &proxy->filter_configs, list) {
+			if (fconf->id == http_comp_flt_id)
 				goto end;
 		}
 		Alert("config: %s '%s': require an explicit filter declaration to use HTTP compression\n",
@@ -869,18 +869,17 @@ check_legacy_http_comp_flt(struct proxy *proxy)
 		goto end;
 	}
 
-	filter = pool_alloc2(pool2_filter);
-	if (!filter) {
+	fconf = calloc(1, sizeof(*fconf));
+	if (!fconf) {
 		Alert("config: %s '%s': out of memory\n",
 		      proxy_type_str(proxy), proxy->id);
 		err++;
 		goto end;
 	}
-	memset(filter, 0, sizeof(*filter));
-	filter->id   = http_comp_flt_id;
-	filter->conf = NULL;
-	filter->ops  = &comp_ops;
-	LIST_ADDQ(&proxy->filters, &filter->list);
+	fconf->id   = http_comp_flt_id;
+	fconf->conf = NULL;
+	fconf->ops  = &comp_ops;
+	LIST_ADDQ(&proxy->filter_configs, &fconf->list);
 
  end:
 	return err;
@@ -916,7 +915,7 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 		return 0;
 
 	list_for_each_entry(filter, &strm_flt(smp->strm)->filters, list) {
-		if (filter->id != http_comp_flt_id)
+		if (FLT_ID(filter) != http_comp_flt_id)
 			continue;
 
 		if (!(st = filter->ctx))

@@ -28,6 +28,7 @@ struct http_msg;
 struct proxy;
 struct stream;
 struct channel;
+struct flt_conf;
 struct filter;
 
 /* Descriptor for a "filter" keyword. The ->parse() function returns 0 in case
@@ -40,7 +41,7 @@ struct filter;
 struct flt_kw {
 	const char *kw;
 	int (*parse)(char **args, int *cur_arg, struct proxy *px,
-		     struct filter *filter, char **err);
+		     struct flt_conf *fconf, char **err);
 };
 
 /*
@@ -123,9 +124,9 @@ struct flt_ops {
 	/*
 	 * Callbacks to manage the filter lifecycle
 	 */
-	int  (*init)  (struct proxy *p, struct filter *f);
-	void (*deinit)(struct proxy *p, struct filter *f);
-	int  (*check) (struct proxy *p, struct filter *f);
+	int  (*init)  (struct proxy *p, struct flt_conf *fconf);
+	void (*deinit)(struct proxy *p, struct flt_conf *fconf);
+	int  (*check) (struct proxy *p, struct flt_conf *fconf);
 
 	/*
 	 * Stream callbacks
@@ -171,9 +172,18 @@ struct flt_ops {
 #define STRM_FLT_FL_HAS_FILTERS          0x0001 /* The stream has at least one filter */
 
 /*
- * Structure representing the state of a filter. When attached to a proxy, only
- * <ops> and <conf> field (and optionnaly <id>) are set. All other fields are
- * used when the filter is attached to a stream.
+ * Structure representing the filter configuration, attached to a proxy and
+ * accessible from a filter when instantiated in a stream
+ */
+struct flt_conf {
+	const char     *id;   /* The filter id */
+	struct flt_ops *ops;  /* The filter callbacks */
+	void           *conf; /* The filter configuration */
+	struct list     list; /* Next filter for the same proxy */
+};
+
+/*
+ * Structure reprensenting a filter instance attached to a stream
  *
  * 2D-Array fields are used to store info per channel. The first index stands
  * for the request channel, and the second one for the response channel.
@@ -182,9 +192,7 @@ struct flt_ops {
  * access these values using FLT_NXT and FLT_FWD macros.
  */
 struct filter {
-	const char     *id;                /* The filter id */
-	struct flt_ops *ops;               /* The filter callbacks */
-	void           *conf;              /* The filter configuration */
+	struct flt_conf *config;           /* the filter's configuration */
 	void           *ctx;               /* The filter context (opaque) */
 	unsigned short  flags;             /* FLT_FL_* */
 	unsigned int    next[2];           /* Offset, relative to buf->p, to the next byte to parse for a specific channel

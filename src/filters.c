@@ -158,7 +158,7 @@ static int
 parse_filter(char **args, int section_type, struct proxy *curpx,
 	     struct proxy *defpx, const char *file, int line, char **err)
 {
-	struct filter *filter = NULL;
+	struct flt_conf *fconf = NULL;
 
 	/* Filter cannot be defined on a default proxy */
 	if (curpx == defpx) {
@@ -176,12 +176,11 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 				  file, line, args[0], proxy_type_str(curpx), curpx->id);
 			goto error;
 		}
-		filter = pool_alloc2(pool2_filter);
-		if (!filter) {
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fconf) {
 			memprintf(err, "'%s' : out of memory", args[0]);
 			goto error;
 		}
-		memset(filter, 0, sizeof(*filter));
 
 		cur_arg = 1;
 		kw = flt_find_kw(args[cur_arg]);
@@ -192,7 +191,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 					  file, line, args[0], args[cur_arg]);
 				goto error;
 			}
-			if (kw->parse(args, &cur_arg, curpx, filter, err) != 0) {
+			if (kw->parse(args, &cur_arg, curpx, fconf, err) != 0) {
 				if (err && *err)
 					memprintf(err, "'%s' : '%s'",
 						  args[0], *err);
@@ -216,13 +215,12 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		LIST_ADDQ(&curpx->filters, &filter->list);
+		LIST_ADDQ(&curpx->filter_configs, &fconf->list);
 	}
 	return 0;
 
   error:
-	if (filter)
-		pool_free2(pool2_filter, filter);
+	free(fconf);
 	return -1;
 
 
@@ -236,10 +234,10 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 int
 flt_init(struct proxy *proxy)
 {
-	struct filter *filter;
+	struct flt_conf *fconf;
 
-	list_for_each_entry(filter, &proxy->filters, list) {
-		if (filter->ops->init && filter->ops->init(proxy, filter) < 0)
+	list_for_each_entry(fconf, &proxy->filter_configs, list) {
+		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
 	}
 	return 0;
@@ -253,12 +251,12 @@ flt_init(struct proxy *proxy)
 int
 flt_check(struct proxy *proxy)
 {
-	struct filter *filter;
-	int            err = 0;
+	struct flt_conf *fconf;
+	int err = 0;
 
-	list_for_each_entry(filter, &proxy->filters, list) {
-		if (filter->ops->check)
-			err += filter->ops->check(proxy, filter);
+	list_for_each_entry(fconf, &proxy->filter_configs, list) {
+		if (fconf->ops->check)
+			err += fconf->ops->check(proxy, fconf);
 	}
 	err += check_legacy_http_comp_flt(proxy);
 	return err;
@@ -271,27 +269,25 @@ flt_check(struct proxy *proxy)
 void
 flt_deinit(struct proxy *proxy)
 {
-	struct filter *filter, *back;
+	struct flt_conf *fconf, *back;
 
-	list_for_each_entry_safe(filter, back, &proxy->filters, list) {
-		if (filter->ops->deinit)
-			filter->ops->deinit(proxy, filter);
-		LIST_DEL(&filter->list);
-		pool_free2(pool2_filter, filter);
+	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
+		if (fconf->ops->deinit)
+			fconf->ops->deinit(proxy, fconf);
+		LIST_DEL(&fconf->list);
+		free(fconf);
 	}
 }
 
 /* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
 static int
-flt_stream_add_filter(struct stream *s, struct filter *filter, unsigned int flags)
+flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags)
 {
 	struct filter *f = pool_alloc2(pool2_filter);
 	if (!f) /* not enough memory */
 		return -1;
 	memset(f, 0, sizeof(*f));
-	f->id    = filter->id;
-	f->ops   = filter->ops;
-	f->conf  = filter->conf;
+	f->config = fconf;
 	f->flags |= flags;
 	LIST_ADDQ(&strm_flt(s)->filters, &f->list);
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
@@ -305,12 +301,12 @@ flt_stream_add_filter(struct stream *s, struct filter *filter, unsigned int flag
 int
 flt_stream_init(struct stream *s)
 {
-	struct filter *filter;
+	struct flt_conf *fconf;
 
 	memset(strm_flt(s), 0, sizeof(*strm_flt(s)));
 	LIST_INIT(&strm_flt(s)->filters);
-	list_for_each_entry(filter, &strm_fe(s)->filters, list) {
-		if (flt_stream_add_filter(s, filter, 0) < 0)
+	list_for_each_entry(fconf, &strm_fe(s)->filter_configs, list) {
+		if (flt_stream_add_filter(s, fconf, 0) < 0)
 			return -1;
 	}
 	return 0;
@@ -348,7 +344,7 @@ flt_stream_start(struct stream *s)
 	struct filter *filter;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (filter->ops->stream_start && filter->ops->stream_start(s, filter) < 0)
+		if (FLT_OPS(filter)->stream_start && FLT_OPS(filter)->stream_start(s, filter) < 0)
 			return -1;
 	}
 	return 0;
@@ -364,8 +360,8 @@ flt_stream_stop(struct stream *s)
 	struct filter *filter;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (filter->ops->stream_stop)
-			filter->ops->stream_stop(s, filter);
+		if (FLT_OPS(filter)->stream_stop)
+			FLT_OPS(filter)->stream_stop(s, filter);
 	}
 }
 
@@ -377,13 +373,13 @@ flt_stream_stop(struct stream *s)
 int
 flt_set_stream_backend(struct stream *s, struct proxy *be)
 {
-	struct filter *filter;
+	struct flt_conf *fconf;
 
 	if (strm_fe(s) == be)
 		return 0;
 
-	list_for_each_entry(filter, &be->filters, list) {
-		if (flt_stream_add_filter(s, filter, FLT_FL_IS_BACKEND_FILTER) < 0)
+	list_for_each_entry(fconf, &be->filter_configs, list) {
+		if (flt_stream_add_filter(s, fconf, FLT_FL_IS_BACKEND_FILTER) < 0)
 			return -1;
 	}
 	return 0;
@@ -423,8 +419,8 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 		if (msg->next > *nxt)
 			*nxt = msg->next;
 
-		if (filter->ops->http_data) {
-			ret = filter->ops->http_data(s, filter, msg);
+		if (FLT_OPS(filter)->http_data) {
+			ret = FLT_OPS(filter)->http_data(s, filter, msg);
 			if (ret < 0)
 				break;
 
@@ -477,8 +473,8 @@ flt_http_chunk_trailers(struct stream *s, struct http_msg *msg)
 		nxt = &FLT_NXT(filter, msg->chn);
 		*nxt = msg->next;
 
-		if (filter->ops->http_chunk_trailers) {
-			ret = filter->ops->http_chunk_trailers(s, filter, msg);
+		if (FLT_OPS(filter)->http_chunk_trailers) {
+			ret = FLT_OPS(filter)->http_chunk_trailers(s, filter, msg);
 			if (ret < 0)
 				break;
 		}
@@ -502,8 +498,8 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 	int ret = 1;
 
 	RESUME_FILTER_LOOP(s, msg->chn) {
-		if (filter->ops->http_end) {
-			ret = filter->ops->http_end(s, filter, msg);
+		if (FLT_OPS(filter)->http_end) {
+			ret = FLT_OPS(filter)->http_end(s, filter, msg);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, msg->chn, end);
 		}
@@ -522,8 +518,8 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 	struct filter *filter;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (filter->ops->http_reset)
-			filter->ops->http_reset(s, filter, msg);
+		if (FLT_OPS(filter)->http_reset)
+			FLT_OPS(filter)->http_reset(s, filter, msg);
 	}
 }
 
@@ -537,8 +533,8 @@ flt_http_reply(struct stream *s, short status, const struct chunk *msg)
 	struct filter *filter;
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (filter->ops->http_reply)
-			filter->ops->http_reply(s, filter, status, msg);
+		if (FLT_OPS(filter)->http_reply)
+			FLT_OPS(filter)->http_reply(s, filter, status, msg);
 	}
 }
 
@@ -572,10 +568,10 @@ flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len)
 		if (msg->next > *nxt)
 			*nxt = msg->next;
 
-		if (filter->ops->http_forward_data) {
+		if (FLT_OPS(filter)->http_forward_data) {
 			/* Remove bytes that the current filter considered as
 			 * forwarded */
-			ret = filter->ops->http_forward_data(s, filter, msg, ret - *fwd);
+			ret = FLT_OPS(filter)->http_forward_data(s, filter, msg, ret - *fwd);
 			if (ret < 0)
 				goto end;
 		}
@@ -628,8 +624,8 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		FLT_NXT(filter, chn) = 0;
 		FLT_FWD(filter, chn) = 0;
 
-		if (filter->ops->channel_start_analyze) {
-			ret = filter->ops->channel_start_analyze(s, filter, chn);
+		if (FLT_OPS(filter)->channel_start_analyze) {
+			ret = FLT_OPS(filter)->channel_start_analyze(s, filter, chn);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, end);
 		}
@@ -652,8 +648,8 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	int ret = 1;
 
 	RESUME_FILTER_LOOP(s, chn) {
-		if (filter->ops->channel_analyze) {
-			ret = filter->ops->channel_analyze(s, filter, chn, an_bit);
+		if (FLT_OPS(filter)->channel_analyze) {
+			ret = FLT_OPS(filter)->channel_analyze(s, filter, chn, an_bit);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
 		}
@@ -676,8 +672,8 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	int            ret = 1;
 
 	RESUME_FILTER_LOOP(s, chn) {
-		if (filter->ops->channel_analyze) {
-			ret = filter->ops->channel_analyze(s, filter, chn, an_bit);
+		if (FLT_OPS(filter)->channel_analyze) {
+			ret = FLT_OPS(filter)->channel_analyze(s, filter, chn, an_bit);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
 		}
@@ -717,8 +713,8 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		FLT_FWD(filter, chn) = 0;
 		unregister_data_filter(s, chn, filter);
 
-		if (filter->ops->channel_end_analyze) {
-			ret = filter->ops->channel_end_analyze(s, filter, chn);
+		if (FLT_OPS(filter)->channel_end_analyze) {
+			ret = FLT_OPS(filter)->channel_end_analyze(s, filter, chn);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, end);
 		}
@@ -778,8 +774,8 @@ flt_data(struct stream *s, struct channel *chn)
 			continue;
 
 		nxt = &FLT_NXT(filter, chn);
-		if (filter->ops->tcp_data) {
-			ret = filter->ops->tcp_data(s, filter, chn);
+		if (FLT_OPS(filter)->tcp_data) {
+			ret = FLT_OPS(filter)->tcp_data(s, filter, chn);
 			if (ret < 0)
 				break;
 
@@ -830,10 +826,10 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 			continue;
 
 		fwd = &FLT_FWD(filter, chn);
-		if (filter->ops->tcp_forward_data) {
+		if (FLT_OPS(filter)->tcp_forward_data) {
 			/* Remove bytes that the current filter considered as
 			 * forwarded */
-			ret = filter->ops->tcp_forward_data(s, filter, chn, ret - *fwd);
+			ret = FLT_OPS(filter)->tcp_forward_data(s, filter, chn, ret - *fwd);
 			if (ret < 0)
 				goto end;
 		}
