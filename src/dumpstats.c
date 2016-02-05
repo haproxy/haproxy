@@ -3584,7 +3584,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			[SRV_STATS_STATE_NOLB]			= "NOLB,",
 			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d,",
 			[SRV_STATS_STATE_DRAIN]			= "DRAIN,",
-			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
+			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent),",
 			[SRV_STATS_STATE_NO_CHECK]		= "no check,"
 		};
 
