@@ -163,6 +163,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 {
 	struct map_descriptor *desc;
 	struct pattern *pat;
+	struct chunk *str;
 
 	/* get config */
 	desc = arg_p[0].data.map;
@@ -172,8 +173,19 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 
 	/* Match case. */
 	if (pat) {
-		/* Copy sample. */
 		if (pat->data) {
+			/* In the regm case, merge the sample with the input. */
+			if ((long)private == PAT_MATCH_REGM) {
+				str = get_trash_chunk();
+				str->len = exp_replace(str->str, str->size, smp->data.u.str.str,
+				                       pat->data->u.str.str,
+				                       (regmatch_t *)smp->ctx.a[0]);
+				if (str->len == -1)
+					return 0;
+				smp->data.u.str = *str;
+				return 1;
+			}
+			/* Copy sample. */
 			smp->data = *pat->data;
 			smp->flags |= SMP_F_CONST;
 			return 1;
@@ -242,6 +254,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "map_dom",     sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_STR,  (void *)PAT_MATCH_DOM },
 	{ "map_end",     sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_STR,  (void *)PAT_MATCH_END },
 	{ "map_reg",     sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_STR,  (void *)PAT_MATCH_REG },
+	{ "map_regm",    sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_STR,  SMP_T_STR,  (void *)PAT_MATCH_REGM},
 	{ "map_int",     sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_SINT, SMP_T_STR,  (void *)PAT_MATCH_INT },
 	{ "map_ip",      sample_conv_map, ARG2(1,STR,STR), sample_load_map, SMP_T_ADDR, SMP_T_STR,  (void *)PAT_MATCH_IP  },
 

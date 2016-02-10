@@ -11815,12 +11815,18 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
   -----------+--------------+-----------------+-----------------+---------------
     str      | end          | map_end         | map_end_int     | map_end_ip
   -----------+--------------+-----------------+-----------------+---------------
-    str      | reg          | map_reg         | map_reg_int     | map_reg_ip
+             |              | map_reg         |                 |
+    str      | reg          +-----------------+ map_reg_int     | map_reg_ip
+             |              | map_regm        |                 |
   -----------+--------------+-----------------+-----------------+---------------
     int      | int          | map_int         | map_int_int     | map_int_ip
   -----------+--------------+-----------------+-----------------+---------------
     ip       | ip           | map_ip          | map_ip_int      | map_ip_ip
   -----------+--------------+-----------------+-----------------+---------------
+
+  The special map called "map_regm" expect matching zone in the regular
+  expression and modify the output replacing back reference (like "\1") by
+  the corresponding match text.
 
   The file contains one key + value per line. Lines which start with '#' are
   ignored, just like empty lines. Leading tabs and spaces are stripped. The key

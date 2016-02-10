@@ -41,6 +41,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_DOM]   = "dom",
 	[PAT_MATCH_END]   = "end",
 	[PAT_MATCH_REG]   = "reg",
+	[PAT_MATCH_REGM]  = "regm",
 };
 
 int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **) = {
@@ -57,6 +58,7 @@ int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char *
 	[PAT_MATCH_DOM]   = pat_parse_str,
 	[PAT_MATCH_END]   = pat_parse_str,
 	[PAT_MATCH_REG]   = pat_parse_reg,
+	[PAT_MATCH_REGM]  = pat_parse_reg,
 };
 
 int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **) = {
@@ -73,6 +75,7 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_DOM]   = pat_idx_list_str,
 	[PAT_MATCH_END]   = pat_idx_list_str,
 	[PAT_MATCH_REG]   = pat_idx_list_reg,
+	[PAT_MATCH_REGM]  = pat_idx_list_regm,
 };
 
 void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *) = {
@@ -89,6 +92,7 @@ void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt
 	[PAT_MATCH_DOM]   = pat_del_list_ptr,
 	[PAT_MATCH_END]   = pat_del_list_ptr,
 	[PAT_MATCH_REG]   = pat_del_list_reg,
+	[PAT_MATCH_REGM]  = pat_del_list_reg,
 };
 
 void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
@@ -105,6 +109,7 @@ void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
 	[PAT_MATCH_DOM]   = pat_prune_ptr,
 	[PAT_MATCH_END]   = pat_prune_ptr,
 	[PAT_MATCH_REG]   = pat_prune_reg,
+	[PAT_MATCH_REGM]  = pat_prune_reg,
 };
 
 struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
@@ -121,6 +126,7 @@ struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern
 	[PAT_MATCH_DOM]   = pat_match_dom,
 	[PAT_MATCH_END]   = pat_match_end,
 	[PAT_MATCH_REG]   = pat_match_reg,
+	[PAT_MATCH_REGM]  = pat_match_regm,
 };
 
 /* Just used for checking configuration compatibility */
@@ -138,6 +144,7 @@ int pat_match_types[PAT_MATCH_NUM] = {
 	[PAT_MATCH_DOM]   = SMP_T_STR,
 	[PAT_MATCH_END]   = SMP_T_STR,
 	[PAT_MATCH_REG]   = SMP_T_STR,
+	[PAT_MATCH_REGM]  = SMP_T_STR,
 };
 
 /* this struct is used to return information */
@@ -535,6 +542,30 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 
 	if (lru)
 	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+
+	return ret;
+}
+
+/* Executes a regex. It temporarily changes the data to add a trailing zero,
+ * and restores the previous character when leaving. This function fills
+ * a matching array.
+ */
+struct pattern *pat_match_regm(struct sample *smp, struct pattern_expr *expr, int fill)
+{
+	struct pattern_list *lst;
+	struct pattern *pattern;
+	struct pattern *ret = NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (regex_exec_match2(pattern->ptr.reg, smp->data.u.str.str, smp->data.u.str.len,
+		                      MAX_MATCH, pmatch, 0)) {
+			ret = pattern;
+			smp->ctx.a[0] = pmatch;
+			break;
+		}
+	}
 
 	return ret;
 }
@@ -1146,7 +1177,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	return 1;
 }
 
-int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
+int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap, char **err)
 {
 	struct pattern_list *patl;
 
@@ -1169,7 +1200,8 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* compile regex */
-	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg, !(expr->mflags & PAT_MF_IGNORE_CASE), 0, err)) {
+	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg,
+	                !(expr->mflags & PAT_MF_IGNORE_CASE), cap, err)) {
 		free(patl->pat.ptr.reg);
 		free(patl);
 		return 0;
@@ -1181,6 +1213,16 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* that's ok */
 	return 1;
+}
+
+int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
+{
+	return pat_idx_list_reg_cap(expr, pat, 0, err);
+}
+
+int pat_idx_list_regm(struct pattern_expr *expr, struct pattern *pat, char **err)
+{
+	return pat_idx_list_reg_cap(expr, pat, 1, err);
 }
 
 int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)

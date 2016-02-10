@@ -87,6 +87,7 @@ enum {
 	PAT_MATCH_DOM,   /* domain-like sub-string (str) */
 	PAT_MATCH_END,   /* end of string (str) */
 	PAT_MATCH_REG,   /* regex (str -> reg) */
+	PAT_MATCH_REGM,  /* regex (str -> reg) with match zones */
 	/* keep this one last */
 	PAT_MATCH_NUM
 };
