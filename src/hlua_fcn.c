@@ -1,4 +1,15 @@
-/* All the functions in this file runs with aLua stack, and can
+/*
+ * Lua safe functions
+ *
+ * Copyright 2015-2016 Thierry Fournier <tfournier@arpalert.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
+ *
+ *
+ * All the functions in this file runs with a Lua stack, and can
  * return with a longjmp. All of these function must be launched
  * in an environment able to catch a longjmp, otherwise a
  * critical error can be raised.
