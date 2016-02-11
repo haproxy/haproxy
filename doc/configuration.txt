@@ -6493,7 +6493,7 @@ rate-limit sessions <rate>
             mode tcp
             bind :25
             rate-limit sessions 10
-            server 127.0.0.1:1025
+            server smtp1 127.0.0.1:1025
 
   Note : when the maximum rate is reached, the frontend's status is not changed
          but its sockets appear as "WAITING" in the statistics if the
