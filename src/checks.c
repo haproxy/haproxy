@@ -3108,7 +3108,7 @@ static int init_email_alert_checks(struct server *s)
 
 		LIST_INIT(&q->email_alerts);
 
-		check->inter = DEF_CHKINTR; /* XXX: Would like to Skip to the next alert, if any, ASAP.
+		check->inter = DEF_MAILALERTTIME; /* XXX: Would like to Skip to the next alert, if any, ASAP.
 					     * But need enough time so that timeouts don't occur
 					     * during tcp check procssing. For now just us an arbitrary default. */
 		check->rise = DEF_AGENT_RISETIME;

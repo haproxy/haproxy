@@ -146,6 +146,7 @@
 
 #define	CHK_CONNTIME    2000
 #define	DEF_CHKINTR     2000
+#define DEF_MAILALERTTIME 10000
 #define DEF_FALLTIME    3
 #define DEF_RISETIME    2
 #define DEF_AGENT_FALLTIME    1
