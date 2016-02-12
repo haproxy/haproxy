@@ -5279,9 +5279,12 @@ static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bi
 
 	free(conf->alpn_str);
 
-	/* the ALPN string is built as a suite of (<len> <name>)* */
+	/* the ALPN string is built as a suite of (<len> <name>)*,
+	 * so we reuse each comma to store the next <len> and need
+	 * one more for the end of the string.
+	 */
 	conf->alpn_len = strlen(args[cur_arg + 1]) + 1;
-	conf->alpn_str = calloc(1, conf->alpn_len);
+	conf->alpn_str = calloc(1, conf->alpn_len + 1);
 	memcpy(conf->alpn_str + 1, args[cur_arg + 1], conf->alpn_len);
 
 	/* replace commas with the name length */
