@@ -597,6 +597,7 @@ void init(int argc, char **argv)
 	get_localtime(start_date.tv_sec, &curtime);
 	strftime(localtimezone, 6, "%z", &curtime);
 
+	init_log();
 	signal_init();
 	if (init_acl() != 0)
 		exit(1);

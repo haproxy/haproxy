@@ -48,6 +48,14 @@ extern char *logline;
 extern char *logline_rfc5424;
 
 
+/*
+ * Initializes some log data.
+ */
+void init_log();
+
+/*
+ * Builds a log line.
+ */
 int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format);
 
 /*

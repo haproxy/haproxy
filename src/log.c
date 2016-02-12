@@ -66,6 +66,21 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 	}
 };
 
+#define FD_SETS_ARE_BITFIELDS
+#ifdef FD_SETS_ARE_BITFIELDS
+/*
+ * This map is used with all the FD_* macros to check whether a particular bit
+ * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
+ * which should be escaped. When FD_ISSET() returns non-zero, it means that the
+ * byte should be escaped. Be careful to always pass bytes from 0 to 255
+ * exclusively to the macros.
+ */
+fd_set rfc5424_escape_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+
+#else
+#error "Check if your OS uses bitfields for fd_sets"
+#endif
+
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
 	"auth", "syslog", "lpr", "news",
@@ -211,6 +226,7 @@ struct logformat_var_args var_args_list[] = {
 	{ "M", LOG_OPT_MANDATORY },
 	{ "Q", LOG_OPT_QUOTE },
 	{ "X", LOG_OPT_HEXA },
+	{ "E", LOG_OPT_ESC },
 	{  0,  0 }
 };
 
@@ -702,8 +718,103 @@ int get_log_facility(const char *fac)
 }
 
 /*
+ * Encode the string.
+ *
+ * When using the +E log format option, it will try to escape '"\]'
+ * characters with '\' as prefix. The same prefix should not be used as
+ * <escape>.
+ */
+static char *lf_encode_string(char *start, char *stop,
+                              const char escape, const fd_set *map,
+                              const char *string,
+                              struct logformat_node *node)
+{
+	if (node->options & LOG_OPT_ESC) {
+		if (start < stop) {
+			stop--; /* reserve one byte for the final '\0' */
+			while (start < stop && *string != '\0') {
+				if (!FD_ISSET((unsigned char)(*string), map)) {
+					if (!FD_ISSET((unsigned char)(*string), rfc5424_escape_map))
+						*start++ = *string;
+					else {
+						if (start + 2 >= stop)
+							break;
+						*start++ = '\\';
+						*start++ = *string;
+					}
+				}
+				else {
+					if (start + 3 >= stop)
+						break;
+					*start++ = escape;
+					*start++ = hextab[(*string >> 4) & 15];
+					*start++ = hextab[*string & 15];
+				}
+				string++;
+			}
+			*start = '\0';
+		}
+	}
+	else {
+		return encode_string(start, stop, escape, map, string);
+	}
+
+	return start;
+}
+
+/*
+ * Encode the chunk.
+ *
+ * When using the +E log format option, it will try to escape '"\]'
+ * characters with '\' as prefix. The same prefix should not be used as
+ * <escape>.
+ */
+static char *lf_encode_chunk(char *start, char *stop,
+                             const char escape, const fd_set *map,
+                             const struct chunk *chunk,
+                             struct logformat_node *node)
+{
+	char *str, *end;
+
+	if (node->options & LOG_OPT_ESC) {
+		if (start < stop) {
+			str = chunk->str;
+			end = chunk->str + chunk->len;
+
+			stop--; /* reserve one byte for the final '\0' */
+			while (start < stop && str < end) {
+				if (!FD_ISSET((unsigned char)(*str), map)) {
+					if (!FD_ISSET((unsigned char)(*str), rfc5424_escape_map))
+						*start++ = *str;
+					else {
+						if (start + 2 >= stop)
+							break;
+						*start++ = '\\';
+						*start++ = *str;
+					}
+				}
+				else {
+					if (start + 3 >= stop)
+						break;
+					*start++ = escape;
+					*start++ = hextab[(*str >> 4) & 15];
+					*start++ = hextab[*str & 15];
+				}
+				str++;
+			}
+			*start = '\0';
+		}
+	}
+	else {
+		return encode_chunk(start, stop, escape, map, chunk);
+	}
+
+	return start;
+}
+
+/*
  * Write a string in the log string
- * Take cares of quote options
+ * Take cares of quote and escape options
  *
  * Return the adress of the \0 character, or NULL on error
  */
@@ -718,9 +829,21 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lo
 	}
 
 	if (src && len) {
-		if (++len > size)
-			len = size;
-		len = strlcpy2(dst, src, len);
+		if (node->options & LOG_OPT_ESC) {
+			struct chunk chunk;
+			char *ret;
+
+			chunk_initlen(&chunk, (char *)src, 0, len);
+			ret = escape_chunk(dst, dst + size, '\\', rfc5424_escape_map, &chunk);
+			if (ret == NULL || *ret != '\0')
+				return NULL;
+			len = ret - dst;
+		}
+		else {
+			if (++len > size)
+				len = size;
+			len = strlcpy2(dst, src, len);
+		}
 
 		size -= len;
 		dst += len;
@@ -1135,6 +1258,26 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 		} while(0)
 
 
+/* Initializes some log data.
+ */
+void init_log()
+{
+	char *tmp;
+
+	/* Initialize the escape map for the RFC5424 structured-data : '"\]'
+	 * inside PARAM-VALUE should be escaped with '\' as prefix.
+	 * See https://tools.ietf.org/html/rfc5424#section-6.3.3 for more
+	 * details.
+	 */
+	memset(rfc5424_escape_map, 0, sizeof(rfc5424_escape_map));
+
+	tmp = "\"\\]";
+	while (*tmp) {
+		FD_SET(*tmp, rfc5424_escape_map);
+		tmp++;
+	}
+}
+
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
@@ -1203,8 +1346,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				if (!key && (tmp->options & LOG_OPT_RES_CAP))
 					key = sample_fetch_as_type(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr, SMP_T_STR);
 				if (tmp->options & LOG_OPT_HTTP)
-					ret = encode_chunk(tmplog, dst + maxsize,
-					                   '%', http_encode_map, key ? &key->data.u.str : &empty);
+					ret = lf_encode_chunk(tmplog, dst + maxsize,
+					                      '%', http_encode_map, key ? &key->data.u.str : &empty, tmp);
 				else
 					ret = lf_text_len(tmplog, key ? key->data.u.str.str : NULL, key ? key->data.u.str.len : 0, dst + maxsize - tmplog, tmp);
 				if (ret == 0)
@@ -1651,8 +1794,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 						if (hdr)
 							LOGCHAR('|');
 						if (s->req_cap[hdr] != NULL) {
-							ret = encode_string(tmplog, dst + maxsize,
-									       '#', hdr_encode_map, s->req_cap[hdr]);
+							ret = lf_encode_string(tmplog, dst + maxsize,
+							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1674,8 +1817,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
 						if (s->req_cap[hdr] != NULL) {
-							ret = encode_string(tmplog, dst + maxsize,
-									       '#', hdr_encode_map, s->req_cap[hdr]);
+							ret = lf_encode_string(tmplog, dst + maxsize,
+							                       '#', hdr_encode_map, s->req_cap[hdr], tmp);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1699,8 +1842,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 						if (hdr)
 							LOGCHAR('|');
 						if (s->res_cap[hdr] != NULL) {
-							ret = encode_string(tmplog, dst + maxsize,
-							                    '#', hdr_encode_map, s->res_cap[hdr]);
+							ret = lf_encode_string(tmplog, dst + maxsize,
+							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1722,8 +1865,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
 						if (s->res_cap[hdr] != NULL) {
-							ret = encode_string(tmplog, dst + maxsize,
-							                    '#', hdr_encode_map, s->res_cap[hdr]);
+							ret = lf_encode_string(tmplog, dst + maxsize,
+							                       '#', hdr_encode_map, s->res_cap[hdr], tmp);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1741,8 +1884,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 				uri = txn->uri ? txn->uri : "<BADREQ>";
-				ret = encode_string(tmplog, dst + maxsize,
-						       '#', url_encode_map, uri);
+				ret = lf_encode_string(tmplog, dst + maxsize,
+				                       '#', url_encode_map, uri, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 				tmplog = ret;
@@ -1780,7 +1923,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					chunk.len = spc - uri;
 				}
 
-				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 
@@ -1814,7 +1957,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					chunk.len = uri - qmark;
 				}
 
-				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 
@@ -1854,7 +1997,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					chunk.len = spc - uri;
 				}
 
-				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 
@@ -1884,7 +2027,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					chunk.len = spc - uri;
 				}
 
-				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 
@@ -1929,7 +2072,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					chunk.len = end - uri;
 				}
 
-				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
 				if (ret == NULL || *ret != '\0')
 					goto out;
 

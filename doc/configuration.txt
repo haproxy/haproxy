@@ -14500,7 +14500,7 @@ prefixing them with a '+' or '-' sign.
 
 Special variable "%o" may be used to propagate its flags to all other
 variables on the same format string. This is particularly handy with quoted
-string formats ("Q").
+("Q") and escaped ("E") string formats.
 
 If a variable is named between square brackets ('[' .. ']') then it is used
 as a sample expression rule (see section 7.3). This it useful to add some
@@ -14511,14 +14511,23 @@ Note: spaces must be escaped. A space character is considered as a separator.
 In order to emit a verbatim '%', it must be preceded by another '%' resulting
 in '%%'. HAProxy will automatically merge consecutive separators.
 
+Note: when using the RFC5424 syslog message format, the characters '"',
+'\' and ']' inside PARAM-VALUE should be escaped with '\' as prefix (see
+https://tools.ietf.org/html/rfc5424#section-6.3.3 for more details). In
+such cases, the use of the flag "E" should be considered.
+
 Flags are :
   * Q: quote a string
   * X: hexadecimal representation (IPs, Ports, %Ts, %rt, %pid)
+  * E: escape characters '"', '\' and ']' in a string with '\' as prefix
+       (intended purpose is for the RFC5424 structured-data log formats)
 
   Example:
 
     log-format %T\ %t\ Some\ Text
     log-format %{+Q}o\ %t\ %s\ %{-Q}r
+
+    log-format-sd %{+Q,+E}o\ [exampleSDID@1234\ header=%[capture.req.hdr(0)]]
 
 At the moment, the default HTTP format is defined this way :
 
