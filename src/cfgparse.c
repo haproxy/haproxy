@@ -2438,23 +2438,37 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->resolve_retries = atoi(args[1]);
 	}
 	else if (strcmp(args[0], "timeout") == 0) {
-		const char *res;
-		unsigned int timeout_retry;
-
-		if (!*args[2]) {
+		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects 'retry' and <time> as arguments.\n",
 				file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		res = parse_time_err(args[2], &timeout_retry, TIME_UNIT_MS);
-		if (res) {
-			Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
-				file, linenum, *res, args[0]);
+		else if (strcmp(args[1], "retry") == 0) {
+			const char *res;
+			unsigned int timeout_retry;
+
+			if (!*args[2]) {
+				Alert("parsing [%s:%d] : '%s %s' expects <time> as argument.\n",
+					file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			res = parse_time_err(args[2], &timeout_retry, TIME_UNIT_MS);
+			if (res) {
+				Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s %s>.\n",
+					file, linenum, *res, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			curr_resolvers->timeout.retry = timeout_retry;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' expects 'retry' and <time> as arguments got '%s'.\n",
+				file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		curr_resolvers->timeout.retry = timeout_retry;
 	} /* neither "nameserver" nor "resolvers" */
 	else if (*args[0] != 0) {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
