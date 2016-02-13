@@ -2537,6 +2537,9 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		curmailers->conf.file = strdup(file);
 		curmailers->conf.line = linenum;
 		curmailers->id = strdup(args[1]);
+		curmailers->timeout.mail = DEF_MAILALERTTIME;/* XXX: Would like to Skip to the next alert, if any, ASAP.
+			* But need enough time so that timeouts don't occur
+			* during tcp procssing. For now just us an arbitrary default. */
 	}
 	else if (strcmp(args[0], "mailer") == 0) { /* mailer definition */
 		struct sockaddr_storage *sk;
@@ -2607,7 +2610,43 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		newmailer->proto = proto;
 		newmailer->xprt  = &raw_sock;
 		newmailer->sock_init_arg = NULL;
-	} /* neither "mailer" nor "mailers" */
+	}
+	else if (strcmp(args[0], "timeout") == 0) {
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects 'mail' and <time> as arguments.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (strcmp(args[1], "mail") == 0) {
+			const char *res;
+			unsigned int timeout_mail;
+			if (!*args[2]) {
+				Alert("parsing [%s:%d] : '%s %s' expects <time> as argument.\n",
+					file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			res = parse_time_err(args[2], &timeout_mail, TIME_UNIT_MS);
+			if (res) {
+				Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+					file, linenum, *res, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (timeout_mail <= 0) {
+				Alert("parsing [%s:%d] : '%s %s' expects a positive <time> argument.\n", file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			curmailers->timeout.mail = timeout_mail;
+		} else {
+			Alert("parsing [%s:%d] : '%s' expects 'mail' and <time> as arguments got '%s'.\n",
+				file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (*args[0] != 0) {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;

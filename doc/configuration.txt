@@ -1574,6 +1574,16 @@ mailer <mailername> <ip>:<port>
         server srv1 192.168.0.30:80
         server srv2 192.168.0.31:80
 
+timeout mail <time>
+  Defines the time available for a mail/connection to be made and send to
+  the mail-server. If not defined the default value is 10 seconds. To allow
+  for at least two SYN-ACK packets to be send during initial TCP handshake it
+  is advised to keep this value above 4 seconds.
+
+  Example:
+    mailers mymailers
+        timeout mail 20s
+        mailer smtp1 192.168.0.1:587
 
 4. Proxies
 ----------

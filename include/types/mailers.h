@@ -56,6 +56,9 @@ struct mailers {
 	struct mailers *next;	        /* next mailers section */
 	int count;			/* total number of mailers in this mailers section */
 	int users;			/* number of users of this mailers section */
+	struct {			/* time to: */
+		int mail;		/*   try connecting to mailserver and sending a email */
+	} timeout;
 };
 
 
