@@ -3249,12 +3249,12 @@ static int enqueue_one_email_alert(struct email_alertq *q, const char *msg)
 		struct tm tm;
 		char datestr[48];
 		const char * const strs[18] = {
-			"From: ", p->email_alert.from, "\n",
-			"To: ", p->email_alert.to, "\n",
-			"Date: ", datestr, "\n",
-			"Subject: [HAproxy Alert] ", msg, "\n",
-			"\n",
-			msg, "\n",
+			"From: ", p->email_alert.from, "\r\n",
+			"To: ", p->email_alert.to, "\r\n",
+			"Date: ", datestr, "\r\n",
+			"Subject: [HAproxy Alert] ", msg, "\r\n",
+			"\r\n",
+			msg, "\r\n",
 			"\r\n",
 			".\r\n",
 			NULL
