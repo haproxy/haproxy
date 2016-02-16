@@ -538,9 +538,12 @@ The following keywords are supported in the "global" section :
    - nbproc
    - node
    - pidfile
+   - presetenv
+   - resetenv
    - uid
    - ulimit-n
    - user
+   - setenv
    - stats
    - ssl-default-bind-ciphers
    - ssl-default-bind-options
@@ -549,6 +552,7 @@ The following keywords are supported in the "global" section :
    - ssl-dh-param-file
    - ssl-server-verify
    - unix-bind
+   - unsetenv
    - 51degrees-data-file
    - 51degrees-property-name-list
    - 51degrees-property-separator
@@ -778,6 +782,22 @@ pidfile <pidfile>
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
 
+presetenv <name> <value>
+  Sets environment variable <name> to value <value>. If the variable exists, it
+  is NOT overwritten. The changes immediately take effect so that the next line
+  in the configuration file sees the new value. See also "setenv", "resetenv",
+  and "unsetenv".
+
+resetenv [<name> ...]
+  Removes all environment variables except the ones specified in argument. It
+  allows to use a clean controlled environment before setting new values with
+  setenv or unsetenv. Please note that some internal functions may make use of
+  some environment variables, such as time manipulation functions, but also
+  OpenSSL or even external checks. This must be used with extreme care and only
+  after complete validation. The changes immediately take effect so that the
+  next line in the configuration file sees the new environment. See also
+  "setenv", "presetenv", and "unsetenv".
+
 stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   Limits the stats socket to a certain set of processes numbers. By default the
   stats socket is bound to all processes, causing a warning to be emitted when
@@ -805,6 +825,12 @@ server-state-file <file>
   for each server found in the file and available in its current running
   configuration. See also "server-state-base" and "show servers state",
   "load-server-state-from-file" and "server-state-file-name"
+
+setenv <name> <value>
+  Sets environment variable <name> to value <value>. If the variable exists, it
+  is overwritten. The changes immediately take effect so that the next line in
+  the configuration file sees the new value. See also "presetenv", "resetenv",
+  and "unsetenv".
 
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -900,6 +926,15 @@ unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
   all have the same meaning as their homonyms used by the "bind" statement. If
   both are specified, the "bind" statement has priority, meaning that the
   "unix-bind" settings may be seen as process-wide default settings.
+
+unsetenv [<name> ...]
+  Removes environment variables specified in arguments. This can be useful to
+  hide some sensitive information that are occasionally inherited from the
+  user's environment during some operations. Variables which did not exist are
+  silently ignored so that after the operation, it is certain that none of
+  these variables remain. The changes immediately take effect so that the next
+  line in the configuration file will not see these variables. See also
+  "setenv", "presetenv", and "resetenv".
 
 user <user name>
   Similar to "uid" but uses the UID of user name <user name> from /etc/passwd.

@@ -1826,6 +1826,78 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif
 	}
+	else if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
+		if (alertif_too_many_args(3, file, linenum, args, &err_code))
+			goto out;
+
+		if (*(args[2]) == 0) {
+			Alert("parsing [%s:%d]: '%s' expects a name and a value.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		/* "setenv" overwrites, "presetenv" only sets if not yet set */
+		if (setenv(args[1], args[2], (args[0][0] == 's')) != 0) {
+			Alert("parsing [%s:%d]: '%s' failed on variable '%s' : %s.\n", file, linenum, args[0], args[1], strerror(errno));
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (!strcmp(args[0], "unsetenv")) {
+		int arg;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d]: '%s' expects at least one variable name.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		for (arg = 1; *args[arg]; arg++) {
+			if (unsetenv(args[arg]) != 0) {
+				Alert("parsing [%s:%d]: '%s' failed on variable '%s' : %s.\n", file, linenum, args[0], args[arg], strerror(errno));
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+	}
+	else if (!strcmp(args[0], "resetenv")) {
+		extern char **environ;
+		char **env = environ;
+
+		/* args contain variable names to keep, one per argument */
+		while (*env) {
+			int arg;
+
+			/* look for current variable in among all those we want to keep */
+			for (arg = 1; *args[arg]; arg++) {
+				if (strncmp(*env, args[arg], strlen(args[arg])) == 0 &&
+				    (*env)[strlen(args[arg])] == '=')
+					break;
+			}
+
+			/* delete this variable */
+			if (!*args[arg]) {
+				char *delim = strchr(*env, '=');
+
+				if (!delim || delim - *env >= trash.size) {
+					Alert("parsing [%s:%d]: '%s' failed to unset invalid variable '%s'.\n", file, linenum, args[0], *env);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				memcpy(trash.str, *env, delim - *env);
+				trash.str[delim - *env] = 0;
+
+				if (unsetenv(trash.str) != 0) {
+					Alert("parsing [%s:%d]: '%s' failed to unset variable '%s' : %s.\n", file, linenum, args[0], *env, strerror(errno));
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			else
+				env++;
+		}
+	}
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
