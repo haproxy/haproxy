@@ -1472,6 +1472,16 @@ set weight <backend>/<server> <weight>[%]
   "admin". Both the backend and the server may be specified either by their
   name or by their numeric ID, prefixed with a sharp ('#').
 
+show env [<name>]
+  Dump one or all environment variables known by the process. Without any
+  argument, all variables are dumped. With an argument, only the specified
+  variable is dumped if it exists. Otherwise "Variable not found" is emitted.
+  Variables are dumped in the same format as they are stored or returned by the
+  "env" utility, that is, "<name>=<value>". This can be handy when debugging
+  certain configuration files making heavy use of environment variables to
+  ensure that they contain the expected values. This command is restricted and
+  can only be issued on sockets configured for levels "operator" or "admin".
+
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and
   backends. If <iid> is specified, the limit the dump to errors concerning

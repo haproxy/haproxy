@@ -133,6 +133,9 @@ struct appctx {
 		struct {
 			struct proxy *backend;
 		} server_state;
+		struct {
+			char **var;
+		} env;
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 

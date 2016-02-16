@@ -94,6 +94,7 @@ enum {
 	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
 	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
 	STAT_CLI_O_BACKEND,  /* dump backend list */
+	STAT_CLI_O_ENV,      /* dump environment */
 };
 
 /* Actions available for the stats admin forms */
@@ -130,6 +131,7 @@ enum {
 };
 
 static int stats_dump_backend_to_buffer(struct stream_interface *si);
+static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_servers_state_to_buffer(struct stream_interface *si);
 static int stats_dump_pools_to_buffer(struct stream_interface *si);
@@ -191,6 +193,7 @@ static const char stats_sock_usage_msg[] =
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
 	"  show backend   : list backends in the current running config\n"
+	"  show env [var] : dump environment variables known to the process\n"
 	"  show info      : report information about the running process\n"
 	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
@@ -1162,7 +1165,35 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_BACKEND;
 		}
-		 else if (strcmp(args[1], "stat") == 0) {
+		else if (strcmp(args[1], "env") == 0) {
+			extern char **environ;
+
+			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER) {
+				appctx->ctx.cli.msg = stats_permission_denied_msg;
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			appctx->ctx.env.var = environ;
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_ENV; // stats_dump_env_to_buffer
+
+			if (*args[2]) {
+				int len = strlen(args[2]);
+
+				for (; *appctx->ctx.env.var; appctx->ctx.env.var++) {
+					if (strncmp(*appctx->ctx.env.var, args[2], len) == 0 &&
+					    (*appctx->ctx.env.var)[len] == '=')
+						break;
+				}
+				if (!*appctx->ctx.env.var) {
+					appctx->ctx.cli.msg = "Variable not found\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+				appctx->st2 = STAT_ST_END;
+			}
+		}
+		else if (strcmp(args[1], "stat") == 0) {
 			if (strcmp(args[2], "resolvers") == 0) {
 				struct dns_resolvers *presolvers;
 
@@ -2589,6 +2620,10 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 #endif
+			case STAT_CLI_O_ENV:	/* environment dump */
+				if (stats_dump_env_to_buffer(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
 			default: /* abnormal state */
 				si->flags |= SI_FL_ERR;
 				break;
@@ -6649,6 +6684,38 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			appctx->ctx.errors.buf = 0;
 			appctx->ctx.errors.px = appctx->ctx.errors.px->next;
 		}
+	}
+
+	/* dump complete */
+	return 1;
+}
+
+/* This function dumps all environmnent variables to the buffer. It returns 0
+ * if the output buffer is full and it needs to be called again, otherwise
+ * non-zero. Dumps only one entry if st2 == STAT_ST_END.
+ */
+static int stats_dump_env_to_buffer(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	while (*appctx->ctx.env.var) {
+		chunk_printf(&trash, "%s\n", *appctx->ctx.env.var);
+
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+		if (appctx->st2 == STAT_ST_END)
+			break;
+		appctx->ctx.env.var++;
 	}
 
 	/* dump complete */
