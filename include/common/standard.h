@@ -832,6 +832,16 @@ static inline int set_host_port(struct sockaddr_storage *addr, int port)
 	return 0;
 }
 
+/* Convert mask from bit length form to in_addr form.
+ * This function never fails.
+ */
+void len2mask4(int len, struct in_addr *addr);
+
+/* Convert mask from bit length form to in6_addr form.
+ * This function never fails.
+ */
+void len2mask6(int len, struct in6_addr *addr);
+
 /* Return true if IPv4 address is part of the network */
 extern int in_net_ipv4(struct in_addr *addr, struct in_addr *mask, struct in_addr *net);
 

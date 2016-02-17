@@ -1002,6 +1002,37 @@ int cidr2dotted(int cidr, struct in_addr *mask) {
 	return 1;
 }
 
+/* Convert mask from bit length form to in_addr form.
+ * This function never fails.
+ */
+void len2mask4(int len, struct in_addr *addr)
+{
+	if (len >= 32) {
+		addr->s_addr = 0xffffffff;
+		return;
+	}
+	if (len <= 0) {
+		addr->s_addr = 0x00000000;
+		return;
+	}
+	addr->s_addr = 0xffffffff << (32 - len);
+	addr->s_addr = htonl(addr->s_addr);
+}
+
+/* Convert mask from bit length form to in6_addr form.
+ * This function never fails.
+ */
+void len2mask6(int len, struct in6_addr *addr)
+{
+	len2mask4(len, (struct in_addr *)&addr->s6_addr[0]); /* msb */
+	len -= 32;
+	len2mask4(len, (struct in_addr *)&addr->s6_addr[4]);
+	len -= 32;
+	len2mask4(len, (struct in_addr *)&addr->s6_addr[8]);
+	len -= 32;
+	len2mask4(len, (struct in_addr *)&addr->s6_addr[12]); /* lsb */
+}
+
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
