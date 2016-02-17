@@ -140,6 +140,10 @@ struct dns_nameserver {
 	} counters;
 };
 
+struct dns_options {
+	int family_prio;	/* which IP family should the resolver use when both are returned */
+};
+
 /*
  * resolution structure associated to single server and used to manage name resolution for
  * this server.
@@ -155,7 +159,7 @@ struct dns_resolution {
 					/* requester callback, for error management */
 	char *hostname_dn;		/* server hostname in domain name label format */
 	int hostname_dn_len;		/* server domain name label len */
-	int resolver_family_priority;	/* which IP family should the resolver use when both are returned */
+	struct dns_options *opts;       /* IP selection options inherited from the configuration file. */
 	unsigned int last_resolution;	/* time of the lastest valid resolution */
 	unsigned int last_sent_packet;	/* time of the latest DNS packet sent */
 	unsigned int last_status_change;	/* time of the latest DNS resolution status change */

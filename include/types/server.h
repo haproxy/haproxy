@@ -35,6 +35,7 @@
 
 #include <types/connection.h>
 #include <types/counters.h>
+#include <types/dns.h>
 #include <types/freq_ctr.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>
@@ -224,7 +225,7 @@ struct server {
 	char *resolvers_id;			/* resolvers section used by this server */
 	char *hostname;				/* server hostname */
 	struct dns_resolution *resolution;	/* server name resolution */
-	int resolver_family_priority;		/* which IP family should the resolver use when both are returned */
+	struct dns_options dns_opts;
 
 #ifdef USE_OPENSSL
 	int use_ssl;				/* ssl enabled */

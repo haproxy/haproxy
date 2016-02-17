@@ -34,8 +34,8 @@ int dns_init_resolvers(void);
 uint16_t dns_rnd16(void);
 int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *dn_name, int dn_name_len);
 int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
-                             char *dn_name, int dn_name_len, void *currentip,
-                             short currentip_sin_family, int family_priority,
+                             struct dns_resolution *resol, void *currentip,
+                             short currentip_sin_family,
                              void **newip, short *newip_sin_family);
 void dns_resolve_send(struct dgram_conn *dgram);
 void dns_resolve_recv(struct dgram_conn *dgram);

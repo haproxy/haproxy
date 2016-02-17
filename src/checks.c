@@ -2218,8 +2218,8 @@ int trigger_resolution(struct server *s)
 	resolution->query_id = query_id;
 	resolution->qid.key = query_id;
 	resolution->step = RSLV_STEP_RUNNING;
-	resolution->resolver_family_priority = s->resolver_family_priority;
-	if (resolution->resolver_family_priority == AF_INET) {
+	resolution->opts = &s->dns_opts;
+	if (resolution->opts->family_prio == AF_INET) {
 		resolution->query_type = DNS_RTYPE_A;
 	} else {
 		resolution->query_type = DNS_RTYPE_AAAA;

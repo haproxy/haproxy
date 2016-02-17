@@ -102,7 +102,7 @@ void dns_reset_resolution(struct dns_resolution *resolution)
 	resolution->qid.key = 0;
 
 	/* default values */
-	if (resolution->resolver_family_priority == AF_INET) {
+	if (resolution->opts->family_prio == AF_INET) {
 		resolution->query_type = DNS_RTYPE_A;
 	} else {
 		resolution->query_type = DNS_RTYPE_AAAA;
@@ -593,11 +593,19 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
  * returns one of the DNS_UPD_* code
  */
 int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
-		char *dn_name, int dn_name_len, void *currentip, short currentip_sin_family,
-		int family_priority, void **newip, short *newip_sin_family)
+                             struct dns_resolution *resol, void *currentip,
+                             short currentip_sin_family,
+                             void **newip, short *newip_sin_family)
 {
+	int family_priority;
+	char *dn_name;
+	int dn_name_len;
 	int i, ancount, cnamelen, type, data_len, currentip_found;
 	unsigned char *reader, *cname, *ptr, *newip4, *newip6;
+
+	family_priority = resol->opts->family_prio;
+	dn_name = resol->hostname_dn;
+	dn_name_len = resol->hostname_dn_len;
 
 	cname = *newip = newip4 = newip6 = NULL;
 	cnamelen = currentip_found = 0;
