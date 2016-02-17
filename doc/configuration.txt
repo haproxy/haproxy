@@ -10595,6 +10595,18 @@ resolve-prefer <family>
 
   Example: server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
 
+resolve-net <network>[,<network[,...]]
+  This options prioritize th choice of an ip address matching a network. This is
+  useful with clouds to prefer a local ip. In some cases, a cloud high
+  avalailibility service can be announced with many ip addresses on many
+  differents datacenters. The latency between datacenter is not negligible, so
+  this patch permitsto prefers a local datacenter. If none address matchs the
+  configured network, another address is selected.
+
+  Supported in default-server: Yes
+
+  Example: server s1 app1.domain.com:80 resolvers mydns resolve-net 10.0.0.0/8
+
 resolvers <id>
   Points to an existing "resolvers" section to resolve current server's
   hostname.

@@ -592,6 +592,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, char *
  * For both cases above, dns_validate_dns_response is required
  * returns one of the DNS_UPD_* code
  */
+#define DNS_MAX_IP_REC 20
 int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
                              struct dns_resolution *resol, void *currentip,
                              short currentip_sin_family,
@@ -602,6 +603,14 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 	int dn_name_len;
 	int i, ancount, cnamelen, type, data_len, currentip_found;
 	unsigned char *reader, *cname, *ptr, *newip4, *newip6;
+	struct {
+		unsigned char *ip;
+		unsigned char type;
+	} rec[DNS_MAX_IP_REC];
+	int currentip_sel;
+	int j;
+	int rec_nb = 0;
+	int score, max_score;
 
 	family_priority = resol->opts->family_prio;
 	dn_name = resol->hostname_dn;
@@ -685,20 +694,12 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 		/* analyzing record content */
 		switch (type) {
 			case DNS_RTYPE_A:
-				/* check if current reccord's IP is the same as server one's */
-				if ((currentip_sin_family == AF_INET)
-						&& (*(uint32_t *)reader == *(uint32_t *)currentip)) {
-					currentip_found = 1;
-					newip4 = reader;
-					/* we can stop now if server's family preference is IPv4
-					 * and its current IP is found in the response list */
-					if (family_priority == AF_INET)
-						return DNS_UPD_NO; /* DNS_UPD matrix #1 */
+				/* Store IPv4, only if some room is avalaible. */
+				if (rec_nb < DNS_MAX_IP_REC) {
+					rec[rec_nb].ip = reader;
+					rec[rec_nb].type = AF_INET;
+					rec_nb++;
 				}
-				else if (!newip4) {
-					newip4 = reader;
-				}
-
 				/* move forward data_len for analyzing next record in the response */
 				reader += data_len;
 				break;
@@ -711,19 +712,12 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 				break;
 
 			case DNS_RTYPE_AAAA:
-				/* check if current record's IP is the same as server's one */
-				if ((currentip_sin_family == AF_INET6) && (memcmp(reader, currentip, 16) == 0)) {
-					currentip_found = 1;
-					newip6 = reader;
-					/* we can stop now if server's preference is IPv6 or is not
-					 * set (which implies we prioritize IPv6 over IPv4 */
-					if (family_priority == AF_INET6)
-						return DNS_UPD_NO;
+				/* Store IPv6, only if some room is avalaible. */
+				if (rec_nb < DNS_MAX_IP_REC) {
+					rec[rec_nb].ip = reader;
+					rec[rec_nb].type = AF_INET6;
+					rec_nb++;
 				}
-				else if (!newip6) {
-					newip6 = reader;
-				}
-
 				/* move forward data_len for analyzing next record in the response */
 				reader += data_len;
 				break;
@@ -734,6 +728,75 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 				reader += data_len;
 		} /* switch (record type) */
 	} /* for i 0 to ancount */
+
+	/* Select an IP regarding configuration preference.
+	 * Top priority is the prefered network ip version,
+	 * second priority is the prefered network.
+	 * the last priority is the currently used IP,
+	 *
+	 * For these three priorities, a score is calculated. The
+	 * weight are:
+	 *  4 - prefered netwok ip version.
+	 *  2 - prefered network.
+	 *  1 - current ip.
+	 * The result with the biggest score is returned.
+	 */
+	max_score = -1;
+	for (i = 0; i < rec_nb; i++) {
+
+		score = 0;
+
+		/* Check for prefered ip protocol. */
+		if (rec[i].type == family_priority)
+			score += 4;
+
+		/* Check for prefered network. */
+		for (j = 0; j < resol->opts->pref_net_nb; j++) {
+
+			/* Compare only the same adresses class. */
+			if (resol->opts->pref_net[j].family != rec[i].type)
+				continue;
+
+			if ((rec[i].type == AF_INET &&
+			     in_net_ipv4((struct in_addr *)rec[i].ip,
+			                 &resol->opts->pref_net[j].mask.in4,
+			                 &resol->opts->pref_net[j].addr.in4)) ||
+			    (rec[i].type == AF_INET6 &&
+			     in_net_ipv6((struct in6_addr *)rec[i].ip,
+			                 &resol->opts->pref_net[j].mask.in6,
+			                 &resol->opts->pref_net[j].addr.in6))) {
+				score += 2;
+				break;
+			}
+		}
+
+		/* Check for current ip matching. */
+		if (rec[i].type == currentip_sin_family &&
+		    ((currentip_sin_family == AF_INET &&
+		      *(uint32_t *)rec[i].ip == *(uint32_t *)currentip) ||
+		     (currentip_sin_family == AF_INET6 &&
+		      memcmp(rec[i].ip, currentip, 16) == 0))) {
+			score += 1;
+			currentip_sel = 1;
+		} else
+			currentip_sel = 0;
+
+		/* Keep the address if the score is better than the previous
+		 * score. The maximum score is 7, if this value is reached,
+		 * we break the parsing. Implicitly, this score is reached
+		 * the ip selected is the current ip.
+		 */
+		if (score > max_score) {
+			if (rec[i].type == AF_INET)
+				newip4 = rec[i].ip;
+			else
+				newip6 = rec[i].ip;
+			currentip_found = currentip_sel;
+			if (score == 7)
+				return DNS_UPD_NO;
+			max_score = score;
+		}
+	}
 
 	/* only CNAMEs in the response, no IP found */
 	if (cname && !newip4 && !newip6) {

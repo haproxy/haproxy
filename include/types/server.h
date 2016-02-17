@@ -92,7 +92,6 @@ enum srv_admin {
 #define SRV_STATE_FILE_NB_FIELDS_VERSION_1 18
 #define SRV_STATE_LINE_MAXLEN 512
 
-
 /* server flags */
 #define SRV_F_BACKUP       0x0001        /* this server is a backup server */
 #define SRV_F_MAPPORTS     0x0002        /* this server uses mapped ports */

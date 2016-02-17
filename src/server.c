@@ -1020,6 +1020,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->dns_opts.family_prio = curproxy->defsrv.dns_opts.family_prio;
 			if (newsrv->dns_opts.family_prio == AF_UNSPEC)
 				newsrv->dns_opts.family_prio = AF_INET6;
+			memcpy(newsrv->dns_opts.pref_net,
+			       curproxy->defsrv.dns_opts.pref_net,
+			       sizeof(newsrv->dns_opts.pref_net));
+			newsrv->dns_opts.pref_net_nb = curproxy->defsrv.dns_opts.pref_net_nb;
 
 			cur_arg = 3;
 		} else {
@@ -1088,6 +1092,62 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "resolve-net")) {
+				char *p, *e;
+				unsigned char mask;
+				struct dns_options *opt;
+
+				if (!args[cur_arg + 1] || args[cur_arg + 1][0] == '\0') {
+					Alert("parsing [%s:%d]: '%s' expects a list of networks.\n",
+					      file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				opt = &newsrv->dns_opts;
+
+				/* Split arguments by comma, and convert it from ipv4 or ipv6
+				 * string network in in_addr or in6_addr.
+				 */
+				p = args[cur_arg + 1];
+				e = p;
+				while (*p != '\0') {
+					/* If no room avalaible, return error. */
+					if (opt->pref_net_nb > SRV_MAX_PREF_NET) {
+						Alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
+						      file, linenum, args[cur_arg], SRV_MAX_PREF_NET);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					/* look for end or comma. */
+					while (*e != ',' && *e != '\0')
+						e++;
+					if (*e == ',') {
+						*e = '\0';
+						e++;
+					}
+					if (str2net(p, 0, &opt->pref_net[opt->pref_net_nb].addr.in4,
+					                  &opt->pref_net[opt->pref_net_nb].mask.in4)) {
+						/* Try to convert input string from ipv4 or ipv6 network. */
+						opt->pref_net[opt->pref_net_nb].family = AF_INET;
+					} else if (str62net(p, &opt->pref_net[opt->pref_net_nb].addr.in6,
+					                     &mask)) {
+						/* Try to convert input string from ipv6 network. */
+						len2mask6(mask, &opt->pref_net[opt->pref_net_nb].mask.in6);
+						opt->pref_net[opt->pref_net_nb].family = AF_INET6;
+					} else {
+						/* All network conversions fail, retrun error. */
+						Alert("parsing [%s:%d]: '%s': invalid network '%s'.\n",
+						      file, linenum, args[cur_arg], p);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					opt->pref_net_nb++;
+					p = e;
+				}
+
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "rise")) {

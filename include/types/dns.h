@@ -55,6 +55,11 @@
 #define DNS_FLAG_TRUNCATED	0x0200	/* mask for truncated flag */
 #define DNS_FLAG_REPLYCODE	0x000F	/* mask for reply code */
 
+/* max number of network preference entries are avalaible from the
+ * configuration file.
+ */
+#define SRV_MAX_PREF_NET 5
+
 /* DNS request or response header structure */
 struct dns_header {
 	unsigned short	id:16;		/* identifier */
@@ -142,6 +147,18 @@ struct dns_nameserver {
 
 struct dns_options {
 	int family_prio;	/* which IP family should the resolver use when both are returned */
+	struct {
+		int family;
+		union {
+			struct in_addr in4;
+			struct in6_addr in6;
+		} addr;
+		union {
+			struct in_addr in4;
+			struct in6_addr in6;
+		} mask;
+	} pref_net[SRV_MAX_PREF_NET];
+	int pref_net_nb;               /* The number of registered prefered networks. */
 };
 
 /*
