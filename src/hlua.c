@@ -6592,12 +6592,6 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_MAP);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
-
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
@@ -6608,11 +6602,12 @@ void hlua_init(void)
 
 	lua_rawset(gL.T, -3);
 
-	/* Register previous table in the registry with reference and named entry. */
+	/* Register previous table in the registry with reference and named entry.
+	 * The function hlua_register_metatable() pops the stack, so we
+	 * previously create a copy of the table.
+	 */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_MAP); /* register class session. */
-	class_map_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_map_ref = hlua_register_metatable(gL.T, CLASS_MAP);
 
 	/* Assign the metatable to the mai Map object. */
 	lua_setmetatable(gL.T, -2);
@@ -6628,12 +6623,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_CHANNEL);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6653,9 +6642,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CHANNEL); /* register class session. */
-	class_channel_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_channel_ref = hlua_register_metatable(gL.T, CLASS_CHANNEL);
 
 	/*
 	 *
@@ -6665,12 +6652,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_FETCHES);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6709,9 +6690,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_FETCHES); /* register class session. */
-	class_fetches_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_fetches_ref = hlua_register_metatable(gL.T, CLASS_FETCHES);
 
 	/*
 	 *
@@ -6721,12 +6700,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_CONVERTERS);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6762,9 +6735,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CONVERTERS); /* register class session. */
-	class_converters_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_converters_ref = hlua_register_metatable(gL.T, CLASS_CONVERTERS);
 
 	/*
 	 *
@@ -6774,12 +6745,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_HTTP);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6808,9 +6773,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_HTTP); /* register class session. */
-	class_http_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_http_ref = hlua_register_metatable(gL.T, CLASS_HTTP);
 
 	/*
 	 *
@@ -6820,12 +6783,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_APPLET_TCP);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6841,9 +6798,7 @@ void hlua_init(void)
 	lua_settable(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_APPLET_TCP); /* register class session. */
-	class_applet_tcp_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_applet_tcp_ref = hlua_register_metatable(gL.T, CLASS_APPLET_TCP);
 
 	/*
 	 *
@@ -6853,12 +6808,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_APPLET_HTTP);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6877,9 +6826,7 @@ void hlua_init(void)
 	lua_settable(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_APPLET_HTTP); /* register class session. */
-	class_applet_http_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_applet_http_ref = hlua_register_metatable(gL.T, CLASS_APPLET_HTTP);
 
 	/*
 	 *
@@ -6889,12 +6836,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_TXN);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6919,9 +6860,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_TXN); /* register class session. */
-	class_txn_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+	class_txn_ref = hlua_register_metatable(gL.T, CLASS_TXN);
 
 	/*
 	 *
@@ -6931,12 +6870,6 @@ void hlua_init(void)
 
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
-
-	/* Create the __tostring identifier */
-	lua_pushstring(gL.T, "__tostring");
-	lua_pushstring(gL.T, CLASS_SOCKET);
-	lua_pushcclosure(gL.T, hlua_dump_object, 1);
-	lua_rawset(gL.T, -3);
 
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
@@ -6962,9 +6895,7 @@ void hlua_init(void)
 	lua_rawset(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
 
 	/* Register previous table in the registry with reference and named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_SOCKET); /* register class socket. */
-	class_socket_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class socket. */
+	class_socket_ref = hlua_register_metatable(gL.T, CLASS_SOCKET);
 
 	/* Proxy and server configuration initialisation. */
 	memset(&socket_proxy, 0, sizeof(socket_proxy));

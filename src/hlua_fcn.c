@@ -60,6 +60,41 @@ int hlua_dump_object(struct lua_State *L)
 	return 1;
 }
 
+/* This function register a table as metatable and. It names
+ * the metatable, and returns the associated reference.
+ * The original table is poped from the top of the stack.
+ * "name" is the referenced class name.
+ */
+int hlua_register_metatable(struct lua_State *L, char *name)
+{
+	/* Check the type of the top element. it must be
+	 * a table.
+	 */
+	if (lua_type(L, -1) != LUA_TTABLE)
+		luaL_error(L, "hlua_register_metatable() requires a type Table "
+		              "in the top of the stack");
+
+	/* Add the __tostring function which identify the
+	 * created object.
+	 */
+	lua_pushstring(L, "__tostring");
+	lua_pushstring(L, name);
+	lua_pushcclosure(L, hlua_dump_object, 1);
+	lua_rawset(L, -3);
+
+	/* Register a named entry for the table. The table
+	 * reference is copyed first because the function
+	 * lua_setfield() pop the entry.
+	 */
+	lua_pushvalue(L, -1);
+	lua_setfield(L, LUA_REGISTRYINDEX, name);
+
+	/* Creates the reference of the object. The
+	 * function luaL_ref pop the top of the stack.
+	 */
+	return luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
 /* Return an object of the expected type, or throws an error. */
 void *hlua_checkudata(lua_State *L, int ud, int class_ref)
 {
