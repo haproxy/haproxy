@@ -32,6 +32,8 @@ struct stream;
 #define HLUA_F_AS_STRING    0x01
 #define HLUA_F_MAY_USE_HTTP 0x02
 
+#define HLUA_CONCAT_BLOCSZ 2048
+
 enum hlua_exec {
 	HLUA_E_OK = 0,
 	HLUA_E_AGAIN,  /* LUA yield, must resume the stack execution later, when
@@ -134,6 +136,11 @@ struct hlua_sleep {
 struct hlua_socket {
 	struct stream *s; /* Stream used for socket I/O. */
 	luaL_Buffer b; /* buffer used to prepare strings. */
+};
+
+struct hlua_concat {
+	int size;
+	int len;
 };
 
 #else /* USE_LUA */

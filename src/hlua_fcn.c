@@ -9,6 +9,8 @@
 
 #include <common/time.h>
 
+#include <types/hlua.h>
+
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
 
@@ -121,14 +123,16 @@ static void hlua_array_add_fcn(lua_State *L, const char *name,
 	lua_rawset(L, -3);
 }
 
-static luaL_Buffer *hlua_check_concat(lua_State *L, int ud)
+static struct hlua_concat *hlua_check_concat(lua_State *L, int ud)
 {
-	return (luaL_Buffer *)(hlua_checkudata(L, ud, class_concat_ref));
+	return (struct hlua_concat *)(hlua_checkudata(L, ud, class_concat_ref));
 }
 
 static int hlua_concat_add(lua_State *L)
 {
-	luaL_Buffer *b;
+	struct hlua_concat *b;
+	char *buffer;
+	char *new;
 	const char *str;
 	size_t l;
 
@@ -138,34 +142,68 @@ static int hlua_concat_add(lua_State *L)
 	/* Second arg must be a string. */
 	str = luaL_checklstring(L, 2, &l);
 
-	luaL_addlstring(b, str, l);
+	/* Get the buffer. */
+	lua_rawgeti(L, 1, 1);
+	buffer = lua_touserdata(L, -1);
+	lua_pop(L, 1);
+
+	/* Update the buffer size if it s required. The old buffer
+	 * is crushed by the new in the object array, so it will
+	 * be deleted by the GC.
+	 * Note that in the first loop, the "new" variable is only
+	 * used as a flag.
+	 */
+	new = NULL;
+	while (b->size - b->len < l) {
+		b->size += HLUA_CONCAT_BLOCSZ;
+		new = buffer;
+	}
+	if (new) {
+		new = lua_newuserdata(L, b->size);
+		memcpy(new, buffer, b->len);
+		lua_rawseti(L, 1, 1);
+		buffer = new;
+	}
+
+	/* Copy string, and update metadata. */
+	memcpy(buffer + b->len, str, l);
+	b->len += l;
 	return 0;
 }
 
 static int hlua_concat_dump(lua_State *L)
 {
-	luaL_Buffer *b;
+	struct hlua_concat *b;
+	char *buffer;
 
 	/* First arg must be a concat object. */
 	b = hlua_check_concat(L, 1);
 
+	/* Get the buffer. */
+	lua_rawgeti(L, 1, 1);
+	buffer = lua_touserdata(L, -1);
+	lua_pop(L, 1);
+
 	/* Push the soncatenated strng in the stack. */
-	luaL_pushresult(b);
+	lua_pushlstring(L, buffer, b->len);
 	return 1;
 }
 
 int hlua_concat_new(lua_State *L)
 {
-	luaL_Buffer *b;
+	struct hlua_concat *b;
 
 	lua_newtable(L);
-	b = lua_newuserdata(L, sizeof(luaL_Buffer));
+	b = (struct hlua_concat *)lua_newuserdata(L, sizeof(*b));
+	b->size = HLUA_CONCAT_BLOCSZ;
+	b->len = 0;
 	lua_rawseti(L, -2, 0);
+	lua_newuserdata(L, HLUA_CONCAT_BLOCSZ);
+	lua_rawseti(L, -2, 1);
 
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_concat_ref);
 	lua_setmetatable(L, -2);
 
-	luaL_buffinit(L, b);
 	return 1;
 }
 
