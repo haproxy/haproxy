@@ -19,6 +19,7 @@
 #define CLASS_MAP          "Map"
 #define CLASS_APPLET_TCP   "AppletTCP"
 #define CLASS_APPLET_HTTP  "AppletHTTP"
+#define CLASS_PROXY        "Proxy"
 
 struct stream;
 

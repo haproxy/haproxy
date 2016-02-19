@@ -19,16 +19,21 @@
 #include <lualib.h>
 
 #include <common/time.h>
+#include <common/uri_auth.h>
 
 #include <types/hlua.h>
+#include <types/proxy.h>
 
 #include <proto/dumpstats.h>
 #include <proto/proto_http.h>
+#include <proto/proxy.h>
+#include <proto/server.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
+static int class_proxy_ref;
 
-#define STATS_LEN (INF_TOTAL_FIELDS)
+#define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
 static struct field stats[STATS_LEN];
 
@@ -429,8 +434,123 @@ static int hlua_concat_init(lua_State *L)
 	return 1;
 }
 
+int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
+{
+	lua_newtable(L);
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_proxy_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, px);
+	lua_rawseti(L, -2, 0);
+	return 1;
+}
+
+static struct proxy *hlua_check_proxy(lua_State *L, int ud)
+{
+	return (struct proxy *)(hlua_checkudata(L, ud, class_proxy_ref));
+}
+
+int hlua_proxy_pause(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	pause_proxy(px);
+	return 0;
+}
+
+int hlua_proxy_resume(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	resume_proxy(px);
+	return 0;
+}
+
+int hlua_proxy_stop(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	stop_proxy(px);
+	return 0;
+}
+
+int hlua_proxy_get_cap(lua_State *L)
+{
+	struct proxy *px;
+	const char *str;
+
+	px = hlua_check_proxy(L, 1);
+	str = proxy_cap_str(px->cap);
+	lua_pushstring(L, str);
+	return 1;
+}
+
+int hlua_proxy_get_stats(lua_State *L)
+{
+	struct proxy *px;
+	int i;
+
+	px = hlua_check_proxy(L, 1);
+	if (px->cap & PR_CAP_BE)
+		stats_fill_be_stats(px, ST_SHLGNDS, stats, STATS_LEN);
+	else
+		stats_fill_fe_stats(px, stats, STATS_LEN);
+	lua_newtable(L);
+	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
+		lua_pushstring(L, stat_field_names[i]);
+		hlua_fcn_pushfield(L, &stats[i]);
+		lua_settable(L, -3);
+	}
+	return 1;
+}
+
+int hlua_proxy_get_mode(lua_State *L)
+{
+	struct proxy *px;
+	const char *str;
+
+	px = hlua_check_proxy(L, 1);
+	str = proxy_mode_str(px->mode);
+	lua_pushstring(L, str);
+	return 1;
+}
+
+int hlua_proxy_shut_bcksess(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	srv_shutdown_backup_streams(px, SF_ERR_KILLED);
+	return 0;
+}
+
 int hlua_fcn_post_init(lua_State *L)
 {
+	struct proxy *px;
+
+	/* get core array. */
+	if (lua_getglobal(L, "core") != LUA_TTABLE)
+		lua_error(L);
+
+	/* Create proxies entry. */
+	lua_pushstring(L, "proxies");
+	lua_newtable(L);
+
+	/* List all proxies. */
+	for (px = proxy; px; px = px->next) {
+		lua_pushstring(L, px->id);
+		hlua_fcn_new_proxy(L, px);
+		lua_settable(L, -3);
+	}
+
+	/* push "proxies" in "core" */
+	lua_settable(L, -3);
+
 	return 1;
 }
 
@@ -446,6 +566,20 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "asctime_date", hlua_asctime_date);
 	hlua_class_function(L, "concat", hlua_concat_new);
 	hlua_class_function(L, "get_info", hlua_get_info);
+
+	/* Create proxy object. */
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "pause", hlua_proxy_pause);
+	hlua_class_function(L, "resume", hlua_proxy_resume);
+	hlua_class_function(L, "stop", hlua_proxy_stop);
+	hlua_class_function(L, "shut_bcksess", hlua_proxy_shut_bcksess);
+	hlua_class_function(L, "get_cap", hlua_proxy_get_cap);
+	hlua_class_function(L, "get_mode", hlua_proxy_get_mode);
+	hlua_class_function(L, "get_stats", hlua_proxy_get_stats);
+	lua_settable(L, -3); /* -> META["__index"] = TABLE */
+	class_proxy_ref = hlua_register_metatable(L, CLASS_PROXY);
 
 	return 5;
 }

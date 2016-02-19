@@ -305,6 +305,14 @@ Core class
 
   :param integer milliseconds: the required milliseconds.
 
+.. js:attribute:: core.proxies
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  proxies is an array containing the list of all proxies declared in the
+  configuration file. Each entry of the proxies array is an object of type
+  :ref:`proxy_class`
+
 .. js:function:: core.register_action(name, actions, func)
 
   **context**: body
@@ -573,6 +581,71 @@ Core class
 
   Give back the hand at the HAProxy scheduler. It is used when the LUA
   processing consumes a lot of processing time.
+
+.. _proxy_class:
+
+Proxy class
+============
+
+.. js:class:: Proxy
+
+  This class provides a way for manipulating proxy and retrieving information
+  like statistics.
+
+.. js:function:: Proxy.pause(px)
+
+  Pause the proxy. See the management socket documentation for more information.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+
+.. js:function:: Proxy.resume(px)
+
+  Resume the proxy. See the management socket documentation for more
+  information.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+
+.. js:function:: Proxy.stop(px)
+
+  Stop the proxy. See the management socket documentation for more information.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+
+.. js:function:: Proxy.shut_bcksess(px)
+
+  Kill the session attached to a backup server. See the management socket
+  documentation for more information.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+
+.. js:function:: Proxy.get_cap(px)
+
+  Returns a string describing the capabilities of the proxy.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+  :returns: a string "frontend", "backend", "proxy" or "ruleset".
+
+.. js:function:: Proxy.get_mode(px)
+
+  Returns a string describing the mode of the current proxy.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+  :returns: a string "tcp", "http", "health" or "unknown"
+
+.. js:function:: Proxy.get_stats(px)
+
+  Returns an array containg the proxy statistics. The statistics returned are
+  not the same if the proxy is frontend or a backend.
+
+  :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
+    proxy.
+  :returns: a key/value array containing stats
 
 .. _concat_class:
 
