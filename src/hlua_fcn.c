@@ -313,6 +313,11 @@ static int hlua_concat_init(lua_State *L)
 	return 1;
 }
 
+int hlua_fcn_post_init(lua_State *L)
+{
+	return 1;
+}
+
 int hlua_fcn_reg_core_fcn(lua_State *L)
 {
 	if (!hlua_concat_init(L))

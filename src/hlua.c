@@ -6444,6 +6444,18 @@ int hlua_post_init()
 	enum hlua_exec ret;
 	const char *error;
 
+	/* Call post initialisation function in safe environement. */
+	if (!SET_SAFE_LJMP(gL.T)) {
+		if (lua_type(gL.T, -1) == LUA_TSTRING)
+			error = lua_tostring(gL.T, -1);
+		else
+			error = "critical error";
+		fprintf(stderr, "Lua post-init: %s.\n", error);
+		exit(1);
+	}
+	hlua_fcn_post_init(gL.T);
+	RESET_SAFE_LJMP(gL.T);
+
 	list_for_each_entry(init, &hlua_init_functions, l) {
 		lua_rawgeti(gL.T, LUA_REGISTRYINDEX, init->function_ref);
 		ret = hlua_ctx_resume(&gL, 0);
