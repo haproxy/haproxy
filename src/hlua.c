@@ -5116,6 +5116,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 	struct stream *stream = smp->strm;
+	const char *error;
 
 	if (!stream)
 		return 0;
@@ -5135,7 +5136,11 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 		/* The following Lua calls can fail. */
 		if (!SET_SAFE_LJMP(stream->hlua.T)) {
-			SEND_ERR(stream->be, "Lua converter '%s': critical error.\n", fcn->name);
+			if (lua_type(stream->hlua.T, -1) == LUA_TSTRING)
+				error = lua_tostring(stream->hlua.T, -1);
+			else
+				error = "critical error";
+			SEND_ERR(stream->be, "Lua converter '%s': %s.\n", fcn->name, error);
 			return 0;
 		}
 
@@ -5219,6 +5224,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 	struct stream *stream = smp->strm;
+	const char *error;
 
 	if (!stream)
 		return 0;
@@ -5238,7 +5244,11 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 		/* The following Lua calls can fail. */
 		if (!SET_SAFE_LJMP(stream->hlua.T)) {
-			SEND_ERR(smp->px, "Lua sample-fetch '%s': critical error.\n", fcn->name);
+			if (lua_type(stream->hlua.T, -1) == LUA_TSTRING)
+				error = lua_tostring(stream->hlua.T, -1);
+			else
+				error = "critical error";
+			SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n", fcn->name, error);
 			return 0;
 		}
 
@@ -5450,6 +5460,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	char **arg;
 	unsigned int analyzer;
 	int dir;
+	const char *error;
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = SMP_OPT_DIR_REQ; break;
@@ -5477,8 +5488,12 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 
 		/* The following Lua calls can fail. */
 		if (!SET_SAFE_LJMP(s->hlua.T)) {
-			SEND_ERR(px, "Lua function '%s': critical error.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			if (lua_type(s->hlua.T, -1) == LUA_TSTRING)
+				error = lua_tostring(s->hlua.T, -1);
+			else
+				error = "critical error";
+			SEND_ERR(px, "Lua function '%s': %s.\n",
+			         rule->arg.hlua_rule->fcn.name, error);
 			return ACT_RET_CONT;
 		}
 
@@ -5595,6 +5610,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	struct hlua *hlua = &ctx->ctx.hlua_apptcp.hlua;
 	struct task *task;
 	char **arg;
+	const char *error;
 
 	HLUA_INIT(hlua);
 	ctx->ctx.hlua_apptcp.flags = 0;
@@ -5627,8 +5643,12 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua->T)) {
-		SEND_ERR(px, "Lua applet tcp '%s': critical error.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		if (lua_type(hlua->T, -1) == LUA_TSTRING)
+			error = lua_tostring(hlua->T, -1);
+		else
+			error = "critical error";
+		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name, error);
 		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
@@ -5760,6 +5780,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	struct hdr_ctx hdr;
 	struct task *task;
 	struct sample smp; /* just used for a valid call to smp_prefetch_http. */
+	const char *error;
 
 	/* Wait for a full HTTP request. */
 	if (!smp_prefetch_http(px, strm, 0, NULL, &smp, 0)) {
@@ -5814,8 +5835,12 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 
 	/* The following Lua calls can fail. */
 	if (!SET_SAFE_LJMP(hlua->T)) {
-		SEND_ERR(px, "Lua applet http '%s': critical error.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		if (lua_type(hlua->T, -1) == LUA_TSTRING)
+			error = lua_tostring(hlua->T, -1);
+		else
+			error = "critical error";
+		SEND_ERR(px, "Lua applet http '%s': %s.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name, error);
 		return 0;
 	}
 
@@ -6417,6 +6442,7 @@ int hlua_post_init()
 	struct hlua_init_function *init;
 	const char *msg;
 	enum hlua_exec ret;
+	const char *error;
 
 	list_for_each_entry(init, &hlua_init_functions, l) {
 		lua_rawgeti(gL.T, LUA_REGISTRYINDEX, init->function_ref);
@@ -6490,6 +6516,7 @@ void hlua_init(void)
 	struct sample_fetch *sf;
 	struct sample_conv *sc;
 	char *p;
+	const char *error_msg;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
@@ -6530,7 +6557,11 @@ void hlua_init(void)
 
 	/* Set safe environment for the initialisation. */
 	if (!SET_SAFE_LJMP(gL.T)) {
-		fprintf(stderr, "Lua init: critical error.\n");
+		if (lua_type(gL.T, -1) == LUA_TSTRING)
+			error_msg = lua_tostring(gL.T, -1);
+		else
+			error_msg = "critical error";
+		fprintf(stderr, "Lua init: %s.\n", error_msg);
 		exit(1);
 	}
 
