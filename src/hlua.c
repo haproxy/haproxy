@@ -7002,7 +7002,6 @@ void hlua_init(void)
 
 	/* Register previous table in the registry with reference and named entry. */
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
 	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_SOCKET); /* register class socket. */
 	class_socket_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class socket. */
 
