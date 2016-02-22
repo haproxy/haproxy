@@ -124,13 +124,13 @@ static inline int server_is_draining(const struct server *s)
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
  */
-void srv_shutdown_sessions(struct server *srv, int why);
+void srv_shutdown_streams(struct server *srv, int why);
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
  * pass a termination code in <why>, which must be one of SF_ERR_* indicating
  * the reason for the shutdown.
  */
-void srv_shutdown_backup_sessions(struct proxy *px, int why);
+void srv_shutdown_backup_streams(struct proxy *px, int why);
 
 /* Appends some information to a message string related to a server going UP or
  * DOWN.  If both <forced> and <reason> are null and the server tracks another
