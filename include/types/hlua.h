@@ -20,6 +20,7 @@
 #define CLASS_APPLET_TCP   "AppletTCP"
 #define CLASS_APPLET_HTTP  "AppletHTTP"
 #define CLASS_PROXY        "Proxy"
+#define CLASS_SERVER       "Server"
 
 struct stream;
 

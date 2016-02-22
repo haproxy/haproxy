@@ -32,6 +32,7 @@
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
 static int class_proxy_ref;
+static int class_server_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
@@ -434,8 +435,285 @@ static int hlua_concat_init(lua_State *L)
 	return 1;
 }
 
+int hlua_fcn_new_server(lua_State *L, struct server *srv)
+{
+	lua_newtable(L);
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_server_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, srv);
+	lua_rawseti(L, -2, 0);
+	return 1;
+}
+
+static struct server *hlua_check_server(lua_State *L, int ud)
+{
+	return (struct server *)(hlua_checkudata(L, ud, class_server_ref));
+}
+
+int hlua_server_get_stats(lua_State *L)
+{
+	struct server *srv;
+	int i;
+
+	srv = hlua_check_server(L, 1);
+
+	if (!srv->proxy) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	stats_fill_sv_stats(srv->proxy, srv, ST_SHLGNDS, stats, STATS_LEN);
+
+	lua_newtable(L);
+	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
+		lua_pushstring(L, stat_field_names[i]);
+		hlua_fcn_pushfield(L, &stats[i]);
+		lua_settable(L, -3);
+	}
+	return 1;
+
+}
+
+int hlua_server_get_addr(lua_State *L)
+{
+	struct server *srv;
+	char addr[INET6_ADDRSTRLEN];
+	luaL_Buffer b;
+
+	srv = hlua_check_server(L, 1);
+
+	luaL_buffinit(L, &b);
+
+	switch (srv->addr.ss_family) {
+	case AF_INET:
+		inet_ntop(AF_INET, &((struct sockaddr_in *)&srv->addr)->sin_addr,
+		          addr, INET_ADDRSTRLEN);
+		luaL_addstring(&b, addr);
+		luaL_addstring(&b, ":");
+		snprintf(addr, INET_ADDRSTRLEN, "%d",
+		         ntohs(((struct sockaddr_in *)&srv->addr)->sin_port));
+		luaL_addstring(&b, addr);
+		break;
+	case AF_INET6:
+		inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&srv->addr)->sin6_addr,
+		          addr, INET_ADDRSTRLEN);
+		luaL_addstring(&b, addr);
+		luaL_addstring(&b, ":");
+		snprintf(addr, INET_ADDRSTRLEN, "%d",
+		         ntohs(((struct sockaddr_in6 *)&srv->addr)->sin6_port));
+		luaL_addstring(&b, addr);
+		break;
+	case AF_UNIX:
+		luaL_addstring(&b, (char *)((struct sockaddr_un *)&srv->addr)->sun_path);
+		break;
+	default:
+		luaL_addstring(&b, "<unknown>");
+		break;
+	}
+
+	luaL_pushresult(&b);
+	return 1;
+}
+
+int hlua_server_is_draining(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	lua_pushinteger(L, server_is_draining(srv));
+	return 1;
+}
+
+int hlua_server_set_weight(lua_State *L)
+{
+	struct server *srv;
+	const char *weight;
+	const char *err;
+
+	srv = hlua_check_server(L, 1);
+	weight = luaL_checkstring(L, 2);
+
+	err = server_parse_weight_change_request(srv, weight);
+	if (!err)
+		lua_pushnil(L);
+	else
+		hlua_pushstrippedstring(L, err);
+	return 1;
+}
+
+int hlua_server_get_weight(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	lua_pushinteger(L, srv->uweight);
+	return 1;
+}
+
+int hlua_server_set_addr(lua_State *L)
+{
+	struct server *srv;
+	const char *addr;
+	const char *err;
+
+	srv = hlua_check_server(L, 1);
+	addr = luaL_checkstring(L, 2);
+
+	err = server_parse_addr_change_request(srv, addr, "Lua script");
+	if (!err)
+		lua_pushnil(L);
+	else
+		hlua_pushstrippedstring(L, err);
+	return 1;
+}
+
+int hlua_server_shut_sess(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	srv_shutdown_streams(srv, SF_ERR_KILLED);
+	return 0;
+}
+
+int hlua_server_set_drain(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	srv_adm_set_drain(srv);
+	return 0;
+}
+
+int hlua_server_set_maint(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	srv_adm_set_maint(srv);
+	return 0;
+}
+
+int hlua_server_set_ready(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	srv_adm_set_ready(srv);
+	return 0;
+}
+
+int hlua_server_check_enable(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->check.state & CHK_ST_CONFIGURED) {
+		sv->check.state &= ~CHK_ST_ENABLED;
+	}
+	return 0;
+}
+
+int hlua_server_check_disable(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->check.state & CHK_ST_CONFIGURED) {
+		sv->check.state |= CHK_ST_ENABLED;
+	}
+	return 0;
+}
+
+int hlua_server_check_force_up(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (!(sv->track)) {
+		sv->check.health = sv->check.rise + sv->check.fall - 1;
+		srv_set_running(sv, "changed from Lua script");
+	}
+	return 0;
+}
+
+int hlua_server_check_force_nolb(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (!(sv->track)) {
+		sv->check.health = sv->check.rise + sv->check.fall - 1;
+		srv_set_stopping(sv, "changed from Lua script");
+	}
+	return 0;
+}
+
+int hlua_server_check_force_down(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (!(sv->track)) {
+		sv->check.health = 0;
+		srv_set_stopped(sv, "changed from Lua script");
+	}
+	return 0;
+}
+
+int hlua_server_agent_enable(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->agent.state & CHK_ST_CONFIGURED) {
+		sv->agent.state |= CHK_ST_ENABLED;
+	}
+	return 0;
+}
+
+int hlua_server_agent_disable(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->agent.state & CHK_ST_CONFIGURED) {
+		sv->agent.state &= ~CHK_ST_ENABLED;
+	}
+	return 0;
+}
+
+int hlua_server_agent_force_up(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->agent.state & CHK_ST_ENABLED) {
+		sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
+		srv_set_running(sv, "changed from Lua script");
+	}
+	return 0;
+}
+
+int hlua_server_agent_force_down(lua_State *L)
+{
+	struct server *sv;
+
+	sv = hlua_check_server(L, 1);
+	if (sv->agent.state & CHK_ST_ENABLED) {
+		sv->agent.health = 0;
+		srv_set_stopped(sv, "changed from Lua script");
+	}
+	return 0;
+}
+
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
+	struct server *srv;
+
 	lua_newtable(L);
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
@@ -444,6 +722,17 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 
 	lua_pushlightuserdata(L, px);
 	lua_rawseti(L, -2, 0);
+
+	/* Browse and register servers. */
+	lua_pushstring(L, "servers");
+	lua_newtable(L);
+	for (srv = px->srv; srv; srv = srv->next) {
+		lua_pushstring(L, srv->id);
+		hlua_fcn_new_server(L, srv);
+		lua_settable(L, -3);
+	}
+	lua_settable(L, -3);
+
 	return 1;
 }
 
@@ -566,6 +855,32 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "asctime_date", hlua_asctime_date);
 	hlua_class_function(L, "concat", hlua_concat_new);
 	hlua_class_function(L, "get_info", hlua_get_info);
+
+	/* Create server object. */
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "is_draining", hlua_server_is_draining);
+	hlua_class_function(L, "set_weight", hlua_server_set_weight);
+	hlua_class_function(L, "get_weight", hlua_server_get_weight);
+	hlua_class_function(L, "set_addr", hlua_server_set_addr);
+	hlua_class_function(L, "get_addr", hlua_server_get_addr);
+	hlua_class_function(L, "get_stats", hlua_server_get_stats);
+	hlua_class_function(L, "shut_sess", hlua_server_shut_sess);
+	hlua_class_function(L, "set_drain", hlua_server_set_drain);
+	hlua_class_function(L, "set_maint", hlua_server_set_maint);
+	hlua_class_function(L, "set_ready", hlua_server_set_ready);
+	hlua_class_function(L, "check_enable", hlua_server_check_enable);
+	hlua_class_function(L, "check_disable", hlua_server_check_disable);
+	hlua_class_function(L, "check_force_up", hlua_server_check_force_up);
+	hlua_class_function(L, "check_force_nolb", hlua_server_check_force_nolb);
+	hlua_class_function(L, "check_force_down", hlua_server_check_force_down);
+	hlua_class_function(L, "agent_enable", hlua_server_agent_enable);
+	hlua_class_function(L, "agent_disable", hlua_server_agent_disable);
+	hlua_class_function(L, "agent_force_up", hlua_server_agent_force_up);
+	hlua_class_function(L, "agent_force_down", hlua_server_agent_force_down);
+	lua_settable(L, -3); /* -> META["__index"] = TABLE */
+	class_server_ref = hlua_register_metatable(L, CLASS_SERVER);
 
 	/* Create proxy object. */
 	lua_newtable(L);
