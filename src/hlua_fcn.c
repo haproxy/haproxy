@@ -161,14 +161,6 @@ static int hlua_asctime_date(lua_State *L)
 	return hlua_parse_date(L, parse_asctime_date);
 }
 
-static void hlua_array_add_fcn(lua_State *L, const char *name,
-                               int (*function)(lua_State *L))
-{
-	lua_pushstring(L, name);
-	lua_pushcclosure(L, function, 0);
-	lua_rawset(L, -3);
-}
-
 static struct hlua_concat *hlua_check_concat(lua_State *L, int ud)
 {
 	return (struct hlua_concat *)(hlua_checkudata(L, ud, class_concat_ref));
@@ -291,11 +283,12 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	if (!hlua_concat_init(L))
 		return 0;
 
-	hlua_array_add_fcn(L, "now", hlua_now);
-	hlua_array_add_fcn(L, "http_date", hlua_http_date);
-	hlua_array_add_fcn(L, "imf_date", hlua_imf_date);
-	hlua_array_add_fcn(L, "rfc850_date", hlua_rfc850_date);
-	hlua_array_add_fcn(L, "asctime_date", hlua_asctime_date);
-	hlua_array_add_fcn(L, "concat", hlua_concat_new);
+	hlua_class_function(L, "now", hlua_now);
+	hlua_class_function(L, "http_date", hlua_http_date);
+	hlua_class_function(L, "imf_date", hlua_imf_date);
+	hlua_class_function(L, "rfc850_date", hlua_rfc850_date);
+	hlua_class_function(L, "asctime_date", hlua_asctime_date);
+	hlua_class_function(L, "concat", hlua_concat_new);
+
 	return 5;
 }
