@@ -35,24 +35,18 @@ static int class_concat_ref;
  */
 void hlua_class_const_int(lua_State *L, const char *name, int value)
 {
-	if (!lua_checkstack(L, 2))
-		luaL_error(L, "full stack");
 	lua_pushstring(L, name);
 	lua_pushinteger(L, value);
 	lua_rawset(L, -3);
 }
 void hlua_class_const_str(lua_State *L, const char *name, const char *value)
 {
-	if (!lua_checkstack(L, 2))
-		luaL_error(L, "full stack");
 	lua_pushstring(L, name);
 	lua_pushstring(L, value);
 	lua_rawset(L, -3);
 }
 void hlua_class_function(lua_State *L, const char *name, int (*function)(lua_State *L))
 {
-	if (!lua_checkstack(L, 2))
-		luaL_error(L, "full stack");
 	lua_pushstring(L, name);
 	lua_pushcclosure(L, function, 0);
 	lua_rawset(L, -3);
