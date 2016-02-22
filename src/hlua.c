@@ -264,49 +264,6 @@ const char *hlua_get_top_error_string(lua_State *L)
 	return lua_tostring(L, -1);
 }
 
-/* The three following functions are useful for adding entries
- * in a table. These functions takes a string and respectively an
- * integer, a string or a function and add it to the table in the
- * top of the stack.
- *
- * These functions throws an error if no more stack size is
- * available.
- */
-__LJMP static inline void hlua_class_const_int(lua_State *L, const char *name,
-                                               int value)
-{
-	if (!lua_checkstack(L, 2))
-	WILL_LJMP(luaL_error(L, "full stack"));
-	lua_pushstring(L, name);
-	lua_pushinteger(L, value);
-	lua_rawset(L, -3);
-}
-__LJMP static inline void hlua_class_const_str(lua_State *L, const char *name,
-                                        const char *value)
-{
-	if (!lua_checkstack(L, 2))
-		WILL_LJMP(luaL_error(L, "full stack"));
-	lua_pushstring(L, name);
-	lua_pushstring(L, value);
-	lua_rawset(L, -3);
-}
-__LJMP static inline void hlua_class_function(lua_State *L, const char *name,
-                                       int (*function)(lua_State *L))
-{
-	if (!lua_checkstack(L, 2))
-		WILL_LJMP(luaL_error(L, "full stack"));
-	lua_pushstring(L, name);
-	lua_pushcclosure(L, function, 0);
-	lua_rawset(L, -3);
-}
-
-__LJMP static int hlua_dump_object(struct lua_State *L)
-{
-	const char *name = (const char *)lua_tostring(L, lua_upvalueindex(1));
-	lua_pushfstring(L, "HAProxy class %s", name);
-	return 1;
-}
-
 /* This function check the number of arguments available in the
  * stack. If the number of arguments available is not the same
  * then <nb> an error is throwed.

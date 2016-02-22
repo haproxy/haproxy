@@ -25,6 +25,47 @@
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
 
+/* The three following functions are useful for adding entries
+ * in a table. These functions takes a string and respectively an
+ * integer, a string or a function and add it to the table in the
+ * top of the stack.
+ *
+ * These functions throws an error if no more stack size is
+ * available.
+ */
+void hlua_class_const_int(lua_State *L, const char *name, int value)
+{
+	if (!lua_checkstack(L, 2))
+		luaL_error(L, "full stack");
+	lua_pushstring(L, name);
+	lua_pushinteger(L, value);
+	lua_rawset(L, -3);
+}
+void hlua_class_const_str(lua_State *L, const char *name, const char *value)
+{
+	if (!lua_checkstack(L, 2))
+		luaL_error(L, "full stack");
+	lua_pushstring(L, name);
+	lua_pushstring(L, value);
+	lua_rawset(L, -3);
+}
+void hlua_class_function(lua_State *L, const char *name, int (*function)(lua_State *L))
+{
+	if (!lua_checkstack(L, 2))
+		luaL_error(L, "full stack");
+	lua_pushstring(L, name);
+	lua_pushcclosure(L, function, 0);
+	lua_rawset(L, -3);
+}
+
+/* This function returns a string containg the HAProxy object name. */
+int hlua_dump_object(struct lua_State *L)
+{
+	const char *name = (const char *)lua_tostring(L, lua_upvalueindex(1));
+	lua_pushfstring(L, "HAProxy class %s", name);
+	return 1;
+}
+
 /* Return an object of the expected type, or throws an error. */
 void *hlua_checkudata(lua_State *L, int ud, int class_ref)
 {
