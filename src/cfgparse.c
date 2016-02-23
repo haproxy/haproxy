@@ -8647,7 +8647,7 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : nbits(global.nbproc);
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : 0;
 			global.stats_fe->bind_proc |= mask;
 		}
 		if (!global.stats_fe->bind_proc)
