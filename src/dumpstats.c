@@ -2983,7 +2983,7 @@ static void cli_io_handler(struct appctx *appctx)
 /* Emits a stats field without any surrounding element and properly encoded to
  * resist CSV output. Returns non-zero on success, 0 if the buffer is full.
  */
-static int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
+int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
 {
 	switch (field_format(f, 0)) {
 	case FF_EMPTY: return 1;
@@ -2994,6 +2994,66 @@ static int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
 	case FF_STR:   return csv_enc_append(field_str(f, 0), 1, out) != NULL;
 	default:       return chunk_appendf(out, "[INCORRECT_FIELD_TYPE_%08x]", f->type);
 	}
+}
+
+/* Emits a stats field prefixed with its type. No CSV encoding is prepared, the
+ * output is supposed to be used on its own line. Returns non-zero on success, 0
+ * if the buffer is full.
+ */
+int stats_emit_typed_data_field(struct chunk *out, const struct field *f)
+{
+	switch (field_format(f, 0)) {
+	case FF_EMPTY: return 1;
+	case FF_S32:   return chunk_appendf(out, "s32:%d", f->u.s32);
+	case FF_U32:   return chunk_appendf(out, "u32:%u", f->u.u32);
+	case FF_S64:   return chunk_appendf(out, "s64:%lld", (long long)f->u.s64);
+	case FF_U64:   return chunk_appendf(out, "u64:%llu", (unsigned long long)f->u.u64);
+	case FF_STR:   return chunk_appendf(out, "str:%s", field_str(f, 0));
+	default:       return chunk_appendf(out, "%08x:?", f->type);
+	}
+}
+
+/* Emits an encoding of the field type on 3 characters followed by a delimiter.
+ * Returns non-zero on success, 0 if the buffer is full.
+ */
+int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim)
+{
+	char origin, nature, scope;
+
+	switch (field_origin(f, 0)) {
+	case FO_METRIC:  origin = 'M'; break;
+	case FO_STATUS:  origin = 'S'; break;
+	case FO_KEY:     origin = 'K'; break;
+	case FO_CONFIG:  origin = 'C'; break;
+	case FO_PRODUCT: origin = 'P'; break;
+	default:         origin = '?'; break;
+	}
+
+	switch (field_nature(f, 0)) {
+	case FN_GAUGE:    nature = 'G'; break;
+	case FN_LIMIT:    nature = 'L'; break;
+	case FN_MIN:      nature = 'm'; break;
+	case FN_MAX:      nature = 'M'; break;
+	case FN_RATE:     nature = 'R'; break;
+	case FN_COUNTER:  nature = 'C'; break;
+	case FN_DURATION: nature = 'D'; break;
+	case FN_AGE:      nature = 'A'; break;
+	case FN_TIME:     nature = 'T'; break;
+	case FN_NAME:     nature = 'N'; break;
+	case FN_OUTPUT:   nature = 'O'; break;
+	case FN_AVG:      nature = 'a'; break;
+	default:          nature = '?'; break;
+	}
+
+	switch (field_scope(f, 0)) {
+	case FS_PROCESS: scope = 'P'; break;
+	case FS_SERVICE: scope = 'S'; break;
+	case FS_SYSTEM:  scope = 's'; break;
+	case FS_CLUSTER: scope = 'C'; break;
+	default:         scope = '?'; break;
+	}
+
+	return chunk_appendf(out, "%c%c%c%c", origin, nature, scope, delim);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
