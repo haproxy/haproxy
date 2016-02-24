@@ -819,11 +819,11 @@ const char *server_parse_addr_change_request(struct server *sv,
 	unsigned char ip[INET6_ADDRSTRLEN];
 
 	if (inet_pton(AF_INET6, addr_str, ip)) {
-		update_server_addr(sv, ip, AF_INET6, "stats command\n");
+		update_server_addr(sv, ip, AF_INET6, "stats command");
 		return NULL;
 	}
 	if (inet_pton(AF_INET, addr_str, ip)) {
-		update_server_addr(sv, ip, AF_INET, "stats command\n");
+		update_server_addr(sv, ip, AF_INET, "stats command");
 		return NULL;
 	}
 
