@@ -1600,7 +1600,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 			}
 			else if (strcmp(args[3], "addr") == 0) {
-				warning = server_parse_addr_change_request(sv, args[4]);
+				warning = server_parse_addr_change_request(sv, args[4], "stats command");
 				if (warning) {
 					appctx->ctx.cli.msg = warning;
 					appctx->st0 = STAT_CLI_PRINT;
