@@ -2558,7 +2558,7 @@ fileclose:
  *
  * A log line and a stderr warning message is generated based on server's backend options.
  */
-int update_server_addr(struct server *s, void *ip, int ip_sin_family, char *updater)
+int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
 {
 	/* generates a log line and a warning on stderr */
 	if (1) {
