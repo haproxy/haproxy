@@ -22,8 +22,27 @@
 
 #include <types/hlua.h>
 
+#include <proto/proto_http.h>
+
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
+
+/* Some string are started or terminated by blank chars,
+ * this function removes the spaces, tabs, \r and
+ * \n at the begin and at the end of the string "str", and
+ * push the result in the lua stack.
+ * Returns a pointer to the Lua internal copy of the string.
+ */
+const char *hlua_pushstrippedstring(lua_State *L, const char *str)
+{
+	const char *p;
+	const char *e;
+
+	for (p = str; HTTP_IS_LWS(*p); p++);
+	for (e = p + strlen(p) - 1; e > p && HTTP_IS_LWS(*e); e--);
+
+	return lua_pushlstring(L, p, e - p);
+}
 
 /* The three following functions are useful for adding entries
  * in a table. These functions takes a string and respectively an
