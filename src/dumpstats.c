@@ -2808,6 +2808,22 @@ static void cli_io_handler(struct appctx *appctx)
 		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
 }
 
+/* Emits a stats field without any surrounding element and properly encoded to
+ * resist CSV output. Returns non-zero on success, 0 if the buffer is full.
+ */
+static int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
+{
+	switch (field_format(f, 0)) {
+	case FF_EMPTY: return 1;
+	case FF_S32:   return chunk_appendf(out, "%d", f->u.s32);
+	case FF_U32:   return chunk_appendf(out, "%u", f->u.u32);
+	case FF_S64:   return chunk_appendf(out, "%lld", (long long)f->u.s64);
+	case FF_U64:   return chunk_appendf(out, "%llu", (unsigned long long)f->u.u64);
+	case FF_STR:   return csv_enc_append(field_str(f, 0), 1, out) != NULL;
+	default:       return chunk_appendf(out, "[INCORRECT_FIELD_TYPE_%08x]", f->type);
+	}
+}
+
 /* This function dumps information onto the stream interface's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
