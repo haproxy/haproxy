@@ -77,7 +77,7 @@ int bo_inject(struct channel *chn, const char *msg, int len)
 	if (len == 0)
 		return -1;
 
-	if (len > chn->buf->size) {
+	if (len < 0 || len > chn->buf->size) {
 		/* we can't write this chunk and will never be able to, because
 		 * it is larger than the buffer. This must be reported as an
 		 * error. Then we return -2 so that writers that don't care can
@@ -141,6 +141,9 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 
 	if (unlikely(channel_input_closed(chn)))
 		return -2;
+
+	if (len < 0)
+		return -3;
 
 	max = channel_recv_limit(chn);
 	if (unlikely(len > max - buffer_len(chn->buf))) {

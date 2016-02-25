@@ -67,7 +67,7 @@ static inline void chunk_init(struct chunk *chk, char *str, size_t size)
 static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, int len)
 {
 
-	if (size && len > size)
+	if (len < 0 || (size && len > size))
 		return 0;
 
 	chk->str  = str;
@@ -112,7 +112,7 @@ static inline int chunk_strcat(struct chunk *chk, const char *str)
 
 	len = strlen(str);
 
-	if (unlikely(chk->len + len >= chk->size))
+	if (unlikely(chk->len < 0 || chk->len + len >= chk->size))
 		return 0;
 
 	memcpy(chk->str + chk->len, str, len + 1);
@@ -134,7 +134,7 @@ static inline int chunk_strcat(struct chunk *chk, const char *str)
  */
 static inline char *chunk_newstr(struct chunk *chk)
 {
-	if (chk->len + 1 >= chk->size)
+	if (chk->len < 0 || chk->len + 1 >= chk->size)
 		return NULL;
 
 	chk->str[chk->len++] = 0;
@@ -166,7 +166,7 @@ static inline void chunk_destroy(struct chunk *chk)
  */
 static inline char *chunk_dup(struct chunk *dst, const struct chunk *src)
 {
-	if (!dst || !src || !src->str)
+	if (!dst || !src || src->len < 0 || !src->str)
 		return NULL;
 
 	if (dst->size)

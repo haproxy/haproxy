@@ -111,7 +111,7 @@ int chunk_appendf(struct chunk *chk, const char *fmt, ...)
 	va_list argp;
 	int ret;
 
-	if (!chk->str || !chk->size)
+	if (chk->len < 0 || !chk->str || !chk->size)
 		return 0;
 
 	va_start(argp, fmt);
@@ -135,6 +135,9 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src)
 	int i, l;
 	int olen, free;
 	char c;
+
+	if (dst->len < 0)
+		return dst->len;
 
 	olen = dst->len;
 
@@ -176,6 +179,9 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
 	int i, l;
 	int olen, free;
 	char c;
+
+	if (dst->len < 0)
+		return dst->len;
 
 	olen = dst->len;
 
