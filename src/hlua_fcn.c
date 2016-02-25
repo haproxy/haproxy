@@ -33,6 +33,7 @@
 static int class_concat_ref;
 static int class_proxy_ref;
 static int class_server_ref;
+static int class_listener_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
@@ -435,6 +436,48 @@ static int hlua_concat_init(lua_State *L)
 	return 1;
 }
 
+int hlua_fcn_new_listener(lua_State *L, struct listener *lst)
+{
+	lua_newtable(L);
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_listener_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, lst);
+	lua_rawseti(L, -2, 0);
+	return 1;
+}
+
+static struct listener *hlua_check_listener(lua_State *L, int ud)
+{
+	return (struct listener *)(hlua_checkudata(L, ud, class_listener_ref));
+}
+
+int hlua_listener_get_stats(lua_State *L)
+{
+	struct listener *li;
+	int i;
+
+	li = hlua_check_listener(L, 1);
+
+	if (!li->frontend) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	stats_fill_li_stats(li->frontend, li, ST_SHLGNDS, stats, STATS_LEN);
+
+	lua_newtable(L);
+	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
+		lua_pushstring(L, stat_field_names[i]);
+		hlua_fcn_pushfield(L, &stats[i]);
+		lua_settable(L, -3);
+	}
+	return 1;
+
+}
+
 int hlua_fcn_new_server(lua_State *L, struct server *srv)
 {
 	lua_newtable(L);
@@ -713,6 +756,9 @@ int hlua_server_agent_force_down(lua_State *L)
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
 	struct server *srv;
+	struct listener *lst;
+	int lid;
+	char buffer[10];
 
 	lua_newtable(L);
 
@@ -729,6 +775,23 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	for (srv = px->srv; srv; srv = srv->next) {
 		lua_pushstring(L, srv->id);
 		hlua_fcn_new_server(L, srv);
+		lua_settable(L, -3);
+	}
+	lua_settable(L, -3);
+
+	/* Browse and register listeners. */
+	lua_pushstring(L, "listeners");
+	lua_newtable(L);
+	lid = 1;
+	list_for_each_entry(lst, &px->conf.listeners, by_fe) {
+		if (lst->name)
+			lua_pushstring(L, lst->name);
+		else {
+			snprintf(buffer, 10, "sock-%d", lid);
+			lid++;
+			lua_pushstring(L, buffer);
+		}
+		hlua_fcn_new_listener(L, lst);
 		lua_settable(L, -3);
 	}
 	lua_settable(L, -3);
@@ -855,6 +918,14 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "asctime_date", hlua_asctime_date);
 	hlua_class_function(L, "concat", hlua_concat_new);
 	hlua_class_function(L, "get_info", hlua_get_info);
+
+	/* Create listener object. */
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "get_stats", hlua_listener_get_stats);
+	lua_settable(L, -3); /* -> META["__index"] = TABLE */
+	class_listener_ref = hlua_register_metatable(L, CLASS_LISTENER);
 
 	/* Create server object. */
 	lua_newtable(L);

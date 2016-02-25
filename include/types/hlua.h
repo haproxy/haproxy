@@ -21,6 +21,7 @@
 #define CLASS_APPLET_HTTP  "AppletHTTP"
 #define CLASS_PROXY        "Proxy"
 #define CLASS_SERVER       "Server"
+#define CLASS_LISTENER     "Listener"
 
 struct stream;
 

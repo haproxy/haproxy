@@ -597,6 +597,11 @@ Proxy class
   Contain an array with the attached servers. Each server entry is an object of
   type :ref:`server_class`.
 
+.. js:attribute:: Proxy.listeners
+
+  Contain an array with the attached listeners. Each listeners entry is an
+  object of type :ref:`listener_class`.
+
 .. js:function:: Proxy.pause(px)
 
   Pause the proxy. See the management socket documentation for more information.
@@ -810,6 +815,19 @@ Server class
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
+
+.. _listener_class:
+
+Listener class
+==============
+
+.. js:function:: Listener.get_stats(ls)
+
+  Returns server statistics.
+
+  :param class_listener ls: A :ref:`listener_class` which indicates the
+    manipulated listener.
+  :returns: a key/value array containing stats
 
 .. _concat_class:
 
