@@ -646,6 +646,7 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 {
 	struct eb32_node *node;
 	struct listener *l, *new;
+	char *error;
 
 	if (conf->listeners.n != conf->listeners.p) {
 		memprintf(err, "'%s' can only be used with a single socket", args[cur_arg]);
@@ -658,7 +659,11 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 	}
 
 	new = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
-	new->luid = atol(args[cur_arg + 1]);
+	new->luid = strtol(args[cur_arg + 1], &error, 10);
+	if (*error != '\0') {
+		memprintf(err, "'%s' : expects an integer argument, found '%s'", args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	new->conf.id.key = new->luid;
 
 	if (new->luid <= 0) {
