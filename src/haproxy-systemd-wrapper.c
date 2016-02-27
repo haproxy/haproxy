@@ -123,7 +123,8 @@ static int read_pids(char ***pid_strv)
 
 static void signal_handler(int signum)
 {
-	caught_signal = signum;
+	if (caught_signal != SIGINT && caught_signal != SIGTERM)
+		caught_signal = signum;
 }
 
 /* handles SIGUSR2 and SIGHUP only */
