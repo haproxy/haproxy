@@ -147,7 +147,7 @@ static void do_shutdown(int sig)
 		if (pid > 0) {
 			fprintf(stderr, SD_DEBUG "haproxy-systemd-wrapper: %s -> %d.\n",
 			        sig == SIGTERM ? "SIGTERM" : "SIGINT", pid);
-			kill(pid, SIGINT);
+			kill(pid, sig);
 			free(pid_strv[i]);
 		}
 	}
