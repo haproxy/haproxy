@@ -197,7 +197,7 @@ int main(int argc, char **argv)
 	}
 
 	status = -1;
-	while (-1 != wait(&status) || errno == EINTR) {
+	while (caught_signal || wait(&status) != -1 || errno == EINTR) {
 		if (caught_signal == SIGUSR2 || caught_signal == SIGHUP) {
 			caught_signal = 0;
 			do_restart();
