@@ -25,15 +25,7 @@
 #include <types/pattern.h>
 #include <types/sample.h>
 
-/* These structs contains a string representation of the map. These struct is
- * sorted by file. Permit to hot-add and hot-remove entries.
- *
- * "maps" is the list head. This list cotains all the mao file name identifier.
- */
-extern struct list maps;
-
 struct map_descriptor {
-	struct list list;              /* used for listing */
 	struct sample_conv *conv;      /* original converter descriptor */
 	struct pattern_head pat;       /* the pattern matching associated to the map */
 	int do_free;                   /* set if <pat> is the orignal pat and must be freed */
