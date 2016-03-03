@@ -2063,6 +2063,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		/* Get a lot of memory for the expr struct. */
 		expr = malloc(sizeof(*expr));
 		if (!expr) {
+			free(list);
 			memprintf(err, "out of memory");
 			return NULL;
 		}
