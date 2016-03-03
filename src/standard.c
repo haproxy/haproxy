@@ -2052,8 +2052,10 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 
 bad_input:
 	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
-	if (alloc)
-		free(binstr);
+	if (alloc) {
+		free(*binstr);
+		*binstr = NULL;
+	}
 	return 0;
 }
 
