@@ -126,6 +126,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	default:
 		memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
 		          conv->out_type);
+		free(desc);
 		return 0;
 	}
 
