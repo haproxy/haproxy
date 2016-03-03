@@ -1021,6 +1021,9 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			}
 			else
 				continue;
+		} else {
+		  /* impossible */
+		  continue;
 		}
 
 		/* Check if the input sample match the current pattern. */
