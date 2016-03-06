@@ -11418,7 +11418,7 @@ different forms :
   - suffix match    (-m end) : the patterns are compared with the end of the
     extracted string, and the ACL matches if any of them matches.
 
-  - subdir match    (-m sub) : the patterns are looked up inside the extracted
+  - subdir match    (-m dir) : the patterns are looked up inside the extracted
     string, delimited with slashes ("/"), and the ACL matches if any of them
     matches.
 
