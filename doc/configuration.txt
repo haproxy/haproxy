@@ -8240,7 +8240,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
 
 
 stick store-response <pattern> [table <table>] [{if | unless} <condition>]
-  Define a request pattern used to create an entry in a stickiness table
+  Define a response pattern used to create an entry in a stickiness table
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
 
