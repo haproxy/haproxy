@@ -8221,8 +8221,9 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
 
   It is important to understand that stickiness based on learning information
   has some limitations, including the fact that all learned associations are
-  lost upon restart. In general it can be good as a complement but not always
-  as an exclusive stickiness.
+  lost upon restart unless peers are properly configured to transfer such
+  information upon restart (recommended). In general it can be good as a
+  complement but not always as an exclusive stickiness.
 
   Last, memory requirements may be important when storing many data types.
   Indeed, storing all indicators above at once in each entry requires 116 bytes
