@@ -10120,10 +10120,11 @@ The currently supported settings are the following ones.
 
 addr <ipv4|ipv6>
   Using the "addr" parameter, it becomes possible to use a different IP address
-  to send health-checks. On some servers, it may be desirable to dedicate an IP
-  address to specific component able to perform complex tests which are more
-  suitable to health-checks than the application. This parameter is ignored if
-  the "check" parameter is not set. See also the "port" parameter.
+  to send health-checks or to probe the agent-check. On some servers, it may be
+  desirable to dedicate an IP address to specific component able to perform
+  complex tests which are more suitable to health-checks than the application.
+  This parameter is ignored if the "check" parameter is not set. See also the
+  "port" parameter.
 
   Supported in default-server: No
 
