@@ -9052,8 +9052,10 @@ timeout clitimeout <timeout> (deprecated)
   The inactivity timeout applies when the client is expected to acknowledge or
   send data. In HTTP mode, this timeout is particularly important to consider
   during the first phase, when the client sends the request, and during the
-  response while it is reading data sent by the server. The value is specified
-  in milliseconds by default, but can be in any other unit if the number is
+  response while it is reading data sent by the server. That said, for the
+  first phase, it is preferable to set the "timeout http-request" to better
+  protect HAProxy from Slowloris like attacks. The value is specified in
+  milliseconds by default, but can be in any other unit if the number is
   suffixed by the unit, as specified at the top of this document. In TCP mode
   (and to a lesser extent, in HTTP mode), it is highly recommended that the
   client timeout remains equal to the server timeout in order to avoid complex
@@ -9075,7 +9077,8 @@ timeout clitimeout <timeout> (deprecated)
   to use it to write new configurations. The form "timeout clitimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
 
-  See also : "clitimeout", "timeout server", "timeout tunnel".
+  See also : "clitimeout", "timeout server", "timeout tunnel",
+             "timeout http-request".
 
 
 timeout client-fin <timeout>
