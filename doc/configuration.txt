@@ -4560,10 +4560,10 @@ maxconn <conns>
   very high so that haproxy manages connection queues, instead of leaving the
   clients with unanswered connection attempts. This value should not exceed the
   global maxconn. Also, keep in mind that a connection contains two buffers
-  of 8kB each, as well as some other data resulting in about 17 kB of RAM being
-  consumed per established connection. That means that a medium system equipped
-  with 1GB of RAM can withstand around 40000-50000 concurrent connections if
-  properly tuned.
+  of tune.bufsize (16kB by default) each, as well as some other data resulting
+  in about 33 kB of RAM being consumed per established connection. That means
+  that a medium system equipped with 1GB of RAM can withstand around
+  20000-25000 concurrent connections if properly tuned.
 
   Also, when <conns> is set to large values, it is possible that the servers
   are not sized to accept such loads, and for this reason it is generally wise
