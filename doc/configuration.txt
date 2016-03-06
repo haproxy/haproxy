@@ -11976,9 +11976,10 @@ regsub(<regex>,<subst>[,<flags>])
   string, it is made up from the concatenation of all desired flags. Thus if
   both "i" and "g" are desired, using "gi" or "ig" will have the same effect.
   It is important to note that due to the current limitations of the
-  configuration parser, some characters such as closing parenthesis or comma
-  are not possible to use in the arguments. The first use of this converter is
-  to replace certain characters or sequence of characters with other ones.
+  configuration parser, some characters such as closing parenthesis, closing
+  square brackets or comma are not possible to use in the arguments. The first
+  use of this converter is to replace certain characters or sequence of
+  characters with other ones.
 
   Example :
 
