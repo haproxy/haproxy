@@ -5641,6 +5641,7 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 	memprintf(err, "'%s' : the current SSL library doesn't support the SNI TLS extension", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
+	int idx;
 	struct sample_expr *expr;
 
 	if (!*args[*cur_arg + 1]) {
@@ -5648,10 +5649,10 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	(*cur_arg)++;
+	idx = (*cur_arg) + 1;
 	proxy->conf.args.ctx = ARGC_SRV;
 
-	expr = sample_parse_expr((char **)args, cur_arg, px->conf.file, px->conf.line, err, &proxy->conf.args);
+	expr = sample_parse_expr((char **)args, &idx, px->conf.file, px->conf.line, err, &proxy->conf.args);
 	if (!expr) {
 		memprintf(err, "error detected while parsing sni expression : %s", *err);
 		return ERR_ALERT | ERR_FATAL;
@@ -5660,7 +5661,7 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
 		memprintf(err, "error detected while parsing sni expression : "
 		          " fetch method '%s' extracts information from '%s', none of which is available here.\n",
-		          args[*cur_arg-1], sample_src_names(expr->fetch->use));
+		          args[idx-1], sample_src_names(expr->fetch->use));
 		return ERR_ALERT | ERR_FATAL;
 	}
 
