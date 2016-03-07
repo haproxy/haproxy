@@ -412,6 +412,8 @@ void display_build_opts()
 
 	list_pollers(stdout);
 	putchar('\n');
+	list_filters(stdout);
+	putchar('\n');
 }
 
 /*
@@ -1126,8 +1128,11 @@ void init(int argc, char **argv)
 
 	/* Note: we could disable any poller by name here */
 
-	if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
+	if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
 		list_pollers(stderr);
+		fprintf(stderr, "\n");
+		list_filters(stderr);
+	}
 
 	if (!init_pollers()) {
 		Alert("No polling mechanism available.\n"

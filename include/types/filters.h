@@ -33,10 +33,7 @@ struct filter;
 
 /* Descriptor for a "filter" keyword. The ->parse() function returns 0 in case
  * of success, or a combination of ERR_* flags if an error is encountered. The
- * function pointer can be NULL if not implemented. The function also has an
- * access to the current "server" config line. The ->skip value tells the parser
- * how many words have to be skipped after the keyword. If the function needs to
- * parse more keywords, it needs to update cur_arg.
+ * function pointer can be NULL if not implemented.
  */
 struct flt_kw {
 	const char *kw;

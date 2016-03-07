@@ -126,6 +126,7 @@ int  flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit);
 void           flt_register_keywords(struct flt_kw_list *kwl);
 struct flt_kw *flt_find_kw(const char *kw);
 void           flt_dump_kws(char **out);
+void           list_filters(FILE *out);
 
 /* Helper function that returns the "global" state of filters attached to a
  * stream. */

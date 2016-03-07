@@ -151,6 +151,21 @@ flt_dump_kws(char **out)
 }
 
 /*
+ * Lists the known filters on <out>
+ */
+void
+list_filters(FILE *out)
+{
+	char *filters, *p, *f;
+
+	fprintf(out, "Available filters :\n");
+	flt_dump_kws(&filters);
+	for (p = filters; (f = strtok_r(p,"\n",&p));)
+		fprintf(out, "\t%s\n", f);
+	free(filters);
+}
+
+/*
  * Parses the "filter" keyword. All keywords must be handled by filters
  * themselves
  */
