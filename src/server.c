@@ -1760,7 +1760,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!newsrv->check.port &&
 			    (is_inet_addr(&newsrv->check.addr) ||
 			     (!is_addr(&newsrv->check.addr) && is_inet_addr(&newsrv->addr)))) {
-				struct tcpcheck_rule *n = NULL, *r = NULL;
+				struct tcpcheck_rule *r = NULL;
 				struct list *l;
 
 				r = (struct tcpcheck_rule *)newsrv->proxy->tcpcheck_rules.n;
@@ -1772,8 +1772,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				/* search the first action (connect / send / expect) in the list */
 				l = &newsrv->proxy->tcpcheck_rules;
-				list_for_each_entry(n, l, list) {
-					r = (struct tcpcheck_rule *)n->list.n;
+				list_for_each_entry(r, l, list) {
 					if (r->action != TCPCHK_ACT_COMMENT)
 						break;
 				}
@@ -1786,8 +1785,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				else {
 					/* scan the tcp-check ruleset to ensure a port has been configured */
 					l = &newsrv->proxy->tcpcheck_rules;
-					list_for_each_entry(n, l, list) {
-						r = (struct tcpcheck_rule *)n->list.n;
+					list_for_each_entry(r, l, list) {
 						if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
 							Alert("parsing [%s:%d] : server %s has neither service port nor check port, and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
 							      file, linenum, newsrv->id);
