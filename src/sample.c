@@ -1040,10 +1040,7 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 		memset(p, 0, sizeof(*p));
 	}
 
-	p->px   = px;
-	p->sess = sess;
-	p->strm = strm;
-	p->opt  = opt;
+	smp_set_owner(p, px, sess, strm, opt);
 	if (!expr->fetch->process(expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 

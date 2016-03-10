@@ -63,4 +63,15 @@ int sample_convert(struct sample *sample, int req_type)
 	return sample_casts[sample->data.type][req_type](sample);
 }
 
+static inline
+struct sample *smp_set_owner(struct sample *smp, struct proxy *px,
+                             struct session *sess, struct stream *strm, int opt)
+{
+	smp->px   = px;
+	smp->sess = sess;
+	smp->strm = strm;
+	smp->opt  = opt;
+	return smp;
+}
+
 #endif /* _PROTO_SAMPLE_H */
