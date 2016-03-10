@@ -270,7 +270,7 @@ struct sample {
 	 */
 	struct proxy *px;
 	struct session *sess;
-	struct stream *strm;
+	struct stream *strm; /* WARNING! MAY BE NULL! (eg: tcp-request connection) */
 	unsigned int opt; /* fetch options (SMP_OPT_*) */
 };
 

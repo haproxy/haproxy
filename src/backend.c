@@ -1671,6 +1671,9 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 static int
 smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	if (!smp->strm)
+		return 0;
+
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = smp->strm->be->uuid;
@@ -1681,6 +1684,9 @@ smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	if (!smp->strm)
+		return 0;
+
 	if (!objt_server(smp->strm->target))
 		return 0;
 

@@ -893,7 +893,7 @@ static int
 smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw,
 		   void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
+	struct http_txn *txn = smp->strm ? smp->strm->txn : NULL;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = (txn && (txn->rsp.flags & HTTP_MSGF_COMPRESSING));
@@ -907,7 +907,7 @@ static int
 smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 			const char *kw, void *private)
 {
-	struct http_txn   *txn = smp->strm->txn;
+	struct http_txn   *txn = smp->strm ? smp->strm->txn : NULL;
 	struct filter     *filter;
 	struct comp_state *st;
 

@@ -5163,6 +5163,9 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	struct hlua_function *fcn = (struct hlua_function *)private;
 	struct stream *stream = smp->strm;
 
+	if (!stream)
+		return 0;
+
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
@@ -5254,13 +5257,17 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 
 /* Wrapper called by HAProxy to execute a sample-fetch. this wrapper
  * doesn't allow "yield" functions because the HAProxy engine cannot
- * resume sample-fetches.
+ * resume sample-fetches. This function will be called by the sample
+ * fetch engine to call lua-based fetch operations.
  */
 static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp,
                                      const char *kw, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 	struct stream *stream = smp->strm;
+
+	if (!stream)
+		return 0;
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior

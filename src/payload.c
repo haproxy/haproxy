@@ -46,6 +46,9 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 {
 	struct channel *chn;
 
+	if (!smp->strm)
+		return 0;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		return 0;
@@ -67,6 +70,9 @@ smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char 
 	int hs_len, ext_len, bleft;
 	struct channel *chn;
 	unsigned char *data;
+
+	if (!smp->strm)
+		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
@@ -201,6 +207,9 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 	struct channel *chn;
 	unsigned char *data;
 
+	if (!smp->strm)
+		goto not_ssl_hello;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		goto not_ssl_hello;
@@ -322,6 +331,9 @@ smp_fetch_ssl_hello_type(const struct arg *args, struct sample *smp, const char 
 	struct channel *chn;
 	const unsigned char *data;
 
+	if (!smp->strm)
+		goto not_ssl_hello;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		goto not_ssl_hello;
@@ -386,8 +398,12 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 {
 	int version, bleft, msg_len;
 	const unsigned char *data;
-	struct channel *req = &smp->strm->req;
+	struct channel *req;
 
+	if (!smp->strm)
+		return 0;
+
+	req = &smp->strm->req;
 	if (!req->buf)
 		return 0;
 
@@ -526,6 +542,9 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 	int hs_len, ext_len, bleft;
 	struct channel *chn;
 	unsigned char *data;
+
+	if (!smp->strm)
+		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
@@ -751,6 +770,9 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 int
 smp_fetch_rdp_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	if (!smp->strm)
+		return 0;
+
 	return fetch_rdp_cookie_name(smp->strm, smp, args ? args->data.str.str : NULL, args ? args->data.str.len : 0);
 }
 
@@ -785,6 +807,9 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
 	/* by default buf offset == len offset + len size */
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
+
+	if (!smp->strm)
+		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
@@ -835,6 +860,9 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	unsigned int buf_offset = arg_p[0].data.sint;
 	unsigned int buf_size = arg_p[1].data.sint;
 	struct channel *chn;
+
+	if (!smp->strm)
+		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)

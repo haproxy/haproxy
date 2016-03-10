@@ -9786,14 +9786,13 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 	struct http_txn *txn;
 	struct http_msg *msg;
 
-	/* Note: this function may only be used from places where
-	 * http_init_txn() has already been done, and implies that <s>,
-	 * <txn>, and <hdr_idx.v> are properly set. An extra check protects
-	 * against an eventual mistake in the fetch capability matrix.
+	/* Note: it is possible that <s> is NULL when called before stream
+	 * initialization (eg: tcp-request connection), so this function is the
+	 * one responsible for guarding against this case for all HTTP users.
 	 */
-
 	if (!s)
 		return 0;
+
 	if (!s->txn) {
 		if (unlikely(!http_alloc_txn(s)))
 			return 0; /* not enough memory */
@@ -9911,10 +9910,11 @@ static int
 smp_fetch_meth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int meth;
-	struct http_txn *txn = smp->strm->txn;
+	struct http_txn *txn;
 
 	CHECK_HTTP_MESSAGE_FIRST_PERM();
 
+	txn = smp->strm->txn;
 	meth = txn->meth;
 	smp->data.type = SMP_T_METH;
 	smp->data.u.meth.meth = meth;
@@ -9963,12 +9963,13 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 static int
 smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
+	struct http_txn *txn;
 	char *ptr;
 	int len;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
+	txn = smp->strm->txn;
 	len = txn->req.sl.rq.v_l;
 	ptr = txn->req.chn->buf->p + txn->req.sl.rq.v;
 
@@ -10041,7 +10042,6 @@ smp_fetch_stcode(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 	unsigned long len;
 	unsigned long block1;
@@ -10051,9 +10051,9 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-		msg = &txn->req;
+		msg = &smp->strm->txn->req;
 	else
-		msg = &txn->rsp;
+		msg = &smp->strm->txn->rsp;
 
 	len  = http_body_bytes(msg);
 	body = b_ptr(msg->chn->buf, -http_data_rewind(msg));
@@ -10089,15 +10089,14 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 static int
 smp_fetch_body_len(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-		msg = &txn->req;
+		msg = &smp->strm->txn->req;
 	else
-		msg = &txn->rsp;
+		msg = &smp->strm->txn->rsp;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = http_body_bytes(msg);
@@ -10114,15 +10113,14 @@ smp_fetch_body_len(const struct arg *args, struct sample *smp, const char *kw, v
 static int
 smp_fetch_body_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-		msg = &txn->req;
+		msg = &smp->strm->txn->req;
 	else
-		msg = &txn->rsp;
+		msg = &smp->strm->txn->rsp;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = msg->body_len;
@@ -11503,7 +11501,6 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 static int
 smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 	unsigned long len;
 	unsigned long block1;
@@ -11525,9 +11522,9 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 		CHECK_HTTP_MESSAGE_FIRST();
 
 		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-			msg = &txn->req;
+			msg = &smp->strm->txn->req;
 		else
-			msg = &txn->rsp;
+			msg = &smp->strm->txn->rsp;
 
 		len  = http_body_bytes(msg);
 		body = b_ptr(msg->chn->buf, -http_data_rewind(msg));

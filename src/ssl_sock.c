@@ -4574,7 +4574,7 @@ static int
 smp_fetch_ssl_fc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int back_conn = (kw[4] == 'b') ? 1 : 0;
-	struct connection *conn = objt_conn(smp->strm->si[back_conn].end);
+	struct connection *conn = smp->strm ? objt_conn(smp->strm->si[back_conn].end) : NULL;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = (conn && conn->xprt == &ssl_sock);
@@ -4621,8 +4621,10 @@ smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *
 	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
-	smp->flags = 0;
+	if (!smp->strm)
+		return 0;
 
+	smp->flags = 0;
 	conn = objt_conn(smp->strm->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
@@ -4650,6 +4652,9 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 	struct connection *conn;
 	int sint;
 
+	if (!smp->strm)
+		return 0;
+
 	smp->flags = 0;
 
 	conn = objt_conn(smp->strm->si[back_conn].end);
@@ -4675,6 +4680,9 @@ smp_fetch_ssl_fc_use_keysize(const struct arg *args, struct sample *smp, const c
 	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
+	if (!smp->strm)
+		return 0;
+
 	smp->flags = 0;
 
 	conn = objt_conn(smp->strm->si[back_conn].end);
@@ -4695,6 +4703,9 @@ static int
 smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+
+	if (!smp->strm)
+		return 0;
 
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
@@ -4719,6 +4730,9 @@ static int
 smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+
+	if (!smp->strm)
+		return 0;
 
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
@@ -4747,6 +4761,9 @@ smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char
 {
 	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
+
+	if (!smp->strm)
+		return 0;
 
 	smp->flags = 0;
 
@@ -4777,6 +4794,9 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 	SSL_SESSION *ssl_sess;
 	struct connection *conn;
 
+	if (!smp->strm)
+		return 0;
+
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
 
@@ -4804,6 +4824,9 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	struct connection *conn;
 
+	if (!smp->strm)
+		return 0;
+
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
@@ -4830,6 +4853,9 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 	struct connection *conn;
 	int finished_len;
 	struct chunk *finished_trash;
+
+	if (!smp->strm)
+		return 0;
 
 	smp->flags = 0;
 
