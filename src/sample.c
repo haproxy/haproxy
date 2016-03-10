@@ -2100,6 +2100,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, v
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 	smp->data.u.sint &= tmp.data.u.sint;
@@ -2113,6 +2114,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, vo
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 	smp->data.u.sint |= tmp.data.u.sint;
@@ -2126,6 +2128,7 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, v
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 	smp->data.u.sint ^= tmp.data.u.sint;
@@ -2165,6 +2168,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 	smp->data.u.sint = arith_add(smp->data.u.sint, tmp.data.u.sint);
@@ -2179,6 +2183,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
@@ -2211,6 +2216,7 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 	struct sample tmp;
 	long long int c;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
@@ -2254,6 +2260,7 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
@@ -2281,6 +2288,7 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 {
 	struct sample tmp;
 
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
 		return 0;
 
