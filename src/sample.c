@@ -2057,14 +2057,14 @@ static int check_operator(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
-/* This fucntion returns a sample struct filled with a arg content.
+/* This function returns a sample struct filled with an arg content.
  * If the arg contain an integer, the integer is returned in the
  * sample. If the arg contains a variable descriptor, it returns the
  * variable value.
  *
  * This function returns 0 if an error occurs, otherwise it returns 1.
  */
-static inline int sample_conv_var2smp(const struct arg *arg, struct stream *strm, struct sample *smp)
+static inline int sample_conv_var2smp(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
 	case ARGT_SINT:
@@ -2072,7 +2072,7 @@ static inline int sample_conv_var2smp(const struct arg *arg, struct stream *strm
 		smp->data.u.sint = arg->data.sint;
 		return 1;
 	case ARGT_VAR:
-		if (!vars_get_by_desc(&arg->data.var, strm, smp))
+		if (!vars_get_by_desc(&arg->data.var, smp))
 			return 0;
 		if (!sample_casts[smp->data.type][SMP_T_SINT])
 			return 0;
@@ -2101,7 +2101,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, v
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 	smp->data.u.sint &= tmp.data.u.sint;
 	return 1;
@@ -2115,7 +2115,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, vo
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 	smp->data.u.sint |= tmp.data.u.sint;
 	return 1;
@@ -2129,7 +2129,7 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, v
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 	smp->data.u.sint ^= tmp.data.u.sint;
 	return 1;
@@ -2169,7 +2169,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 	smp->data.u.sint = arith_add(smp->data.u.sint, tmp.data.u.sint);
 	return 1;
@@ -2184,7 +2184,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 
 	/* We cannot represent -LLONG_MIN because abs(LLONG_MIN) is greater
@@ -2217,7 +2217,7 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 	long long int c;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 
 	/* prevent divide by 0 during the check */
@@ -2261,7 +2261,7 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 
 	if (tmp.data.u.sint) {
@@ -2289,7 +2289,7 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 	struct sample tmp;
 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp(arg_p, smp->strm, &tmp))
+	if (!sample_conv_var2smp(arg_p, &tmp))
 		return 0;
 
 	if (tmp.data.u.sint) {

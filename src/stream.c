@@ -320,8 +320,8 @@ static void stream_free(struct stream *s)
 	}
 
 	/* Cleanup all variable contexts. */
-	vars_prune(&s->vars_txn, s);
-	vars_prune(&s->vars_reqres, s);
+	vars_prune(&s->vars_txn, s->sess, s);
+	vars_prune(&s->vars_reqres, s->sess, s);
 
 	stream_store_counters(s);
 
@@ -2238,7 +2238,7 @@ struct task *process_stream(struct task *t)
 
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
-			vars_prune(&s->vars_reqres, s);
+			vars_prune(&s->vars_reqres, s->sess, s);
 			vars_init(&s->vars_reqres, SCOPE_RES);
 		}
 

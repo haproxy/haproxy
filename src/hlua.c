@@ -4569,7 +4569,7 @@ __LJMP static int hlua_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	vars_set_by_name(name, len, htxn->s, &smp);
+	vars_set_by_name(name, len, &smp);
 	return 0;
 }
 
@@ -4589,7 +4589,7 @@ __LJMP static int hlua_get_var(lua_State *L)
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	if (!vars_get_by_name(name, len, htxn->s, &smp)) {
+	if (!vars_get_by_name(name, len, &smp)) {
 		lua_pushnil(L);
 		return 1;
 	}

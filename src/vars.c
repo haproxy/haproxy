@@ -33,16 +33,18 @@ static unsigned int var_reqres_limit = 0;
 /* This function adds or remove memory size from the accounting. The inner
  * pointers may be null when setting the outer ones only.
  */
-static void var_accounting_diff(struct vars *vars, struct vars *per_sess, struct vars *per_strm, struct vars *per_chn, int size)
+static void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size)
 {
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		per_chn->size += size;
+		strm->vars_reqres.size += size;
+		/* fall through */
 	case SCOPE_TXN:
-		per_strm->size += size;
+		strm->vars_txn.size += size;
+		/* fall through */
 	case SCOPE_SESS:
-		per_sess->size += size;
+		sess->vars.size += size;
 		var_global_size += size;
 	}
 }
@@ -50,32 +52,36 @@ static void var_accounting_diff(struct vars *vars, struct vars *per_sess, struct
 /* This function returns 1 if the <size> is available in the var
  * pool <vars>, otherwise returns 0. If the space is avalaible,
  * the size is reserved. The inner pointers may be null when setting
- * the outer ones only.
+ * the outer ones only. The accounting uses either <sess> or <strm>
+ * depending on the scope. <strm> may be NULL when no stream is known
+ * and only the session exists (eg: tcp-request connection).
  */
-static int var_accounting_add(struct vars *vars, struct vars *per_sess, struct vars *per_strm, struct vars *per_chn, int size)
+static int var_accounting_add(struct vars *vars, struct session *sess, struct stream *strm, int size)
 {
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		if (var_reqres_limit && per_chn->size + size > var_reqres_limit)
+		if (var_reqres_limit && strm->vars_reqres.size + size > var_reqres_limit)
 			return 0;
+		/* fall through */
 	case SCOPE_TXN:
-		if (var_txn_limit && per_strm->size + size > var_txn_limit)
+		if (var_txn_limit && strm->vars_txn.size + size > var_txn_limit)
 			return 0;
+		/* fall through */
 	case SCOPE_SESS:
-		if (var_sess_limit && per_sess->size + size > var_sess_limit)
+		if (var_sess_limit && sess->vars.size + size > var_sess_limit)
 			return 0;
 		if (var_global_limit && var_global_size + size > var_global_limit)
 			return 0;
 	}
-	var_accounting_diff(vars, per_sess, per_strm, per_chn, size);
+	var_accounting_diff(vars, sess, strm, size);
 	return 1;
 }
 
 /* This function free all the memory used by all the varaibles
  * in the list.
  */
-void vars_prune(struct vars *vars, struct stream *strm)
+void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 {
 	struct var *var, *tmp;
 	unsigned int size = 0;
@@ -94,7 +100,7 @@ void vars_prune(struct vars *vars, struct stream *strm)
 		pool_free2(var_pool, var);
 		size += sizeof(struct var);
 	}
-	var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -size);
+	var_accounting_diff(vars, sess, strm, -size);
 }
 
 /* This function frees all the memory used by all the session variables in the
@@ -234,7 +240,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 
 	/* Check the availibity of the variable. */
 	switch (var_desc->scope) {
-	case SCOPE_SESS: vars = &smp->strm->sess->vars;  break;
+	case SCOPE_SESS: vars = &smp->sess->vars;  break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
@@ -259,7 +265,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  * create it. The function stores a copy of smp> if the variable.
  * It returns 0 if fails, else returns 1.
  */
-static int sample_store(struct vars *vars, const char *name, struct stream *strm, struct sample *smp)
+static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 {
 	struct var *var;
 
@@ -271,16 +277,16 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
 			free(var->data.u.str.str);
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -var->data.u.str.len);
+			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.str.len);
 		}
 		else if (var->data.type == SMP_T_METH) {
 			free(var->data.u.meth.str.str);
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -var->data.u.meth.str.len);
+			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.meth.str.len);
 		}
 	} else {
 
 		/* Check memory avalaible. */
-		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, sizeof(struct var)))
+		if (!var_accounting_add(vars, smp->sess, smp->strm, sizeof(struct var)))
 			return 0;
 
 		/* Create new entry. */
@@ -308,13 +314,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
-		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.u.str.len)) {
+		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.u.str.str = malloc(smp->data.u.str.len);
 		if (!var->data.u.str.str) {
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.u.str.len);
+			var_accounting_diff(vars, smp->sess, smp->strm, -smp->data.u.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
@@ -322,13 +328,13 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 		memcpy(var->data.u.str.str, smp->data.u.str.str, var->data.u.str.len);
 		break;
 	case SMP_T_METH:
-		if (!var_accounting_add(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, smp->data.u.meth.str.len)) {
+		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.meth.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
 		var->data.u.meth.str.str = malloc(smp->data.u.meth.str.len);
 		if (!var->data.u.meth.str.str) {
-			var_accounting_diff(vars, &strm->sess->vars, &strm->vars_txn, &strm->vars_reqres, -smp->data.u.meth.str.len);
+			var_accounting_diff(vars, smp->sess, smp->strm, -smp->data.u.meth.str.len);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
@@ -342,27 +348,26 @@ static int sample_store(struct vars *vars, const char *name, struct stream *strm
 }
 
 /* Returns 0 if fails, else returns 1. */
-static inline int sample_store_stream(const char *name, enum vars_scope scope,
-                                      struct stream *strm, struct sample *smp)
+static inline int sample_store_stream(const char *name, enum vars_scope scope, struct sample *smp)
 {
 	struct vars *vars;
 
 	switch (scope) {
-	case SCOPE_SESS: vars = &strm->sess->vars;  break;
-	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
+	case SCOPE_SESS: vars = &smp->sess->vars;  break;
+	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
-	default:         vars = &strm->vars_reqres; break;
+	default:         vars = &smp->strm->vars_reqres; break;
 	}
 	if (vars->scope != scope)
 		return 0;
-	return sample_store(vars, name, strm, smp);
+	return sample_store(vars, name, smp);
 }
 
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return sample_store_stream(args[0].data.var.name, args[1].data.var.scope, smp->strm, smp);
+	return sample_store_stream(args[0].data.var.name, args[1].data.var.scope, smp);
 }
 
 /* This fucntions check an argument entry and fill it with a variable
@@ -395,7 +400,7 @@ int vars_check_arg(struct arg *arg, char **err)
 /* This function store a sample in a variable.
  * In error case, it fails silently.
  */
-void vars_set_by_name(const char *name, size_t len, struct stream *strm, struct sample *smp)
+void vars_set_by_name(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
 
@@ -404,14 +409,14 @@ void vars_set_by_name(const char *name, size_t len, struct stream *strm, struct 
 	if (!name)
 		return;
 
-	sample_store_stream(name, scope, strm, smp);
+	sample_store_stream(name, scope, smp);
 }
 
 /* this function fills a sample with the
  * variable content. Returns 1 if the sample
  * is filled, otherwise it returns 0.
  */
-int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct sample *smp)
+int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 {
 	struct vars *vars;
 	struct var *var;
@@ -424,11 +429,11 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
 
 	/* Select "vars" pool according with the scope. */
 	switch (scope) {
-	case SCOPE_SESS: vars = &strm->sess->vars;  break;
-	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
+	case SCOPE_SESS: vars = &smp->sess->vars;  break;
+	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
-	default:         vars = &strm->vars_reqres; break;
+	default:         vars = &smp->strm->vars_reqres; break;
 	}
 
 	/* Check if the scope is avalaible a this point of processing. */
@@ -450,18 +455,18 @@ int vars_get_by_name(const char *name, size_t len, struct stream *strm, struct s
  * content of the varaible described by <var_desc>. Returns 1
  * if the sample is filled, otherwise it returns 0.
  */
-int vars_get_by_desc(const struct var_desc *var_desc, struct stream *strm, struct sample *smp)
+int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 {
 	struct vars *vars;
 	struct var *var;
 
 	/* Select "vars" pool according with the scope. */
 	switch (var_desc->scope) {
-	case SCOPE_SESS: vars = &strm->sess->vars;  break;
-	case SCOPE_TXN:  vars = &strm->vars_txn;    break;
+	case SCOPE_SESS: vars = &smp->sess->vars;  break;
+	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
-	default:         vars = &strm->vars_reqres; break;
+	default:         vars = &smp->strm->vars_reqres; break;
 	}
 
 	/* Check if the scope is avalaible a this point of processing. */
@@ -505,7 +510,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 
 	/* Store the sample, and ignore errors. */
-	sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, s, &smp);
+	sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
 	return ACT_RET_CONT;
 }
 
