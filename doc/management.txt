@@ -28,7 +28,8 @@ Summary
 8.    Logging
 9.    Statistics and monitoring
 9.1.      CSV format
-9.2.      Unix Socket commands
+9.2.      Typed output format
+9.3.      Unix Socket commands
 10.   Tricks for easier configuration management
 11.   Well-known traps to avoid
 12.   Debugging and performance issues
@@ -1032,7 +1033,157 @@ S (Servers).
  80: intercepted [.FB.]: cum. number of intercepted requests (monitor, stats)
 
 
-9.2. Unix Socket commands
+9.2) Typed output format
+------------------------
+
+Both "show info" and "show stat" support a mode where each output value comes
+with its type and sufficient information to know how the value is supposed to
+be aggregated between processes and how it evolves.
+
+In all cases, the output consists in having a single value per line with all
+the information split into fields delimited by colons (':').
+
+The first column designates the object or metric being dumped. Its format is
+specific to the command producing this output and will not be described in this
+section. Usually it will consist in a series of identifiers and field names.
+
+The second column contains 3 characters respectively indicating the origin, the
+nature and the scope of the value being reported. The first character (the
+origin) indicates where the value was extracted from. Possible characters are :
+
+  M   The value is a metric. It is valid at one instant any may change depending
+      on its nature .
+
+  S   The value is a status. It represents a discrete value which by definition
+      cannot be aggregated. It may be the status of a server ("UP" or "DOWN"),
+      the PID of the process, etc.
+
+  K   The value is a sorting key. It represents an identifier which may be used
+      to group some values together because it is unique among its class. All
+      internal identifiers are keys. Some names can be listed as keys if they
+      are unique (eg: a frontend name is unique). In general keys come from the
+      configuration, eventhough some of them may automatically be assigned. For
+      most purposes keys may be considered as equivalent to configuration.
+
+  C   The value comes from the configuration. Certain configuration values make
+      sense on the output, for example a concurrent connection limit or a cookie
+      name. By definition these values are the same in all processes started
+      from the same configuration file.
+
+  P   The value comes from the product itself. There are very few such values,
+      most common use is to report the product name, version and release date.
+      These elements are also the same between all processes.
+
+The second character (the nature) indicates the nature of the information
+carried by the field in order to let an aggregator decide on what operation to
+use to aggregate multiple values. Possible characters are :
+
+  A   The value represents an age since a last event. This is a bit different
+      from the duration in that an age is automatically computed based on the
+      current date. A typical example is how long ago did the last session
+      happen on a server. Ages are generally aggregated by taking the minimum
+      value and do not need to be stored.
+
+  a   The value represents an already averaged value. The average response times
+      and server weights are of this nature. Averages can typically be averaged
+      between processes.
+
+  C   The value represents a cumulative counter. Such measures perpetually
+      increase until they wrap around. Some monitoring protocols need to tell
+      the difference between a counter and a gauge to report a different type.
+      In general counters may simply be summed since they represent events or
+      volumes. Examples of metrics of this nature are connection counts or byte
+      counts.
+
+  D   The value represents a duration for a status. There are a few usages of
+      this, most of them include the time taken by the last health check and
+      the time a server has spent down. Durations are generally not summed,
+      most of the time the maximum will be retained to compute an SLA.
+
+  G   The value represents a gauge. It's a measure at one instant. The memory
+      usage or the current number of active connections are of this nature.
+      Metrics of this type are typically summed during aggregation.
+
+  L   The value represents a limit (generally a configured one). By nature,
+      limits are harder to aggregate since they are specific to the point where
+      they were retrieved. In certain situations they may be summed or be kept
+      separate.
+
+  M   The value represents a maximum. In general it will apply to a gauge and
+      keep the highest known value. An example of such a metric could be the
+      maximum amount of concurrent connections that was encountered in the
+      product's life time. To correctly aggregate maxima, you are supposed to
+      output a range going from the maximum of all maxima and the sum of all
+      of them. There is indeed no way to know if they were encountered
+      simultaneously or not.
+
+  m   The value represents a minimum. In general it will apply to a gauge and
+      keep the lowest known value. An example of such a metric could be the
+      minimum amount of free memory pools that was encountered in the product's
+      life time. To correctly aggregate minima, you are supposed to output a
+      range going from the minimum of all minima and the sum of all of them.
+      There is indeed no way to know if they were encountered simultaneously
+      or not.
+
+  N   The value represents a name, so it is a string. It is used to report
+      proxy names, server names and cookie names. Names have configuration or
+      keys as their origin and are supposed to be the same among all processes.
+
+  O   The value represents a free text output. Outputs from various commands,
+      returns from health checks, node descriptions are of such nature.
+
+  R   The value represents an event rate. It's a measure at one instant. It is
+      quite similar to a gauge except that the recipient knows that this measure
+      moves slowly and may decide not to keep all values. An example of such a
+      metric is the measured amount of connections per second. Metrics of this
+      type are typically summed during aggregation.
+
+  T   The value represents a date or time. A field emitting the current date
+      would be of this type. The method to aggregate such information is left
+      as an implementation choice. For now no field uses this type.
+
+The third character (the scope) indicates what extent the value reflects. Some
+elements may be per process while others may be per configuration or per system.
+The distinction is important to know whether or not a single value should be
+kept during aggregation or if values have to be aggregated. The following
+characters are currently supported :
+
+  C   The value is valid for a whole cluster of nodes, which is the set of nodes
+      communicating over the peers protocol. An example could be the amount of
+      entries present in a stick table that is replicated with other peers. At
+      the moment no metric use this scope.
+
+  P   The value is valid only for the process reporting it. Most metrics use
+      this scope.
+
+  S   The value is valid for the whole service, which is the set of processes
+      started together from the same configuration file. All metrics originating
+      from the configuration use this scope. Some other metrics may use it as
+      well for some shared resources (eg: shared SSL cache statistics).
+
+  s   The value is valid for the whole system, such as the system's hostname,
+      current date or resource usage. At the moment this scope is not used by
+      any metric.
+
+Consumers of these information will generally have enough of these 3 characters
+to determine how to accurately report aggregated information across multiple
+processes.
+
+After this column, the third column indicates the type of the field, among "s32"
+(signed 32-bit integer), "s64" (signed 64-bit integer), "u32" (unsigned 32-bit
+integer), "u64" (unsigned 64-bit integer), "str" (string). It is important to
+know the type before parsing the value in order to properly read it. For example
+a string containing only digits is still a string an not an integer (eg: an
+error code extracted by a check).
+
+Then the fourth column is the value itself, encoded according to its type.
+Strings are dumped as-is immediately after the colon without any leading space.
+If a string contains a colon, it will appear normally. This means that the
+output should not be exclusively split around colons or some check outputs
+or server addresses might be truncated.
+
+
+9.3. Unix Socket commands
 -------------------------
 
 The stats socket is not enabled by default. In order to enable it, it is
@@ -1566,8 +1717,90 @@ show errors [<iid>]
 show backend
   Dump the list of backends available in the running process
 
-show info
-  Dump info about haproxy status on current process.
+show info [typed]
+  Dump info about haproxy status on current process. If "typed" is passed as an
+  optional argument, field numbers, names and types are emitted as well so that
+  external monitoring products can easily retrieve, possibly aggregate, then
+  report information found in fields they don't know. Each field is dumped on
+  its own line. By default, the format contains only two columns delimited by a
+  colon (':'). The left one is the field name and the right one is the value.
+  It is very important to note that in typed output format, the dump for a
+  single object is contigous so that there is no need for a consumer to store
+  everything at once.
+
+  When using the typed output format, each line is made of 4 columns delimited
+  by colons (':'). The first column is a dot-delimited series of 3 elements. The
+  first element is the numeric position of the field in the list (starting at
+  zero). This position shall not change over time, but holes are to be expected,
+  depending on build options or if some fields are deleted in the future. The
+  second element is the field name as it appears in the default "show info"
+  output. The third element is the relative process number starting at 1.
+
+  The rest of the line starting after the first colon follows the "typed output
+  format" described in the section above. In short, the second column (after the
+  first ':') indicates the origin, nature and scope of the variable. The third
+  column indicates the type of the field, among "s32", "s64", "u32", "u64" and
+  "str". Then the fourth column is the value itself, which the consumer knows
+  how to parse thanks to column 3 and how to process thanks to column 2.
+
+  Thus the overall line format in typed mode is :
+
+      <field_pos>.<field_name>.<process_num>:<tags>:<type>:<value>
+
+  Example :
+
+      > show info
+      Name: HAProxy
+      Version: 1.7-dev1-de52ea-146
+      Release_date: 2016/03/11
+      Nbproc: 1
+      Process_num: 1
+      Pid: 28105
+      Uptime: 0d 0h00m04s
+      Uptime_sec: 4
+      Memmax_MB: 0
+      PoolAlloc_MB: 0
+      PoolUsed_MB: 0
+      PoolFailed: 0
+      (...)
+
+      > show info typed
+      0.Name.1:POS:str:HAProxy
+      1.Version.1:POS:str:1.7-dev1-de52ea-146
+      2.Release_date.1:POS:str:2016/03/11
+      3.Nbproc.1:CGS:u32:1
+      4.Process_num.1:KGP:u32:1
+      5.Pid.1:SGP:u32:28105
+      6.Uptime.1:MDP:str:0d 0h00m08s
+      7.Uptime_sec.1:MDP:u32:8
+      8.Memmax_MB.1:CLP:u32:0
+      9.PoolAlloc_MB.1:MGP:u32:0
+      10.PoolUsed_MB.1:MGP:u32:0
+      11.PoolFailed.1:MCP:u32:0
+      (...)
+
+  In the typed format, the presence of the process ID at the end of the line
+  makes it very easy to visually aggregate outputs from multiple processes.
+  Example :
+
+      $ ( echo show info typed | socat /var/run/haproxy.sock1 ;    \
+          echo show info typed | socat /var/run/haproxy.sock2 ) |  \
+        sort -t . -k 1,1n -k 2,2 -k 3,3n
+      0.Name.1:POS:str:HAProxy
+      0.Name.2:POS:str:HAProxy
+      1.Version.1:POS:str:1.7-dev1-868ab3-148
+      1.Version.2:POS:str:1.7-dev1-868ab3-148
+      2.Release_date.1:POS:str:2016/03/11
+      2.Release_date.2:POS:str:2016/03/11
+      3.Nbproc.1:CGS:u32:2
+      3.Nbproc.2:CGS:u32:2
+      4.Process_num.1:KGP:u32:1
+      4.Process_num.2:KGP:u32:2
+      5.Pid.1:SGP:u32:30120
+      5.Pid.2:SGP:u32:30121
+      6.Uptime.1:MDP:str:0d 0h01m28s
+      6.Uptime.2:MDP:str:0d 0h01m28s
+      (...)
 
 show map [<map>]
   Dump info about map converters. Without argument, the list of all available
@@ -1647,9 +1880,11 @@ show sess <id>
   The special id "all" dumps the states of all sessions, which must be avoided
   as much as possible as it is highly CPU intensive and can take a lot of time.
 
-show stat [<iid> <type> <sid>]
-  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
-  possible to dump only selected items :
+show stat [<iid> <type> <sid>] [typed]
+  Dump statistics using the CSV format, or using the extended typed output
+  format described in the section above if "typed" is passed after the other
+  arguments. By passing <id>, <type> and <sid>, it is possible to dump only
+  selected items :
     - <iid> is a proxy ID, -1 to dump everything
     - <type> selects the type of dumpable objects : 1 for frontends, 2 for
        backends, 4 for servers, -1 for everything. These values can be ORed,
@@ -1675,11 +1910,109 @@ show stat [<iid> <type> <sid>]
 
         $
 
-    Here, two commands have been issued at once. That way it's easy to find
-    which process the stats apply to in multi-process mode. Notice the empty
-    line after the information output which marks the end of the first block.
-    A similar empty line appears at the end of the second block (stats) so that
-    the reader knows the output has not been truncated.
+  In this example, two commands have been issued at once. That way it's easy to
+  find which process the stats apply to in multi-process mode. This is not
+  needed in the typed output format as the process number is reported on each
+  line.  Notice the empty line after the information output which marks the end
+  of the first block.  A similar empty line appears at the end of the second
+  block (stats) so that the reader knows the output has not been truncated.
+
+  When "typed" is specified, the output format is more suitable to monitoring
+  tools because it provides numeric positions and indicates the type of each
+  output field. Each value stands on its own line with process number, element
+  number, nature, origin and scope. This same format is available via the HTTP
+  stats by passing ";typed" after the URI. It is very important to note that in
+  typed output format, the dump for a single object is contigous so that there
+  is no need for a consumer to store everything at once.
+
+  When using the typed output format, each line is made of 4 columns delimited
+  by colons (':'). The first column is a dot-delimited series of 5 elements. The
+  first element is a letter indicating the type of the object being described.
+  At the moment the following object types are known : 'F' for a frontend, 'B'
+  for a backend, 'L' for a listener, and 'S' for a server. The second element
+  The second element is a positive integer representing the unique identifier of
+  the proxy the object belongs to. It is equivalent to the "iid" column of the
+  CSV output and matches the value in front of the optional "id" directive found
+  in the frontend or backend section. The third element is a positive integer
+  containing the unique object identifier inside the proxy, and corresponds to
+  the "sid" column of the CSV output. ID 0 is reported when dumping a frontend
+  or a backend. For a listener or a server, this corresponds to their respective
+  ID inside the proxy. The fourth element is the numeric position of the field
+  in the list (starting at zero). This position shall not change over time, but
+  holes are to be expected, depending on build options or if some fields are
+  deleted in the future. The fifth element is the field name as it appears in
+  the CSV output. The sixth element is a positive integer and is the relative
+  process number starting at 1.
+
+  The rest of the line starting after the first colon follows the "typed output
+  format" described in the section above. In short, the second column (after the
+  first ':') indicates the origin, nature and scope of the variable. The third
+  column indicates the type of the field, among "s32", "s64", "u32", "u64" and
+  "str". Then the fourth column is the value itself, which the consumer knows
+  how to parse thanks to column 3 and how to process thanks to column 2.
+
+  Thus the overall line format in typed mode is :
+
+      <obj>.<px_id>.<id>.<fpos>.<fname>.<process_num>:<tags>:<type>:<value>
+
+  Here's an example of typed output format :
+
+        $ echo "show stat typed" | socat stdio unix-connect:/tmp/sock1
+        F.2.0.0.pxname.1:MGP:str:private-frontend
+        F.2.0.1.svname.1:MGP:str:FRONTEND
+        F.2.0.8.bin.1:MGP:u64:0
+        F.2.0.9.bout.1:MGP:u64:0
+        F.2.0.40.hrsp_2xx.1:MGP:u64:0
+        L.2.1.0.pxname.1:MGP:str:private-frontend
+        L.2.1.1.svname.1:MGP:str:sock-1
+        L.2.1.17.status.1:MGP:str:OPEN
+        L.2.1.73.addr.1:MGP:str:0.0.0.0:8001
+        S.3.13.60.rtime.1:MCP:u32:0
+        S.3.13.61.ttime.1:MCP:u32:0
+        S.3.13.62.agent_status.1:MGP:str:L4TOUT
+        S.3.13.64.agent_duration.1:MGP:u64:2001
+        S.3.13.65.check_desc.1:MCP:str:Layer4 timeout
+        S.3.13.66.agent_desc.1:MCP:str:Layer4 timeout
+        S.3.13.67.check_rise.1:MCP:u32:2
+        S.3.13.68.check_fall.1:MCP:u32:3
+        S.3.13.69.check_health.1:SGP:u32:0
+        S.3.13.70.agent_rise.1:MaP:u32:1
+        S.3.13.71.agent_fall.1:SGP:u32:1
+        S.3.13.72.agent_health.1:SGP:u32:1
+        S.3.13.73.addr.1:MCP:str:1.255.255.255:8888
+        S.3.13.75.mode.1:MAP:str:http
+        B.3.0.0.pxname.1:MGP:str:private-backend
+        B.3.0.1.svname.1:MGP:str:BACKEND
+        B.3.0.2.qcur.1:MGP:u32:0
+        B.3.0.3.qmax.1:MGP:u32:0
+        B.3.0.4.scur.1:MGP:u32:0
+        B.3.0.5.smax.1:MGP:u32:0
+        B.3.0.6.slim.1:MGP:u32:1000
+        B.3.0.55.lastsess.1:MMP:s32:-1
+        (...)
+
+  In the typed format, the presence of the process ID at the end of the line
+  makes it very easy to visually aggregate outputs from multiple processes, as
+  show in the example below where each line appears for each process :
+
+        $ ( echo show stat typed | socat /var/run/haproxy.sock1 - ; \
+            echo show stat typed | socat /var/run/haproxy.sock2 - ) | \
+          sort -t . -k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5 -k 6,6n
+        B.3.0.0.pxname.1:MGP:str:private-backend
+        B.3.0.0.pxname.2:MGP:str:private-backend
+        B.3.0.1.svname.1:MGP:str:BACKEND
+        B.3.0.1.svname.2:MGP:str:BACKEND
+        B.3.0.2.qcur.1:MGP:u32:0
+        B.3.0.2.qcur.2:MGP:u32:0
+        B.3.0.3.qmax.1:MGP:u32:0
+        B.3.0.3.qmax.2:MGP:u32:0
+        B.3.0.4.scur.1:MGP:u32:0
+        B.3.0.4.scur.2:MGP:u32:0
+        B.3.0.5.smax.1:MGP:u32:0
+        B.3.0.5.smax.2:MGP:u32:0
+        B.3.0.6.slim.1:MGP:u32:1000
+        B.3.0.6.slim.2:MGP:u32:1000
+        (...)
 
 show stat resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections
