@@ -1075,7 +1075,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		global.uid = atol(args[1]);
+		if (strl2irc(args[1], strlen(args[1]), &global.uid) != 0) {
+			Warning("parsing [%s:%d] :  uid: string '%s' is not a number.\n   | You might want to use the 'user' parameter to use a system user name.\n", file, linenum, args[1]);
+			err_code |= ERR_WARN;
+			goto out;
+		}
+
 	}
 	else if (!strcmp(args[0], "gid")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
