@@ -1,6 +1,180 @@
 ChangeLog :
 ===========
 
+2016/03/14 : 1.7-dev2
+    - DOC: lua: fix lua API
+    - DOC: mailers: typo in 'hostname' description
+    - DOC: compression: missing mention of libslz for compression algorithm
+    - BUILD/MINOR: regex: missing header
+    - BUG/MINOR: stream: bad return code
+    - DOC: lua: fix somme errors and add implicit types
+    - MINOR: lua: add set/get priv for applets
+    - BUG/MINOR: http: fix several off-by-one errors in the url_param parser
+    - BUG/MINOR: http: Be sure to process all the data received from a server
+    - MINOR: filters/http: Use a wrapper function instead of stream_int_retnclose
+    - BUG/MINOR: chunk: make chunk_dup() always check and set dst->size
+    - DOC: ssl: fixed some formatting errors in crt tag
+    - MINOR: chunks: ensure that chunk_strcpy() adds a trailing zero
+    - MINOR: chunks: add chunk_strcat() and chunk_newstr()
+    - MINOR: chunk: make chunk_initstr() take a const string
+    - MEDIUM: tools: add csv_enc_append() to preserve the original chunk
+    - MINOR: tools: make csv_enc_append() always start at the first byte of the chunk
+    - MINOR: lru: new function to delete <nb> least recently used keys
+    - DOC: add Ben Shillito as the maintainer of 51d
+    - BUG/MINOR: 51d: Ensures a unique domain for each configuration
+    - BUG/MINOR: 51d: Aligns Pattern cache implementation with HAProxy best practices.
+    - BUG/MINOR: 51d: Releases workset back to pool.
+    - BUG/MINOR: 51d: Aligned const pointers to changes in 51Degrees.
+    - CLEANUP: 51d: Aligned if statements with HAProxy best practices and removed casts from malloc.
+    - MINOR: rename master process name in -Ds (systemd mode)
+    - DOC: fix a few spelling mistakes
+    - DOC: fix "workaround" spelling
+    - BUG/MINOR: examples: Fixing haproxy.spec to remove references to .cfg files
+    - MINOR: fix the return type for dns_response_get_query_id() function
+    - MINOR: server state: missing LF (\n) on error message printed when parsing server state file
+    - BUG/MEDIUM: dns: no DNS resolution happens if no ports provided to the nameserver
+    - BUG/MAJOR: servers state: server port is erased when dns resolution is enabled on a server
+    - BUG/MEDIUM: servers state: server port is used uninitialized
+    - BUG/MEDIUM: config: Adding validation to stick-table expire value.
+    - BUG/MEDIUM: sample: http_date() doesn't provide the right day of the week
+    - BUG/MEDIUM: channel: fix miscalculation of available buffer space.
+    - MEDIUM: pools: add a new flag to avoid rounding pool size up
+    - BUG/MEDIUM: buffers: do not round up buffer size during allocation
+    - BUG/MINOR: stream: don't force retries if the server is DOWN
+    - BUG/MINOR: counters: make the sc-inc-gpc0 and sc-set-gpt0 touch the table
+    - MINOR: unix: don't mention free ports on EAGAIN
+    - BUG/CLEANUP: CLI: report the proper field states in "show sess"
+    - MINOR: stats: send content-length with the redirect to allow keep-alive
+    - BUG: stream_interface: Reuse connection even if the output channel is empty
+    - DOC: remove old tunnel mode assumptions
+    - BUG/MAJOR: http-reuse: fix risk of orphaned connections
+    - BUG/MEDIUM: http-reuse: do not share private connections across backends
+    - BUG/MINOR: ssl: Be sure to use unique serial for regenerated certificates
+    - BUG/MINOR: stats: fix missing comma in stats on agent drain
+    - MAJOR: filters: Add filters support
+    - MINOR: filters: Do not reset stream analyzers if the client is gone
+    - REORG: filters: Prepare creation of the HTTP compression filter
+    - MAJOR: filters/http: Rewrite the HTTP compression as a filter
+    - MEDIUM: filters: Use macros to call filters callbacks to speed-up processing
+    - MEDIUM: filters: remove http_start_chunk, http_last_chunk and http_chunk_end
+    - MEDIUM: filters: Replace filter_http_headers callback by an analyzer
+    - MEDIUM: filters/http: Move body parsing of HTTP messages in dedicated functions
+    - MINOR: filters: Add stream_filters structure to hide filters info
+    - MAJOR: filters: Require explicit registration to filter HTTP body and TCP data
+    - MINOR: filters: Remove unused or useless stuff and do small optimizations
+    - MEDIUM: filters: Optimize the HTTP compression for chunk encoded response
+    - MINOR: filters/http: Slightly update the parsing of chunks
+    - MINOR: filters/http: Forward remaining data when a channel has no "data" filters
+    - MINOR: filters: Add an filter example
+    - MINOR: filters: Extract proxy stuff from the struct filter
+    - MINOR: map: Add regex matching replacement
+    - BUG/MINOR: lua: unsafe initialization
+    - DOC: lua: fix somme errors
+    - MINOR: lua: file dedicated to unsafe functions
+    - MINOR: lua: add "now" time function
+    - MINOR: standard: add RFC HTTP date parser
+    - MINOR: lua: Add date functions
+    - MINOR: lua: move common function
+    - MINOR: lua: merge function
+    - MINOR: lua: Add concat class
+    - MINOR: standard: add function "escape_chunk"
+    - MEDIUM: log: add a new log format flag "E"
+    - DOC: add server name at rate-limit sessions example
+    - BUG/MEDIUM: ssl: fix off-by-one in ALPN list allocation
+    - BUG/MEDIUM: ssl: fix off-by-one in NPN list allocation
+    - DOC: LUA: fix some typos and syntax errors
+    - MINOR: cli: add a new "show env" command
+    - MEDIUM: config: allow to manipulate environment variables in the global section
+    - MEDIUM: cfgparse: reject incorrect 'timeout retry' keyword spelling in resolvers
+    - MINOR: mailers: increase default timeout to 10 seconds
+    - MINOR: mailers: use <CRLF> for all line endings
+    - BUG/MAJOR: lua: segfault using Concat object
+    - DOC: lua: copyrights
+    - MINOR: common: mask conversion
+    - MEDIUM: dns: extract options
+    - MEDIUM: dns: add a "resolve-net" option which allow to prefer an ip in a network
+    - MINOR: mailers: make it possible to configure the connection timeout
+    - BUG/MAJOR: lua: applets can't sleep.
+    - BUG/MINOR: server: some prototypes are renamed
+    - BUG/MINOR: lua: Useless copy
+    - BUG/MEDIUM: stats: stats bind-process doesn't propagate the process mask correctly
+    - BUG/MINOR: server: fix the format of the warning on address change
+    - CLEANUP: server: add "const" to some message strings
+    - MINOR: server: generalize the "updater" source
+    - BUG/MEDIUM: chunks: always reject negative-length chunks
+    - BUG/MINOR: systemd: ensure we don't miss signals
+    - BUG/MINOR: systemd: report the correct signal in debug message output
+    - BUG/MINOR: systemd: propagate the correct signal to haproxy
+    - MINOR: systemd: ensure a reload doesn't mask a stop
+    - BUG/MEDIUM: cfgparse: wrong argument offset after parsing server "sni" keyword
+    - CLEANUP: stats: Avoid computation with uninitialized bits.
+    - CLEANUP: pattern: Ignore unknown samples in pat_match_ip().
+    - CLEANUP: map: Avoid memory leak in out-of-memory condition.
+    - BUG/MINOR: tcpcheck: fix incorrect list usage resulting in failure to load certain configs
+    - BUG/MAJOR: samples: check smp->strm before using it
+    - MINOR: sample: add a new helper to initialize the owner of a sample
+    - MINOR: sample: always set a new sample's owner before evaluating it
+    - BUG/MAJOR: vars: always retrieve the stream and session from the sample
+    - CLEANUP: payload: remove useless and confusing nullity checks for channel buffer
+    - BUG/MINOR: ssl: fix usage of the various sample fetch functions
+    - MINOR: stats: create fields types suitable for all CSV output data
+    - MINOR: stats: add all the "show info" fields in a table
+    - MEDIUM: stats: fill all the show info elements prior to displaying them
+    - MINOR: stats: add a function to emit fields into a chunk
+    - MINOR: stats: add stats_dump_info_fields() to dump one field per line
+    - MEDIUM: stats: make use of stats_dump_info_fields() for "show info"
+    - MINOR: stats: add a declaration of all stats fields
+    - MINOR: stats: don't hard-code the CSV fields list anymore
+    - MINOR: stats: create stats fields storage and CSV dump function
+    - MEDIUM: stats: convert stats_dump_fe_stats() to use stats_dump_fields_csv()
+    - MEDIUM: stats: make stats_dump_fe_stats() use stats fields for HTML dump
+    - MEDIUM: stats: convert stats_dump_li_stats() to use stats_dump_fields_csv()
+    - MEDIUM: stats: make stats_dump_li_stats() use stats fields for HTML dump
+    - MEDIUM: stats: convert stats_dump_be_stats() to use stats_dump_fields_csv()
+    - MEDIUM: stats: make stats_dump_be_stats() use stats fields for HTML dump
+    - MEDIUM: stats: convert stats_dump_sv_stats() to use stats_dump_fields_csv()
+    - MEDIUM: stats: make stats_dump_sv_stats() use the stats field for HTML
+    - MEDIUM: stats: move the server state coloring logic to the server dump function
+    - MINOR: stats: do not use srv->admin & STATS_ADMF_MAINT in HTML dumps
+    - MINOR: stats: do not check srv->state for SRV_ST_STOPPED in HTML dumps
+    - MINOR: stats: make CSV report server check status only when enabled
+    - MINOR: stats: only report backend's down time if it has servers
+    - MINOR: stats: prepend '*' in front of the check status when in progress
+    - MINOR: stats: make HTML stats dump rely on the table for the check status
+    - MINOR: stats: add agent_status, agent_code, agent_duration to output
+    - MINOR: stats: add check_desc and agent_desc to the output fields
+    - MINOR: stats: add check and agent's health values in the output
+    - MEDIUM: stats: make the HTML server state dump use the CSV states
+    - MEDIUM: stats: only report observe errors when observe is set
+    - MEDIUM: stats: expose the same flags for CLI and HTTP accesses
+    - MEDIUM: stats: report server's address in the CSV output
+    - MEDIUM: stats: report the cookie value in the server & backend CSV dumps
+    - MEDIUM: stats: compute the color code only in the HTML form
+    - MEDIUM: stats: report the listeners' address in the CSV output
+    - MEDIUM: stats: make it possible to report the WAITING state for listeners
+    - REORG: stats: dump the frontend's HTML stats via a generic function
+    - REORG: stats: dump the socket stats via the generic function
+    - REORG: stats: dump the server stats via the generic function
+    - REORG: stats: dump the backend stats via the generic function
+    - MEDIUM: stats: add a new "mode" column to report the proxy mode
+    - MINOR: stats: report the load balancing algorithm in CSV output
+    - MINOR: stats: add 3 fields to report the frontend-specific connection stats
+    - MINOR: stats: report number of intercepted requests for frontend and backends
+    - MINOR: stats: introduce stats_dump_one_line() to dump one stats line
+    - CLEANUP: stats: make stats_dump_fields_html() not rely on proxy anymore
+    - MINOR: stats: add ST_SHOWADMIN to pass the admin info in the regular flags
+    - MINOR: stats: make stats_dump_fields_html() not use &trash by default
+    - MINOR: stats: add functions to emit typed fields into a chunk
+    - MEDIUM: stats: support "show info typed" on the CLI
+    - MEDIUM: stats: implement a typed output format for stats
+    - DOC: document the "show info typed" and "show stat typed" output formats
+    - MINOR: cfgparse: warn when uid parameter is not a number
+    - MINOR: cfgparse: warn when gid parameter is not a number
+    - BUG/MINOR: standard: Avoid free of non-allocated pointer
+    - BUG/MINOR: pattern: Avoid memory leak on out-of-memory condition
+    - CLEANUP: http: fix a build warning introduced by a recent fix
+    - BUG/MINOR: log: GMT offset not updated when entering/leaving DST
+
 2015/12/20 : 1.7-dev1
     - DOC: specify that stats socket doc (section 9.2) is in management
     - BUILD: install only relevant and existing documentation

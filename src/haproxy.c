@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2015  Willy Tarreau <w@1wt.eu>.
+ * Copyright 2000-2016  Willy Tarreau <w@1wt.eu>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -254,7 +254,7 @@ unsigned int warned = 0;
 void display_version()
 {
 	printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-	printf("Copyright 2000-2015 Willy Tarreau <willy@haproxy.org>\n\n");
+	printf("Copyright 2000-2016 Willy Tarreau <willy@haproxy.org>\n\n");
 }
 
 void display_build_opts()
