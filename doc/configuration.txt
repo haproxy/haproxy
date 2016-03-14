@@ -11784,7 +11784,7 @@ json([<input-code>])
   Example:
      capture request header user-agent len 150
      capture request header Host len 15
-     log-format {"ip":"%[src]","user-agent":"%[capture.req.hdr(1),json]"}
+     log-format {"ip":"%[src]","user-agent":"%[capture.req.hdr(1),json("utf8s")]"}
 
   Input request from client 127.0.0.1:
      GET / HTTP/1.0
