@@ -91,7 +91,7 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
  * argument type in each subsequent ARGT_BITS-bit sblock. If <err_msg> is not
  * NULL, it must point to a freeable or NULL pointer.
  */
-int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
+int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
                   char **err_msg, const char **err_ptr, int *err_arg,
                   struct arg_list *al)
 {

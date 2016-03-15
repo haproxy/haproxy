@@ -280,7 +280,7 @@ struct sample_conv {
 	int (*process)(const struct arg *arg_p,
 	               struct sample *smp,
 	               void *private);            /* process function */
-	unsigned int arg_mask;                    /* arguments (ARG*()) */
+	uint64_t arg_mask;                        /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 	                struct sample_conv *smp_conv,
 	                const char *file, int line,
@@ -304,7 +304,7 @@ struct sample_fetch {
 	               struct sample *smp,
 	               const char *kw,            /* fetch processing function */
 	               void *private);            /* private value. */
-	unsigned int arg_mask;                    /* arguments (ARG*()) */
+	uint64_t arg_mask;                        /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
 	unsigned long out_type;                   /* output sample type */

@@ -35,12 +35,12 @@
 #define ARGT_NBTYPES   (1 << ARGT_BITS)
 #define ARGT_MASK      (ARGT_NBTYPES - 1)
 
-/* encoding of the arg count : up to 5 args are possible. 4 bits are left
+/* encoding of the arg count : up to 12 args are possible. 4 bits are left
  * unused at the top.
  */
 #define ARGM_MASK      ((1 << ARGM_BITS) - 1)
-#define ARGM_BITS      3
-#define ARGM_NBARGS    (32 - ARGM_BITS) / sizeof(int)
+#define ARGM_BITS      4
+#define ARGM_NBARGS    (sizeof(uint64_t) * 8 - ARGM_BITS) / ARGT_BITS
 
 enum {
 	ARGT_STOP = 0, /* end of the arg list */

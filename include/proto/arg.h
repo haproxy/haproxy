@@ -31,22 +31,43 @@
  * the number of mandatory arguments in a mask.
  */
 #define ARGM(m) \
-	(m & ARGM_MASK)
+	(uint64_t)(m & ARGM_MASK)
 
 #define ARG1(m, t1) \
-	(ARGM(m) + (ARGT_##t1 << (ARGM_BITS)))
+	(ARGM(m) + ((uint64_t)ARGT_##t1 << (ARGM_BITS)))
 
 #define ARG2(m, t1, t2) \
-	(ARG1(m, t1) + (ARGT_##t2 << (ARGM_BITS + ARGT_BITS)))
+	(ARG1(m, t1) + ((uint64_t)ARGT_##t2 << (ARGM_BITS + ARGT_BITS)))
 
 #define ARG3(m, t1, t2, t3) \
-	(ARG2(m, t1, t2) + (ARGT_##t3 << (ARGM_BITS + ARGT_BITS * 2)))
+	(ARG2(m, t1, t2) + ((uint64_t)ARGT_##t3 << (ARGM_BITS + ARGT_BITS * 2)))
 
 #define ARG4(m, t1, t2, t3, t4) \
-	(ARG3(m, t1, t2, t3) + (ARGT_##t4 << (ARGM_BITS + ARGT_BITS * 3)))
+	(ARG3(m, t1, t2, t3) + ((uint64_t)ARGT_##t4 << (ARGM_BITS + ARGT_BITS * 3)))
 
 #define ARG5(m, t1, t2, t3, t4, t5) \
-	(ARG4(m, t1, t2, t3, t4) + (ARGT_##t5 << (ARGM_BITS + ARGT_BITS * 4)))
+	(ARG4(m, t1, t2, t3, t4) + ((uint64_t)ARGT_##t5 << (ARGM_BITS + ARGT_BITS * 4)))
+
+#define ARG6(m, t1, t2, t3, t4, t5, t6) \
+	(ARG5(m, t1, t2, t3, t4, t5) + ((uint64_t)ARGT_##t6 << (ARGM_BITS + ARGT_BITS * 5)))
+
+#define ARG7(m, t1, t2, t3, t4, t5, t6, t7) \
+	(ARG6(m, t1, t2, t3, t4, t5, t6) + ((uint64_t)ARGT_##t7 << (ARGM_BITS + ARGT_BITS * 6)))
+
+#define ARG8(m, t1, t2, t3, t4, t5, t6, t7, t8) \
+	(ARG7(m, t1, t2, t3, t4, t5, t6, t7) + ((uint64_t)ARGT_##t8 << (ARGM_BITS + ARGT_BITS * 7)))
+
+#define ARG9(m, t1, t2, t3, t4, t5, t6, t7, t8, t9) \
+	(ARG8(m, t1, t2, t3, t4, t5, t6, t7, t8) + ((uint64_t)ARGT_##t9 << (ARGM_BITS + ARGT_BITS * 8)))
+
+#define ARG10(m, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) \
+	(ARG9(m, t1, t2, t3, t4, t5, t6, t7, t8, t9) + ((uint64_t)ARGT_##t10 << (ARGM_BITS + ARGT_BITS * 9)))
+
+#define ARG11(m, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) \
+	(ARG10(m, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) + ((uint64_t)ARGT_##t11 << (ARGM_BITS + ARGT_BITS * 10)))
+
+#define ARG12(m, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12) \
+	(ARG11(m, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) + ((uint64_t)ARGT_##t12 << (ARGM_BITS + ARGT_BITS * 11)))
 
 /* Mapping between argument number and literal description. */
 extern const char *arg_type_names[];
@@ -58,7 +79,7 @@ extern struct arg empty_arg_list[ARGM_NBARGS];
 
 struct arg_list *arg_list_clone(const struct arg_list *orig);
 struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos);
-int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
+int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
                   char **err_msg, const char **err_ptr, int *err_arg,
                   struct arg_list *al);
 
