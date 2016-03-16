@@ -22,10 +22,88 @@
 
 #include <types/hlua.h>
 
+#include <proto/dumpstats.h>
 #include <proto/proto_http.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
+
+/* This function gets a struct field and convert it in Lua
+ * variable. The variable is pushed at the top of the stak.
+ */
+int hlua_fcn_pushfield(lua_State *L, struct field *field)
+{
+	/* The lua_Integer is always signed. Its length depends on
+	 * compilation opions, so the followinfg code is conditionned
+	 * by some macros. Windows maros are not supported.
+	 * If the number cannot be represented as integer, we try to
+	 * convert to float.
+	 */
+	switch (field_format(field, 0)) {
+
+	case FF_EMPTY:
+		lua_pushnil(L);
+		return 1;
+
+	case FF_S32:
+		/* S32 is always supported. */
+		lua_pushinteger(L, field->u.s32);
+		return 1;
+
+	case FF_U32:
+#if (LUA_MAXINTEGER == LLONG_MAX || ((LUA_MAXINTEGER == LONG_MAX) && (__WORDSIZE == 64)))
+		/* 64 bits case, U32 is always supported */
+		lua_pushinteger(L, field->u.u32);
+#else
+		/* 32 bits case, U32 is supported until INT_MAX. */
+		if (field->u.u32 > INT_MAX)
+			lua_pushnumber(L, (lua_Number)field->u.u32);
+		else
+			lua_pushinteger(L, field->u.u32);
+#endif
+		return 1;
+
+	case FF_S64:
+#if (LUA_MAXINTEGER == LLONG_MAX || ((LUA_MAXINTEGER == LONG_MAX) && (__WORDSIZE == 64)))
+		/* 64 bits case, S64 is always supported */
+		lua_pushinteger(L, field->u.s64);
+#else
+		/* 64 bits case, S64 is supported beetween INT_MIN and INT_MAX */
+		if (field->u.s64 < INT_MIN || field->u.s64 > INT_MAX)
+			lua_pushnumber(L, (lua_Number)field->u.s64);
+		else
+			lua_pushinteger(L, (int)field->u.s64);
+#endif
+		return 1;
+
+	case FF_U64:
+#if (LUA_MAXINTEGER == LLONG_MAX || ((LUA_MAXINTEGER == LONG_MAX) && (__WORDSIZE == 64)))
+		/* 64 bits case, U64 is supported until LLONG_MAX */
+		if (field->u.u64 > LLONG_MAX)
+			lua_pushnumber(L, (lua_Number)field->u.u64);
+		else
+			lua_pushinteger(L, field->u.u64);
+#else
+		/* 64 bits case, U64 is supported until INT_MAX */
+		if (field->u.u64 > INT_MAX)
+			lua_pushnumber(L, (lua_Number)field->u.u64);
+		else
+			lua_pushinteger(L, (int)field->u.u64);
+#endif
+		return 1;
+
+	case FF_STR:
+		lua_pushstring(L, field->u.str);
+		return 1;
+
+	default:
+		break;
+	}
+
+	/* Default case, never reached. */
+	lua_pushnil(L);
+	return 1;
+}
 
 /* Some string are started or terminated by blank chars,
  * this function removes the spaces, tabs, \r and
