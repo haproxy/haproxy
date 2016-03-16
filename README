@@ -259,11 +259,11 @@ cases.
 
 All HTTP headers via the sample / fetch
 
-    http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+    http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 
 Single HTTP header (e.g. User-Agent) via the convertor
 
-    http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+    http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 
 # Mobile content switching with ACL
 

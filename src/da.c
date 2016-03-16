@@ -347,13 +347,13 @@ static struct cfg_kw_list dacfg_kws = {{ }, {
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list fetch_kws = {ILH, {
-	{ "da-csv-fetch", da_haproxy_fetch, ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_USE_HRQHV },
+	{ "da-csv-fetch", da_haproxy_fetch, ARG12(1,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_USE_HRQHV },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
-	{ "da-csv-conv", da_haproxy_conv, ARG5(1,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
+	{ "da-csv-conv", da_haproxy_conv, ARG12(1,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR), NULL, SMP_T_STR, SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

@@ -11678,14 +11678,14 @@ da-csv-conv(<prop>[,<prop>*])
   input, and to emit a string made of the concatenation of the properties
   enumerated in argument, delimited by the separator defined by the global
   keyword "deviceatlas-property-separator", or by default the pipe character
-  ('|'). There's a limit of 5 different properties imposed by the haproxy
+  ('|'). There's a limit of 12 different properties imposed by the haproxy
   configuration language.
 
   Example:
     frontend www
       bind *:8881
       default_backend servers
-      http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
+      http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 
 debug
   This converter is used as debug tool. It dumps on screen the content and the
