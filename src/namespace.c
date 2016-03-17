@@ -1,12 +1,5 @@
 #define _GNU_SOURCE
 
-#include <common/namespace.h>
-#include <common/compiler.h>
-#include <common/hash.h>
-#include <common/errors.h>
-#include <proto/log.h>
-#include <types/global.h>
-
 #include <sched.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -16,6 +9,14 @@
 #include <sys/socket.h>
 
 #include <string.h>
+
+#include <common/namespace.h>
+#include <common/compiler.h>
+#include <common/hash.h>
+#include <common/errors.h>
+#include <proto/log.h>
+#include <types/global.h>
+
 #ifdef CONFIG_HAP_NS
 
 /* Opens the namespace <ns_name> and returns the FD or -1 in case of error
