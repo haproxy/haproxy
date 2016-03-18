@@ -270,6 +270,19 @@ Core class
   :param string filename: the filename that reference the map entries.
   :param string key: the key which will be deleted.
 
+.. js:function:: core.get_info()
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  Returns HAProxy core informations. We can found information like the uptime,
+  the pid, memory pool usage, tasks number, ...
+
+  These information are also returned by the management sockat via the command
+  "show info". See the management socket documentation fpor more information
+  about the content of these variables.
+
+  :returns: an array of values.
+
 .. js:function:: core.now()
 
   **context**: body, init, task, action

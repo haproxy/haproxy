@@ -28,6 +28,10 @@
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
 
+#define STATS_LEN (INF_TOTAL_FIELDS)
+
+static struct field stats[STATS_LEN];
+
 /* This function gets a struct field and convert it in Lua
  * variable. The variable is pushed at the top of the stak.
  */
@@ -293,6 +297,21 @@ static int hlua_asctime_date(lua_State *L)
 	return hlua_parse_date(L, parse_asctime_date);
 }
 
+static int hlua_get_info(lua_State *L)
+{
+	int i;
+
+	stats_fill_info(stats, STATS_LEN);
+
+	lua_newtable(L);
+	for (i=0; i<INF_TOTAL_FIELDS; i++) {
+		lua_pushstring(L, info_field_names[i]);
+		hlua_fcn_pushfield(L, &stats[i]);
+		lua_settable(L, -3);
+	}
+	return 1;
+}
+
 static struct hlua_concat *hlua_check_concat(lua_State *L, int ud)
 {
 	return (struct hlua_concat *)(hlua_checkudata(L, ud, class_concat_ref));
@@ -426,6 +445,7 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "rfc850_date", hlua_rfc850_date);
 	hlua_class_function(L, "asctime_date", hlua_asctime_date);
 	hlua_class_function(L, "concat", hlua_concat_new);
+	hlua_class_function(L, "get_info", hlua_get_info);
 
 	return 5;
 }
