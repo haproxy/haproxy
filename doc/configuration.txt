@@ -1400,16 +1400,22 @@ tune.vars.global-max-size <size>
 tune.vars.reqres-max-size <size>
 tune.vars.sess-max-size <size>
 tune.vars.txn-max-size <size>
-  These four tunes helps to manage the allowed amount of memory used by the
-  variables system. "global" limits the memory for all the systems. "sess" limit
-  the memory by session, "txn" limits the memory by transaction and "reqres"
-  limits the memory for each request or response processing. during the
-  accounting, "sess" embbed "txn" and "txn" embed "reqres".
+  These four tunes help to manage the maximum amount of memory used by the
+  variables system. "global" limits the overall amount of memory available
+  for all scopes. "sess" limits the memory for the session scope, "txn" for
+  the transaction scope, and "reqres" limits the memory for each request or
+  response processing.
+  Memory accounting is hierarchical, meaning more coarse grained limits
+  include the finer grained ones: "sess" includes "txn", and "txn" includes
+  "reqres".
 
-  By example, we considers that "tune.vars.sess-max-size" is fixed to 100,
-  "tune.vars.txn-max-size" is fixed to 100, "tune.vars.reqres-max-size" is
-  also fixed to 100. If we create a variable "txn.var" that contains 100 bytes,
-  we cannot create any more variable in the other contexts.
+  For example, when "tune.vars.sess-max-size" is limited to 100,
+  "tune.vars.txn-max-size" and "tune.vars.reqres-max-size" cannot exceed
+  100 either. If we create a variable "txn.var" that contains 100 bytes,
+  all available space is consumed.
+  Notice that exceeding the limits at runtime will not result in an error
+  message, but values might be cut off or corrupted. So make sure to accurately
+  plan for the amount of space needed to store all your variables.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
@@ -3765,17 +3771,17 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       Is used to set the contents of a variable. The variable is declared
       inline.
 
-        <var-name> The name of the variable starts by an indication about its
-                   scope. The allowed scopes are:
-                     "sess" : the variable is shared with all the session,
-                     "txn"  : the variable is shared with all the transaction
+        <var-name> The name of the variable starts with an indication about
+                   its scope. The scopes allowed are:
+                     "sess" : the variable is shared with the whole session
+                     "txn"  : the variable is shared with the transaction
                               (request and response)
-                     "req"  : the variable is shared only during the request
+                     "req"  : the variable is shared only during request
                               processing
-                     "res"  : the variable is shared only during the response
-                              processing.
+                     "res"  : the variable is shared only during response
+                              processing
                    This prefix is followed by a name. The separator is a '.'.
-                   The name may only contain characters 'a-z', 'A-Z', '0-9',
+                   The name may only contain characters 'a-z', 'A-Z', '0-9'
                    and '_'.
 
          <expr>    Is a standard HAProxy expression formed by a sample-fetch
@@ -4077,17 +4083,17 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       Is used to set the contents of a variable. The variable is declared
       inline.
 
-        <var-name> The name of the variable starts by an indication about its
-                   scope. The allowed scopes are:
-                     "sess" : the variable is shared with all the session,
-                     "txn"  : the variable is shared with all the transaction
+        <var-name> The name of the variable starts with an indication about
+                   its scope. The scopes allowed are:
+                     "sess" : the variable is shared with the whole session
+                     "txn"  : the variable is shared with the transaction
                               (request and response)
-                     "req"  : the variable is shared only during the request
+                     "req"  : the variable is shared only during request
                               processing
-                     "res"  : the variable is shared only during the response
-                              processing.
+                     "res"  : the variable is shared only during response
+                              processing
                    This prefix is followed by a name. The separator is a '.'.
-                   The name may only contain characters 'a-z', 'A-Z', '0-9',
+                   The name may only contain characters 'a-z', 'A-Z', '0-9'
                    and '_'.
 
          <expr>    Is a standard HAProxy expression formed by a sample-fetch
@@ -8750,17 +8756,18 @@ tcp-request content <action> [{if | unless} <condition>]
   The "set-var" is used to set the content of a variable. The variable is
   declared inline.
 
-    <var-name> The name of the variable starts by an indication about its scope.
-               The allowed scopes are:
-                 "sess" : the variable is shared with all the session,
-                 "txn"  : the variable is shared with all the transaction
+    <var-name> The name of the variable starts with an indication about
+               its scope. The scopes allowed are:
+                 "sess" : the variable is shared with the whole session
+                 "txn"  : the variable is shared with the transaction
                           (request and response)
-                 "req"  : the variable is shared only during the request
+                 "req"  : the variable is shared only during request
                           processing
-                 "res"  : the variable is shared only during the response
-                          processing.
+                 "res"  : the variable is shared only during response
+                          processing
                This prefix is followed by a name. The separator is a '.'.
-               The name may only contain characters 'a-z', 'A-Z', '0-9' and '_'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9'
+               and '_'.
 
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
@@ -8961,17 +8968,18 @@ tcp-response content <action> [{if | unless} <condition>]
   The "set-var" is used to set the content of a variable. The variable is
   declared inline.
 
-    <var-name> The name of the variable starts by an indication about its scope.
-               The allowed scopes are:
-                 "sess" : the variable is shared with all the session,
-                 "txn"  : the variable is shared with all the transaction
+    <var-name> The name of the variable starts with an indication about
+               its scope. The scopes allowed are:
+                 "sess" : the variable is shared with the whole session
+                 "txn"  : the variable is shared with the transaction
                           (request and response)
-                 "req"  : the variable is shared only during the request
+                 "req"  : the variable is shared only during request
                           processing
-                 "res"  : the variable is shared only during the response
-                          processing.
+                 "res"  : the variable is shared only during response
+                          processing
                This prefix is followed by a name. The separator is a '.'.
-               The name may only contain characters 'a-z', 'A-Z', '0-9' and '_'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9'
+               and '_'.
 
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
@@ -11617,27 +11625,25 @@ The currently available list of transformation keywords include :
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
-  name. The name of the variable starts by an indication about its scope. The
-  allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  name. The name of the variable starts with an indication about its scope. The
+  scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 and(<value>)
   Performs a bitwise "AND" between <value> and the input value of type signed
   integer, and returns the result as an signed integer. <value> can be a
-  numeric value or a variable name. The name of the variable starts by an
-  indication about its scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  numeric value or a variable name. The name of the variable starts with an
+  indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 base64
@@ -11696,14 +11702,13 @@ div(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   result as an signed integer. If <value> is null, the largest unsigned
   integer is returned (typically 2^63-1). <value> can be a numeric value or a
-  variable name. The name of the variable starts by an indication about it
-  scope. The scope allowed are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  variable name. The name of the variable starts with an indication about its
+  scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 djb2([<avalanche>])
@@ -11906,13 +11911,12 @@ mod(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   remainder as an signed integer. If <value> is null, then zero is returned.
   <value> can be a numeric value or a variable name. The name of the variable
-  starts by an indication about its scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  starts with an indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 mul(<value>)
@@ -11920,13 +11924,12 @@ mul(<value>)
   the product as an signed integer. In case of overflow, the largest possible
   value for the sign is returned so that the operation doesn't wrap around.
   <value> can be a numeric value or a variable name. The name of the variable
-  starts by an indication about its scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  starts with an indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 neg
@@ -11948,14 +11951,13 @@ odd
 or(<value>)
   Performs a bitwise "OR" between <value> and the input value of type signed
   integer, and returns the result as an signed integer. <value> can be a
-  numeric value or a variable name. The name of the variable starts by an
-  indication about its scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
-             response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
-  This prefix is followed by a name. The separator is a '.'. The name may only
+  numeric value or a variable name. The name of the variable starts with an
+  indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and response)
+    "req"  : the variable is shared only during request processing
+    "res"  : the variable is shared only during response processing
+  This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
 regsub(<regex>,<subst>[,<flags>])
@@ -12008,14 +12010,14 @@ sdbm([<avalanche>])
   "hash-type" directive.
 
 set-var(<var name>)
-  Sets a variable with the input content and return the content on the output as
-  is. The variable keep the value and the associated input type. The name of the
-  variable starts by an indication about it scope. The scope allowed are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
+  Sets a variable with the input content and returns the content on the output as
+  is. The variable keeps the value and the associated input type. The name of the
+  variable starts with an indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and
              response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
+    "req"  : the variable is shared only during request processing,
+    "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
@@ -12023,13 +12025,13 @@ sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
   the result as an signed integer. Note: in order to subtract the input from
   a constant, simply perform a "neg,add(value)". <value> can be a numeric value
-  or a variable name. The name of the variable starts by an indication about its
-  scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
+  or a variable name. The name of the variable starts with an indication about
+  its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and
              response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
+    "req"  : the variable is shared only during request processing,
+    "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
@@ -12221,12 +12223,12 @@ xor(<value>)
   Performs a bitwise "XOR" (exclusive OR) between <value> and the input value
   of type signed integer, and returns the result as an signed integer.
   <value> can be a numeric value or a variable name. The name of the variable
-  starts by an indication about its scope. The allowed scopes are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
+  starts with an indication about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and
              response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
+    "req"  : the variable is shared only during request processing,
+    "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
 
@@ -12478,16 +12480,15 @@ table_cnt([<table>]) : integer
 
 var(<var-name>) : undefined
   Returns a variable with the stored type. If the variable is not set, the
-  sample fetch fails. The name of the variable starts by an indication about its
-  scope. The scope allowed are:
-    "sess" : the variable is shared with all the session,
-    "txn"  : the variable is shared with all the transaction (request and
+  sample fetch fails. The name of the variable starts with an indication
+  about its scope. The scopes allowed are:
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and
              response),
-    "req"  : the variable is shared only during the request processing,
-    "res"  : the variable is shared only during the response processing.
+    "req"  : the variable is shared only during request processing,
+    "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9' and '_'.
-
 
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
