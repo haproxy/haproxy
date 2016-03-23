@@ -177,6 +177,12 @@ static inline char *chunk_dup(struct chunk *dst, const struct chunk *src)
 		dst->size++;
 
 	dst->str = (char *)malloc(dst->size);
+	if (!dst->str) {
+		dst->len = 0;
+		dst->size = 0;
+		return NULL;
+	}
+
 	memcpy(dst->str, src->str, dst->len);
 	if (dst->len < dst->size)
 		dst->str[dst->len] = 0;
