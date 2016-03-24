@@ -385,7 +385,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (trash.len < 9) /* shortest possible line */
 		goto missing;
 
-	if (!memcmp(line, "TCP4 ", 5) != 0) {
+	if (memcmp(line, "TCP4 ", 5) == 0) {
 		u32 src3, dst3, sport, dport;
 
 		line += 5;
@@ -426,7 +426,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		((struct sockaddr_in *)&conn->addr.to)->sin_port          = htons(dport);
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
-	else if (!memcmp(line, "TCP6 ", 5) != 0) {
+	else if (memcmp(line, "TCP6 ", 5) == 0) {
 		u32 sport, dport;
 		char *src_s;
 		char *dst_s, *sport_s, *dport_s;
