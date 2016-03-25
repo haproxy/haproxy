@@ -4107,6 +4107,9 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct chunk *out = get_trash_chunk();
 
+	if (!l->counters)
+		return 0;
+
 	chunk_reset(out);
 	memset(&stats, 0, sizeof(stats));
 
