@@ -391,6 +391,8 @@ static inline struct field mkf_str(uint32_t type, const char *value)
 extern const char *info_field_names[];
 extern const char *stat_field_names[];
 
+int stats_fill_info(struct field *info, int len);
+
 extern struct applet http_stats_applet;
 
 void stats_io_handler(struct stream_interface *si);

@@ -2948,15 +2948,15 @@ static int stats_dump_typed_info_fields(struct chunk *out, const struct field *i
 	return 1;
 }
 
-/* This function dumps information onto the stream interface's read buffer.
- * It returns 0 as long as it does not complete, non-zero upon completion.
- * No state is used.
+/* Fill <info> with HAProxy global info. <info> is preallocated
+ * array of length <len>. The length of the aray must be
+ * INF_TOTAL_FIELDS. If this length is less then this value, the
+ * function returns 0, otherwise, it returns 1.
  */
-static int stats_dump_info_to_buffer(struct stream_interface *si)
+int stats_fill_info(struct field *info, int len)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	struct chunk *out = get_trash_chunk();
-	struct appctx *appctx = __objt_appctx(si->end);
 
 #ifdef USE_OPENSSL
 	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
@@ -2969,8 +2969,11 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	}
 #endif
 
+	if (len < INF_TOTAL_FIELDS)
+		return 0;
+
 	chunk_reset(out);
-	memset(&info, 0, sizeof(info));
+	memset(info, 0, sizeof(*info) * len);
 
 	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
 	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_VERSION);
@@ -3035,6 +3038,20 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
 	if (global.desc)
 		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
+
+	return 1;
+}
+
+/* This function dumps information onto the stream interface's read buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ * No state is used.
+ */
+static int stats_dump_info_to_buffer(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS))
+		return 0;
 
 	chunk_reset(&trash);
 
