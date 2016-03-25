@@ -3893,21 +3893,17 @@ static int stats_dump_one_line(const struct field *stats, unsigned int flags, st
 		return stats_dump_fields_csv(&trash, stats);
 }
 
-/* Dumps a frontend's line to the trash for the current proxy <px> and uses
- * the state from stream interface <si>. The caller is responsible for clearing
- * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+/* Fill <stats> with the frontend statistics. <stats> is
+ * preallocated array of length <len>. The length of the array
+ * must be at least ST_F_TOTAL_FIELDS. If this length is less then
+ * this value, the function returns 0, otherwise, it returns 1.
  */
-static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
-
-	if (!(px->cap & PR_CAP_FE))
+	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
-		return 0;
-
-	memset(&stats, 0, sizeof(stats));
+	memset(stats, 0, sizeof(*stats) * len);
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "FRONTEND");
@@ -3956,6 +3952,26 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	stats[ST_F_CONN_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
 	stats[ST_F_CONN_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.cps_max);
 	stats[ST_F_CONN_TOT]      = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
+
+	return 1;
+}
+
+/* Dumps a frontend's line to the trash for the current proxy <px> and uses
+ * the state from stream interface <si>. The caller is responsible for clearing
+ * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+ */
+static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!(px->cap & PR_CAP_FE))
+		return 0;
+
+	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_FE)))
+		return 0;
+
+	if (!stats_fill_fe_stats(px, stats, ST_F_TOTAL_FIELDS))
+		return 0;
 
 	return stats_dump_one_line(stats, 0, px, appctx);
 }
