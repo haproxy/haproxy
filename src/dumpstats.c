@@ -4338,21 +4338,18 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	return stats_dump_one_line(stats, flags, px, appctx);
 }
 
-/* Dumps a line for backend <px> to the trash for and uses the state from stream
- * interface <si> and stats flags <flags>. The caller is responsible for clearing
- * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+/* Fill <stats> with the backend statistics. <stats> is
+ * preallocated array of length <len>. The length of the array
+ * must be at least ST_F_TOTAL_FIELDS. If this length is less
+ * then this value, the function returns 0, otherwise, it
+ * returns 1. <flags> can take the value ST_SHLGNDS.
  */
-static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, int flags)
+int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
-
-	if (!(px->cap & PR_CAP_BE))
+	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
-	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_BE)))
-		return 0;
-
-	memset(&stats, 0, sizeof(stats));
+	memset(stats, 0, sizeof(*stats) * len);
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
@@ -4420,6 +4417,26 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	stats[ST_F_CTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES));
 	stats[ST_F_RTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES));
 	stats[ST_F_TTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
+
+	return 1;
+}
+
+/* Dumps a line for backend <px> to the trash for and uses the state from stream
+ * interface <si> and stats flags <flags>. The caller is responsible for clearing
+ * the trash if needed. Returns non-zero if it emits anything, zero otherwise.
+ */
+static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, int flags)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!(px->cap & PR_CAP_BE))
+		return 0;
+
+	if ((appctx->ctx.stats.flags & STAT_BOUND) && !(appctx->ctx.stats.type & (1 << STATS_TYPE_BE)))
+		return 0;
+
+	if (!stats_fill_be_stats(px, flags, stats, ST_F_TOTAL_FIELDS))
+		return 0;
 
 	return stats_dump_one_line(stats, flags, px, appctx);
 }

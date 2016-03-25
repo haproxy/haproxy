@@ -397,6 +397,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
                         struct field *stats, int len);
 int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
                         struct field *stats, int len);
+int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len);
 
 extern struct applet http_stats_applet;
 
