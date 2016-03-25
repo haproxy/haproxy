@@ -5406,8 +5406,8 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	fclose(f);
 
 	/* Use penultimate key for encryption, handle when TLS_TICKETS_NO = 1 */
-	i-=2;
-	keys_ref->tls_ticket_enc_index = i < 0 ? 0 : i;
+	i -= 2;
+	keys_ref->tls_ticket_enc_index = i < 0 ? 0 : i % TLS_TICKETS_NO;
 	keys_ref->unique_id = -1;
 	conf->keys_ref = keys_ref;
 
