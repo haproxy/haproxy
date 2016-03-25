@@ -4088,19 +4088,26 @@ static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
 	[SRV_STATS_STATE_NO_CHECK]		= "no check"
 };
 
-/* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
- * from stream interface <si>, stats flags <flags>, and server state <state>.
- * The caller is responsible for clearing the trash if needed. Returns non-zero
- * if it emits anything, zero otherwise.
+/* Fill <stats> with the server statistics. <stats> is
+ * preallocated array of length <len>. The length of the array
+ * must be at least ST_F_TOTAL_FIELDS. If this length is less
+ * then this value, the function returns 0, otherwise, it
+ * returns 1. <flags> can take the value ST_SHLGNDS.
  */
-static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv)
+int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
+                        struct field *stats, int len)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
 	struct server *via, *ref;
 	char str[INET6_ADDRSTRLEN];
 	struct chunk *out = get_trash_chunk();
 	enum srv_stats_state state;
 	char *fld_status;
+
+	if (len < ST_F_TOTAL_FIELDS)
+		return 0;
+
+	memset(stats, 0, sizeof(*stats) * len);
+
 	/* we have "via" which is the tracked server as described in the configuration,
 	 * and "ref" which is the checked server and the end of the chain.
 	 */
@@ -4151,7 +4158,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	}
 
 	chunk_reset(out);
-	memset(&stats, 0, sizeof(stats));
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
@@ -4313,6 +4319,21 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (sv->cookie)
 			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
 	}
+
+	return 1;
+}
+
+/* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
+ * from stream interface <si>, stats flags <flags>, and server state <state>.
+ * The caller is responsible for clearing the trash if needed. Returns non-zero
+ * if it emits anything, zero otherwise.
+ */
+static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!stats_fill_sv_stats(px, sv, flags, stats, ST_F_TOTAL_FIELDS))
+		return 0;
 
 	return stats_dump_one_line(stats, flags, px, appctx);
 }
