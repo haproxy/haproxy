@@ -1152,7 +1152,7 @@ switchstate:
 									case STD_T_FRQP: {
 										struct freq_ctr_period data;
 
-										data.curr_tick = tick_add(now_ms, intdecode(&msg_cur, msg_end));
+										data.curr_tick = tick_add(now_ms, -intdecode(&msg_cur, msg_end));
 										if (!msg_cur) {
 											/* malformed message */
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
