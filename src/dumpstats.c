@@ -3976,21 +3976,25 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	return stats_dump_one_line(stats, 0, px, appctx);
 }
 
-/* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
- * from stream interface <si>, and stats flags <flags>. The caller is responsible
- * for clearing the trash if needed. Returns non-zero if it emits anything, zero
- * otherwise.
+/* Fill <stats> with the listener statistics. <stats> is
+ * preallocated array of length <len>. The length of the array
+ * must be at least ST_F_TOTAL_FIELDS. If this length is less
+ * then this value, the function returns 0, otherwise, it
+ * returns 1. <flags> can take the value ST_SHLGNDS.
  */
-static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
+int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
+                        struct field *stats, int len)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
 	struct chunk *out = get_trash_chunk();
+
+	if (len < ST_F_TOTAL_FIELDS)
+		return 0;
 
 	if (!l->counters)
 		return 0;
 
 	chunk_reset(out);
-	memset(&stats, 0, sizeof(stats));
+	memset(stats, 0, sizeof(*stats) * len);
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
@@ -4035,6 +4039,21 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 			break;
 		}
 	}
+
+	return 1;
+}
+
+/* Dumps a line for listener <l> and proxy <px> to the trash and uses the state
+ * from stream interface <si>, and stats flags <flags>. The caller is responsible
+ * for clearing the trash if needed. Returns non-zero if it emits anything, zero
+ * otherwise.
+ */
+static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!stats_fill_li_stats(px, l, flags, stats, ST_F_TOTAL_FIELDS))
+		return 0;
 
 	return stats_dump_one_line(stats, flags, px, appctx);
 }
