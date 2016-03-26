@@ -120,6 +120,19 @@ static inline int chunk_strcat(struct chunk *chk, const char *str)
 	return 1;
 }
 
+/* appends <nb> characters from str after <chk>.
+ * Returns 0 in case of failure.
+ */
+static inline int chunk_strncat(struct chunk *chk, const char *str, int nb)
+{
+	if (unlikely(chk->len < 0 || chk->len + nb >= chk->size))
+		return 0;
+
+	memcpy(chk->str + chk->len, str, nb);
+	chk->len += nb;
+	return 1;
+}
+
 /* Adds a trailing zero to the current chunk and returns the pointer to the
  * following part. The purpose is to be able to use a chunk as a series of
  * short independant strings with chunk_* functions, which do not need to be
