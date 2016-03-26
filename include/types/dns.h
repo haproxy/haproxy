@@ -30,7 +30,7 @@
  */
 #define DNS_MAX_LABEL_SIZE	63
 #define DNS_MAX_NAME_SIZE	255
-#define DNS_MAX_UDP_MESSAGE	4096
+#define DNS_MAX_UDP_MESSAGE	512
 
 /* DNS error messages */
 #define DNS_TOO_LONG_FQDN	"hostname too long"
