@@ -871,10 +871,11 @@ extern const char *monthname[];
 char *date2str_log(char *dest, struct tm *tm, struct timeval *date, size_t size);
 
 /* Return the GMT offset for a specific local time.
+ * Both t and tm must represent the same time.
  * The string returned has the same format as returned by strftime(... "%z", tm).
  * Offsets are kept in an internal cache for better performances.
  */
-const char *get_gmt_offset(struct tm *tm);
+const char *get_gmt_offset(time_t t, struct tm *tm);
 
 /* gmt2str_log: write a date in the format :
  * "%02d/%s/%04d:%02d:%02d:%02d +0000" without using snprintf
@@ -885,10 +886,11 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size);
 
 /* localdate2str_log: write a date in the format :
  * "%02d/%s/%04d:%02d:%02d:%02d +0000(local timezone)" without using snprintf
+ * Both t and tm must represent the same time.
  * return a pointer to the last char written (\0) or
  * NULL if there isn't enough space.
  */
-char *localdate2str_log(char *dst, struct tm *tm, size_t size);
+char *localdate2str_log(char *dst, time_t t, struct tm *tm, size_t size);
 
 /* These 3 functions parses date string and fills the
  * corresponding broken-down time in <tm>. In succes case,

@@ -979,7 +979,7 @@ static char *update_log_hdr_rfc5424(const time_t time)
 
 		tvsec = time;
 		get_localtime(tvsec, &tm);
-		gmt_offset = get_gmt_offset(&tm);
+		gmt_offset = get_gmt_offset(time, &tm);
 
 		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
 				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%.3s:%.2s %s ",
@@ -1495,7 +1495,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_DATELOCAL: // %Tl
 				get_localtime(s->logs.accept_date.tv_sec, &tm);
-				ret = localdate2str_log(tmplog, &tm, dst + maxsize - tmplog);
+				ret = localdate2str_log(tmplog, s->logs.accept_date.tv_sec, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
