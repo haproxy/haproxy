@@ -562,7 +562,6 @@ void init(int argc, char **argv)
 	struct wordlist *wl;
 	char *progname;
 	char *change_dir = NULL;
-	struct tm curtime;
 	struct proxy *px;
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
@@ -588,14 +587,11 @@ void init(int argc, char **argv)
 	global.rlimit_memmax_all = HAPROXY_MEMMAX;
 #endif
 
+	tzset();
 	tv_update_date(-1,-1);
 	start_date = now;
 
 	srandom(now_ms - getpid());
-
-	/* Get the numeric timezone. */
-	get_localtime(start_date.tv_sec, &curtime);
-	strftime(localtimezone, 6, "%z", &curtime);
 
 	init_log();
 	signal_init();

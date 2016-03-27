@@ -860,9 +860,6 @@ char *human_time(int t, short hz_div);
 
 extern const char *monthname[];
 
-/* numeric timezone (that is, the hour and minute offset from UTC) */
-char localtimezone[6];
-
 /* date2str_log: write a date in the format :
  * 	sprintf(str, "%02d/%s/%04d:%02d:%02d:%02d.%03d",
  *		tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
@@ -872,6 +869,12 @@ char localtimezone[6];
  * NULL if there isn't enough space.
  */
 char *date2str_log(char *dest, struct tm *tm, struct timeval *date, size_t size);
+
+/* Return the GMT offset for a specific local time.
+ * The string returned has the same format as returned by strftime(... "%z", tm).
+ * Offsets are kept in an internal cache for better performances.
+ */
+const char *get_gmt_offset(struct tm *tm);
 
 /* gmt2str_log: write a date in the format :
  * "%02d/%s/%04d:%02d:%02d:%02d +0000" without using snprintf

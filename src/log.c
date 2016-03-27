@@ -970,6 +970,7 @@ static char *update_log_hdr_rfc5424(const time_t time)
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
+	const char *gmt_offset;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -978,12 +979,13 @@ static char *update_log_hdr_rfc5424(const time_t time)
 
 		tvsec = time;
 		get_localtime(tvsec, &tm);
+		gmt_offset = get_gmt_offset(&tm);
 
 		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
 				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%.3s:%.2s %s ",
 				   tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
 				   tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   localtimezone, localtimezone+3,
+				   gmt_offset, gmt_offset+3,
 				   global.log_send_hostname ? global.log_send_hostname : hostname);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store

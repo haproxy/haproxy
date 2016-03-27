@@ -2552,6 +2552,35 @@ char *date2str_log(char *dst, struct tm *tm, struct timeval *date, size_t size)
 	return dst;
 }
 
+/* Return the GMT offset for a specific local time.
+ * The string returned has the same format as returned by strftime(... "%z", tm).
+ * Offsets are kept in an internal cache for better performances.
+ */
+const char *get_gmt_offset(struct tm *tm)
+{
+	/* Cache offsets from GMT (depending on whether DST is active or not) */
+	static char gmt_offsets[2][5+1] = { "", "" };
+
+    int old_isdst = tm->tm_isdst;
+	char *gmt_offset;
+
+    /* Pretend DST not active if its status is unknown, or strftime() will return an empty string for "%z" */
+    if (tm->tm_isdst < 0) {
+        tm->tm_isdst = 0;
+    }
+
+    /* Fetch the offset and initialize it if needed */
+    gmt_offset = gmt_offsets[tm->tm_isdst & 0x01];
+    if (unlikely(!*gmt_offset)) {
+        strftime(gmt_offset, 5+1, "%z", tm);
+    }
+
+    /* Restore previous DST flag */
+    tm->tm_isdst = old_isdst;
+
+    return gmt_offset;
+}
+
 /* gmt2str_log: write a date in the format :
  * "%02d/%s/%04d:%02d:%02d:%02d +0000" without using snprintf
  * return a pointer to the last char written (\0) or
@@ -2592,8 +2621,11 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size)
  */
 char *localdate2str_log(char *dst, struct tm *tm, size_t size)
 {
+	const char *gmt_offset;
 	if (size < 27) /* the size is fixed: 26 chars + \0 */
 		return NULL;
+
+	gmt_offset = get_gmt_offset(tm);
 
 	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
 	*dst++ = '/';
@@ -2608,7 +2640,7 @@ char *localdate2str_log(char *dst, struct tm *tm, size_t size)
 	*dst++ = ':';
 	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
 	*dst++ = ' ';
-	memcpy(dst, localtimezone, 5); // timezone
+	memcpy(dst, gmt_offset, 5); // Offset from local time to GMT
 	dst += 5;
 	*dst = '\0';
 
