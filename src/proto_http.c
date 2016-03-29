@@ -4418,7 +4418,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* add unique-id if "header-unique-id" is specified */
 
-	if (!LIST_ISEMPTY(&sess->fe->format_unique_id)) {
+	if (!LIST_ISEMPTY(&sess->fe->format_unique_id) && !s->unique_id) {
 		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
 			goto return_bad_req;
 		s->unique_id[0] = '\0';
@@ -10048,6 +10048,26 @@ smp_fetch_stcode(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
+static int
+smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (LIST_ISEMPTY(&smp->sess->fe->format_unique_id))
+		return 0;
+
+	if (!smp->strm->unique_id) {
+		if ((smp->strm->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
+			return 0;
+		smp->strm->unique_id[0] = '\0';
+	}
+	smp->data.u.str.len = build_logline(smp->strm, smp->strm->unique_id,
+	                                    UNIQUEID_LEN, &smp->sess->fe->format_unique_id);
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.str = smp->strm->unique_id;
+	smp->flags = SMP_F_CONST;
+	return 1;
+}
+
 /* returns the longest available part of the body. This requires that the body
  * has been waited for using http-buffer-request.
  */
@@ -12779,6 +12799,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "shdr_val",        smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRSHV },
 
 	{ "status",          smp_fetch_stcode,         0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
+	{ "uniqueid",        smp_fetch_uniqueid,       0,                NULL,    SMP_T_STR,  SMP_SRC_L4SRV },
 	{ "url",             smp_fetch_url,            0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "url32",           smp_fetch_url32,          0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "url32+src",       smp_fetch_url32_src,      0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
