@@ -8722,7 +8722,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
-    - set-gpt0(<sc-id>) <int>
+    - sc-set-gpt0(<sc-id>) <int>
     - set-var(<var-name>) <expr>
     - silent-drop
 
