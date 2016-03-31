@@ -8382,14 +8382,19 @@ void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
 	struct channel *chn = msg->chn;
 	int len1, len2;
 
-	es->len = MIN(chn->buf->i, sizeof(es->buf));
+	es->len = MIN(chn->buf->i, global.tune.bufsize);
 	len1 = chn->buf->data + chn->buf->size - chn->buf->p;
 	len1 = MIN(len1, es->len);
 	len2 = es->len - len1; /* remaining data if buffer wraps */
 
-	memcpy(es->buf, chn->buf->p, len1);
-	if (len2)
-		memcpy(es->buf + len1, chn->buf->data, len2);
+	if (!es->buf)
+		es->buf = malloc(global.tune.bufsize);
+
+	if (es->buf) {
+		memcpy(es->buf, chn->buf->p, len1);
+		if (len2)
+			memcpy(es->buf + len1, chn->buf->data, len2);
+	}
 
 	if (msg->err_pos >= 0)
 		es->pos = msg->err_pos;

@@ -221,7 +221,7 @@ struct error_snapshot {
 	struct server *srv;		/* server associated with the error (or NULL) */
 	struct proxy *oe;		/* other end = frontend or backend involved */
 	struct sockaddr_storage src;	/* client's address */
-	char buf[BUFSIZE];		/* copy of the beginning of the message */
+	char *buf;			/* copy of the beginning of the message (may be NULL) */
 };
 
 struct email_alert {

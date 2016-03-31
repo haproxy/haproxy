@@ -7032,12 +7032,12 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (appctx->ctx.errors.ptr < es->len && appctx->ctx.errors.ptr < sizeof(es->buf)) {
+		while (es->buf && appctx->ctx.errors.ptr < es->len && appctx->ctx.errors.ptr < global.tune.bufsize) {
 			int newptr;
 			int newline;
 
 			newline = appctx->ctx.errors.bol;
-			newptr = dump_text_line(&trash, es->buf, sizeof(es->buf), es->len, &newline, appctx->ctx.errors.ptr);
+			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->len, &newline, appctx->ctx.errors.ptr);
 			if (newptr == appctx->ctx.errors.ptr)
 				return 0;
 
