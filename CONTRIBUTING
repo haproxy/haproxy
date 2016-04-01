@@ -626,14 +626,14 @@ formating or style issue :
    $ git show master..
 
 And once you're satisfied, you should update your master branch to be sure that
-nothing changed during your work (only neede if you left it unattended for days
+nothing changed during your work (only needed if you left it unattended for days
 or weeks) :
 
    $ git checkout -b 20150920-fix-stats-rebased
    $ git fetch origin master:master
    $ git rebase master
 
-They can build a list of patches ready for submission like this :
+You can build a list of patches ready for submission like this :
 
    $ git format-patch master
 
