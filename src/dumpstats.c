@@ -3211,7 +3211,7 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 		if (!chunk_strcat(out, ","))
 			return 0;
 	}
-	chunk_strcat(&trash, "\n");
+	chunk_strcat(out, "\n");
 	return 1;
 }
 
