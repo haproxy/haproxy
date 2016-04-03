@@ -339,7 +339,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 		if (strlen(logformat_keywords[j].name) == var_len &&
 		    strncmp(var, logformat_keywords[j].name, var_len) == 0) {
 			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
-				node = calloc(1, sizeof(struct logformat_node));
+				node = calloc(1, sizeof(*node));
 				node->type = logformat_keywords[j].type;
 				node->options = *defoptions;
 				if (arg_len) {
@@ -396,15 +396,15 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 	char *str;
 
 	if (type == LF_TEXT) { /* type text */
-		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
-		str = calloc(end - start + 1, 1);
+		struct logformat_node *node = calloc(1, sizeof(*node));
+		str = calloc(1, end - start + 1);
 		strncpy(str, start, end - start);
 		str[end - start] = '\0';
 		node->arg = str;
 		node->type = LOG_FMT_TEXT; // type string
 		LIST_ADDQ(list_format, &node->list);
 	} else if (type == LF_SEPARATOR) {
-		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
+		struct logformat_node *node = calloc(1, sizeof(*node));
 		node->type = LOG_FMT_SEPARATOR;
 		LIST_ADDQ(list_format, &node->list);
 	}
@@ -435,7 +435,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 		return;
 	}
 
-	node = calloc(1, sizeof(struct logformat_node));
+	node = calloc(1, sizeof(*node));
 	node->type = LOG_FMT_EXPR;
 	node->expr = expr;
 	node->options = options;

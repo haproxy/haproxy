@@ -290,7 +290,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		ss = *ss2;
 
 		for (; port <= end; port++) {
-			l = calloc(1, sizeof(struct listener));
+			l = calloc(1, sizeof(*l));
 			l->obj_type = OBJ_TYPE_LISTENER;
 			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
 			LIST_ADDQ(&bind_conf->listeners, &l->by_bind);
@@ -1571,7 +1571,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		logsrv = calloc(1, sizeof(struct logsrv));
+		logsrv = calloc(1, sizeof(*logsrv));
 
 		/* just after the address, a length may be specified */
 		if (strcmp(args[arg+2], "len") == 0) {
@@ -2119,7 +2119,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curpeers = calloc(1, sizeof(struct peers))) == NULL) {
+		if ((curpeers = calloc(1, sizeof(*curpeers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2153,7 +2153,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((newpeer = calloc(1, sizeof(struct peer))) == NULL) {
+		if ((newpeer = calloc(1, sizeof(*newpeer))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2316,7 +2316,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curr_resolvers = calloc(1, sizeof(struct dns_resolvers))) == NULL) {
+		if ((curr_resolvers = calloc(1, sizeof(*curr_resolvers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2364,7 +2364,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((newnameserver = calloc(1, sizeof(struct dns_nameserver))) == NULL) {
+		if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2535,7 +2535,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curmailers = calloc(1, sizeof(struct mailers))) == NULL) {
+		if ((curmailers = calloc(1, sizeof(*curmailers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2570,7 +2570,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((newmailer = calloc(1, sizeof(struct mailer))) == NULL) {
+		if ((newmailer = calloc(1, sizeof(*newmailer))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2725,7 +2725,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if ((curproxy = calloc(1, sizeof(struct proxy))) == NULL) {
+		if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2911,7 +2911,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* copy default logsrvs to curproxy */
 		list_for_each_entry(tmplogsrv, &defproxy.logsrvs, list) {
-			struct logsrv *node = malloc(sizeof(struct logsrv));
+			struct logsrv *node = malloc(sizeof(*node));
 			memcpy(node, tmplogsrv, sizeof(struct logsrv));
 			LIST_INIT(&node->list);
 			LIST_ADDQ(&curproxy->logsrvs, &node->list);
@@ -3739,7 +3739,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			hdr = calloc(sizeof(struct cap_hdr), 1);
+			hdr = calloc(1, sizeof(*hdr));
 			hdr->next = curproxy->req_cap;
 			hdr->name = strdup(args[3]);
 			hdr->namelen = strlen(args[3]);
@@ -3767,7 +3767,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			hdr = calloc(sizeof(struct cap_hdr), 1);
+			hdr = calloc(1, sizeof(*hdr));
 			hdr->next = curproxy->rsp_cap;
 			hdr->name = strdup(args[3]);
 			hdr->namelen = strlen(args[3]);
@@ -6043,7 +6043,7 @@ stats_error_parsing:
 		if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
 			/* copy global.logrsvs linked list to the end of curproxy->logsrvs */
 			list_for_each_entry(tmplogsrv, &global.logsrvs, list) {
-				struct logsrv *node = malloc(sizeof(struct logsrv));
+				struct logsrv *node = malloc(sizeof(*node));
 				memcpy(node, tmplogsrv, sizeof(struct logsrv));
 				LIST_INIT(&node->list);
 				LIST_ADDQ(&curproxy->logsrvs, &node->list);
@@ -6055,7 +6055,7 @@ stats_error_parsing:
 			int arg = 0;
 			int len = 0;
 
-			logsrv = calloc(1, sizeof(struct logsrv));
+			logsrv = calloc(1, sizeof(*logsrv));
 
 			/* just after the address, a length may be specified */
 			if (strcmp(args[arg+2], "len") == 0) {
@@ -6782,7 +6782,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-		newul = calloc(1, sizeof(struct userlist));
+		newul = calloc(1, sizeof(*newul));
 		if (!newul) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -6883,7 +6883,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-		newuser = calloc(1, sizeof(struct auth_users));
+		newuser = calloc(1, sizeof(*newuser));
 		if (!newuser) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;

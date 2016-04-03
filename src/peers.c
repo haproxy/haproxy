@@ -1975,7 +1975,7 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 	int id = 0;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
-		st = calloc(1,sizeof(struct shared_table));
+		st = calloc(1,sizeof(*st));
 		st->table = table;
 		st->next = curpeer->tables;
 		if (curpeer->tables)

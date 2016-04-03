@@ -855,7 +855,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	}
 	prev_type = fetch->out_type;
 
-	expr = calloc(1, sizeof(struct sample_expr));
+	expr = calloc(1, sizeof(*expr));
 	if (!expr)
 		goto out_error;
 
@@ -958,7 +958,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		}
 
 		prev_type = conv->out_type;
-		conv_expr = calloc(1, sizeof(struct sample_conv_expr));
+		conv_expr = calloc(1, sizeof(*conv_expr));
 		if (!conv_expr)
 			goto out_error;
 

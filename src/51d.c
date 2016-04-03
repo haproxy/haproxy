@@ -54,7 +54,7 @@ static int _51d_property_name_list(char **args, int section_type, struct proxy *
 	}
 
 	while (*(args[cur_arg])) {
-		name = calloc(1, sizeof(struct _51d_property_names));
+		name = calloc(1, sizeof(*name));
 		name->name = strdup(args[cur_arg]);
 		LIST_ADDQ(&global._51degrees.property_names, &name->list);
 		++cur_arg;
@@ -158,7 +158,7 @@ static void *_51d_malloc(int size)
  */
 static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru, void* domain)
 {
-	struct chunk *cache_entry = _51d_malloc(sizeof(struct chunk));
+	struct chunk *cache_entry = _51d_malloc(sizeof(*cache_entry));
 
 	if (!cache_entry)
 		return;

@@ -242,7 +242,7 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 			return u;
 		}
 
-	newuser = calloc(1, sizeof(struct auth_users));
+	newuser = calloc(1, sizeof(*newuser));
 	if (!newuser)
 		return NULL;
 

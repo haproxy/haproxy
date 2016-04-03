@@ -413,7 +413,7 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 {
 	struct proxy *fe;
 
-	fe = calloc(1, sizeof(struct proxy));
+	fe = calloc(1, sizeof(*fe));
 	if (!fe)
 		return NULL;
 

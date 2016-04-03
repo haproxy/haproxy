@@ -742,7 +742,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
 		goto out;
 
-	ocsp = calloc(1, sizeof(struct certificate_ocsp));
+	ocsp = calloc(1, sizeof(*ocsp));
 	if (!ocsp)
 		goto out;
 
@@ -754,7 +754,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		ocsp = NULL;
 
 	if (!ctx->tlsext_status_cb) {
-		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(struct ocsp_cbk_arg));
+		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(*cb_arg));
 
 		cb_arg->is_single = 1;
 		cb_arg->s_ocsp = iocsp;
@@ -897,7 +897,7 @@ static int ssl_sock_load_sctl_from_file(const char *sctl_path, struct chunk **sc
 	if (ret)
 		goto end;
 
-	*sctl = calloc(1, sizeof(struct chunk));
+	*sctl = calloc(1, sizeof(**sctl));
 	if (!chunk_dup(*sctl, &trash)) {
 		free(*sctl);
 		*sctl = NULL;
@@ -5369,7 +5369,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		return 0;
 	}
 
-	keys_ref = malloc(sizeof(struct tls_keys_ref));
+	keys_ref = malloc(sizeof(*keys_ref));
 	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(struct tls_sess_key));
 
 	if ((f = fopen(args[cur_arg + 1], "r")) == NULL) {

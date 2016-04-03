@@ -8785,7 +8785,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	int cur_arg;
 	char *error;
 
-	rule = calloc(1, sizeof(struct act_rule));
+	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
 		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
@@ -12421,7 +12421,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 			return ACT_RET_PRS_ERR;
 		}
 
-		hdr = calloc(sizeof(struct cap_hdr), 1);
+		hdr = calloc(1, sizeof(*hdr));
 		hdr->next = px->req_cap;
 		hdr->name = NULL; /* not a header capture */
 		hdr->namelen = 0;

@@ -909,7 +909,7 @@ int dns_init_resolvers(void)
 		curr_resolvers->t = t;
 
 		list_for_each_entry(curnameserver, &curr_resolvers->nameserver_list, list) {
-			if ((dgram = calloc(1, sizeof(struct dgram_conn))) == NULL) {
+			if ((dgram = calloc(1, sizeof(*dgram))) == NULL) {
 				Alert("Starting [%s/%s] nameserver: out of memory.\n", curr_resolvers->id,
 						curnameserver->id);
 				return 0;

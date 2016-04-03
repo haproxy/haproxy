@@ -176,7 +176,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		/* OK we have a real ACL keyword */
 
 		/* build new sample expression for this ACL */
-		smp = calloc(1, sizeof(struct sample_expr));
+		smp = calloc(1, sizeof(*smp));
 		if (!smp) {
 			memprintf(err, "out of memory when parsing ACL expression");
 			goto out_return;
@@ -298,7 +298,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 
 			cur_type = conv->out_type;
-			conv_expr = calloc(1, sizeof(struct sample_conv_expr));
+			conv_expr = calloc(1, sizeof(*conv_expr));
 			if (!conv_expr)
 				goto out_free_smp;
 

@@ -874,7 +874,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			struct protocol *proto;
 			struct dns_resolution *curr_resolution;
 
-			if ((newsrv = calloc(1, sizeof(struct server))) == NULL) {
+			if ((newsrv = calloc(1, sizeof(*newsrv))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
@@ -945,7 +945,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto skip_name_resolution;
 
 			fqdn = NULL;
-			if ((curr_resolution = calloc(1, sizeof(struct dns_resolution))) == NULL)
+			if ((curr_resolution = calloc(1, sizeof(*curr_resolution))) == NULL)
 				goto skip_name_resolution;
 
 			curr_resolution->hostname_dn_len = dns_str_to_dn_label_len(newsrv->hostname);

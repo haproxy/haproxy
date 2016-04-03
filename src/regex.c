@@ -139,7 +139,7 @@ const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
 	while (*head != NULL)
 		head = &(*head)->next;
 
-	exp = calloc(1, sizeof(struct hdr_exp));
+	exp = calloc(1, sizeof(*exp));
 
 	exp->preg = preg;
 	exp->replace = replace;

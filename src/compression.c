@@ -109,7 +109,7 @@ int comp_append_type(struct comp *comp, const char *type)
 {
 	struct comp_type *comp_type;
 
-	comp_type = calloc(1, sizeof(struct comp_type));
+	comp_type = calloc(1, sizeof(*comp_type));
 	comp_type->name_len = strlen(type);
 	comp_type->name = strdup(type);
 	comp_type->next = comp->types;
@@ -127,7 +127,7 @@ int comp_append_algo(struct comp *comp, const char *algo)
 
 	for (i = 0; comp_algos[i].cfg_name; i++) {
 		if (!strcmp(algo, comp_algos[i].cfg_name)) {
-			comp_algo = calloc(1, sizeof(struct comp_algo));
+			comp_algo = calloc(1, sizeof(*comp_algo));
 			memmove(comp_algo, &comp_algos[i], sizeof(struct comp_algo));
 			comp_algo->next = comp->algos;
 			comp->algos = comp_algo;

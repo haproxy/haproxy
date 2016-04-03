@@ -772,7 +772,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	struct comp    *comp;
 
 	if (proxy->comp == NULL) {
-		comp = calloc(1, sizeof(struct comp));
+		comp = calloc(1, sizeof(*comp));
 		proxy->comp = comp;
 	}
 	else
