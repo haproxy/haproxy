@@ -194,7 +194,7 @@ main(int argc, char **argv) {
 	if (!nsrv)
 		exit(1);
 
-	srv  = (struct srv *)calloc(nsrv, sizeof(struct srv));
+	srv  = calloc(nsrv, sizeof(struct srv));
    
 	sw = 0;
 	for (i = 0; i < nsrv; i++) {

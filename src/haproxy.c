@@ -711,7 +711,7 @@ void init(int argc, char **argv)
 				/* now that's a cfgfile list */
 				argv++; argc--;
 				while (argc > 0) {
-					wl = (struct wordlist *)calloc(1, sizeof(*wl));
+					wl = calloc(1, sizeof(*wl));
 					if (!wl) {
 						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
 						exit(1);
@@ -734,7 +734,7 @@ void init(int argc, char **argv)
 				case 'N' : cfg_maxpconn = atol(*argv); break;
 				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
 				case 'f' :
-					wl = (struct wordlist *)calloc(1, sizeof(*wl));
+					wl = calloc(1, sizeof(*wl));
 					if (!wl) {
 						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
 						exit(1);
@@ -1101,14 +1101,12 @@ void init(int argc, char **argv)
 	if (global.nbproc < 1)
 		global.nbproc = 1;
 
-	swap_buffer = (char *)calloc(1, global.tune.bufsize);
-	get_http_auth_buff = (char *)calloc(1, global.tune.bufsize);
+	swap_buffer = calloc(1, global.tune.bufsize);
+	get_http_auth_buff = calloc(1, global.tune.bufsize);
 	static_table_key = calloc(1, sizeof(*static_table_key));
 
-	fdinfo = (struct fdinfo *)calloc(1,
-				       sizeof(struct fdinfo) * (global.maxsock));
-	fdtab = (struct fdtab *)calloc(1,
-				       sizeof(struct fdtab) * (global.maxsock));
+	fdinfo = calloc(1, sizeof(struct fdinfo) * (global.maxsock));
+	fdtab = calloc(1, sizeof(struct fdtab) * (global.maxsock));
 	/*
 	 * Note: we could register external pollers here.
 	 * Built-in pollers have been registered before main().

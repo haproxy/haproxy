@@ -191,7 +191,7 @@ void init_server_map(struct proxy *p)
 	if (!act)
 		act = 1;
 
-	p->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
+	p->lbprm.map.srv = calloc(act, sizeof(struct server *));
 	/* recounts servers and their weights */
 	p->lbprm.map.state = LB_MAP_RECALC;
 	recount_servers(p);

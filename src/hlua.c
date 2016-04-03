@@ -1374,7 +1374,7 @@ static int hlua_set_map(lua_State *L)
  */
 __LJMP static struct map_descriptor *hlua_checkmap(lua_State *L, int ud)
 {
-	return (struct map_descriptor *)MAY_LJMP(hlua_checkudata(L, ud, class_map_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_map_ref));
 }
 
 /* This function is the map constructor. It don't need
@@ -1516,7 +1516,7 @@ __LJMP static int hlua_map_slookup(struct lua_State *L)
 
 __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 {
-	return (struct hlua_socket *)MAY_LJMP(hlua_checkudata(L, ud, class_socket_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_socket_ref));
 }
 
 /* This function is the handler called for each I/O on the established
@@ -2439,7 +2439,7 @@ static int hlua_check_proto(struct stream *stream, int dir)
  */
 __LJMP static struct channel *hlua_checkchannel(lua_State *L, int ud)
 {
-	return (struct channel *)MAY_LJMP(hlua_checkudata(L, ud, class_channel_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_channel_ref));
 }
 
 /* Pushes the channel onto the top of the stack. If the stask does not have a
@@ -2885,7 +2885,7 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
  */
 __LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
 {
-	return (struct hlua_smp *)MAY_LJMP(hlua_checkudata(L, ud, class_fetches_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_fetches_ref));
 }
 
 /* This function creates and push in the stack a fetch object according
@@ -2934,7 +2934,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	struct sample smp;
 
 	/* Get closure arguments. */
-	f = (struct sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
+	f = lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
 	hsmp = MAY_LJMP(hlua_checkfetches(L, 1));
@@ -2998,7 +2998,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
  */
 __LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
 {
-	return (struct hlua_smp *)MAY_LJMP(hlua_checkudata(L, ud, class_converters_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_converters_ref));
 }
 
 /* This function creates and push in the stack a Converters object
@@ -3047,7 +3047,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	struct sample smp;
 
 	/* Get closure arguments. */
-	conv = (struct sample_conv *)lua_touserdata(L, lua_upvalueindex(1));
+	conv = lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
 	hsmp = MAY_LJMP(hlua_checkconverters(L, 1));
@@ -3119,7 +3119,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
  */
 __LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
 {
-	return (struct hlua_appctx *)MAY_LJMP(hlua_checkudata(L, ud, class_applet_tcp_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_applet_tcp_ref));
 }
 
 /* This function creates and push in the stack an Applet object
@@ -3431,7 +3431,7 @@ __LJMP static int hlua_applet_tcp_send(lua_State *L)
  */
 __LJMP static struct hlua_appctx *hlua_checkapplet_http(lua_State *L, int ud)
 {
-	return (struct hlua_appctx *)MAY_LJMP(hlua_checkudata(L, ud, class_applet_http_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_applet_http_ref));
 }
 
 /* This function creates and push in the stack an Applet object
@@ -4099,7 +4099,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
  */
 __LJMP static struct hlua_txn *hlua_checkhttp(lua_State *L, int ud)
 {
-	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_http_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_http_ref));
 }
 
 /* This function creates and push in the stack a HTTP object
@@ -4503,7 +4503,7 @@ static int hlua_http_res_set_status(lua_State *L)
  */
 __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 {
-	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
 }
 
 __LJMP static int hlua_set_var(lua_State *L)
@@ -5114,7 +5114,7 @@ static int hlua_register_task(lua_State *L)
  */
 static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct hlua_function *fcn = (struct hlua_function *)private;
+	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
 
@@ -5222,7 +5222,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp,
                                      const char *kw, void *private)
 {
-	struct hlua_function *fcn = (struct hlua_function *)private;
+	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
 
@@ -6053,7 +6053,7 @@ static void hlua_applet_http_release(struct appctx *ctx)
 static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, struct proxy *px,
                                               struct act_rule *rule, char **err)
 {
-	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
+	struct hlua_function *fcn = rule->kw->private;
 
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
@@ -6076,7 +6076,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 static enum act_parse_ret action_register_service_http(const char **args, int *cur_arg, struct proxy *px,
                                                        struct act_rule *rule, char **err)
 {
-	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
+	struct hlua_function *fcn = rule->kw->private;
 
 	/* HTTP applets are forbidden in tcp-request rules.
 	 * HTTP applet request requires everything initilized by
@@ -6196,7 +6196,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 static enum act_parse_ret action_register_service_tcp(const char **args, int *cur_arg, struct proxy *px,
                                                       struct act_rule *rule, char **err)
 {
-	struct hlua_function *fcn = (struct hlua_function *)rule->kw->private;
+	struct hlua_function *fcn = rule->kw->private;
 
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));

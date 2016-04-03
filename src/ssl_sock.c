@@ -474,7 +474,7 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 	int head;
 	int i;
 
-	conn = (struct connection *)SSL_get_app_data(s);
+	conn = SSL_get_app_data(s);
 	keys = objt_listener(conn->target)->bind_conf->keys_ref->tlskeys;
 	head = objt_listener(conn->target)->bind_conf->keys_ref->tls_ticket_enc_index;
 
@@ -615,7 +615,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	int key_type;
 	int index;
 
-	ocsp_arg = (struct ocsp_cbk_arg *)arg;
+	ocsp_arg = arg;
 
 	ssl_pkey = SSL_get_privatekey(ssl);
 	if (!ssl_pkey)
@@ -767,7 +767,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		 * If the ctx has a status CB, then we have previously set an OCSP staple for this ctx
 		 * Update that cb_arg with the new cert's staple
 		 */
-		struct ocsp_cbk_arg *cb_arg = (struct ocsp_cbk_arg *) ctx->tlsext_status_arg;
+		struct ocsp_cbk_arg *cb_arg = ctx->tlsext_status_arg;
 		struct certificate_ocsp *tmp_ocsp;
 		int index;
 
@@ -913,7 +913,7 @@ end:
 
 int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
 {
-	struct chunk *sctl = (struct chunk *)add_arg;
+	struct chunk *sctl = add_arg;
 
 	*out = (unsigned char *)sctl->str;
 	*outlen = sctl->len;
@@ -958,7 +958,7 @@ out:
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
-	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+	struct connection *conn = SSL_get_app_data(ssl);
 	BIO *write_bio;
 	(void)ret; /* shut gcc stupid warning */
 
@@ -996,7 +996,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	int err, depth;
 
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
-	conn = (struct connection *)SSL_get_app_data(ssl);
+	conn = SSL_get_app_data(ssl);
 
 	conn->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
@@ -1042,7 +1042,7 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
-		struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+		struct connection *conn = SSL_get_app_data(ssl);
 		const unsigned char *p = buf;
 		unsigned int payload;
 
@@ -1345,7 +1345,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
 		if (s->generate_certs) {
-			struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+			struct connection *conn = SSL_get_app_data(ssl);
 			unsigned int key;
 			SSL_CTX *ctx;
 
@@ -2848,7 +2848,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		return ok;
 
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
-	conn = (struct connection *)SSL_get_app_data(ssl);
+	conn = SSL_get_app_data(ssl);
 
 	servername = objt_server(conn->target)->ssl_ctx.verify_host;
 

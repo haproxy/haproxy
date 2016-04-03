@@ -321,7 +321,7 @@ static int hlua_get_info(lua_State *L)
 
 static struct hlua_concat *hlua_check_concat(lua_State *L, int ud)
 {
-	return (struct hlua_concat *)(hlua_checkudata(L, ud, class_concat_ref));
+	return (hlua_checkudata(L, ud, class_concat_ref));
 }
 
 static int hlua_concat_add(lua_State *L)
@@ -390,7 +390,7 @@ int hlua_concat_new(lua_State *L)
 	struct hlua_concat *b;
 
 	lua_newtable(L);
-	b = (struct hlua_concat *)lua_newuserdata(L, sizeof(*b));
+	b = lua_newuserdata(L, sizeof(*b));
 	b->size = HLUA_CONCAT_BLOCSZ;
 	b->len = 0;
 	lua_rawseti(L, -2, 0);
@@ -451,7 +451,7 @@ int hlua_fcn_new_listener(lua_State *L, struct listener *lst)
 
 static struct listener *hlua_check_listener(lua_State *L, int ud)
 {
-	return (struct listener *)(hlua_checkudata(L, ud, class_listener_ref));
+	return hlua_checkudata(L, ud, class_listener_ref);
 }
 
 int hlua_listener_get_stats(lua_State *L)
@@ -493,7 +493,7 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 
 static struct server *hlua_check_server(lua_State *L, int ud)
 {
-	return (struct server *)(hlua_checkudata(L, ud, class_server_ref));
+	return hlua_checkudata(L, ud, class_server_ref);
 }
 
 int hlua_server_get_stats(lua_State *L)
@@ -801,7 +801,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 
 static struct proxy *hlua_check_proxy(lua_State *L, int ud)
 {
-	return (struct proxy *)(hlua_checkudata(L, ud, class_proxy_ref));
+	return hlua_checkudata(L, ud, class_proxy_ref);
 }
 
 int hlua_proxy_pause(lua_State *L)

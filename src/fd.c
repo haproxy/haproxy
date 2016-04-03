@@ -252,10 +252,10 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fd_cache = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+	if ((fd_cache = calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
 		goto fail_cache;
 
-	if ((fd_updt = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+	if ((fd_updt = calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
 		goto fail_updt;
 
 	do {

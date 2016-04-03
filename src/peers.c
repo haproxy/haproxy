@@ -447,8 +447,8 @@ static void peer_session_release(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
-	struct peer *peer = (struct peer *)appctx->ctx.peers.ptr;
-	struct peers *peers = (struct peers *)strm_fe(s)->parent;
+	struct peer *peer = appctx->ctx.peers.ptr;
+	struct peers *peers = strm_fe(s)->parent;
 
 	/* appctx->ctx.peers.ptr is not a peer session */
 	if (appctx->st0 < PEER_SESS_ST_SENDSUCCESS)
@@ -485,7 +485,7 @@ static void peer_io_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
-	struct peers *curpeers = (struct peers *)strm_fe(s)->parent;
+	struct peers *curpeers = strm_fe(s)->parent;
 	int reql = 0;
 	int repl = 0;
 
@@ -615,7 +615,7 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESS_ST_SENDSUCCESS: {
-				struct peer *curpeer = (struct peer *)appctx->ctx.peers.ptr;
+				struct peer *curpeer = appctx->ctx.peers.ptr;
 				struct shared_table *st;
 
 				repl = snprintf(trash.str, trash.size, "%d\n", PEER_SESS_SC_SUCCESSCODE);
@@ -670,7 +670,7 @@ switchstate:
 				goto switchstate;
 			}
 			case PEER_SESS_ST_CONNECT: {
-				struct peer *curpeer = (struct peer *)appctx->ctx.peers.ptr;
+				struct peer *curpeer = appctx->ctx.peers.ptr;
 
 				/* Send headers */
 				repl = snprintf(trash.str, trash.size,
@@ -698,7 +698,7 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESS_ST_GETSTATUS: {
-				struct peer *curpeer = (struct peer *)appctx->ctx.peers.ptr;
+				struct peer *curpeer = appctx->ctx.peers.ptr;
 				struct shared_table *st;
 
 				if (si_ic(si)->flags & CF_WRITE_PARTIAL)
@@ -770,7 +770,7 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESS_ST_WAITMSG: {
-				struct peer *curpeer = (struct peer *)appctx->ctx.peers.ptr;
+				struct peer *curpeer = appctx->ctx.peers.ptr;
 				struct stksess *ts, *newts = NULL;
 				uint32_t msg_len = 0;
 				char *msg_cur = trash.str;
@@ -1626,7 +1626,7 @@ static void peer_session_forceshutdown(struct stream * stream)
 	if (!appctx)
 		return;
 
-	ps = (struct peer *)appctx->ctx.peers.ptr;
+	ps = appctx->ctx.peers.ptr;
 	/* we're killing a connection, we must apply a random delay before
 	 * retrying otherwise the other end will do the same and we can loop
 	 * for a while.
@@ -1661,7 +1661,7 @@ void peers_setup_frontend(struct proxy *fe)
 static struct stream *peer_session_create(struct peers *peers, struct peer *peer)
 {
 	struct listener *l = LIST_NEXT(&peers->peers_fe->conf.listeners, struct listener *, by_fe);
-	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
+	struct proxy *p = l->frontend; /* attached frontend */
 	struct appctx *appctx;
 	struct session *sess;
 	struct stream *s;
@@ -1755,7 +1755,7 @@ static struct stream *peer_session_create(struct peers *peers, struct peer *peer
  */
 static struct task *process_peer_sync(struct task * task)
 {
-	struct peers *peers = (struct peers *)task->context;
+	struct peers *peers = task->context;
 	struct peer *ps;
 	struct shared_table *st;
 
@@ -1975,7 +1975,7 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 	int id = 0;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
-		st = (struct shared_table *)calloc(1,sizeof(struct shared_table));
+		st = calloc(1,sizeof(struct shared_table));
 		st->table = table;
 		st->next = curpeer->tables;
 		if (curpeer->tables)

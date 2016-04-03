@@ -28,7 +28,7 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root)
 	struct uri_auth *u;
 
 	if (!root || !*root) {
-		if ((u = (struct uri_auth *)calloc(1, sizeof (*u))) == NULL)
+		if ((u = calloc(1, sizeof (*u))) == NULL)
 			goto out_u;
 
 		LIST_INIT(&u->http_req_rules);
@@ -224,7 +224,7 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 		return NULL;
 
 	if (!u->userlist)
-		u->userlist = (struct userlist *)calloc(1, sizeof(struct userlist));
+		u->userlist = calloc(1, sizeof(struct userlist));
 
 	if (!u->userlist)
 		return NULL;
@@ -242,7 +242,7 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 			return u;
 		}
 
-	newuser = (struct auth_users *)calloc(1, sizeof(struct auth_users));
+	newuser = calloc(1, sizeof(struct auth_users));
 	if (!newuser)
 		return NULL;
 
@@ -291,7 +291,7 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope)
 		if ((new_name = strdup(scope)) == NULL)
 			goto out_u;
 
-		if ((old_scope = (struct stat_scope *)calloc(1, sizeof(*old_scope))) == NULL)
+		if ((old_scope = calloc(1, sizeof(*old_scope))) == NULL)
 			goto out_name;
 
 		old_scope->px_id = new_name;

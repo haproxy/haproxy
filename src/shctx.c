@@ -624,7 +624,7 @@ int shared_context_init(int size, int shared)
 	cur = &shctx->free;
 	for (i = 0 ; i < size ; i++) {
 		prev = cur;
-		cur = (struct shared_block *)((char *)prev + sizeof(struct shared_block));
+		cur++;
 		prev->n = cur;
 		cur->p = prev;
 	}

@@ -67,7 +67,7 @@ struct netns_entry* netns_store_insert(const char *ns_name)
 	if (fd == -1)
 		goto out;
 
-	entry = (struct netns_entry *)calloc(1, sizeof(struct netns_entry));
+	entry = calloc(1, sizeof(struct netns_entry));
 	if (!entry)
 		goto out;
 	entry->fd = fd;

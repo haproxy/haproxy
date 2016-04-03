@@ -353,7 +353,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		cur_type = smp_expr_output_type(smp);
 	}
 
-	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
+	expr = calloc(1, sizeof(*expr));
 	if (!expr) {
 		memprintf(err, "out of memory when parsing ACL expression");
 		goto out_return;
@@ -749,7 +749,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 			memprintf(err, "out of memory when parsing ACL");
 			goto out_free_acl_expr;
 		}
-		cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
+		cur_acl = calloc(1, sizeof(*cur_acl));
 		if (cur_acl == NULL) {
 			memprintf(err, "out of memory when parsing ACL");
 			goto out_free_name;
@@ -846,7 +846,7 @@ static struct acl *find_acl_default(const char *acl_name, struct list *known_acl
 		goto out_free_acl_expr;
 	}
 
-	cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
+	cur_acl = calloc(1, sizeof(*cur_acl));
 	if (cur_acl == NULL) {
 		memprintf(err, "out of memory when building default ACL '%s'", acl_name);
 		goto out_free_name;
@@ -907,7 +907,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 	struct acl_cond *cond;
 	unsigned int suite_val;
 
-	cond = (struct acl_cond *)calloc(1, sizeof(*cond));
+	cond = calloc(1, sizeof(*cond));
 	if (cond == NULL) {
 		memprintf(err, "out of memory when parsing condition");
 		goto out_return;
@@ -995,7 +995,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 			}
 		}
 
-		cur_term = (struct acl_term *)calloc(1, sizeof(*cur_term));
+		cur_term = calloc(1, sizeof(*cur_term));
 		if (cur_term == NULL) {
 			memprintf(err, "out of memory when parsing condition");
 			goto out_free_suite;
@@ -1017,7 +1017,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 		suite_val &= cur_acl->val;
 
 		if (!cur_suite) {
-			cur_suite = (struct acl_term_suite *)calloc(1, sizeof(*cur_suite));
+			cur_suite = calloc(1, sizeof(*cur_suite));
 			if (cur_suite == NULL) {
 				memprintf(err, "out of memory when parsing condition");
 				goto out_free_term;

@@ -137,7 +137,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		return;
 
 	/* no need to go further if we can't retrieve the nameserver */
-	if ((nameserver = (struct dns_nameserver *)dgram->owner) == NULL)
+	if ((nameserver = dgram->owner) == NULL)
 		return;
 
 	resolvers = nameserver->resolvers;
@@ -259,7 +259,7 @@ void dns_resolve_send(struct dgram_conn *dgram)
 	fd_stop_send(fd);
 
 	/* no need to go further if we can't retrieve the nameserver */
-	if ((nameserver = (struct dns_nameserver *)dgram->owner) == NULL)
+	if ((nameserver = dgram->owner) == NULL)
 		return;
 
 	resolvers = nameserver->resolvers;

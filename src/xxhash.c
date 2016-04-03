@@ -253,7 +253,7 @@ FORCE_INLINE U64 XXH_readLE64(const void* ptr, XXH_endianess endian)
 //****************************
 FORCE_INLINE U32 XXH32_endian_align(const void* input, size_t len, U32 seed, XXH_endianess endian, XXH_alignment align)
 {
-    const BYTE* p = (const BYTE*)input;
+    const BYTE* p = input;
     const BYTE* bEnd = p + len;
     U32 h32;
 #define XXH_get32bits(p) XXH_readLE32_align(p, endian, align)
@@ -358,7 +358,7 @@ unsigned int XXH32 (const void* input, size_t len, unsigned seed)
 
 FORCE_INLINE U64 XXH64_endian_align(const void* input, size_t len, U64 seed, XXH_endianess endian, XXH_alignment align)
 {
-    const BYTE* p = (const BYTE*)input;
+    const BYTE* p = input;
     const BYTE* bEnd = p + len;
     U64 h64;
 #define XXH_get64bits(p) XXH_readLE64_align(p, endian, align)
@@ -581,7 +581,7 @@ XXH_errorcode XXH64_reset(XXH64_state_t* state_in, unsigned long long seed)
 FORCE_INLINE XXH_errorcode XXH32_update_endian (XXH32_state_t* state_in, const void* input, size_t len, XXH_endianess endian)
 {
     XXH_istate32_t* state = (XXH_istate32_t *) state_in;
-    const BYTE* p = (const BYTE*)input;
+    const BYTE* p = input;
     const BYTE* const bEnd = p + len;
 
 #ifdef XXH_ACCEPT_NULL_INPUT_POINTER
@@ -735,7 +735,7 @@ U32 XXH32_digest (const XXH32_state_t* state_in)
 FORCE_INLINE XXH_errorcode XXH64_update_endian (XXH64_state_t* state_in, const void* input, size_t len, XXH_endianess endian)
 {
     XXH_istate64_t * state = (XXH_istate64_t *) state_in;
-    const BYTE* p = (const BYTE*)input;
+    const BYTE* p = input;
     const BYTE* const bEnd = p + len;
 
 #ifdef XXH_ACCEPT_NULL_INPUT_POINTER

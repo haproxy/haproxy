@@ -2068,7 +2068,7 @@ char *my_strndup(const char *src, int n)
 	while (len < n && src[len])
 		len++;
 
-	ret = (char *)malloc(len + 1);
+	ret = malloc(len + 1);
 	if (!ret)
 		return ret;
 	memcpy(ret, src, len);

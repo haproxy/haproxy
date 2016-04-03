@@ -383,7 +383,7 @@ static int stktable_trash_expired(struct stktable *t)
  */
 static struct task *process_table_expire(struct task *task)
 {
-	struct stktable *t = (struct stktable *)task->context;
+	struct stktable *t = task->context;
 
 	task->expire = stktable_trash_expired(t);
 	return task;

@@ -874,7 +874,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			struct protocol *proto;
 			struct dns_resolution *curr_resolution;
 
-			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
+			if ((newsrv = calloc(1, sizeof(struct server))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
@@ -2667,7 +2667,7 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 	serverip = NULL;	/* current server IP address */
 
 	/* shortcut to the server whose name is being resolved */
-	s = (struct server *)resolution->requester;
+	s = resolution->requester;
 
 	/* initializing server IP pointer */
 	server_sin_family = s->addr.ss_family;
@@ -2775,7 +2775,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 	int res_preferred_afinet, res_preferred_afinet6;
 
 	/* shortcut to the server whose name is being resolved */
-	s = (struct server *)resolution->requester;
+	s = resolution->requester;
 	resolvers = resolution->resolvers;
 
 	/* can be ignored if this is not the last response */

@@ -290,7 +290,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		ss = *ss2;
 
 		for (; port <= end; port++) {
-			l = (struct listener *)calloc(1, sizeof(struct listener));
+			l = calloc(1, sizeof(struct listener));
 			l->obj_type = OBJ_TYPE_LISTENER;
 			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
 			LIST_ADDQ(&bind_conf->listeners, &l->by_bind);
@@ -1411,7 +1411,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (global.desc)
 			free(global.desc);
 
-		global.desc = d = (char *)calloc(1, len);
+		global.desc = d = calloc(1, len);
 
 		d += snprintf(d, global.desc + len - d, "%s", args[1]);
 		for (i = 2; *args[i]; i++)
@@ -2119,7 +2119,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curpeers = (struct peers *)calloc(1, sizeof(struct peers))) == NULL) {
+		if ((curpeers = calloc(1, sizeof(struct peers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2153,7 +2153,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((newpeer = (struct peer *)calloc(1, sizeof(struct peer))) == NULL) {
+		if ((newpeer = calloc(1, sizeof(struct peer))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2238,12 +2238,12 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 				list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 					l->maxaccept = 1;
-					l->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
-					l->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
+					l->maxconn = curpeers->peers_fe->maxconn;
+					l->backlog = curpeers->peers_fe->backlog;
 					l->accept = session_accept_fd;
 					l->handler = process_stream;
-					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
-					l->default_target = ((struct proxy *)curpeers->peers_fe)->default_target;
+					l->analysers |=  curpeers->peers_fe->fe_req_ana;
+					l->default_target = curpeers->peers_fe->default_target;
 					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 					global.maxsock += l->maxconn;
 				}
@@ -2316,7 +2316,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curr_resolvers = (struct dns_resolvers *)calloc(1, sizeof(struct dns_resolvers))) == NULL) {
+		if ((curr_resolvers = calloc(1, sizeof(struct dns_resolvers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2364,7 +2364,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((newnameserver = (struct dns_nameserver *)calloc(1, sizeof(struct dns_nameserver))) == NULL) {
+		if ((newnameserver = calloc(1, sizeof(struct dns_nameserver))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2535,7 +2535,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if ((curmailers = (struct mailers *)calloc(1, sizeof(struct mailers))) == NULL) {
+		if ((curmailers = calloc(1, sizeof(struct mailers))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2570,7 +2570,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((newmailer = (struct mailer *)calloc(1, sizeof(struct mailer))) == NULL) {
+		if ((newmailer = calloc(1, sizeof(struct mailer))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -2725,7 +2725,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
+		if ((curproxy = calloc(1, sizeof(struct proxy))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -3173,7 +3173,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		free(curproxy->monitor_uri);
 		curproxy->monitor_uri_len = strlen(args[1]);
-		curproxy->monitor_uri = (char *)calloc(1, curproxy->monitor_uri_len + 1);
+		curproxy->monitor_uri = calloc(1, curproxy->monitor_uri_len + 1);
 		memcpy(curproxy->monitor_uri, args[1], curproxy->monitor_uri_len);
 		curproxy->monitor_uri[curproxy->monitor_uri_len] = '\0';
 
@@ -3254,7 +3254,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		for (i = 1; *args[i]; i++)
 			len += strlen(args[i]) + 1;
 
-		d = (char *)calloc(1, len);
+		d = calloc(1, len);
 		curproxy->desc = d;
 
 		d += snprintf(d, curproxy->desc + len - d, "%s", args[1]);
@@ -3960,7 +3960,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, file, linenum);
 		}
 
-		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
+		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
@@ -4000,7 +4000,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
-		rule = (struct server_rule *)calloc(1, sizeof(*rule));
+		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->srv.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
@@ -4039,7 +4039,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 */
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, file, linenum);
 
-		rule = (struct persist_rule *)calloc(1, sizeof(*rule));
+		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		if (!strcmp(args[0], "force-persist")) {
 			rule->type = PERSIST_TYPE_FORCE;
@@ -4322,7 +4322,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
-		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
+		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->expr = expr;
 		rule->flags = flags;
@@ -4371,7 +4371,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 			                                  file, linenum);
 
-			rule = (struct stats_admin_rule *)calloc(1, sizeof(*rule));
+			rule = calloc(1, sizeof(*rule));
 			rule->cond = cond;
 			LIST_INIT(&rule->list);
 			LIST_ADDQ(&curproxy->uri_auth->admin_rules, &rule->list);
@@ -4518,7 +4518,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				for (i = 2; *args[i]; i++)
 					len += strlen(args[i]) + 1;
 
-				desc = d = (char *)calloc(1, len);
+				desc = d = calloc(1, len);
 
 				d += snprintf(d, desc + len - d, "%s", args[2]);
 				for (i = 3; *args[i]; i++)
@@ -4803,7 +4803,7 @@ stats_error_parsing:
 				curproxy->check_len = strlen(DEF_CHECK_REQ);
 			} else if (!*args[3]) { /* one argument : URI */
 				int reqlen = strlen(args[2]) + strlen("OPTIONS  HTTP/1.0\r\n") + 1;
-				curproxy->check_req = (char *)malloc(reqlen);
+				curproxy->check_req = malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "OPTIONS %s HTTP/1.0\r\n", args[2]); /* URI to use */
 			} else { /* more arguments : METHOD URI [HTTP_VER] */
@@ -4813,7 +4813,7 @@ stats_error_parsing:
 				else
 					reqlen += strlen("HTTP/1.0");
 		    
-				curproxy->check_req = (char *)malloc(reqlen);
+				curproxy->check_req = malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "%s %s %s\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
 			}
@@ -4846,7 +4846,7 @@ stats_error_parsing:
 			} else { /* ESMTP EHLO, or SMTP HELO, and a hostname */
 				if (!strcmp(args[2], "EHLO") || !strcmp(args[2], "HELO")) {
 					int reqlen = strlen(args[2]) + strlen(args[3]) + strlen(" \r\n") + 1;
-					curproxy->check_req = (char *)malloc(reqlen);
+					curproxy->check_req = malloc(reqlen);
 					curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 								       "%s %s\r\n", args[2], args[3]); /* HELO hostname */
 				} else {
@@ -4890,7 +4890,7 @@ stats_error_parsing:
 						packet_len = 4 + 4 + 5 + strlen(args[cur_arg + 1])+1 +1;
 						pv = htonl(0x30000); /* protocol version 3.0 */
 
-						packet = (char*) calloc(1, packet_len);
+						packet = calloc(1, packet_len);
 
 						memcpy(packet + 4, &pv, 4);
 
@@ -4930,7 +4930,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_REDIS_CHK;
 
-			curproxy->check_req = (char *) malloc(sizeof(DEF_REDIS_CHECK_REQ) - 1);
+			curproxy->check_req = malloc(sizeof(DEF_REDIS_CHECK_REQ) - 1);
 			memcpy(curproxy->check_req, DEF_REDIS_CHECK_REQ, sizeof(DEF_REDIS_CHECK_REQ) - 1);
 			curproxy->check_len = sizeof(DEF_REDIS_CHECK_REQ) - 1;
 
@@ -5003,7 +5003,7 @@ stats_error_parsing:
 								reqlen    = packetlen + 9;
 
 								free(curproxy->check_req);
-								curproxy->check_req = (char *)calloc(1, reqlen);
+								curproxy->check_req = calloc(1, reqlen);
 								curproxy->check_len = reqlen;
 
 								snprintf(curproxy->check_req, 4, "%c%c%c",
@@ -5029,7 +5029,7 @@ stats_error_parsing:
 							reqlen    = packetlen + 9;
 
 							free(curproxy->check_req);
-							curproxy->check_req = (char *)calloc(1, reqlen);
+							curproxy->check_req = calloc(1, reqlen);
 							curproxy->check_len = reqlen;
 
 							snprintf(curproxy->check_req, 4, "%c%c%c",
@@ -5062,7 +5062,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_LDAP_CHK;
 
-			curproxy->check_req = (char *) malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
+			curproxy->check_req = malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
 			memcpy(curproxy->check_req, DEF_LDAP_CHECK_REQ, sizeof(DEF_LDAP_CHECK_REQ) - 1);
 			curproxy->check_len = sizeof(DEF_LDAP_CHECK_REQ) - 1;
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
@@ -5395,7 +5395,7 @@ stats_error_parsing:
 			struct tcpcheck_rule *tcpcheck;
 
 			cur_arg = 1;
-			tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+			tcpcheck = calloc(1, sizeof(*tcpcheck));
 			tcpcheck->action = TCPCHK_ACT_COMMENT;
 
 			if (!*args[cur_arg + 1]) {
@@ -5432,7 +5432,7 @@ stats_error_parsing:
 			}
 
 			cur_arg = 2;
-			tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+			tcpcheck = calloc(1, sizeof(*tcpcheck));
 			tcpcheck->action = TCPCHK_ACT_CONNECT;
 
 			/* parsing each parameters to fill up the rule */
@@ -5497,7 +5497,7 @@ stats_error_parsing:
 			} else {
 				struct tcpcheck_rule *tcpcheck;
 
-				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+				tcpcheck = calloc(1, sizeof(*tcpcheck));
 
 				tcpcheck->action = TCPCHK_ACT_SEND;
 				tcpcheck->string_len = strlen(args[2]);
@@ -5529,7 +5529,7 @@ stats_error_parsing:
 				struct tcpcheck_rule *tcpcheck;
 				char *err = NULL;
 
-				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+				tcpcheck = calloc(1, sizeof(*tcpcheck));
 
 				tcpcheck->action = TCPCHK_ACT_SEND;
 				if (parse_binary(args[2], &tcpcheck->string, &tcpcheck->string_len, &err) == 0) {
@@ -5590,7 +5590,7 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+				tcpcheck = calloc(1, sizeof(*tcpcheck));
 
 				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				if (parse_binary(args[cur_arg + 1], &tcpcheck->string, &tcpcheck->string_len, &err) == 0) {
@@ -5626,7 +5626,7 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+				tcpcheck = calloc(1, sizeof(*tcpcheck));
 
 				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				tcpcheck->string_len = strlen(args[cur_arg + 1]);
@@ -5658,7 +5658,7 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+				tcpcheck = calloc(1, sizeof(*tcpcheck));
 
 				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				tcpcheck->string_len = 0;
@@ -6782,7 +6782,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-		newul = (struct userlist *)calloc(1, sizeof(struct userlist));
+		newul = calloc(1, sizeof(struct userlist));
 		if (!newul) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -6883,7 +6883,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-		newuser = (struct auth_users *)calloc(1, sizeof(struct auth_users));
+		newuser = calloc(1, sizeof(struct auth_users));
 		if (!newuser) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -8134,7 +8134,7 @@ out_uri_auth_compat:
 
 		if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK) {
 			curproxy->check_len = sizeof(sslv3_client_hello_pkt) - 1;
-			curproxy->check_req = (char *)malloc(curproxy->check_len);
+			curproxy->check_req = malloc(curproxy->check_len);
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, curproxy->check_len);
 		}
 
@@ -8748,7 +8748,7 @@ out_uri_auth_compat:
 
 			/* enable separate counters */
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
-				listener->counters = (struct licounters *)calloc(1, sizeof(struct licounters));
+				listener->counters = calloc(1, sizeof(struct licounters));
 				if (!listener->name)
 					memprintf(&listener->name, "sock-%d", listener->luid);
 			}

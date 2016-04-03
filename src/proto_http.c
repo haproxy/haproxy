@@ -8785,7 +8785,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	int cur_arg;
 	char *error;
 
-	rule = (struct act_rule*)calloc(1, sizeof(struct act_rule));
+	rule = calloc(1, sizeof(struct act_rule));
 	if (!rule) {
 		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
@@ -9723,7 +9723,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		return NULL;
 	}
 
-	rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
+	rule = calloc(1, sizeof(*rule));
 	rule->cond = cond;
 	LIST_INIT(&rule->rdr_fmt);
 

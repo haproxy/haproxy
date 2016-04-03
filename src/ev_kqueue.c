@@ -155,7 +155,7 @@ REGPRM1 static int _do_init(struct poller *p)
 		goto fail_fd;
 
 	/* we can have up to two events per fd (*/
-	kev = (struct kevent*)calloc(1, sizeof(struct kevent) * 2 * global.maxsock);
+	kev = calloc(1, sizeof(struct kevent) * 2 * global.maxsock);
 	if (kev == NULL)
 		goto fail_kev;
 		

@@ -391,7 +391,7 @@ void chash_init_server_tree(struct proxy *p)
 		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.chash.bck : &p->lbprm.chash.act;
 		srv->lb_nodes_tot = srv->uweight * BE_WEIGHT_SCALE;
 		srv->lb_nodes_now = 0;
-		srv->lb_nodes = (struct tree_occ *)calloc(srv->lb_nodes_tot, sizeof(struct tree_occ));
+		srv->lb_nodes = calloc(srv->lb_nodes_tot, sizeof(struct tree_occ));
 
 		for (node = 0; node < srv->lb_nodes_tot; node++) {
 			srv->lb_nodes[node].server = srv;
