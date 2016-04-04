@@ -275,8 +275,8 @@ fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set
 
 static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 
-static int http_msg_forward_body(struct stream *s, struct http_msg *msg);
-static int http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg);
+static inline int http_msg_forward_body(struct stream *s, struct http_msg *msg);
+static inline int http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg);
 
 /* This function returns a reason associated with the HTTP status.
  * This function never fails, a message is always returned.
@@ -1589,7 +1589,9 @@ get_http_auth(struct stream *s)
 	if (!p || len <= 0)
 		return 0;
 
-	chunk_initlen(&auth_method, h, 0, len);
+	if (chunk_initlen(&auth_method, h, 0, len) != 1)
+		return 0;
+
 	chunk_initlen(&txn->auth.method_data, p + 1, 0, ctx.vlen - len - 1);
 
 	if (!strncasecmp("Basic", auth_method.str, auth_method.len)) {
