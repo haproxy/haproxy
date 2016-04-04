@@ -177,7 +177,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 
 	/* Filter cannot be defined on a default proxy */
 	if (curpx == defpx) {
-		memprintf(err, "parsing [%s:%d] : %s is only allowed in a 'default' section.",
+		memprintf(err, "parsing [%s:%d] : %s is not allowed in a 'default' section.",
 			  file, line, args[0]);
 		return -1;
 	}
