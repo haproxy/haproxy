@@ -1194,8 +1194,8 @@ struct task *dns_process_resolve(struct task *t)
 
 		resolution->try -= 1;
 
-		res_preferred_afinet = resolution->resolver_family_priority == AF_INET && resolution->query_type == DNS_RTYPE_A;
-		res_preferred_afinet6 = resolution->resolver_family_priority == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+		res_preferred_afinet = resolution->opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
+		res_preferred_afinet6 = resolution->opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
 
 		/* let's change the query type if needed */
 		if (res_preferred_afinet6) {
