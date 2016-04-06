@@ -1796,18 +1796,21 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 	if (BIO_read_filename(in, path) <= 0)
 		goto end;
 
-	/* Read Certificate */
-	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
-	if (ckch->cert == NULL) {
-		memprintf(err, "%sunable to load certificate from file '%s'.\n",
-				err && *err ? *err : "", path);
-		goto end;
-	}
-
 	/* Read Private Key */
 	ckch->key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
 	if (ckch->key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
+				err && *err ? *err : "", path);
+		goto end;
+	}
+
+	/* Seek back to beginning of file */
+	BIO_reset(in);
+
+	/* Read Certificate */
+	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+	if (ckch->cert == NULL) {
+		memprintf(err, "%sunable to load certificate from file '%s'.\n",
 				err && *err ? *err : "", path);
 		goto end;
 	}
