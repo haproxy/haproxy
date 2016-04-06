@@ -4258,6 +4258,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * if the client closes first.
 	 */
 	channel_dont_connect(req);
+
+	/* Allow cookie logging
+	 */
+	if (s->be->cookie_name || sess->fe->capture_name)
+		manage_client_side_cookies(s, req);
+
 	req->analysers &= AN_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
 	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
@@ -4272,6 +4278,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	goto done_without_exp;
 
  deny:	/* this request was blocked (denied) */
+
+	/* Allow cookie logging
+	 */
+	if (s->be->cookie_name || sess->fe->capture_name)
+		manage_client_side_cookies(s, req);
+
 	txn->flags |= TX_CLDENY;
 	txn->status = http_err_codes[txn->rule_deny_status];
 	s->logs.tv_request = now;
@@ -4414,8 +4426,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * the fields will stay coherent and the URI will not move.
 	 * This should only be performed in the backend.
 	 */
-	if ((s->be->cookie_name || sess->fe->capture_name)
-	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
+	if (s->be->cookie_name || sess->fe->capture_name)
 		manage_client_side_cookies(s, req);
 
 	/* add unique-id if "header-unique-id" is specified */
