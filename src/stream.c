@@ -774,6 +774,14 @@ static void sess_establish(struct stream *s)
 	req->wex = TICK_ETERNITY;
 }
 
+/* Check if the connection request is in such a state that it can be aborted. */
+static int check_req_may_abort(struct channel *req, struct stream *s)
+{
+	return ((req->flags & (CF_READ_ERROR)) ||
+	        ((req->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
+	         (channel_is_empty(req) || s->be->options & PR_O_ABRT_CLOSE)));
+}
+
 /* Update back stream interface status for input states SI_ST_ASS, SI_ST_QUE,
  * SI_ST_TAR. Other input states are simply ignored.
  * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON
@@ -797,6 +805,14 @@ static void sess_update_stream_int(struct stream *s)
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
 		int conn_err;
+
+		/* Before we try to initiate the connection, see if the
+		 * request may be aborted instead.
+		 */
+		if (check_req_may_abort(req, s)) {
+			si->err_type |= SI_ET_CONN_ABRT;
+			goto abort_connection;
+		}
 
 		conn_err = connect_server(s);
 		srv = objt_server(s->target);
@@ -893,19 +909,10 @@ static void sess_update_stream_int(struct stream *s)
 		}
 
 		/* Connection remains in queue, check if we have to abort it */
-		if ((req->flags & (CF_READ_ERROR)) ||
-		    ((req->flags & CF_SHUTW_NOW) &&   /* empty and client aborted */
-		     (channel_is_empty(req) || s->be->options & PR_O_ABRT_CLOSE))) {
-			/* give up */
-			si->exp = TICK_ETERNITY;
+		if (check_req_may_abort(req, s)) {
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-			si_shutr(si);
-			si_shutw(si);
 			si->err_type |= SI_ET_QUEUE_ABRT;
-			si->state = SI_ST_CLO;
-			if (s->srv_error)
-				s->srv_error(s, si);
-			return;
+			goto abort_connection;
 		}
 
 		/* Nothing changed */
@@ -913,18 +920,9 @@ static void sess_update_stream_int(struct stream *s)
 	}
 	else if (si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
-		if ((req->flags & (CF_READ_ERROR)) ||
-		    ((req->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
-		     (channel_is_empty(req) || s->be->options & PR_O_ABRT_CLOSE))) {
-			/* give up */
-			si->exp = TICK_ETERNITY;
-			si_shutr(si);
-			si_shutw(si);
+		if (check_req_may_abort(req, s)) {
 			si->err_type |= SI_ET_CONN_ABRT;
-			si->state = SI_ST_CLO;
-			if (s->srv_error)
-				s->srv_error(s, si);
-			return;
+			goto abort_connection;
 		}
 
 		if (!(si->flags & SI_FL_EXP))
@@ -942,6 +940,17 @@ static void sess_update_stream_int(struct stream *s)
 			si->state = SI_ST_REQ;
 		return;
 	}
+	return;
+
+abort_connection:
+	/* give up */
+	si->exp = TICK_ETERNITY;
+	si_shutr(si);
+	si_shutw(si);
+	si->state = SI_ST_CLO;
+	if (s->srv_error)
+		s->srv_error(s, si);
+	return;
 }
 
 /* Set correct stream termination flags in case no analyser has done it. It
