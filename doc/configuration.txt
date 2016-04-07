@@ -13900,6 +13900,14 @@ status : integer
   example, 302. It is mostly used within ACLs and integer ranges, for example,
   to remove any Location header if the response is not a 3xx.
 
+unique-id : string
+  Returns the unique-id attached to the request. The directive
+  "unique-id-format" must be set. If it is not set, the unique-id sample fetch
+  fails. Note that the unique-id is usually used with HTTP requests, however this
+  sample fetch can be used with other protocols. Obviously, if it is used with
+  other protocols than HTTP, the unique-id-format directive must not contain
+  HTTP parts. See: unique-id-format and unique-id-header
+
 url : string
   This extracts the request's URL as presented in the request. A typical use is
   with prefetch-capable caches, and with portals which need to aggregate

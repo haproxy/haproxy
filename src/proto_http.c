@@ -12817,7 +12817,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "shdr_val",        smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRSHV },
 
 	{ "status",          smp_fetch_stcode,         0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
-	{ "uniqueid",        smp_fetch_uniqueid,       0,                NULL,    SMP_T_STR,  SMP_SRC_L4SRV },
+	{ "unique-id",       smp_fetch_uniqueid,       0,                NULL,    SMP_T_STR,  SMP_SRC_L4SRV },
 	{ "url",             smp_fetch_url,            0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "url32",           smp_fetch_url32,          0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "url32+src",       smp_fetch_url32_src,      0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
