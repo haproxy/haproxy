@@ -103,6 +103,10 @@ Summary
 8.8.      Capturing HTTP headers
 8.9.      Examples of logs
 
+9.    Supported filters
+9.1.      Trace
+9.2.      HTTP compression
+
 
 1. Quick reminder about HTTP
 ----------------------------
@@ -1724,6 +1728,7 @@ errorloc302                               X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 errorloc303                               X          X         X         X
 force-persist                             -          X         X         X
+filter                                    -          X         X         X
 fullconn                                  X          -         X         X
 grace                                     X          X         X         X
 hash-type                                 X          -         X         X
@@ -2616,6 +2621,7 @@ compression offload
         compression algo gzip
         compression type text/html text/plain
 
+
 contimeout <timeout> (deprecated)
   Set the maximum time to wait for a connection attempt to a server to succeed.
   May be used in sections :   defaults | frontend | listen | backend
@@ -3173,6 +3179,38 @@ force-persist { if | unless } <condition>
 
   See also : "option redispatch", "ignore-persist", "persist",
              and section 7 about ACL usage.
+
+
+filter <name> [param*]
+  Add the filter <name> in the filter list attached to the proxy.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |   yes    |   yes  |   yes
+  Arguments :
+    <name>     is the name of the filter. Officially supported filters are
+               referenced in section 9.
+
+    <param*>   is a list of parameters accpeted by the filter <name>. The
+               parsing of these parameters are the responsibility of the
+               filter. Please refer to the documention of the corresponding
+               filter (section 9) from all details on the supported parameters.
+
+  Multiple occurrences of the filter line can be used for the same proxy. The
+  same filter can be referenced many times if needed.
+
+  Example:
+      listen
+        bind *:80
+
+        filter trace name BEFORE-HTTP-COMP
+        filter compression
+        filter trace name AFTER-HTTP-COMP
+
+        compression algo gzip
+        compression offload
+
+        server srv1 192.168.0.1:80
+
+  See also : section 9.
 
 
 fullconn <conns>
@@ -15474,6 +15512,59 @@ reading. Their sole purpose is to explain how to decipher them.
        connections on this server, 202 connections on this proxy, and 205 on
        the global process. It is possible that the server refused the
        connection because of too many already established.
+
+
+9. Supported filters
+--------------------
+
+Here are listed officially supported filters with the list of parameters they
+accept. Depending on compile options, some of these filters might be
+unavailable. The list of available filters is reported in haproxy -vv.
+
+See also : "filter"
+
+9.1. Trace
+----------
+
+filter trace [name <name>] [random-parsing] [random-forwarding]
+
+  Arguments:
+    <name>               is an arbitrary name that will be reported in
+                         messages. If no name is provided, "TRACE" is used.
+
+    <random-parsing>     enables the random parsing of data exchanged between
+                         the client and the server. By default, this filter
+                         parses all available data. With this parameter, it
+                         only parses a random amount of the available data.
+
+    <random-forwarding>  enables the random forwading of parsed data. By
+                         default, this filter forwards all previously parsed
+                         data. With this parameter, it only forwards a random
+                         amount of the parsed data.
+
+This filter can be used as a base to develop new filters. It defines all
+callbacks and print a message on the standard error stream (stderr) with useful
+information for all of them. It may be useful to debug the activity of other
+filters or, quite simply, HAProxy's activity.
+
+Using <random-parsing> and/or <random-forwarding> parameters is a good way to
+tests the behavior of a filter that parses data exchanged between a client and
+a server by adding some latencies in the processing.
+
+
+9.2. HTTP compression
+---------------------
+
+filter compression
+
+The HTTP compression has been moved in a filter in HAProxy 1.7. "compression"
+keyword must still be used to enable and configure the HTTP compression. And
+when no other filter is used, it is enough. But it is mandatory to explicitly
+use a filter line to enable the HTTP compression when two or more filters are
+used for the same listener/frontend/backend. This is important to know the
+filters evaluation order.
+
+See also : "compression"
 
 
 /*
