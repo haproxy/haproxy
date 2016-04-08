@@ -619,8 +619,7 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 	cname = *newip = newip4 = newip6 = NULL;
 	cnamelen = currentip_found = 0;
 	*newip_sin_family = AF_UNSPEC;
-	ancount = (((struct dns_header *)resp)->ancount);
-	ancount = *(resp + 7);
+	ancount = *(resp + 7);	/* Assume no more than 256 answers */
 
 	/* bypass DNS response header */
 	reader = resp + sizeof(struct dns_header);
@@ -975,7 +974,7 @@ int dns_init_resolvers(void)
 int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostname_dn_len, char *buf, int bufsize)
 {
 	struct dns_header *dns;
-	struct dns_question *qinfo;
+	struct dns_question qinfo;
 	char *ptr, *bufend;
 
 	memset(buf, '\0', bufsize);
@@ -1021,9 +1020,9 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
 		return -1;
 
 	/* set up query info (type and class) */
-	qinfo = (struct dns_question *)ptr;
-	qinfo->qtype = htons(query_type);
-	qinfo->qclass = htons(DNS_RCLASS_IN);
+	qinfo.qtype = htons(query_type);
+	qinfo.qclass = htons(DNS_RCLASS_IN);
+	memcpy(ptr, &qinfo, sizeof(qinfo));
 
 	ptr += sizeof(struct dns_question);
 
