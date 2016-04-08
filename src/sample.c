@@ -2524,7 +2524,7 @@ static int smp_fetch_const_ipv6(const struct arg *args, struct sample *smp, cons
 
 static int smp_check_const_bin(struct arg *args, char **err)
 {
-	char *binstr;
+	char *binstr = NULL;
 	int binstrlen;
 
 	if (!parse_binary(args[0].data.str.str, &binstr, &binstrlen, err))
