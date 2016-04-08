@@ -1116,7 +1116,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				e = p;
 				while (*p != '\0') {
 					/* If no room avalaible, return error. */
-					if (opt->pref_net_nb > SRV_MAX_PREF_NET) {
+					if (opt->pref_net_nb >= SRV_MAX_PREF_NET) {
 						Alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
 						      file, linenum, args[cur_arg], SRV_MAX_PREF_NET);
 						err_code |= ERR_ALERT | ERR_FATAL;
