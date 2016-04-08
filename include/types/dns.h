@@ -63,16 +63,16 @@
 /* DNS request or response header structure */
 struct dns_header {
 	unsigned short	id:16;		/* identifier */
-	unsigned char	rd :1;		/* recursion desired 0: no, 1: yes */
-	unsigned char	tc :1;		/* truncation 0:no, 1: yes */
-	unsigned char	aa :1;		/* authoritative answer 0: no, 1: yes */
-	unsigned char	opcode :4;	/* operation code */
 	unsigned char	qr :1;		/* query/response 0: query, 1: response */
-	unsigned char	rcode :4;	/* response code */
-	unsigned char	z :1;		/* no used */
+	unsigned char	opcode :4;	/* operation code */
+	unsigned char	aa :1;		/* authoritative answer 0: no, 1: yes */
+	unsigned char	tc :1;		/* truncation 0:no, 1: yes */
+	unsigned char	rd :1;		/* recursion desired 0: no, 1: yes */
+	unsigned char	ra :1;		/* recursion available 0: no, 1: yes */
+	unsigned char	z :1;		/* not used */
 	unsigned char	ad :1;		/* authentic data */
 	unsigned char	cd :1;		/* checking disabled */
-	unsigned char	ra :1;		/* recursion available 0: no, 1: yes */
+	unsigned char	rcode :4;	/* response code */
 	unsigned short	qdcount :16;	/* question count */
 	unsigned short	ancount :16;	/* answer count */
 	unsigned short	nscount :16;	/* authority count */
