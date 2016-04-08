@@ -1611,8 +1611,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			arg += 2;
 		}
 
-		if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code))
+		if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code)) {
+			free(logsrv);
 			goto out;
+		}
 
 		logsrv->facility = get_log_facility(args[arg+2]);
 		if (logsrv->facility < 0) {
@@ -6793,6 +6795,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		if (!newul->name) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			free(newul);
 			goto out;
 		}
 
@@ -6978,8 +6981,10 @@ int readcfgfile(const char *file)
 	    !cfg_register_section("resolvers", cfg_parse_resolvers))
 		return -1;
 
-	if ((f=fopen(file,"r")) == NULL)
+	if ((f=fopen(file,"r")) == NULL) {
+		free(thisline);
 		return -1;
+	}
 
 next_line:
 	while (fgets(thisline + readbytes, linesize - readbytes, f) != NULL) {
