@@ -162,22 +162,6 @@ static char *emit_hex(unsigned long h, char *out)
 	return out;
 }
 
-#if defined(__i386__) || defined(__x86_64__)
-static inline unsigned long long rdtsc()
-{
-     unsigned int a, d;
-     asm volatile("rdtsc" : "=a" (a), "=d" (d));
-     return a + ((unsigned long long)d << 32);
-}
-#else
-static inline unsigned long long rdtsc()
-{
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return tv.tv_sec * 1000000 + tv.tv_usec;
-}
-#endif
-
 static void make_line(void *from, void *to, int level, char dir)
 {
 	char *p = line;
