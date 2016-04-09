@@ -151,9 +151,9 @@ PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGUSR1\fP are sent.
 .TP
 \fB\-st <pidlist>\fP
 Send TERMINATE signal to the pids in pidlist after startup. The processes
-which receive this signal will wait immediately terminate, closing all
-active sessions. This option must be specified last, followed by any number
-of PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGTERM\fP are sent.
+which receive this signal will terminate immediately, closing all active
+sessions. This option must be specified last, followed by any number of
+PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGTERM\fP are sent.
 
 .SH LOGGING
 Since HAProxy can run inside a chroot, it cannot reliably access /dev/log.
