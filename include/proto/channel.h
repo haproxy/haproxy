@@ -342,7 +342,7 @@ static inline int channel_recv_limit(const struct channel *chn)
 	    chn->to_forward == CHN_INFINITE_FORWARD)
 		goto end;
 
-	transit = chn->to_forward - chn->buf->i;
+	transit = chn->buf->o + chn->to_forward - chn->buf->i;
 	if (transit < 0)
 		transit = 0;
 
