@@ -6654,8 +6654,9 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         redirect scheme https if !{ ssl_fc }
 
   Example: append 'www.' prefix in front of all hosts not having it
-        http-request redirect code 301 location \
-          www.%[hdr(host)]%[capture.req.uri] unless { hdr_beg(host) -i www }
+        http-request redirect code 301 location      \
+          http://www.%[hdr(host)]%[capture.req.uri]  \
+          unless { hdr_beg(host) -i www }
 
   See section 7 about ACL usage.
 
