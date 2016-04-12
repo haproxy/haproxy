@@ -11473,6 +11473,21 @@ at least ensure that they are present in /etc/hosts so that the configuration
 does not depend on any random DNS match at the moment the configuration is
 parsed.
 
+The dotted IPv4 address notation is supported in both regular as well as the
+abbreviated form with all-0-octets omitted:
+
+    +------------------+------------------+------------------+
+    |   Example 1      |     Example 2    |     Example 3    |
+    +------------------+------------------+------------------+
+    |  192.168.0.1     |   10.0.0.12      |   127.0.0.1      |
+    |  192.168.1       |   10.12          |   127.1          |
+    |  192.168.0.1/22  |   10.0.0.12/8    |   127.0.0.1/8    |
+    |  192.168.1/22    |   10.12/8        |   127.1/8        |
+    +------------------+------------------+------------------+
+
+Notice that this is different from RFC 4632 CIDR address notation in which
+192.168.42/24 would be equivalent to 192.168.42.0/24.
+
 IPv6 may be entered in their usual form, with or without a netmask appended.
 Only bit counts are accepted for IPv6 netmasks. In order to avoid any risk of
 trouble with randomly resolved IP addresses, host names are never allowed in
