@@ -206,7 +206,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 					  file, line, args[0], args[cur_arg]);
 				goto error;
 			}
-			if (kw->parse(args, &cur_arg, curpx, fconf, err) != 0) {
+			if (kw->parse(args, &cur_arg, curpx, fconf, err, kw->private) != 0) {
 				if (err && *err)
 					memprintf(err, "'%s' : '%s'",
 						  args[0], *err);

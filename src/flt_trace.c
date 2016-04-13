@@ -414,7 +414,7 @@ struct flt_ops trace_ops = {
 /* Return -1 on error, else 0 */
 static int
 parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
-		struct flt_conf *fconf, char **err)
+                struct flt_conf *fconf, char **err, void *private)
 {
 	struct trace_config *conf;
 	int                  pos = *cur_arg;
@@ -467,8 +467,8 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 
 /* Declare the filter parser for "trace" keyword */
 static struct flt_kw_list flt_kws = { "TRACE", { }, {
-		{ "trace", parse_trace_flt },
-		{ NULL, NULL },
+		{ "trace", parse_trace_flt, NULL },
+		{ NULL, NULL, NULL },
 	}
 };
 

@@ -830,7 +830,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 
 static int
 parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
-			 struct flt_conf *fconf, char **err)
+                    struct flt_conf *fconf, char **err, void *private)
 {
 	struct flt_conf *fc, *back;
 
@@ -939,8 +939,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 /* Declare the filter parser for "compression" keyword */
 static struct flt_kw_list filter_kws = { "COMP", { }, {
-		{ "compression", parse_http_comp_flt },
-		{ NULL, NULL },
+		{ "compression", parse_http_comp_flt, NULL },
+		{ NULL, NULL, NULL },
 	}
 };
 

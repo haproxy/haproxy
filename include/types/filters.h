@@ -38,7 +38,8 @@ struct filter;
 struct flt_kw {
 	const char *kw;
 	int (*parse)(char **args, int *cur_arg, struct proxy *px,
-		     struct flt_conf *fconf, char **err);
+		     struct flt_conf *fconf, char **err, void *private);
+	void *private;
 };
 
 /*
