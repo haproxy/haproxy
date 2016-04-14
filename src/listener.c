@@ -57,8 +57,7 @@ void enable_listener(struct listener *listener)
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
-			fd_stop_recv(listener->fd);
-			listener->state = LI_PAUSED;
+			unbind_listener(listener);
 		}
 		else if (listener->nbconn < listener->maxconn) {
 			fd_want_recv(listener->fd);
