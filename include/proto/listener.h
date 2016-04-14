@@ -105,7 +105,7 @@ void delete_listener(struct listener *listener);
  * to an accept. It tries to accept as many connections as possible, and for each
  * calls the listener's accept handler (generally the frontend's accept handler).
  */
-int listener_accept(int fd);
+void listener_accept(int fd);
 
 /*
  * Registers the bind keyword list <kwl> as a list of valid keywords for next

@@ -50,7 +50,7 @@ struct protocol {
 	sa_family_t sock_family;			/* socket family, for sockaddr */
 	socklen_t sock_addrlen;				/* socket address length, used by bind() */
 	int l3_addrlen;					/* layer3 address length, used by hashes */
-	int (*accept)(int fd);				/* generic accept function */
+	void (*accept)(int fd);				/* generic accept function */
 	int (*bind)(struct listener *l, char *errmsg, int errlen); /* bind a listener */
 	int (*bind_all)(struct protocol *proto, char *errmsg, int errlen); /* bind all unbound listeners */
 	int (*unbind_all)(struct protocol *proto);	/* unbind all bound listeners */

@@ -17,17 +17,17 @@
 #include <proto/fd.h>
 
 /* datagram handler callback */
-int dgram_fd_handler(int fd)
+void dgram_fd_handler(int fd)
 {
 	struct dgram_conn *dgram = fdtab[fd].owner;
 
 	if (unlikely(!dgram))
-		return 0;
+		return;
 
 	if (fd_recv_ready(fd))
 		dgram->data->recv(dgram);
 	else if (fd_send_ready(fd))
 		dgram->data->send(dgram);
 
-	return 0;
+	return;
 }

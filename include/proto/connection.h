@@ -35,9 +35,9 @@ extern struct pool_head *pool2_connection;
 int init_connection();
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
- * provided by the connection's sock_ops. Returns 0.
+ * provided by the connection's sock_ops.
  */
-int conn_fd_handler(int fd);
+void conn_fd_handler(int fd);
 
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);

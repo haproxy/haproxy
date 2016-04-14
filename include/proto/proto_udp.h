@@ -22,6 +22,6 @@
 #ifndef _PROTO_PROTO_UDP_H
 #define _PROTO_PROTO_UDP_H
 
-int dgram_fd_handler(int);
+void dgram_fd_handler(int);
 
 #endif // _PROTO_PROTO_UDP_H

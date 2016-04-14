@@ -32,6 +32,7 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
+#include <proto/listener.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 #include <proto/task.h>
