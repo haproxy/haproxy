@@ -8694,9 +8694,6 @@ out_uri_auth_compat:
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		struct listener *listener;
 		unsigned int next_id;
-		int nbproc;
-
-		nbproc = my_popcountl(curproxy->bind_proc & nbits(global.nbproc));
 
 #ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
@@ -8741,6 +8738,15 @@ out_uri_auth_compat:
 		/* adjust this proxy's listeners */
 		next_id = 1;
 		list_for_each_entry(listener, &curproxy->conf.listeners, by_fe) {
+			int nbproc;
+
+			nbproc = my_popcountl(curproxy->bind_proc &
+			                      listener->bind_conf->bind_proc &
+			                      nbits(global.nbproc));
+
+			if (!nbproc) /* no intersection between listener and frontend */
+				nbproc = 1;
+
 			if (!listener->luid) {
 				/* listener ID not set, use automatic numbering with first
 				 * spare entry starting with next_luid.
@@ -8819,7 +8825,7 @@ out_uri_auth_compat:
 #endif /* USE_OPENSSL */
 		}
 
-		if (nbproc > 1) {
+		if (my_popcountl(curproxy->bind_proc & nbits(global.nbproc)) > 1) {
 			if (curproxy->uri_auth) {
 				int count, maxproc = 0;
 
