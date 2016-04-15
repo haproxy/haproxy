@@ -8741,7 +8741,7 @@ out_uri_auth_compat:
 			int nbproc;
 
 			nbproc = my_popcountl(curproxy->bind_proc &
-			                      listener->bind_conf->bind_proc &
+			                      (listener->bind_conf->bind_proc ? listener->bind_conf->bind_proc : curproxy->bind_proc) &
 			                      nbits(global.nbproc));
 
 			if (!nbproc) /* no intersection between listener and frontend */
