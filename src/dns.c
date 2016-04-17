@@ -129,6 +129,7 @@ void dns_reset_resolution(struct dns_resolution *resolution)
  *  - check if the packet requires processing (not outdated resolution)
  *  - ensure the DNS packet received is valid and call requester's callback
  *  - call requester's error callback if invalid response
+ *  - check the dn_name in the packet against the one sent
  */
 void dns_resolve_recv(struct dgram_conn *dgram)
 {
@@ -710,8 +711,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
  * If existing IP not found, return the first IP matching family_priority,
  * otherwise, first ip found
  * The following tasks are the responsibility of the caller:
- *   - resp contains an error free DNS response
- *   - the response matches the dn_name
+ *   - <dns_p> contains an error free DNS response
  * For both cases above, dns_validate_dns_response is required
  * returns one of the DNS_UPD_* code
  */
@@ -723,10 +723,8 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 {
 	struct dns_answer_item *record;
 	int family_priority;
-	char *dn_name;
-	int dn_name_len;
-	int i, cnamelen, currentip_found;
-	unsigned char *cname, *newip4, *newip6;
+	int i, currentip_found;
+	unsigned char *newip4, *newip6;
 	struct {
 		void *ip;
 		unsigned char type;
@@ -737,28 +735,12 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	int score, max_score;
 
 	family_priority = resol->opts->family_prio;
-	dn_name = resol->hostname_dn;
-	dn_name_len = resol->hostname_dn_len;
-	cname = *newip = newip4 = newip6 = NULL;
-	cnamelen = currentip_found = 0;
+	*newip = newip4 = newip6 = NULL;
+	currentip_found = 0;
 	*newip_sin_family = AF_UNSPEC;
 
 	/* now parsing response records */
 	list_for_each_entry(record, &dns_response.answer_list, list) {
-		if (cname) {
-			if (memcmp(record->name, cname, cnamelen) != 0) {
-				return DNS_UPD_NAME_ERROR;
-			}
-		}
-		else if (memcmp(record->name, dn_name, dn_name_len) != 0) {
-			return DNS_UPD_NAME_ERROR;
-		}
-
-		/*
-		 * we know the record is either for our server hostname
-		 * or a valid CNAME in a crecursion
-		 */
-
 		/* analyzing record content */
 		switch (record->type) {
 			case DNS_RTYPE_A:
@@ -770,10 +752,9 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 				}
 				break;
 
+			/* we're looking for IPs only. CNAME validation is done when
+			 * parsing the response buffer for the first time */
 			case DNS_RTYPE_CNAME:
-				cname = record->target;
-				cnamelen = record->data_len;
-
 				break;
 
 			case DNS_RTYPE_AAAA:
@@ -855,11 +836,6 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 				return DNS_UPD_NO;
 			max_score = score;
 		}
-	}
-
-	/* only CNAMEs in the response, no IP found */
-	if (cname && !newip4 && !newip6) {
-		return DNS_UPD_CNAME;
 	}
 
 	/* no IP found in the response */
