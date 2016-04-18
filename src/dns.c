@@ -725,7 +725,7 @@ int dns_get_ip_from_response(unsigned char *resp, unsigned char *resp_end,
 				/* move forward data_len for analyzing next record in the response */
 				reader += data_len;
 		} /* switch (record type) */
-	} /* for i 0 to ancount */
+	} /* list for each record entries */
 
 	/* Select an IP regarding configuration preference.
 	 * Top priority is the prefered network ip version,
