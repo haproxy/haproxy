@@ -229,6 +229,11 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			          args[0], args[1], args[cur_arg]);
 			goto error;
 		}
+		if (fconf->ops == NULL) {
+			memprintf(err, "'%s %s' : no callbacks defined.",
+			          args[0], args[1]);
+			goto error;
+		}
 
 		LIST_ADDQ(&curpx->filter_configs, &fconf->list);
 	}
