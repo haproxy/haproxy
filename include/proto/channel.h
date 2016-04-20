@@ -165,7 +165,9 @@ static inline int channel_may_send(const struct channel *chn)
  * end of transfer is close to happen. Note that both ->buf->o and ->to_forward
  * are considered as available since they're supposed to leave the buffer. The
  * test is optimized to avoid as many operations as possible for the fast case
- * and to be used as an "if" condition.
+ * and to be used as an "if" condition. Just like channel_recv_limit(), we
+ * never allow to overwrite the reserve until the output stream interface is
+ * connected, otherwise we could spin on a POST with http-send-name-header.
  */
 static inline int channel_may_recv(const struct channel *chn)
 {
@@ -178,6 +180,9 @@ static inline int channel_may_recv(const struct channel *chn)
 	rem -= chn->buf->i;
 	if (!rem)
 		return 0; /* buffer already full */
+
+	if (rem <= global.tune.maxrewrite && !channel_may_send(chn))
+		return 0;
 
 	/* now we know there's some room left, verify if we're touching
 	 * the reserve with some permanent input data.
