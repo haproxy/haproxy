@@ -304,29 +304,67 @@ static inline void channel_dont_read(struct channel *chn)
 
 
 /* Return the max number of bytes the buffer can contain so that once all the
- * data in transit are forwarded, the buffer still has global.tune.maxrewrite
+ * pending bytes are forwarded, the buffer still has global.tune.maxrewrite
  * bytes free. The result sits between chn->size - maxrewrite and chn->size.
- * The principle is the following :
- *   - the empty buffer has a limit of zero
- *   - a non-connected buffer cannot touch the reserve
- *   - infinite forward can fill the buffer
- *   - all output bytes are ignored, they're leaving
- *   - all input bytes covered by to_forward are considered in transit and
- *     virtually don't take room
- *   - the reserve may be covered up to the min of (fwd-transit) since these
- *     bytes will be in transit later thus will only take temporary space.
+ * It is important to mention that if buf->i is already larger than size-maxrw
+ * the condition above cannot be satisfied and the lowest size will be returned
+ * anyway. The principles are the following :
+ *   0) the empty buffer has a limit of zero
+ *   1) a non-connected buffer cannot touch the reserve
+ *   2) infinite forward can always fill the buffer since all data will leave
+ *   3) all output bytes are considered in transit since they're leaving
+ *   4) all input bytes covered by to_forward are considered in transit since
+ *      they'll be converted to output bytes.
+ *   5) all input bytes not covered by to_forward as considered remaining
+ *   6) all bytes scheduled to be forwarded minus what is already in the input
+ *      buffer will be in transit during future rounds.
+ *   7) 4+5+6 imply that the amount of input bytes (i) is irrelevant to the max
+ *      usable length, only to_forward and output count. The difference is
+ *      visible when to_forward > i.
+ *   8) the reserve may be covered up to the amount of bytes in transit since
+ *      these bytes will only take temporary space.
  *
- * So the formula is to return this limit is :
- *    size - maxrewrite + min(fwd - min(i, fwd), maxrewrite)
- *  = size - maxrewrite + min( min(fwd - i, 0), maxrewrite)
+ * A typical buffer looks like this :
  *
- * The code isn't written the most obvious way because we help the compiler
- * optimise it as it cannot guess how to factor the result out. The most common
- * path is jumpless.
+ *      <-------------- max_len ----------->
+ *      <---- o ----><----- i ----->        <--- 0..maxrewrite --->
+ *      +------------+--------------+-------+----------------------+
+ *      |////////////|\\\\\\\\\\\\\\|xxxxxxx|        reserve       |
+ *      +------------+--------+-----+-------+----------------------+
+ *                   <- fwd ->      <-avail->
+ *
+ * Or when to_forward > i :
+ *
+ *      <-------------- max_len ----------->
+ *      <---- o ----><----- i ----->        <--- 0..maxrewrite --->
+ *      +------------+--------------+-------+----------------------+
+ *      |////////////|\\\\\\\\\\\\\\|xxxxxxx|        reserve       |
+ *      +------------+--------+-----+-------+----------------------+
+ *                                  <-avail->
+ *                   <------------------ fwd ---------------->
+ *
+ * - the amount of buffer bytes in transit is : min(i, fwd) + o
+ * - some scheduled bytes may be in transit (up to fwd - i)
+ * - the reserve is max(0, maxrewrite - transit)
+ * - the maximum usable buffer length is size - reserve.
+ * - the available space is max_len - i - o
+ *
+ * So the formula to compute the buffer's maximum length to protect the reserve
+ * when reading new data is :
+ *
+ *    max = size - maxrewrite + min(maxrewrite, transit)
+ *        = size - max(maxrewrite - transit, 0)
+ *
+ * But WARNING! The conditions might change during the transfer and it could
+ * very well happen that a buffer would contain more bytes than max_len due to
+ * i+o already walking over the reserve (eg: after a header rewrite), including
+ * i or o alone hitting the limit. So it is critical to always consider that
+ * bounds may have already been crossed and that available space may be negative
+ * for example. Due to this it is perfectly possible for this function to return
+ * a value that is lower than current i+o.
  */
 static inline int channel_recv_limit(const struct channel *chn)
 {
-	int transit;
 	int reserve;
 
 	/* return zero if empty */
@@ -339,21 +377,13 @@ static inline int channel_recv_limit(const struct channel *chn)
 	if (unlikely(!channel_may_send(chn)))
 		goto end;
 
-	/* This apparently tricky check is just a hint to let the compiler
-	 * optimize all this code away as long as we don't change the types.
+	/* chn->to_forward may cause an integer underflow when equal to
+	 * CHN_INFINITE_FORWARD but we check for it afterwards as it produces
+	 * quite better assembly code in this sensitive code path.
 	 */
-	reserve = 0;
-	if (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) &&
-	    chn->to_forward == CHN_INFINITE_FORWARD)
-		goto end;
-
-	transit = chn->buf->o + chn->to_forward - chn->buf->i;
-	if (transit < 0)
-		transit = 0;
-
-	reserve = global.tune.maxrewrite - transit;
-	if (reserve < 0)
-		reserve = 0;
+	reserve = global.tune.maxrewrite - chn->buf->o - chn->to_forward;
+	if (chn->to_forward == CHN_INFINITE_FORWARD || reserve < 0)
+		return chn->buf->size;
  end:
 	return chn->buf->size - reserve;
 }
