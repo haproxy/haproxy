@@ -105,6 +105,14 @@ int signal_init()
 	signal_queue_len = 0;
 	memset(signal_queue, 0, sizeof(signal_queue));
 	memset(signal_state, 0, sizeof(signal_state));
+
+	/* Ensure signals are not blocked. Some shells or service managers may
+	 * accidently block all of our signals unfortunately, causing lots of
+	 * zombie processes to remain in the background during reloads.
+	 */
+	sigemptyset(&blocked_sig);
+	sigprocmask(SIG_SETMASK, &blocked_sig, NULL);
+
 	sigfillset(&blocked_sig);
 	sigdelset(&blocked_sig, SIGPROF);
 	for (sig = 0; sig < MAX_SIGNAL; sig++)
