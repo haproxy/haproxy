@@ -181,21 +181,21 @@ static inline int channel_may_recv(const struct channel *chn)
 	if (!rem)
 		return 0; /* buffer already full */
 
-	if (rem <= global.tune.maxrewrite && !channel_may_send(chn))
-		return 0;
+	if (rem > global.tune.maxrewrite)
+		return 1; /* reserve not yet reached */
 
-	/* now we know there's some room left, verify if we're touching
-	 * the reserve with some permanent input data.
+	if (!channel_may_send(chn))
+		return 0; /* don't touch reserve until we can send */
+
+	/* Now we know there's some room left in the reserve and we may
+	 * forward. As long as i-to_fwd < size-maxrw, we may still
+	 * receive. This is equivalent to i+maxrw-size < to_fwd,
+	 * which is logical since i+maxrw-size is what overlaps with
+	 * the reserve, and we want to ensure they're covered by scheduled
+	 * forwards.
 	 */
-	if (chn->to_forward >= chn->buf->i ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) && // just there to ensure gcc
-	     chn->to_forward == CHN_INFINITE_FORWARD))                // avoids the useless second
-		return 1;                                             // test whenever possible
-
-	rem -= global.tune.maxrewrite;
-	rem += chn->buf->o;
-	rem += chn->to_forward;
-	return rem > 0;
+	rem = chn->buf->i + global.tune.maxrewrite - chn->buf->size;
+	return rem < 0 || (unsigned int)rem < chn->to_forward;
 }
 
 /* Returns true if the channel's input is already closed */
