@@ -10184,6 +10184,12 @@ agent-check
     weight is reported on the stats page as "DRAIN" since it has the same
     effect on the server (it's removed from the LB farm).
 
+  - The string "maxconn:" followed by an integer (no space between). Values in
+    this format will set the maxconn of a server. The maximum number of
+    connections advertised needs to be multipled by the number of load balancers
+    and different backends that use this health check to get the total number
+    of connections the server might receive. Example: maxconn:30
+
   - The word "ready". This will turn the server's administrative state to the
     READY mode, thus cancelling any DRAIN or MAINT state
 

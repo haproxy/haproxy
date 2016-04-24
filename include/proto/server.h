@@ -113,6 +113,13 @@ const char *server_parse_addr_change_request(struct server *sv,
                                              const char *addr_str, const char *updater);
 
 /*
+ * Parses maxconn_str and configures sv accordingly.
+ * Returns NULL on success, error message string otherwise.
+ */
+const char *server_parse_maxconn_change_request(struct server *sv,
+					       const char *maxconn_str);
+
+/*
  * Return true if the server has a zero user-weight, meaning it's in draining
  * mode (ie: not taking new non-persistent connections).
  */

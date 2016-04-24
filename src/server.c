@@ -831,6 +831,33 @@ const char *server_parse_addr_change_request(struct server *sv,
 	return "Could not understand IP address format.\n";
 }
 
+const char *server_parse_maxconn_change_request(struct server *sv,
+                                                const char *maxconn_str)
+{
+	long int v;
+	char *end;
+
+	if (!*maxconn_str)
+		return "Require <maxconn>.\n";
+
+	v = strtol(maxconn_str, &end, 10);
+	if (end == maxconn_str)
+		return "maxconn string empty or preceded by garbage";
+	else if (end[0] != '\0')
+		return "Trailing garbage in maxconn string";
+
+	if (sv->maxconn == sv->minconn) { // static maxconn
+		sv->maxconn = sv->minconn = v;
+	} else { // dynamic maxconn
+		sv->maxconn = v;
+	}
+
+	if (may_dequeue_tasks(sv, sv->proxy))
+		process_srv_queue(sv);
+
+	return NULL;
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;

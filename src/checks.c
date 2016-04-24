@@ -938,6 +938,7 @@ static void event_srv_chk_r(struct connection *conn)
 		const char *hs = NULL; /* health status      */
 		const char *as = NULL; /* admin status */
 		const char *ps = NULL; /* performance status */
+		const char *cs = NULL; /* maxconn */
 		const char *err = NULL; /* first error to report */
 		const char *wrn = NULL; /* first warning to report */
 		char *cmd, *p;
@@ -1039,9 +1040,13 @@ static void event_srv_chk_r(struct connection *conn)
 			else if (strcasecmp(cmd, "maint") == 0) {
 				as = cmd;
 			}
-			/* else try to parse a weight here and keep the last one */
+			/* try to parse a weight here and keep the last one */
 			else if (isdigit((unsigned char)*cmd) && strchr(cmd, '%') != NULL) {
 				ps = cmd;
+			}
+			/* try to parse a maxconn here */
+			else if (strncasecmp(cmd, "maxconn:", strlen("maxconn:")) == 0) {
+				cs = cmd;
 			}
 			else {
 				/* keep a copy of the first error */
@@ -1075,6 +1080,16 @@ static void event_srv_chk_r(struct connection *conn)
 			const char *msg;
 
 			msg = server_parse_weight_change_request(s, ps);
+			if (!wrn || !*wrn)
+				wrn = msg;
+		}
+
+		if (cs) {
+			const char *msg;
+
+			cs += strlen("maxconn:");
+
+			msg = server_parse_maxconn_change_request(s, cs);
 			if (!wrn || !*wrn)
 				wrn = msg;
 		}
