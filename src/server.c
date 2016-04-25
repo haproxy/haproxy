@@ -1767,19 +1767,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!newsrv->check.port)
 				newsrv->check.port = realport; /* by default */
 
-			if (!newsrv->check.port) {
-				/* not yet valid, because no port was set on
-				 * the server either. We'll check if we have
-				 * a known port on the first listener.
-				 */
-				struct listener *l;
-
-				list_for_each_entry(l, &curproxy->conf.listeners, by_fe) {
-					newsrv->check.port = get_host_port(&l->addr);
-					if (newsrv->check.port)
-						break;
-				}
-			}
 			/*
 			 * We need at least a service port, a check port or the first tcp-check rule must
 			 * be a 'connect' one when checking an IPv4/IPv6 server.
