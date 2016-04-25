@@ -1917,7 +1917,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				while (spc < end && *spc != '?' && !HTTP_IS_SPHT(*spc))
 					spc++;
 
-				if (!txn || txn->uri || nspaces == 0) {
+				if (!txn || !txn->uri || nspaces == 0) {
 					chunk.str = "<BADREQ>";
 					chunk.len = strlen("<BADREQ>");
 				} else {
