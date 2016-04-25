@@ -1666,7 +1666,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_STATUS: // %ST
-				ret = ltoa_o(txn->status, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(txn ? txn->status : 0, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1692,7 +1692,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_CCLIENT: // %CC
-				src = txn->cli_cookie;
+				src = txn ? txn->cli_cookie : NULL;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -1701,7 +1701,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_CSERVER: // %CS
-				src = txn->srv_cookie;
+				src = txn ? txn->srv_cookie : NULL;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -1719,8 +1719,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
 				LOGCHAR(sess_term_cond[(s->flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
 				LOGCHAR(sess_fin_state[(s->flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
-				LOGCHAR((be->ck_opts & PR_CK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
-				LOGCHAR((be->ck_opts & PR_CK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
+				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
+				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
 				last_isspace = 0;
 				break;
 
@@ -1885,7 +1885,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				/* Request */
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
-				uri = txn->uri ? txn->uri : "<BADREQ>";
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				ret = lf_encode_string(tmplog, dst + maxsize,
 				                       '#', url_encode_map, uri, tmp);
 				if (ret == NULL || *ret != '\0')
@@ -1897,7 +1897,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_HTTP_PATH: // %HP
-				uri = txn->uri ? txn->uri : "<BADREQ>";
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
@@ -1917,7 +1917,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				while (spc < end && *spc != '?' && !HTTP_IS_SPHT(*spc))
 					spc++;
 
-				if (!txn->uri || nspaces == 0) {
+				if (!txn || txn->uri || nspaces == 0) {
 					chunk.str = "<BADREQ>";
 					chunk.len = strlen("<BADREQ>");
 				} else {
@@ -1940,7 +1940,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
-				if (!txn->uri) {
+				if (!txn || !txn->uri) {
 					chunk.str = "<BADREQ>";
 					chunk.len = strlen("<BADREQ>");
 				} else {
@@ -1971,7 +1971,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_HTTP_URI: // %HU
-				uri = txn->uri ? txn->uri : "<BADREQ>";
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
@@ -1991,7 +1991,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				while (spc < end && !HTTP_IS_SPHT(*spc))
 					spc++;
 
-				if (!txn->uri || nspaces == 0) {
+				if (!txn || !txn->uri || nspaces == 0) {
 					chunk.str = "<BADREQ>";
 					chunk.len = strlen("<BADREQ>");
 				} else {
@@ -2011,7 +2011,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_HTTP_METHOD: // %HM
-				uri = txn->uri ? txn->uri : "<BADREQ>";
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
@@ -2041,7 +2041,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_HTTP_VERSION: // %HV
-				uri = txn->uri ? txn->uri : "<BADREQ>";
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 
@@ -2063,7 +2063,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				while (uri < end && HTTP_IS_SPHT(*uri))
 					uri++;
 
-				if (!txn->uri || nspaces == 0) {
+				if (!txn || !txn->uri || nspaces == 0) {
 					chunk.str = "<BADREQ>";
 					chunk.len = strlen("<BADREQ>");
 				} else if (uri == end) {
