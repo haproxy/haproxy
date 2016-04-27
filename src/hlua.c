@@ -226,7 +226,7 @@ static const char error_500[] =
 static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
-                                     unsigned int mask, struct proxy *p);
+                                     uint64_t mask, struct proxy *p);
 static int hlua_smp2lua(lua_State *L, struct sample *smp);
 static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
@@ -560,7 +560,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
  * entries.
  */
 __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
-                              unsigned int mask, struct proxy *p)
+                              uint64_t mask, struct proxy *p)
 {
 	int min_arg;
 	int idx;
@@ -5380,7 +5380,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 
 	snprintf((char *)sck->kw[0].kw, len, "lua.%s", name);
 	sck->kw[0].process = hlua_sample_conv_wrapper;
-	sck->kw[0].arg_mask = ARG5(0,STR,STR,STR,STR,STR);
+	sck->kw[0].arg_mask = ARG12(0,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR);
 	sck->kw[0].val_args = NULL;
 	sck->kw[0].in_type = SMP_T_STR;
 	sck->kw[0].out_type = SMP_T_STR;
@@ -5437,7 +5437,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 
 	snprintf((char *)sfk->kw[0].kw, len, "lua.%s", name);
 	sfk->kw[0].process = hlua_sample_fetch_wrapper;
-	sfk->kw[0].arg_mask = ARG5(0,STR,STR,STR,STR,STR);
+	sfk->kw[0].arg_mask = ARG12(0,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR,STR);
 	sfk->kw[0].val_args = NULL;
 	sfk->kw[0].out_type = SMP_T_STR;
 	sfk->kw[0].use = SMP_USE_HTTP_ANY;
