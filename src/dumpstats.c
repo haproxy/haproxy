@@ -3821,7 +3821,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			      U2H(stats[ST_F_COMP_OUT].u.u64),
 			      stats[ST_F_COMP_IN].u.u64 ? (int)(stats[ST_F_COMP_OUT].u.u64 * 100 / stats[ST_F_COMP_IN].u.u64) : 0,
 			      U2H(stats[ST_F_COMP_BYP].u.u64),
-			      U2H(stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_BYP].u.u64),
+			      U2H(stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64),
 			      stats[ST_F_BOUT].u.u64 ? (int)((stats[ST_F_COMP_IN].u.u64 - stats[ST_F_COMP_OUT].u.u64) * 100 / stats[ST_F_BOUT].u.u64) : 0,
 		              (stats[ST_F_COMP_IN].u.u64 || stats[ST_F_COMP_BYP].u.u64) ? "</u>":"");
 
