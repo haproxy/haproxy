@@ -5442,9 +5442,18 @@ int http_resync_states(struct stream *s)
 		  (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 		/* server-close/keep-alive: terminate this transaction,
 		 * possibly killing the server connection and reinitialize
-		 * a fresh-new transaction.
+		 * a fresh-new transaction, but only once we're sure there's
+		 * enough room in the request and response buffer to process
+		 * another request. The request buffer must not hold any
+		 * pending output data and the request buffer must not have
+		 * output data occupying the reserve.
 		 */
-		http_end_txn_clean_session(s);
+		if (s->req.buf->o)
+			s->req.flags |= CF_WAKE_WRITE;
+		else if (channel_congested(&s->res))
+			s->res.flags |= CF_WAKE_WRITE;
+		else
+			http_end_txn_clean_session(s);
 	}
 
 	return txn->req.msg_state != old_req_state ||
