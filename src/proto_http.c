@@ -6709,6 +6709,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		}
 		return 1;
 	}
+	return 0;
 
   missing_data_or_waiting:
 	if (res->flags & CF_SHUTW)
