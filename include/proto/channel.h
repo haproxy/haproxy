@@ -149,6 +149,27 @@ static inline int channel_is_rewritable(const struct channel *chn)
 	return rem >= 0;
 }
 
+/* Returns non-zero if the channel is congested with data in transit waiting
+ * for leaving, indicating to the caller that it should wait for the reserve to
+ * be released before starting to process new data in case it needs the ability
+ * to append data. This is meant to be used while waiting for a clean response
+ * buffer before processing a request.
+ */
+static inline int channel_congested(const struct channel *chn)
+{
+	if (!chn->buf->o)
+		return 0;
+
+	if (!channel_is_rewritable(chn))
+		return 1;
+
+	if (chn->buf->p + chn->buf->i >
+	    chn->buf->data + chn->buf->size - global.tune.maxrewrite)
+		return 1;
+
+	return 0;
+}
+
 /* Tells whether data are likely to leave the buffer. This is used to know when
  * we can safely ignore the reserve since we know we cannot retry a connection.
  * It returns zero if data are blocked, non-zero otherwise.
