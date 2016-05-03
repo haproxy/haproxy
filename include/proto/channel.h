@@ -386,6 +386,7 @@ static inline void channel_dont_read(struct channel *chn)
  */
 static inline int channel_recv_limit(const struct channel *chn)
 {
+	unsigned int transit;
 	int reserve;
 
 	/* return zero if empty */
@@ -398,12 +399,19 @@ static inline int channel_recv_limit(const struct channel *chn)
 	if (unlikely(!channel_may_send(chn)))
 		goto end;
 
-	/* chn->to_forward may cause an integer underflow when equal to
-	 * CHN_INFINITE_FORWARD but we check for it afterwards as it produces
-	 * quite better assembly code in this sensitive code path.
+	/* We need to check what remains of the reserve after o and to_forward
+	 * have been transmitted, but they can overflow together and they can
+	 * cause an integer underflow in the comparison since both are unsigned
+	 * while maxrewrite is signed.
+	 * The code below has been verified for being a valid check for this :
+	 *   - if (o + to_forward) overflow => return size  [ large enough ]
+	 *   - if o + to_forward >= maxrw   => return size  [ large enough ]
+	 *   - otherwise return size - (maxrw - (o + to_forward))
 	 */
-	reserve = global.tune.maxrewrite - chn->buf->o - chn->to_forward;
-	if (chn->to_forward == CHN_INFINITE_FORWARD || reserve < 0)
+	transit = chn->buf->o + chn->to_forward;
+	reserve -= transit;
+	if (transit < chn->to_forward ||                 // addition overflow
+	    transit >= (unsigned)global.tune.maxrewrite) // enough transit data
 		return chn->buf->size;
  end:
 	return chn->buf->size - reserve;
