@@ -120,6 +120,13 @@ static inline unsigned long long channel_forward(struct channel *chn, unsigned l
 	return __channel_forward(chn, bytes);
 }
 
+/* Forwards any input data and marks the channel for permanent forwarding */
+static inline void channel_forward_forever(struct channel *chn)
+{
+	b_adv(chn->buf, chn->buf->i);
+	chn->to_forward = CHN_INFINITE_FORWARD;
+}
+
 /*********************************************************************/
 /* These functions are used to compute various channel content sizes */
 /*********************************************************************/

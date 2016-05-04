@@ -23,44 +23,49 @@
 
 /* Schedule up to <bytes> more bytes to be forwarded via the channel without
  * notifying the owner task. Any data pending in the buffer are scheduled to be
- * sent as well, in the limit of the number of bytes to forward. This must be
- * the only method to use to schedule bytes to be forwarded. If the requested
+ * sent as well, within the limit of the number of bytes to forward. This must
+ * be the only method to use to schedule bytes to be forwarded. If the requested
  * number is too large, it is automatically adjusted. The number of bytes taken
  * into account is returned. Directly touching ->to_forward will cause lockups
  * when buf->o goes down to zero if nobody is ready to push the remaining data.
  */
 unsigned long long __channel_forward(struct channel *chn, unsigned long long bytes)
 {
-	unsigned int new_forward;
+	unsigned int budget;
 	unsigned int forwarded;
 
-	forwarded = chn->buf->i;
-	b_adv(chn->buf, chn->buf->i);
-
-	/* Note: the case below is the only case where we may return
-	 * a byte count that does not fit into a 32-bit number.
+	/* This is more of a safety measure as it's not supposed to happen in
+	 * regular code paths.
 	 */
-	if (likely(chn->to_forward == CHN_INFINITE_FORWARD))
-		return bytes;
-
-	if (likely(bytes == CHN_INFINITE_FORWARD)) {
-		chn->to_forward = bytes;
+	if (unlikely(chn->to_forward == CHN_INFINITE_FORWARD)) {
+		b_adv(chn->buf, chn->buf->i);
 		return bytes;
 	}
 
-	new_forward = chn->to_forward + bytes - forwarded;
-	bytes = forwarded; /* at least those bytes were scheduled */
+	/* Bound the transferred size to a 32-bit count since all our values
+	 * are 32-bit, and we don't want to reach CHN_INFINITE_FORWARD.
+	 */
+	budget = MIN(bytes, CHN_INFINITE_FORWARD - 1);
 
-	if (new_forward <= chn->to_forward) {
-		/* integer overflow detected, let's assume no more than 2G at once */
-		new_forward = MID_RANGE(new_forward);
-	}
+	/* transfer as much as we can of buf->i */
+	forwarded = MIN(chn->buf->i, budget);
+	b_adv(chn->buf, forwarded);
+	budget -= forwarded;
 
-	if (new_forward > chn->to_forward) {
-		bytes += new_forward - chn->to_forward;
-		chn->to_forward = new_forward;
-	}
-	return bytes;
+	if (!budget)
+		return forwarded;
+
+	/* Now we must ensure chn->to_forward sats below CHN_INFINITE_FORWARD,
+	 * which also implies it won't overflow. It's less operations in 64-bit.
+	 */
+	bytes = (unsigned long long)chn->to_forward + budget;
+	if (bytes >= CHN_INFINITE_FORWARD)
+		bytes = CHN_INFINITE_FORWARD - 1;
+	budget = bytes - chn->to_forward;
+
+	chn->to_forward += budget;
+	forwarded += budget;
+	return forwarded;
 }
 
 /* writes <len> bytes from message <msg> to the channel's buffer. Returns -1 in

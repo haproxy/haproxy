@@ -2156,7 +2156,7 @@ struct task *process_stream(struct task *t)
 		 * to the consumer (which might possibly not be connected yet).
 		 */
 		if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			channel_forward(req, CHN_INFINITE_FORWARD);
+			channel_forward_forever(req);
 
 		/* Just in order to support fetching HTTP contents after start
 		 * of forwarding when the HTTP forwarding analyser is not used,
@@ -2318,7 +2318,7 @@ struct task *process_stream(struct task *t)
 		 * to the consumer.
 		 */
 		if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			channel_forward(res, CHN_INFINITE_FORWARD);
+			channel_forward_forever(res);
 
 		/* Just in order to support fetching HTTP contents after start
 		 * of forwarding when the HTTP forwarding analyser is not used,
