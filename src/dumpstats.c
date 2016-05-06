@@ -86,7 +86,7 @@ enum {
 	STAT_CLI_O_CLR,      /* clear tables */
 	STAT_CLI_O_SET,      /* set entries in tables */
 	STAT_CLI_O_STAT,     /* dump stats */
-	STAT_CLI_O_PATS,     /* list all pattern reference avalaible */
+	STAT_CLI_O_PATS,     /* list all pattern reference available */
 	STAT_CLI_O_PAT,      /* list all entries of a pattern */
 	STAT_CLI_O_MLOOK,    /* lookup a map entry */
 	STAT_CLI_O_POOLS,    /* dump memory pools */
@@ -364,12 +364,12 @@ static const char stats_sock_usage_msg[] =
 	"  disable        : put a server or frontend in maintenance mode\n"
 	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
 	"  shutdown       : kill a session or a frontend (eg:to release listening ports)\n"
-	"  show acl [id]  : report avalaible acls or dump an acl's contents\n"
+	"  show acl [id]  : report available acls or dump an acl's contents\n"
 	"  get acl        : reports the patterns matching a sample for an ACL\n"
 	"  add acl        : add acl entry\n"
 	"  del acl        : delete acl entry\n"
 	"  clear acl <id> : clear the content of this acl\n"
-	"  show map [id]  : report avalaible maps or dump a map's contents\n"
+	"  show map [id]  : report available maps or dump a map's contents\n"
 	"  get map        : reports the keys and values matching a sample for a map\n"
 	"  set map        : modify map entry\n"
 	"  add map        : add map entry\n"
@@ -1458,7 +1458,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			else
 				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
-			/* no parameter: display all map avalaible */
+			/* no parameter: display all map available */
 			if (!*args[2]) {
 				appctx->st2 = STAT_ST_INIT;
 				appctx->st0 = STAT_CLI_O_PATS;
@@ -6117,8 +6117,8 @@ static int stats_tlskeys_list(struct stream_interface *si) {
 
 		/* Now, we start the browsing of the references lists.
 		 * Note that the following call to LIST_ELEM return bad pointer. The only
-		 * avalaible field of this pointer is <list>. It is used with the function
-		 * tlskeys_list_get_next() for retruning the first avalaible entry
+		 * available field of this pointer is <list>. It is used with the function
+		 * tlskeys_list_get_next() for retruning the first available entry
 		 */
 		appctx->ctx.tlskeys.ref = LIST_ELEM(&tlskeys_reference, struct tls_keys_ref *, list);
 		appctx->ctx.tlskeys.ref = tlskeys_list_get_next(appctx->ctx.tlskeys.ref, &tlskeys_reference);
@@ -6175,8 +6175,8 @@ static int stats_pats_list(struct stream_interface *si)
 
 		/* Now, we start the browsing of the references lists.
 		 * Note that the following call to LIST_ELEM return bad pointer. The only
-		 * avalaible field of this pointer is <list>. It is used with the function
-		 * pat_list_get_next() for retruning the first avalaible entry
+		 * available field of this pointer is <list>. It is used with the function
+		 * pat_list_get_next() for retruning the first available entry
 		 */
 		appctx->ctx.map.ref = LIST_ELEM(&pattern_reference, struct pat_ref *, list);
 		appctx->ctx.map.ref = pat_list_get_next(appctx->ctx.map.ref, &pattern_reference,
