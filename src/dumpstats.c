@@ -1304,6 +1304,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	appctx->ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
 		if (strcmp(args[1], "backend") == 0) {
+			appctx->ctx.be.px = NULL;
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_BACKEND;
 		}
@@ -3117,13 +3118,24 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 /* Parses backend list and simply report backend names */
 static int stats_dump_backend_to_buffer(struct stream_interface *si)
 {
+	struct appctx *appctx = __objt_appctx(si->end);
 	extern struct proxy *proxy;
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
-	chunk_printf(&trash, "# name\n");
 
-	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+	if (!appctx->ctx.be.px) {
+		chunk_printf(&trash, "# name\n");
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+		appctx->ctx.be.px = proxy;
+	}
+
+	for (; appctx->ctx.be.px != NULL; appctx->ctx.be.px = curproxy->next) {
+		curproxy = appctx->ctx.be.px;
+
 		/* looking for backends only */
 		if (!(curproxy->cap & PR_CAP_BE))
 			continue;
@@ -3133,11 +3145,10 @@ static int stats_dump_backend_to_buffer(struct stream_interface *si)
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
-	}
-
-	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
-		return 0;
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
 	}
 
 	return 1;
