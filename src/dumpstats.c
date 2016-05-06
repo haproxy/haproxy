@@ -313,7 +313,7 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf);
  *     -> stats_dump_backend_to_buffer()  // "show backend"
  *     -> stats_dump_servers_state_to_buffer() // "show servers state [<backend name>]"
  *     -> stats_dump_stat_to_buffer()     // "show stat"
- *        -> stats_dump_resolvers_to_buffer() // "show stat resolver <id>"
+ *        -> stats_dump_resolvers_to_buffer() // "show stat resolvers <id>"
  *        -> stats_dump_csv_header()
  *        -> stats_dump_proxy_to_buffer()
  *           -> stats_dump_fe_stats()
@@ -350,6 +350,8 @@ static const char stats_sock_usage_msg[] =
 	"  show info      : report information about the running process\n"
 	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
+	"  show stat resolvers [id]: dumps counters from all resolvers section and\n"
+	"                            associated name servers\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
