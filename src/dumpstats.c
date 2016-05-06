@@ -303,7 +303,7 @@ static int stats_tlskeys_list(struct stream_interface *si);
 #endif
 static void cli_release_handler(struct appctx *appctx);
 
-static void dump_servers_state(struct proxy *backend, struct chunk *buf);
+static int dump_servers_state(struct stream_interface *si, struct chunk *buf);
 
 /*
  * cli_io_handler()
@@ -1379,18 +1379,21 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
 		else if (strcmp(args[1], "servers") == 0 && strcmp(args[2], "state") == 0) {
-			appctx->ctx.server_state.backend = NULL;
+			appctx->ctx.server_state.iid = 0;
+			appctx->ctx.server_state.px = NULL;
+			appctx->ctx.server_state.sv = NULL;
 
 			/* check if a backend name has been provided */
 			if (*args[3]) {
 				/* read server state from local file */
-				appctx->ctx.server_state.backend = proxy_be_by_name(args[3]);
+				appctx->ctx.server_state.px = proxy_be_by_name(args[3]);
 
-				if (appctx->ctx.server_state.backend == NULL) {
+				if (!appctx->ctx.server_state.px) {
 					appctx->ctx.cli.msg = "Can't find backend.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
+				appctx->ctx.server_state.iid = appctx->ctx.server_state.px->uuid;
 			}
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_SERVERS_STATE; // stats_dump_servers_state_to_buffer
@@ -3057,20 +3060,21 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
  * By default, we only export to the last known server state file format.
  * These information can be used at next startup to recover same level of server state.
  */
-static void dump_servers_state(struct proxy *backend, struct chunk *buf)
+static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 {
+	struct appctx *appctx = __objt_appctx(si->end);
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];
 	time_t srv_time_since_last_change;
 	int bk_f_forced_id, srv_f_forced_id;
 
+
 	/* we don't want to report any state if the backend is not enabled on this process */
-	if (backend->bind_proc && !(backend->bind_proc & (1UL << (relative_pid - 1))))
-		return;
+	if (appctx->ctx.server_state.px->bind_proc && !(appctx->ctx.server_state.px->bind_proc & (1UL << (relative_pid - 1))))
+		return 1;
 
-	srv = backend->srv;
-
-	while (srv) {
+	for (; appctx->ctx.server_state.sv != NULL; appctx->ctx.server_state.sv = srv->next) {
+		srv = appctx->ctx.server_state.sv;
 		srv_addr[0] = '\0';
 		srv_time_since_last_change = 0;
 		bk_f_forced_id = 0;
@@ -3087,7 +3091,7 @@ static void dump_servers_state(struct proxy *backend, struct chunk *buf)
 				break;
 		}
 		srv_time_since_last_change = now.tv_sec - srv->last_change;
-		bk_f_forced_id = backend->options & PR_O_FORCED_ID ? 1 : 0;
+		bk_f_forced_id = appctx->ctx.server_state.px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 
 		chunk_appendf(buf,
@@ -3097,14 +3101,17 @@ static void dump_servers_state(struct proxy *backend, struct chunk *buf)
 				"%d %d %d %d %d "
 				"%d %d"
 				"\n",
-				backend->uuid, backend->id,
+				appctx->ctx.server_state.px->uuid, appctx->ctx.server_state.px->id,
 				srv->puid, srv->id, srv_addr,
 				srv->state, srv->admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
 				srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
 				bk_f_forced_id, srv_f_forced_id);
-
-		srv = srv->next;
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
 	}
+	return 1;
 }
 
 /* Parses backend list and simply report backend names */
@@ -3147,24 +3154,32 @@ static int stats_dump_servers_state_to_buffer(struct stream_interface *si)
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
-
-	if (appctx->ctx.server_state.backend) {
-		dump_servers_state(appctx->ctx.server_state.backend, &trash);
-	}
-	else {
-		for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
-			/* servers are only in backends */
-			if (!(curproxy->cap & PR_CAP_BE))
-				continue;
-
-			dump_servers_state(curproxy, &trash);
+	if (!appctx->ctx.server_state.px) {
+		chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
 		}
+		appctx->ctx.server_state.px = proxy;
 	}
 
-	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
-		return 0;
+	for (; appctx->ctx.server_state.px != NULL; appctx->ctx.server_state.px = curproxy->next) {
+		curproxy = appctx->ctx.server_state.px;
+		if (!appctx->ctx.server_state.sv)
+			appctx->ctx.server_state.sv = appctx->ctx.server_state.px->srv;
+		/* servers are only in backends */
+		if (curproxy->cap & PR_CAP_BE) {
+			if (!dump_servers_state(si, &trash))
+				return 0;
+
+			if (bi_putchk(si_ic(si), &trash) == -1) {
+				si_applet_cant_put(si);
+				return 0;
+			}
+		}
+		/* only the selected proxy is dumped */
+		if (appctx->ctx.server_state.iid)
+			break;
 	}
 
 	return 1;

@@ -131,7 +131,9 @@ struct appctx {
 			struct dns_resolvers *ptr;
 		} resolvers;
 		struct {
-			struct proxy *backend;
+			int iid;		/* if >= 0, ID of the proxy to filter on */
+			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
+			struct server *sv;	/* current server being dumped, NULL = not started yet. */
 		} server_state;
 		struct {
 			char **var;
