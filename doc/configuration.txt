@@ -4,7 +4,7 @@
                          ----------------------
                               version 1.7
                              willy tarreau
-                              2016/03/13
+                              2016/05/10
 
 
 This document covers the configuration language as implemented in the version

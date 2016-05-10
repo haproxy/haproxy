@@ -1,6 +1,109 @@
 ChangeLog :
 ===========
 
+2016/05/10 : 1.7-dev3
+    - MINOR: sample: Moves ARGS underlying type from 32 to 64 bits.
+    - BUG/MINOR: log: Don't use strftime() which can clobber timezone if chrooted
+    - BUILD: namespaces: fix a potential build warning in namespaces.c
+    - MINOR: da: Using ARG12 macro for the sample fetch and the convertor.
+    - DOC: add encoding to json converter example
+    - BUG/MINOR: conf: "listener id" expects integer, but its not checked
+    - DOC: Clarify tunes.vars.xxx-max-size settings
+    - CLEANUP: chunk: adding NULL check to chunk_dup allocation.
+    - CLEANUP: connection: fix double negation on memcmp()
+    - BUG/MEDIUM: peers: fix incorrect age in frequency counters
+    - BUG/MEDIUM: Fix RFC5077 resumption when more than TLS_TICKETS_NO are present
+    - BUG/MAJOR: Fix crash in http_get_fhdr with exactly MAX_HDR_HISTORY headers
+    - BUG/MINOR: lua: can't load external libraries
+    - BUG/MINOR: prevent the dump of uninitialized vars
+    - CLEANUP: map: it seems that the map were planed to be chained
+    - MINOR: lua: move class registration facilities
+    - MINOR: lua: remove some useless checks
+    - CLEANUP: lua: Remove two same functions
+    - MINOR: lua: refactor the Lua object registration
+    - MINOR: lua: precise message when a critical error is catched
+    - MINOR: lua: post initialization
+    - MINOR: lua: Add internal function which strip spaces
+    - MINOR: lua: convert field to lua type
+    - DOC: "addr" parameter applies to both health and agent checks
+    - DOC: timeout client: pointers to timeout http-request
+    - DOC: typo on stick-store response
+    - DOC: stick-table: amend paragraph blaming the loss of table upon reload
+    - DOC: typo: ACL subdir match
+    - DOC: typo: maxconn paragraph is wrong due to a wrong buffer size
+    - DOC: regsub: parser limitation about the inability to use closing square brackets
+    - DOC: typo: req.uri is now replaced by capture.req.uri
+    - DOC: name set-gpt0 mismatch with the expected keyword
+    - MINOR: http: sample fetch which returns unique-id
+    - MINOR: dumpstats: extract stats fields enum and names
+    - MINOR: dumpstats: split stats_dump_info_to_buffer() in two parts
+    - MINOR: dumpstats: split stats_dump_fe_stats() in two parts
+    - MINOR: dumpstats: split stats_dump_li_stats() in two parts
+    - MINOR: dumpstats: split stats_dump_sv_stats() in two parts
+    - MINOR: dumpstats: split stats_dump_be_stats() in two parts
+    - MINOR: lua: dump general info
+    - MINOR: lua: add class proxy
+    - MINOR: lua: add class server
+    - MINOR: lua: add class listener
+    - BUG/MEDIUM: stick-tables: some sample-fetch doesn't work in the connection state.
+    - MEDIUM: proxy: use dynamic allocation for error dumps
+    - CLEANUP: remove unneeded casts
+    - CLEANUP: uniformize last argument of malloc/calloc
+    - DOC: fix "needed" typo
+    - BUG/MINOR: dumpstats: fix write to global chunk
+    - BUG/MINOR: dns: inapropriate way out after a resolution timeout
+    - BUG/MINOR: dns: trigger a DNS query type change on resolution timeout
+    - CLEANUP: proto_http: few corrections for gcc warnings.
+    - BUG/MINOR: DNS: resolution structure change
+    - BUG/MINOR : allow to log cookie for tarpit and denied request
+    - BUG/MEDIUM: ssl: rewind the BIO when reading certificates
+    - OPTIM/MINOR: session: abort if possible before connecting to the backend
+    - DOC: http: rename the unique-id sample and add the documentation
+    - BUG/MEDIUM: trace.c: rdtsc() is defined in two files
+    - BUG/MEDIUM: channel: fix miscalculation of available buffer space (2nd try)
+    - BUG/MINOR: server: risk of over reading the pref_net array.
+    - BUG/MINOR: cfgparse: couple of small memory leaks.
+    - BUG/MEDIUM: sample: initialize the pointer before parse_binary call.
+    - DOC: fix discrepancy in the example for http-request redirect
+    - MINOR: acl: Add predefined METH_DELETE, METH_PUT
+    - CLEANUP: .gitignore cleanup
+    - DOC: Clarify IPv4 address / mask notation rules
+    - CLEANUP: fix inconsistency between fd->iocb, proto->accept and accept()
+    - BUG/MEDIUM: fix maxaccept computation on per-process listeners
+    - BUG/MINOR: listener: stop unbound listeners on startup
+    - BUG/MINOR: fix maxaccept computation according to the frontend process range
+    - TESTS: add blocksig.c to run tests with all signals blocked
+    - MEDIUM: unblock signals on startup.
+    - MINOR: filters: Print the list of existing filters during HA startup
+    - MINOR: filters: Typo in an error message
+    - MINOR: filters: Filters must define the callbacks struct during config parsing
+    - DOC: filters: Add filters documentation
+    - BUG/MEDIUM: channel: don't allow to overwrite the reserve until connected
+    - BUG/MEDIUM: channel: incorrect polling condition may delay event delivery
+    - BUG/MEDIUM: channel: fix miscalculation of available buffer space (3rd try)
+    - BUG/MEDIUM: log: fix risk of segfault when logging HTTP fields in TCP mode
+    - MINOR: Add ability for agent-check to set server maxconn
+    - CLEANUP: Use server_parse_maxconn_change_request for maxconn CLI updates
+    - MINOR: filters: add opaque data
+    - BUG/MEDIUM: lua: protects the upper boundary of the argument list for converters/fetches.
+    - MINOR: lua: migrate the argument mask to 64 bits type.
+    - BUG/MINOR: dumpstats: Fix the "Total bytes saved" counter in backends stats
+    - BUG/MINOR: log: fix a typo that would cause %HP to log <BADREQ>
+    - BUG/MEDIUM: http: fix incorrect reporting of server errors
+    - MINOR: channel: add new function channel_congested()
+    - BUG/MEDIUM: http: fix risk of CPU spikes with pipelined requests from dead client
+    - BUG/MAJOR: channel: fix miscalculation of available buffer space (4th try)
+    - BUG/MEDIUM: stream: ensure the SI_FL_DONT_WAKE flag is properly cleared
+    - BUG/MEDIUM: channel: fix inconsistent handling of 4GB-1 transfers
+    - BUG/MEDIUM: stats: show servers state may show an empty or incomplete result
+    - BUG/MEDIUM: stats: show backend may show an empty or incomplete result
+    - MINOR: stats: fix typo in help messages
+    - MINOR: stats: show stat resolvers missing in the help message
+    - BUG/MINOR: dns: fix DNS header definition
+    - BUG/MEDIUM: dns: fix alignment issue when building DNS queries
+    - CLEANUP: don't ignore scripts in .gitignore
+    - BUILD: add a few release and backport scripts in scripts/
+
 2016/03/14 : 1.7-dev2
     - DOC: lua: fix lua API
     - DOC: mailers: typo in 'hostname' description
