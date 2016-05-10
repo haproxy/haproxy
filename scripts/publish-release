@@ -1,0 +1,159 @@
+#!/bin/bash
+# puts the public files online after a release
+# Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
+#
+# In short :
+#   - requires git
+#   - no restriction to master, uses last tag
+#   - copies & compresses files, changelog & docs to the final destination
+#   - shows a listing of the final file
+
+USAGE="Usage: ${0##*/} [-y] [-b branch] [-n newver] DIR"
+TARGET_DIR=
+OUTPUT=
+SAYYES=
+BRANCH=
+DEVEL=
+NEW=
+DIR=
+DOC=( )
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-y)        SAYYES=1       ; shift   ;;
+		-b)        BRANCH="$2"    ; shift 2 ;;
+		-n)        NEW="$2"       ; shift 2 ;;
+		-h|--help) quit "$USAGE" ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+if [ $# -ne 1 ]; then
+	die "$USAGE"
+fi
+
+DIR="$1" ; shift
+if [ -z "$DIR" ]; then
+	die "Missing target directory name."
+fi
+
+if [ -n "${DIR##/*}" ]; then
+	DIR="$PWD/$DIR"
+fi
+
+if [ ! -d "$DIR/." ]; then
+	die "Target directory doesn't exist : $DIR"
+fi
+
+if ! git rev-parse --verify -q HEAD >/dev/null; then
+	die "Failed to check git HEAD."
+fi
+
+# we want to go to the git top dir
+cd $(git rev-parse --show-toplevel)
+
+if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
+	die "git HEAD doesn't match master branch."
+fi
+
+if [ "$(git diff HEAD|wc -c)" != 0 ]; then
+	err "You appear to have uncommitted local changes, please commit them first :"
+	git status -s -uno >&2
+	die
+fi
+
+if [ -z "$NEW" ]; then
+	NEW="$(git describe --tags HEAD --abbrev=0)"
+	NEW="${NEW#v}"
+	if [ -z "$NEW" ]; then
+		die "Fatal: cannot determine new version, please specify it."
+	fi
+	if [ "$(git describe --tags HEAD)" != "v$NEW" ]; then
+		die "Current version doesn't seem tagged, it reports $(git describe --tags "v$NEW"). Did you release it ?"
+	fi
+fi
+
+if ! git show-ref --tags "v$NEW" >/dev/null; then
+	die "git tag v$NEW doesn't exist, did you create the release ?"
+fi
+
+# determine the product branch from the new release
+if [ -z "$BRANCH" ]; then
+	subvers=${NEW#[0-9]*.[0-9]*[-.]*[0-9].}
+	[ "${subvers}" = "${NEW}" ] && subvers=""
+	major=${NEW%.$subvers}
+	branch_ext=${major#*[0-9].*[0-9]}
+	BRANCH=${major%${branch_ext}}
+fi
+
+TARGET_DIR="$DIR/$BRANCH"
+if [ ! -d "$TARGET_DIR/." ]; then
+	die "Target directory doesn't contain branch $BRANCH. You may have to create it in $DIR."
+fi
+
+if [ -z "${NEW##*-dev*}" ]; then
+	DEVEL="/devel"
+fi
+
+if ! mkdir -p "$TARGET_DIR/src$DEVEL" "$TARGET_DIR/doc"; then
+	die "failed to create target directories."
+fi
+
+case "$BRANCH" in
+	1.3) DOC=( doc/{haproxy-en,haproxy-fr,configuration,architecture}.txt )               ;;
+	1.4) DOC=( doc/{haproxy-en,haproxy-fr,configuration}.txt )                            ;;
+	1.5) DOC=( doc/{coding-style,configuration,proxy-protocol}.txt )                      ;;
+	1.6) DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua}.txt ) ;;
+	*)   DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua}.txt ) ;;
+esac
+
+echo "Ready to produce the following files in $TARGET_DIR/ :"
+echo "    haproxy-$NEW.tar.gz -> src${DEVEL}/"
+echo "    CHANGELOG -> src/CHANGELOG"
+echo "    ${DOC[@]} -> doc/*{,.gz}"
+echo
+
+git ls-tree -l --abbrev=12 "v$NEW" -- CHANGELOG "${DOC[@]}"
+
+if [ -z "$SAYYES" ]; then
+	echo "Press ENTER to continue or Ctrl-C to abort now!"
+	read
+fi
+
+echo "Archiving sources for version $NEW ..."
+rm -f "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"{,.md5}
+if ! git archive --format=tar --prefix="haproxy-${NEW}/" "v$NEW" | \
+     gzip -9 > "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"; then
+	die "Failed to produce the tar.gz archive"
+fi
+
+( cd "$TARGET_DIR/src${DEVEL}" ; \
+  md5sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.md5 )
+
+echo "Extracting doc ..."
+git show "v$NEW:CHANGELOG" > "$TARGET_DIR/src/CHANGELOG"
+
+for i in "${DOC[@]}"; do
+	git show "v$NEW:$i" > "$TARGET_DIR/doc/${i#doc/}"
+	gzip -c9 < "$TARGET_DIR/doc/${i#doc/}" > "$TARGET_DIR/doc/${i#doc/}.gz"
+done
+
+echo "Done : ls -l ${TARGET_DIR}"
+( cd "$TARGET_DIR" ;
+  ls -l src/CHANGELOG "src${DEVEL}/haproxy-${NEW}".tar.gz{,.md5} $(for i in "${DOC[@]}"; do echo "doc/${i#doc/}"{,.gz}; done)
+)
+echo

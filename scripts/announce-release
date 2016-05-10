@@ -1,0 +1,214 @@
+#!/bin/bash
+# prepares a template e-mail and HTML file to announce a new release
+# Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
+#
+# In short :
+#   - requires git
+#   - wants that last commit is a release/tag
+#   - no restriction to master, uses last tag
+#   - creates mail-$version.txt
+#   - creates web-$version.html
+#   - indicates how to edit the mail and how to send it
+
+USAGE="Usage: ${0##*/} [-b branch] [-d date] [-o oldver] [-n newver]"
+OUTPUT=
+BRANCH=
+HTML=
+DATE=
+YEAR=
+OLD=
+NEW=
+DIR=
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-d)        DATE="$2"      ; shift 2 ;;
+		-b)        BRANCH="$2"    ; shift 2 ;;
+		-o)        OLD="$2"       ; shift 2 ;;
+		-n)        NEW="$2"       ; shift 2 ;;
+		-h|--help) quit "$USAGE" ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+if [ $# -gt 0 ]; then
+	die "$USAGE"
+fi
+
+if ! git rev-parse --verify -q HEAD >/dev/null; then
+	die "Failed to check git HEAD."
+fi
+
+# we want to go to the git root dir
+DIR="$PWD"
+cd $(git rev-parse --show-toplevel)
+
+if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
+	die "git HEAD doesn't match master branch."
+fi
+
+if [ "$(git diff HEAD|wc -c)" != 0 ]; then
+	err "You appear to have uncommitted local changes, please commit them first :"
+	git status -s -uno >&2
+	die
+fi
+
+if [ -z "$NEW" ]; then
+	NEW="$(git describe --tags HEAD --abbrev=0)"
+	NEW="${NEW#v}"
+	if [ -z "$NEW" ]; then
+		die "Fatal: cannot determine new version, please specify it."
+	fi
+	if [ "$(git describe --tags HEAD)" != "v$NEW" ]; then
+		die "Current version doesn't seem tagged, it reports $(git describe --tags "v$NEW"). Did you release it ?"
+	fi
+fi
+
+if ! git show-ref --tags "v$NEW" >/dev/null; then
+	die "git tag v$NEW already exist, did you create the release ?"
+fi
+
+if [ -z "$OLD" ]; then
+	OLD="$(git describe --tags v${NEW}^ --abbrev=0)"
+	OLD="${OLD#v}"
+fi
+
+if ! git rev-parse --verify -q "v$OLD" >/dev/null; then
+	die "git tag v$OLD doesn't exist."
+fi
+
+# determine the product branch from the new release
+if [ -z "$BRANCH" ]; then
+	subvers=${NEW#[0-9]*.[0-9]*[-.]*[0-9].}
+	[ "${subvers}" = "${NEW}" ] && subvers=""
+	major=${NEW%.$subvers}
+	branch_ext=${major#*[0-9].*[0-9]}
+	BRANCH=${major%${branch_ext}}
+fi
+
+# determine the release date
+if [ -z "$DATE" ]; then
+	DATE="$(git log -1 --pretty=fuller v${NEW} 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}')"
+	DATE="$(date +%Y/%m/%d -d "$DATE")"
+fi
+YEAR="${DATE%%/*}"
+
+OUTPUT="$DIR/mail-haproxy-$NEW.txt"
+if [ -e "$OUTPUT" ]; then
+	die "$OUTPUT already exists, please remove it."
+fi
+
+HTML="$DIR/web-haproxy-$NEW.html"
+if [ -e "$HTML" ]; then
+	die "$HTML already exists, please remove it."
+fi
+
+(echo "Subject: [ANNOUNCE] haproxy-$NEW"
+ echo "To: haproxy@formilux.org"
+ echo
+ echo "Hi,"
+ echo
+ echo -n "HAProxy $NEW was released on $DATE. It added "
+ echo -n $(git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | wc -l)
+ echo " new commits"
+ echo "after version $OLD."
+ echo
+ echo "- per tag :"
+ git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f1 -d':' | sort | uniq -c
+ echo
+ echo "major commits :"
+ git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^" | grep MAJOR
+ echo
+ echo "- per file :"
+ git show "v$OLD".."v$NEW^" -- src/ | grep ^diff | awk '{ print substr($3,7)}' | sort | uniq -c | sort -nr | head -15
+ echo
+ echo "- per topic :"
+ git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
+ echo
+ echo "- sorted changelog :"
+ git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | sort
+ echo
+ echo "#############################################################################################"
+) >> "$OUTPUT"
+
+# report the download paths
+if [ -z "${NEW##*-dev*}" ]; then
+	gitdir="haproxy.git"
+else
+	gitdir="haproxy-$BRANCH.git"
+fi
+
+(echo "Please find the usual URLs below :"
+ echo "   Site index       : http://www.haproxy.org/"
+ echo "   Discourse        : http://discourse.haproxy.org/"
+ echo "   Sources          : http://www.haproxy.org/download/${BRANCH}/src/"
+ echo "   Git repository   : http://git.haproxy.org/git/${gitdir}/"
+ echo "   Git Web browsing : http://git.haproxy.org/?p=${gitdir}"
+ echo "   Changelog        : http://www.haproxy.org/download/${BRANCH}/src/CHANGELOG"
+ echo "   Cyril's HTML doc : http://cbonte.github.io/haproxy-dconv/"
+) >> "$OUTPUT"
+
+# sign
+(echo
+ echo "${GIT_COMMITTER_NAME% *}"
+) >> "$OUTPUT"
+
+(echo "---"
+ echo "Complete changelog :"
+ git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^"
+ echo "---"
+) >> "$OUTPUT"
+
+
+# prepare the HTML update
+set -- $(date +%e -d "$DATE")
+case "$1" in
+	11|12|13) day="${1}th" ;;
+	*1)       day="${1}st" ;;
+	*2)       day="${2}nd" ;;
+	*3)       day="${1}rd" ;;
+	*)        day="${1}th" ;;
+esac
+
+humandate=$(date "+%B, $day, %Y" -d "$DATE")
+(echo "$humandate</b> : <i>$NEW</i>"
+ echo "         <p>"
+ echo "           <ul>"
+ echo "<--------------------------- edit contents below --------------------------->"
+ echo "- per tag :"
+ git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f1 -d':' | sort | uniq -c
+ echo
+ echo "- per topic :"
+ git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
+ echo
+ echo "major commits :"
+ git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^" | grep MAJOR
+ echo
+ echo "<--------------------------------------------------------------------------->"
+ echo "             Code and changelog are available <a href=\"/download/${BRANCH}/src/\">here</a> as usual."
+ echo "           </ul>"
+ echo "         <p>"
+ echo "           <b>"
+) >> "$HTML"
+
+echo "The announce was emitted into file $OUTPUT."
+echo "You can edit it and send it this way :"
+echo
+echo "   mutt -i ${OUTPUT##*/} -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+echo
+echo "The HTML block was emitted into $HTML and needs to be finished by hand."
+echo

@@ -1,0 +1,229 @@
+#!/bin/bash
+# creates a new haproxy release at the current commit
+# Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
+#
+# In short :
+#   - requires git
+#   - works only from master branch
+#   - finds old and new version by itself
+#   - builds changelog
+#   - updates dates and versions in files
+#   - commits + tags + signs
+#   - no upload!
+
+USAGE="Usage: ${0##*/} [-i] [-y] [-t] [-b branch] [-d date] [-o oldver] [-n newver]"
+INTERACTIVE=
+TAGONLY=
+SAYYES=
+BRANCH=
+DATE=
+YEAR=
+OLD=
+NEW=
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+do_commit() {
+	(
+		echo "[RELEASE] Released version $NEW"
+		echo
+		echo "Released version $NEW with the following main changes :"
+		sed -ne '/^[ ]*-/,/^$/{p;b a};d;:a;/^$/q' CHANGELOG
+	) | git commit -a -F -
+}
+
+do_tag() {
+	git tag -u "$GIT_GPG_KEY" -s -m "HAProxy $NEW" v$NEW && echo "Tagged as v$NEW"
+}
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-y)        SAYYES=1       ; shift   ;;
+		-i)        INTERACTIVE=1  ; shift   ;;
+		-t)        TAGONLY=1      ; shift   ;;
+		-d)        DATE="$2"      ; shift 2 ;;
+		-b)        BRANCH="$2"    ; shift 2 ;;
+		-o)        OLD="$2"       ; shift 2 ;;
+		-n)        NEW="$2"       ; shift 2 ;;
+		-h|--help) quit "$USAGE" ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+if [ $# -gt 0 ]; then
+	die "$USAGE"
+fi
+
+if [ -z "$GIT_GPG_KEY" ]; then
+	die "GIT_GPG_KEY is not set, it must contain your GPG key ID."
+fi
+
+if ! git rev-parse --verify -q HEAD >/dev/null; then
+	die "Failed to check git HEAD."
+fi
+
+# we want to go to the git top dir
+cd $(git rev-parse --show-toplevel)
+
+if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
+	die "git HEAD doesn't match master branch."
+fi
+
+if [ "$(git diff HEAD|wc -c)" != 0 ]; then
+	err "You appear to have uncommitted local changes, please commit them first :"
+	git status -s -uno >&2
+	die
+fi
+
+if [ -z "$OLD" ]; then
+	OLD="$(git describe --tags HEAD --abbrev=0)"
+	OLD="${OLD#v}"
+fi
+
+if ! git rev-parse --verify -q "v$OLD" >/dev/null; then
+	die "git tag v$OLD doesn't exist."
+fi
+
+if [ -z "$NEW" ]; then
+	radix="$OLD"
+	while [ -n "$radix" -a -z "${radix%%*[0-9]}" ]; do
+		radix="${radix%[0-9]}"
+	done
+
+	number=${OLD#$radix}
+	if [ -z "$number" -o "$radix" = "$OLD" ]; then
+		die "Fatal: cannot determine new version, please specify it."
+	fi
+	NEW=${radix}$((number+1))
+fi
+
+if git show-ref --tags "v$NEW" >/dev/null; then
+	die "git tag v$NEW already exists, please remove it first."
+fi
+
+# determine the product branch from the new release
+if [ -z "$BRANCH" ]; then
+	subvers=${NEW#[0-9]*.[0-9]*[-.]*[0-9].}
+	[ "${subvers}" = "${NEW}" ] && subvers=""
+	major=${NEW%.$subvers}
+	branch_ext=${major#*[0-9].*[0-9]}
+	BRANCH=${major%${branch_ext}}
+fi
+
+
+# determine the release date
+if [ -z "$DATE" ]; then
+	# Uncomment the line below to use the date of the last commit,
+	# otherwise fall back to current date
+	DATE="$(git log --pretty=fuller -1 v$NEW 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}')"
+	DATE="$(date +%Y/%m/%d -d "$DATE")"
+else
+	if [ "$DATE" != "$(date +%Y/%m/%d -d "$DATE")" ]; then
+		die "Date format must exclusively be YYYY/MM/DD ; date was '$DATE'."
+	fi
+fi
+YEAR="${DATE%%/*}"
+
+if [ -n "$TAGONLY" ]; then
+	do_tag || die "Failed to tag changes"
+	echo "Done. You may have to push changes."
+	exit 0
+fi
+
+echo "About to release version $NEW from $OLD at $DATE (branch $BRANCH)."
+if [ -z "$SAYYES" ]; then
+	echo "Press ENTER to continue or Ctrl-C to abort now!"
+	read
+fi
+
+echo "Updating CHANGELOG ..."
+( echo "ChangeLog :"
+  echo "==========="
+  echo
+  echo "$DATE : $NEW"
+  #git shortlog v$OLD.. | sed -ne 's/^      /    - /p'
+  git log --oneline --reverse --format="    - %s" v$OLD..
+  echo
+  tail +4 CHANGELOG
+) >.chglog.tmp && mv .chglog.tmp CHANGELOG
+
+echo "Updating VERSION ..."
+rm -f VERSION VERDATE
+echo "$NEW" > VERSION
+
+echo "Updating VERDATE ..."
+echo '$Format:%ci$' > VERDATE
+echo "$DATE" >> VERDATE
+
+echo "Updating haproxy.spec ..."
+sed -e "s/^Version: .*/Version: $NEW/" < examples/haproxy.spec >examples/haproxy.spec- && mv examples/haproxy.spec- examples/haproxy.spec
+
+(sed -ne '0,/^%changelog/p';
+ date -d "$DATE" "+* %a %b %e %Y $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
+ echo "- updated to $(cat VERSION)"
+ echo
+) < examples/haproxy.spec >examples/haproxy.spec-
+sed -ne '0,/^%changelog/d;p' < examples/haproxy.spec >>examples/haproxy.spec-
+mv examples/haproxy.spec- examples/haproxy.spec
+
+# updating branch and date in README and all modified doc files except the outdated architecture.txt
+for file in README doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --name-only v${OLD}.. -- doc); do
+	if [ ! -e "$file" ]; then continue; fi
+	if [ "$file" = doc/architecture.txt ]; then continue; fi
+	echo "Updating $file ..."
+	sed -e "1,10s:\(\sversion\s\).*:\1$BRANCH:" \
+	    -e "1,10s:\(\s\)\(20[0-9]\{2\}/[0-9]\{1,2\}/[0-9]\{1,2\}\):\1$DATE:" \
+	    -i "$file"
+done
+
+echo "Updating haproxy.c ..."
+sed -e "s:Copyright 2000-[0-9]*\s*Willy Tarreau.*>:Copyright 2000-$YEAR Willy Tarreau <willy@haproxy.org>:" \
+    -i src/haproxy.c
+
+if [ -n "$INTERACTIVE" ]; then
+	vi CHANGELOG VERSION VERDATE examples/haproxy*.spec \
+	   src/haproxy.c README doc/configuration.txt \
+	   $(git diff --name-only v${OLD}.. -- doc)
+fi
+
+if [ "$(git diff -- CHANGELOG | wc -c)" = 0 ]; then
+	die "CHANGELOG must be updated."
+fi
+
+if [ -z "$SAYYES" ]; then
+	echo "Press ENTER to review the changes..."
+	read
+fi
+
+git diff
+
+echo
+echo "About to commit and tag version $NEW with the following message:"
+echo
+echo "[RELEASE] Released version $NEW with the following main changes :"
+sed -ne '/^[ ]*-/,/^$/{p;b a};d;:a;/^$/q' CHANGELOG
+
+echo
+echo "LAST chance to cancel! Press ENTER to proceed now or Ctrl-C to abort."
+read
+
+do_commit || die "Failed to commit changes"
+do_tag    || die "Failed to tag changes"
+
+echo "Do not forget to push updates, publish and announce this version :"
+echo
+echo "git push origin master v$NEW"
+echo "${0%/*}/publish-release"
+echo "${0%/*}/announce-release"

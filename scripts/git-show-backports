@@ -1,0 +1,208 @@
+#!/bin/bash
+#
+# Compares multiple branches against a reference and shows which ones contain
+# each commit, and the level of backports since the origin or its own ancestors.
+#
+# Copyright (c) 2016 Willy Tarreau <w@1wt.eu>
+#
+# The purpose is to make it easy to visualize what backports might be missing
+# in a maintenance branch, and to easily spot the ones that are needed and the
+# ones that are not. It solely relies on the "cherry-picked from" tags in the
+# commit messages to find what commit is available where, and can even find a
+# reference commit's ancestor in another branch's commit ancestors as well to
+# detect that the patch is present. When done with the proper references and
+# a correct ordering of the branches, it can be used to quickly apply a set of
+# fixes to a branch since it dumps suggested commands at the end. When doing
+# so it is a good idea to use "HEAD" as the last branch to avoid doing mistakes.
+#
+# Examples :
+# - find what's in master and not in current branch :
+#   show-backports -q -m -r master HEAD
+# - find what's in 1.6/master and in hapee-maint-1.5r2 but not in current branch :
+#   show-backports -q -m -r 1.6/master hapee-maint-1.5r2 HEAD | grep ' [a-f0-9]\{8\}[-+][0-9] '
+# - check that no recent fix from master is missing in any maintenance branch :
+#   show-backports -r master hapee-maint-1.5r2 aloha-7.5 hapee-maint-1.5r1 aloha-7.0
+# - see what was recently merged into 1.6 and has no equivalent in local master :
+#   show-backports -q -m -r 1.6/master -b "1.6/master@{1 week ago}" master
+# - check what extra backports are present in hapee-r2 compared to hapee-r1 :
+#   show-backports -q -m -r hapee-r2 hapee-r1
+
+
+USAGE="Usage: ${0##*/} [-q] [-m] [-r reference] [-l logexpr] [-s subject] [-b base] branch [...]"
+BRANCHES=( )
+REF=master
+BASE=
+QUIET=
+LOGEXPR=
+SUBJECT=
+MISSING=
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+short() {
+	# git rev-parse --short $1
+	echo "${1::8}"
+}
+
+dump_commit_matrix() {
+	title=":$REF:"
+	for branch in "${BRANCHES[@]}"; do
+		#echo -n " $branch"
+		title="$title :${branch}:"
+	done
+	title="$title |"
+
+	count=0
+	# now look up commits
+	while read ref subject; do
+		if [ -n "$MISSING" -a "${subject:0:9}" = "[RELEASE]" ]; then
+			continue
+		fi
+
+		upstream="none"
+		missing=0
+		line="$(short $ref)"
+		for branch in "${BRANCHES[@]}"; do
+			set -- $(grep -m 1 $ref "$WORK/${branch//\//_}")
+			newhash=$1 ; shift
+			# count the number of cherry-picks after this one. Since we shift,
+			# the result is in "$#"
+			while [ -n "$1" -a "$1" != "$ref" ]; do
+				shift
+			done
+			if [ -n "$newhash" ]; then
+				line="${line} $(short $newhash)-$#"
+			else
+				# before giving up we can check if our current commit was
+				# itself cherry-picked and check this again. In order not
+				# to have to do it all the time, we can cache the result
+				# for the current line. If a match is found we report it
+				# with the '+' delimiter instead of '-'.
+				if [ "$upstream" = "none" ]; then
+					upstream=( $(git log -1 --pretty --format=%B "$ref" | \
+						sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p') )
+				fi
+				newhash=""
+				for h in ${upstream[@]}; do
+					set -- $(grep -m 1 $h "$WORK/${branch//\//_}")
+					newhash=$1 ; shift
+					while [ -n "$1" -a "$1" != "$h" ]; do
+						shift
+					done
+					if [ -n "$newhash" ]; then
+						line="${line} $(short $newhash)+$#"
+						break
+					fi
+				done
+				if [ -z "$newhash" ]; then
+					line="${line} -"
+					missing=1
+				fi
+			fi
+		done
+		line="${line} |"
+		if [ -z "$MISSING" -o $missing -gt 0 ]; then
+			[ $((count++)) -gt 0 ] || echo $title
+			[ "$QUIET" != "" -o $count -lt 20 ] || count=0
+			echo "$line"
+		fi
+	done < "$WORK/${REF//\//_}"
+}
+
+while [ -n "$1" -a -z "${1##-*}" ]; do
+	case "$1" in
+		-b)        BASE="$2"      ; shift 2 ;;
+		-r)        REF="$2"       ; shift 2 ;;
+		-l)        LOGEXPR="$2"   ; shift 2 ;;
+		-s)        SUBJECT="$2"   ; shift 2 ;;
+		-q)        QUIET=1        ; shift   ;;
+		-m)        MISSING=1      ; shift   ;;
+		-h|--help) quit "$USAGE" ;;
+		*)         die  "$USAGE" ;;
+	esac
+done
+
+BRANCHES=( "$@" )
+if [ ${#BRANCHES[@]} = 0 ]; then
+	die "$USAGE"
+fi
+
+for branch in "$REF" "${BRANCHES[@]}"; do
+	if ! git rev-parse --verify -q "$branch" >/dev/null; then
+		die "Failed to check git branch $branch."
+	fi
+done
+
+if [ -z "$BASE" ]; then
+	err "Warning! No base specified, looking for common ancestor."
+	BASE=$(git merge-base --all "$REF" "${BRANCHES[@]}")
+	if [ -z "$BASE" ]; then
+		die "Couldn't find a common ancestor between these branches"
+	fi
+fi
+
+# we want to go to the git root dir
+DIR="$PWD"
+cd $(git rev-parse --show-toplevel)
+
+mkdir -p .git/.show-backports #|| die "Can't create .git/.show-backports"
+WORK=.git/.show-backports
+
+rm -f "$WORK/${REF//\//_}"
+git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" | grep "${SUBJECT}" > "$WORK/${branch//\//_}" > "$WORK/${REF//\//_}"
+
+# for each branch, enumerate all commits and their ancestry
+for branch in "${BRANCHES[@]}"; do
+	rm -f "$WORK/${branch//\//_}"
+	git log --reverse --pretty="%H %s" "$BASE".."$branch" | grep "${SUBJECT}" | while read h subject; do
+		echo "$h" $(git log -1 --pretty --format=%B "$h" | \
+			sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p')
+	done > "$WORK/${branch//\//_}"
+done
+
+count=0
+dump_commit_matrix | column -t | \
+(
+	left_commits=( )
+	right_commits=( )
+	while read line; do
+		# append the subject at the end of the line
+		set -- $line
+		echo -n "$line "
+		if [ "${line::1}" = ":" ]; then
+			echo "---- Subject ----"
+		else
+			# doing it this way prevents git from abusing the terminal
+			echo $(git log -1 --pretty="%s" "$1")
+			left_commits[${#left_commits[@]}]="$1"
+			comm=""
+			while [ -n "$1" -a "$1" != "-" -a "$1" != "|" ]; do
+				comm="${1%-*}"
+				shift
+			done
+			right_commits[${#right_commits[@]}]="$comm"
+		fi
+	done
+	if [ -n "$MISSING" -a ${#left_commits[@]} -eq 0 ]; then
+		echo "No missing commit to apply."
+	elif [ -n "$MISSING" ]; then
+		echo
+		echo "In order to apply all leftmost commits to current branch :"
+		echo "   git cherry-pick -x ${left_commits[@]}"
+		echo
+		echo "In order to apply all rightmost commits to current branch :"
+		echo "   git cherry-pick -x ${right_commits[@]}"
+	fi
+)
