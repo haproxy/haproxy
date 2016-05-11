@@ -1496,6 +1496,39 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 			continue;					\
 }
 
+/* These 2 following macros call an analayzer for the specified channel if the
+ * right flag is set. The first one is used for "filterable" analyzers. If a
+ * stream has some registered filters, 'channel_analyaze' callback is called.
+ * The second are used for other analyzers (AN_FLT_* and
+ * AN_REQ/RES_HTTP_XFER_BODY) */
+#define FLT_ANALYZE(strm, chn, fun, list, back, flag, ...)			\
+	{									\
+		if ((list) & (flag)) {						\
+			if (HAS_FILTERS(strm)) {			        \
+				if (!flt_analyze((strm), (chn), (flag)))        \
+					break;				        \
+				if (!fun((strm), (chn), (flag), ##__VA_ARGS__))	\
+					break;					\
+			}							\
+			else {							\
+				if (!fun((strm), (chn), (flag), ##__VA_ARGS__))	\
+					break;					\
+			}							\
+			UPDATE_ANALYSERS((chn)->analysers, (list),		\
+					 (back), (flag));			\
+		}								\
+	}
+
+#define ANALYZE(strm, chn, fun, list, back, flag, ...)			\
+	{								\
+		if ((list) & (flag)) {					\
+			if (!fun((strm), (chn), (flag), ##__VA_ARGS__))	\
+				break;					\
+			UPDATE_ANALYSERS((chn)->analysers, (list),	\
+					 (back), (flag));		\
+		}							\
+	}
+
 /* Processes the client, server, request and response jobs of a stream task,
  * then puts it back to the wait queue in a clean state, or cleans up its
  * resources if it must be deleted. Returns in <next> the date the task wants
@@ -1778,125 +1811,24 @@ struct task *process_stream(struct task *t)
 			ana_list = ana_back = req->analysers;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
-				if (ana_list & AN_FLT_START_FE) {
-					if (!flt_start_analyze(s, req, AN_FLT_START_FE))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_START_FE);
-				}
-
-				if (ana_list & AN_REQ_INSPECT_FE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_INSPECT_FE);
-					if (!tcp_inspect_request(s, req, AN_REQ_INSPECT_FE))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_INSPECT_FE);
-				}
-
-				if (ana_list & AN_REQ_WAIT_HTTP) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_WAIT_HTTP);
-					if (!http_wait_for_request(s, req, AN_REQ_WAIT_HTTP))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_WAIT_HTTP);
-				}
-
-				if (ana_list & AN_REQ_HTTP_BODY) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_HTTP_BODY);
-					if (!http_wait_for_request_body(s, req, AN_REQ_HTTP_BODY))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_BODY);
-				}
-
-				if (ana_list & AN_REQ_HTTP_PROCESS_FE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_HTTP_PROCESS_FE);
-					if (!http_process_req_common(s, req, AN_REQ_HTTP_PROCESS_FE, sess->fe))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE);
-				}
-
-				if (ana_list & AN_REQ_SWITCHING_RULES) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_SWITCHING_RULES);
-					if (!process_switching_rules(s, req, AN_REQ_SWITCHING_RULES))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_SWITCHING_RULES);
-				}
-
-				if (ana_list & AN_FLT_START_BE) {
-					if (!flt_start_analyze(s, req, AN_FLT_START_BE))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_START_BE);
-				}
-
-				if (ana_list & AN_REQ_INSPECT_BE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_INSPECT_BE);
-					if (!tcp_inspect_request(s, req, AN_REQ_INSPECT_BE))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_INSPECT_BE);
-				}
-
-				if (ana_list & AN_REQ_HTTP_PROCESS_BE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_HTTP_PROCESS_BE);
-					if (!http_process_req_common(s, req, AN_REQ_HTTP_PROCESS_BE, s->be))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE);
-				}
-
-				if (ana_list & AN_REQ_HTTP_TARPIT) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_HTTP_TARPIT);
-					if (!http_process_tarpit(s, req, AN_REQ_HTTP_TARPIT))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_TARPIT);
-				}
-
-				if (ana_list & AN_REQ_SRV_RULES) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_SRV_RULES);
-					if (!process_server_rules(s, req, AN_REQ_SRV_RULES))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_SRV_RULES);
-				}
-
-				if (ana_list & AN_REQ_HTTP_INNER) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_HTTP_INNER);
-					if (!http_process_request(s, req, AN_REQ_HTTP_INNER))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_INNER);
-				}
-
-				if (ana_list & AN_REQ_PRST_RDP_COOKIE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_PRST_RDP_COOKIE);
-					if (!tcp_persist_rdp_cookie(s, req, AN_REQ_PRST_RDP_COOKIE))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
-				}
-
-				if (ana_list & AN_REQ_STICKING_RULES) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, req, AN_REQ_STICKING_RULES);
-					if (!process_sticking_rules(s, req, AN_REQ_STICKING_RULES))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_STICKING_RULES);
-				}
-
-				if (ana_list & AN_FLT_HTTP_HDRS) {
-					if (!flt_analyze_http_headers(s, req, AN_FLT_HTTP_HDRS))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_HTTP_HDRS);
-				}
-
-				if (ana_list & AN_FLT_XFER_DATA) {
-					if (!flt_xfer_data(s, req, AN_FLT_XFER_DATA))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_XFER_DATA);
-				}
-
-				if (ana_list & AN_REQ_HTTP_XFER_BODY) {
-					if (!http_request_forward_body(s, req, AN_REQ_HTTP_XFER_BODY))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
-				}
-
-				if (ana_list & AN_FLT_END) {
-					if (!flt_end_analyze(s, req, AN_FLT_END))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_FLT_END);
-				}
+				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_FE);
+				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_FE);
+				FLT_ANALYZE(s, req, http_wait_for_request,      ana_list, ana_back, AN_REQ_WAIT_HTTP);
+				FLT_ANALYZE(s, req, http_wait_for_request_body, ana_list, ana_back, AN_REQ_HTTP_BODY);
+				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE, sess->fe);
+				FLT_ANALYZE(s, req, process_switching_rules,    ana_list, ana_back, AN_REQ_SWITCHING_RULES);
+				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_BE);
+				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_BE);
+				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE, s->be);
+				FLT_ANALYZE(s, req, http_process_tarpit,        ana_list, ana_back, AN_REQ_HTTP_TARPIT);
+				FLT_ANALYZE(s, req, process_server_rules,       ana_list, ana_back, AN_REQ_SRV_RULES);
+				FLT_ANALYZE(s, req, http_process_request,       ana_list, ana_back, AN_REQ_HTTP_INNER);
+				FLT_ANALYZE(s, req, tcp_persist_rdp_cookie,     ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
+				FLT_ANALYZE(s, req, process_sticking_rules,     ana_list, ana_back, AN_REQ_STICKING_RULES);
+				ANALYZE    (s, req, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
+				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
+				ANALYZE    (s, req, http_request_forward_body,  ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
+				ANALYZE    (s, req, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
 				break;
 			}
 		}
@@ -1966,69 +1898,16 @@ struct task *process_stream(struct task *t)
 			ana_list = ana_back = res->analysers;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
-				if (ana_list & AN_FLT_START_FE) {
-					if (!flt_start_analyze(s, res, AN_FLT_START_FE))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_START_FE);
-				}
-
-				if (ana_list & AN_FLT_START_BE) {
-					if (!flt_start_analyze(s, res, AN_FLT_START_BE))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_START_BE);
-				}
-
-				if (ana_list & AN_RES_INSPECT) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, res, AN_RES_INSPECT);
-					if (!tcp_inspect_response(s, res, AN_RES_INSPECT))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_INSPECT);
-				}
-
-				if (ana_list & AN_RES_WAIT_HTTP) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, res, AN_RES_WAIT_HTTP);
-					if (!http_wait_for_response(s, res, AN_RES_WAIT_HTTP))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_WAIT_HTTP);
-				}
-
-				if (ana_list & AN_RES_STORE_RULES) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, res, AN_RES_STORE_RULES);
-					if (!process_store_rules(s, res, AN_RES_STORE_RULES))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_STORE_RULES);
-				}
-
-				if (ana_list & AN_RES_HTTP_PROCESS_BE) {
-					CALL_FILTER_ANALYZER(flt_analyze, s, res, AN_RES_HTTP_PROCESS_BE);
-					if (!http_process_res_common(s, res, AN_RES_HTTP_PROCESS_BE, s->be))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_HTTP_PROCESS_BE);
-				}
-
-				if (ana_list & AN_FLT_HTTP_HDRS) {
-					if (!flt_analyze_http_headers(s, res, AN_FLT_HTTP_HDRS))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_HTTP_HDRS);
-				}
-
-				if (ana_list & AN_FLT_XFER_DATA) {
-					if (!flt_xfer_data(s, res, AN_FLT_XFER_DATA))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_XFER_DATA);
-				}
-
-				if (ana_list & AN_RES_HTTP_XFER_BODY) {
-					if (!http_response_forward_body(s, res, AN_RES_HTTP_XFER_BODY))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
-				}
-
-				if (ana_list & AN_FLT_END) {
-					if (!flt_end_analyze(s, res, AN_FLT_END))
-						break;
-					UPDATE_ANALYSERS(res->analysers, ana_list, ana_back, AN_FLT_END);
-				}
+				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_FE);
+				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_BE);
+				FLT_ANALYZE(s, res, tcp_inspect_response,       ana_list, ana_back, AN_RES_INSPECT);
+				FLT_ANALYZE(s, res, http_wait_for_response,     ana_list, ana_back, AN_RES_WAIT_HTTP);
+				FLT_ANALYZE(s, res, process_store_rules,        ana_list, ana_back, AN_RES_STORE_RULES);
+				FLT_ANALYZE(s, res, http_process_res_common,    ana_list, ana_back, AN_RES_HTTP_PROCESS_BE, s->be);
+				ANALYZE    (s, res, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
+				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
+				ANALYZE    (s, res, http_response_forward_body, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
+				ANALYZE    (s, res, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
 				break;
 			}
 		}

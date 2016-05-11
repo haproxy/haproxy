@@ -93,9 +93,6 @@
 				FLT_STRM_DATA_CB_IMPL_2(strm, chn, call, ##__VA_ARGS__), \
 				FLT_STRM_DATA_CB_IMPL_1(strm, chn, call, ##__VA_ARGS__))
 
-#define CALL_FILTER_ANALYZER(analyzer, strm, chn, bit)			\
-	if (!HAS_FILTERS(strm) || analyzer((strm), (chn), bit)) ; else break
-
 extern struct pool_head *pool2_filter;
 
 int  flt_init(struct proxy *p);
