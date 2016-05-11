@@ -1498,16 +1498,18 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 
 /* These 2 following macros call an analayzer for the specified channel if the
  * right flag is set. The first one is used for "filterable" analyzers. If a
- * stream has some registered filters, 'channel_analyaze' callback is called.
- * The second are used for other analyzers (AN_FLT_* and
+ * stream has some registered filters, pre and post analyaze callbacks are
+ * called. The second are used for other analyzers (AN_FLT_* and
  * AN_REQ/RES_HTTP_XFER_BODY) */
 #define FLT_ANALYZE(strm, chn, fun, list, back, flag, ...)			\
 	{									\
 		if ((list) & (flag)) {						\
 			if (HAS_FILTERS(strm)) {			        \
-				if (!flt_analyze((strm), (chn), (flag)))        \
+				if (!flt_pre_analyze((strm), (chn), (flag)))    \
 					break;				        \
 				if (!fun((strm), (chn), (flag), ##__VA_ARGS__))	\
+					break;					\
+				if (!flt_post_analyze((strm), (chn), (flag)))	\
 					break;					\
 			}							\
 			else {							\

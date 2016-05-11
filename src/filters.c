@@ -656,26 +656,54 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 }
 
 /*
- * Calls 'channel_analyze' callback for all filters attached to a stream. This
- * function is called before each analyzer attached to a channel, expects
- * analyzers responsible for data sending. 'channel_analyze' callback is
- * resumable, so this function returns 0 if an error occurs or if it needs to
- * wait, any other value otherwise.
+ * Calls 'channel_pre_analyze' callback for all filters attached to a
+ * stream. This function is called BEFORE each analyzer attached to a channel,
+ * expects analyzers responsible for data sending. 'channel_pre_analyze'
+ * callback is resumable, so this function returns 0 if an error occurs or if it
+ * needs to wait, any other value otherwise.
+ *
+ * Note this function can be called many times for the same analyzer. In fact,
+ * it is called until the analyzer finishes its processing.
  */
 int
-flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
+flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
 	RESUME_FILTER_LOOP(s, chn) {
-		if (FLT_OPS(filter)->channel_analyze) {
-			ret = FLT_OPS(filter)->channel_analyze(s, filter, chn, an_bit);
+		if (FLT_OPS(filter)->channel_pre_analyze && (filter->pre_analyzers & an_bit)) {
+			ret = FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
 		}
 	} RESUME_FILTER_END;
 
  check_result:
+	return handle_analyzer_result(s, chn, 0, ret);
+}
+
+/*
+ * Calls 'channel_post_analyze' callback for all filters attached to a
+ * stream. This function is called AFTER each analyzer attached to a channel,
+ * expects analyzers responsible for data sending. 'channel_post_analyze'
+ * callback is NOT resumable, so this function returns a 0 if an error occurs,
+ * any other value otherwise.
+ *
+ * Here, AFTER means when the analyzer finishes its processing.
+ */
+int
+flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
+{
+	struct filter *filter;
+	int            ret = 1;
+
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		if (FLT_OPS(filter)->channel_post_analyze &&  (filter->post_analyzers & an_bit)) {
+			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
+			if (ret < 0)
+				break;
+		}
+	}
 	return handle_analyzer_result(s, chn, 0, ret);
 }
 

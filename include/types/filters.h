@@ -77,10 +77,14 @@ struct flt_kw_list {
  *  - channel_start_analyze: Called when a filter starts to analyze a channel.
  *                          Returns a negative value if an error occurs, 0 if
  *                          it needs to wait, any other value otherwise.
- *  - channel_analyze     : Called before each analyzer attached to a channel,
+ *  - channel_pre_analyze : Called before each analyzer attached to a channel,
  *                          expects analyzers responsible for data sending.
  *                          Returns a negative value if an error occurs, 0 if
  *                          it needs to wait, any other value otherwise.
+ *  - channel_post_analyze: Called after each analyzer attached to a channel,
+ *                          expects analyzers responsible for data sending.
+ *                          Returns a negative value if an error occurs,
+ *                          any other value otherwise.
  *  - channel_end_analyze : Called when all other analyzers have finished their
  *                          processing.
  *                          Returns a negative value if an error occurs, 0 if
@@ -140,7 +144,8 @@ struct flt_ops {
 	 * Channel callbacks
 	 */
 	int  (*channel_start_analyze)(struct stream *s, struct filter *f, struct channel *chn);
-	int  (*channel_analyze)      (struct stream *s, struct filter *f, struct channel *chn, unsigned int an_bit);
+	int  (*channel_pre_analyze)  (struct stream *s, struct filter *f, struct channel *chn, unsigned int an_bit);
+	int  (*channel_post_analyze) (struct stream *s, struct filter *f, struct channel *chn, unsigned int an_bit);
 	int  (*channel_end_analyze)  (struct stream *s, struct filter *f, struct channel *chn);
 
 	/*
@@ -202,6 +207,8 @@ struct filter {
 	                                    * 0: request channel, 1: response channel */
 	unsigned int    fwd[2];            /* Offset, relative to buf->p, to the next byte to forward for a specific channel
 	                                    * 0: request channel, 1: response channel */
+	unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
+	unsigned int    post_analyzers;    /* bit field indicating analyzers to post-process */
 	struct list     list;              /* Next filter for the same proxy/stream */
 };
 

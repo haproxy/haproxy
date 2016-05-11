@@ -145,7 +145,8 @@ trace_chn_start_analyze(struct stream *s, struct filter *filter,
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
 		   __FUNCTION__,
 		   channel_label(chn), proxy_mode(s), stream_pos(s));
-	register_data_filter(s, chn, filter);
+	filter->pre_analyzers  |= (AN_REQ_ALL | AN_RES_ALL);
+	filter->post_analyzers |= (AN_REQ_ALL | AN_RES_ALL);
 	return 1;
 }
 
@@ -216,10 +217,11 @@ trace_chn_analyze(struct stream *s, struct filter *filter,
 			ana = "unknown";
 	}
 
-	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - analyzer=%s",
+	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
+		   "analyzer=%s - step=%s",
 		   __FUNCTION__,
 		   channel_label(chn), proxy_mode(s), stream_pos(s),
-		   ana);
+		   ana, ((chn->analysers & an_bit) ? "PRE" : "POST"));
 	return 1;
 }
 
@@ -413,7 +415,8 @@ struct flt_ops trace_ops = {
 
 	/* Handle channels activity */
 	.channel_start_analyze = trace_chn_start_analyze,
-	.channel_analyze       = trace_chn_analyze,
+	.channel_pre_analyze   = trace_chn_analyze,
+	.channel_post_analyze  = trace_chn_analyze,
 	.channel_end_analyze   = trace_chn_end_analyze,
 
 	/* Filter HTTP requests and responses */

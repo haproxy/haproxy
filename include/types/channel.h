@@ -156,6 +156,7 @@
 #define AN_RES_HTTP_PROCESS_FE  0x00040000  /* process frontend's HTTP part (same for now) */
 #define AN_RES_STORE_RULES      0x00080000  /* table persistence matching */
 #define AN_RES_HTTP_XFER_BODY   0x00100000  /* forward response body */
+#define AN_RES_ALL              0x001f0000  /* all of the response analysers */
 
 #define AN_FLT_START_FE         0x01000000
 #define AN_FLT_START_BE         0x02000000

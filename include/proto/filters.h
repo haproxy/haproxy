@@ -114,7 +114,8 @@ void flt_http_reset(struct stream *s, struct http_msg *msg);
 void flt_http_reply(struct stream *s, short status, const struct chunk *msg);
 
 int  flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
-int  flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
+int  flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
+int  flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
 int  flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit);
 int  flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
 
