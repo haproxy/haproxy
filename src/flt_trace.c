@@ -21,6 +21,7 @@
 #include <types/stream.h>
 
 #include <proto/filters.h>
+#include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/stream.h>
 
@@ -196,9 +197,6 @@ trace_chn_analyze(struct stream *s, struct filter *filter,
 		case AN_REQ_HTTP_XFER_BODY:
 			ana = "AN_REQ_HTTP_XFER_BODY";
 			break;
-		case AN_REQ_ALL:
-			ana = "AN_REQ_ALL";
-			break;
 		case AN_RES_INSPECT:
 			ana = "AN_RES_INSPECT";
 			break;
@@ -211,14 +209,8 @@ trace_chn_analyze(struct stream *s, struct filter *filter,
 		case AN_RES_STORE_RULES:
 			ana = "AN_RES_STORE_RULES";
 			break;
-		case AN_FLT_HTTP_HDRS:
-			ana = "AN_FLT_HTTP_HDRS";
-			break;
 		case AN_RES_HTTP_XFER_BODY:
 			ana = "AN_RES_HTTP_XFER_BODY";
-			break;
-		case AN_FLT_XFER_DATA:
-			ana = "AN_FLT_XFER_DATA";
 			break;
 		default:
 			ana = "unknown";
@@ -247,6 +239,33 @@ trace_chn_end_analyze(struct stream *s, struct filter *filter,
 /**************************************************************************
  * Hooks to filter HTTP messages
  *************************************************************************/
+static int
+trace_http_headers(struct stream *s, struct filter *filter,
+		   struct http_msg *msg)
+{
+	struct trace_config *conf = FLT_CONF(filter);
+	struct hdr_idx      *hdr_idx;
+	char                *cur_hdr;
+	int                  cur_idx;
+
+	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s)",
+		   __FUNCTION__,
+		   channel_label(msg->chn), proxy_mode(s), stream_pos(s));
+
+	STRM_TRACE(conf, s, "\t%.*s", MIN(msg->sl.rq.l, 74), msg->chn->buf->p);
+	hdr_idx = &s->txn->hdr_idx;
+	cur_idx = hdr_idx_first_idx(hdr_idx);
+	cur_hdr = msg->chn->buf->p + hdr_idx_first_pos(hdr_idx);
+	while (cur_idx) {
+		STRM_TRACE(conf, s, "\t%.*s",
+			   MIN(hdr_idx->v[cur_idx].len, 74), cur_hdr);
+		cur_hdr += hdr_idx->v[cur_idx].len + hdr_idx->v[cur_idx].cr + 1;
+		cur_idx = hdr_idx->v[cur_idx].next;
+	}
+	register_data_filter(s, msg->chn, filter);
+	return 1;
+}
+
 static int
 trace_http_data(struct stream *s, struct filter *filter,
 		      struct http_msg *msg)
@@ -398,6 +417,7 @@ struct flt_ops trace_ops = {
 	.channel_end_analyze   = trace_chn_end_analyze,
 
 	/* Filter HTTP requests and responses */
+	.http_headers        = trace_http_headers,
 	.http_data           = trace_http_data,
 	.http_chunk_trailers = trace_http_chunk_trailers,
 	.http_end            = trace_http_end,

@@ -680,20 +680,21 @@ flt_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 }
 
 /*
- * This function do the same that the previsous one, but for the
- * AN_FLT_HTTP_HDRS analyzer. The difference is what is done when all filters
- * have been called. Returns 0 if an error occurs or if it needs to wait, any
- * other value otherwise.
+ * This function is the AN_FLT_HTTP_HDRS analyzer, used to filter HTTP headers
+ * or a request or a response. Returns 0 if an error occurs or if it needs to
+ * wait, any other value otherwise.
  */
 int
 flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
-	struct filter *filter;
-	int            ret = 1;
+	struct filter   *filter;
+	struct http_msg *msg;
+	int              ret = 1;
 
+	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
 	RESUME_FILTER_LOOP(s, chn) {
-		if (FLT_OPS(filter)->channel_analyze) {
-			ret = FLT_OPS(filter)->channel_analyze(s, filter, chn, an_bit);
+		if (FLT_OPS(filter)->http_headers) {
+			ret = FLT_OPS(filter)->http_headers(s, filter, msg);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
 		}
@@ -707,9 +708,7 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 		/* Handle "data" filters only */
 		if (!IS_DATA_FILTER(filter, chn))
 			continue;
-
-		FLT_NXT(filter, chn) = ((chn->flags & CF_ISRESP)
-					? s->txn->rsp.sov : s->txn->req.sov);
+		FLT_NXT(filter, chn) = msg->sov;
 	}
 
  check_result:

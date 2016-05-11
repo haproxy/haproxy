@@ -87,6 +87,10 @@ struct flt_kw_list {
  *                          it needs to wait, any other value otherwise.
  *
  *
+ *  - http_headers        : Called before the body parsing, after all HTTP
+ *                          headers was parsed and analyzed.
+ *                          Returns a negative value if an error occurs, 0 if
+ *                          it needs to wait, any other value otherwise.
  *  - http_data           : Called when unparsed body data are available.
  *                          Returns a negative value if an error occurs, else
  *                          the number of consumed bytes.
@@ -142,6 +146,7 @@ struct flt_ops {
 	/*
 	 * HTTP callbacks
 	 */
+	int  (*http_headers)       (struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_data)          (struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_chunk_trailers)(struct stream *s, struct filter *f, struct http_msg *msg);
 	int  (*http_end)           (struct stream *s, struct filter *f, struct http_msg *msg);
