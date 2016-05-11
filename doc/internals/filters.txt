@@ -1,6 +1,6 @@
                    -----------------------------------------
                           Filters Guide - version 1.7
-                          ( Last update: 2016-04-18 )
+                          ( Last update: 2016-05-11 )
                    ------------------------------------------
                           Author : Christopher Faulet
               Contact : christopher dot faulet at capflam dot org
@@ -193,8 +193,11 @@ existing callbacks. Available callbacks are listed in the following structure:
          * Channel callbacks
          */
         int  (*channel_start_analyze)(struct stream *s, struct filter *f,
-                      struct channel *chn);
-        int  (*channel_analyze)      (struct stream *s, struct filter *f,
+                                      struct channel *chn);
+        int  (*channel_pre_analyze)  (struct stream *s, struct filter *f,
+                                      struct channel *chn,
+                                      unsigned int an_bit);
+        int  (*channel_post_analyze) (struct stream *s, struct filter *f,
                                       struct channel *chn,
                                       unsigned int an_bit);
         int  (*channel_end_analyze)  (struct stream *s, struct filter *f,
@@ -203,6 +206,8 @@ existing callbacks. Available callbacks are listed in the following structure:
         /*
          * HTTP callbacks
          */
+        int  (*http_headers)       (struct stream *s, struct filter *f,
+                                    struct http_msg *msg);
         int  (*http_data)          (struct stream *s, struct filter *f,
                                     struct http_msg *msg);
         int  (*http_chunk_trailers)(struct stream *s, struct filter *f,
@@ -309,6 +314,10 @@ Filter instances attached to a stream are stored in the field
         unsigned int    fwd[2];  /* Offset, relative to buf->p, to the next
                                   * byte to forward for a specific channel
                                   * 0: request channel, 1: response channel */
+        unsigned int    pre_analyzers;  /* bit field indicating analyzers to
+                                         * pre-process */
+        unsigned int    post_analyzers; /* bit field indicating analyzers to
+                                         * post-process */
         struct list     list;    /* Next filter for the same proxy/stream */
     };
 
@@ -317,6 +326,9 @@ Filter instances attached to a stream are stored in the field
 
   * 'filter.ctx' is an opaque context. It is managed by the filter, so it is its
     responsibility to free it.
+
+  * 'filter.pre_analyzers and 'filter.post_analyzers will be described later
+    (See § 3.5).
 
   * 'filter.next' and 'filter.fwd' will be described later (See § 3.6).
 
@@ -330,8 +342,8 @@ line:
 
     /* Declare the filter parser for "my_filter" keyword */
     static struct flt_kw_list flt_kws = { "MY_FILTER_SCOPE", { }, {
-            { "my_filter", parse_my_filter_cfg },
-            { NULL, NULL },
+            { "my_filter", parse_my_filter_cfg, NULL /* private data */ },
+            { NULL, NULL, NULL },
         }
     };
 
@@ -372,7 +384,7 @@ filter line:
     /* Return -1 on error, else 0 */
     static int
     parse_my_filter_cfg(char **args, int *cur_arg, struct proxy *px,
-                        struct flt_conf *flt_conf, char **err)
+                        struct flt_conf *flt_conf, char **err, void *private)
     {
         struct my_filter_config *my_conf;
         int pos = *cur_arg;
@@ -544,10 +556,11 @@ WARNING: Handling the streams creation and destuction is only possible for
 ------------------------------------
 
 The main purpose of filters is to take part in the channels analyzing. To do so,
-there is a callback, 'flt_ops.channel_analyze', called before each analyzer
-attached to a channel, execpt analyzers responsible for the data
-parsing/forwarding (TCP data or HTTP body). Concretely, on the request channel,
-'flt_ops.channel_analyze' could be called before following analyzers:
+there is 2 callbacks, 'flt_ops.channel_pre_analyze' and
+'flt_ops.channel_post_analyze', called respectively before and after each
+analyzer attached to a channel, execpt analyzers responsible for the data
+parsing/forwarding (TCP or HTTP data). Concretely, on the request channel, these
+callbacks could be called before following analyzers:
 
   * tcp_inspect_request        (AN_REQ_INSPECT_FE and AN_REQ_INSPECT_BE)
   * http_wait_for_request      (AN_REQ_WAIT_HTTP)
@@ -560,7 +573,6 @@ parsing/forwarding (TCP data or HTTP body). Concretely, on the request channel,
   * http_process_request       (AN_REQ_HTTP_INNER)
   * tcp_persist_rdp_cookie     (AN_REQ_PRST_RDP_COOKIE)
   * process_sticking_rules     (AN_REQ_STICKING_RULES)
-  * flt_analyze_http_headers   (AN_FLT_HTTP_HDRS)
 
 And on the response channel:
 
@@ -568,26 +580,23 @@ And on the response channel:
   * http_wait_for_response   (AN_RES_WAIT_HTTP)
   * process_store_rules      (AN_RES_STORE_RULES)
   * http_process_res_common  (AN_RES_HTTP_PROCESS_BE)
-  * flt_analyze_http_headers (AN_FLT_HTTP_HDRS)
 
-Note that 'flt_analyze_http_headers' (AN_FLT_HTTP_HDRS) is a new analyzer. It
-has been added to let filters analyze HTTP headers after all processing, just
-before the data parsing/forwarding.
-
-Unlike the other callbacks previously seen before, 'flt_ops.channel_analyze' can
-interrupt the stream processing. So a filter can decide to not execute the
+Unlike the other callbacks previously seen before, 'flt_ops.channel_pre_analyze'
+can interrupt the stream processing. So a filter can decide to not execute the
 analyzer that follows and wait the next iteration. If there are more than one
 filter, following ones are skipped. On the next iteration, the filtering resumes
 where it was stopped, i.e. on the filter that has previously stopped the
-processing. So it is possible for a filter to stop the stream processing for a
-while before continuing. For example:
+processing. So it is possible for a filter to stop the stream processing on a
+specific analyzer for a while before continuing. Moreover, this callback can be
+called many times for the same analyzer, until it finishes its processing. For
+example:
 
     /* Called before a processing happens on a given channel.
      * Returns a negative value if an error occurs, 0 if it needs to wait,
      * any other value otherwise. */
     static int
-    my_filter_chn_analyze(struct stream *s, struct filter *filter,
-                          struct channel *chn, unsigned an_bit)
+    my_filter_chn_pre_analyze(struct stream *s, struct filter *filter,
+                              struct channel *chn, unsigned an_bit)
     {
         struct my_filter_config *my_conf = FLT_CONF(filter);
 
@@ -612,6 +621,61 @@ while before continuing. For example:
 
 In previous example, the stream processing is blocked before receipt of the HTTP
 request until a condition is verified.
+
+'flt_ops.channel_post_analyze', for its part, is not resumable. It returns a
+negative value if an error occurs, any other value otherwise. It is called when
+a filterable analyzer finishes its processing. So it called once for the same
+analyzer. For example:
+
+    /* Called after a processing happens on a given channel.
+     * Returns a negative value if an error occurs, any other
+     * value otherwise. */
+    static int
+    my_filter_chn_post_analyze(struct stream *s, struct filter *filter,
+                               struct channel *chn, unsigned an_bit)
+    {
+        struct my_filter_config *my_conf = FLT_CONF(filter);
+        struct http_msg         *msg;
+
+        switch (an_bit) {
+            case AN_REQ_WAIT_HTTP:
+                if (/* A test on received headers before any other treatment */) {
+                    msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
+                    txn->status = 400;
+                    msg->msg_state = HTTP_MSG_ERROR;
+                    http_reply_and_close(s, s->txn->status,
+                                         http_error_message(s, HTTP_ERR_400));
+                    return -1; /* This is an error ! */
+                }
+                break;
+            /* ... * /
+        }
+        return 1;
+    }
+
+
+Pre and post analyzer callbacks of a filter are not automatically called. You
+must register it explicitly on analyzers, updating the value of
+'filter.pre_analyzers' and 'filter.post_analyzers' bit fields. All analyzer bits
+are listed in 'include/types/channels.h'. Here is an example:
+
+    static int
+    my_filter_stream_start(struct stream *s, struct filter *filter)
+    {
+        /* ... * /
+
+        /* Register the pre analyzer callback on all request and response
+         * analyzers */
+        filter->pre_analyzers |= (AN_REQ_ALL | AN_RES_ALL)
+
+        /* Register the post analyzer callback of only on AN_REQ_WAIT_HTTP and
+         * AN_RES_WAIT_HTTP analyzers */
+         filter->post_analyzers |= (AN_REQ_WAIT_HTTP | AN_RES_WAIT_HTTP)
+
+        /* ... * /
+        return 0;
+    }
+
 
 To surround activity of a filter during the channel analyzing, two new analyzers
 has been added:
@@ -680,15 +744,17 @@ Workflow on channels can be summarized as following:
 |(flt_ops.channel_start_analyze)|   | F   | |(flt_ops.channel_start_analyze)|   |
 +---------------+---------------+   | R   | +---------------+---------------+   |
                 |                   | O   |                 |                   |
-                +------<--------+   | N   ^                 +--------<-------+  | B
-                |               |   | T   |                 |                |  | A
-+---------------+----------+    |   | E   | +---------------+----------+     |  | C
-|+--------------V-----------+   |   | N   | |+--------------V-----------+    |  | K
-||+--------------------------+  |   | D   | ||+--------------------------+   |  | E
-|||  flt_ops.channel_analyze |  |   |     | |||  flt_ops.channel_analyze |   |  | N
-+||             V            +--+   |     | +||             V            +---+  | D
- +|          analyzer        |      |     |  +|          analyzer        |      |
-  +-------------+------------+      |     |   +-------------+------------+      |
+                +------<---------+  | N   ^                 +--------<-------+  | B
+                |                |  | T   |                 |                |  | A
++---------------+------------+   |  | E   | +---------------+------------+   |  | C
+|+--------------V-------------+  |  | N   | |+--------------V-------------+  |  | K
+||+----------------------------+ |  | D   | ||+----------------------------+ |  | E
+|||flt_ops.channel_pre_analyze | |  |     | |||flt_ops.channel_pre_analyze | |  | N
+|||             V              | |  |     | |||             V              | |  | D
+|||          analyzer          +-+  |     | |||          analyzer          +-+  |
++||             V              |    |     | +||             V              |    |
+ +|flt_ops.channel_post_analyze|    |     |  +|flt_ops.channel_post_analyze|    |
+  +-------------+--------------+    |     |   +-------------+--------------+    |
                 |                 --+     |                 |                   |
                 +------------>------------+                ...                  |
                                                             |                   |
@@ -714,9 +780,34 @@ Workflow on channels can be summarized as following:
                                                             |
                                                             V
 
+By zooming on an analyzer box we have:
 
-TODO: Add pre/post analyzer callbacks with a mask. So, this part will be
-      massively refactored very soon.
+                     ...
+                      |
+                      V
+                      |
+                      +-----------<-----------+
+                      |                       |
+    +-----------------+--------------------+  |
+    |                 |                    |  |
+    |                 +--------<---------+ |  |
+    |                 |                  | |  |
+    |                 V                  | |  |
+    |     flt_ops.channel_pre_analyze ->-+ |  ^
+    |                 |                    |  |
+    |                 |                    |  |
+    |                 V                    |  |
+    |              analyzer --------->-----+--+
+    |                 |                    |
+    |                 |                    |
+    |                 V                    |
+    |     flt_ops.channel_post_analyze     |
+    |                 |                    |
+    |                 |                    |
+    +-----------------+--------------------+
+                      |
+                      V
+                     ...
 
 
  3.6. FILTERING THE DATA EXCHANGED
@@ -737,15 +828,14 @@ So, to enable the data filtering on a channel, at any time, in one of previous
 callbacks, you should call 'register_data_filter' function. And conversely, to
 disable it, you should call 'unregister_data_filter' function. For example:
 
-    my_filter_chn_analyze(struct stream *s, struct filter *filter,
-                          struct channel *chn, unsigned an_bit)
+    my_filter_http_headers(struct stream *s, struct filter *filter,
+                           struct http_msg *msg)
     {
         struct my_filter_config *my_conf = FLT_CONF(filter);
 
         /* 'chn' must be the request channel */
-        if (!(chn->flags & CF_ISRESP) && an_bit == AN_FLT_HTTP_HDRS) {
+        if (!(msg->chn->flags & CF_ISRESP)) {
             struct http_txn *txn = s->txn;
-            struct http_msg *msg = &txn->req;
             struct buffer   *req = msg->chn->buf;
             struct hdr_ctx   ctx;
 
@@ -753,7 +843,7 @@ disable it, you should call 'unregister_data_filter' function. For example:
              * is set to 'true'. */
             if (http_find_header2("X-Filter", 8, req->p, &txn->hdr_idx, &ctx) &&
                 ctx.vlen >= 3 && memcmp(ctx.line + ctx.val, "true", 4) == 0)
-                register_data_filter(s, chn_filter);
+                register_data_filter(s, chn, filter);
         }
 
         return 1;
@@ -916,7 +1006,12 @@ But in your filter, you need to recompute it:
     Bytes = MIN(msg->chunk_len + msg->next, chn->buf->i) - FLT_NXT(flt, chn);
 
 
-In addition to these callbacks, there are two other:
+In addition to these callbacks, there are three others:
+
+  * 'flt_ops.http_headers': This callback is called just before the HTTP body
+    parsing and after any processing on the request/response HTTP headers. When
+    defined, this callback is always called for HTTP streams (i.e. without needs
+    of a registration on data filtering).
 
   * 'flt_ops.http_end': This callback is called when the whole HTTP
     request/response is processed. It can interrupt the stream processing. So,
