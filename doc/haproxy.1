@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
+haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -33,8 +33,10 @@ instances without risking the system's stability.
 .SH OPTIONS
 
 .TP
-\fB\-f <configuration file>\fP
-Specify configuration file path.
+\fB\-f <configuration file|dir>\fP
+Specify configuration file or directory path. If the argument is a directory
+the files (and only files) it containes are added in lexical order (respecting
+LC_COLLATE) ; only non hidden files with ".cfg" extension are added.
 
 .TP
 \fB\-L <name>\fP

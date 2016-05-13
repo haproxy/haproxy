@@ -31,6 +31,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <dirent.h>
+#include <locale.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -423,7 +426,7 @@ void usage(char *name)
 {
 	display_version();
 	fprintf(stderr,
-		"Usage : %s [-f <cfgfile>]* [ -vdV"
+		"Usage : %s [-f <cfgfile|cfgdir>]* [ -vdV"
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
 		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ] [-- <cfgfile>*]\n"
 		"        -v displays version ; -vv shows known build options.\n"
@@ -549,6 +552,99 @@ void dump(struct sig_handler *sh)
 	/* dump memory usage then free everything possible */
 	dump_pools();
 	pool_gc2();
+}
+
+/* This function check if cfg_cfgfiles containes directories.
+ * If it find one, it add all the files (and only files) it containes
+ * in cfg_cfgfiles in place of the directory (and remove the directory).
+ * It add the files in lexical order.
+ * It add only files with .cfg extension.
+ * It doesn't add files with name starting with '.'
+ */
+void cfgfiles_expand_directories(void)
+{
+	struct wordlist *wl, *wlb;
+	char *err = NULL;
+
+	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
+		struct stat file_stat;
+		struct dirent **dir_entries = NULL;
+		int dir_entries_nb;
+		int dir_entries_it;
+
+		if (stat(wl->s, &file_stat)) {
+			Alert("Cannot open configuration file/directory %s : %s\n",
+			      wl->s,
+			      strerror(errno));
+			exit(1);
+		}
+
+		if (!S_ISDIR(file_stat.st_mode))
+			continue;
+
+		/* from this point wl->s is a directory */
+
+		dir_entries_nb = scandir(wl->s, &dir_entries, NULL, alphasort);
+		if (dir_entries_nb < 0) {
+			Alert("Cannot open configuration directory %s : %s\n",
+			      wl->s,
+			      strerror(errno));
+			exit(1);
+		}
+
+		/* for each element in the directory wl->s */
+		for (dir_entries_it = 0; dir_entries_it < dir_entries_nb; dir_entries_it++) {
+			struct dirent *dir_entry = dir_entries[dir_entries_it];
+			char *filename = NULL;
+			char *d_name_cfgext = strstr(dir_entry->d_name, ".cfg");
+
+			/* don't add filename that begin with .
+			 * only add filename with .cfg extention
+			 */
+			if (dir_entry->d_name[0] == '.' ||
+			    !(d_name_cfgext && d_name_cfgext[4] == '\0'))
+				goto next_dir_entry;
+
+			if (!memprintf(&filename, "%s/%s", wl->s, dir_entry->d_name)) {
+				Alert("Cannot load configuration files %s : out of memory.\n",
+				      filename);
+				exit(1);
+			}
+
+			if (stat(filename, &file_stat)) {
+				Alert("Cannot open configuration file %s : %s\n",
+				      wl->s,
+				      strerror(errno));
+				exit(1);
+			}
+
+			/* don't add anything else than regular file in cfg_cfgfiles
+			 * this way we avoid loops
+			 */
+			if (!S_ISREG(file_stat.st_mode))
+				goto next_dir_entry;
+
+			if (!list_append_word(&wl->list, filename, &err)) {
+				Alert("Cannot load configuration files %s : %s\n",
+				      filename,
+				      err);
+				exit(1);
+			}
+
+next_dir_entry:
+			free(filename);
+			free(dir_entry);
+		}
+
+		free(dir_entries);
+
+		/* remove the current directory (wl) from cfg_cfgfiles */
+		free(wl->s);
+		LIST_DEL(&wl->list);
+		free(wl);
+	}
+
+	free(err);
 }
 
 /*
@@ -757,13 +853,16 @@ void init(int argc, char **argv)
 		(arg_mode & (MODE_DAEMON | MODE_SYSTEMD | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
-	if (LIST_ISEMPTY(&cfg_cfgfiles))
-		usage(progname);
-
 	if (change_dir && chdir(change_dir) < 0) {
 		Alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
 		exit(1);
 	}
+
+	/* handle cfgfiles that are actualy directories */
+	cfgfiles_expand_directories();
+
+	if (LIST_ISEMPTY(&cfg_cfgfiles))
+		usage(progname);
 
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 
@@ -1652,6 +1751,9 @@ int main(int argc, char **argv)
 	struct rlimit limit;
 	char errmsg[100];
 	int pidfd = -1;
+
+	/* get the locale from the environment variables */
+	setlocale(LC_ALL, "");
 
 	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
