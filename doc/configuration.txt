@@ -9932,8 +9932,8 @@ crt-list <file>
   the 'strict-sni' option may be used.
 
   Multi-cert bundling (see "crt") is supported with crt-list, as long as only
-  the base name is given in the crt-list. Due to the nature of bundling, all SNI
-  filters given to a multi-cert bundle entry are ignored.
+  the base name is given in the crt-list. SNI filter will do the same work on
+  all bundled certificates.
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It

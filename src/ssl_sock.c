@@ -1934,7 +1934,7 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
  *     0 on success
  *     1 on failure
  */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, char **err)
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
 {
 	char fp[MAXPATHLEN+1] = {0};
 	int n = 0;
@@ -1978,37 +1978,42 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 		if (!ssl_sock_is_ckch_valid(&certs_and_keys[n]))
 			continue;
 
-		/* A lot of the following code is OpenSSL boilerplate for processing CN's and SAN's,
-		 * so the line that contains logic is marked via comments
-		 */
-		xname = X509_get_subject_name(certs_and_keys[n].cert);
-		i = -1;
-		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
-			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
+		if (fcount) {
+			for (i = 0; i < fcount, i++)
+				ssl_sock_populate_sni_keytypes_hplr(sni_filter[i], &sni_keytypes_map, n);
+		} else {
+			/* A lot of the following code is OpenSSL boilerplate for processing CN's and SAN's,
+			 * so the line that contains logic is marked via comments
+			 */
+			xname = X509_get_subject_name(certs_and_keys[n].cert);
+			i = -1;
+			while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
+				X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
 
-			if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
-				/* Important line is here */
-				ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
+				if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+					/* Important line is here */
+					ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
 
-				OPENSSL_free(str);
-				str = NULL;
+					OPENSSL_free(str);
+					str = NULL;
+				}
 			}
-		}
 
-		/* Do the above logic for each SAN */
+			/* Do the above logic for each SAN */
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		names = X509_get_ext_d2i(certs_and_keys[n].cert, NID_subject_alt_name, NULL, NULL);
-		if (names) {
-			for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
-				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+			names = X509_get_ext_d2i(certs_and_keys[n].cert, NID_subject_alt_name, NULL, NULL);
+			if (names) {
+				for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+					GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 
-				if (name->type == GEN_DNS) {
-					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						/* Important line is here */
-						ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
+					if (name->type == GEN_DNS) {
+						if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+							/* Important line is here */
+							ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
 
-						OPENSSL_free(str);
-						str = NULL;
+							OPENSSL_free(str);
+							str = NULL;
+						}
 					}
 				}
 			}
@@ -2101,7 +2106,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 		}
 
 		/* Update SNI Tree */
-		ssl_sock_add_cert_sni(cur_ctx, bind_conf, str, key_combos[i-1].order++);
+		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, bind_conf, str, key_combos[i-1].order);
 		node = ebmb_next(node);
 	}
 
@@ -2135,7 +2140,7 @@ end:
 }
 #else
 /* This is a dummy, that just logs an error and returns error */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, char **err)
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
 {
 	memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 	          err && *err ? *err : "", path, strerror(errno));
@@ -2400,7 +2405,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						ssl_sock_load_multi_cert(fp, bind_conf, curproxy, NULL, err);
+						ssl_sock_load_multi_cert(fp, bind_conf, curproxy, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -2418,7 +2423,7 @@ ignore_entry:
 		return cfgerr;
 	}
 
-	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, curproxy, NULL, err);
+	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, curproxy, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -2505,7 +2510,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 		if (stat(args[0], &buf) == 0) {
 			cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, &args[1], arg-1, err);
 		} else {
-			cfgerr = ssl_sock_load_multi_cert(args[0], bind_conf, curproxy, NULL, err);
+			cfgerr = ssl_sock_load_multi_cert(args[0], bind_conf, curproxy, &args[1], arg-1, err);
 		}
 
 		if (cfgerr) {
