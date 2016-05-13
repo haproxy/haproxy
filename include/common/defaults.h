@@ -74,6 +74,9 @@
 // max # args on a configuration line
 #define MAX_LINE_ARGS   64
 
+// crt-list parsing factor for LINESIZE and MAX_LINE_ARGS
+#define CRTLIST_FACTOR  32
+
 // max # args on a stats socket
 // This should cover at least 5 + twice the # of data_types
 #define MAX_STATS_ARGS  64

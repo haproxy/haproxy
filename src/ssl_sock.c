@@ -2446,7 +2446,7 @@ static int ssl_initialize_random()
 
 int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
-	char thisline[LINESIZE];
+	char thisline[LINESIZE*CRTLIST_FACTOR];
 	FILE *f;
 	struct stat buf;
 	int linenum = 0;
@@ -2461,7 +2461,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 		int arg;
 		int newarg;
 		char *end;
-		char *args[MAX_LINE_ARGS + 1];
+		char *args[MAX_LINE_ARGS*CRTLIST_FACTOR + 1];
 		char *line = thisline;
 
 		linenum++;
@@ -2489,7 +2489,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 				*line = 0;
 			}
 			else if (newarg) {
-				if (arg == MAX_LINE_ARGS) {
+				if (arg == MAX_LINE_ARGS*CRTLIST_FACTOR) {
 					memprintf(err, "too many args on line %d in file '%s'.",
 						  linenum, file);
 					cfgerr = 1;
