@@ -561,6 +561,7 @@ void init(int argc, char **argv)
 	char *tmp;
 	char *cfg_pidfile = NULL;
 	int err_code = 0;
+	char *err_msg = NULL;
 	struct wordlist *wl;
 	char *progname;
 	char *change_dir = NULL;
@@ -713,13 +714,12 @@ void init(int argc, char **argv)
 				/* now that's a cfgfile list */
 				argv++; argc--;
 				while (argc > 0) {
-					wl = calloc(1, sizeof(*wl));
-					if (!wl) {
-						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
+					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {
+						Alert("Cannot load configuration file/directory %s : %s\n",
+						      *argv,
+						      err_msg);
 						exit(1);
 					}
-					wl->s = *argv;
-					LIST_ADDQ(&cfg_cfgfiles, &wl->list);
 					argv++; argc--;
 				}
 				break;
@@ -736,13 +736,12 @@ void init(int argc, char **argv)
 				case 'N' : cfg_maxpconn = atol(*argv); break;
 				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
 				case 'f' :
-					wl = calloc(1, sizeof(*wl));
-					if (!wl) {
-						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
+					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {
+						Alert("Cannot load configuration file/directory %s : %s\n",
+						      *argv,
+						      err_msg);
 						exit(1);
 					}
-					wl->s = *argv;
-					LIST_ADDQ(&cfg_cfgfiles, &wl->list);
 					break;
 				case 'p' : cfg_pidfile = *argv; break;
 				default: usage(progname);
@@ -1160,6 +1159,8 @@ void init(int argc, char **argv)
 	/* initialize structures for name resolution */
 	if (!dns_init_resolvers())
 		exit(1);
+
+	free(err_msg);
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)
@@ -1550,6 +1551,7 @@ void deinit(void)
 			free(log);
 		}
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
+		free(wl->s);
 		LIST_DEL(&wl->list);
 		free(wl);
 	}
