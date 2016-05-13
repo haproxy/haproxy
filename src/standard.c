@@ -3439,6 +3439,38 @@ unsigned char utf8_next(const char *s, int len, unsigned int *c)
 	return code | ((p-(unsigned char *)s)&0x0f);
 }
 
+/* append a copy of string <str> (in a wordlist) at the end of the list <li>
+ * On failure : return 0 and <err> filled with an error message.
+ * The caller is responsible for freeing the <err> and <str> copy
+ * memory area using free()
+ */
+int list_append_word(struct list *li, const char *str, char **err)
+{
+	struct wordlist *wl;
+
+	wl = calloc(1, sizeof(*wl));
+	if (!wl) {
+		memprintf(err, "out of memory");
+		goto fail_wl;
+	}
+
+	wl->s = strdup(str);
+	if (!wl->s) {
+		memprintf(err, "out of memory");
+		goto fail_wl_s;
+	}
+
+	LIST_ADDQ(li, &wl->list);
+
+	return 1;
+
+fail_wl_s:
+	free(wl->s);
+fail_wl:
+	free(wl);
+	return 0;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

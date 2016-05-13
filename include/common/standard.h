@@ -1089,4 +1089,12 @@ static inline unsigned long long rdtsc()
 }
 #endif
 
+/* append a copy of string <str> (in a wordlist) at the end of the list <li>
+ * On failure : return 0 and <err> filled with an error message.
+ * The caller is responsible for freeing the <err> and <str> copy
+ * memory area using free()
+ */
+struct list;
+int list_append_word(struct list *li, const char *str, char **err);
+
 #endif /* _COMMON_STANDARD_H */
