@@ -42,6 +42,12 @@
 /* maximum number of answer record in a DNS response */
 #define DNS_MAX_ANSWER_RECORDS ((DNS_MAX_UDP_MESSAGE - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE)
 
+/* size of dns_buffer used to store responses from the buffer
+ * dns_buffer is used to store data collected from records found in a response.
+ * Before using it, caller will always check that there is at least DNS_MAX_NAME_SIZE bytes
+ * available */
+#define DNS_ANALYZE_BUFFER_SIZE DNS_MAX_UDP_MESSAGE + DNS_MAX_NAME_SIZE
+
 /* DNS error messages */
 #define DNS_TOO_LONG_FQDN	"hostname too long"
 #define DNS_LABEL_TOO_LONG	"one label too long"
@@ -204,7 +210,7 @@ struct dns_resolution {
 	struct list list;		/* resolution list */
 	struct dns_resolvers *resolvers;	/* resolvers section associated to this resolution */
 	void *requester;		/* owner of this name resolution */
-	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *, unsigned char *, int);
+	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *, struct dns_response_packet *);
 					/* requester callback for valid response */
 	int (*requester_error_cb)(struct dns_resolution *, int);
 					/* requester callback, for error management */
@@ -256,6 +262,7 @@ enum {
 	DNS_RESP_TIMEOUT,		/* DNS server has not answered in time */
 	DNS_RESP_TRUNCATED,		/* DNS response is truncated */
 	DNS_RESP_NO_EXPECTED_RECORD,	/* No expected records were found in the response */
+	DNS_RESP_QUERY_COUNT_ERROR,	/* we did not get the expected number of queries in the response */
 };
 
 /* return codes after searching an IP in a DNS response buffer, using a family preference */

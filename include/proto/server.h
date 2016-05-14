@@ -48,7 +48,7 @@ void apply_server_state(void);
 
 /* functions related to server name resolution */
 int snr_update_srv_status(struct server *s);
-int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, unsigned char *response, int response_len);
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, struct dns_response_packet *dns_p);
 int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code);
 
 /* increase the number of cumulated connections on the designated server */

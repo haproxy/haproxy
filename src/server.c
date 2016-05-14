@@ -2820,17 +2820,15 @@ int snr_update_srv_status(struct server *s)
  *  0 on error
  *  1 when no error or safe ignore
  */
-int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, unsigned char *response, int response_len)
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, struct dns_response_packet *dns_p)
 {
 	struct server *s;
 	void *serverip, *firstip;
 	short server_sin_family, firstip_sin_family;
-	unsigned char *response_end;
 	int ret;
 	struct chunk *chk = get_trash_chunk();
 
 	/* initializing variables */
-	response_end = response + response_len;	/* pointer to mark the end of the response */
 	firstip = NULL;		/* pointer to the first valid response found */
 				/* it will be used as the new IP if a change is required */
 	firstip_sin_family = AF_UNSPEC;
@@ -2854,7 +2852,7 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(response, response_end, resolution,
+	ret = dns_get_ip_from_response(dns_p, resolution,
 	                               serverip, server_sin_family, &firstip,
 	                               &firstip_sin_family);
 
