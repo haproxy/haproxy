@@ -28,7 +28,8 @@
 #   show-backports -q -m -r hapee-r2 hapee-r1
 
 
-USAGE="Usage: ${0##*/} [-q] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] branch [...]"
+USAGE="Usage: ${0##*/} [-q] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...]"
+BASES=( )
 BRANCHES=( )
 REF=master
 BASE=
@@ -140,7 +141,22 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 	esac
 done
 
-BRANCHES=( "$@" )
+# branches may also appear as id1..id2 to limit the history instead of looking
+# back to the common base. The field is left empty if not set.
+BRANCHES=( )
+BASES=( )
+while [ $# -gt 0 ]; do
+	branch="${1##*..}"
+	if [ "$branch" == "$1" ]; then
+		base=""
+	else
+		base="${1%%..*}"
+	fi
+	BASES[${#BRANCHES[@]}]="$base"
+	BRANCHES[${#BRANCHES[@]}]="$branch"
+	shift
+done
+
 if [ ${#BRANCHES[@]} = 0 ]; then
 	die "$USAGE"
 fi
@@ -170,12 +186,18 @@ rm -f "$WORK/${REF//\//_}"
 git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" | grep "${SUBJECT}" > "$WORK/${branch//\//_}" > "$WORK/${REF//\//_}"
 
 # for each branch, enumerate all commits and their ancestry
-for branch in "${BRANCHES[@]}"; do
+
+branch_num=0;
+while [ $branch_num -lt "${#BRANCHES[@]}" ]; do
+	branch="${BRANCHES[$branch_num]}"
+	base="${BASES[$branch_num]}"
+	base="${base:-$BASE}"
 	rm -f "$WORK/${branch//\//_}"
-	git log --reverse --pretty="%H %s" "$BASE".."$branch" | grep "${SUBJECT}" | while read h subject; do
+	git log --reverse --pretty="%H %s" "$base".."$branch" | grep "${SUBJECT}" | while read h subject; do
 		echo "$h" $(git log -1 --pretty --format=%B "$h" | \
 			sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p')
 	done > "$WORK/${branch//\//_}"
+	(( branch_num++ ))
 done
 
 count=0
