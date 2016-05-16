@@ -28,7 +28,7 @@
 #   show-backports -q -m -r hapee-r2 hapee-r1
 
 
-USAGE="Usage: ${0##*/} [-q] [-m] [-r reference] [-l logexpr] [-s subject] [-b base] branch [...]"
+USAGE="Usage: ${0##*/} [-q] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] branch [...]"
 BRANCHES=( )
 REF=master
 BASE=
@@ -36,6 +36,7 @@ QUIET=
 LOGEXPR=
 SUBJECT=
 MISSING=
+UPSTREAM=
 
 die() {
 	[ "$#" -eq 0 ] || echo "$*" >&2
@@ -73,7 +74,7 @@ dump_commit_matrix() {
 
 		upstream="none"
 		missing=0
-		line="$(short $ref)"
+		line=""
 		for branch in "${BRANCHES[@]}"; do
 			set -- $(grep -m 1 $ref "$WORK/${branch//\//_}")
 			newhash=$1 ; shift
@@ -116,7 +117,11 @@ dump_commit_matrix() {
 		if [ -z "$MISSING" -o $missing -gt 0 ]; then
 			[ $((count++)) -gt 0 ] || echo $title
 			[ "$QUIET" != "" -o $count -lt 20 ] || count=0
-			echo "$line"
+			if [ -z "$UPSTREAM" -o "$upstream" = "none" -o -z "$upstream" ]; then
+				echo "$(short $ref) $line"
+			else
+				echo "$(short $upstream) $line"
+			fi
 		fi
 	done < "$WORK/${REF//\//_}"
 }
@@ -129,6 +134,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-s)        SUBJECT="$2"   ; shift 2 ;;
 		-q)        QUIET=1        ; shift   ;;
 		-m)        MISSING=1      ; shift   ;;
+		-u)        UPSTREAM=1     ; shift   ;;
 		-h|--help) quit "$USAGE" ;;
 		*)         die  "$USAGE" ;;
 	esac
