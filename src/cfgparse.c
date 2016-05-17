@@ -9098,6 +9098,13 @@ int cfg_register_section(char *section_name,
 {
 	struct cfg_section *cs;
 
+	list_for_each_entry(cs, &sections, list) {
+		if (strcmp(cs->section_name, section_name) == 0) {
+			Alert("register section '%s': already registered.\n", section_name);
+			return 0;
+		}
+	}
+
 	cs = calloc(1, sizeof(*cs));
 	if (!cs) {
 		Alert("register section '%s': out of memory.\n", section_name);
