@@ -127,6 +127,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "Tl", LOG_FMT_DATELOCAL, PR_MODE_TCP, LW_INIT, NULL },   /* date local timezone */
 	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
 	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tr */
+	{ "Td", LOG_FMT_TD, PR_MODE_TCP, LW_BYTES, NULL },       /* Td = Tt - (Tq + Tw + Tc + Tr) */
 	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, LW_INIT, NULL },   /* timestamp GMT */
 	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, LW_BYTES, NULL },       /* Tt */
 	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, LW_BYTES, NULL },       /* Tw */
@@ -1649,6 +1650,19 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 			case LOG_FMT_TR: // %Tr
 				ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 						tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_TD: // %Td
+				if (s->be->mode == PR_MODE_HTTP)
+					ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_close - s->logs.t_data : -1,
+					             tmplog, dst + maxsize - tmplog);
+				else
+					ret = ltoa_o((s->logs.t_connect >= 0) ? s->logs.t_close - s->logs.t_connect : -1,
+					             tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
