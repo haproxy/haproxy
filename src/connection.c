@@ -744,7 +744,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	const char pp2_signature[] = PP2_SIGNATURE;
 	int ret = 0;
 	struct proxy_hdr_v2 *hdr = (struct proxy_hdr_v2 *)buf;
-	struct sockaddr_storage null_addr = {0};
+	struct sockaddr_storage null_addr = { .ss_family = 0 };
 	struct sockaddr_storage *src = &null_addr;
 	struct sockaddr_storage *dst = &null_addr;
 

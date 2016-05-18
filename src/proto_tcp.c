@@ -435,7 +435,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			struct sockaddr_storage sa;
 
 			ret = 1;
-			sa = src->source_addr;
+			memcpy(&sa, &src->source_addr, sizeof(sa));
 
 			do {
 				/* note: in case of retry, we may have to release a previously

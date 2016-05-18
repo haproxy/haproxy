@@ -110,7 +110,7 @@ void http_set_status(unsigned int status, struct stream *s);
 int http_transform_header_str(struct stream* s, struct http_msg *msg, const char* name,
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
-void inet_set_tos(int fd, struct sockaddr_storage from, int tos);
+void inet_set_tos(int fd, const struct sockaddr_storage *from, int tos);
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void http_return_srv_error(struct stream *s, struct stream_interface *si);
 void http_capture_bad_message(struct error_snapshot *es, struct stream *s,

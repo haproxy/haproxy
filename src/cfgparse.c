@@ -287,7 +287,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		/* OK the address looks correct */
-		ss = *ss2;
+		memcpy(&ss, ss2, sizeof(ss));
 
 		for (; port <= end; port++) {
 			l = calloc(1, sizeof(*l));

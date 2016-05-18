@@ -4781,7 +4781,7 @@ __LJMP static int hlua_txn_set_tos(lua_State *L)
 	tos = MAY_LJMP(luaL_checkinteger(L, 2));
 
 	if ((cli_conn = objt_conn(htxn->s->sess->origin)) && conn_ctrl_ready(cli_conn))
-		inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, tos);
+		inet_set_tos(cli_conn->t.sock.fd, &cli_conn->addr.from, tos);
 
 	return 0;
 }
