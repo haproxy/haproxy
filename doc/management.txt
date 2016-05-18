@@ -136,7 +136,7 @@ list of options is :
 
   -f <cfgfile|cfgdir> : adds <cfgfile> to the list of configuration files to be
     loaded. If <cfgdir> is a directory, all the files (and only files) it
-    containes are added in lexical order (respecting LC_COLLATE) to the list of
+    containes are added in lexical order (using LC_COLLATE=C) to the list of
     configuration files to be loaded ; only files with ".cfg" extension are
     added, only non hidden files (not prefixed with ".") are added.
     Configuration files are loaded and processed in their declaration order.

@@ -32,7 +32,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <dirent.h>
-#include <locale.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -1751,9 +1750,6 @@ int main(int argc, char **argv)
 	struct rlimit limit;
 	char errmsg[100];
 	int pidfd = -1;
-
-	/* get the locale from the environment variables */
-	setlocale(LC_ALL, "");
 
 	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
