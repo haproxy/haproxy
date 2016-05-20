@@ -8807,6 +8807,7 @@ out_uri_auth_compat:
 			if(bind_conf->keys_ref) {
 				free(bind_conf->keys_ref->filename);
 				free(bind_conf->keys_ref->tlskeys);
+				LIST_DEL(&bind_conf->keys_ref->list);
 				free(bind_conf->keys_ref);
 			}
 #endif /* USE_OPENSSL */
