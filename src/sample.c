@@ -765,7 +765,7 @@ static int c_int2bin(struct sample *smp)
 {
 	struct chunk *chk = get_trash_chunk();
 
-	*(unsigned long long int *)chk->str = htonll(smp->data.u.sint);
+	*(unsigned long long int *)chk->str = my_htonll(smp->data.u.sint);
 	chk->len = 8;
 
 	smp->data.u.str = *chk;

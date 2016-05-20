@@ -1048,8 +1048,7 @@ static inline unsigned char utf8_return_length(unsigned char code)
  * the whole code is optimized out. In little endian, with a decent compiler,
  * a few bswap and 2 shifts are left, which is the minimum acceptable.
  */
-#ifndef htonll
-static inline unsigned long long htonll(unsigned long long a)
+static inline unsigned long long my_htonll(unsigned long long a)
 {
 	union {
 		struct {
@@ -1060,15 +1059,12 @@ static inline unsigned long long htonll(unsigned long long a)
 	} w = { .by64 = a };
 	return ((unsigned long long)htonl(w.by32.w1) << 32) | htonl(w.by32.w2);
 }
-#endif
 
 /* Turns 64-bit value <a> from network byte order to host byte order. */
-#ifndef ntohll
-static inline unsigned long long ntohll(unsigned long long a)
+static inline unsigned long long my_ntohll(unsigned long long a)
 {
-	return htonll(a);
+	return my_htonll(a);
 }
-#endif
 
 /* returns a 64-bit a timestamp with the finest resolution available. The
  * unit is intentionally not specified. It's mostly used to compare dates.
