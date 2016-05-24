@@ -1453,6 +1453,32 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
+/*
+ * Execute the "set-src-port" action. May be called from {tcp,http}request
+ * We must test the sin_family before setting the port
+ */
+enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
+{
+	struct connection *cli_conn;
+
+	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+		struct sample *smp;
+
+		conn_get_from_addr(cli_conn);
+
+		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+		if (smp) {
+			if (((struct sockaddr_storage *)&cli_conn->addr.from)->ss_family == AF_INET) {
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
+			} else if (((struct sockaddr_storage *)&cli_conn->addr.from)->ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			}
+		}
+	}
+	return ACT_RET_CONT;
+}
+
 /* Executes the "silent-drop" action. May be called from {tcp,http}{request,response} */
 static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct proxy *px, struct session *sess, struct stream *strm, int flags)
 {
@@ -2061,7 +2087,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
-/* parse "set-src" action */
+/* parse "set-src" and "set-src-port" actions */
 enum act_parse_ret tcp_parse_set_src(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
 {
 	int cur_arg;
@@ -2091,6 +2117,8 @@ enum act_parse_ret tcp_parse_set_src(const char **args, int *orig_arg, struct pr
 
 	if (!strcmp(args[*orig_arg-1], "set-src")) {
 		rule->action_ptr = tcp_action_req_set_src;
+	} else if (!strcmp(args[*orig_arg-1], "set-src-port")) {
+		rule->action_ptr = tcp_action_req_set_src_port;
 	} else {
 		return ACT_RET_PRS_ERR;
 	}
@@ -2493,6 +2521,7 @@ static struct srv_kw_list srv_kws = { "TCP", { }, {
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src },
+	{ "set-src-port", tcp_parse_set_src },
 	{ /* END */ }
 }};
 
@@ -2509,6 +2538,7 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 static struct action_kw_list http_req_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src },
+	{ "set-src-port", tcp_parse_set_src },
 	{ /* END */ }
 }};
 
