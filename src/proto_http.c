@@ -3554,26 +3554,6 @@ resume_execution:
 			}
 			break;
 
-		case ACT_HTTP_REQ_SET_SRC:
-			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
-				struct sample *smp;
-
-				smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
-
-				if (smp) {
-					if (smp->data.type == SMP_T_IPV4) {
-						((struct sockaddr_in *)&cli_conn->addr.from)->sin_family = AF_INET;
-						((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
-						((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = 0;
-					} else if (smp->data.type == SMP_T_IPV6) {
-						((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_family = AF_INET6;
-						memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-						((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = 0;
-					}
-				}
-			}
-			break;
-
 		/* other flags exists, but normaly, they never be matched. */
 		default:
 			break;
@@ -9204,39 +9184,6 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		proxy->conf.lfs_line = proxy->conf.args.line;
 
 		cur_arg += 2;
-	} else if (strncmp(args[0], "set-src", 7) == 0) {
-		struct sample_expr *expr;
-		unsigned int where;
-		char *err = NULL;
-
-		cur_arg = 1;
-		proxy->conf.args.ctx = ARGC_HRQ;
-
-		expr = sample_parse_expr((char **)args, &cur_arg, file, linenum, &err, &proxy->conf.args);
-		if (!expr) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
-			free(err);
-			goto out_err;
-		}
-
-		where = 0;
-		if (proxy->cap & PR_CAP_FE)
-			where |= SMP_VAL_FE_HRQ_HDR;
-		if (proxy->cap & PR_CAP_BE)
-			where |= SMP_VAL_BE_HRQ_HDR;
-
-		if (!(expr->fetch->val & where)) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule :"
-			      " fetch method '%s' extracts information from '%s', none of which is available here.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0],
-			      args[cur_arg-1], sample_src_names(expr->fetch->use));
-			free(expr);
-			goto out_err;
-		}
-
-		rule->arg.expr = expr;
-		rule->action = ACT_HTTP_REQ_SET_SRC;
 	} else if (((custom = action_http_req_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
 		cur_arg = 1;
@@ -9253,8 +9200,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		action_build_list(&http_req_keywords.list, &trash);
 		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', "
 		      "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', "
-		      "'set-src'%s%s, but got '%s'%s.\n",
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map'"
+		      "%s%s, but got '%s'%s.\n",
 		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -9614,8 +9561,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		action_build_list(&http_res_keywords.list, &trash);
 		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', "
 		      "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', "
-		      "'set-src'%s%s, but got '%s'%s.\n",
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map'"
+		      "%s%s, but got '%s'%s.\n",
 		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}

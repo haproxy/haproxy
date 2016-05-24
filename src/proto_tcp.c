@@ -1425,6 +1425,33 @@ int tcp_exec_req_rules(struct session *sess)
 	return result;
 }
 
+/*
+ * Execute the "set-src" action. May be called from {tcp,http}request
+ */
+enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
+{
+	struct connection *cli_conn;
+
+	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+		struct sample *smp;
+
+		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
+		if (smp) {
+			if (smp->data.type == SMP_T_IPV4) {
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_family = AF_INET;
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = 0;
+			} else if (smp->data.type == SMP_T_IPV6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_family = AF_INET6;
+				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = 0;
+			}
+		}
+	}
+	return ACT_RET_CONT;
+}
+
 /* Executes the "silent-drop" action. May be called from {tcp,http}{request,response} */
 static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct proxy *px, struct session *sess, struct stream *strm, int flags)
 {
@@ -2033,6 +2060,46 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+/* parse "set-src" action */
+enum act_parse_ret tcp_parse_set_src(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+{
+	int cur_arg;
+	struct sample_expr *expr;
+	unsigned int where;
+
+	cur_arg = *orig_arg;
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	if (!expr)
+		return ACT_RET_PRS_ERR;
+
+	where = 0;
+	if (proxy->cap & PR_CAP_FE)
+		where |= SMP_VAL_FE_HRQ_HDR;
+	if (proxy->cap & PR_CAP_BE)
+		where |= SMP_VAL_BE_HRQ_HDR;
+
+	if (!(expr->fetch->val & where)) {
+		memprintf(err,
+			  "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		free(expr);
+		return ACT_RET_PRS_ERR;
+	}
+	rule->arg.expr = expr;
+	rule->action = ACT_CUSTOM;
+
+	if (!strcmp(args[*orig_arg-1], "set-src")) {
+		rule->action_ptr = tcp_action_req_set_src;
+	} else {
+		return ACT_RET_PRS_ERR;
+	}
+
+	(*orig_arg)++;
+
+	return ACT_RET_PRS_OK;
+}
+
+
 /* Parse a "silent-drop" action. It takes no argument. It returns ACT_RET_PRS_OK on
  * success, ACT_RET_PRS_ERR on error.
  */
@@ -2423,7 +2490,8 @@ static struct srv_kw_list srv_kws = { "TCP", { }, {
 }};
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
-	{ "silent-drop", tcp_parse_silent_drop },
+	{ "silent-drop",  tcp_parse_silent_drop },
+	{ "set-src",      tcp_parse_set_src },
 	{ /* END */ }
 }};
 
@@ -2438,7 +2506,8 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 }};
 
 static struct action_kw_list http_req_actions = {ILH, {
-	{ "silent-drop", tcp_parse_silent_drop },
+	{ "silent-drop",  tcp_parse_silent_drop },
+	{ "set-src",      tcp_parse_set_src },
 	{ /* END */ }
 }};
 
