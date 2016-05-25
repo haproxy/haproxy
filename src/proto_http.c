@@ -3276,10 +3276,12 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
  * further processing of the request (auth, deny, ...), and defaults to
  * HTTP_RULE_RES_STOP if it executed all rules or stopped on an allow, or
  * HTTP_RULE_RES_CONT if the last rule was reached. It may set the TX_CLTARPIT
- * on txn->flags if it encounters a tarpit rule.
+ * on txn->flags if it encounters a tarpit rule. If <deny_status> is not NULL
+ * and a deny/tarpit rule is matched, it will be filled with this rule's deny
+ * status.
  */
 enum rule_result
-http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s)
+http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, int *deny_status)
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
@@ -3325,12 +3327,14 @@ resume_execution:
 			return HTTP_RULE_RES_STOP;
 
 		case ACT_ACTION_DENY:
-			txn->rule_deny_status = rule->deny_status;
+			if (deny_status)
+				*deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
 		case ACT_HTTP_REQ_TARPIT:
 			txn->flags |= TX_CLTARPIT;
-			txn->rule_deny_status = rule->deny_status;
+			if (deny_status)
+				*deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
 		case ACT_HTTP_REQ_AUTH:
@@ -4090,6 +4094,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
 	enum rule_result verdict;
+	int deny_status = HTTP_ERR_403;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -4110,7 +4115,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
-		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s);
+		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, &deny_status);
 
 		switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -4156,7 +4161,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req);
-		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s);
+		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, &deny_status);
 		/* not all actions implemented: deny, allow, auth */
 
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
@@ -4285,9 +4290,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		manage_client_side_cookies(s, req);
 
 	txn->flags |= TX_CLDENY;
-	txn->status = http_err_codes[txn->rule_deny_status];
+	txn->status = http_err_codes[deny_status];
 	s->logs.tv_request = now;
-	http_reply_and_close(s, txn->status, http_error_message(s, txn->rule_deny_status));
+	http_reply_and_close(s, txn->status, http_error_message(s, deny_status));
 	stream_inc_http_err_ctr(s);
 	sess->fe->fe_counters.denied_req++;
 	if (sess->fe != s->be)
