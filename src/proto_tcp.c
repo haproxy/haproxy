@@ -1454,6 +1454,33 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 }
 
 /*
+ * Execute the "set-dst" action. May be called from {tcp,http}request
+ */
+enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
+{
+	struct connection *cli_conn;
+
+	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+		struct sample *smp;
+
+		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
+		if (smp) {
+			if (smp->data.type == SMP_T_IPV4) {
+				((struct sockaddr_in *)&cli_conn->addr.to)->sin_family = AF_INET;
+				((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+			} else if (smp->data.type == SMP_T_IPV6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_family = AF_INET6;
+				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = 0;
+			}
+			cli_conn->flags |= CO_FL_ADDR_TO_SET;
+		}
+	}
+	return ACT_RET_CONT;
+}
+
+/*
  * Execute the "set-src-port" action. May be called from {tcp,http}request
  * We must test the sin_family before setting the port
  */
@@ -1473,6 +1500,32 @@ enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy 
 				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
 			} else if (((struct sockaddr_storage *)&cli_conn->addr.from)->ss_family == AF_INET6) {
 				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			}
+		}
+	}
+	return ACT_RET_CONT;
+}
+
+/*
+ * Execute the "set-dst-port" action. May be called from {tcp,http}request
+ * We must test the sin_family before setting the port
+ */
+enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy *px,
+                                              struct session *sess, struct stream *s, int flags)
+{
+	struct connection *cli_conn;
+
+	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+		struct sample *smp;
+
+		conn_get_to_addr(cli_conn);
+
+		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+		if (smp) {
+			if (((struct sockaddr_storage *)&cli_conn->addr.to)->ss_family == AF_INET) {
+				((struct sockaddr_in *)&cli_conn->addr.to)->sin_port = htons(smp->data.u.sint);
+			} else if (((struct sockaddr_storage *)&cli_conn->addr.to)->ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = htons(smp->data.u.sint);
 			}
 		}
 	}
@@ -2087,8 +2140,8 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
-/* parse "set-src" and "set-src-port" actions */
-enum act_parse_ret tcp_parse_set_src(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+/* parse "set-{src,dst}[-port]" action */
+enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
 {
 	int cur_arg;
 	struct sample_expr *expr;
@@ -2119,6 +2172,10 @@ enum act_parse_ret tcp_parse_set_src(const char **args, int *orig_arg, struct pr
 		rule->action_ptr = tcp_action_req_set_src;
 	} else if (!strcmp(args[*orig_arg-1], "set-src-port")) {
 		rule->action_ptr = tcp_action_req_set_src_port;
+	} else if (!strcmp(args[*orig_arg-1], "set-dst")) {
+		rule->action_ptr = tcp_action_req_set_dst;
+	} else if (!strcmp(args[*orig_arg-1], "set-dst-port")) {
+		rule->action_ptr = tcp_action_req_set_dst_port;
 	} else {
 		return ACT_RET_PRS_ERR;
 	}
@@ -2520,8 +2577,10 @@ static struct srv_kw_list srv_kws = { "TCP", { }, {
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
-	{ "set-src",      tcp_parse_set_src },
-	{ "set-src-port", tcp_parse_set_src },
+	{ "set-src",      tcp_parse_set_src_dst },
+	{ "set-src-port", tcp_parse_set_src_dst },
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ /* END */ }
 }};
 
@@ -2537,8 +2596,10 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 
 static struct action_kw_list http_req_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
-	{ "set-src",      tcp_parse_set_src },
-	{ "set-src-port", tcp_parse_set_src },
+	{ "set-src",      tcp_parse_set_src_dst },
+	{ "set-src-port", tcp_parse_set_src_dst },
+	{ "set-dst",      tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ /* END */ }
 }};
 

@@ -3860,6 +3860,34 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       Be careful to use "set-src-port" after "set-src", because "set-src" sets
       the source port to 0.
 
+    - set-dst <expr> :
+      Is used to set the destination IP address to the value of specified
+      expression. Useful when a proxy in front of HAProxy rewrites destination
+      IP, but provides the correct IP in a HTTP header; or you want to mask
+      the IP for privacy. If you want to connect to the new address/port, use
+      '0.0.0.0:0' as a server address in the backend.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         http-request set-dst hdr(x-dst)
+         http-request set-dst dst,ipmask(24)
+
+    - set-dst-port <expr> :
+      Is used to set the destination port address to the value of specified
+      expression. If you want to connect to the new address/port, use
+      '0.0.0.0:0' as a server address in the backend.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         http-request set-dst-port hdr(x-port)
+         http-request set-dst-port int(4000)
+
     - "silent-drop" : this stops the evaluation of the rules and makes the
       client-facing connection suddenly disappear using a system-dependant way
       that tries to prevent the client from being notified. The effect it then
@@ -8717,6 +8745,34 @@ tcp-request connection <action> [{if | unless} <condition>]
 
       Be careful to use "set-src-port" after "set-src", because "set-src" sets
       the source port to 0.
+
+    - set-dst <expr> :
+      Is used to set the destination IP address to the value of specified
+      expression. Useful if you want to mask IP for privacy in log.
+      If you want to provide an IP from a HTTP header use "http-request
+      set-dst". If you want to connect to the new address/port, use
+      '0.0.0.0:0' as a server address in the backend.
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         tcp-request connection set-dst dst,ipmask(24)
+         tcp-request connection set-dst ipv4(10.0.0.1)
+
+    - set-dst-port <expr> :
+      Is used to set the destination port address to the value of specified
+      expression. If you want to connect to the new address/port, use
+      '0.0.0.0:0' as a server address in the backend.
+
+
+         <expr>    Is a standard HAProxy expression formed by a sample-fetch
+                   followed by some converters.
+
+      Example:
+
+         tcp-request connection set-dst-port int(4000)
 
     - "silent-drop" :
         This stops the evaluation of the rules and makes the client-facing
