@@ -1448,6 +1448,7 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = 0;
 			}
 		}
+		cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	}
 	return ACT_RET_CONT;
 }
