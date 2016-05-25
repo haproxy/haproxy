@@ -461,6 +461,8 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 }
 
 /* Prepares a stktable_key from a sample <smp> to search into table <t>.
+ * Note that the sample *is* modified and that the returned key may point
+ * to it, so the sample must not be modified afterwards before the lookup.
  * Returns NULL if the sample could not be converted (eg: no matching type),
  * otherwise a pointer to the static stktable_key filled with what is needed
  * for the lookup.
@@ -700,11 +702,12 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -736,11 +739,12 @@ static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *sm
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -771,11 +775,12 @@ static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *sm
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -806,11 +811,12 @@ static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *s
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -842,11 +848,12 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -878,11 +885,12 @@ static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, v
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -913,11 +921,12 @@ static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, v
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -948,11 +957,12 @@ static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *s
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -984,11 +994,12 @@ static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1019,11 +1030,12 @@ static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sampl
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1055,11 +1067,12 @@ static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1090,11 +1103,12 @@ static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sampl
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1126,11 +1140,12 @@ static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *s
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1161,11 +1176,12 @@ static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1196,11 +1212,12 @@ static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *s
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1231,11 +1248,12 @@ static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *sm
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1266,11 +1284,12 @@ static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *s
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (!ts) /* key not present */
 		return 1;
 
@@ -1301,11 +1320,12 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	if (!key)
 		return 0;
 
+	ts = stktable_lookup_key(t, key);
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	ts = stktable_lookup_key(t, key);
 	if (ts)
 		smp->data.u.sint = ts->ref_cnt;
 
