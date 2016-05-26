@@ -3076,6 +3076,9 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 	if (appctx->ctx.server_state.px->bind_proc && !(appctx->ctx.server_state.px->bind_proc & (1UL << (relative_pid - 1))))
 		return 1;
 
+	if (!appctx->ctx.server_state.sv)
+		appctx->ctx.server_state.sv = appctx->ctx.server_state.px->srv;
+
 	for (; appctx->ctx.server_state.sv != NULL; appctx->ctx.server_state.sv = srv->next) {
 		srv = appctx->ctx.server_state.sv;
 		srv_addr[0] = '\0';
@@ -3178,8 +3181,6 @@ static int stats_dump_servers_state_to_buffer(struct stream_interface *si)
 
 	for (; appctx->ctx.server_state.px != NULL; appctx->ctx.server_state.px = curproxy->next) {
 		curproxy = appctx->ctx.server_state.px;
-		if (!appctx->ctx.server_state.sv)
-			appctx->ctx.server_state.sv = appctx->ctx.server_state.px->srv;
 		/* servers are only in backends */
 		if (curproxy->cap & PR_CAP_BE) {
 			if (!dump_servers_state(si, &trash))
