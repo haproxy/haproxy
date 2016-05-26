@@ -2656,15 +2656,20 @@ static void cli_io_handler(struct appctx *appctx)
 				continue;
 			}
 
-			/* seek for a possible semi-colon. If we find one, we
-			 * replace it with an LF and skip only this part.
+			/* seek for a possible unescaped semi-colon. If we find
+			 * one, we replace it with an LF and skip only this part.
 			 */
-			for (len = 0; len < reql; len++)
+			for (len = 0; len < reql; len++) {
+				if (trash.str[len] == '\\') {
+					len++;
+					continue;
+				}
 				if (trash.str[len] == ';') {
 					trash.str[len] = '\n';
 					reql = len + 1;
 					break;
 				}
+			}
 
 			/* now it is time to check that we have a full line,
 			 * remove the trailing \n and possibly \r, then cut the
