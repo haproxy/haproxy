@@ -6968,19 +6968,6 @@ int readcfgfile(const char *file)
 		return -1;
 	}
 
-	/* Register internal sections */
-	if (!cfg_register_section("listen",   cfg_parse_listen) ||
-	    !cfg_register_section("frontend", cfg_parse_listen) ||
-	    !cfg_register_section("backend",  cfg_parse_listen) ||
-	    !cfg_register_section("defaults", cfg_parse_listen) ||
-	    !cfg_register_section("global",   cfg_parse_global) ||
-	    !cfg_register_section("userlist", cfg_parse_users)  ||
-	    !cfg_register_section("peers",    cfg_parse_peers)  ||
-	    !cfg_register_section("mailers",  cfg_parse_mailers) ||
-	    !cfg_register_section("namespace_list",    cfg_parse_netns) ||
-	    !cfg_register_section("resolvers", cfg_parse_resolvers))
-		return -1;
-
 	if ((f=fopen(file,"r")) == NULL) {
 		free(thisline);
 		return -1;
@@ -9130,6 +9117,22 @@ void cfg_unregister_sections(void)
 		LIST_DEL(&cs->list);
 		free(cs);
 	}
+}
+
+__attribute__((constructor))
+static void cfgparse_init(void)
+{
+	/* Register internal sections */
+	cfg_register_section("listen",         cfg_parse_listen);
+	cfg_register_section("frontend",       cfg_parse_listen);
+	cfg_register_section("backend",        cfg_parse_listen);
+	cfg_register_section("defaults",       cfg_parse_listen);
+	cfg_register_section("global",         cfg_parse_global);
+	cfg_register_section("userlist",       cfg_parse_users);
+	cfg_register_section("peers",          cfg_parse_peers);
+	cfg_register_section("mailers",        cfg_parse_mailers);
+	cfg_register_section("namespace_list", cfg_parse_netns);
+	cfg_register_section("resolvers",      cfg_parse_resolvers);
 }
 
 /*
