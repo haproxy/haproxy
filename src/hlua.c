@@ -5163,7 +5163,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			return 0;
 		}
 		hlua_smp2lua(stream->hlua.T, smp);
-		stream->hlua.nargs = 2;
+		stream->hlua.nargs = 1;
 
 		/* push keywords in the stack. */
 		if (arg_p) {
