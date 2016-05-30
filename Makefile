@@ -770,7 +770,10 @@ LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
 
 # Used only for forced dependency checking. May be cleared during development.
 INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
-DEP = $(INCLUDES)
+DEP = $(INCLUDES) .build_opts
+
+# Used only to force a rebuild if some build options change
+.build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 
 haproxy: $(OBJS) $(OPTIONS_OBJS) $(EBTREE_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
@@ -800,12 +803,12 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
 	       -c -o $@ $<
 
-src/haproxy-systemd-wrapper.o:	src/haproxy-systemd-wrapper.c
+src/haproxy-systemd-wrapper.o:	src/haproxy-systemd-wrapper.c $(DEP)
 	$(CC) $(COPTS) \
 	      -DSBINDIR='"$(strip $(SBINDIR))"' \
 	       -c -o $@ $<
 
-src/dlmalloc.o: $(DLMALLOC_SRC)
+src/dlmalloc.o: $(DLMALLOC_SRC) $(DEP)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 install-man:
@@ -837,7 +840,7 @@ uninstall:
 	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy-systemd-wrapper
 
 clean:
-	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test
+	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
 	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
