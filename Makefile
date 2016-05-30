@@ -49,6 +49,7 @@
 #   ARCH may be useful to force build of 32-bit binary on 64-bit systems
 #   CFLAGS is automatically set for the specified CPU and may be overridden.
 #   LDFLAGS is automatically set to -g and may be overridden.
+#   DEP may be cleared to ignore changes to include files during development
 #   SMALL_OPTS may be used to specify some options to shrink memory usage.
 #   DEBUG may be used to set some internal debugging options.
 #   ADDINC may be used to complete the include path in the form -Ipath.
@@ -767,6 +768,10 @@ WRAPPER_OBJS = src/haproxy-systemd-wrapper.o
 # Not used right now
 LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
 
+# Used only for forced dependency checking. May be cleared during development.
+INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
+DEP = $(INCLUDES)
+
 haproxy: $(OBJS) $(OPTIONS_OBJS) $(EBTREE_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
@@ -779,13 +784,13 @@ $(LIB_EBTREE): $(EBTREE_OBJS)
 objsize: haproxy
 	@objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
-%.o:	%.c
+%.o:	%.c $(DEP)
 	$(CC) $(COPTS) -c -o $@ $<
 
-src/trace.o: src/trace.c
+src/trace.o: src/trace.c $(DEP)
 	$(CC) $(TRACE_COPTS) -c -o $@ $<
 
-src/haproxy.o:	src/haproxy.c
+src/haproxy.o:	src/haproxy.c $(DEP)
 	$(CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
 	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
