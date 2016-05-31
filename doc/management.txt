@@ -2111,10 +2111,12 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
 
-show tls-keys
-  Dump all loaded TLS ticket keys. The TLS ticket key reference ID and the
-  file from which the keys have been loaded is shown. Both of those can be
-  used to update the TLS keys using "set ssl tls-key".
+show tls-keys [id|*]
+  Dump all loaded TLS ticket keys references. The TLS ticket key reference ID
+  and the file from which the keys have been loaded is shown. Both of those
+  can be used to update the TLS keys using "set ssl tls-key". If an ID is
+  specified as parameter, it will dump the tickets, using * it will dump every
+  keys from every references.
 
 shutdown frontend <frontend>
   Completely delete the specified frontend. All the ports it was bound to will
