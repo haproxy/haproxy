@@ -3401,7 +3401,6 @@ resume_execution:
 
 		case ACT_HTTP_SET_HDR:
 		case ACT_HTTP_ADD_HDR:
-			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
 			trash.len = rule->arg.hdr_add.name_len;
 			trash.str[trash.len++] = ':';
