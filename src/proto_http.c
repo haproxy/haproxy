@@ -3290,6 +3290,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	struct hdr_ctx ctx;
 	const char *auth_realm;
 	int act_flags = 0;
+	int len;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -3401,11 +3402,18 @@ resume_execution:
 
 		case ACT_HTTP_SET_HDR:
 		case ACT_HTTP_ADD_HDR:
+			/* The scope of the trash buffer must be limited to this function. The
+			 * build_logline() function can execute a lot of other function which
+			 * can use the trash buffer. So for limiting the scope of this global
+			 * buffer, we build first the header value using build_logline, and
+			 * after we store the header name.
+			 */
+			len = rule->arg.hdr_add.name_len + 2,
+			len += build_logline(s, trash.str + len, trash.size - len, &rule->arg.hdr_add.fmt);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
-			trash.len = rule->arg.hdr_add.name_len;
-			trash.str[trash.len++] = ':';
-			trash.str[trash.len++] = ' ';
-			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+			trash.str[rule->arg.hdr_add.name_len] = ':';
+			trash.str[rule->arg.hdr_add.name_len + 1] = ' ';
+			trash.len = len;
 
 			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
