@@ -1,0 +1,29 @@
+When NetScaler application switch is used as L3+ switch, informations
+regarding the original IP and TCP headers are lost as a new TCP
+connection is created between the NetScaler and the backend server.
+
+NetScaler provides a feature to insert in the TCP data the original data
+that can then be consumed by the backend server.
+
+Specifications and documentations from NetScaler:
+  https://support.citrix.com/article/CTX205670
+  https://www.citrix.com/blogs/2016/04/25/how-to-enable-client-ip-in-tcpip-option-of-netscaler/
+
+When CIP is enabled on the NetScaler, then a TCP packet is inserted just after
+the TCP handshake. This is composed as:
+
+  - CIP magic number : 4 bytes
+    Both sender and receiver have to agree on a magic number so that
+    they both handle the incoming data as a NetScaler Client IP insertion
+    packet.
+
+  - Header length : 4 bytes
+    Defines the length on the remaining data.
+
+  - IP header : >= 20 bytes if IPv4, 40 bytes if IPv6
+    Contains the header of the last IP packet sent by the client during TCP
+    handshake.
+
+  - TCP header : >= 20 bytes
+    Contains the header of the last TCP packet sent by the client during TCP
+    handshake.

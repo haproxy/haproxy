@@ -92,6 +92,7 @@ enum li_state {
 #define LI_O_TCP_FO     0x0100  /* enable TCP Fast Open (linux >= 3.7) */
 #define LI_O_V6ONLY     0x0200  /* bind to IPv6 only on Linux >= 2.4.21 */
 #define LI_O_V4V6       0x0400  /* bind to IPv4/IPv6 on Linux >= 2.4.21 */
+#define LI_O_ACC_CIP    0x0800  /* find the proxied address in the NetScaler Client IP header */
 
 /* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.
@@ -151,6 +152,7 @@ struct bind_conf {
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	struct list listeners;     /* list of listeners using this bind config */
+	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */

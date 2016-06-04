@@ -32,6 +32,10 @@
 #include <types/port_range.h>
 #include <types/protocol.h>
 
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/tcp.h>
+
 /* referenced below */
 struct connection;
 struct buffer;
@@ -107,10 +111,10 @@ enum {
 	CO_FL_SEND_PROXY    = 0x01000000,  /* send a valid PROXY protocol header */
 	CO_FL_SSL_WAIT_HS   = 0x02000000,  /* wait for an SSL handshake to complete */
 	CO_FL_ACCEPT_PROXY  = 0x04000000,  /* receive a valid PROXY protocol header */
-	/* unused : 0x08000000 */
+	CO_FL_ACCEPT_CIP    = 0x08000000,  /* receive a valid NetScaler Client IP header */
 
 	/* below we have all handshake flags grouped into one */
-	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY,
+	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP,
 
 	/* when any of these flags is set, polling is defined by socket-layer
 	 * operations, as opposed to data-layer. Transport is explicitly not
@@ -155,6 +159,13 @@ enum {
 	CO_ER_PRX_NOT_HDR,      /* not a PROXY protocol header */
 	CO_ER_PRX_BAD_HDR,      /* bad PROXY protocol header */
 	CO_ER_PRX_BAD_PROTO,    /* unsupported protocol in PROXY header */
+
+	CO_ER_CIP_EMPTY,        /* nothing received in NetScaler Client IP header */
+	CO_ER_CIP_ABORT,        /* client abort during NetScaler Client IP header */
+	CO_ER_CIP_TIMEOUT,      /* timeout while waiting for a NetScaler Client IP header */
+	CO_ER_CIP_TRUNCATED,    /* truncated NetScaler Client IP header */
+	CO_ER_CIP_BAD_MAGIC,    /* bad magic number in NetScaler Client IP header */
+	CO_ER_CIP_BAD_PROTO,    /* unsupported protocol in NetScaler Client IP header */
 
 	CO_ER_SSL_EMPTY,        /* client closed during SSL handshake */
 	CO_ER_SSL_ABORT,        /* client abort during SSL handshake */

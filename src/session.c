@@ -142,6 +142,12 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		conn_sock_want_recv(cli_conn);
 	}
 
+	/* wait for a NetScaler client IP insertion protocol header */
+	if (l->options & LI_O_ACC_CIP) {
+		cli_conn->flags |= CO_FL_ACCEPT_CIP;
+		conn_sock_want_recv(cli_conn);
+	}
+
 	conn_data_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_conn;
@@ -346,6 +352,7 @@ static void session_kill_embryonic(struct session *sess)
 		/* with "option dontlognull", we don't log connections with no transfer */
 		if (!conn->err_code ||
 		    conn->err_code == CO_ER_PRX_EMPTY || conn->err_code == CO_ER_PRX_ABORT ||
+		    conn->err_code == CO_ER_CIP_EMPTY || conn->err_code == CO_ER_CIP_ABORT ||
 		    conn->err_code == CO_ER_SSL_EMPTY || conn->err_code == CO_ER_SSL_ABORT)
 			log = 0;
 	}
@@ -354,6 +361,8 @@ static void session_kill_embryonic(struct session *sess)
 		if (!conn->err_code && (task->state & TASK_WOKEN_TIMER)) {
 			if (conn->flags & CO_FL_ACCEPT_PROXY)
 				conn->err_code = CO_ER_PRX_TIMEOUT;
+			else if (conn->flags & CO_FL_ACCEPT_CIP)
+				conn->err_code = CO_ER_CIP_TIMEOUT;
 			else if (conn->flags & CO_FL_SSL_WAIT_HS)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
 		}

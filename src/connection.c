@@ -62,6 +62,10 @@ void conn_fd_handler(int fd)
 		if (unlikely(conn->flags & CO_FL_ERROR))
 			goto leave;
 
+		if (conn->flags & CO_FL_ACCEPT_CIP)
+			if (!conn_recv_netscaler_cip(conn, CO_FL_ACCEPT_CIP))
+				goto leave;
+
 		if (conn->flags & CO_FL_ACCEPT_PROXY)
 			if (!conn_recv_proxy(conn, CO_FL_ACCEPT_PROXY))
 				goto leave;
@@ -615,6 +619,202 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
  recv_abort:
 	conn->err_code = CO_ER_PRX_ABORT;
+	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+	goto fail;
+
+ fail:
+	__conn_sock_stop_both(conn);
+	conn->flags |= CO_FL_ERROR;
+	return 0;
+}
+
+/* This handshake handler waits a NetScaler Client IP insertion header
+ * at the beginning of the raw data stream. The header looks like this:
+ *
+ *   4 bytes:   CIP magic number
+ *   4 bytes:   Header length
+ *   20+ bytes: Header of the last IP packet sent by the client during
+ *              TCP handshake.
+ *   20+ bytes: Header of the last TCP packet sent by the client during
+ *              TCP handshake.
+ *
+ * This line MUST be at the beginning of the buffer and MUST NOT be
+ * fragmented.
+ *
+ * The header line is small and in all cases smaller than the smallest normal
+ * TCP MSS. So it MUST always be delivered as one segment, which ensures we
+ * can safely use MSG_PEEK and avoid buffering.
+ *
+ * Once the data is fetched, the values are set in the connection's address
+ * fields, and data are removed from the socket's buffer. The function returns
+ * zero if it needs to wait for more data or if it fails, or 1 if it completed
+ * and removed itself.
+ */
+int conn_recv_netscaler_cip(struct connection *conn, int flag)
+{
+	char *line;
+	uint32_t cip_magic;
+	uint32_t cip_len;
+	uint8_t ip_v;
+
+	/* we might have been called just after an asynchronous shutr */
+	if (conn->flags & CO_FL_SOCK_RD_SH)
+		goto fail;
+
+	if (!conn_ctrl_ready(conn))
+		goto fail;
+
+	if (!fd_recv_ready(conn->t.sock.fd))
+		return 0;
+
+	do {
+		trash.len = recv(conn->t.sock.fd, trash.str, trash.size, MSG_PEEK);
+		if (trash.len < 0) {
+			if (errno == EINTR)
+				continue;
+			if (errno == EAGAIN) {
+				fd_cant_recv(conn->t.sock.fd);
+				return 0;
+			}
+			goto recv_abort;
+		}
+	} while (0);
+
+	if (!trash.len) {
+		/* client shutdown */
+		conn->err_code = CO_ER_CIP_EMPTY;
+		goto fail;
+	}
+
+	/* Fail if buffer length is not large enough to contain
+	 * CIP magic, CIP length */
+	if (trash.len < 8)
+		goto missing;
+
+	line = trash.str;
+
+	cip_magic = ntohl(*(uint32_t *)line);
+	cip_len = ntohl(*(uint32_t *)(line+4));
+
+	/* Decode a possible NetScaler Client IP request, fail early if
+	 * it does not match */
+	if (cip_magic != objt_listener(conn->target)->bind_conf->ns_cip_magic)
+		goto bad_magic;
+
+	/* Fail if buffer length is not large enough to contain
+	 * CIP magic, CIP length, minimal IP header */
+	if (trash.len < 28)
+		goto missing;
+
+	line += 8;
+
+	/* Get IP version from the first four bits */
+	ip_v = (*line & 0xf0) >> 4;
+
+	if (ip_v == 4) {
+		struct ip *hdr_ip4;
+		struct tcphdr *hdr_tcp;
+
+		hdr_ip4 = (struct ip *)line;
+
+		if (trash.len < (8 + ntohs(hdr_ip4->ip_len))) {
+			/* Fail if buffer length is not large enough to contain
+			 * CIP magic, CIP length, IPv4 header */
+			goto missing;
+		} else if (hdr_ip4->ip_p != IPPROTO_TCP) {
+			/* The protocol does not include a TCP header */
+			conn->err_code = CO_ER_CIP_BAD_PROTO;
+			goto fail;
+		} else if (trash.len < (28 + ntohs(hdr_ip4->ip_len))) {
+			/* Fail if buffer length is not large enough to contain
+			 * CIP magic, CIP length, IPv4 header, TCP header */
+			goto missing;
+		}
+
+		hdr_tcp = (struct tcphdr *)(line + (hdr_ip4->ip_hl * 4));
+
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in *)&conn->addr.from)->sin_family = AF_INET;
+		((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = hdr_ip4->ip_src.s_addr;
+		((struct sockaddr_in *)&conn->addr.from)->sin_port = hdr_tcp->source;
+
+		((struct sockaddr_in *)&conn->addr.to)->sin_family = AF_INET;
+		((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
+		((struct sockaddr_in *)&conn->addr.to)->sin_port = hdr_tcp->dest;
+
+		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+	}
+	else if (ip_v == 6) {
+		struct ip6_hdr *hdr_ip6;
+		struct tcphdr *hdr_tcp;
+
+		hdr_ip6 = (struct ip6_hdr *)line;
+
+		if (trash.len < 28) {
+			/* Fail if buffer length is not large enough to contain
+			 * CIP magic, CIP length, IPv6 header */
+			goto missing;
+		} else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
+			/* The protocol does not include a TCP header */
+			conn->err_code = CO_ER_CIP_BAD_PROTO;
+			goto fail;
+		} else if (trash.len < 48) {
+			/* Fail if buffer length is not large enough to contain
+			 * CIP magic, CIP length, IPv6 header, TCP header */
+			goto missing;
+		}
+
+		hdr_tcp = (struct tcphdr *)(line + sizeof(struct ip6_hdr));
+
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr = hdr_ip6->ip6_src;
+		((struct sockaddr_in6 *)&conn->addr.from)->sin6_port = hdr_tcp->source;
+
+		((struct sockaddr_in6 *)&conn->addr.to)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr = hdr_ip6->ip6_dst;
+		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = hdr_tcp->dest;
+
+		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+	}
+	else {
+		/* The protocol does not match something known (IPv4/IPv6) */
+		conn->err_code = CO_ER_CIP_BAD_PROTO;
+		goto fail;
+	}
+
+	line += cip_len;
+	trash.len = line - trash.str;
+
+	/* remove the NetScaler Client IP header from the request. For this
+	 * we re-read the exact line at once. If we don't get the exact same
+	 * result, we fail.
+	 */
+	do {
+		int len2 = recv(conn->t.sock.fd, trash.str, trash.len, 0);
+		if (len2 < 0 && errno == EINTR)
+			continue;
+		if (len2 != trash.len)
+			goto recv_abort;
+	} while (0);
+
+	conn->flags &= ~flag;
+	return 1;
+
+ missing:
+	/* Missing data. Since we're using MSG_PEEK, we can only poll again if
+	 * we have not read anything. Otherwise we need to fail because we won't
+	 * be able to poll anymore.
+	 */
+	conn->err_code = CO_ER_CIP_TRUNCATED;
+	goto fail;
+
+ bad_magic:
+	conn->err_code = CO_ER_CIP_BAD_MAGIC;
+	goto fail;
+
+ recv_abort:
+	conn->err_code = CO_ER_CIP_ABORT;
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	goto fail;
 

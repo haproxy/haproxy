@@ -45,6 +45,9 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
+/* receive a NetScaler Client IP insertion header over a connection */
+int conn_recv_netscaler_cip(struct connection *conn, int flag);
+
 /* raw send() directly on the socket */
 int conn_sock_send(struct connection *conn, const void *buf, int len, int flags);
 
@@ -570,6 +573,13 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_PRX_NOT_HDR:   return "Received something which does not look like a PROXY protocol header";
 	case CO_ER_PRX_BAD_HDR:   return "Received an invalid PROXY protocol header";
 	case CO_ER_PRX_BAD_PROTO: return "Received an unhandled protocol in the PROXY protocol header";
+
+	case CO_ER_CIP_EMPTY:     return "Connection closed while waiting for NetScaler Client IP header";
+	case CO_ER_CIP_ABORT:     return "Connection error while waiting for NetScaler Client IP header";
+	case CO_ER_CIP_TRUNCATED: return "Truncated NetScaler Client IP header received";
+	case CO_ER_CIP_BAD_MAGIC: return "Received an invalid NetScaler Client IP magic number";
+	case CO_ER_CIP_BAD_PROTO: return "Received an unhandled protocol in the NetScaler Client IP header";
+
 	case CO_ER_SSL_EMPTY:     return "Connection closed during SSL handshake";
 	case CO_ER_SSL_ABORT:     return "Connection error during SSL handshake";
 	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";

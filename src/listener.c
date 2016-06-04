@@ -618,6 +618,31 @@ static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, s
 	return 0;
 }
 
+/* parse the "accept-netscaler-cip" bind keyword */
+static int bind_parse_accept_netscaler_cip(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct listener *l;
+	uint32_t val;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	if (val <= 0) {
+		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		l->options |= LI_O_ACC_CIP;
+		conf->ns_cip_magic = val;
+	}
+
+	return 0;
+}
+
 /* parse the "backlog" bind keyword */
 static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -814,6 +839,7 @@ static struct acl_kw_list acl_kws = {ILH, {
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "ALL", { }, {
+	{ "accept-netscaler-cip", bind_parse_accept_netscaler_cip, 1 }, /* enable NetScaler Client IP insertion protocol */
 	{ "accept-proxy", bind_parse_accept_proxy, 0 }, /* enable PROXY protocol */
 	{ "backlog",      bind_parse_backlog,      1 }, /* set backlog of listening socket */
 	{ "id",           bind_parse_id,           1 }, /* set id of listening socket */
