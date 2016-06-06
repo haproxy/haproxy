@@ -2821,7 +2821,7 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	if (stkctr_entry(stkctr) == NULL)
 		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw);
 
-	if (stkctr_entry(stkctr) != NULL) {
+	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
 
 		/* First, update gpc0_rate if it's tracked. Second, update its
