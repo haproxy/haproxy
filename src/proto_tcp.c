@@ -1399,6 +1399,10 @@ int tcp_exec_req_rules(struct session *sess)
 				conn->flags |= CO_FL_ACCEPT_PROXY;
 				conn_sock_want_recv(conn);
 			}
+			else if (rule->action == ACT_TCP_EXPECT_CIP) {
+				conn->flags |= CO_FL_ACCEPT_CIP;
+				conn_sock_want_recv(conn);
+			}
 			else {
 				/* Custom keywords. */
 				if (!rule->action_ptr)
@@ -1827,6 +1831,24 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 		arg += 2;
 		rule->action = ACT_TCP_EXPECT_PX;
+	}
+	else if (strcmp(args[arg], "expect-netscaler-cip") == 0) {
+		if (strcmp(args[arg+1], "layer4") != 0) {
+			memprintf(err,
+				  "'%s %s %s' only supports 'layer4' in %s '%s' (got '%s')",
+				  args[0], args[1], args[arg], proxy_type_str(curpx), curpx->id, args[arg+1]);
+			return -1;
+		}
+
+		if (!(where & SMP_VAL_FE_CON_ACC)) {
+			memprintf(err,
+				  "'%s %s' is not allowed in '%s %s' rules in %s '%s'",
+				  args[arg], args[arg+1], args[0], args[1], proxy_type_str(curpx), curpx->id);
+			return -1;
+		}
+
+		arg += 2;
+		rule->action = ACT_TCP_EXPECT_CIP;
 	}
 	else {
 		struct action_kw *kw;

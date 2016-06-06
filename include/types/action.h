@@ -83,6 +83,7 @@ enum act_name {
 
 	/* tcp actions */
 	ACT_TCP_EXPECT_PX,
+	ACT_TCP_EXPECT_CIP,
 	ACT_TCP_CLOSE, /* close at the sender's */
 	ACT_TCP_CAPTURE, /* capture a fetched sample */
 

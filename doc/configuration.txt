@@ -8652,6 +8652,15 @@ tcp-request connection <action> [{if | unless} <condition>]
         of load balancers are passed through by traffic coming from public
         hosts.
 
+    - expect-netscaler-cip layer4 :
+        configures the client-facing connection to receive a NetScaler Client
+        IP insertion protocol header before any byte is read from the socket.
+        This is equivalent to having the "accept-netscaler-cip" keyword on the
+        "bind" line, except that using the TCP rule allows the PROXY protocol
+        to be accepted only for certain IP address ranges using an ACL. This
+        is convenient when multiple layers of load balancers are passed
+        through by traffic coming from public hosts.
+
     - capture <sample> len <length> :
         This only applies to "tcp-request content" rules. It captures sample
         expression <sample> from the request buffer, and converts it to a
@@ -9746,7 +9755,9 @@ accept-netscaler-cip <magic number>
   protocol, unless it is violated, in which case the real  address will still
   be used. This keyword combined with support from external components can be
   used as an efficient and reliable alternative to the X-Forwarded-For
-  mechanism which is not always reliable and not even always usable.
+  mechanism which is not always reliable and not even always usable. See also
+  "tcp-request connection expect-netscaler-cip" for a finer-grained setting of
+  which client is allowed to use the protocol.
 
 accept-proxy
   Enforces the use of the PROXY protocol over any connection accepted by any of
