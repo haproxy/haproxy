@@ -679,6 +679,12 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 		}
 	}
 
+       if (check->state & CHK_ST_PORT_MISS) {
+		/* NOTE: this is reported after <fall> tries */
+		chunk_printf(chk, "No port available for the TCP connection");
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
+	}
+
 	if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 		/* L4 not established (yet) */
 		if (conn->flags & CO_FL_ERROR)
@@ -1430,6 +1436,7 @@ static struct task *server_warmup(struct task *t)
  *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
  *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
  *  - SF_ERR_INTERNAL for any other purely internal errors
+ *  - SF_ERR_CHK_PORT if no port could be found to run a health check on an AF_INET* socket
  * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  * Note that we try to prevent the network stack from sending the ACK during the
  * connect() when a pure TCP check is used (without PROXY protocol).
@@ -1491,8 +1498,16 @@ static int connect_conn_chk(struct task *t)
 		conn->addr.to = s->addr;
 	}
 
-	if (check->port) {
-		set_host_port(&conn->addr.to, check->port);
+       if ((conn->addr.to.ss_family == AF_INET) || (conn->addr.to.ss_family == AF_INET6)) {
+		int i = 0;
+
+		i = srv_check_healthcheck_port(check);
+		if (i == 0) {
+			conn->owner = check;
+			return SF_ERR_CHK_PORT;
+		}
+
+		set_host_port(&conn->addr.to, i);
 	}
 
 	proto = protocol_by_family(conn->addr.to.ss_family);
@@ -2072,6 +2087,9 @@ static struct task *process_chk_conn(struct task *t)
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(conn, errno, 0);
 			break;
+		/* should share same code than cases below */
+		case SF_ERR_CHK_PORT:
+			check->state |= CHK_ST_PORT_MISS;
 		case SF_ERR_PRXCOND:
 		case SF_ERR_RESOURCE:
 		case SF_ERR_INTERNAL:
@@ -3366,6 +3384,53 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 	}
 
 	enqueue_email_alert(p, buf);
+}
+
+/*
+ * Return value:
+ *   the port to be used for the health check
+ *   0 in case no port could be found for the check
+ */
+int srv_check_healthcheck_port(struct check *chk)
+{
+	int i = 0;
+	struct server *srv = NULL;
+
+	srv = chk->server;
+
+	/* If neither a port nor an addr was specified and no check transport
+	 * layer is forced, then the transport layer used by the checks is the
+	 * same as for the production traffic. Otherwise we use raw_sock by
+	 * default, unless one is specified.
+	 */
+	if (!chk->port && !is_addr(&chk->addr)) {
+#ifdef USE_OPENSSL
+		chk->use_ssl |= (srv->use_ssl || (srv->proxy->options & PR_O_TCPCHK_SSL));
+#endif
+		chk->send_proxy |= (srv->pp_opts);
+	}
+
+	/* by default, we use the health check port ocnfigured */
+	if (chk->port > 0)
+		return chk->port;
+
+	/* try to get the port from check_core.addr if check.port not set */
+	i = get_host_port(&chk->addr);
+	if (i > 0)
+		return i;
+
+	/* try to get the port from server address */
+	/* prevent MAPPORTS from working at this point, since checks could
+	 * not be performed in such case (MAPPORTS impose a relative ports
+	 * based on live traffic)
+	 */
+	if (srv->flags & SRV_F_MAPPORTS)
+		return 0;
+	i = get_host_port(&srv->addr); /* by default */
+	if (i > 0)
+		return i;
+
+	return 0;
 }
 
 

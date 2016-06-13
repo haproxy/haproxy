@@ -869,7 +869,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 	if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
-		short realport = 0;
 		int do_agent = 0, do_check = 0, defsrv = (*args[0] == 'd');
 
 		if (!defsrv && curproxy == defproxy) {
@@ -960,10 +959,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				      file, linenum, args[0], args[1], args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
-			}
-			else {
-				/* used by checks */
-				realport = port1;
 			}
 
 			/* save hostname and create associated name resolution */
@@ -1749,29 +1744,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
-			/* If neither a port nor an addr was specified and no check transport
-			 * layer is forced, then the transport layer used by the checks is the
-			 * same as for the production traffic. Otherwise we use raw_sock by
-			 * default, unless one is specified.
-			 */
-			if (!newsrv->check.port && !is_addr(&newsrv->check.addr)) {
-#ifdef USE_OPENSSL
-				newsrv->check.use_ssl |= (newsrv->use_ssl || (newsrv->proxy->options & PR_O_TCPCHK_SSL));
-#endif
-				newsrv->check.send_proxy |= (newsrv->pp_opts);
-			}
-			/* try to get the port from check_core.addr if check.port not set */
-			if (!newsrv->check.port)
-				newsrv->check.port = get_host_port(&newsrv->check.addr);
-
-			if (!newsrv->check.port)
-				newsrv->check.port = realport; /* by default */
-
 			/*
 			 * We need at least a service port, a check port or the first tcp-check rule must
 			 * be a 'connect' one when checking an IPv4/IPv6 server.
 			 */
-			if (!newsrv->check.port &&
+			if ((srv_check_healthcheck_port(&newsrv->check) == 0) &&
 			    (is_inet_addr(&newsrv->check.addr) ||
 			     (!is_addr(&newsrv->check.addr) && is_inet_addr(&newsrv->addr)))) {
 				struct tcpcheck_rule *r = NULL;

@@ -41,6 +41,7 @@ enum chk_result {
 #define CHK_ST_ENABLED          0x0004  /* this check is currently administratively enabled */
 #define CHK_ST_PAUSED           0x0008  /* checks are paused because of maintenance (health only) */
 #define CHK_ST_AGENT            0x0010  /* check is an agent check (otherwise it's a health check) */
+#define CHK_ST_PORT_MISS        0x0020  /* check can't be send because no port is configured to run it */
 
 /* check status */
 enum {

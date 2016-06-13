@@ -50,6 +50,7 @@ void free_check(struct check *check);
 
 void send_email_alert(struct server *s, int priority, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
+int srv_check_healthcheck_port(struct check *chk);
 #endif /* _PROTO_CHECKS_H */
 
 /*

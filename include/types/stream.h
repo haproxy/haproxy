@@ -73,6 +73,7 @@
 #define SF_ERR_DOWN     0x00009000	/* the proxy killed a stream because the backend became unavailable */
 #define SF_ERR_KILLED   0x0000a000	/* the proxy killed a stream because it was asked to do so */
 #define SF_ERR_UP       0x0000b000	/* the proxy killed a stream because a preferred backend became available */
+#define SF_ERR_CHK_PORT 0x0000c000	/* no port could be found for a health check. TODO: check SF_ERR_SHIFT */
 #define SF_ERR_MASK     0x0000f000	/* mask to get only stream error flags */
 #define SF_ERR_SHIFT    12		/* bit shift */
 
