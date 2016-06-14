@@ -6153,6 +6153,7 @@ static int stats_tlskeys_list(struct stream_interface *si) {
 			return 0;
 		}
 
+		appctx->ctx.tlskeys.dump_keys_index = 0;
 
 		/* Now, we start the browsing of the references lists.
 		 * Note that the following call to LIST_ELEM return bad pointer. The only
@@ -6169,27 +6170,34 @@ static int stats_tlskeys_list(struct stream_interface *si) {
 
 	case STAT_ST_LIST:
 		while (appctx->ctx.tlskeys.ref) {
-			int i;
 			int head = appctx->ctx.tlskeys.ref->tls_ticket_enc_index;
 
 			chunk_reset(&trash);
-			if (appctx->st0 == STAT_CLI_O_TLSK_ENT)
+			if (appctx->st0 == STAT_CLI_O_TLSK_ENT && appctx->ctx.tlskeys.dump_keys_index == 0)
 				chunk_appendf(&trash, "# ");
-			chunk_appendf(&trash, "%d (%s)\n", appctx->ctx.tlskeys.ref->unique_id,
-			              appctx->ctx.tlskeys.ref->filename);
+			if (appctx->ctx.tlskeys.dump_keys_index == 0)
+				chunk_appendf(&trash, "%d (%s)\n", appctx->ctx.tlskeys.ref->unique_id,
+				              appctx->ctx.tlskeys.ref->filename);
 			if (appctx->st0 == STAT_CLI_O_TLSK_ENT) {
-				for (i = 0; i < TLS_TICKETS_NO; i++) {
+				while (appctx->ctx.tlskeys.dump_keys_index < TLS_TICKETS_NO) {
 					struct chunk *t2 = get_trash_chunk();
-					int b64_len;
 
 					chunk_reset(t2);
-					b64_len = a2base64((char *)(appctx->ctx.tlskeys.ref->tlskeys + (head + 2 + i) % TLS_TICKETS_NO),
+					/* should never fail here because we dump only a key in the t2 buffer */
+					t2->len = a2base64((char *)(appctx->ctx.tlskeys.ref->tlskeys + (head + 2 + appctx->ctx.tlskeys.dump_keys_index) % TLS_TICKETS_NO),
 					                   sizeof(struct tls_sess_key), t2->str, t2->size);
-					if (b64_len < 0)
+					chunk_appendf(&trash, "%d.%d %s\n", appctx->ctx.tlskeys.ref->unique_id, appctx->ctx.tlskeys.dump_keys_index, t2->str);
+
+					if (bi_putchk(si_ic(si), &trash) == -1) {
+						/* let's try again later from this stream. We add ourselves into
+						 * this stream's users so that it can remove us upon termination.
+						 */
+						si_applet_cant_put(si);
 						return 0;
-					t2->len = b64_len;
-					chunk_appendf(&trash, "%d.%d %s\n", appctx->ctx.tlskeys.ref->unique_id, i, t2->str);
+					}
+					appctx->ctx.tlskeys.dump_keys_index++;
 				}
+				appctx->ctx.tlskeys.dump_keys_index = 0;
 			}
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
