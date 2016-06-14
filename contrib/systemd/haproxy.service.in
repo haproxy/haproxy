@@ -3,8 +3,9 @@ Description=HAProxy Load Balancer
 After=network.target
 
 [Service]
-ExecStartPre=@SBINDIR@/haproxy -f /etc/haproxy/haproxy.cfg -c -q
-ExecStart=@SBINDIR@/haproxy-systemd-wrapper -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid
+Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid"
+ExecStartPre=@SBINDIR@/haproxy -f $CONFIG -c -q
+ExecStart=@SBINDIR@/haproxy-systemd-wrapper -f $CONFIG -p $PIDFILE
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
