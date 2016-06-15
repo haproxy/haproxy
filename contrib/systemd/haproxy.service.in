@@ -6,6 +6,7 @@ After=network.target
 Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid"
 ExecStartPre=@SBINDIR@/haproxy -f $CONFIG -c -q
 ExecStart=@SBINDIR@/haproxy-systemd-wrapper -f $CONFIG -p $PIDFILE
+ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
