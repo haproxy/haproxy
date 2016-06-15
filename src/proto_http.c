@@ -9336,7 +9336,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		}
 		if (strcmp(args[cur_arg], "silent") == 0)
 			rule->arg.loglevel = -1;
-		else if ((rule->arg.loglevel = get_log_level(args[cur_arg] + 1)) == 0)
+		else if ((rule->arg.loglevel = get_log_level(args[cur_arg]) + 1) == 0)
 			goto bad_log_level;
 		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
