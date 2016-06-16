@@ -11653,17 +11653,13 @@ smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, 
 {
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
-	unsigned int hash;
 
 	if (!smp_fetch_url32(args, smp, kw, private))
 		return 0;
 
-	/* The returned hash is a 32 bytes integer. */
-	hash = smp->data.u.sint;
-
 	temp = get_trash_chunk();
-	memcpy(temp->str + temp->len, &hash, sizeof(hash));
-	temp->len += sizeof(hash);
+	*(unsigned int *)temp->str = htonl(smp->data.u.sint);
+	temp->len += sizeof(unsigned int);
 
 	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
