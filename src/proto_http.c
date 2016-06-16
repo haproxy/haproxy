@@ -11654,6 +11654,9 @@ smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, 
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
+	if (!cli_conn)
+		return 0;
+
 	if (!smp_fetch_url32(args, smp, kw, private))
 		return 0;
 
