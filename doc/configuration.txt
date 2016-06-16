@@ -14137,6 +14137,18 @@ urlp_val([<name>[,<delim>])] : integer
   and converts it to an integer value. This can be used for session stickiness
   based on a user ID for example, or with ACLs to match a page number or price.
 
+url32 : integer
+  This returns a 32-bit hash of the value obtained by concatenating the first
+  Host header and the whole URL including parameters (not only the path part of
+  the request, as in the "base32" fetch above). This is useful to track per-URL
+  activity. A shorter hash is stored, saving a lot of memory. The output type
+  is an unsigned integer.
+
+url32+src : binary
+  This returns the concatenation of the "url32" fetch and the "src" fetch. The
+  resulting type is of type binary, with a size of 8 or 20 bytes depending on
+  the source address family. This can be used to track per-IP, per-URL counters.
+
 
 7.4. Pre-defined ACLs
 ---------------------
