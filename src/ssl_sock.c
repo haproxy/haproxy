@@ -1979,7 +1979,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 			continue;
 
 		if (fcount) {
-			for (i = 0; i < fcount, i++)
+			for (i = 0; i < fcount; i++)
 				ssl_sock_populate_sni_keytypes_hplr(sni_filter[i], &sni_keytypes_map, n);
 		} else {
 			/* A lot of the following code is OpenSSL boilerplate for processing CN's and SAN's,
