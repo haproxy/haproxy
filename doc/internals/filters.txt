@@ -1,6 +1,6 @@
                    -----------------------------------------
                           Filters Guide - version 1.7
-                          ( Last update: 2016-05-11 )
+                          ( Last update: 2016-06-21 )
                    ------------------------------------------
                           Author : Christopher Faulet
               Contact : christopher dot faulet at capflam dot org
@@ -33,7 +33,7 @@ SUMMARY
   3.1.      API Overview
   3.2.      Defining the filter name and its configuration
   3.3.      Managing the filter lifecycle
-  3.4.      Handling the streams creation and desctruction
+  3.4.      Handling the streams activity
   3.5.      Analyzing the channels activity
   3.6.      Filtering the data exchanged
   4.    FAQ
@@ -186,8 +186,11 @@ existing callbacks. Available callbacks are listed in the following structure:
         /*
          * Stream callbacks
          */
-        int  (*stream_start)     (struct stream *s, struct filter *f);
-        void (*stream_stop)      (struct stream *s, struct filter *f);
+        int  (*attach)            (struct stream *s, struct filter *f);
+        int  (*stream_start)      (struct stream *s, struct filter *f);
+        int  (*stream_set_backend)(struct stream *s, struct filter *f, struct proxy *be);
+        void (*stream_stop)       (struct stream *s, struct filter *f);
+        void (*detach)            (struct stream *s, struct filter *f);
 
         /*
          * Channel callbacks
@@ -510,16 +513,22 @@ TODO: Add callbacks to handle creation/destruction of filter instances. And
       document it.
 
 
-3.4. HANDLING THE STREAMS CREATION AND DESCTRUCTION
----------------------------------------------------
+3.4. HANDLING THE STREAMS ACTIVITY
+-----------------------------------
 
-You may be interessted to handle stream creation and destruction. If so, you
-must define followings callbacks:
+You may be interessted to handle streams activity. For now, there is three
+callbacks that you should define to do so:
 
   * 'flt_ops.stream_start': It is called when a stream is started. This callback
                             can fail by returning a negative value. It will be
                             considered as a critical error by HAProxy which
                             disabled the listener for a short time.
+
+  * 'flt_ops.stream_set_backend': It is called when a backend is set for a
+                                  stream. This callbacks will be called for all
+                                  filters attached to a stream (frontend and
+                                  backend). Note this callback is not called if
+                                  the frontend and the backend are the same.
 
   * 'flt_ops.stream_stop': It is called when a stream is stopped. This callback
                            always succeed. Anyway, it is too late to return an
@@ -538,6 +547,18 @@ For example:
          return 0;
     }
 
+    /* Called when a backend is set for a stream */
+    static int
+    my_filter_stream_set_backend(struct stream *s, struct filter *filter,
+                                 struct proxy *be)
+    {
+         struct my_filter_config *my_conf = FLT_CONF(filter);
+
+        /* ... */
+
+        return 0;
+    }
+
     /* Called when a stream is destroyed */
     static void
     my_filter_stream_stop(struct stream *s, struct filter *filter)
@@ -551,6 +572,45 @@ For example:
 WARNING: Handling the streams creation and destuction is only possible for
          filters defined on proxies with the frontend capability.
 
+In addition, it is possible to handle creation and destruction of filter
+instances using following callbacks:
+
+  * 'flt_ops.attach': It is called after a filter instance creation, when it is
+                      attached to a stream. This happens when the stream is
+                      started for filters defined on the stream's frontend and
+                      when the backend is set for filters declared on the
+                      stream's backend. It is possible to ignore the filter, if
+                      needed, by returning 0. This could be useful to have
+                      conditional filtering.
+
+  * 'flt_ops.detach': It is called when a filter instance is detached from a
+                      stream, before its destruction. This happens when the
+                      stream is stopped for filters defined on the stream's
+                      frontend and when the analyze ends for filters defined on
+                      the stream's backend.
+
+For example:
+
+    /* Called when a filter instance is created and attach to a stream */
+    static int
+    my_filter_attach(struct stream *s, struct filter *filter)
+    {
+        struct my_filter_config *my_conf = FLT_CONF(filter);
+
+        if (/* ... */)
+            return 0; /* Ignore the filter here */
+        return 1;
+    }
+
+    /* Called when a filter instance is detach from a stream, just before its
+     * destruction */
+    static void
+    my_filter_detach(struct stream *s, struct filter *filter)
+    {
+        struct my_filter_config *my_conf = FLT_CONF(filter);
+
+        /* ... */
+    }
 
 3.5. ANALYZING THE CHANNELS ACTIVITY
 ------------------------------------
@@ -727,58 +787,78 @@ example:
 
 Workflow on channels can be summarized as following:
 
-                |
-     +----------+-----------+
-     | flt_ops.stream_start |
-     +----------+-----------+
-                |
-               ...
-                |
-                +-<-- [1]                 +------->---------+
-                |                 --+     |                 |                 --+
-                +------<----------+ |     |                 +--------<--------+ |
-                |                 | |     |                 |                 | |
-                V                 | |     |                 V                 | |
-+-------------------------------+ | |     | +-------------------------------+ | |
-|      flt_start_analyze        +-+ |     | |      flt_start_analyze        +-+ |
-|(flt_ops.channel_start_analyze)|   | F   | |(flt_ops.channel_start_analyze)|   |
-+---------------+---------------+   | R   | +---------------+---------------+   |
-                |                   | O   |                 |                   |
-                +------<---------+  | N   ^                 +--------<-------+  | B
-                |                |  | T   |                 |                |  | A
-+---------------+------------+   |  | E   | +---------------+------------+   |  | C
-|+--------------V-------------+  |  | N   | |+--------------V-------------+  |  | K
-||+----------------------------+ |  | D   | ||+----------------------------+ |  | E
-|||flt_ops.channel_pre_analyze | |  |     | |||flt_ops.channel_pre_analyze | |  | N
-|||             V              | |  |     | |||             V              | |  | D
-|||          analyzer          +-+  |     | |||          analyzer          +-+  |
-+||             V              |    |     | +||             V              |    |
- +|flt_ops.channel_post_analyze|    |     |  +|flt_ops.channel_post_analyze|    |
-  +-------------+--------------+    |     |   +-------------+--------------+    |
-                |                 --+     |                 |                   |
-                +------------>------------+                ...                  |
-                                                            |                   |
-                                                [ data filtering (see below) ]  |
-                                                            |                   |
-                                                           ...                  |
-                                                            |                   |
-                                                            +--------<--------+ |
-                                                            |                 | |
-                                                            V                 | |
-                                            +-------------------------------+ | |
-                                            |       flt_end_analyze         +-+ |
-                                            | (flt_ops.channel_end_analyze) |   |
-                                            +---------------+---------------+   |
-                                                            |                 --+
-                        If HTTP stream, go back to [1] --<--+
-                                                            |
-                                                           ...
-                                                            |
-                                                 +----------+-----------+
-                                                 | flt_ops.stream_stop  |
-                                                 +----------+-----------+
-                                                            |
-                                                            V
+   FE: Called for filters defined on the stream's frontend
+   BE: Called for filters defined on the stream's backend
+
+                                          +------->---------+
+                |                         |                 |
+    +----------------------+              |      +----------------------+
+    |  flt_ops.attach (FE) |              |      |  flt_ops.attach (BE) |
+    +----------------------+              |      +----------------------+
+                |                         |                  |
+                V                         |                  V
+  +--------------------------+            | +------------------------------------+
+  | flt_ops.stream_start (FE)|            | | flt_ops.stream_set_backend (FE+BE) |
+  +--------------------------+            | +------------------------------------+
+                |                         |                  |
+               ...                        |                 ...
+                |                         |                  |
+                +-<-- [1]                 ^                  |
+                |                 --+     |                  |                 --+
+                +------<----------+ |     |                  +--------<--------+ |
+                |                 | |     |                  |                 | |
+                V                 | |     |                  V                 | |
++-------------------------------+ | |     |  +-------------------------------+ | |
+|      flt_start_analyze (FE)   +-+ |     |  |      flt_start_analyze (BE)   +-+ |
+|(flt_ops.channel_start_analyze)|   | F   |  |(flt_ops.channel_start_analyze)|   |
++---------------+---------------+   | R   |  +-------------------------------+   |
+                |                   | O   |                  |                   |
+                +------<---------+  | N   ^                  +--------<-------+  | B
+                |                |  | T   |                  |                |  | A
++---------------|------------+   |  | E   |  +---------------|------------+   |  | C
+|+--------------V-------------+  |  | N   |  |+--------------V-------------+  |  | K
+||+----------------------------+ |  | D   |  ||+----------------------------+ |  | E
+|||flt_ops.channel_pre_analyze | |  |     |  |||flt_ops.channel_pre_analyze | |  | N
+|||             V              | |  |     |  |||             V              | |  | D
+|||        analyzer (FE)       +-+  |     |  |||     analyzer (FE+BE)       +-+  |
++||             V              |    |     |  +||             V              |    |
+ +|flt_ops.channel_post_analyze|    |     |   +|flt_ops.channel_post_analyze|    |
+  +----------------------------+    |     |    +----------------------------+    |
+                |                 --+     |                  |                   |
+                +------------>------------+                 ...                  |
+                                                             |                   |
+                                                 [ data filtering (see below) ]  |
+                                                             |                   |
+                                                            ...                  |
+                                                             |                   |
+                                                             +--------<--------+ |
+                                                             |                 | |
+                                                             V                 | |
+                                             +-------------------------------+ | |
+                                             |    flt_end_analyze (FE+BE)    +-+ |
+                                             | (flt_ops.channel_end_analyze) |   |
+                                             +---------------+---------------+   |
+                                                             |                 --+
+                                                             V
+                                                  +----------------------+
+                                                  |  flt_ops.detach (BE) |
+                                                  +----------------------+
+                                                             |
+                         If HTTP stream, go back to [1] --<--+
+                                                             |
+                                                            ...
+                                                             |
+                                                             V
+                                                 +--------------------------+
+                                                 | flt_ops.stream_stop (FE) |
+                                                 +--------------------------+
+                                                              |
+                                                              V
+                                                   +----------------------+
+                                                   |  flt_ops.detach (FE) |
+                                                   +----------------------+
+                                                              |
+                                                              V
 
 By zooming on an analyzer box we have:
 
