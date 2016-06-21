@@ -1771,6 +1771,10 @@ int main(int argc, char **argv)
 		if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
 			/* try to set it to the max possible at least */
 			getrlimit(RLIMIT_NOFILE, &limit);
+			limit.rlim_cur = limit.rlim_max;
+			if (setrlimit(RLIMIT_NOFILE, &limit) != -1)
+				getrlimit(RLIMIT_NOFILE, &limit);
+
 			Warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n", argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
 			global.rlimit_nofile = limit.rlim_cur;
 		}
