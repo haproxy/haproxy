@@ -1552,7 +1552,6 @@ void unblock_sigchld(void)
 	assert(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0);
 }
 
-/* Call with SIGCHLD blocked */
 static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 {
 	struct pid_list *elem;
@@ -1570,7 +1569,6 @@ static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 	return elem;
 }
 
-/* Blocks blocks and then unblocks SIGCHLD */
 static void pid_list_del(struct pid_list *elem)
 {
 	struct check *check;
@@ -1578,9 +1576,7 @@ static void pid_list_del(struct pid_list *elem)
 	if (!elem)
 		return;
 
-	block_sigchld();
 	LIST_DEL(&elem->list);
-	unblock_sigchld();
 	if (!elem->exited)
 		kill(elem->pid, SIGTERM);
 
