@@ -66,6 +66,12 @@ stream_pos(const struct stream *s)
 	return (s->flags & SF_BE_ASSIGNED) ? "backend" : "frontend";
 }
 
+static const char *
+filter_type(const struct filter *f)
+{
+	return (f->flags & FLT_FL_IS_BACKEND_FILTER) ? "backend" : "frontend";
+}
+
 /***************************************************************************
  * Hooks that manage the filter lifecycle (init/check/deinit)
  **************************************************************************/
@@ -111,6 +117,28 @@ trace_check(struct proxy *px, struct flt_conf *fconf)
 /**************************************************************************
  * Hooks to handle start/stop of streams
  *************************************************************************/
+/* Called when a filter instance is created and attach to a stream */
+static int
+trace_attach(struct stream *s, struct filter *filter)
+{
+	struct trace_config *conf = FLT_CONF(filter);
+
+	STRM_TRACE(conf, s, "%-25s: filter-type=%s",
+		   __FUNCTION__, filter_type(filter));
+	return 1;
+}
+
+/* Called when a filter instance is detach from a stream, just before its
+ * destruction */
+static void
+trace_detach(struct stream *s, struct filter *filter)
+{
+	struct trace_config *conf = FLT_CONF(filter);
+
+	STRM_TRACE(conf, s, "%-25s: filter-type=%s",
+		   __FUNCTION__, filter_type(filter));
+}
+
 /* Called when a stream is created */
 static int
 trace_stream_start(struct stream *s, struct filter *filter)
@@ -119,6 +147,19 @@ trace_stream_start(struct stream *s, struct filter *filter)
 
 	STRM_TRACE(conf, s, "%-25s",
 		   __FUNCTION__);
+	return 0;
+}
+
+
+/* Called when a backend is set for a stream */
+static int
+trace_stream_set_backend(struct stream *s, struct filter *filter,
+			 struct proxy *be)
+{
+	struct trace_config *conf = FLT_CONF(filter);
+
+	STRM_TRACE(conf, s, "%-25s: backend=%s",
+		   __FUNCTION__, be->id);
 	return 0;
 }
 
@@ -410,8 +451,11 @@ struct flt_ops trace_ops = {
 	.check  = trace_check,
 
 	/* Handle start/stop of streams */
-	.stream_start = trace_stream_start,
-	.stream_stop  = trace_stream_stop,
+	.attach             = trace_attach,
+	.detach             = trace_detach,
+	.stream_start       = trace_stream_start,
+	.stream_set_backend = trace_stream_set_backend,
+	.stream_stop        = trace_stream_stop,
 
 	/* Handle channels activity */
 	.channel_start_analyze = trace_chn_start_analyze,

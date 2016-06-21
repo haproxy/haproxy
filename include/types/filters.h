@@ -64,14 +64,32 @@ struct flt_kw_list {
  *                          number of errors encountered.
  *
  *
+ *  - attach              : Called after a filter instance creation, when it is
+ *                          attached to a stream. This happens when the stream
+ *                          is started for filters defined on the stream's
+ *                          frontend and when the backend is set for filters
+ *                          declared on the stream's backend.
+ *                          Returns a negative value if an error occurs, 0 if
+ *                          the filter must be ignored for the stream, any other
+ *                          value otherwise.
  *  - stream_start        : Called when a stream is started. This callback will
- *                          only be called for filters defined on a proxy with
- *                          the frontend capability.
+ *                          only be called for filters defined on the stream's
+ *                          frontend.
+ *                          Returns a negative value if an error occurs, any
+ *                          other value otherwise.
+ *  - stream_set_backend  : Called when a backend is set for a stream. This
+ *                          callbacks will be called for all filters attached
+ *                          to a stream (frontend and backend).
  *                          Returns a negative value if an error occurs, any
  *                          other value otherwise.
  *  - stream_stop         : Called when a stream is stopped. This callback will
- *                          only be called for filters defined on a proxy with
- *                          the frontend capability.
+ *                          only be called for filters defined on the stream's
+ *                          frontend.
+ *  - detach              : Called when a filter instance is detached from a
+ *                          stream, before its destruction. This happens when
+ *                          the stream is stopped for filters defined on the
+ *                          stream's frontend and when the analyze ends for
+ *                          filters defined on the stream's backend.
  *
  *
  *  - channel_start_analyze: Called when a filter starts to analyze a channel.
@@ -133,12 +151,14 @@ struct flt_ops {
 	int  (*init)  (struct proxy *p, struct flt_conf *fconf);
 	void (*deinit)(struct proxy *p, struct flt_conf *fconf);
 	int  (*check) (struct proxy *p, struct flt_conf *fconf);
-
 	/*
 	 * Stream callbacks
 	 */
-	int  (*stream_start)     (struct stream *s, struct filter *f);
-	void (*stream_stop)      (struct stream *s, struct filter *f);
+	int  (*attach)            (struct stream *s, struct filter *f);
+	int  (*stream_start)      (struct stream *s, struct filter *f);
+	int  (*stream_set_backend)(struct stream *s, struct filter *f, struct proxy *be);
+	void (*stream_stop)       (struct stream *s, struct filter *f);
+	void (*detach)            (struct stream *s, struct filter *f);
 
 	/*
 	 * Channel callbacks
