@@ -1131,14 +1131,15 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 {
 	if (s->flags & SF_BE_ASSIGNED)
 		return 1;
+
+	if (flt_set_stream_backend(s, be) < 0)
+		return 0;
+
 	s->be = be;
 	be->beconn++;
 	if (be->beconn > be->be_counters.conn_max)
 		be->be_counters.conn_max = be->beconn;
 	proxy_inc_be_ctr(be);
-
-	if (flt_set_stream_backend(s, be) < 0)
-		return 0;
 
 	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
