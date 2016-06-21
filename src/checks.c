@@ -58,6 +58,7 @@
 #include <proto/proxy.h>
 #include <proto/raw_sock.h>
 #include <proto/server.h>
+#include <proto/signal.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/log.h>
@@ -1603,25 +1604,22 @@ static void pid_list_expire(pid_t pid, int status)
 	}
 }
 
-static void sigchld_handler(int signal)
+static void sigchld_handler(struct sig_handler *sh)
 {
 	pid_t pid;
 	int status;
+
 	while ((pid = waitpid(0, &status, WNOHANG)) > 0)
 		pid_list_expire(pid, status);
 }
 
-static int init_pid_list(void) {
-	struct sigaction action = {
-		.sa_handler = sigchld_handler,
-		.sa_flags = SA_NOCLDSTOP
-	};
-
+static int init_pid_list(void)
+{
 	if (pool2_pid_list != NULL)
 		/* Nothing to do */
 		return 0;
 
-	if (sigaction(SIGCHLD, &action, NULL)) {
+	if (!signal_register_fct(SIGCHLD, sigchld_handler, SIGCHLD)) {
 		Alert("Failed to set signal handler for external health checks: %s. Aborting.\n",
 		      strerror(errno));
 		return 1;
