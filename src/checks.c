@@ -1541,14 +1541,15 @@ void block_sigchld(void)
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGCHLD);
-	assert(sigprocmask(SIG_SETMASK, &set, NULL) == 0);
+	assert(sigprocmask(SIG_BLOCK, &set, NULL) == 0);
 }
 
 void unblock_sigchld(void)
 {
 	sigset_t set;
 	sigemptyset(&set);
-	assert(sigprocmask(SIG_SETMASK, &set, NULL) == 0);
+	sigaddset(&set, SIGCHLD);
+	assert(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0);
 }
 
 /* Call with SIGCHLD blocked */
