@@ -5401,6 +5401,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		if (base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(struct tls_sess_key)) != sizeof(struct tls_sess_key)) {
 			if (err)
 				memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
+			fclose(f);
 			return ERR_ALERT | ERR_FATAL;
 		}
 		i++;
@@ -5409,6 +5410,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	if (i < TLS_TICKETS_NO) {
 		if (err)
 			memprintf(err, "'%s' : please supply at least %d keys in the tls-tickets-file", args[cur_arg+1], TLS_TICKETS_NO);
+		fclose(f);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
