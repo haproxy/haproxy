@@ -3200,15 +3200,22 @@ static int stats_dump_servers_state_to_buffer(struct stream_interface *si)
 
 	chunk_reset(&trash);
 
-	if (!appctx->ctx.server_state.px) {
+	if (appctx->st2 == STAT_ST_INIT) {
+		if (!appctx->ctx.server_state.px)
+			appctx->ctx.server_state.px = proxy;
+		appctx->st2 = STAT_ST_HEAD;
+	}
+
+	if (appctx->st2 == STAT_ST_HEAD) {
 		chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
 		if (bi_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
-		appctx->ctx.server_state.px = proxy;
+		appctx->st2 = STAT_ST_INFO;
 	}
 
+	/* STAT_ST_INFO */
 	for (; appctx->ctx.server_state.px != NULL; appctx->ctx.server_state.px = curproxy->next) {
 		curproxy = appctx->ctx.server_state.px;
 		/* servers are only in backends */
