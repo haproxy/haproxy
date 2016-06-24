@@ -824,7 +824,13 @@ install-doc:
 		install -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
-install-bin: haproxy $(EXTRA)
+install-bin:
+	@for i in haproxy $(EXTRA); do \
+		if ! [ -e "$$i" ]; then \
+			echo "Please run 'make' before 'make install'."; \
+			exit 1; \
+		fi; \
+	done
 	install -d "$(DESTDIR)$(SBINDIR)"
 	install haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
