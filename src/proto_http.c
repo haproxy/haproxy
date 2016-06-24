@@ -12519,7 +12519,7 @@ enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, stru
 			break;
 
 	if (cur_arg < *orig_arg + 3) {
-		memprintf(err, "expects <expression> [ 'len' <length> | id <idx> ]");
+		memprintf(err, "expects <expression> id <idx>");
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -12537,7 +12537,7 @@ enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, stru
 	}
 
 	if (!args[cur_arg] || !*args[cur_arg]) {
-		memprintf(err, "expects 'len or 'id'");
+		memprintf(err, "expects 'id'");
 		free(expr);
 		return ACT_RET_PRS_ERR;
 	}
