@@ -3702,7 +3702,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			if (stats[ST_F_AGENT_CODE].type)
 				chunk_appendf(out, "/%d", stats[ST_F_AGENT_CODE].u.u32);
 
-			if (stats[ST_F_AGENT_DURATION].type && stats[ST_F_AGENT_DURATION].u.u64 >= 0)
+			if (stats[ST_F_AGENT_DURATION].type)
 				chunk_appendf(out, " in %lums", (long)stats[ST_F_AGENT_DURATION].u.u64);
 
 			chunk_appendf(out, "<div class=tips>%s", field_str(stats, ST_F_AGENT_DESC));
@@ -3722,7 +3722,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			if (stats[ST_F_CHECK_CODE].type)
 				chunk_appendf(out, "/%d", stats[ST_F_CHECK_CODE].u.u32);
 
-			if (stats[ST_F_CHECK_DURATION].type && stats[ST_F_CHECK_DURATION].u.u64 >= 0)
+			if (stats[ST_F_CHECK_DURATION].type)
 				chunk_appendf(out, " in %lums", (long)stats[ST_F_CHECK_DURATION].u.u64);
 
 			chunk_appendf(out, "<div class=tips>%s", field_str(stats, ST_F_CHECK_DESC));
