@@ -6850,11 +6850,10 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 			       /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
-	if (msg->next)
-		goto waiting;
-
 	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
 		msg->sov -= ret;
+	if (msg->next)
+		goto waiting;
 
 	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
 			 /* default_ret */ 1,
@@ -6870,12 +6869,11 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 			       /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
-
-  waiting:
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;
 	if (!HAS_DATA_FILTERS(s, chn))
 		msg->chunk_len -= channel_forward(chn, msg->chunk_len);
+  waiting:
 	return 0;
   error:
 	return -1;
@@ -6968,11 +6966,10 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			  /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
-	if (msg->next)
-		goto waiting;
-
 	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
 		msg->sov -= ret;
+	if (msg->next)
+		goto waiting;
 
 	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
 		    /* default_ret */ 1,
@@ -6988,12 +6985,11 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			  /* on_error    */ goto error);
 	b_adv(chn->buf, ret);
 	msg->next -= ret;
-
-  waiting:
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;
 	if (!HAS_DATA_FILTERS(s, chn))
 		msg->chunk_len -= channel_forward(chn, msg->chunk_len);
+  waiting:
 	return 0;
 
   chunk_parsing_error:
