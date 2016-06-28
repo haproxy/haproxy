@@ -6853,6 +6853,9 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	if (msg->next)
 		goto waiting;
 
+	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
+		msg->sov -= ret;
+
 	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
 			 /* default_ret */ 1,
 			 /* on_error    */ goto error,
@@ -6967,6 +6970,9 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	msg->next -= ret;
 	if (msg->next)
 		goto waiting;
+
+	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
+		msg->sov -= ret;
 
 	FLT_STRM_DATA_CB(s, chn, flt_http_end(s, msg),
 		    /* default_ret */ 1,
