@@ -17,6 +17,7 @@
 
 #include <common/config.h>
 #include <common/chunk.h>
+#include <common/standard.h>
 
 /* trash chunks used for various conversions */
 static struct chunk *trash_chunk;
@@ -60,8 +61,8 @@ struct chunk *get_trash_chunk(void)
 int alloc_trash_buffers(int bufsize)
 {
 	trash_size = bufsize;
-	trash_buf1 = (char *)realloc(trash_buf1, bufsize);
-	trash_buf2 = (char *)realloc(trash_buf2, bufsize);
+	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
+	trash_buf2 = (char *)my_realloc2(trash_buf2, bufsize);
 	return trash_buf1 && trash_buf2;
 }
 

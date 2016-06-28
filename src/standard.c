@@ -3104,7 +3104,7 @@ char *memprintf(char **out, const char *format, ...)
 		}
 
 		allocated = needed + 1;
-		ret = realloc(ret, allocated);
+		ret = my_realloc2(ret, allocated);
 	} while (ret);
 
 	if (needed < 0) {
@@ -3252,7 +3252,7 @@ char *env_expand(char *in)
 			val_len = value ? strlen(value) : 0;
 		}
 
-		out = realloc(out, out_len + (txt_end - txt_beg) + val_len + 1);
+		out = my_realloc2(out, out_len + (txt_end - txt_beg) + val_len + 1);
 		if (txt_end > txt_beg) {
 			memcpy(out + out_len, txt_beg, txt_end - txt_beg);
 			out_len += txt_end - txt_beg;

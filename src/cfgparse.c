@@ -1592,10 +1592,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		if (logsrv->maxlen > global.max_syslog_len) {
 			global.max_syslog_len = logsrv->maxlen;
-			logheader = realloc(logheader, global.max_syslog_len + 1);
-			logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
-			logline = realloc(logline, global.max_syslog_len + 1);
-			logline_rfc5424 = realloc(logline_rfc5424, global.max_syslog_len + 1);
+			logheader = my_realloc2(logheader, global.max_syslog_len + 1);
+			logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
+			logline = my_realloc2(logline, global.max_syslog_len + 1);
+			logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
 		}
 
 		/* after the length, a format may be specified */
@@ -6078,10 +6078,10 @@ stats_error_parsing:
 
 			if (logsrv->maxlen > global.max_syslog_len) {
 				global.max_syslog_len = logsrv->maxlen;
-				logheader = realloc(logheader, global.max_syslog_len + 1);
-				logheader_rfc5424 = realloc(logheader_rfc5424, global.max_syslog_len + 1);
-				logline = realloc(logline, global.max_syslog_len + 1);
-				logline_rfc5424 = realloc(logline_rfc5424, global.max_syslog_len + 1);
+				logheader = my_realloc2(logheader, global.max_syslog_len + 1);
+				logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
+				logline = my_realloc2(logline, global.max_syslog_len + 1);
+				logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
 			}
 
 			/* after the length, a format may be specified */

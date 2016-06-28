@@ -151,6 +151,7 @@ void vars_init(struct vars *vars, enum vars_scope scope)
 static char *register_name(const char *name, int len, enum vars_scope *scope, char **err)
 {
 	int i;
+	char **var_names2;
 	const char *tmp;
 
 	/* Check length. */
@@ -191,13 +192,14 @@ static char *register_name(const char *name, int len, enum vars_scope *scope, ch
 		if (strncmp(var_names[i], name, len) == 0)
 			return var_names[i];
 
-	/* Store variable name. */
-	var_names_nb++;
-	var_names = realloc(var_names, var_names_nb * sizeof(*var_names));
-	if (!var_names) {
+	/* Store variable name. If realloc fails, var_names remains valid */
+	var_names2 = realloc(var_names, (var_names_nb + 1) * sizeof(*var_names));
+	if (!var_names2) {
 		memprintf(err, "out of memory error");
 		return NULL;
 	}
+	var_names_nb++;
+	var_names = var_names2;
 	var_names[var_names_nb - 1] = malloc(len + 1);
 	if (!var_names[var_names_nb - 1]) {
 		memprintf(err, "out of memory error");
