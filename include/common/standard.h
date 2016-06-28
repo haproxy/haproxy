@@ -1093,4 +1093,15 @@ static inline unsigned long long rdtsc()
 struct list;
 int list_append_word(struct list *li, const char *str, char **err);
 
+/* same as realloc() except that ptr is also freed upon failure */
+static inline void *my_realloc2(void *ptr, size_t size)
+{
+	void *ret;
+
+	ret = realloc(ptr, size);
+	if (!ret && size)
+		free(ptr);
+	return ret;
+}
+
 #endif /* _COMMON_STANDARD_H */
