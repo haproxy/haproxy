@@ -1643,7 +1643,6 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 				goto end;
 
 			SSL_CTX_set_tmp_dh(ctx, local_dh_1024);
-			DH_free(local_dh_1024);
 		}
 		else {
 			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
