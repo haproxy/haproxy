@@ -136,7 +136,7 @@ list of options is :
 
   -f <cfgfile|cfgdir> : adds <cfgfile> to the list of configuration files to be
     loaded. If <cfgdir> is a directory, all the files (and only files) it
-    containes are added in lexical order (using LC_COLLATE=C) to the list of
+    contains are added in lexical order (using LC_COLLATE=C) to the list of
     configuration files to be loaded ; only files with ".cfg" extension are
     added, only non hidden files (not prefixed with ".") are added.
     Configuration files are loaded and processed in their declaration order.
@@ -186,7 +186,7 @@ list of options is :
     getaddrinfo() exist on various systems and cause anomalies that are
     difficult to troubleshoot.
 
-  -dM[<byte>] : forces memory poisonning, which means that each and every
+  -dM[<byte>] : forces memory poisoning, which means that each and every
     memory region allocated with malloc() or pool_alloc2() will be filled with
     <byte> before being passed to the caller. When <byte> is not specified, it
     defaults to 0x50 ('P'). While this slightly slows down operations, it is
@@ -269,7 +269,7 @@ list of options is :
   -vv : display the version, build options, libraries versions and usable
     pollers. This output is systematically requested when filing a bug report.
 
-A safe way to start HAProxy from an init file consists in forcing the deamon
+A safe way to start HAProxy from an init file consists in forcing the daemon
 mode, storing existing pids to a pid file and using this pid file to notify
 older processes to finish before leaving :
 
@@ -358,7 +358,7 @@ The relevant information that many non-developer users can verify here are :
   - build options : they are relevant to people who build their packages
     themselves, they can explain why things are not behaving as expected. For
     example the development version above was built for Linux 2.6.28 or later,
-    targetting a generic CPU (no CPU-specific optimizations), and lacks any
+    targeting a generic CPU (no CPU-specific optimizations), and lacks any
     code optimization (-O0) so it will perform poorly in terms of performance.
 
   - libraries versions : zlib version is reported as found in the library
@@ -372,7 +372,7 @@ The relevant information that many non-developer users can verify here are :
     missed. PCRE provides very fast regular expressions and is highly
     recommended. Certain of its extensions such as JIT are not present in all
     versions and still young so some people prefer not to build with them,
-    which is why the biuld status is reported as well. Regarding the Lua
+    which is why the build status is reported as well. Regarding the Lua
     scripting language, HAProxy expects version 5.3 which is very young since
     it was released a little time before HAProxy 1.6. It is important to check
     on the Lua web site if some fixes are proposed for this branch.
@@ -427,7 +427,7 @@ for example a port is shared with another daemon), then the new process sends a
 SIGTTIN signal to the old processes to instruct them to resume operations just
 as if nothing happened. The old processes will then restart listening to the
 ports and continue to accept connections. Not that this mechanism is system
-dependant and some operating systems may not support it in multi-process mode.
+dependent and some operating systems may not support it in multi-process mode.
 
 If the new process manages to bind correctly to all ports, then it sends either
 the SIGTERM (hard stop in case of "-st") or the SIGUSR1 (graceful stop in case
@@ -453,7 +453,7 @@ where this happens are :
     this almost forever. Linux has been supporting this in version 2.0 and
     dropped it around 2.2, but some patches were floating around by then. It
     was reintroduced in kernel 3.9, so if you are observing a connection
-    failure rate above the one mentionned above, please ensure that your kernel
+    failure rate above the one mentioned above, please ensure that your kernel
     is 3.9 or newer, or that relevant patches were backported to your kernel
     (less likely).
 
@@ -468,7 +468,7 @@ where this happens are :
     this RST. A second case concerns the ACK from the client on a local socket
     that was in SYN_RECV state just before the close. This ACK will lead to an
     RST packet while the haproxy process is still not aware of it. This one is
-    harder to get rid of, though the firewall filtering rules mentionned above
+    harder to get rid of, though the firewall filtering rules mentioned above
     will work well if applied one second or so before restarting the process.
 
 For the vast majority of users, such drops will never ever happen since they
@@ -500,7 +500,7 @@ explains why even today a lot of configurations are seen with this setting
 present. Unfortunately it was often miscalculated resulting in connection
 failures when approaching maxconn instead of throttling incoming connection
 while waiting for the needed resources. For this reason it is important to
-remove any vestigal "ulimit-n" setting that can remain from very old versions.
+remove any vestigial "ulimit-n" setting that can remain from very old versions.
 
 Raising the number of file descriptors to accept even moderate loads is
 mandatory but comes with some OS-specific adjustments. First, the select()
@@ -510,7 +510,7 @@ restrictive SELinux policies forbidding the use of select() with more than
 1024 file descriptors, HAProxy now refuses to start in this case in order to
 avoid any issue at run time. On all supported operating systems, poll() is
 available and will not suffer from this limitation. It is automatically picked
-so there is nothing ot do to get a working configuration. But poll's becomes
+so there is nothing to do to get a working configuration. But poll's becomes
 very slow when the number of file descriptors increases. While HAProxy does its
 best to limit this performance impact (eg: via the use of the internal file
 descriptor cache and batched processing), a good rule of thumb is that using
@@ -847,12 +847,12 @@ are accepted), backends also need to be able to send logs in order to report a
 server state change consecutive to a health check. Please consult HAProxy's
 configuration manual for more information regarding all possible log settings.
 
-It is convenient to chose a facility that is not used by other deamons. HAProxy
+It is convenient to chose a facility that is not used by other daemons. HAProxy
 examples often suggest "local0" for traffic logs and "local1" for admin logs
 because they're never seen in field. A single facility would be enough as well.
 Having separate logs is convenient for log analysis, but it's also important to
 remember that logs may sometimes convey confidential information, and as such
-they must not be mixed with other logs that may accidently be handed out to
+they must not be mixed with other logs that may accidentally be handed out to
 unauthorized people.
 
 For in-field troubleshooting without impacting the server's capacity too much,
@@ -1066,7 +1066,7 @@ origin) indicates where the value was extracted from. Possible characters are :
       to group some values together because it is unique among its class. All
       internal identifiers are keys. Some names can be listed as keys if they
       are unique (eg: a frontend name is unique). In general keys come from the
-      configuration, eventhough some of them may automatically be assigned. For
+      configuration, even though some of them may automatically be assigned. For
       most purposes keys may be considered as equivalent to configuration.
 
   C   The value comes from the configuration. Certain configuration values make
@@ -1284,7 +1284,7 @@ add map <map> <key> <value>
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
-  backend) and in each server. The cumulated counters are not affected. This
+  backend) and in each server. The accumulated counters are not affected. This
   can be used to get clean counters after an incident, without having to
   restart nor to clear traffic counters. This command is restricted and can
   only be issued on sockets configured for levels "operator" or "admin".
@@ -1371,7 +1371,7 @@ disable agent <backend>/<server>
 
   In the case where an agent check is being run as a auxiliary check, due
   to the agent-check parameter of a server directive, new checks are only
-  initialised when the agent is in the enabled. Thus, disable agent will
+  initialized when the agent is in the enabled. Thus, disable agent will
   prevent any new agent checks from begin initiated until the agent
   re-enabled using enable agent.
 
@@ -1729,7 +1729,7 @@ show info [typed]
   its own line. By default, the format contains only two columns delimited by a
   colon (':'). The left one is the field name and the right one is the value.
   It is very important to note that in typed output format, the dump for a
-  single object is contigous so that there is no need for a consumer to store
+  single object is contiguous so that there is no need for a consumer to store
   everything at once.
 
   When using the typed output format, each line is made of 4 columns delimited
@@ -1839,7 +1839,7 @@ show servers state [<backend>]
    - third line and next ones contain data;
    - each line starting by a sharp ('#') is considered as a comment.
 
-  Since multiple versions of the ouptput may co-exist, below is the list of
+  Since multiple versions of the output may co-exist, below is the list of
   fields and their order per file format version :
    1:
      be_id:                       Backend unique id.
@@ -1926,7 +1926,7 @@ show stat [<iid> <type> <sid>] [typed]
   output field. Each value stands on its own line with process number, element
   number, nature, origin and scope. This same format is available via the HTTP
   stats by passing ";typed" after the URI. It is very important to note that in
-  typed output format, the dump for a single object is contigous so that there
+  typed output format, the dump for a single object is contiguous so that there
   is no need for a consumer to store everything at once.
 
   When using the typed output format, each line is made of 4 columns delimited
@@ -2233,7 +2233,7 @@ the effect to a certain extent but this also comes with increased CPU usage and
 processing time. Logs will also report a certain number of retries. For this
 reason, port ranges should be avoided in multi-process configurations.
 
-Since HAProxy uses SO_REUSEPORT and supports having multiple independant
+Since HAProxy uses SO_REUSEPORT and supports having multiple independent
 processes bound to the same IP:port, during troubleshooting it can happen that
 an old process was not stopped before a new one was started. This provides
 absurd test results which tend to indicate that any change to the configuration
@@ -2349,13 +2349,13 @@ issues regarding CPU or memory usage. Example :
 
 When an issue seems to randomly appear on a new version of HAProxy (eg: every
 second request is aborted, occasional crash, etc), it is worth trying to enable
-memory poisonning so that each call to malloc() is immediately followed by the
+memory poisoning so that each call to malloc() is immediately followed by the
 filling of the memory area with a configurable byte. By default this byte is
 0x50 (ASCII for 'P'), but any other byte can be used, including zero (which
 will have the same effect as a calloc() and which may make issues disappear).
-Memory poisonning is enabled on the command line using the "-dM" option. It
+Memory poisoning is enabled on the command line using the "-dM" option. It
 slightly hurts performance and is not recommended for use in production. If
-an issue happens all the time with it or never happens when poisoonning uses
+an issue happens all the time with it or never happens when poisoning uses
 byte zero, it clearly means you've found a bug and you definitely need to
 report it. Otherwise if there's no clear change, the problem it is not related.
 
@@ -2398,7 +2398,7 @@ response messages. In this case you will have to enable "option http-no-delay"
 to disable Nagle in order to work around their design, keeping in mind that any
 other proxy in the chain may similarly be impacted. If tcpdump reports that data
 leave immediately but the other end doesn't see them quickly, it can mean there
-is a congestionned WAN link, a congestionned LAN with flow control enabled and
+is a congested WAN link, a congested LAN with flow control enabled and
 preventing the data from leaving, or more commonly that HAProxy is in fact
 running in a virtual machine and that for whatever reason the hypervisor has
 decided that the data didn't need to be sent immediately. In virtualized
@@ -2422,7 +2422,7 @@ processed by the network driver. Rx-Drp indicates that some received packets
 were lost in the network stack because the application doesn't process them
 fast enough. This can happen during some attacks as well. Tx-Drp means that
 the output queues were full and packets had to be dropped. When using TCP it
-should be very rare, but will possibly indicte a saturated outgoing link.
+should be very rare, but will possibly indicate a saturated outgoing link.
 
 
 13. Security considerations
@@ -2434,7 +2434,7 @@ non-root user without any permissions inside this jail so that if any future
 vulnerability were to be discovered, its compromise would not affect the rest
 of the system.
 
-In order to perfom a chroot, it first needs to be started as a root user. It is
+In order to perform a chroot, it first needs to be started as a root user. It is
 pointless to build hand-made chroots to start the process there, these ones are
 painful to build, are never properly maintained and always contain way more
 bugs than the main file-system. And in case of compromise, the intruder can use
@@ -2453,7 +2453,7 @@ HAProxy will need to be started as root in order to :
 HAProxy may require to be run as root in order to :
   - bind to an interface for outgoing connections
   - bind to privileged source ports for outgoing connections
-  - transparently bind to a foreing address for outgoing connections
+  - transparently bind to a foreign address for outgoing connections
 
 Most users will never need the "run as root" case. But the "start as root"
 covers most usages.
