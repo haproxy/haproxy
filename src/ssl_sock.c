@@ -1638,7 +1638,9 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 
 		if (global.tune.ssl_default_dh_param <= 1024) {
 			/* we are limited to DH parameter of 1024 bits anyway */
-			local_dh_1024 = ssl_get_dh_1024();
+			if (local_dh_1024 == NULL)
+				local_dh_1024 = ssl_get_dh_1024();
+
 			if (local_dh_1024 == NULL)
 				goto end;
 
