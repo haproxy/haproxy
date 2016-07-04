@@ -34,7 +34,6 @@
 
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
-#include <netinet/tcp.h>
 
 /* referenced below */
 struct connection;
@@ -230,6 +229,11 @@ struct data_cb {
 	void (*send)(struct connection *conn);  /* data-layer send callback */
 	int  (*wake)(struct connection *conn);  /* data-layer callback to report activity */
 	int  (*init)(struct connection *conn);  /* data-layer initialization */
+};
+
+struct my_tcphdr {
+	u_int16_t source;
+	u_int16_t dest;
 };
 
 /* a connection source profile defines all the parameters needed to properly

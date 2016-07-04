@@ -713,7 +713,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 	if (ip_v == 4) {
 		struct ip *hdr_ip4;
-		struct tcphdr *hdr_tcp;
+		struct my_tcphdr *hdr_tcp;
 
 		hdr_ip4 = (struct ip *)line;
 
@@ -731,7 +731,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			goto missing;
 		}
 
-		hdr_tcp = (struct tcphdr *)(line + (hdr_ip4->ip_hl * 4));
+		hdr_tcp = (struct my_tcphdr *)(line + (hdr_ip4->ip_hl * 4));
 
 		/* update the session's addresses and mark them set */
 		((struct sockaddr_in *)&conn->addr.from)->sin_family = AF_INET;
@@ -746,7 +746,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	}
 	else if (ip_v == 6) {
 		struct ip6_hdr *hdr_ip6;
-		struct tcphdr *hdr_tcp;
+		struct my_tcphdr *hdr_tcp;
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
@@ -764,7 +764,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			goto missing;
 		}
 
-		hdr_tcp = (struct tcphdr *)(line + sizeof(struct ip6_hdr));
+		hdr_tcp = (struct my_tcphdr *)(line + sizeof(struct ip6_hdr));
 
 		/* update the session's addresses and mark them set */
 		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family = AF_INET6;
