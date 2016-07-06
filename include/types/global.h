@@ -197,8 +197,8 @@ struct global {
 		char *data_file_path;
 		int header_count; /* number of HTTP headers related to device detection. */
 		struct chunk *header_names; /* array of HTTP header names. */
+		fiftyoneDegreesDataSet data_set; /* data set used with the pattern and trie detection methods. */
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-		fiftyoneDegreesDataSet data_set; /* data set used with the pattern detection method. */
 		fiftyoneDegreesWorksetPool *pool; /* pool of worksets to avoid creating a new one for each request. */
 #endif
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED

@@ -235,7 +235,7 @@ static void _51d_set_device_offsets(struct sample *smp)
 			(global._51degrees.header_names + index)->len,
 			msg->chn->buf->p, idx, &ctx) == 1) {
 			(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global._51degrees.header_offsets + index);
-			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(ctx.line + ctx.val);
+			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global._51degrees.data_set, ctx.line + ctx.val);
 			offsets->size++;
 		}
 	}
@@ -269,8 +269,8 @@ static void _51d_process_match(const struct arg *args, struct sample *smp, fifty
 static void _51d_process_match(const struct arg *args, struct sample *smp)
 {
 	char valuesBuffer[1024];
-	const char **requiredProperties = fiftyoneDegreesGetRequiredPropertiesNames();
-	int requiredPropertiesCount = fiftyoneDegreesGetRequiredPropertiesCount();
+	const char **requiredProperties = fiftyoneDegreesGetRequiredPropertiesNames(&global._51degrees.data_set);
+	int requiredPropertiesCount = fiftyoneDegreesGetRequiredPropertiesCount(&global._51degrees.data_set);
 	fiftyoneDegreesDeviceOffsets *deviceOffsets = &global._51degrees.device_offsets;
 
 #endif
@@ -322,7 +322,7 @@ static void _51d_process_match(const struct arg *args, struct sample *smp)
 		for (j = 0; j < requiredPropertiesCount; j++) {
 			property_name = requiredProperties[j];
 			if (strcmp(property_name, args[i].data.str.str) == 0 &&
-				fiftyoneDegreesGetValueFromOffsets(deviceOffsets, j, valuesBuffer, 1024) > 0) {
+				fiftyoneDegreesGetValueFromOffsets(&global._51degrees.data_set, deviceOffsets, j, valuesBuffer, 1024) > 0) {
 				found = 1;
 				chunk_appendf(temp, "%s", valuesBuffer);
 				break;
@@ -457,7 +457,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 	_51d_process_match(args, smp, ws);
 #endif
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-	global._51degrees.device_offsets.firstOffset->deviceOffset = fiftyoneDegreesGetDeviceOffset(smp->data.u.str.str);
+	global._51degrees.device_offsets.firstOffset->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global._51degrees.data_set, smp->data.u.str.str);
 	global._51degrees.device_offsets.size = 1;
 	_51d_process_match(args, smp);
 #endif
@@ -492,14 +492,15 @@ void _51d_init_http_headers()
 void _51d_init_http_headers()
 {
 	int index = 0;
-	global._51degrees.header_count = fiftyoneDegreesGetHttpHeaderCount();
+	fiftyoneDegreesDataSet *ds = &global._51degrees.data_set;
+	global._51degrees.header_count = fiftyoneDegreesGetHttpHeaderCount(ds);
 	global._51degrees.device_offsets.firstOffset = malloc(
 		global._51degrees.header_count * sizeof(fiftyoneDegreesDeviceOffset));
 	global._51degrees.header_names = malloc(global._51degrees.header_count * sizeof(struct chunk));
 	global._51degrees.header_offsets = malloc(global._51degrees.header_count * sizeof(int32_t));
 	for (index = 0; index < global._51degrees.header_count; index++) {
-		global._51degrees.header_offsets[index] = fiftyoneDegreesGetHttpHeaderNameOffset(index);
-		global._51degrees.header_names[index].str = (char*)fiftyoneDegreesGetHttpHeaderNamePointer(index);
+		global._51degrees.header_offsets[index] = fiftyoneDegreesGetHttpHeaderNameOffset(ds, index);
+		global._51degrees.header_names[index].str = (char*)fiftyoneDegreesGetHttpHeaderNamePointer(ds, index);
 		global._51degrees.header_names[index].len = strlen(global._51degrees.header_names[index].str);
 		global._51degrees.header_names[index].size = global._51degrees.header_names[index].len;
 	}
@@ -528,12 +529,7 @@ int init_51degrees(void)
 			_51d_property_list[i++] = name->name;
 	}
 
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51degrees.data_file_path, &global._51degrees.data_set, (const char**)_51d_property_list, i);
-#endif
-#ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
-	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51degrees.data_file_path, (const char**)_51d_property_list, i);
-#endif
 
 	temp = get_trash_chunk();
 	chunk_reset(temp);
@@ -570,6 +566,13 @@ int init_51degrees(void)
 		case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
 			chunk_printf(temp, "File not found.");
 			break;
+		case DATA_SET_INIT_STATUS_NULL_POINTER:
+			chunk_printf(temp, "Null pointer to the existing dataset or memory location.");
+			break;
+		case DATA_SET_INIT_STATUS_POINTER_OUT_OF_BOUNDS:
+			chunk_printf(temp, "Allocated continuous memory containing 51Degrees data file appears to be smaller than expected. Most likely"
+			                   " because the data file was not fully loaded into the allocated memory.");
+			break;
 		case DATA_SET_INIT_STATUS_NOT_SET:
 			chunk_printf(temp, "Data set not initialised.");
 			break;
@@ -600,13 +603,12 @@ void deinit_51degrees(void)
 	free(global._51degrees.header_names);
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPoolFree(global._51degrees.pool);
-	fiftyoneDegreesDataSetFree(&global._51degrees.data_set);
 #endif
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
 	free(global._51degrees.device_offsets.firstOffset);
 	free(global._51degrees.header_offsets);
-	fiftyoneDegreesDestroy();
 #endif
+	fiftyoneDegreesDataSetFree(&global._51degrees.data_set);
 
 	free(global._51degrees.data_file_path); global._51degrees.data_file_path = NULL;
 	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global._51degrees.property_names, list) {
