@@ -2426,22 +2426,29 @@ unsigned int full_hash(unsigned int a)
 }
 
 /* Return non-zero if IPv4 address is part of the network,
- * otherwise zero.
+ * otherwise zero. Note that <addr> may not necessarily be aligned
+ * while the two other ones must.
  */
-int in_net_ipv4(struct in_addr *addr, struct in_addr *mask, struct in_addr *net)
+int in_net_ipv4(const void *addr, const struct in_addr *mask, const struct in_addr *net)
 {
-	return((addr->s_addr & mask->s_addr) == (net->s_addr & mask->s_addr));
+	struct in_addr addr_copy;
+
+	memcpy(&addr_copy, addr, sizeof(addr_copy));
+	return((addr_copy.s_addr & mask->s_addr) == (net->s_addr & mask->s_addr));
 }
 
 /* Return non-zero if IPv6 address is part of the network,
- * otherwise zero.
+ * otherwise zero. Note that <addr> may not necessarily be aligned
+ * while the two other ones must.
  */
-int in_net_ipv6(struct in6_addr *addr, struct in6_addr *mask, struct in6_addr *net)
+int in_net_ipv6(const void *addr, const struct in6_addr *mask, const struct in6_addr *net)
 {
 	int i;
+	struct in6_addr addr_copy;
 
+	memcpy(&addr_copy, addr, sizeof(addr_copy));
 	for (i = 0; i < sizeof(struct in6_addr) / sizeof(int); i++)
-		if (((((int *)addr)[i] & ((int *)mask)[i])) !=
+		if (((((int *)&addr_copy)[i] & ((int *)mask)[i])) !=
 		    (((int *)net)[i] & ((int *)mask)[i]))
 			return 0;
 	return 1;

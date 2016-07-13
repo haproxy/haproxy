@@ -2631,7 +2631,7 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 	/* save the new IP address */
 	switch (ip_sin_family) {
 	case AF_INET:
-		((struct sockaddr_in *)&s->addr)->sin_addr.s_addr = *(uint32_t *)ip;
+		memcpy(&((struct sockaddr_in *)&s->addr)->sin_addr.s_addr, ip, 4);
 		break;
 	case AF_INET6:
 		memcpy(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, ip, 16);
