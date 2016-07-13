@@ -988,14 +988,7 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
 	/* set dns query headers */
 	dns = (struct dns_header *)ptr;
 	dns->id = (unsigned short) htons(query_id);
-	dns->qr = 0;			/* query */
-	dns->opcode = 0;
-	dns->aa = 0;
-	dns->tc = 0;
-	dns->rd = 1;			/* recursion desired */
-	dns->ra = 0;
-	dns->z = 0;
-	dns->rcode = 0;
+	dns->flags = htons(0x0100); /* qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=0, rcode=0 */
 	dns->qdcount = htons(1);	/* 1 question */
 	dns->ancount = 0;
 	dns->nscount = 0;

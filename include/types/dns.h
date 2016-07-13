@@ -62,22 +62,13 @@
 
 /* DNS request or response header structure */
 struct dns_header {
-	unsigned short	id:16;		/* identifier */
-	unsigned char	rd :1;		/* recursion desired 0: no, 1: yes */
-	unsigned char	tc :1;		/* truncation 0:no, 1: yes */
-	unsigned char	aa :1;		/* authoritative answer 0: no, 1: yes */
-	unsigned char	opcode :4;	/* operation code */
-	unsigned char	qr :1;		/* query/response 0: query, 1: response */
-	unsigned char	rcode :4;	/* response code */
-	unsigned char	cd :1;		/* checking disabled */
-	unsigned char	ad :1;		/* authentic data */
-	unsigned char	z :1;		/* not used */
-	unsigned char	ra :1;		/* recursion available 0: no, 1: yes */
-	unsigned short	qdcount :16;	/* question count */
-	unsigned short	ancount :16;	/* answer count */
-	unsigned short	nscount :16;	/* authority count */
-	unsigned short	arcount :16;	/* additional count */
-};
+	uint16_t id;
+	uint16_t flags;
+	uint16_t qdcount;
+	uint16_t ancount;
+	uint16_t nscount;
+	uint16_t arcount;
+} __attribute__ ((packed));
 
 /* short structure to describe a DNS question */
 struct dns_question {
