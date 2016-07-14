@@ -7880,7 +7880,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
-				      http_req_trk_idx(hrqrule->action));
+				      http_trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -7891,7 +7891,46 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
-				      http_req_trk_idx(hrqrule->action));
+				      http_trk_idx(hrqrule->action));
+				cfgerr++;
+			}
+			else {
+				free(hrqrule->arg.trk_ctr.table.n);
+				hrqrule->arg.trk_ctr.table.t = &target->table;
+				/* Note: if we decide to enhance the track-sc syntax, we may be able
+				 * to pass a list of counters to track and allocate them right here using
+				 * stktable_alloc_data_type().
+				 */
+			}
+		}
+
+		/* find the target table for 'http-response' layer 7 rules */
+		list_for_each_entry(hrqrule, &curproxy->http_res_rules, list) {
+			struct proxy *target;
+
+			if (hrqrule->action < ACT_ACTION_TRK_SC0 || hrqrule->action > ACT_ACTION_TRK_SCMAX)
+				continue;
+
+			if (hrqrule->arg.trk_ctr.table.n)
+				target = proxy_tbl_by_name(hrqrule->arg.trk_ctr.table.n);
+			else
+				target = curproxy;
+
+			if (!target) {
+				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
+				      http_trk_idx(hrqrule->action));
+				cfgerr++;
+			}
+			else if (target->table.size == 0) {
+				Alert("Proxy '%s': table '%s' used but not configured.\n",
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id);
+				cfgerr++;
+			}
+			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
+				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
+				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
+				      http_trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else {

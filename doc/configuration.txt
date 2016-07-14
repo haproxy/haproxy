@@ -3980,6 +3980,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 del-map(<file name>) <key fmt> |
                 set-map(<file name>) <key fmt> <value fmt> |
                 set-var(<var-name>) <expr> |
+                { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 silent-drop |
@@ -4186,6 +4187,14 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       Example:
 
          http-response set-var(sess.last_redir) res.hdr(location)
+
+    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
+      enables tracking of sticky counters from current response. Please refer to
+      "http-request track-sc" for a complete description. The only difference
+      from "http-request track-sc" is the <key> sample expression can only make
+      use of samples in response (eg. res.*, status etc.) and samples below
+      Layer 6 (eg. ssl related samples, see section 7.3.4). If the sample is
+      not supported, haproxy will fail and warn while parsing the config.
 
     - sc-set-gpt0(<sc-id>) <int> :
       This action sets the GPT0 tag according to the sticky counter designated

@@ -3532,7 +3532,7 @@ resume_execution:
 			 * applies.
 			 */
 
-			if (stkctr_entry(&s->stkctr[http_req_trk_idx(rule->action)]) == NULL) {
+			if (stkctr_entry(&s->stkctr[http_trk_idx(rule->action)]) == NULL) {
 				struct stktable *t;
 				struct stksess *ts;
 				struct stktable_key *key;
@@ -3542,7 +3542,7 @@ resume_execution:
 				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key))) {
-					stream_track_stkctr(&s->stkctr[http_req_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&s->stkctr[http_trk_idx(rule->action)], t, ts);
 
 					/* let's count a new HTTP request as it's the first time we do it */
 					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
@@ -3554,9 +3554,9 @@ resume_execution:
 						update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 						                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
-					stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
+					stkctr_set_flags(&s->stkctr[http_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (sess->fe != s->be)
-						stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
+						stkctr_set_flags(&s->stkctr[http_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
 			break;
@@ -3777,6 +3777,50 @@ resume_execution:
 			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
 				return HTTP_RULE_RES_BADREQ;
 			return HTTP_RULE_RES_DONE;
+
+		case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
+			/* Note: only the first valid tracking parameter of each
+			 * applies.
+			 */
+
+			if (stkctr_entry(&s->stkctr[http_trk_idx(rule->action)]) == NULL) {
+				struct stktable *t;
+				struct stksess *ts;
+				struct stktable_key *key;
+				void *ptr;
+
+				t = rule->arg.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_RES | SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
+
+				if (key && (ts = stktable_get_entry(t, key))) {
+					stream_track_stkctr(&s->stkctr[http_trk_idx(rule->action)], t, ts);
+
+					/* let's count a new HTTP request as it's the first time we do it */
+					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
+					if (ptr)
+						stktable_data_cast(ptr, http_req_cnt)++;
+
+					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
+					if (ptr)
+						update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+											   t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+
+					stkctr_set_flags(&s->stkctr[http_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
+					if (sess->fe != s->be)
+						stkctr_set_flags(&s->stkctr[http_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
+
+					/* When the client triggers a 4xx from the server, it's most often due
+					 * to a missing object or permission. These events should be tracked
+					 * because if they happen often, it may indicate a brute force or a
+					 * vulnerability scan. Normally this is done when receiving the response
+					 * but here we're tracking after this ought to have been done so we have
+					 * to do it on purpose.
+					 */
+					if ((unsigned)(txn->status - 400) < 100)
+						stream_inc_http_err_ctr(s);
+				}
+			}
+			break;
 
 		case ACT_CUSTOM:
 			if ((px->options & PR_O_ABRT_CLOSE) && (s->req.flags & (CF_SHUTR|CF_READ_NULL|CF_READ_ERROR)))
@@ -9211,7 +9255,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		action_build_list(&http_req_keywords.list, &trash);
 		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', "
 		      "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map'"
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
 		      "%s%s, but got '%s'%s.\n",
 		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
@@ -9556,6 +9600,53 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		redir->cond = NULL;
 		cur_arg = 2;
 		return rule;
+	} else if (strncmp(args[0], "track-sc", 8) == 0 &&
+	                   args[0][9] == '\0' && args[0][8] >= '0' &&
+	                   args[0][8] < '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
+		struct sample_expr *expr;
+		unsigned int where;
+		char *err = NULL;
+
+		cur_arg = 1;
+		proxy->conf.args.ctx = ARGC_TRK;
+
+		expr = sample_parse_expr((char **)args, &cur_arg, file, linenum, &err, &proxy->conf.args);
+		if (!expr) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
+			free(err);
+			goto out_err;
+		}
+
+		where = 0;
+		if (proxy->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRS_HDR;
+		if (proxy->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRS_HDR;
+
+		if (!(expr->fetch->val & where)) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule :"
+			      " fetch method '%s' extracts information from '%s', none of which is available here.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0],
+			      args[cur_arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			goto out_err;
+		}
+
+		if (strcmp(args[cur_arg], "table") == 0) {
+			cur_arg++;
+			if (!args[cur_arg]) {
+				Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : missing table name.\n",
+				      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+				free(expr);
+				goto out_err;
+			}
+			/* we copy the table name for now, it will be resolved later */
+			rule->arg.trk_ctr.table.n = strdup(args[cur_arg]);
+			cur_arg++;
+		}
+		rule->arg.trk_ctr.expr = expr;
+		rule->action = ACT_ACTION_TRK_SC0 + args[0][8] - '0';
 	} else if (((custom = action_http_res_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
 		cur_arg = 1;
@@ -9572,7 +9663,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		action_build_list(&http_res_keywords.list, &trash);
 		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', "
 		      "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map'"
+		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
 		      "%s%s, but got '%s'%s.\n",
 		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;

@@ -181,6 +181,16 @@ struct stktable_key {
 
 /* WARNING: if new fields are added, they must be initialized in stream_accept()
  * and freed in stream_free() !
+ *
+ * What's the purpose of there two macro:
+ *   - STKCTR_TRACK_BACKEND indicates that a tracking pointer was set from the backend
+ *    and thus that when a keep-alive request goes to another backend, the track
+ *    must cease.
+ *
+ *   - STKCTR_TRACK_CONTENT indicates that the tracking pointer was set in a
+ *    content-aware rule (tcp-request content or http-request) and that the
+ *    tracking has to be performed in the stream and not in the session, and
+ *    will cease for a new keep-alive request over the same connection.
  */
 #define STKCTR_TRACK_BACKEND 1
 #define STKCTR_TRACK_CONTENT 2
