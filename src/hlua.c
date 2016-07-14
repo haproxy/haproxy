@@ -4810,10 +4810,12 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 __LJMP static int hlua_txn_done(lua_State *L)
 {
 	struct hlua_txn *htxn;
+	struct hlua *hlua;
 	struct channel *ic, *oc;
 
 	MAY_LJMP(check_args(L, 1, "close"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	hlua = hlua_gethlua(L);
 
 	/* If the flags NOTERM is set, we cannot terminate the http
 	 * session, so we just end the execution of the current
@@ -4857,6 +4859,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 	ic->analysers = 0;
 
+	hlua->flags |= HLUA_STOP;
 	WILL_LJMP(hlua_done(L));
 	return 0;
 }
@@ -5555,6 +5558,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_OK:
 		if (!hlua_check_proto(s, dir))
 			return ACT_RET_ERR;
+		if (s->hlua.flags & HLUA_STOP)
+			return ACT_RET_STOP;
 		return ACT_RET_CONT;
 
 	/* yield. */

@@ -31,6 +31,7 @@ struct stream;
 #define HLUA_WAKEREQWR 0x00000008
 #define HLUA_EXIT      0x00000010
 #define HLUA_MUST_GC   0x00000020
+#define HLUA_STOP      0x00000040
 
 #define HLUA_F_AS_STRING    0x01
 #define HLUA_F_MAY_USE_HTTP 0x02
