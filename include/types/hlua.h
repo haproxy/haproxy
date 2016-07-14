@@ -35,6 +35,8 @@ struct stream;
 #define HLUA_F_AS_STRING    0x01
 #define HLUA_F_MAY_USE_HTTP 0x02
 
+#define HLUA_TXN_NOTERM 0x00000001
+
 #define HLUA_CONCAT_BLOCSZ 2048
 
 enum hlua_exec {
@@ -109,6 +111,7 @@ struct hlua_txn {
 	struct stream *s;
 	struct proxy *p;
 	int dir;                /* SMP_OPT_DIR_{REQ,RES} */
+	int flags;
 };
 
 /* This struct contains the applet context. */

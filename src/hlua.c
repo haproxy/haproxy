@@ -4601,7 +4601,7 @@ __LJMP static int hlua_get_priv(lua_State *L)
  * return 0 if the stack does not contains free slots,
  * otherwise it returns 1.
  */
-static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir)
+static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir, int flags)
 {
 	struct hlua_txn *htxn;
 
@@ -4621,6 +4621,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 	htxn->s = s;
 	htxn->p = p;
 	htxn->dir = dir;
+	htxn->flags = flags;
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
@@ -4813,6 +4814,15 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "close"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+
+	/* If the flags NOTERM is set, we cannot terminate the http
+	 * session, so we just end the execution of the current
+	 * lua code.
+	 */
+	if (htxn->flags & HLUA_TXN_NOTERM) {
+		WILL_LJMP(hlua_done(L));
+		return 0;
+	}
 
 	ic = &htxn->s->req;
 	oc = &htxn->s->res;
@@ -5265,7 +5275,8 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		lua_rawgeti(stream->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
 
 		/* push arguments in the stack. */
-		if (!hlua_txn_new(stream->hlua.T, stream, smp->px, smp->opt & SMP_OPT_DIR)) {
+		if (!hlua_txn_new(stream->hlua.T, stream, smp->px, smp->opt & SMP_OPT_DIR,
+		                  HLUA_TXN_NOTERM)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
 			RESET_SAFE_LJMP(stream->hlua.T);
 			return 0;
@@ -5511,7 +5522,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn.function_ref);
 
 		/* Create and and push object stream in the stack. */
-		if (!hlua_txn_new(s->hlua.T, s, px, dir)) {
+		if (!hlua_txn_new(s->hlua.T, s, px, dir, 0)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			RESET_SAFE_LJMP(s->hlua.T);

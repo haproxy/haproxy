@@ -1460,6 +1460,11 @@ TXN class
   session. It can be used when a critical error is detected or to terminate
   processing after some data have been returned to the client (eg: a redirect).
 
+  *Warning*: It not make sense to call this function from sample-fetches. In
+  this case the behaviour of this one is the same than core.done(): it quit
+  the Lua execution. The transaction is really aborted only from an action
+  registered function.
+
   :param class_txn txn: The class txn object containing the data.
 
 .. js:function:: TXN.set_loglevel(txn, loglevel)
