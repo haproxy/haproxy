@@ -225,7 +225,7 @@ uint64_t intdecode(char **str, char *end) {
 		}
 		i += (uint64_t)msg[idx] <<  (4 + 7*(idx-1));
 	}
-	while (msg[idx] > 128);
+	while (msg[idx] >= 128);
 	*str = (char *)&msg[idx+1];
 	return i;
 }
