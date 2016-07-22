@@ -1472,6 +1472,36 @@ char *encode_chunk(char *start, char *stop,
 
 /*
  * Tries to prefix characters tagged in the <map> with the <escape>
+ * character. The input <string> must be zero-terminated. The result will
+ * be stored between <start> (included) and <stop> (excluded). This
+ * function will always try to terminate the resulting string with a '\0'
+ * before <stop>, and will return its position if the conversion
+ * completes.
+ */
+char *escape_string(char *start, char *stop,
+		    const char escape, const fd_set *map,
+		    const char *string)
+{
+	if (start < stop) {
+		stop--; /* reserve one byte for the final '\0' */
+		while (start < stop && *string != '\0') {
+			if (!FD_ISSET((unsigned char)(*string), map))
+				*start++ = *string;
+			else {
+				if (start + 2 >= stop)
+					break;
+				*start++ = escape;
+				*start++ = *string;
+			}
+			string++;
+		}
+		*start = '\0';
+	}
+	return start;
+}
+
+/*
+ * Tries to prefix characters tagged in the <map> with the <escape>
  * character. <chunk> contains the input to be escaped. The result will be
  * stored between <start> (included) and <stop> (excluded). The function
  * will always try to terminate the resulting string with a '\0' before
