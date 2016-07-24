@@ -2313,6 +2313,84 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 	return 1;
 }
 
+#ifdef TCP_INFO
+
+/* Returns some tcp_info data is its avalaible. "dir" must be set to 0 if
+ * the client connection is require, otherwise it is set to 1. "val" represents
+ * the required value. Use 0 for rtt and 1 for rttavg. "unit" is the expected unit
+ * by default, the rtt is in us. Id "unit" is set to 0, the unit is us, if it is
+ * set to 1, the untis are milliseconds.
+ * If the function fails it returns 0, otherwise it returns 1 and "result" is filled.
+ */
+static inline int get_tcp_info(const struct arg *args, struct sample *smp,
+                               int dir, int val)
+{
+	struct connection *conn;
+	struct tcp_info info;
+	socklen_t optlen;
+
+	/* strm can be null. */
+	if (!smp->strm)
+		return 0;
+
+	/* get the object associated with the stream interface.The
+	 * object can be other thing than a connection. For example,
+	 * it be a appctx. */
+	conn = objt_conn(smp->strm->si[dir].end);
+	if (!conn)
+		return 0;
+
+	/* The fd may not be avalaible for the tcp_info struct, and the
+	  syscal can fail. */
+	optlen = sizeof(info);
+	if (getsockopt(conn->t.sock.fd, SOL_TCP, TCP_INFO, &info, &optlen) == -1)
+		return 0;
+
+	/* extract the value. */
+	smp->data.type = SMP_T_SINT;
+	switch (val) {
+	case 0:  smp->data.u.sint = info.tcpi_rtt;    break;
+	case 1:  smp->data.u.sint = info.tcpi_rttvar; break;
+	default: return 0;
+	}
+
+	/* Convert the value as expected. */
+	if (args) {
+		if (args[0].type == ARGT_STR) {
+			if (strcmp(args[0].data.str.str, "us") == 0) {
+				/* Do nothing. */
+			} else if (strcmp(args[0].data.str.str, "ms") == 0) {
+				smp->data.u.sint = (smp->data.u.sint + 500) / 1000;
+			} else
+				return 0;
+		} else if (args[0].type == ARGT_STOP) {
+			smp->data.u.sint = (smp->data.u.sint + 500) / 1000;
+		} else
+			return 0;
+	}
+
+	return 1;
+}
+
+/* get the mean rtt of a client connexion */
+static int
+smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 0))
+		return 0;
+	return 1;
+}
+
+/* get the variance of the mean rtt of a client connexion */
+static int
+smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 1))
+		return 0;
+	return 1;
+}
+#endif
+
 #ifdef IPV6_V6ONLY
 /* parse the "v4v6" bind keyword */
 static int bind_parse_v4v6(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -2540,6 +2618,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+#ifdef TCP_INFO
+	{ "fc_rtt",    smp_fetch_fc_rtt,    ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_rttvar", smp_fetch_fc_rttvar, ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+#endif
 	{ /* END */ },
 }};
 

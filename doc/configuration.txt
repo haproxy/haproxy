@@ -12737,6 +12737,22 @@ dst_port : integer
   a same server, or to pass the destination port information to a server using
   an HTTP header.
 
+fc_rtt(<unit>) : integer
+  Returns the Round Trip Time (RTT) measured by the kernel for the client
+  connection. <unit> is facultative, by default the unit is milliseconds. <unit>
+  can be set to "ms" for milliseconds or "us" for microseconds. If the server
+  connection is not established, if the connection is not TCP or if the
+  operating system does not support TCP_INFO, for example Linux kernels before
+  2.4, the sample fetch fails.
+
+fc_rttvar(<unit>) : integer
+  Returns the Round Trip Time (RTT) variance measured by the kernel for the
+  client connection. <unit> is facultative, by default the unit is milliseconds.
+  <unit> can be set to "ms" for milliseconds or "us" for microseconds. If the
+  server connection is not established, if the connection is not TCP or if the
+  operating system does not support TCP_INFO, for example Linux kernels before
+  2.4, the sample fetch fails.
+
 fe_id : integer
   Returns an integer containing the current frontend's id. It can be used in
   backends to check from which backend it was called, or to stick all users
@@ -13116,7 +13132,6 @@ srv_id : integer
   Returns an integer containing the server's id when processing the response.
   While it's almost only used with ACLs, it may be used for logging or
   debugging.
-
 
 7.3.4. Fetching samples at Layer 5
 ----------------------------------
