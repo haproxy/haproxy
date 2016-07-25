@@ -830,19 +830,17 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lo
 	}
 
 	if (src && len) {
+		if (++len > size)
+			len = size;
 		if (node->options & LOG_OPT_ESC) {
-			struct chunk chunk;
 			char *ret;
 
-			chunk_initlen(&chunk, (char *)src, 0, len);
-			ret = escape_chunk(dst, dst + size, '\\', rfc5424_escape_map, &chunk);
+			ret = escape_string(dst, dst + len, '\\', rfc5424_escape_map, src);
 			if (ret == NULL || *ret != '\0')
 				return NULL;
 			len = ret - dst;
 		}
 		else {
-			if (++len > size)
-				len = size;
 			len = strlcpy2(dst, src, len);
 		}
 
