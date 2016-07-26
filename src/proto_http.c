@@ -3816,8 +3816,16 @@ resume_execution:
 					 * but here we're tracking after this ought to have been done so we have
 					 * to do it on purpose.
 					 */
-					if ((unsigned)(txn->status - 400) < 100)
-						stream_inc_http_err_ctr(s);
+					if ((unsigned)(txn->status - 400) < 100) {
+						ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
+						if (ptr)
+							stktable_data_cast(ptr, http_err_cnt)++;
+
+						ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
+						if (ptr)
+							update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+									       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+					}
 				}
 			}
 			break;
