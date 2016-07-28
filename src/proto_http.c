@@ -2455,6 +2455,12 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * data later, which is much more complicated.
 	 */
 	if (buffer_not_empty(req->buf) && msg->msg_state < HTTP_MSG_ERROR) {
+
+		/* This point is executed when some data is avalaible for analysis,
+		 * so we log the end of the idle time. */
+		if (s->logs.t_idle == -1)
+			s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
+
 		if (txn->flags & TX_NOT_FIRST) {
 			if (unlikely(!channel_is_rewritable(req))) {
 				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
@@ -5026,6 +5032,8 @@ void http_end_txn_clean_session(struct stream *s)
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
+	s->logs.t_handshake = 0; /* There are no handshake in keep alive connection. */
+	s->logs.t_idle = -1;
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = -1;
 	s->logs.t_connect = -1;

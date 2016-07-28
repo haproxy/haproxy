@@ -14634,10 +14634,10 @@ with a star ('*') after the field name below.
   Field   Format                                Extract from the example above
       1   process_name '[' pid ']:'                            haproxy[14389]:
       2   client_ip ':' client_port                             10.0.1.2:33317
-      3   '[' accept_date ']'                       [06/Feb/2009:12:14:14.655]
+      3   '[' request_date ']'                      [06/Feb/2009:12:14:14.655]
       4   frontend_name                                                http-in
       5   backend_name '/' server_name                             static/srv1
-      6   Tq '/' Tw '/' Tc '/' Tr '/' Tt*                       10/0/30/69/109
+      6   TR '/' Tw '/' Tc '/' Tr '/' Ta*                       10/0/30/69/109
       7   status_code                                                      200
       8   bytes_read*                                                     2750
       9   captured_request_cookie                                            -
@@ -14663,11 +14663,8 @@ Detailed fields description :
     replaced with the ID of the accepting socket, which is also reported in the
     stats interface.
 
-  - "accept_date" is the exact date when the TCP connection was received by
-    haproxy (which might be very slightly different from the date observed on
-    the network if there was some queuing in the system's backlog). This is
-    usually the same date which may appear in any upstream firewall's log. This
-    does not depend on the fact that the client has sent the request or not.
+  - "request_date" is the exact date when the first byte of the HTTP request
+    was received by haproxy (log field %tr).
 
   - "frontend_name" is the name of the frontend (or listener) which received
     and processed the connection.
@@ -14683,12 +14680,13 @@ Detailed fields description :
     server, "<NOSRV>" is indicated instead of a server name. If the request was
     intercepted by the stats subsystem, "<STATS>" is indicated instead.
 
-  - "Tq" is the total time in milliseconds spent waiting for the client to send
-    a full HTTP request, not counting data. It can be "-1" if the connection
-    was aborted before a complete request could be received. It should always
-    be very small because a request generally fits in one single packet. Large
-    times here generally indicate network trouble between the client and
-    haproxy. See "Timers" below for more details.
+  - "TR" is the total time in milliseconds spent waiting for a full HTTP
+    request from the client (not counting body) after the first byte was
+    received. It can be "-1" if the connection was aborted before a complete
+    request could be received or the a bad request was received. It should
+    always be very small because a request generally fits in one single packet.
+    Large times here generally indicate network issues between the client and
+    haproxy or requests being typed by hand. See "Timers" below for more details.
 
   - "Tw" is the total time in milliseconds spent waiting in the various queues.
     It can be "-1" if the connection was aborted before reaching the queue.
@@ -14707,12 +14705,14 @@ Detailed fields description :
     "GET" requests generally indicate an overloaded server. See "Timers" below
     for more details.
 
-  - "Tt" is the total time in milliseconds elapsed between the accept and the
-    last close. It covers all possible processing. There is one exception, if
-    "option logasap" was specified, then the time counting stops at the moment
-    the log is emitted. In this case, a '+' sign is prepended before the value,
-    indicating that the final one will be larger. See "Timers" below for more
-    details.
+  - "Ta" is the time the request remained active in haproxy, which is the total
+    time in milliseconds elapsed between the first byte of the request was
+    received and the last byte of response was sent. It covers all possible
+    processing except the handshake (see Th) and idle time (see Ti). There is
+    one exception, if "option logasap" was specified, then the time counting
+    stops at the moment the log is emitted. In this case, a '+' sign is
+    prepended before the value, indicating that the final one will be larger.
+    See "Timers" below for more details.
 
   - "status_code" is the HTTP status code returned to the client. This status
     is generally set by the server, but it might also be set by haproxy when
@@ -14890,19 +14890,19 @@ Flags are :
 
 At the moment, the default HTTP format is defined this way :
 
-    log-format %ci:%cp\ [%t]\ %ft\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %ST\ %B\ %CC\ \
-               %CS\ %tsc\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
+                %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"
 
 the default CLF format is defined this way :
 
-    log-format %{+Q}o\ %{-Q}ci\ -\ -\ [%T]\ %r\ %ST\ %B\ \"\"\ \"\"\ %cp\ \
-               %ms\ %ft\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %tsc\ %ac\ %fc\ \
-               %bc\ %sc\ %rc\ %sq\ %bq\ %CC\ %CS\ \%hrl\ %hsl
+    log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
+                %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
+                %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
 
 and the default TCP format is defined this way :
 
-    log-format %ci:%cp\ [%t]\ %ft\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
-               %ac/%fc/%bc/%sc/%rc\ %sq/%bq
+    log-format "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts \
+                %ac/%fc/%bc/%sc/%rc %sq/%bq"
 
 Please refer to the table below for currently defined variables :
 
@@ -14923,11 +14923,15 @@ Please refer to the table below for currently defined variables :
   |   | %ID  | unique-id                                     | string      |
   |   | %ST  | status_code                                   | numeric     |
   |   | %T   | gmt_date_time                                 | date        |
+  |   | %Ta  | Active time of the request (from TR to end)   | numeric     |
   |   | %Tc  | Tc                                            | numeric     |
   |   | %Td  | Td = Tt - (Tq + Tw + Tc + Tr)                 | numeric     |
   |   | %Tl  | local_date_time                               | date        |
-  | H | %Tq  | Tq                                            | numeric     |
-  | H | %Tr  | Tr                                            | numeric     |
+  |   | %Th  | connection handshake time (SSL, PROXY proto)  | numeric     |
+  | H | %Ti  | idle time before the HTTP request             | numeric     |
+  | H | %Tq  | Th + Ti + TR                                  | numeric     |
+  | H | %TR  | time to receive the full request from 1st byte| numeric     |
+  | H | %Tr  | Tr (response time)                            | numeric     |
   |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
@@ -14963,6 +14967,9 @@ Please refer to the table below for currently defined variables :
   | S | %sslc| ssl_ciphers (ex: AES-SHA)                     | string      |
   | S | %sslv| ssl_version (ex: TLSv1)                       | string      |
   |   | %t   | date_time      (with millisecond resolution)  | date        |
+  | H | %tr  | date_time of HTTP request                     | date        |
+  | H | %trg | gmt_date_time of start of HTTP request        | date        |
+  | H | %trl | locla_date_time of start of HTTP request      | date        |
   |   | %ts  | termination_state                             | string      |
   | H | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+
@@ -15082,13 +15089,41 @@ Timers provide a great help in troubleshooting network problems. All values are
 reported in milliseconds (ms). These timers should be used in conjunction with
 the session termination flags. In TCP mode with "option tcplog" set on the
 frontend, 3 control points are reported under the form "Tw/Tc/Tt", and in HTTP
-mode, 5 control points are reported under the form "Tq/Tw/Tc/Tr/Tt" :
+mode, 5 control points are reported under the form "TR/Tw/Tc/Tr/Ta". In
+addition, three other measures are provided, "Th", "Ti", and "Tq".
 
-  - Tq: total time to get the client request (HTTP mode only). It's the time
-    elapsed between the moment the client connection was accepted and the
-    moment the proxy received the last HTTP header. The value "-1" indicates
-    that the end of headers (empty line) has never been seen. This happens when
-    the client closes prematurely or times out.
+  - Th: total time to accept tcp connection and execute handshakes for low level
+    protocols. Currently, these protocoles are proxy-protocol and SSL. This may
+    only happen once during the whole connection's lifetime. A large time here
+    may indicate that the client only pre-established the connection without
+    speaking, that it is experiencing network issues preventing it from
+    completing a handshake in a reasonable time (eg: MTU issues), or that an
+    SSL handshake was very expensive to compute.
+
+  - Ti: is the idle time before the HTTP request (HTTP mode only). This timer
+    counts between the end of the handshakes and the first byte of the HTTP
+    request. When dealing with a second request in keep-alive mode, it starts
+    to count after the end of the transmission the previous response. Some
+    browsers pre-establish connections to a server in order to reduce the
+    latency of a future request, and keep them pending until they need it. This
+    delay will be reported as the idle time. A value of -1 indicates that
+    nothing was received on the connection.
+
+  - TR: total time to get the client request (HTTP mode only). It's the time
+    elapsed between the first bytes received and the moment the proxy received
+    the empty line marking the end of the HTTP headers. The value "-1"
+    indicates that the end of headers has never been seen. This happens when
+    the client closes prematurely or times out. This time is usually very short
+    since most requests fit in a single packet. A large time may indicate a
+    request typed by hand during a test.
+
+  - Tq: total time to get the client request from the accept date or since the
+    emission of the last byte of the previous response (HTTP mode only). It's
+    exactly equalt to Th + Ti + TR unless any of them is -1, in which case it
+    returns -1 as well. This timer used to be very useful before the arrival of
+    HTTP keep-alive and browsers' pre-connect feature. It's recommended to drop
+    it in favor of TR nowadays, as the idle time adds a lot of noise to the
+    reports.
 
   - Tw: total time spent in the queues waiting for a connection slot. It
     accounts for backend queue as well as the server queues, and depends on the
@@ -15114,38 +15149,50 @@ mode, 5 control points are reported under the form "Tq/Tw/Tc/Tr/Tt" :
     header (empty line) was never seen, most likely because the server timeout
     stroke before the server managed to process the request.
 
+  - Ta: total active time for the HTTP request, between the moment the proxy
+    received the first byte of the request header and the emission of the last
+    byte of the response body. The exception is when the "logasap" option is
+    specified. In this case, it only equals (TR+Tw+Tc+Tr), and is prefixed with
+    a '+' sign. From this field, we can deduce "Td", the data transmission time,
+    by subtracting other timers when valid :
+
+        Td = Ta - (TR + Tw + Tc + Tr)
+
+    Timers with "-1" values have to be excluded from this equation. Note that
+    "Ta" can never be negative.
+
   - Tt: total session duration time, between the moment the proxy accepted it
     and the moment both ends were closed. The exception is when the "logasap"
-    option is specified. In this case, it only equals (Tq+Tw+Tc+Tr), and is
-    prefixed with a '+' sign. From this field, we can deduce "Td", the data
+    option is specified. In this case, it only equals (Th+Ti+TR+Tw+Tc+Tr), and
+    is prefixed with a '+' sign. From this field, we can deduce "Td", the data
     transmission time, by subtracting other timers when valid :
 
-        Td = Tt - (Tq + Tw + Tc + Tr)
+        Td = Tt - (Th + Ti + TR + Tw + Tc + Tr)
 
     Timers with "-1" values have to be excluded from this equation. In TCP
-    mode, "Tq" and "Tr" have to be excluded too. Note that "Tt" can never be
-    negative.
+    mode, "Ti", "Tq" and "Tr" have to be excluded too. Note that "Tt" can never
+    be negative and that for HTTP, Tt is simply equal to (Th+Ti+Ta).
 
 These timers provide precious indications on trouble causes. Since the TCP
 protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
 that timers close to multiples of 3s are nearly always related to lost packets
-due to network problems (wires, negotiation, congestion). Moreover, if "Tt" is
-close to a timeout value specified in the configuration, it often means that a
-session has been aborted on timeout.
+due to network problems (wires, negotiation, congestion). Moreover, if "Ta" or
+"Tt" is close to a timeout value specified in the configuration, it often means
+that a session has been aborted on timeout.
 
 Most common cases :
 
-  - If "Tq" is close to 3000, a packet has probably been lost between the
-    client and the proxy. This is very rare on local networks but might happen
-    when clients are on far remote networks and send large requests. It may
-    happen that values larger than usual appear here without any network cause.
-    Sometimes, during an attack or just after a resource starvation has ended,
-    haproxy may accept thousands of connections in a few milliseconds. The time
-    spent accepting these connections will inevitably slightly delay processing
-    of other connections, and it can happen that request times in the order of
-    a few tens of milliseconds are measured after a few thousands of new
-    connections have been accepted at once. Using one of the keep-alive modes
-    may display larger request times since "Tq" also measures the time spent
+  - If "Th" or "Ti" are close to 3000, a packet has probably been lost between
+    the client and the proxy. This is very rare on local networks but might
+    happen when clients are on far remote networks and send large requests. It
+    may happen that values larger than usual appear here without any network
+    cause. Sometimes, during an attack or just after a resource starvation has
+    ended, haproxy may accept thousands of connections in a few milliseconds.
+    The time spent accepting these connections will inevitably slightly delay
+    processing of other connections, and it can happen that request times in the
+    order of a few tens of milliseconds are measured after a few thousands of
+    new connections have been accepted at once. Using one of the keep-alive
+    modes may display larger idle times since "Ti" measures the time spent
     waiting for additional requests.
 
   - If "Tc" is close to 3000, a packet has probably been lost between the
@@ -15157,42 +15204,41 @@ Most common cases :
     to be the average majored by 3000, there are probably some packets lost
     between the proxy and the server.
 
-  - If "Tt" is large even for small byte counts, it generally is because
-    neither the client nor the server decides to close the connection, for
-    instance because both have agreed on a keep-alive connection mode. In order
-    to solve this issue, it will be needed to specify "option httpclose" on
-    either the frontend or the backend. If the problem persists, it means that
-    the server ignores the "close" connection mode and expects the client to
-    close. Then it will be required to use "option forceclose". Having the
-    smallest possible 'Tt' is important when connection regulation is used with
-    the "maxconn" option on the servers, since no new connection will be sent
-    to the server until another one is released.
+  - If "Ta" is large even for small byte counts, it generally is because
+    neither the client nor the server decides to close the connection while
+    haproxy is running in tunnel mode and both have agreed on a keep-alive
+    connection mode. In order to solve this issue, it will be needed to specify
+    one of the HTTP options to manipulate keep-alive or close options on either
+    the frontend or the backend. Having the smallest possible 'Ta' or 'Tt' is
+    important when connection regulation is used with the "maxconn" option on
+    the servers, since no new connection will be sent to the server until
+    another one is released.
 
 Other noticeable HTTP log cases ('xx' means any value to be ignored) :
 
-  Tq/Tw/Tc/Tr/+Tt  The "option logasap" is present on the frontend and the log
+  TR/Tw/Tc/Tr/+Ta  The "option logasap" is present on the frontend and the log
                    was emitted before the data phase. All the timers are valid
-                   except "Tt" which is shorter than reality.
+                   except "Ta" which is shorter than reality.
 
-  -1/xx/xx/xx/Tt   The client was not able to send a complete request in time
+  -1/xx/xx/xx/Ta   The client was not able to send a complete request in time
                    or it aborted too early. Check the session termination flags
                    then "timeout http-request" and "timeout client" settings.
 
-  Tq/-1/xx/xx/Tt   It was not possible to process the request, maybe because
+  TR/-1/xx/xx/Ta   It was not possible to process the request, maybe because
                    servers were out of order, because the request was invalid
                    or forbidden by ACL rules. Check the session termination
                    flags.
 
-  Tq/Tw/-1/xx/Tt   The connection could not establish on the server. Either it
-                   actively refused it or it timed out after Tt-(Tq+Tw) ms.
+  TR/Tw/-1/xx/Ta   The connection could not establish on the server. Either it
+                   actively refused it or it timed out after Ta-(TR+Tw) ms.
                    Check the session termination flags, then check the
                    "timeout connect" setting. Note that the tarpit action might
                    return similar-looking patterns, with "Tw" equal to the time
                    the client connection was maintained open.
 
-  Tq/Tw/Tc/-1/Tt   The server has accepted the connection but did not return
+  TR/Tw/Tc/-1/Ta   The server has accepted the connection but did not return
                    a complete response in time, or it closed its connection
-                   unexpectedly after Tt-(Tq+Tw+Tc) ms. Check the session
+                   unexpectedly after Ta-(TR+Tw+Tc) ms. Check the session
                    termination flags, then check the "timeout server" setting.
 
 

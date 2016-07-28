@@ -124,10 +124,14 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, LW_BYTES, NULL }, /* Unique ID */
 	{ "ST", LOG_FMT_STATUS, PR_MODE_TCP, LW_RESP, NULL },   /* status code */
 	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, LW_INIT, NULL },   /* date GMT */
+	{ "Ta", LOG_FMT_Ta, PR_MODE_HTTP, LW_BYTES, NULL },      /* Time active (tr to end) */
 	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, LW_BYTES, NULL },       /* Tc */
-	{ "Tl", LOG_FMT_DATELOCAL, PR_MODE_TCP, LW_INIT, NULL },   /* date local timezone */
-	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
-	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tr */
+	{ "Th", LOG_FMT_Th, PR_MODE_TCP, LW_BYTES, NULL },       /* Time handshake */
+	{ "Ti", LOG_FMT_Ti, PR_MODE_HTTP, LW_BYTES, NULL },      /* Time idle */
+	{ "Tl", LOG_FMT_DATELOCAL, PR_MODE_TCP, LW_INIT, NULL }, /* date local timezone */
+	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },      /* Tq=Th+Ti+TR */
+	{ "Tr", LOG_FMT_Tr, PR_MODE_HTTP, LW_BYTES, NULL },      /* Tr */
+	{ "TR", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },      /* Time to receive a valid request */
 	{ "Td", LOG_FMT_TD, PR_MODE_TCP, LW_BYTES, NULL },       /* Td = Tt - (Tq + Tw + Tc + Tr) */
 	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, LW_INIT, NULL },   /* timestamp GMT */
 	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, LW_BYTES, NULL },       /* Tt */
@@ -169,6 +173,9 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "sslc", LOG_FMT_SSL_CIPHER, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL ciphers */
 	{ "sslv", LOG_FMT_SSL_VERSION, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL protocol version */
 	{ "t", LOG_FMT_DATE, PR_MODE_TCP, LW_INIT, NULL },      /* date */
+	{ "tr", LOG_FMT_tr, PR_MODE_HTTP, LW_INIT, NULL },      /* date of start of request */
+	{ "trg",LOG_FMT_trg, PR_MODE_HTTP, LW_INIT, NULL },     /* date of start of request, GMT */
+	{ "trl",LOG_FMT_trl, PR_MODE_HTTP, LW_INIT, NULL },     /* date of start of request, local */
 	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, LW_BYTES, NULL },/* termination state */
 	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, LW_INIT, NULL },/* termination state */
 
@@ -187,8 +194,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ 0, 0, 0, 0, NULL }
 };
 
-char default_http_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
-char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %ms %ft %b %s %Tq %Tw %Tc %Tr %Tt %tsc %ac %fc %bc %sc %rc %sq %bq %CC %CS %hrl %hsl";
+char default_http_log_format[] = "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
+char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc %bc %sc %rc %sq %bq %CC %CS %hrl %hsl";
 char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
@@ -1305,6 +1312,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 	char *ret;
 	int iret;
 	struct logformat_node *tmp;
+	struct timeval tv;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 
@@ -1474,7 +1482,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_DATE: // %t
+			case LOG_FMT_DATE: // %t = accept date
 				get_localtime(s->logs.accept_date.tv_sec, &tm);
 				ret = date2str_log(tmplog, &tm, &(s->logs.accept_date),
 						   dst + maxsize - tmplog);
@@ -1484,7 +1492,18 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_DATEGMT: // %T
+			case LOG_FMT_tr: // %tr = start of request date
+				/* Note that the timers are valid if we get here */
+				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				get_localtime(tv.tv_sec, &tm);
+				ret = date2str_log(tmplog, &tm, &tv, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_DATEGMT: // %T = accept date, GMT
 				get_gmtime(s->logs.accept_date.tv_sec, &tm);
 				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1493,9 +1512,29 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_DATELOCAL: // %Tl
+			case LOG_FMT_trg: // %trg = start of request date, GMT
+				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				get_gmtime(tv.tv_sec, &tm);
+				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_DATELOCAL: // %Tl = accept date, local
 				get_localtime(s->logs.accept_date.tv_sec, &tm);
 				ret = localdate2str_log(tmplog, s->logs.accept_date.tv_sec, &tm, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_trl: // %trl = start of request date, local
+				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				get_localtime(tv.tv_sec, &tm);
+				ret = localdate2str_log(tmplog, tv.tv_sec, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1620,7 +1659,32 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_TQ: // %Tq
+			case LOG_FMT_Th: // %Th = handshake time
+				ret = ltoa_o(s->logs.t_handshake, tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_Ti: // %Ti = HTTP idle time
+				ret = ltoa_o(s->logs.t_idle, tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_TR: // %TR = HTTP request time
+				ret = ltoa_o((t_request >= 0) ? t_request - s->logs.t_idle - s->logs.t_handshake : -1,
+				             tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_TQ: // %Tq = Th + Ti + TR
 				ret = ltoa_o(t_request, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1646,7 +1710,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_TR: // %Tr
+			case LOG_FMT_Tr: // %Tr
 				ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 						tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1668,7 +1732,18 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_TT:  // %Tt
+			case LOG_FMT_Ta:  // %Ta = active time = Tt - Th - Ti
+				if (!(fe->to_log & LW_BYTES))
+					LOGCHAR('+');
+				ret = ltoa_o(s->logs.t_close - (s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0),
+					     tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_TT:  // %Tt = total time
 				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
 				ret = ltoa_o(s->logs.t_close, tmplog, dst + maxsize - tmplog);
