@@ -2611,6 +2611,180 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 }
 
 /*
+ * This function update a server's addr and port only for AF_INET and AF_INET6 families.
+ *
+ * Caller can pass its name through <updater> to get it integrated in the response message
+ * returned by the function.
+ *
+ * The function first does the following, in that order:
+ * - validates the new addr and/or port
+ * - checks if an update is required (new IP or port is different than current ones)
+ * - checks the update is allowed:
+ *   - don't switch from/to a family other than AF_INET4 and AF_INET6
+ *   - allow all changes if no CHECKS are configured
+ *   - if CHECK is configured:
+ *     - if switch to port map (SRV_F_MAPPORTS), ensure health check have their own ports
+ * - applies required changes to both ADDR and PORT if both 'required' and 'allowed'
+ *   conditions are met
+ */
+const char *update_server_addr_port(struct server *s, const char *addr, const char *port, char *updater)
+{
+	struct sockaddr_storage sa;
+	int ret, port_change_required;
+	char current_addr[INET6_ADDRSTRLEN];
+	u_int16_t current_port, new_port;
+	struct chunk *msg;
+
+	msg = get_trash_chunk();
+	chunk_reset(msg);
+
+	if (addr) {
+		memset(&sa, 0, sizeof(struct sockaddr_storage));
+		if (str2ip2(addr, &sa, 0) == NULL) {
+			chunk_printf(msg, "Invalid addr '%s'", addr);
+			goto out;
+		}
+
+		/* changes are allowed on AF_INET* families only */
+		if ((sa.ss_family != AF_INET) && (sa.ss_family != AF_INET6)) {
+			chunk_printf(msg, "Update to families other than AF_INET and AF_INET6 supported only through configuration file");
+			goto out;
+		}
+
+		/* collecting data currently setup */
+		memset(current_addr, '\0', sizeof(current_addr));
+		ret = addr_to_str(&s->addr, current_addr, sizeof(current_addr));
+		/* changes are allowed on AF_INET* families only */
+		if ((ret != AF_INET) && (ret != AF_INET6)) {
+			chunk_printf(msg, "Update for the current server address family is only supported through configuration file");
+			goto out;
+		}
+
+		/* applying ADDR changes if required and allowed
+		 * ipcmp returns 0 when both ADDR are the same
+		 */
+		if (ipcmp(&s->addr, &sa) == 0) {
+			chunk_appendf(msg, "no need to change the addr");
+			goto port;
+		}
+		current_port = get_host_port(&s->addr);
+		memset(&s->addr, '\0', sizeof(s->addr));
+		ipcpy(&sa, &s->addr);
+		set_host_port(&s->addr, current_port);
+
+		/* we also need to update check's ADDR only if it uses the server's one */
+		if ((s->check.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_CHECKADDR)) {
+			current_port = get_host_port(&s->check.addr);
+			memset(&s->check.addr, '\0', sizeof(s->check.addr));
+			ipcpy(&sa, &s->check.addr);
+			set_host_port(&s->check.addr, current_port);
+		}
+
+		/* we also need to update agent ADDR only if it use the server's one */
+		if ((s->agent.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_AGENTADDR)) {
+			current_port = get_host_port(&s->agent.addr);
+			memset(&s->agent.addr, '\0', sizeof(s->agent.addr));
+			ipcpy(&sa, &s->agent.addr);
+			set_host_port(&s->agent.addr, current_port);
+		}
+
+		/* update report for caller */
+		chunk_printf(msg, "IP changed from '%s' to '%s'", current_addr, addr);
+	}
+
+ port:
+	if (port) {
+		char sign = '\0';
+		char *endptr;
+
+		if (addr)
+			chunk_appendf(msg, ", ");
+
+		/* collecting data currently setup */
+		current_port = get_host_port(&s->addr);
+
+		/* check if PORT change is required */
+		port_change_required = 0;
+
+		sign = *port;
+		new_port = strtol(port, &endptr, 10);
+		if ((errno != 0) || (port == endptr)) {
+			chunk_appendf(msg, "problem converting port '%s' to an int", port);
+			goto out;
+		}
+
+		/* check if caller triggers a port mapped or offset */
+		if (sign == '-' || (sign == '+')) {
+			/* check if server currently uses port map */
+			if (!(s->flags & SRV_F_MAPPORTS)) {
+				/* switch from fixed port to port map mandatorily triggers
+				 * a port change */
+				port_change_required = 1;
+				/* check is configured
+				 * we're switching from a fixed port to a SRV_F_MAPPORTS (mapped) port
+				 * prevent PORT change if check doesn't have it's dedicated port while switching
+				 * to port mapping */
+				if ((s->check.state & CHK_ST_CONFIGURED) && !(s->flags & SRV_F_CHECKPORT)) {
+					chunk_appendf(msg, "can't change <port> to port map because it is incompatible with current health check port configuration (use 'port' statement from the 'server' directive.");
+					goto out;
+				}
+			}
+			/* we're already using port maps */
+			else {
+				port_change_required = current_port != new_port;
+			}
+		}
+		/* fixed port */
+		else {
+			port_change_required = current_port != new_port;
+		}
+
+		/* applying PORT changes if required and update response message */
+		if (port_change_required) {
+			/* apply new port */
+			set_host_port(&s->addr, new_port);
+
+			/* prepare message */
+			chunk_appendf(msg, "port changed from '");
+			if (s->flags & SRV_F_MAPPORTS)
+				chunk_appendf(msg, "+");
+			chunk_appendf(msg, "%d' to '", current_port);
+
+			if (sign == '-') {
+				s->flags |= SRV_F_MAPPORTS;
+				chunk_appendf(msg, "%c", sign);
+				/* just use for result output */
+				new_port = -new_port;
+			}
+			else if (sign == '+') {
+				s->flags |= SRV_F_MAPPORTS;
+				chunk_appendf(msg, "%c", sign);
+			}
+			else {
+				s->flags &= ~SRV_F_MAPPORTS;
+			}
+
+			chunk_appendf(msg, "%d'", new_port);
+
+			/* we also need to update health checks port only if it uses server's realport */
+			if ((s->check.state & CHK_ST_CONFIGURED) && !(s->flags & SRV_F_CHECKPORT)) {
+				s->check.port = new_port;
+			}
+		}
+		else {
+			chunk_appendf(msg, "no need to change the port");
+		}
+	}
+
+out:
+	if (updater)
+		chunk_appendf(msg, " by '%s'", updater);
+	chunk_appendf(msg, "\n");
+	return msg->str;
+}
+
+
+/*
  * update server status based on result of name resolution
  * returns:
  *  0 if server status is updated
