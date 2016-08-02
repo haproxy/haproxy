@@ -1216,32 +1216,6 @@ HTTP class
   :param string replace: The replacement value.
   :see: HTTP.req_replace_header()
 
-.. js:function:: HTTP.req_replace_value(http, name, regex, replace)
-
-  Works like "HTTP.req_replace_header()" except that it matches the regex
-  against every comma-delimited value of the header field "name" instead of the
-  entire header.
-
-  :param class_http http: The related http object.
-  :param string name: The header name.
-  :param string regex: The match regular expression.
-  :param string replace: The replacement value.
-  :see: HTTP.req_replace_header()
-  :see: HTTP.res_replace_value()
-
-.. js:function:: HTTP.res_replace_value(http, name, regex, replace)
-
-  Works like "HTTP.res_replace_header()" except that it matches the regex
-  against every comma-delimited value of the header field "name" instead of the
-  entire header.
-
-  :param class_http http: The related http object.
-  :param string name: The header name.
-  :param string regex: The match regular expression.
-  :param string replace: The replacement value.
-  :see: HTTP.res_replace_header()
-  :see: HTTP.req_replace_value()
-
 .. js:function:: HTTP.req_set_method(http, method)
 
   Rewrites the request method with the parameter "method".
