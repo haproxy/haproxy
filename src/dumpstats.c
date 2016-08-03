@@ -1800,7 +1800,20 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->st0 = STAT_CLI_PRINT;
 			}
 			else if (strcmp(args[3], "addr") == 0) {
-				warning = server_parse_addr_change_request(sv, args[4], "stats command");
+				char *addr = NULL;
+				char *port = NULL;
+				if (strlen(args[4]) == 0) {
+					appctx->ctx.cli.msg = "set server <b>/<s> requires an <addr> .\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+				else {
+					addr = args[4];
+				}
+				if (strcmp(args[5], "port") == 0) {
+					port = args[6];
+				}
+				warning = update_server_addr_port(sv, addr, port, "stats socket command");
 				if (warning) {
 					appctx->ctx.cli.msg = warning;
 					appctx->st0 = STAT_CLI_PRINT;

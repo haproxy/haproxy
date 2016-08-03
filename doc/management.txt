@@ -1582,8 +1582,11 @@ set rate-limit ssl-sessions global <value>
   is passed in number of sessions per second sent to the SSL stack. It applies
   before the handshake in order to protect the stack against handshake abuses.
 
-set server <backend>/<server> addr <ip4 or ip6 address>
+set server <backend>/<server> addr <ip4 or ip6 address> [port <port>]
   Replace the current IP address of a server by the one provided.
+  Optionnaly, the port can be changed using the 'port' parameter.
+  Note that changing the port also support switching from/to port mapping
+  (notation with +X or -Y), only if a port is configured for the health check.
 
 set server <backend>/<server> agent [ up | down ]
   Force a server's agent to a new state. This can be useful to immediately
