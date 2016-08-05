@@ -4421,20 +4421,19 @@ load-server-state-from-file { global | local | none }
     - server's weight is applied from previous running process unless it has
       has changed between previous and new configuration files.
 
-  Example 1:
+  Example: Minimal configuration
 
-  Minimal configuration:
+      global
+       stats socket /tmp/socket
+       server-state-file /tmp/server_state
 
-    global
-     stats socket /tmp/socket
-     server-state-file /tmp/server_state
+      defaults
+       load-server-state-from-file global
 
-    defaults
-     load-server-state-from-file global
+      backend bk
+       server s1 127.0.0.1:22 check weight 11
+       server s2 127.0.0.1:22 check weight 12
 
-    backend bk
-     server s1 127.0.0.1:22 check weight 11
-     server s2 127.0.0.1:22 check weight 12
 
   Then one can run :
 
@@ -4447,9 +4446,7 @@ load-server-state-from-file { global | local | none }
     1 bk 1 s1 127.0.0.1 2 0 11 11 4 6 3 4 6 0 0
     1 bk 2 s2 127.0.0.1 2 0 12 12 4 6 3 4 6 0 0
 
-  Example 2:
-
-  Minimal configuration:
+  Example: Minimal configuration
 
     global
      stats socket /tmp/socket
@@ -4461,6 +4458,7 @@ load-server-state-from-file { global | local | none }
     backend bk
      server s1 127.0.0.1:22 check weight 11
      server s2 127.0.0.1:22 check weight 12
+
 
   Then one can run :
 
@@ -5187,7 +5185,7 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   the frontend or the backend does not specify it, it wants the addition to be
   mandatory, so it wins.
 
-  Examples :
+  Example :
     # Public HTTP address also used by stunnel on the same machine
     frontend www
         mode http
@@ -10796,7 +10794,9 @@ resolve-prefer <family>
 
   Supported in default-server: Yes
 
-  Example: server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
+  Example:
+
+    server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
 
 resolve-net <network>[,<network[,...]]
   This options prioritize th choice of an ip address matching a network. This is
@@ -10808,7 +10808,9 @@ resolve-net <network>[,<network[,...]]
 
   Supported in default-server: Yes
 
-  Example: server s1 app1.domain.com:80 resolvers mydns resolve-net 10.0.0.0/8
+  Example:
+
+    server s1 app1.domain.com:80 resolvers mydns resolve-net 10.0.0.0/8
 
 resolvers <id>
   Points to an existing "resolvers" section to resolve current server's
@@ -10820,9 +10822,11 @@ resolvers <id>
 
   Supported in default-server: No
 
-  Example: server s1 app1.domain.com:80 check resolvers mydns
+  Example:
 
-  See also chapter 5.3
+    server s1 app1.domain.com:80 check resolvers mydns
+
+  See also section 5.3
 
 send-proxy
   The "send-proxy" parameter enforces use of the PROXY protocol over any
@@ -11138,7 +11142,7 @@ timeout <event> <time>
      <time>  : time related to the event. It follows the HAProxy time format.
                <time> is expressed in milliseconds.
 
-Example of a resolvers section (with default values):
+  Example:
 
    resolvers mydns
      nameserver dns1 10.0.0.1:53
@@ -14589,7 +14593,6 @@ with a star ('*') after the field name below.
      14   '{' captured_request_headers* '}'                   {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                {}
      16   '"' http_request '"'                      "GET /index.html HTTP/1.1"
-
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
