@@ -11963,7 +11963,7 @@ ipmask(<mask>)
 json([<input-code>])
   Escapes the input string and produces an ASCII ouput string ready to use as a
   JSON string. The converter tries to decode the input string according to the
-  <input-code> parameter. It can be "ascii", "utf8", "utf8s", "utf8"" or
+  <input-code> parameter. It can be "ascii", "utf8", "utf8s", "utf8p" or
   "utf8ps". The "ascii" decoder never fails. The "utf8" decoder detects 3 types
   of errors:
    - bad UTF-8 sequence (lone continuation byte, bad number of continuation
@@ -11989,9 +11989,9 @@ json([<input-code>])
   logging to servers which consume JSON-formated traffic logs.
 
   Example:
-     capture request header user-agent len 150
      capture request header Host len 15
-     log-format {"ip":"%[src]","user-agent":"%[capture.req.hdr(1),json("utf8s")]"}
+     capture request header user-agent len 150
+     log-format '{"ip":"%[src]","user-agent":"%[capture.req.hdr(1),json(utf8s)]"}'
 
   Input request from client 127.0.0.1:
      GET / HTTP/1.0

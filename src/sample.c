@@ -1643,7 +1643,7 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 	}
 
 	memprintf(err, "Unexpected input code type at file '%s', line %d. "
-	               "Allowed value are 'ascii', 'utf8', 'utf8p' and 'utf8pp'", file, line);
+	               "Allowed value are 'ascii', 'utf8', 'utf8s', 'utf8p' and 'utf8ps'", file, line);
 	return 0;
 }
 
