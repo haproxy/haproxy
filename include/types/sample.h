@@ -236,6 +236,12 @@ union smp_ctx {
 	void *a[8];     /* any array of up to 8 pointers */
 };
 
+/* Note: the strings below make use of chunks. Chunks may carry an allocated
+ * size in addition to the length. The size counts from the beginning (str)
+ * to the end. If the size is unknown, it MUST be zero, in which case the
+ * sample will automatically be duplicated when a change larger than <len> has
+ * to be performed. Thus it is safe to always set size to zero.
+ */
 struct meth {
 	enum http_meth_t meth;
 	struct chunk str;

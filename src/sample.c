@@ -637,7 +637,12 @@ static int c_int2str(struct sample *smp)
 	return 1;
 }
 
-/* This function duplicates data and removes the flag "const". */
+/* This function inconditionally duplicates data and removes the "const" flag.
+ * For strings and binary blocks, it also provides a known allocated size with
+ * a length that is capped to the size, and ensures a trailing zero is always
+ * appended for strings. This is necessary for some operations which may
+ * require to extend the length. It returns 0 if it fails, 1 on success.
+ */
 int smp_dup(struct sample *smp)
 {
 	struct chunk *trash;
@@ -645,8 +650,6 @@ int smp_dup(struct sample *smp)
 	/* If the const flag is not set, we don't need to duplicate the
 	 * pattern as it can be modified in place.
 	 */
-	if (!(smp->flags & SMP_F_CONST))
-		return 1;
 
 	switch (smp->data.type) {
 	case SMP_T_BOOL:
@@ -656,11 +659,24 @@ int smp_dup(struct sample *smp)
 	case SMP_T_IPV6:
 		/* These type are not const. */
 		break;
+
 	case SMP_T_STR:
-	case SMP_T_BIN:
-		/* Duplicate data. */
 		trash = get_trash_chunk();
-		trash->len = smp->data.u.str.len < trash->size ? smp->data.u.str.len : trash->size;
+		trash->len = smp->data.u.str.len;
+		if (trash->len > trash->size - 1)
+			trash->len = trash->size - 1;
+
+		memcpy(trash->str, smp->data.u.str.str, trash->len);
+		trash->str[trash->len] = 0;
+		smp->data.u.str = *trash;
+		break;
+
+	case SMP_T_BIN:
+		trash = get_trash_chunk();
+		trash->len = smp->data.u.str.len;
+		if (trash->len > trash->size)
+			trash->len = trash->size;
+
 		memcpy(trash->str, smp->data.u.str.str, trash->len);
 		smp->data.u.str = *trash;
 		break;
