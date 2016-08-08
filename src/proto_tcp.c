@@ -10,6 +10,11 @@
  *
  */
 
+/* this is to have tcp_info defined on systems using musl
+ * library, such as Alpine Linux
+ */
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
