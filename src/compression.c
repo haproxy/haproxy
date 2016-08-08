@@ -565,6 +565,8 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	int out_len = 0;
 	z_stream *strm = &comp_ctx->strm;
 
+	strm->next_in = NULL;
+	strm->avail_in = 0;
 	strm->next_out = (unsigned char *)bi_end(out);
 	strm->avail_out = out->size - buffer_len(out);
 
