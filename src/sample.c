@@ -1474,10 +1474,7 @@ static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp, vo
 {
 	int i;
 
-	if (!smp_dup(smp))
-		return 0;
-
-	if (!smp->data.u.str.size)
+	if (!smp_make_rw(smp))
 		return 0;
 
 	for (i = 0; i < smp->data.u.str.len; i++) {
@@ -1491,10 +1488,7 @@ static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, vo
 {
 	int i;
 
-	if (!smp_dup(smp))
-		return 0;
-
-	if (!smp->data.u.str.size)
+	if (!smp_make_rw(smp))
 		return 0;
 
 	for (i = 0; i < smp->data.u.str.len; i++) {
