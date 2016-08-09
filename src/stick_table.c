@@ -496,15 +496,8 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		break;
 
 	case SMP_T_STR:
-		/* Must be NULL terminated. */
-		if (smp->data.u.str.len >= smp->data.u.str.size ||
-		    smp->data.u.str.str[smp->data.u.str.len] != '\0') {
-			if (!smp_dup(smp))
-				return NULL;
-			if (smp->data.u.str.len >= smp->data.u.str.size)
-				return NULL;
-			smp->data.u.str.str[smp->data.u.str.len] = '\0';
-		}
+		if (!smp_make_safe(smp))
+			return NULL;
 		static_table_key->key = smp->data.u.str.str;
 		static_table_key->key_len = smp->data.u.str.len;
 		break;
