@@ -505,6 +505,9 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 	case SMP_T_BIN:
 		if (smp->data.u.str.len < t->key_size) {
 			/* This type needs padding with 0. */
+			if (!smp_make_rw(smp))
+				return NULL;
+
 			if (smp->data.u.str.size < t->key_size)
 				if (!smp_dup(smp))
 					return NULL;
