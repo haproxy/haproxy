@@ -1217,12 +1217,7 @@ int connect_server(struct stream *s)
 			/* restore the pointers */
 			b_adv(s->req.buf, rewind);
 
-			if (smp) {
-				/* get write access to terminate with a zero */
-				smp_dup(smp);
-				if (smp->data.u.str.len >= smp->data.u.str.size)
-					smp->data.u.str.len = smp->data.u.str.size - 1;
-				smp->data.u.str.str[smp->data.u.str.len] = 0;
+			if (smp_make_safe(smp)) {
 				ssl_sock_set_servername(srv_conn, smp->data.u.str.str);
 				srv_conn->flags |= CO_FL_PRIVATE;
 			}
