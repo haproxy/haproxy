@@ -11,12 +11,14 @@
  */
 
 #include <ctype.h>
+#include <errno.h>
 #include <netdb.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -1404,6 +1406,47 @@ int port_to_str(struct sockaddr_storage *addr, char *str, int size)
 
 	snprintf(str, size, "%u", ntohs(port));
 	return addr->ss_family;
+}
+
+/* check if the given address is local to the system or not. It will return
+ * -1 when it's not possible to know, 0 when the address is not local, 1 when
+ * it is. We don't want to iterate over all interfaces for this (and it is not
+ * portable). So instead we try to bind in UDP to this address on a free non
+ * privileged port and to connect to the same address, port 0 (connect doesn't
+ * care). If it succeeds, we own the address. Note that non-inet addresses are
+ * considered local since they're most likely AF_UNIX.
+ */
+int addr_is_local(const struct netns_entry *ns,
+                  const struct sockaddr_storage *orig)
+{
+	struct sockaddr_storage addr;
+	int result;
+	int fd;
+
+	if (!is_inet_addr(orig))
+		return 1;
+
+	memcpy(&addr, orig, sizeof(addr));
+	set_host_port(&addr, 0);
+
+	fd = my_socketat(ns, addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
+	if (fd < 0)
+		return -1;
+
+	result = -1;
+	if (bind(fd, (struct sockaddr *)&addr, get_addr_len(&addr)) == 0) {
+		if (connect(fd, (struct sockaddr *)&addr, get_addr_len(&addr)) == -1)
+			result = 0; // fail, non-local address
+		else
+			result = 1; // success, local address
+	}
+	else {
+		if (errno == EADDRNOTAVAIL)
+			result = 0; // definitely not local :-)
+	}
+	close(fd);
+
+	return result;
 }
 
 /* will try to encode the string <string> replacing all characters tagged in

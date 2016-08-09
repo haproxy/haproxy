@@ -2299,6 +2299,48 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 	return 1;
 }
 
+/* check if the destination address of the front connection is local to the
+ * system or if it was intercepted.
+ */
+int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct listener *li = smp->sess->listener;
+
+	if (!conn)
+		return 0;
+
+	conn_get_to_addr(conn);
+	if (!(conn->flags & CO_FL_ADDR_TO_SET))
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	smp->flags = 0;
+	smp->data.u.sint = addr_is_local(li->netns, &conn->addr.to);
+	return smp->data.u.sint >= 0;
+}
+
+/* check if the source address of the front connection is local to the system
+ * or not.
+ */
+int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = objt_conn(smp->sess->origin);
+	struct listener *li = smp->sess->listener;
+
+	if (!conn)
+		return 0;
+
+	conn_get_from_addr(conn);
+	if (!(conn->flags & CO_FL_ADDR_FROM_SET))
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	smp->flags = 0;
+	smp->data.u.sint = addr_is_local(li->netns, &conn->addr.from);
+	return smp->data.u.sint >= 0;
+}
+
 /* set temp integer to the frontend connexion's destination port */
 static int
 smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -2620,8 +2662,10 @@ static struct acl_kw_list acl_kws = {ILH, {
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 #ifdef TCP_INFO
 	{ "fc_rtt",    smp_fetch_fc_rtt,    ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },

@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/namespace.h>
 #include <eb32tree.h>
 
 #ifndef LLONG_MAX
@@ -357,6 +358,17 @@ int addr_to_str(struct sockaddr_storage *addr, char *str, int size);
  * supported.
  */
 int port_to_str(struct sockaddr_storage *addr, char *str, int size);
+
+/* check if the given address is local to the system or not. It will return
+ * -1 when it's not possible to know, 0 when the address is not local, 1 when
+ * it is. We don't want to iterate over all interfaces for this (and it is not
+ * portable). So instead we try to bind in UDP to this address on a free non
+ * privileged port and to connect to the same address, port 0 (connect doesn't
+ * care). If it succeeds, we own the address. Note that non-inet addresses are
+ * considered local since they're most likely AF_UNIX.
+ */
+int addr_is_local(const struct netns_entry *ns,
+                  const struct sockaddr_storage *orig);
 
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)

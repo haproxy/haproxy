@@ -12733,6 +12733,16 @@ dst_conn : integer
   different limits to different listening ports or addresses. See also the
   "fe_conn" and "be_conn" fetches.
 
+dst_is_local : boolean
+  Returns true if the destination address of the incoming connection is local
+  to the system, or false if the address doesn't exist on the system, meaning
+  that it was intercepted in transparent mode. It can be useful to apply
+  certain rules by default to forwarded traffic and other rules to the traffic
+  targetting the real address of the machine. For example the stats page could
+  be delivered only on this address, or SSH access could be locally redirected.
+  Please note that the check involves a few system calls, so it's better to do
+  it only once per connection.
+
 dst_port : integer
   Returns an integer value corresponding to the destination TCP port of the
   connection on the client side, which is the port the client connected to.
@@ -13075,6 +13085,15 @@ src_inc_gpc0([<table>]) : integer
         acl abuse src_http_req_rate gt 10
         acl kill  src_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
+
+src_is_local : boolean
+  Returns true if the source address of the incoming connection is local to the
+  system, or false if the address doesn't exist on the system, meaning that it
+  comes from a remote machine. Note that UNIX addresses are considered local.
+  It can be useful to apply certain access restrictions based on where the
+  client comes from (eg: require auth or https for remote machines). Please
+  note that the check involves a few system calls, so it's better to do it only
+  once per connection.
 
 src_kbytes_in([<table>]) : integer
   Returns the total amount of data received from the incoming connection's
