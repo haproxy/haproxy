@@ -3177,6 +3177,8 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 {
 	struct tcpcheck_rule *tcpcheck;
+	const char *in;
+	char *dst;
 	int i;
 
 	tcpcheck = calloc(1, sizeof *tcpcheck);
@@ -3194,10 +3196,11 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 		free(tcpcheck);
 		return 0;
 	}
-	tcpcheck->string[0] = '\0';
 
+	dst = tcpcheck->string;
 	for (i = 0; strs[i]; i++)
-		strcat(tcpcheck->string, strs[i]);
+		for (in = strs[i]; (*dst = *in++); dst++);
+	*dst = 0;
 
 	LIST_ADDQ(list, &tcpcheck->list);
 	return 1;
