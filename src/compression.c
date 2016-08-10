@@ -56,7 +56,6 @@ long zlib_used_memory = 0;
 #endif
 
 unsigned int compress_min_idle = 0;
-static struct pool_head *pool_comp_ctx = NULL;
 
 static int identity_init(struct comp_ctx **comp_ctx, int level);
 static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
@@ -137,6 +136,8 @@ int comp_append_algo(struct comp *comp, const char *algo)
 	return -1;
 }
 
+#if defined(USE_ZLIB) || defined(USE_SLZ)
+static struct pool_head *pool_comp_ctx = NULL;
 /*
  * Alloc the comp_ctx
  */
@@ -186,6 +187,7 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 #endif
 	return 0;
 }
+#endif
 
 
 /****************************
