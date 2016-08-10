@@ -2395,8 +2395,25 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* extract the value. */
 	smp->data.type = SMP_T_SINT;
 	switch (val) {
-	case 0:  smp->data.u.sint = info.tcpi_rtt;    break;
-	case 1:  smp->data.u.sint = info.tcpi_rttvar; break;
+	case 0:  smp->data.u.sint = info.tcpi_rtt;            break;
+	case 1:  smp->data.u.sint = info.tcpi_rttvar;         break;
+#if defined(__linux__)
+	/* these ones are common to all Linux versions */
+	case 2:  smp->data.u.sint = info.tcpi_unacked;        break;
+	case 3:  smp->data.u.sint = info.tcpi_sacked;         break;
+	case 4:  smp->data.u.sint = info.tcpi_lost;           break;
+	case 5:  smp->data.u.sint = info.tcpi_retrans;        break;
+	case 6:  smp->data.u.sint = info.tcpi_fackets;        break;
+	case 7:  smp->data.u.sint = info.tcpi_reordering;     break;
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
+	/* the ones are found on FreeBSD and NetBSD featuring TCP_INFO */
+	case 2:  smp->data.u.sint = info.__tcpi_unacked;      break;
+	case 3:  smp->data.u.sint = info.__tcpi_sacked;       break;
+	case 4:  smp->data.u.sint = info.__tcpi_lost;         break;
+	case 5:  smp->data.u.sint = info.__tcpi_retrans;      break;
+	case 6:  smp->data.u.sint = info.__tcpi_fackets;      break;
+	case 7:  smp->data.u.sint = info.__tcpi_reordering;   break;
+#endif
 	default: return 0;
 	}
 
@@ -2435,7 +2452,64 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	return 1;
 }
-#endif
+
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+
+/* get the unacked counter on a client connexion */
+static int
+smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 2))
+		return 0;
+	return 1;
+}
+
+/* get the sacked counter on a client connexion */
+static int
+smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 3))
+		return 0;
+	return 1;
+}
+
+/* get the lost counter on a client connexion */
+static int
+smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 4))
+		return 0;
+	return 1;
+}
+
+/* get the retrans counter on a client connexion */
+static int
+smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 5))
+		return 0;
+	return 1;
+}
+
+/* get the fackets counter on a client connexion */
+static int
+smp_fetch_fc_fackets(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 6))
+		return 0;
+	return 1;
+}
+
+/* get the reordering counter on a client connexion */
+static int
+smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!get_tcp_info(args, smp, 0, 7))
+		return 0;
+	return 1;
+}
+#endif // linux || freebsd || netbsd
+#endif // TCP_INFO
 
 #ifdef IPV6_V6ONLY
 /* parse the "v4v6" bind keyword */
@@ -2667,9 +2741,17 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 #ifdef TCP_INFO
-	{ "fc_rtt",    smp_fetch_fc_rtt,    ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
-	{ "fc_rttvar", smp_fetch_fc_rttvar, ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
-#endif
+	{ "fc_rtt",           smp_fetch_fc_rtt,           ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_rttvar",        smp_fetch_fc_rttvar,        ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
+	{ "fc_unacked",       smp_fetch_fc_unacked,       ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_sacked",        smp_fetch_fc_sacked,        ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_retrans",       smp_fetch_fc_retrans,       ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_fackets",       smp_fetch_fc_fackets,       ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_lost",          smp_fetch_fc_lost,          ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_reordering",    smp_fetch_fc_reordering,    ARG1(0,STR), NULL, SMP_T_SINT, SMP_USE_L4CLI },
+#endif // linux || freebsd || netbsd
+#endif // TCP_INFO
 	{ /* END */ },
 }};
 
