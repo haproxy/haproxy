@@ -22,6 +22,7 @@
 #include <errno.h>
 
 #include <sys/time.h>
+#include <sys/uio.h>
 
 #include <common/config.h>
 #include <common/compat.h>
