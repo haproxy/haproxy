@@ -32,6 +32,7 @@
 #include <types/port_range.h>
 #include <types/protocol.h>
 
+#include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
