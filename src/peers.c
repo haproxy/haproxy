@@ -1491,9 +1491,7 @@ incomplete:
 									/* push local updates */
 									if (!eb || eb->key > st->teaching_origin) {
 										st->flags |= SHTABLE_F_TEACH_STAGE2;
-										eb = eb32_first(&st->table->updates);
-										if (eb)
-											st->last_pushed = eb->key - 1;
+										st->last_pushed = st->teaching_origin;
 										break;
 									}
 
