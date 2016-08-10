@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #ifndef BITS_PER_INT
 #define BITS_PER_INT    (8*sizeof(int))
@@ -132,6 +133,11 @@
 /* FreeBSD doesn't define SOL_IP and prefers IPPROTO_IP */
 #ifndef SOL_IP
 #define SOL_IP IPPROTO_IP
+#endif
+
+/* same for SOL_TCP */
+#ifndef SOL_TCP
+#define SOL_TCP IPPROTO_TCP
 #endif
 
 /* If IPv6 is supported, define IN6_IS_ADDR_V4MAPPED() if missing. */
