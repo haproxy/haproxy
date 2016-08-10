@@ -31,11 +31,6 @@ static unsigned int *fd_evts[2];
 static struct pollfd *poll_events = NULL;
 
 
-static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)
-{
-	return evts[fd / (8*sizeof(*evts))] & (1U << (fd & (8*sizeof(*evts) - 1)));
-}
-
 static inline void hap_fd_set(int fd, unsigned int *evts)
 {
 	evts[fd / (8*sizeof(*evts))] |= 1U << (fd & (8*sizeof(*evts) - 1));
