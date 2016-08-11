@@ -98,6 +98,9 @@ enum srv_admin {
 #define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
 #define SRV_F_USE_NS_FROM_PP 0x0008      /* use namespace associated with connection if present */
 #define SRV_F_FORCED_ID    0x0010        /* server's ID was forced in the configuration */
+#define SRV_F_CHECKADDR    0x0020        /* this server has a check addr configured */
+#define SRV_F_CHECKPORT    0x0040        /* this server has a check port configured */
+#define SRV_F_AGENTADDR    0x0080        /* this server has a agent addr configured */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1          0x0001        /* proxy protocol version 1 */

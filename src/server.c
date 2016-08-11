@@ -1002,6 +1002,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
+			if (newsrv->check.port)
+				newsrv->flags |= SRV_F_CHECKPORT;
 			newsrv->check.inter	= curproxy->defsrv.check.inter;
 			newsrv->check.fastinter	= curproxy->defsrv.check.fastinter;
 			newsrv->check.downinter	= curproxy->defsrv.check.downinter;
@@ -1292,10 +1294,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 
 				newsrv->check.addr = newsrv->agent.addr = *sk;
+				newsrv->flags |= SRV_F_CHECKADDR;
+				newsrv->flags |= SRV_F_AGENTADDR;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {
 				newsrv->check.port = atol(args[cur_arg + 1]);
+				newsrv->flags |= SRV_F_CHECKPORT;
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "backup")) {
