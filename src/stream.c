@@ -3262,7 +3262,7 @@ smp_fetch_sc_trackers(const struct arg *args, struct sample *smp, const char *kw
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = stkctr_entry(stkctr)->ref_cnt;
+	smp->data.u.sint = stkctr_entry(stkctr) ? stkctr_entry(stkctr)->ref_cnt : 0;
 	return 1;
 }
 
