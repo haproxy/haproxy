@@ -1604,6 +1604,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			if (logsrv->format < 0) {
 				Alert("parsing [%s:%d] : unknown log format '%s'\n", file, linenum, args[arg+3]);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				free(logsrv);
 				goto out;
 			}
 
@@ -6841,9 +6842,10 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		}
 
 		ag->name = strdup(args[1]);
-		if (!ag) {
+		if (!ag->name) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			free(ag);
 			goto out;
 		}
 
@@ -6858,6 +6860,9 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				Alert("parsing [%s:%d]: '%s' only supports 'users' option.\n",
 				      file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				free(ag->groupusers);
+				free(ag->name);
+				free(ag);
 				goto out;
 			}
 		}
