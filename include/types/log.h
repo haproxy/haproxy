@@ -50,7 +50,6 @@ enum {
 	LOG_FMT_TEXT = 0, /* raw text */
 	LOG_FMT_EXPR,     /* sample expression */
 	LOG_FMT_SEPARATOR, /* separator replaced by one space */
-	LOG_FMT_VARIABLE,
 
 	/* information fields */
 	LOG_FMT_GLOBAL,
@@ -76,7 +75,6 @@ enum {
 	LOG_FMT_SERVER,
 	LOG_FMT_BYTES,
 	LOG_FMT_BYTES_UP,
-	LOG_FMT_T,
 	LOG_FMT_Ta,
 	LOG_FMT_Th,
 	LOG_FMT_Ti,
@@ -95,13 +93,11 @@ enum {
 	LOG_FMT_CSERVER,
 	LOG_FMT_TERMSTATE,
 	LOG_FMT_TERMSTATE_CK,
-	LOG_FMT_CONN,
 	LOG_FMT_ACTCONN,
 	LOG_FMT_FECONN,
 	LOG_FMT_BECONN,
 	LOG_FMT_SRVCONN,
 	LOG_FMT_RETRIES,
-	LOG_FMT_QUEUES,
 	LOG_FMT_SRVQUEUE,
 	LOG_FMT_BCKQUEUE,
 	LOG_FMT_HDRREQUEST,
