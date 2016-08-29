@@ -580,6 +580,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 		si->state = SI_ST_CER;
 
 		si_release_endpoint(si);
+		s->flags &= ~SF_ADDR_SET;
 
 		if (si->err_type)
 			return 0;
