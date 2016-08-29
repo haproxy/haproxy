@@ -579,6 +579,9 @@ ifneq ($(USE_OPENSSL),)
 BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
 OPTIONS_CFLAGS  += -DUSE_OPENSSL $(if $(SSL_INC),-I$(SSL_INC))
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
+ifneq ($(USE_DL),)
+OPTIONS_LDFLAGS += -ldl
+endif
 OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
 ifneq ($(USE_PRIVATE_CACHE),)
 OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE

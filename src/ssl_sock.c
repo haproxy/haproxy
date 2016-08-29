@@ -39,6 +39,7 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <openssl/crypto.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -78,6 +79,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/listener.h>
+#include <proto/openssl-compat.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/server.h>
@@ -326,6 +328,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 	OCSP_RESPONSE *resp;
 	OCSP_BASICRESP *bs = NULL;
 	OCSP_SINGLERESP *sr;
+	OCSP_CERTID *id;
 	unsigned char *p = (unsigned char *)ocsp_response->str;
 	int rc , count_sr;
 	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd = NULL;
@@ -362,6 +365,8 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 		goto out;
 	}
 
+	id = (OCSP_CERTID*)OCSP_SINGLERESP_get0_id(sr);
+
 	rc = OCSP_single_get0_status(sr, &reason, &revtime, &thisupd, &nextupd);
 	if (rc != V_OCSP_CERTSTATUS_GOOD) {
 		memprintf(err, "OCSP single response: certificate status not good");
@@ -380,7 +385,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 	}
 
 	if (cid) {
-		if (OCSP_id_cmp(sr->certId, cid)) {
+		if (OCSP_id_cmp(id, cid)) {
 			memprintf(err, "OCSP single response: Certificate ID does not match certificate and issuer");
 			goto out;
 		}
@@ -390,7 +395,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 		unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH];
 		unsigned char *p;
 
-		rc = i2d_OCSP_CERTID(sr->certId, NULL);
+		rc = i2d_OCSP_CERTID(id, NULL);
 		if (!rc) {
 			memprintf(err, "OCSP single response: Unable to encode Certificate ID");
 			goto out;
@@ -403,7 +408,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 
 		p = key;
 		memset(key, 0, OCSP_MAX_CERTID_ASN1_LENGTH);
-		i2d_OCSP_CERTID(sr->certId, &p);
+		i2d_OCSP_CERTID(id, &p);
 		ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
 		if (!ocsp) {
 			memprintf(err, "OCSP single response: Certificate ID does not match any certificate or issuer");
@@ -642,7 +647,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	if (!ssl_pkey)
 		return SSL_TLSEXT_ERR_NOACK;
 
-	key_type = EVP_PKEY_type(ssl_pkey->type);
+	key_type = EVP_PKEY_base_id(ssl_pkey);
 
 	if (ocsp_arg->is_single && ocsp_arg->single_kt == key_type)
 		ocsp = ocsp_arg->s_ocsp;
@@ -705,6 +710,9 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
 	unsigned char *p;
+	pem_password_cb *passwd_cb;
+	void *passwd_cb_userdata;
+	void (*callback) (void);
 
 	snprintf(ocsp_path, MAXPATHLEN+1, "%s.ocsp", cert_path);
 
@@ -745,7 +753,10 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		if (BIO_read_filename(in, issuer_path) <= 0)
 			goto out;
 
-		xi = PEM_read_bio_X509_AUX(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
+		passwd_cb = SSL_CTX_get_default_passwd_cb(ctx);
+		passwd_cb_userdata = SSL_CTX_get_default_passwd_cb_userdata(ctx);
+
+		xi = PEM_read_bio_X509_AUX(in, NULL, passwd_cb, passwd_cb_userdata);
 		if (!xi)
 			goto out;
 
@@ -774,12 +785,19 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	if (iocsp == ocsp)
 		ocsp = NULL;
 
-	if (!ctx->tlsext_status_cb) {
+#ifndef SSL_CTX_get_tlsext_status_cb
+# define SSL_CTX_get_tlsext_status_cb(ctx, cb) \
+	*cb = (void (*) (void))ctx->tlsext_status_cb;
+#endif
+	SSL_CTX_get_tlsext_status_cb(ctx, &callback);
+
+	if (!callback) {
 		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(*cb_arg));
 
 		cb_arg->is_single = 1;
 		cb_arg->s_ocsp = iocsp;
-		cb_arg->single_kt = EVP_PKEY_type(X509_get_pubkey(x)->type);
+
+		cb_arg->single_kt = EVP_PKEY_base_id(X509_get_pubkey(x));
 
 		SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
 		SSL_CTX_set_tlsext_status_arg(ctx, cb_arg);
@@ -788,9 +806,16 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		 * If the ctx has a status CB, then we have previously set an OCSP staple for this ctx
 		 * Update that cb_arg with the new cert's staple
 		 */
-		struct ocsp_cbk_arg *cb_arg = ctx->tlsext_status_arg;
+		struct ocsp_cbk_arg *cb_arg;
 		struct certificate_ocsp *tmp_ocsp;
 		int index;
+		int key_type;
+
+#ifdef SSL_CTX_get_tlsext_status_arg
+		SSL_CTX_ctrl(ctx, SSL_CTRL_GET_TLSEXT_STATUS_REQ_CB_ARG, 0, &cb_arg);
+#else
+		cb_arg = ctx->tlsext_status_arg;
+#endif
 
 		/*
 		 * The following few lines will convert cb_arg from a single ocsp to multi ocsp
@@ -803,7 +828,8 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		cb_arg->is_single = 0;
 		cb_arg->single_kt = 0;
 
-		index = ssl_sock_get_ocsp_arg_kt_index(EVP_PKEY_type(X509_get_pubkey(x)->type));
+		key_type = EVP_PKEY_base_id(X509_get_pubkey(x));
+		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
 		if (index >= 0 && !cb_arg->m_ocsp[index])
 			cb_arg->m_ocsp[index] = iocsp;
 
@@ -1154,6 +1180,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	const EVP_MD *digest;
 	X509V3_CTX    ctx;
 	unsigned int  i;
+	int 	      key_type;
 
 	/* Get the private key of the defautl certificate and use it */
 	if (!(pkey = SSL_get_privatekey(ssl)))
@@ -1215,11 +1242,14 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	}
 
 	/* Sign the certificate with the CA private key */
-	if (EVP_PKEY_type(capkey->type) == EVP_PKEY_DSA)
-		digest = EVP_dss1();
-	else if (EVP_PKEY_type (capkey->type) == EVP_PKEY_RSA)
+
+	key_type = EVP_PKEY_base_id(capkey);
+
+	if (key_type == EVP_PKEY_DSA)
+		digest = EVP_sha1();
+	else if (key_type == EVP_PKEY_RSA)
 		digest = EVP_sha256();
-	else if (EVP_PKEY_type (capkey->type) == EVP_PKEY_EC)
+	else if (key_type == EVP_PKEY_EC)
 		digest = EVP_sha256();
 	else {
 #if (OPENSSL_VERSION_NUMBER >= 0x1000000fL)
@@ -1451,14 +1481,18 @@ static DH * ssl_get_dh_1024(void)
 		0x02,
 		};
 
+	BIGNUM *p;
+	BIGNUM *g;
 	DH *dh = DH_new();
 	if (dh) {
-		dh->p = BN_bin2bn(dh1024_p, sizeof dh1024_p, NULL);
-		dh->g = BN_bin2bn(dh1024_g, sizeof dh1024_g, NULL);
+		p = BN_bin2bn(dh1024_p, sizeof dh1024_p, NULL);
+		g = BN_bin2bn(dh1024_g, sizeof dh1024_g, NULL);
 
-		if (!dh->p || !dh->g) {
+		if (!p || !g) {
 			DH_free(dh);
 			dh = NULL;
+		} else {
+			DH_set0_pqg(dh, p, NULL, g);
 		}
 	}
 	return dh;
@@ -1494,14 +1528,18 @@ static DH *ssl_get_dh_2048(void)
 		0x02,
 		};
 
+	BIGNUM *p;
+	BIGNUM *g;
 	DH *dh = DH_new();
 	if (dh) {
-		dh->p = BN_bin2bn(dh2048_p, sizeof dh2048_p, NULL);
-		dh->g = BN_bin2bn(dh2048_g, sizeof dh2048_g, NULL);
+		p = BN_bin2bn(dh2048_p, sizeof dh2048_p, NULL);
+		g = BN_bin2bn(dh2048_g, sizeof dh2048_g, NULL);
 
-		if (!dh->p || !dh->g) {
+		if (!p || !g) {
 			DH_free(dh);
 			dh = NULL;
+		} else {
+			DH_set0_pqg(dh, p, NULL, g);
 		}
 	}
 	return dh;
@@ -1558,14 +1596,18 @@ static DH *ssl_get_dh_4096(void)
 		0x02,
 		};
 
+	BIGNUM *p;
+	BIGNUM *g;
 	DH *dh = DH_new();
 	if (dh) {
-		dh->p = BN_bin2bn(dh4096_p, sizeof dh4096_p, NULL);
-		dh->g = BN_bin2bn(dh4096_g, sizeof dh4096_g, NULL);
+		p = BN_bin2bn(dh4096_p, sizeof dh4096_p, NULL);
+		g = BN_bin2bn(dh4096_g, sizeof dh4096_g, NULL);
 
-		if (!dh->p || !dh->g) {
+		if (!p || !g) {
 			DH_free(dh);
 			dh = NULL;
+		} else {
+			DH_set0_pqg(dh, p, NULL, g);
 		}
 	}
 	return dh;
@@ -1577,7 +1619,9 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 {
 	DH *dh = NULL;
 	EVP_PKEY *pkey = SSL_get_privatekey(ssl);
-	int type = pkey ? EVP_PKEY_type(pkey->type) : EVP_PKEY_NONE;
+	int type;
+
+	type = pkey ? EVP_PKEY_base_id(pkey) : EVP_PKEY_NONE;
 
 	/* The keylen supplied by OpenSSL can only be 512 or 1024.
 	   See ssl3_send_server_key_exchange() in ssl/s3_srvr.c
@@ -2035,8 +2079,9 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 			i = -1;
 			while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
 				X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
-
-				if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+				ASN1_STRING *value;
+				value = X509_NAME_ENTRY_get_data(entry);
+				if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
 					/* Important line is here */
 					ssl_sock_populate_sni_keytypes_hplr(str, &sni_keytypes_map, n);
 
@@ -2207,6 +2252,9 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	int order = 0;
 	X509_NAME *xname;
 	char *str;
+	pem_password_cb *passwd_cb;
+	void *passwd_cb_userdata;
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
@@ -2218,7 +2266,11 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	if (BIO_read_filename(in, file) <= 0)
 		goto end;
 
-	x = PEM_read_bio_X509_AUX(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
+
+	passwd_cb = SSL_CTX_get_default_passwd_cb(ctx);
+	passwd_cb_userdata = SSL_CTX_get_default_passwd_cb_userdata(ctx);
+
+	x = PEM_read_bio_X509_AUX(in, NULL, passwd_cb, passwd_cb_userdata);
 	if (x == NULL)
 		goto end;
 
@@ -2246,7 +2298,10 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 		i = -1;
 		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
 			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
-			if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+			ASN1_STRING *value;
+
+			value = X509_NAME_ENTRY_get_data(entry);
+			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
 				order = ssl_sock_add_cert_sni(ctx, s, str, order);
 				OPENSSL_free(str);
 			}
@@ -2257,12 +2312,16 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	if (!SSL_CTX_use_certificate(ctx, x))
 		goto end;
 
+#ifdef SSL_CTX_clear_extra_chain_certs
+	SSL_CTX_clear_extra_chain_certs(ctx);
+#else
 	if (ctx->extra_certs != NULL) {
 		sk_X509_pop_free(ctx->extra_certs, X509_free);
 		ctx->extra_certs = NULL;
 	}
+#endif
 
-	while ((ca = PEM_read_bio_X509(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata))) {
+	while ((ca = PEM_read_bio_X509(in, NULL, passwd_cb, passwd_cb_userdata))) {
 		if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
 			X509_free(ca);
 			goto end;
@@ -2944,7 +3003,9 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	i = -1;
 	while (!ok && (i = X509_NAME_get_index_by_NID(cert_subject, NID_commonName, i)) != -1) {
 		X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
-		if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+		ASN1_STRING *value;
+		value = X509_NAME_ENTRY_get_data(entry);
+		if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
 			ok = ssl_sock_srv_hostcheck(str, servername);
 			OPENSSL_free(str);
 		}
@@ -3455,7 +3516,15 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
-					if (!((SSL *)conn->xprt_ctx)->packet_length) {
+					int empty_handshake;
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+					OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)conn->xprt_ctx);
+					empty_handshake = state == TLS_ST_BEFORE;
+#else
+					empty_handshake = !((SSL *)conn->xprt_ctx)->packet_length;
+#endif
+
+					if (empty_handshake) {
 						if (!errno) {
 							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 								conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
@@ -3518,11 +3587,21 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			return 0;
 		}
 		else if (ret == SSL_ERROR_SYSCALL) {
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+			OSSL_HANDSHAKE_STATE state;
+#endif
+			int empty_handshake;
 			/* if errno is null, then connection was successfully established */
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-			if (!((SSL *)conn->xprt_ctx)->packet_length) {
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+			state = SSL_get_state((SSL *)conn->xprt_ctx);
+			empty_handshake = state == TLS_ST_BEFORE;
+#else
+			empty_handshake = !((SSL *)conn->xprt_ctx)->packet_length;
+#endif
+			if (empty_handshake) {
 				if (!errno) {
 					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
@@ -3937,22 +4016,33 @@ static int
 ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct chunk *out)
 {
 	X509_NAME_ENTRY *ne;
+	ASN1_OBJECT *obj;
+	ASN1_STRING *data;
+	const unsigned char *data_ptr;
+	int data_len;
 	int i, j, n;
 	int cur = 0;
 	const char *s;
 	char tmp[128];
+	int name_count;
+
+	name_count = X509_NAME_entry_count(a);
 
 	out->len = 0;
-	for (i = 0; i < sk_X509_NAME_ENTRY_num(a->entries); i++) {
+	for (i = 0; i < name_count; i++) {
 		if (pos < 0)
-			j = (sk_X509_NAME_ENTRY_num(a->entries)-1) - i;
+			j = (name_count-1) - i;
 		else
 			j = i;
 
-		ne = sk_X509_NAME_ENTRY_value(a->entries, j);
-		n = OBJ_obj2nid(ne->object);
+		ne = X509_NAME_get_entry(a, j);
+		obj = X509_NAME_ENTRY_get_object(ne);
+		data = X509_NAME_ENTRY_get_data(ne);
+		data_ptr = ASN1_STRING_get0_data(data);
+		data_len = ASN1_STRING_length(data);
+		n = OBJ_obj2nid(obj);
 		if ((n == NID_undef) || ((s = OBJ_nid2sn(n)) == NULL)) {
-			i2t_ASN1_OBJECT(tmp, sizeof(tmp), ne->object);
+			i2t_ASN1_OBJECT(tmp, sizeof(tmp), obj);
 			s = tmp;
 		}
 
@@ -3967,11 +4057,11 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct c
 		if (cur != pos)
 			continue;
 
-		if (ne->value->length > out->size)
+		if (data_len > out->size)
 			return -1;
 
-		memcpy(out->str, ne->value->data, ne->value->length);
-		out->len = ne->value->length;
+		memcpy(out->str, data_ptr, data_len);
+		out->len = data_len;
 		return 1;
 	}
 
@@ -3986,24 +4076,36 @@ static int
 ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 {
 	X509_NAME_ENTRY *ne;
+	ASN1_OBJECT *obj;
+	ASN1_STRING *data;
+	const unsigned char *data_ptr;
+	int data_len;
 	int i, n, ln;
 	int l = 0;
 	const char *s;
 	char *p;
 	char tmp[128];
+	int name_count;
+
+
+	name_count = X509_NAME_entry_count(a);
 
 	out->len = 0;
 	p = out->str;
-	for (i = 0; i < sk_X509_NAME_ENTRY_num(a->entries); i++) {
-		ne = sk_X509_NAME_ENTRY_value(a->entries, i);
-		n = OBJ_obj2nid(ne->object);
+	for (i = 0; i < name_count; i++) {
+		ne = X509_NAME_get_entry(a, i);
+		obj = X509_NAME_ENTRY_get_object(ne);
+		data = X509_NAME_ENTRY_get_data(ne);
+		data_ptr = ASN1_STRING_get0_data(data);
+		data_len = ASN1_STRING_length(data);
+		n = OBJ_obj2nid(obj);
 		if ((n == NID_undef) || ((s = OBJ_nid2sn(n)) == NULL)) {
-			i2t_ASN1_OBJECT(tmp, sizeof(tmp), ne->object);
+			i2t_ASN1_OBJECT(tmp, sizeof(tmp), obj);
 			s = tmp;
 		}
 		ln = strlen(s);
 
-		l += 1 + ln + 1 + ne->value->length;
+		l += 1 + ln + 1 + data_len;
 		if (l > out->size)
 			return -1;
 		out->len = l;
@@ -4012,8 +4114,8 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 		memcpy(p, s, ln);
 		p += ln;
 		*(p++)='=';
-		memcpy(p, ne->value->data, ne->value->length);
-		p += ne->value->length;
+		memcpy(p, data_ptr, data_len);
+		p += data_len;
 	}
 
 	if (!out->len)
@@ -4540,6 +4642,7 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 {
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt;
+	__OPENSSL_110_CONST__ ASN1_OBJECT *algorithm;
 	int nid;
 	struct connection *conn;
 
@@ -4559,7 +4662,8 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 	if (!crt)
 		return 0;
 
-	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->signature->algorithm));
+	X509_ALGOR_get0(&algorithm, NULL, NULL, X509_get0_tbs_sigalg(crt));
+	nid = OBJ_obj2nid(algorithm);
 
 	smp->data.u.str.str = (char *)OBJ_nid2sn(nid);
 	if (!smp->data.u.str.str) {
@@ -4588,6 +4692,7 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 {
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt;
+	ASN1_OBJECT *algorithm;
 	int nid;
 	struct connection *conn;
 
@@ -4607,7 +4712,8 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 	if (!crt)
 		return 0;
 
-	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->key->algor->algorithm));
+	X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(crt));
+	nid = OBJ_obj2nid(algorithm);
 
 	smp->data.u.str.str = (char *)OBJ_nid2sn(nid);
 	if (!smp->data.u.str.str) {

@@ -27,6 +27,7 @@
 #include <ebmbtree.h>
 #include <types/global.h>
 #include "proto/shctx.h"
+#include <proto/openssl-compat.h>
 
 struct shsess_packet_hdr {
 	unsigned int eol;
@@ -390,16 +391,19 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	unsigned char encsess[sizeof(struct shsess_packet)+SHSESS_MAX_DATA_LEN];
 	struct shsess_packet *packet = (struct shsess_packet *)encsess;
 	unsigned char *p;
-	int data_len, sid_length, sid_ctx_length;
-
+	int data_len;
+	unsigned int sid_length, sid_ctx_length;
+	const unsigned char *sid_data;
+	const unsigned char *sid_ctx_data;
 
 	/* Session id is already stored in to key and session id is known
 	 * so we dont store it to keep size.
 	 */
-	sid_length = sess->session_id_length;
-	sess->session_id_length = 0;
-	sid_ctx_length = sess->sid_ctx_length;
-	sess->sid_ctx_length = 0;
+
+	sid_data = SSL_SESSION_get_id(sess, &sid_length);
+	sid_ctx_data = SSL_SESSION_get0_id_context(sess, &sid_ctx_length);
+	SSL_SESSION_set1_id(sess, sid_data, 0);
+	SSL_SESSION_set1_id_context(sess, sid_ctx_data, 0);
 
 	/* check if buffer is large enough for the ASN1 encoded session */
 	data_len = i2d_SSL_SESSION(sess, NULL);
@@ -410,7 +414,7 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	p = packet->data;
 	i2d_SSL_SESSION(sess, &p);
 
-	memcpy(packet->hdr.id, sess->session_id, sid_length);
+	memcpy(packet->hdr.id, sid_data, sid_length);
 	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
 		memset(&packet->hdr.id[sid_length], 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
@@ -423,14 +427,14 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 
 err:
 	/* reset original length values */
-	sess->session_id_length = sid_length;
-	sess->sid_ctx_length = sid_ctx_length;
+	SSL_SESSION_set1_id(sess, sid_data, sid_length);
+	SSL_SESSION_set1_id_context(sess, sid_ctx_data, sid_ctx_length);
 
 	return 0; /* do not increment session reference count */
 }
 
 /* SSL callback used on lookup an existing session cause none found in internal cache */
-SSL_SESSION *shctx_get_cb(SSL *ssl, unsigned char *key, int key_len, int *do_copy)
+SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, int key_len, int *do_copy)
 {
 	struct shared_session *shsess;
 	unsigned char data[SHSESS_MAX_DATA_LEN], *p;
@@ -503,10 +507,8 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, unsigned char *key, int key_len, int *do_cop
 	sess = d2i_SSL_SESSION(NULL, (const unsigned char **)&p, data_len);
 	/* Reset session id and session id contenxt */
 	if (sess) {
-		memcpy(sess->session_id, key, key_len);
-		sess->session_id_length = key_len;
-		memcpy(sess->sid_ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
-		sess->sid_ctx_length = ssl->sid_ctx_length;
+		SSL_SESSION_set1_id(sess, key, key_len);
+		SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 	}
 
 	return sess;
@@ -517,20 +519,22 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 {
 	struct shared_session *shsess;
 	unsigned char tmpkey[SSL_MAX_SSL_SESSION_ID_LENGTH];
-	unsigned char *key = sess->session_id;
+	unsigned int sid_length;
+	const unsigned char *sid_data;
 	(void)ctx;
 
+	sid_data = SSL_SESSION_get_id(sess, &sid_length);
 	/* tree key is zeros padded sessionid */
-	if (sess->session_id_length < SSL_MAX_SSL_SESSION_ID_LENGTH) {
-		memcpy(tmpkey, sess->session_id, sess->session_id_length);
-		memset(tmpkey+sess->session_id_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH - sess->session_id_length);
-		key = tmpkey;
+	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH) {
+		memcpy(tmpkey, sid_data, sid_length);
+		memset(tmpkey+sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH - sid_length);
+		sid_data = tmpkey;
 	}
 
 	shared_context_lock();
 
 	/* lookup for session */
-	shsess = shsess_tree_lookup(key);
+	shsess = shsess_tree_lookup(sid_data);
 	if (shsess) {
 		/* free session */
 		shsess_tree_delete(shsess);
