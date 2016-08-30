@@ -435,7 +435,7 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 			/* long header format : 14 bits for length + pad length */
 			rlen = ((data[0] & 0x3F) << 8) | data[1];
 			plen = data[2];
-			bleft -= 3; data += 2;
+			bleft -= 3; data += 3;
 		}
 
 		if (*data != 0x01)
