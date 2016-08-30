@@ -3112,9 +3112,6 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 	for (; appctx->ctx.server_state.sv != NULL; appctx->ctx.server_state.sv = srv->next) {
 		srv = appctx->ctx.server_state.sv;
 		srv_addr[0] = '\0';
-		srv_time_since_last_change = 0;
-		bk_f_forced_id = 0;
-		srv_f_forced_id = 0;
 
 		switch (srv->addr.ss_family) {
 			case AF_INET:
