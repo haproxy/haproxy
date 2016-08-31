@@ -1779,6 +1779,26 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					appctx->st0 = STAT_CLI_PRINT;
 				}
 			}
+			else if (strcmp(args[3], "check-port") == 0) {
+				int i = 0;
+				if (strl2irc(args[4], strlen(args[4]), &i) != 0) {
+					appctx->ctx.cli.msg = "'set server <srv> check-port' expects an integer as argument.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+				if ((i < 0) || (i > 65535)) {
+					appctx->ctx.cli.msg = "provided port is not valid.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+				/* prevent the update of port to 0 if MAPPORTS are in use */
+				if ((sv->flags & SRV_F_MAPPORTS) && (i == 0)) {
+					appctx->ctx.cli.msg = "can't unset 'port' since MAPPORTS is in use.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+				sv->check.port = i;
+				appctx->ctx.cli.msg = "health check port updated.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+			}
 			else if (strcmp(args[3], "addr") == 0) {
 				warning = server_parse_addr_change_request(sv, args[4], "stats command");
 				if (warning) {
@@ -1787,7 +1807,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 			}
 			else {
-				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight' and 'addr'.\n";
+				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr' and 'check-port'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 			}
 			return 1;

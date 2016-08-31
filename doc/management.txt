@@ -1595,6 +1595,9 @@ set server <backend>/<server> health [ up | stopping | down ]
   switch a server's state regardless of some slow health checks for example.
   Note that the change is propagated to tracking servers if any.
 
+set server <backend>/<server> check-port <port>
+  Change the port used for health checking to <port>
+
 set server <backend>/<server> state [ ready | drain | maint ]
   Force a server's administrative state to a new state. This can be useful to
   disable load balancing and/or any traffic to a server. Setting the state to
