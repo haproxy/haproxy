@@ -90,11 +90,13 @@ struct dns_header {
 } __attribute__ ((packed));
 
 /* short structure to describe a DNS question */
+/* NOTE: big endian structure */
 struct dns_question {
 	unsigned short	qtype;		/* question type */
 	unsigned short	qclass;		/* query class */
 };
 
+/* NOTE: big endian structure */
 struct dns_query_item {
 	struct list list;
 	char name[DNS_MAX_NAME_SIZE];		/* query name */
@@ -102,6 +104,7 @@ struct dns_query_item {
 	unsigned short class;			/* query class */
 };
 
+/* NOTE: big endian structure */
 struct dns_answer_item {
 	struct list list;
 	char *name;				/* answer name
