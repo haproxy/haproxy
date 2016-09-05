@@ -2964,6 +2964,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 		case DNS_RESP_TRUNCATED:
 		case DNS_RESP_ERROR:
 		case DNS_RESP_NO_EXPECTED_RECORD:
+		case DNS_RESP_CNAME_ERROR:
 			res_preferred_afinet = resolution->opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
 			res_preferred_afinet6 = resolution->opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
 
@@ -3022,9 +3023,6 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 				resolution->status = RSLV_STATUS_REFUSED;
 				resolution->last_status_change = now_ms;
 			}
-			break;
-
-		case DNS_RESP_CNAME_ERROR:
 			break;
 
 		case DNS_RESP_TIMEOUT:
