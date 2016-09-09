@@ -205,7 +205,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	case AF_INET6:
 		if (flags && ip6_transp_working) {
 			if (0
-#if defined(IPV6_TRANSPARENT)
+#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
 			    || (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
 #endif
 #if defined(IP_FREEBIND)
@@ -853,7 +853,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		break;
 		case AF_INET6:
 			if (1
-#if defined(IPV6_TRANSPARENT)
+#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
 			    && (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1)
 #endif
 #if defined(IP_FREEBIND)

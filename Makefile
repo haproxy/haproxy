@@ -307,7 +307,6 @@ ifeq ($(TARGET),osx)
   USE_POLL       = implicit
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
-  USE_LIBCRYPT   = implicit
 else
 ifeq ($(TARGET),openbsd)
   # This is for OpenBSD >= 3.0
