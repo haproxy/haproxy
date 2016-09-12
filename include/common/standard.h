@@ -1140,4 +1140,13 @@ static inline void *my_realloc2(void *ptr, size_t size)
 	return ret;
 }
 
+/* HAP_STRING() makes a string from a literal while HAP_XSTRING() first
+ * evaluates the argument and is suited to pass macros.
+ *
+ * They allow macros like PCRE_MAJOR to be defined without quotes, which
+ * is convenient for applications that want to test its value.
+ */
+#define HAP_STRING(...) #__VA_ARGS__
+#define HAP_XSTRING(...) HAP_STRING(__VA_ARGS__)
+
 #endif /* _COMMON_STANDARD_H */

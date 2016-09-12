@@ -352,6 +352,9 @@ void display_build_opts()
 #endif
 
 #ifdef USE_PCRE
+	printf("Built with PCRE version : %s\n", (HAP_XSTRING(Z PCRE_PRERELEASE)[1] == 0)?
+		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR PCRE_DATE) :
+		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR) HAP_XSTRING(PCRE_PRERELEASE PCRE_DATE));
 	printf("Running on PCRE version : %s", pcre_version());
 	printf("\nPCRE library supports JIT : ");
 #ifdef USE_PCRE_JIT
