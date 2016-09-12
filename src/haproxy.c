@@ -459,6 +459,9 @@ void usage(char *name)
 #if defined(USE_GETADDRINFO)
 		"        -dG disables getaddrinfo() usage\n"
 #endif
+#if defined(SO_REUSEPORT)
+		"        -dR disables SO_REUSEPORT usage\n"
+#endif
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"\n",
@@ -726,6 +729,9 @@ void init(int argc, char **argv)
 #if defined(USE_GETADDRINFO)
 	global.tune.options |= GTUNE_USE_GAI;
 #endif
+#if defined(SO_REUSEPORT)
+	global.tune.options |= GTUNE_USE_REUSEPORT;
+#endif
 
 	pid = getpid();
 	progname = *argv;
@@ -768,6 +774,10 @@ void init(int argc, char **argv)
 #if defined(USE_GETADDRINFO)
 			else if (*flag == 'd' && flag[1] == 'G')
 				global.tune.options &= ~GTUNE_USE_GAI;
+#endif
+#if defined(SO_REUSEPORT)
+			else if (*flag == 'd' && flag[1] == 'R')
+				global.tune.options &= ~GTUNE_USE_REUSEPORT;
 #endif
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;

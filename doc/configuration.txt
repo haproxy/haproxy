@@ -578,6 +578,7 @@ The following keywords are supported in the "global" section :
    - nopoll
    - nosplice
    - nogetaddrinfo
+   - noreuseport
    - spread-checks
    - server-state-base
    - server-state-file
@@ -1129,6 +1130,10 @@ nosplice
 nogetaddrinfo
   Disables the use of getaddrinfo(3) for name resolving. It is equivalent to
   the command line argument "-dG". Deprecated gethostbyname(3) will be used.
+
+noreuseport
+  Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
+  command line argument "-dR".
 
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending agent and health checks to

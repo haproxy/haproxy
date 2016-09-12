@@ -823,10 +823,10 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
 
 #ifdef SO_REUSEPORT
-	/* OpenBSD supports this. As it's present in old libc versions of Linux,
-	 * it might return an error that we will silently ignore.
+	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
+	 * Linux, it might return an error that we will silently ignore.
 	 */
-	if (!ext)
+	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 
