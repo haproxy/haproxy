@@ -352,7 +352,7 @@ void display_build_opts()
 #endif
 
 #ifdef USE_PCRE
-	printf("Built with PCRE version : %s", pcre_version());
+	printf("Running on PCRE version : %s", pcre_version());
 	printf("\nPCRE library supports JIT : ");
 #ifdef USE_PCRE_JIT
 	{
