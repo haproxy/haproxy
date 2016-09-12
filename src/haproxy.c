@@ -292,6 +292,7 @@ void display_build_opts()
 
 #ifdef USE_ZLIB
 	printf("Built with zlib version : " ZLIB_VERSION "\n");
+	printf("Running on zlib version : %s\n", zlibVersion());
 #elif defined(USE_SLZ)
 	printf("Built with libslz for stateless compression.\n");
 #else /* USE_ZLIB */
