@@ -10936,6 +10936,9 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   total concurrent connections. The limit will then reach 64k connections per
   server.
 
+  Since Linux 4.2/libc 2.23 IP_BIND_ADDRESS_NO_PORT is set for connections
+  specifying the source address without port(s).
+
   Supported in default-server: No
 
 ssl

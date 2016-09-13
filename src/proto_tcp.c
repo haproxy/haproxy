@@ -467,6 +467,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
+#ifdef IP_BIND_ADDRESS_NO_PORT
+			static int bind_address_no_port = 1;
+			setsockopt(fd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, (const void *) &bind_address_no_port, sizeof(int));
+#endif
 			ret = tcp_bind_socket(fd, flags, &src->source_addr, &conn->addr.from);
 			if (ret != 0)
 				conn->err_code = CO_ER_CANT_BIND;
