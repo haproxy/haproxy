@@ -229,6 +229,21 @@ static inline void srv_adm_set_ready(struct server *s)
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
 }
 
+/* appends an initaddr method to the existing list. Returns 0 on failure. */
+static inline int srv_append_initaddr(unsigned int *list, enum srv_initaddr addr)
+{
+	int shift = 0;
+
+	while (shift + 3 < 32 && (*list >> shift))
+		shift += 3;
+
+	if (shift + 3 > 32)
+		return 0;
+
+	*list |= addr << shift;
+	return 1;
+}
+
 #endif /* _PROTO_SERVER_H */
 
 /*

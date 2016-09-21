@@ -84,6 +84,20 @@ enum srv_admin {
 	SRV_ADMF_RMAINT    = 0x20,        /* the server is down because of an IP address resolution failure */
 };
 
+/* options for servers' "init-addr" parameter
+ * this parameter may be used to drive HAProxy's behavior when parsing a server
+ * address at start up time.
+ * These values are stored as a list into an integer ordered from first to last
+ * starting with the lowest to highest bits. SRV_IADDR_END (0) is used to
+ * indicate the end of the list. 3 bits are enough to store each value.
+ */
+enum srv_initaddr {
+	SRV_IADDR_END      = 0,           /* end of the list */
+	SRV_IADDR_NONE     = 1,           /* the server won't have any address at start up */
+	SRV_IADDR_LIBC     = 2,           /* address set using the libc DNS resolver */
+	SRV_IADDR_LAST     = 3,           /* we set the IP address found in state-file for this server */
+};
+
 /* server-state-file version */
 #define SRV_STATE_FILE_VERSION 1
 #define SRV_STATE_FILE_VERSION_MIN 1
@@ -231,6 +245,7 @@ struct server {
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_resolution *resolution;	/* server name resolution */
 	struct dns_options dns_opts;
+	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
 
 #ifdef USE_OPENSSL
 	int use_ssl;				/* ssl enabled */

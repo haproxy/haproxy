@@ -1113,6 +1113,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			       curproxy->defsrv.dns_opts.pref_net,
 			       sizeof(newsrv->dns_opts.pref_net));
 			newsrv->dns_opts.pref_net_nb = curproxy->defsrv.dns_opts.pref_net_nb;
+			newsrv->init_addr_methods = curproxy->defsrv.init_addr_methods;
+			newsrv->init_addr         = curproxy->defsrv.init_addr;
 
 			cur_arg = 3;
 		} else {
@@ -1159,6 +1161,40 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
 				newsrv->cookie = strdup(args[cur_arg + 1]);
 				newsrv->cklen = strlen(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "init-addr")) {
+				char *p, *end;
+				int done;
+
+				newsrv->init_addr_methods = 0;
+				memset(&newsrv->init_addr, 0, sizeof(newsrv->init_addr));
+
+				for (p = args[cur_arg + 1]; *p; p = end) {
+					/* cut on next comma */
+					for (end = p; *end && *end != ','; end++);
+					if (*end)
+						*(end++) = 0;
+
+					if (!strcmp(p, "libc")) {
+						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LIBC);
+					}
+					else if (!strcmp(p, "last")) {
+						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LAST);
+					}
+					else {
+						Alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last'.\n",
+							file, linenum, args[cur_arg], p);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					if (!done) {
+						Alert("parsing [%s:%d]: '%s' : too many init-addr methods when trying to add '%s'\n",
+							file, linenum, args[cur_arg], p);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "redir")) {
