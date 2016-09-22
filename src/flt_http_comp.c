@@ -177,15 +177,17 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 	}
 
 	if (msg->flags & HTTP_MSGF_TE_CHNK) {
-		int block = bi_contig_data(buf);
+		int block;
 
 		len = MIN(tmpbuf->size - buffer_len(tmpbuf), len);
-		if (len > block) {
-			memcpy(bi_end(tmpbuf), b_ptr(buf, *nxt), block);
-			memcpy(bi_end(tmpbuf)+block, buf->data, len - block);
-		}
-		else
-			memcpy(bi_end(tmpbuf), b_ptr(buf, *nxt), len);
+
+		b_adv(buf, *nxt);
+		block = bi_contig_data(buf);
+		memcpy(bi_end(tmpbuf), bi_ptr(buf), block);
+		if (len > block)
+			memcpy(bi_end(tmpbuf)+block, buf->data, len-block);
+		b_rew(buf, *nxt);
+
 		tmpbuf->i += len;
 		ret        = len;
 	}
