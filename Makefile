@@ -309,10 +309,11 @@ ifeq ($(TARGET),osx)
   USE_TPROXY     = implicit
 else
 ifeq ($(TARGET),openbsd)
-  # This is for OpenBSD >= 3.0
+  # This is for OpenBSD >= 5.7
   USE_POLL       = implicit
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
+  USE_ACCEPT4    = implicit
 else
 ifeq ($(TARGET),netbsd)
   # This is for NetBSD

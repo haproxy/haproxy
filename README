@@ -43,7 +43,7 @@ and assign it to the TARGET variable :
   - freebsd     for FreeBSD 5 to 10 (others untested)
   - netbsd      for NetBSD
   - osx         for Mac OS/X
-  - openbsd     for OpenBSD 3.1 and above
+  - openbsd     for OpenBSD 5.7 and above
   - aix51       for AIX 5.1
   - aix52       for AIX 5.2
   - cygwin      for Cygwin
