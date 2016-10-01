@@ -928,7 +928,7 @@ int dns_init_resolvers(void)
 
 	dns_trash_str = malloc(global.tune.bufsize);
 	if (dns_trash_str == NULL) {
-		Alert("Starting [%s] resolvers: out of memory.\n", curr_resolvers->id);
+		Alert("Starting resolvers: out of memory.\n");
 		return 0;
 	}
 
