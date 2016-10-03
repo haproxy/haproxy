@@ -167,6 +167,19 @@ smp_fetch_fe_id(const struct arg *args, struct sample *smp, const char *kw, void
 	return 1;
 }
 
+/* set temp integer to the number of HTTP requests per second reaching the frontend.
+ * Accepts exactly 1 argument. Argument is a frontend, other types will cause
+ * an undefined behaviour.
+ */
+static int
+smp_fetch_fe_req_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = read_freq_ctr(&args->data.prx->fe_req_per_sec);
+	return 1;
+}
+
 /* set temp integer to the number of connections per second reaching the frontend.
  * Accepts exactly 1 argument. Argument is a frontend, other types will cause
  * an undefined behaviour.
@@ -200,6 +213,7 @@ smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, vo
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "fe_conn",      smp_fetch_fe_conn,      ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "fe_id",        smp_fetch_fe_id,        0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "fe_req_rate",  smp_fetch_fe_req_rate,  ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "fe_sess_rate", smp_fetch_fe_sess_rate, ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};

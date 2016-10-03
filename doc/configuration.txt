@@ -12572,6 +12572,11 @@ fe_conn([<frontend>]) : integer
   statistics to servers in HTTP headers. See also the "dst_conn", "be_conn",
   "fe_sess_rate" fetches.
 
+fe_req_rate([<frontend>]) : integer
+  Returns an integer value corresponding to the number of HTTP requests per
+  second sent to a frontend. This number can differ from "fe_sess_rate" in
+  situations where client-side keep-alive is enabled.
+
 fe_sess_rate([<frontend>]) : integer
   Returns an integer value corresponding to the sessions creation rate on the
   frontend, in number of new sessions per second. This is used with ACLs to
