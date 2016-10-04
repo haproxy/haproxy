@@ -639,7 +639,7 @@ static void stats_dump_csv_header()
 
 /* print a string of text buffer to <out>. The format is :
  * Non-printable chars \t, \n, \r and \e are * encoded in C format.
- * Other non-printable chars are encoded "\xHH". Space and '\' are also escaped.
+ * Other non-printable chars are encoded "\xHH". Space, '\', and '=' are also escaped.
  * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
  */
 static int dump_text(struct chunk *out, const char *buf, int bsize)
@@ -649,12 +649,12 @@ static int dump_text(struct chunk *out, const char *buf, int bsize)
 
 	while (buf[ptr] && ptr < bsize) {
 		c = buf[ptr];
-		if (isprint(c) && isascii(c) && c != '\\' && c != ' ') {
+		if (isprint(c) && isascii(c) && c != '\\' && c != ' ' && c != '=') {
 			if (out->len > out->size - 1)
 				break;
 			out->str[out->len++] = c;
 		}
-		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ') {
+		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ' || c == '=') {
 			if (out->len > out->size - 2)
 				break;
 			out->str[out->len++] = '\\';
@@ -665,6 +665,7 @@ static int dump_text(struct chunk *out, const char *buf, int bsize)
 			case '\r': c = 'r'; break;
 			case '\e': c = 'e'; break;
 			case '\\': c = '\\'; break;
+			case '=': c = '='; break;
 			}
 			out->str[out->len++] = c;
 		}
