@@ -1704,6 +1704,8 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, 
 		int j, len;
 		len = strlen(name);
 		sc = malloc(sizeof(struct sni_ctx) + len + 1);
+		if (!sc)
+			return order;
 		for (j = 0; j < len; j++)
 			sc->name.key[j] = tolower(name[j]);
 		sc->name.key[len] = 0;
