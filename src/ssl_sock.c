@@ -1688,6 +1688,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, 
 {
 	struct sni_ctx *sc;
 	int wild = 0, neg = 0;
+	struct ebmb_node *node;
 
 	if (*name == '!') {
 		neg = 1;
@@ -1703,12 +1704,27 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, 
 	if (*name) {
 		int j, len;
 		len = strlen(name);
+		for (j = 0; j < len && j < trash.size; j++)
+			trash.str[j] = tolower(name[j]);
+		if (j >= trash.size)
+			return order;
+		trash.str[j] = 0;
+
+		/* Check for duplicates. */
+		if (wild)
+			node = ebst_lookup(&s->sni_w_ctx, trash.str);
+		else
+			node = ebst_lookup(&s->sni_ctx, trash.str);
+		for (; node; node = ebmb_next_dup(node)) {
+			sc = ebmb_entry(node, struct sni_ctx, name);
+			if (sc->ctx == ctx && sc->neg == neg)
+				return order;
+		}
+
 		sc = malloc(sizeof(struct sni_ctx) + len + 1);
 		if (!sc)
 			return order;
-		for (j = 0; j < len; j++)
-			sc->name.key[j] = tolower(name[j]);
-		sc->name.key[len] = 0;
+		memcpy(sc->name.key, trash.str, len + 1);
 		sc->ctx = ctx;
 		sc->order = order++;
 		sc->neg = neg;
