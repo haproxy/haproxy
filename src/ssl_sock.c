@@ -200,6 +200,27 @@ struct ocsp_cbk_arg {
 };
 
 /*
+ * This function gives the detail of the SSL error. It is used only
+ * if the debug mode and the verbose mode are activated. It dump all
+ * the SSL error until the stack was empty.
+ */
+static forceinline void ssl_sock_dump_errors(struct connection *conn)
+{
+	unsigned long ret;
+
+	if (unlikely(global.mode & MODE_DEBUG)) {
+		while(1) {
+			ret = ERR_get_error();
+			if (ret == 0)
+				return;
+			fprintf(stderr, "fd[%04x] OpenSSL error[0x%lx] %s: %s\n",
+			        (unsigned short)conn->t.sock.fd, ret,
+			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
+		}
+	}
+}
+
+/*
  *  This function returns the number of seconds  elapsed
  *  since the Epoch, 1970-01-01 00:00:00 +0000 (UTC) and the
  *  date presented un ASN1_GENERALIZEDTIME.
@@ -1014,6 +1035,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		}
 
 		if (objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err)) {
+			ssl_sock_dump_errors(conn);
 			ERR_clear_error();
 			return 1;
 		}
@@ -1027,6 +1049,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	/* check if certificate error needs to be ignored */
 	if (objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err)) {
+		ssl_sock_dump_errors(conn);
 		ERR_clear_error();
 		return 1;
 	}
@@ -3542,6 +3565,7 @@ reneg_ok:
 
  out_error:
 	/* Clear openssl global errors stack */
+	ssl_sock_dump_errors(conn);
 	ERR_clear_error();
 
 	/* free resumed session if exists */
@@ -3619,6 +3643,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 					conn->flags |= CO_FL_ERROR;
 
 				/* Clear openssl global errors stack */
+				ssl_sock_dump_errors(conn);
 				ERR_clear_error();
 			}
 			goto read0;
@@ -3653,6 +3678,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	return done;
  out_error:
 	/* Clear openssl global errors stack */
+	ssl_sock_dump_errors(conn);
 	ERR_clear_error();
 
 	conn->flags |= CO_FL_ERROR;
@@ -3749,6 +3775,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
  out_error:
 	/* Clear openssl global errors stack */
+	ssl_sock_dump_errors(conn);
 	ERR_clear_error();
 
 	conn->flags |= CO_FL_ERROR;
@@ -3774,6 +3801,7 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 	/* no handshake was in progress, try a clean ssl shutdown */
 	if (clean && (SSL_shutdown(conn->xprt_ctx) <= 0)) {
 		/* Clear openssl global errors stack */
+		ssl_sock_dump_errors(conn);
 		ERR_clear_error();
 	}
 
@@ -6021,6 +6049,9 @@ static void __ssl_sock_init(void)
 #ifndef OPENSSL_NO_DH
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 #endif
+
+	/* Load SSL string for the verbose & debug mode. */
+	ERR_load_SSL_strings();
 }
 
 __attribute__((destructor))
