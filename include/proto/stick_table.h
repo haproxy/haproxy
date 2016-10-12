@@ -42,6 +42,10 @@ int stktable_init(struct stktable *t);
 int stktable_parse_type(char **args, int *idx, unsigned long *type, size_t *key_size);
 struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key);
 struct stksess *stktable_store(struct stktable *t, struct stksess *ts, int local);
+struct stksess *stktable_store_with_exp(struct stktable *t, struct stksess *ts,
+                                        int local, int expire);
+struct stksess *stktable_touch_with_exp(struct stktable *t, struct stksess *ts,
+                                        int local, int expire);
 struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local);
 struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts);
 struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key);

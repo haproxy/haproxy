@@ -244,10 +244,11 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 /* Update the expiration timer for <ts> but do not touch its expiration node.
  * The table's expiration timer is updated if set.
  */
-struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local)
+struct stksess *stktable_touch_with_exp(struct stktable *t, struct stksess *ts,
+                                        int local, int expire)
 {
 	struct eb32_node * eb;
-	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	ts->expire = expire;
 	if (t->expire) {
 		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
 		task_queue(t->exp_task);
@@ -274,6 +275,17 @@ struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local
 	return ts;
 }
 
+/* Update the expiration timer for <ts> but do not touch its expiration node.
+ * The table's expiration timer is updated if set. The date of expiration coming from
+ * <t> stick-table configuration.
+ */
+struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local)
+{
+	int expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+
+	return stktable_touch_with_exp(t, ts, local, expire);
+}
+
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
  * yet exist (the caller must check this). The table's timeout is updated if it
  * is set. <ts> is returned.
@@ -282,6 +294,20 @@ struct stksess *stktable_store(struct stktable *t, struct stksess *ts, int local
 {
 	ebmb_insert(&t->keys, &ts->key, t->key_size);
 	stktable_touch(t, ts, local);
+	ts->exp.key = ts->expire;
+	eb32_insert(&t->exps, &ts->exp);
+	return ts;
+}
+
+/* Same function as stktable_store(), but with <expire> as supplementary argument
+ * to set the date of expiration of <ts> new sticky session thanks to
+ * stktable_touch_with_exp().
+ */
+struct stksess *stktable_store_with_exp(struct stktable *t, struct stksess *ts,
+                                        int local, int expire)
+{
+	ebmb_insert(&t->keys, &ts->key, t->key_size);
+	stktable_touch_with_exp(t, ts, local, expire);
 	ts->exp.key = ts->expire;
 	eb32_insert(&t->exps, &ts->exp);
 	return ts;
