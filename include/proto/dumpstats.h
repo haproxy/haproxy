@@ -407,6 +407,108 @@ int stats_emit_typed_data_field(struct chunk *out, const struct field *f);
 int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim);
 
 
+struct cli_kw {
+	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
+				 separated keywords combination */
+	const char *usage;   /* usage message */
+	int (*parse)(char **args, struct appctx *appctx);
+	int (*io_handler)(struct appctx *appctx);
+};
+
+struct cli_kw_list {
+	struct list list;
+	struct cli_kw kw[VAR_ARRAY];
+};
+
+struct cli_kw* cli_find_kw(char **args);
+void cli_register_kw(struct cli_kw_list *kw_list);
+
+/* stats socket states */
+enum {
+	STAT_CLI_INIT = 0,   /* initial state, must leave to zero ! */
+	STAT_CLI_END,        /* final state, let's close */
+	STAT_CLI_GETREQ,     /* wait for a request */
+	STAT_CLI_OUTPUT,     /* all states after this one are responses */
+	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
+	STAT_CLI_PRINT,      /* display message in cli->msg */
+	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
+	STAT_CLI_O_INFO,     /* dump info */
+	STAT_CLI_O_SESS,     /* dump streams */
+	STAT_CLI_O_ERR,      /* dump errors */
+	STAT_CLI_O_TAB,      /* dump tables */
+	STAT_CLI_O_CLR,      /* clear tables */
+	STAT_CLI_O_SET,      /* set entries in tables */
+	STAT_CLI_O_STAT,     /* dump stats */
+	STAT_CLI_O_PATS,     /* list all pattern reference available */
+	STAT_CLI_O_PAT,      /* list all entries of a pattern */
+	STAT_CLI_O_MLOOK,    /* lookup a map entry */
+	STAT_CLI_O_POOLS,    /* dump memory pools */
+	STAT_CLI_O_TLSK,     /* list all TLS ticket keys references */
+	STAT_CLI_O_TLSK_ENT, /* list all TLS ticket keys entries for a reference */
+	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
+	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
+	STAT_CLI_O_BACKEND,  /* dump backend list */
+	STAT_CLI_O_ENV,      /* dump environment */
+	STAT_CLI_O_CUSTOM,   /* custom callback pointer */
+};
+
+/* Actions available for the stats admin forms */
+enum {
+	ST_ADM_ACTION_NONE = 0,
+
+	/* enable/disable health checks */
+	ST_ADM_ACTION_DHLTH,
+	ST_ADM_ACTION_EHLTH,
+
+	/* force health check status */
+	ST_ADM_ACTION_HRUNN,
+	ST_ADM_ACTION_HNOLB,
+	ST_ADM_ACTION_HDOWN,
+
+	/* enable/disable agent checks */
+	ST_ADM_ACTION_DAGENT,
+	ST_ADM_ACTION_EAGENT,
+
+	/* force agent check status */
+	ST_ADM_ACTION_ARUNN,
+	ST_ADM_ACTION_ADOWN,
+
+	/* set admin state */
+	ST_ADM_ACTION_READY,
+	ST_ADM_ACTION_DRAIN,
+	ST_ADM_ACTION_MAINT,
+	ST_ADM_ACTION_SHUTDOWN,
+	/* these are the ancient actions, still available for compatibility */
+	ST_ADM_ACTION_DISABLE,
+	ST_ADM_ACTION_ENABLE,
+	ST_ADM_ACTION_STOP,
+	ST_ADM_ACTION_START,
+};
+
+
+/* data transmission states for the stats responses */
+enum {
+	STAT_ST_INIT = 0,
+	STAT_ST_HEAD,
+	STAT_ST_INFO,
+	STAT_ST_LIST,
+	STAT_ST_END,
+	STAT_ST_FIN,
+};
+
+/* data transmission states for the stats responses inside a proxy */
+enum {
+	STAT_PX_ST_INIT = 0,
+	STAT_PX_ST_TH,
+	STAT_PX_ST_FE,
+	STAT_PX_ST_LI,
+	STAT_PX_ST_SV,
+	STAT_PX_ST_BE,
+	STAT_PX_ST_END,
+	STAT_PX_ST_FIN,
+};
+
+
 #endif /* _PROTO_DUMPSTATS_H */
 
 /*

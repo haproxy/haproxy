@@ -70,68 +70,6 @@
 #include <types/ssl_sock.h>
 #endif
 
-/* stats socket states */
-enum {
-	STAT_CLI_INIT = 0,   /* initial state, must leave to zero ! */
-	STAT_CLI_END,        /* final state, let's close */
-	STAT_CLI_GETREQ,     /* wait for a request */
-	STAT_CLI_OUTPUT,     /* all states after this one are responses */
-	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
-	STAT_CLI_PRINT,      /* display message in cli->msg */
-	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
-	STAT_CLI_O_INFO,     /* dump info */
-	STAT_CLI_O_SESS,     /* dump streams */
-	STAT_CLI_O_ERR,      /* dump errors */
-	STAT_CLI_O_TAB,      /* dump tables */
-	STAT_CLI_O_CLR,      /* clear tables */
-	STAT_CLI_O_SET,      /* set entries in tables */
-	STAT_CLI_O_STAT,     /* dump stats */
-	STAT_CLI_O_PATS,     /* list all pattern reference available */
-	STAT_CLI_O_PAT,      /* list all entries of a pattern */
-	STAT_CLI_O_MLOOK,    /* lookup a map entry */
-	STAT_CLI_O_POOLS,    /* dump memory pools */
-	STAT_CLI_O_TLSK,     /* list all TLS ticket keys references */
-	STAT_CLI_O_TLSK_ENT, /* list all TLS ticket keys entries for a reference */
-	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
-	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
-	STAT_CLI_O_BACKEND,  /* dump backend list */
-	STAT_CLI_O_ENV,      /* dump environment */
-};
-
-/* Actions available for the stats admin forms */
-enum {
-	ST_ADM_ACTION_NONE = 0,
-
-	/* enable/disable health checks */
-	ST_ADM_ACTION_DHLTH,
-	ST_ADM_ACTION_EHLTH,
-
-	/* force health check status */
-	ST_ADM_ACTION_HRUNN,
-	ST_ADM_ACTION_HNOLB,
-	ST_ADM_ACTION_HDOWN,
-
-	/* enable/disable agent checks */
-	ST_ADM_ACTION_DAGENT,
-	ST_ADM_ACTION_EAGENT,
-
-	/* force agent check status */
-	ST_ADM_ACTION_ARUNN,
-	ST_ADM_ACTION_ADOWN,
-
-	/* set admin state */
-	ST_ADM_ACTION_READY,
-	ST_ADM_ACTION_DRAIN,
-	ST_ADM_ACTION_MAINT,
-	ST_ADM_ACTION_SHUTDOWN,
-	/* these are the ancient actions, still available for compatibility */
-	ST_ADM_ACTION_DISABLE,
-	ST_ADM_ACTION_ENABLE,
-	ST_ADM_ACTION_STOP,
-	ST_ADM_ACTION_START,
-};
-
-
 /* These are the field names for each INF_* field position. Please pay attention
  * to always use the exact same name except that the strings for new names must
  * be lower case or CamelCase while the enum entries must be upper case.
@@ -388,29 +326,83 @@ static const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
 
-/* data transmission states for the stats responses */
-enum {
-	STAT_ST_INIT = 0,
-	STAT_ST_HEAD,
-	STAT_ST_INFO,
-	STAT_ST_LIST,
-	STAT_ST_END,
-	STAT_ST_FIN,
-};
 
-/* data transmission states for the stats responses inside a proxy */
-enum {
-	STAT_PX_ST_INIT = 0,
-	STAT_PX_ST_TH,
-	STAT_PX_ST_FE,
-	STAT_PX_ST_LI,
-	STAT_PX_ST_SV,
-	STAT_PX_ST_BE,
-	STAT_PX_ST_END,
-	STAT_PX_ST_FIN,
+static char *dynamic_usage_msg = NULL;
+
+/* List head of cli keywords */
+struct cli_kw_list cli_keywords = {
+	.list = LIST_HEAD_INIT(cli_keywords.list)
 };
 
 extern const char *stat_status_codes[];
+
+char *cli_gen_usage_msg()
+{
+	struct cli_kw_list *kw_list;
+	struct cli_kw *kw;
+	struct chunk *tmp = get_trash_chunk();
+	struct chunk out;
+
+	free(dynamic_usage_msg);
+	dynamic_usage_msg = NULL;
+
+	if (LIST_ISEMPTY(&cli_keywords.list))
+		return NULL;
+
+	chunk_reset(tmp);
+	chunk_strcat(tmp, stats_sock_usage_msg);
+	list_for_each_entry(kw_list, &cli_keywords.list, list) {
+		kw = &kw_list->kw[0];
+		while (kw->usage) {
+			chunk_appendf(tmp, "  %s\n", kw->usage);
+			kw++;
+		}
+	}
+	chunk_init(&out, NULL, 0);
+	chunk_dup(&out, tmp);
+	dynamic_usage_msg = out.str;
+	return dynamic_usage_msg;
+}
+
+struct cli_kw* cli_find_kw(char **args)
+{
+	struct cli_kw_list *kw_list;
+	struct cli_kw *kw;/* current cli_kw */
+	char **tmp_args;
+	const char **tmp_str_kw;
+	int found = 0;
+
+	if (LIST_ISEMPTY(&cli_keywords.list))
+		return NULL;
+
+	list_for_each_entry(kw_list, &cli_keywords.list, list) {
+		kw = &kw_list->kw[0];
+		while (*kw->str_kw) {
+			tmp_args = args;
+			tmp_str_kw = kw->str_kw;
+			while (*tmp_str_kw) {
+				if (strcmp(*tmp_str_kw, *tmp_args) == 0) {
+					found = 1;
+				} else {
+					found = 0;
+					break;
+				}
+				tmp_args++;
+				tmp_str_kw++;
+			}
+			if (found)
+				return (kw);
+			kw++;
+		}
+	}
+	return NULL;
+}
+
+void cli_register_kw(struct cli_kw_list *kw_list)
+{
+	LIST_ADDQ(&cli_keywords.list, &kw_list->list);
+}
+
 
 /* allocate a new stats frontend named <name>, and return it
  * (or NULL in case of lack of memory).
@@ -1260,6 +1252,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	struct stream *s = si_strm(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
+	struct cli_kw *kw;
 	int arg;
 	int i, j;
 
@@ -1308,7 +1301,14 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = 0;
-	if (strcmp(args[0], "show") == 0) {
+	if ((kw = cli_find_kw(args))) {
+		if (kw->parse) {
+			if (kw->parse(args, appctx) == 0 && kw->io_handler) {
+				appctx->st0 = STAT_CLI_O_CUSTOM;
+				appctx->io_handler = kw->io_handler;
+			}
+		}
+	} else if (strcmp(args[0], "show") == 0) {
 		if (strcmp(args[1], "backend") == 0) {
 			appctx->ctx.be.px = NULL;
 			appctx->st2 = STAT_ST_INIT;
@@ -2729,7 +2729,11 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st1 = !appctx->st1;
 				else if (strcmp(trash.str, "help") == 0 ||
 					 !stats_sock_parse_request(si, trash.str)) {
-					appctx->ctx.cli.msg = stats_sock_usage_msg;
+					cli_gen_usage_msg();
+					if (dynamic_usage_msg)
+						appctx->ctx.cli.msg = dynamic_usage_msg;
+					else
+						appctx->ctx.cli.msg = stats_sock_usage_msg;
 					appctx->st0 = STAT_CLI_PRINT;
 				}
 				/* NB: stats_sock_parse_request() may have put
@@ -2741,7 +2745,11 @@ static void cli_io_handler(struct appctx *appctx)
 				 * so that the user at least knows how to enable
 				 * prompt and find help.
 				 */
-				appctx->ctx.cli.msg = stats_sock_usage_msg;
+				cli_gen_usage_msg();
+				if (dynamic_usage_msg)
+					appctx->ctx.cli.msg = dynamic_usage_msg;
+				else
+					appctx->ctx.cli.msg = stats_sock_usage_msg;
 				appctx->st0 = STAT_CLI_PRINT;
 			}
 
@@ -2829,6 +2837,11 @@ static void cli_io_handler(struct appctx *appctx)
 			case STAT_CLI_O_ENV:	/* environment dump */
 				if (stats_dump_env_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_O_CUSTOM: /* use custom pointer */
+				if (appctx->io_handler)
+					if (appctx->io_handler(appctx))
+						appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
 				si->flags |= SI_FL_ERR;

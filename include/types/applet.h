@@ -54,6 +54,8 @@ struct appctx {
 	struct applet *applet;     /* applet this context refers to */
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
 	struct act_rule *rule;     /* rule associated with the applet. */
+	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = STAT_CLI_O_CUSTOM */
+	void *private;
 
 	union {
 		struct {
