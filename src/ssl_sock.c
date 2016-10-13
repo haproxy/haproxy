@@ -1830,7 +1830,11 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 	}
 
 	/* Seek back to beginning of file */
-	BIO_reset(in);
+	if (BIO_reset(in) == -1) {
+		memprintf(err, "%san error occurred while reading the file '%s'.\n",
+		          err && *err ? *err : "", path);
+		goto end;
+	}
 
 	/* Read Certificate */
 	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
