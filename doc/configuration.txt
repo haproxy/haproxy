@@ -3851,7 +3851,8 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
          http-request set-src hdr(x-forwarded-for)
          http-request set-src src,ipmask(24)
 
-      When set-src is successful, the source port is set to 0.
+      When possible, set-src preserves the original source port as long as the
+      address family allows it, otherwise the source port is set to 0.
 
     - set-src-port <expr> :
       Is used to set the source port address to the value of specified
@@ -3865,8 +3866,9 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
          http-request set-src-port hdr(x-port)
          http-request set-src-port int(4000)
 
-      Be careful to use "set-src-port" after "set-src", because "set-src" sets
-      the source port to 0.
+      When possible, set-src-port preserves the original source address as long
+      as the address family supports a port, otherwise it forces the source
+      address to IPv4 "0.0.0.0" before rewriting the port.
 
     - set-dst <expr> :
       Is used to set the destination IP address to the value of specified
@@ -3883,6 +3885,9 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
          http-request set-dst hdr(x-dst)
          http-request set-dst dst,ipmask(24)
 
+      When possible, set-dst preserves the original destination port as long as
+      the address family allows it, otherwise the destination port is set to 0.
+
     - set-dst-port <expr> :
       Is used to set the destination port address to the value of specified
       expression. If you want to connect to the new address/port, use
@@ -3895,6 +3900,10 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
 
          http-request set-dst-port hdr(x-port)
          http-request set-dst-port int(4000)
+
+      When possible, set-dst-port preserves the original destination address as
+      long as the address family supports a port, otherwise it forces the
+      destination address to IPv4 "0.0.0.0" before rewriting the port.
 
     - "silent-drop" : this stops the evaluation of the rules and makes the
       client-facing connection suddenly disappear using a system-dependant way

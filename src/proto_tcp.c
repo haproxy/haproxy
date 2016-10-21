@@ -1438,7 +1438,9 @@ int tcp_exec_req_rules(struct session *sess)
 }
 
 /*
- * Execute the "set-src" action. May be called from {tcp,http}request
+ * Execute the "set-src" action. May be called from {tcp,http}request.
+ * It only changes the address and tries to preserve the original port. If the
+ * previous family was neither AF_INET nor AF_INET6, the port is set to zero.
  */
 enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
@@ -1450,14 +1452,16 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
 		if (smp) {
+			int port = get_net_port(&cli_conn->addr.from);
+
 			if (smp->data.type == SMP_T_IPV4) {
 				((struct sockaddr_in *)&cli_conn->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = 0;
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = port;
 			} else if (smp->data.type == SMP_T_IPV6) {
 				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_family = AF_INET6;
 				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = 0;
+				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = port;
 			}
 		}
 		cli_conn->flags |= CO_FL_ADDR_FROM_SET;
@@ -1466,7 +1470,9 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 }
 
 /*
- * Execute the "set-dst" action. May be called from {tcp,http}request
+ * Execute the "set-dst" action. May be called from {tcp,http}request.
+ * It only changes the address and tries to preserve the original port. If the
+ * previous family was neither AF_INET nor AF_INET6, the port is set to zero.
  */
 enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
@@ -1478,13 +1484,15 @@ enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
 		if (smp) {
+			int port = get_net_port(&cli_conn->addr.to);
+
 			if (smp->data.type == SMP_T_IPV4) {
 				((struct sockaddr_in *)&cli_conn->addr.to)->sin_family = AF_INET;
 				((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
 			} else if (smp->data.type == SMP_T_IPV6) {
 				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_family = AF_INET6;
 				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = 0;
+				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = port;
 			}
 			cli_conn->flags |= CO_FL_ADDR_TO_SET;
 		}
@@ -1493,8 +1501,10 @@ enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
 }
 
 /*
- * Execute the "set-src-port" action. May be called from {tcp,http}request
- * We must test the sin_family before setting the port
+ * Execute the "set-src-port" action. May be called from {tcp,http}request.
+ * We must test the sin_family before setting the port. If the address family
+ * is neither AF_INET nor AF_INET6, the address is forced to AF_INET "0.0.0.0"
+ * and the port is assigned.
  */
 enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
@@ -1508,10 +1518,14 @@ enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy 
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
-			if (((struct sockaddr_storage *)&cli_conn->addr.from)->ss_family == AF_INET) {
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
-			} else if (((struct sockaddr_storage *)&cli_conn->addr.from)->ss_family == AF_INET6) {
+			if (cli_conn->addr.from.ss_family == AF_INET6) {
 				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			} else {
+				if (cli_conn->addr.from.ss_family != AF_INET) {
+					cli_conn->addr.from.ss_family = AF_INET;
+					((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = 0;
+				}
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
 			}
 		}
 	}
@@ -1519,8 +1533,10 @@ enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy 
 }
 
 /*
- * Execute the "set-dst-port" action. May be called from {tcp,http}request
- * We must test the sin_family before setting the port
+ * Execute the "set-dst-port" action. May be called from {tcp,http}request.
+ * We must test the sin_family before setting the port. If the address family
+ * is neither AF_INET nor AF_INET6, the address is forced to AF_INET "0.0.0.0"
+ * and the port is assigned.
  */
 enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
@@ -1534,10 +1550,14 @@ enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy 
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
-			if (((struct sockaddr_storage *)&cli_conn->addr.to)->ss_family == AF_INET) {
-				((struct sockaddr_in *)&cli_conn->addr.to)->sin_port = htons(smp->data.u.sint);
-			} else if (((struct sockaddr_storage *)&cli_conn->addr.to)->ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = htons(smp->data.u.sint);
+			if (cli_conn->addr.from.ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			} else {
+				if (cli_conn->addr.from.ss_family != AF_INET) {
+					cli_conn->addr.from.ss_family = AF_INET;
+					((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = 0;
+				}
+				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
 			}
 		}
 	}
