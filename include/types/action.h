@@ -29,6 +29,7 @@
 
 enum act_from {
 	ACT_F_TCP_REQ_CON, /* tcp-request connection */
+	ACT_F_TCP_REQ_SES, /* tcp-request session */
 	ACT_F_TCP_REQ_CNT, /* tcp-request content */
 	ACT_F_TCP_RES_CNT, /* tcp-response content */
 	ACT_F_HTTP_REQ,    /* http-request */

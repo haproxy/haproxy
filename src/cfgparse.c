@@ -358,6 +358,19 @@ int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args
 	return alertif_too_many_args_idx(maxarg, 0, file, linenum, args, err_code);
 }
 
+/* Report a warning if a rule is placed after a 'tcp-request session' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->tcp_req.l5_rules)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'tcp-request session' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
 /* Report a warning if a rule is placed after a 'tcp-request content' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -464,6 +477,19 @@ int warnif_rule_after_use_server(struct proxy *proxy, const char *file, int line
 
 /* report a warning if a "tcp request connection" rule is dangerously placed */
 int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	return	warnif_rule_after_tcp_sess(proxy, file, line, arg) ||
+		warnif_rule_after_tcp_cont(proxy, file, line, arg) ||
+		warnif_rule_after_block(proxy, file, line, arg) ||
+		warnif_rule_after_http_req(proxy, file, line, arg) ||
+		warnif_rule_after_reqxxx(proxy, file, line, arg) ||
+		warnif_rule_after_reqadd(proxy, file, line, arg) ||
+		warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
+}
+
+int warnif_misplaced_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_tcp_cont(proxy, file, line, arg) ||
 		warnif_rule_after_block(proxy, file, line, arg) ||
@@ -7810,6 +7836,45 @@ int check_config_validity()
 			}
 		}
 
+		/* find the target table for 'tcp-request' layer 5 rules */
+		list_for_each_entry(trule, &curproxy->tcp_req.l5_rules, list) {
+			struct proxy *target;
+
+			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
+				continue;
+
+			if (trule->arg.trk_ctr.table.n)
+				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
+			else
+				target = curproxy;
+
+			if (!target) {
+				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
+				      curproxy->id, trule->arg.trk_ctr.table.n,
+				      tcp_trk_idx(trule->action));
+				cfgerr++;
+			}
+			else if (target->table.size == 0) {
+				Alert("Proxy '%s': table '%s' used but not configured.\n",
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
+				cfgerr++;
+			}
+			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
+				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
+				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
+				      tcp_trk_idx(trule->action));
+				cfgerr++;
+			}
+			else {
+				free(trule->arg.trk_ctr.table.n);
+				trule->arg.trk_ctr.table.t = &target->table;
+				/* Note: if we decide to enhance the track-sc syntax, we may be able
+				 * to pass a list of counters to track and allocate them right here using
+				 * stktable_alloc_data_type().
+				 */
+			}
+		}
+
 		/* find the target table for 'tcp-request' layer 6 rules */
 		list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
 			struct proxy *target;
@@ -8829,6 +8894,9 @@ out_uri_auth_compat:
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
 				listener->options |= LI_O_TCP_L4_RULES;
+
+			if (!LIST_ISEMPTY(&curproxy->tcp_req.l5_rules))
+				listener->options |= LI_O_TCP_L5_RULES;
 
 			if (curproxy->mon_mask.s_addr)
 				listener->options |= LI_O_CHK_MONNET;

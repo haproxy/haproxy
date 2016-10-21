@@ -267,6 +267,10 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (sess->fe->to_log & LW_XPRT)
 		cli_conn->flags |= CO_FL_XPRT_TRACKED;
 
+	/* we may have some tcp-request-session rules */
+	if ((l->options & LI_O_TCP_L5_RULES) && !tcp_exec_l5_rules(sess))
+		goto out_free_sess;
+
 	session_count_new(sess);
 	strm = stream_new(sess, t, &cli_conn->obj_type);
 	if (!strm)
@@ -434,6 +438,10 @@ static int conn_complete_session(struct connection *conn)
 	/* if logs require transport layer information, note it on the connection */
 	if (sess->fe->to_log & LW_XPRT)
 		conn->flags |= CO_FL_XPRT_TRACKED;
+
+	/* we may have some tcp-request-session rules */
+	if ((sess->listener->options & LI_O_TCP_L5_RULES) && !tcp_exec_l5_rules(sess))
+		goto fail;
 
 	session_count_new(sess);
 	task->process = sess->listener->handler;

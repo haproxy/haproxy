@@ -269,6 +269,7 @@ struct proxy {
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
 		struct list l4_rules;           /* layer4 rules */
+		struct list l5_rules;           /* layer5 rules */
 	} tcp_req;
 	struct {                                /* TCP request processing */
 		unsigned int inspect_delay;     /* inspection delay */

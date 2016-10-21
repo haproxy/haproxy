@@ -359,7 +359,7 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 	return 1;
 }
 
-/* Returns 0 if fails, else returns 1. */
+/* Returns 0 if fails, else returns 1. Note that stream may be null for SCOPE_SESS. */
 static inline int sample_store_stream(const char *name, enum vars_scope scope, struct sample *smp)
 {
 	struct vars *vars;
@@ -504,6 +504,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	int dir;
 
 	switch (rule->from) {
+	case ACT_F_TCP_REQ_SES: dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_TCP_REQ_CNT: dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_TCP_RES_CNT: dir = SMP_OPT_DIR_RES; break;
 	case ACT_F_HTTP_REQ:    dir = SMP_OPT_DIR_REQ; break;
@@ -587,6 +588,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		return ACT_RET_PRS_ERR;
 
 	switch (rule->from) {
+	case ACT_F_TCP_REQ_SES: flags = SMP_VAL_FE_SES_ACC; break;
 	case ACT_F_TCP_REQ_CNT: flags = SMP_VAL_FE_REQ_CNT; break;
 	case ACT_F_TCP_RES_CNT: flags = SMP_VAL_BE_RES_CNT; break;
 	case ACT_F_HTTP_REQ:    flags = SMP_VAL_FE_HRQ_HDR; break;
@@ -663,7 +665,12 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ /* END */ },
 }};
 
-static struct action_kw_list tcp_req_kws = { { }, {
+static struct action_kw_list tcp_req_sess_kws = { { }, {
+	{ "set-var", parse_store, 1 },
+	{ /* END */ }
+}};
+
+static struct action_kw_list tcp_req_cont_kws = { { }, {
 	{ "set-var", parse_store, 1 },
 	{ /* END */ }
 }};
@@ -698,7 +705,8 @@ static void __http_protocol_init(void)
 
 	sample_register_fetches(&sample_fetch_keywords);
 	sample_register_convs(&sample_conv_kws);
-	tcp_req_cont_keywords_register(&tcp_req_kws);
+	tcp_req_sess_keywords_register(&tcp_req_sess_kws);
+	tcp_req_cont_keywords_register(&tcp_req_cont_kws);
 	tcp_res_cont_keywords_register(&tcp_res_kws);
 	http_req_keywords_register(&http_req_kws);
 	http_res_keywords_register(&http_res_kws);

@@ -737,6 +737,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_req.inspect_rules);
 	LIST_INIT(&p->tcp_rep.inspect_rules);
 	LIST_INIT(&p->tcp_req.l4_rules);
+	LIST_INIT(&p->tcp_req.l5_rules);
 	LIST_INIT(&p->req_add);
 	LIST_INIT(&p->rsp_add);
 	LIST_INIT(&p->listener_queue);

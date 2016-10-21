@@ -70,6 +70,7 @@ static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen
 
 /* List head of all known action keywords for "tcp-request connection" */
 struct list tcp_req_conn_keywords = LIST_HEAD_INIT(tcp_req_conn_keywords);
+struct list tcp_req_sess_keywords = LIST_HEAD_INIT(tcp_req_sess_keywords);
 struct list tcp_req_cont_keywords = LIST_HEAD_INIT(tcp_req_cont_keywords);
 struct list tcp_res_cont_keywords = LIST_HEAD_INIT(tcp_res_cont_keywords);
 
@@ -127,6 +128,11 @@ void tcp_req_conn_keywords_register(struct action_kw_list *kw_list)
 	LIST_ADDQ(&tcp_req_conn_keywords, &kw_list->list);
 }
 
+void tcp_req_sess_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_req_sess_keywords, &kw_list->list);
+}
+
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&tcp_req_cont_keywords, &kw_list->list);
@@ -138,11 +144,16 @@ void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
 }
 
 /*
- * Return the struct http_req_action_kw associated to a keyword.
+ * Return the struct tcp_req_action_kw associated to a keyword.
  */
 static struct action_kw *tcp_req_conn_action(const char *kw)
 {
 	return action_lookup(&tcp_req_conn_keywords, kw);
+}
+
+static struct action_kw *tcp_req_sess_action(const char *kw)
+{
+	return action_lookup(&tcp_req_sess_keywords, kw);
 }
 
 static struct action_kw *tcp_req_cont_action(const char *kw)
@@ -1437,6 +1448,85 @@ int tcp_exec_l4_rules(struct session *sess)
 	return result;
 }
 
+/* This function performs the TCP layer5 analysis on the current request. It
+ * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
+ * matches or if no more rule matches. It can only use rules which don't need
+ * any data. This only works on session-based client-facing stream interfaces.
+ * An example of valid use case is to track a stick-counter on the source
+ * address extracted from the proxy protocol.
+ */
+int tcp_exec_l5_rules(struct session *sess)
+{
+	struct act_rule *rule;
+	struct stksess *ts;
+	struct stktable *t = NULL;
+	int result = 1;
+	enum acl_test_res ret;
+
+	list_for_each_entry(rule, &sess->fe->tcp_req.l5_rules, list) {
+		ret = ACL_TEST_PASS;
+
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* we have a matching rule. */
+			if (rule->action == ACT_ACTION_ALLOW) {
+				break;
+			}
+			else if (rule->action == ACT_ACTION_DENY) {
+				sess->fe->fe_counters.denied_sess++;
+				if (sess->listener->counters)
+					sess->listener->counters->denied_sess++;
+
+				result = 0;
+				break;
+			}
+			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
+				/* Note: only the first valid tracking parameter of each
+				 * applies.
+				 */
+				struct stktable_key *key;
+
+				if (stkctr_entry(&sess->stkctr[tcp_trk_idx(rule->action)]))
+					continue;
+
+				t = rule->arg.trk_ctr.table.t;
+				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
+
+				if (key && (ts = stktable_get_entry(t, key)))
+					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
+			}
+			else {
+				/* Custom keywords. */
+				if (!rule->action_ptr)
+					break;
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
+				case ACT_RET_YIELD:
+					/* yield is not allowed at this point. If this return code is
+					 * used it is a bug, so I prefer to abort the process.
+					 */
+					send_log(sess->fe, LOG_WARNING,
+					         "Internal error: yield not allowed with tcp-request session actions.");
+				case ACT_RET_STOP:
+					break;
+				case ACT_RET_CONT:
+					continue;
+				case ACT_RET_ERR:
+					result = 0;
+					break;
+				}
+				break; /* ACT_RET_STOP */
+			}
+		}
+	}
+	return result;
+}
+
 /*
  * Execute the "set-src" action. May be called from {tcp,http}request.
  * It only changes the address and tries to preserve the original port. If the
@@ -1885,6 +1975,11 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			kw = tcp_req_conn_action(args[arg]);
 			rule->kw = kw;
 			rule->from = ACT_F_TCP_REQ_CON;
+		} else if (where & SMP_VAL_FE_SES_ACC) {
+			/* L5 */
+			kw = tcp_req_sess_action(args[arg]);
+			rule->kw = kw;
+			rule->from = ACT_F_TCP_REQ_SES;
 		} else {
 			/* L6 */
 			kw = tcp_req_cont_action(args[arg]);
@@ -1898,6 +1993,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		} else {
 			if (where & SMP_VAL_FE_CON_ACC)
 				action_build_list(&tcp_req_conn_keywords, &trash);
+			else if (where & SMP_VAL_FE_SES_ACC)
+				action_build_list(&tcp_req_sess_keywords, &trash);
 			else
 				action_build_list(&tcp_req_cont_keywords, &trash);
 			memprintf(err,
@@ -2173,6 +2270,50 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		/* the following function directly emits the warning */
 		warnif_misplaced_tcp_conn(curpx, file, line, args[0]);
 		LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
+	}
+	else if (strcmp(args[1], "session") == 0) {
+		arg++;
+
+		if (!(curpx->cap & PR_CAP_FE)) {
+			memprintf(err, "%s %s is not allowed because %s %s is not a frontend",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
+			goto error;
+		}
+
+		where |= SMP_VAL_FE_SES_ACC;
+
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
+			goto error;
+
+		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
+		if (acl) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' will never match in '%s %s' because it only involves keywords that are incompatible with '%s'",
+					  acl->name, args[0], args[1], sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
+					  args[0], args[1],
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw,
+					  sample_ckp_names(where));
+			warn++;
+		}
+		else if (rule->cond && acl_cond_kw_conflicts(rule->cond, where, &acl, &kw)) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
+					  acl->name, kw, sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+					  kw, sample_ckp_names(where));
+			warn++;
+		}
+
+		/* the following function directly emits the warning */
+		warnif_misplaced_tcp_sess(curpx, file, line, args[0]);
+		LIST_ADDQ(&curpx->tcp_req.l5_rules, &rule->list);
 	}
 	else {
 		if (curpx == defpx)
@@ -2844,6 +2985,15 @@ static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ /* END */ }
 }};
 
+static struct action_kw_list tcp_req_sess_actions = {ILH, {
+	{ "silent-drop",  tcp_parse_silent_drop },
+	{ "set-src",      tcp_parse_set_src_dst },
+	{ "set-src-port", tcp_parse_set_src_dst },
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ /* END */ }
+}};
+
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
@@ -2880,6 +3030,7 @@ static void __tcp_protocol_init(void)
 	bind_register_keywords(&bind_kws);
 	srv_register_keywords(&srv_kws);
 	tcp_req_conn_keywords_register(&tcp_req_conn_actions);
+	tcp_req_sess_keywords_register(&tcp_req_sess_actions);
 	tcp_req_cont_keywords_register(&tcp_req_cont_actions);
 	tcp_res_cont_keywords_register(&tcp_res_cont_actions);
 	http_req_keywords_register(&http_req_actions);

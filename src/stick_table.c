@@ -1519,6 +1519,12 @@ static struct action_kw_list tcp_conn_kws = { { }, {
 	{ /* END */ }
 }};
 
+static struct action_kw_list tcp_sess_kws = { { }, {
+	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
+	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ /* END */ }
+}};
+
 static struct action_kw_list tcp_req_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
@@ -1572,6 +1578,7 @@ static void __stick_table_init(void)
 {
 	/* register som action keywords. */
 	tcp_req_conn_keywords_register(&tcp_conn_kws);
+	tcp_req_sess_keywords_register(&tcp_sess_kws);
 	tcp_req_cont_keywords_register(&tcp_req_kws);
 	tcp_res_cont_keywords_register(&tcp_res_kws);
 	http_req_keywords_register(&http_req_kws);

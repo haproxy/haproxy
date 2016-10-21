@@ -39,9 +39,11 @@ int tcp_drain(int fd);
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);
 int tcp_exec_l4_rules(struct session *sess);
+int tcp_exec_l5_rules(struct session *sess);
 
 /* TCP keywords. */
 void tcp_req_conn_keywords_register(struct action_kw_list *kw_list);
+void tcp_req_sess_keywords_register(struct action_kw_list *kw_list);
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list);
 void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 
