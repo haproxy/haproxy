@@ -45,7 +45,8 @@ struct pxcounters {
 	long long denied_req;                   /* blocked requests/responses because of security concerns */
 	long long denied_resp;                  /* blocked requests/responses because of security concerns */
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
-	long long denied_conn;                  /* denied connection requests (tcp-req rules) */
+	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
+	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
 
 	long long failed_conns;                 /* failed connect() attempts (BE only) */
 	long long failed_resp;                  /* failed responses (BE only) */
@@ -78,7 +79,8 @@ struct licounters {
 
 	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	long long failed_req;			/* failed requests (eg: invalid or timeout) */
-	long long denied_conn;			/* denied connection requests (tcp-req rules) */
+	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
+	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
 };
 
 struct srvcounters {
