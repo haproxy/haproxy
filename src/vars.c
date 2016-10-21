@@ -242,11 +242,21 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 
 	/* Check the availibity of the variable. */
 	switch (var_desc->scope) {
-	case SCOPE_SESS: vars = &smp->sess->vars;  break;
-	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
+	case SCOPE_SESS:
+		vars = &smp->sess->vars;
+		break;
+	case SCOPE_TXN:
+		if (!smp->strm)
+			return 0;
+		vars = &smp->strm->vars_txn;
+		break;
 	case SCOPE_REQ:
 	case SCOPE_RES:
-	default:         vars = &smp->strm->vars_reqres; break;
+	default:
+		if (!smp->strm)
+			return 0;
+		vars = &smp->strm->vars_reqres;
+		break;
 	}
 	if (vars->scope != var_desc->scope)
 		return 0;
