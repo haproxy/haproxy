@@ -507,7 +507,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
-	if (!sample_process(px, s->sess, s, dir|SMP_OPT_FINAL,
+	if (!sample_process(px, sess, s, dir|SMP_OPT_FINAL,
 	                    rule->arg.vars.expr, &smp))
 		return ACT_RET_CONT;
 
