@@ -204,6 +204,7 @@ enum stat_field {
 	ST_F_CONN_RATE_MAX,
 	ST_F_CONN_TOT,
 	ST_F_INTERCEPTED,
+	ST_F_DCON,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
