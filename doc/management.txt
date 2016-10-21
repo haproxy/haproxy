@@ -1036,6 +1036,7 @@ S (Servers).
  79: conn_tot [.F..]: cumulative number of connections
  80: intercepted [.FB.]: cum. number of intercepted requests (monitor, stats)
  81: dcon [LF..]: requests denied by "tcp-request connection" rules
+ 82: dses [LF..]: requests denied by "tcp-request session" rules
 
 
 9.2) Typed output format

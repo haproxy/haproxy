@@ -218,6 +218,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CONN_TOT]       = "conn_tot",
 	[ST_F_INTERCEPTED]    = "intercepted",
 	[ST_F_DCON]           = "dcon",
+	[ST_F_DSES]           = "dses",
 };
 
 /* one line of stats */
@@ -4017,6 +4018,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
 	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
 	stats[ST_F_DCON]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
+	stats[ST_F_DSES]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : px->state == PR_STFULL ? "FULL" : "STOP");
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
@@ -4109,6 +4111,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
 	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
 	stats[ST_F_DCON]     = mkf_u64(FN_COUNTER, l->counters->denied_conn);
+	stats[ST_F_DSES]     = mkf_u64(FN_COUNTER, l->counters->denied_sess);
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
