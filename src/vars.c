@@ -654,7 +654,7 @@ static int vars_max_size_reqres(char **args, int section_type, struct proxy *cur
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
-	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_HTTP_ANY },
+	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_L5CLI },
 	{ /* END */ },
 }};
 
