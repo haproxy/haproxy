@@ -8828,7 +8828,7 @@ out_uri_auth_compat:
 			listener->default_target = curproxy->default_target;
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
-				listener->options |= LI_O_TCP_RULES;
+				listener->options |= LI_O_TCP_L4_RULES;
 
 			if (curproxy->mon_mask.s_addr)
 				listener->options |= LI_O_CHK_MONNET;

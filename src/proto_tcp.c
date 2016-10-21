@@ -1353,7 +1353,7 @@ resume_execution:
  * matches or if no more rule matches. It can only use rules which don't need
  * any data. This only works on connection-based client-facing stream interfaces.
  */
-int tcp_exec_req_rules(struct session *sess)
+int tcp_exec_l4_rules(struct session *sess)
 {
 	struct act_rule *rule;
 	struct stksess *ts;
@@ -1881,10 +1881,12 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	else {
 		struct action_kw *kw;
 		if (where & SMP_VAL_FE_CON_ACC) {
+			/* L4 */
 			kw = tcp_req_conn_action(args[arg]);
 			rule->kw = kw;
 			rule->from = ACT_F_TCP_REQ_CON;
 		} else {
+			/* L6 */
 			kw = tcp_req_cont_action(args[arg]);
 			rule->kw = kw;
 			rule->from = ACT_F_TCP_REQ_CNT;

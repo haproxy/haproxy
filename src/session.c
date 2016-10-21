@@ -166,7 +166,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.
 	 */
-	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(sess)) {
+	if ((l->options & LI_O_TCP_L4_RULES) && !tcp_exec_l4_rules(sess)) {
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		ret = 0; /* successful termination */
