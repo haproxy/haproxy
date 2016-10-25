@@ -115,9 +115,11 @@ void recount_servers(struct proxy *px)
 			    !(px->options & PR_O_USE_ALL_BK))
 				px->lbprm.fbck = srv;
 			px->srv_bck++;
+			srv->cumulative_weight = px->lbprm.tot_wbck;
 			px->lbprm.tot_wbck += srv->eweight;
 		} else {
 			px->srv_act++;
+			srv->cumulative_weight = px->lbprm.tot_wact;
 			px->lbprm.tot_wact += srv->eweight;
 		}
 	}
