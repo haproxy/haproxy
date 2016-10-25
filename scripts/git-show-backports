@@ -227,10 +227,12 @@ dump_commit_matrix | column -t | \
 		echo "No missing commit to apply."
 	elif [ -n "$MISSING" ]; then
 		echo
-		echo "In order to apply all leftmost commits to current branch :"
+		echo "In order to show and/or apply all leftmost commits to current branch :"
+		echo "   git show ${left_commits[@]}"
 		echo "   git cherry-pick -x ${left_commits[@]}"
 		echo
-		echo "In order to apply all rightmost commits to current branch :"
+		echo "In order to show and/or apply all rightmost commits to current branch :"
+		echo "   git show ${right_commits[@]}"
 		echo "   git cherry-pick -x ${right_commits[@]}"
 	fi
 )
