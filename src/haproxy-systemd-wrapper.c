@@ -94,7 +94,7 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 		fprintf(stderr, "\n");
 
 		execv(argv[0], argv);
-		exit(0);
+		exit(1);
 	}
 }
 
