@@ -1,6 +1,73 @@
 ChangeLog :
 ===========
 
+2016/10/25 : 1.7-dev5
+    - MINOR: cfgparse: few memory leaks fixes.
+    - MEDIUM: log: Decompose %Tq in %Th %Ti %TR
+    - CLEANUP: logs: remove unused log format field definitions
+    - BUILD/MAJOR:updated 51d Trie implementation to incorperate latest update to 51Degrees.c
+    - BUG/MAJOR: stream: properly mark the server address as unset on connect retry
+    - CLEANUP: proto_http: Removing useless variable assignation
+    - CLEANUP: dumpstats: Removing useless variables allocation
+    - CLEANUP: dns: Removing usless variable & assignation
+    - BUG/MINOR: payload: fix SSLv2 version parser
+    - MINOR: cli: allow the semi-colon to be escaped on the CLI
+    - MINOR: cli: change a server health check port through the stats socket
+    - BUG/MINOR: Fix OSX compilation errors
+    - MAJOR: check: find out which port to use for health check at run time
+    - MINOR: server: introduction of 3 new server flags
+    - MINOR: new update_server_addr_port() function to change both server's ADDR and service PORT
+    - MINOR: cli: ability to change a server's port
+    - CLEANUP/MINOR dns: comment do not follow up code update
+    - MINOR: chunk: new strncat function
+    - MINOR: dns: wrong DNS_MAX_UDP_MESSAGE value
+    - MINOR: dns: new MAX values
+    - MINOR: dns: new macro to compute DNS header size
+    - MINOR: dns: new DNS structures to store received packets
+    - MEDIUM: dns: new DNS response parser
+    - MINOR: dns: query type change when last record is a CNAME
+    - MINOR: dns: proper domain name validation when receiving DNS response
+    - MINOR: dns: comments in types/dns.h about structures endianness
+    - BUG/MINOR: displayed PCRE version is running release
+    - MINOR: show Built with PCRE version
+    - MINOR: show Running on zlib version
+    - MEDIUM: make SO_REUSEPORT configurable
+    - MINOR: enable IP_BIND_ADDRESS_NO_PORT on backend connections
+    - BUG/MEDIUM: http/compression: Fix how chunked data are copied during the HTTP body parsing
+    - BUG/MINOR: stats: report the correct conn_time in backend's html output
+    - BUG/MEDIUM: dns: don't randomly crash on out-of-memory
+    - MINOR: Add fe_req_rate sample fetch
+    - MEDIUM: peers: Fix a peer stick-tables synchronization issue.
+    - MEDIUM: cli: register CLI keywords with cli_register_kw()
+    - BUILD: Make use of accept4() on OpenBSD.
+    - MINOR: tcp: make set-src/set-src-port and set-dst/set-dst-port commutative
+    - DOC: fix missed entry for "set-{src,dst}{,-port}"
+    - BUG/MINOR: vars: use sess and not s->sess in action_store()
+    - BUG/MINOR: vars: make smp_fetch_var() more robust against misuses
+    - BUG/MINOR: vars: smp_fetch_var() doesn't depend on HTTP but on the session
+    - MINOR: stats: output dcon
+    - CLEANUP: tcp rules: mention everywhere that tcp-conn rules are L4
+    - MINOR: counters: add new fields for denied_sess
+    - MEDIUM: tcp: add registration and processing of TCP L5 rules
+    - MINOR: stats: emit dses
+    - DOC: document tcp-request session
+    - MINOR: ssl: add debug traces
+    - BUILD/CLEANUP: ssl: Check BIO_reset() return code
+    - BUG/MINOR: ssl: Check malloc return code
+    - BUG/MINOR: ssl: prevent multiple entries for the same certificate
+    - BUG/MINOR: systemd: make the wrapper return a non-null status code on error
+    - BUG/MINOR: systemd: always restore signals before execve()
+    - BUG/MINOR: systemd: check return value of calloc()
+    - MINOR: systemd: report it when execve() fails
+    - BUG/MEDIUM: systemd: let the wrapper know that haproxy has completed or failed
+    - MINOR: proxy: add 'served' field to proxy, equal to total of all servers'
+    - MINOR: backend: add hash-balance-factor option for hash-type consistent
+    - MINOR: server: compute a "cumulative weight" to allow chash balancing to hit its target
+    - MEDIUM: server: Implement bounded-load hash algorithm
+    - SCRIPTS: make git-show-backports also dump a "git show" command
+    - MINOR: build: Allow linking to device-atlas library file
+    - MINOR: stats: Escape equals sign on socket dump
+
 2016/08/14 : 1.7-dev4
     - MINOR: add list_append_word function
     - MEDIUM: init: use list_append_word in haproxy.c
