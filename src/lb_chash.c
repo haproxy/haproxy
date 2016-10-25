@@ -242,6 +242,34 @@ static void chash_update_server_weight(struct server *srv)
 }
 
 /*
+ * This function implements the "Consistent Hashing with Bounded Loads" algorithm
+ * of Mirrokni, Thorup, and Zadimoghaddam (arxiv:1608.01350), adapted for use with
+ * unequal server weights.
+ */
+int chash_server_is_eligible(struct server *s)
+{
+	/* The total number of slots to allocate is the total number of outstanding requests
+	 * (including the one we're about to make) times the load-balance-factor, rounded up.
+	 */
+	unsigned tot_slots = ((s->proxy->served + 1) * s->proxy->lbprm.chash.balance_factor + 99) / 100;
+	unsigned slots_per_weight = tot_slots / s->proxy->lbprm.tot_weight;
+	unsigned remainder = tot_slots % s->proxy->lbprm.tot_weight;
+
+	/* Allocate a whole number of slots per weight unit... */
+	unsigned slots = s->eweight * slots_per_weight;
+
+	/* And then distribute the rest among servers proportionally to their weight. */
+	slots += ((s->cumulative_weight + s->eweight) * remainder) / s->proxy->lbprm.tot_weight
+		- (s->cumulative_weight * remainder) / s->proxy->lbprm.tot_weight;
+
+	/* But never leave a server with 0. */
+	if (slots == 0)
+		slots = 1;
+
+	return s->served < slots;
+}
+
+/*
  * This function returns the running server from the CHASH tree, which is at
  * the closest distance from the value of <hash>. Doing so ensures that even
  * with a well imbalanced hash, if some servers are close to each other, they
@@ -254,6 +282,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	struct server *nsrv, *psrv;
 	struct eb_root *root;
 	unsigned int dn, dp;
+	int loop;
 
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
@@ -287,7 +316,23 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	dp = hash - prev->key;
 	dn = next->key - hash;
 
-	return (dp <= dn) ? psrv : nsrv;
+	if (dp <= dn) {
+		next = prev;
+		nsrv = psrv;
+	}
+
+	loop = 0;
+	while (p->lbprm.chash.balance_factor && !chash_server_is_eligible(nsrv)) {
+		next = eb32_next(next);
+		if (!next) {
+			next = eb32_first(root);
+			if (++loop > 1) // protection against accidental loop
+				break;
+		}
+		nsrv = eb32_entry(next, struct tree_occ, node)->server;
+	}
+
+	return nsrv;
 }
 
 /* Return next server from the CHASH tree in backend <p>. If the tree is empty,
