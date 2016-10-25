@@ -65,15 +65,29 @@ static void locate_haproxy(char *buffer, size_t buffer_size)
 	return;
 }
 
+/* Note: this function must not exit in case of error (except in the child), as
+ * it is only dedicated the starting a new haproxy process. By keeping the
+ * process alive it will ensure that future signal delivery may get rid of
+ * the issue. If the first startup fails, the wrapper will notice it and
+ * return an error thanks to wait() returning ECHILD.
+ */
 static void spawn_haproxy(char **pid_strv, int nb_pid)
 {
 	char haproxy_bin[512];
 	pid_t pid;
 	int main_argc;
 	char **main_argv;
+	int pipefd[2];
+	char fdstr[20];
+	int ret;
 
 	main_argc = wrapper_argc - 1;
 	main_argv = wrapper_argv + 1;
+
+	if (pipe(pipefd) != 0) {
+		fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to create a pipe, please try again later.\n");
+		return;
+	}
 
 	pid = fork();
 	if (!pid) {
@@ -89,6 +103,15 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 		}
 
 		reset_signal_handler();
+
+		close(pipefd[0]); /* close the read side */
+
+		snprintf(fdstr, sizeof(fdstr), "%d", pipefd[1]);
+		if (setenv("HAPROXY_WRAPPER_FD", fdstr, 1) != 0) {
+			fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to setenv(), please try again later.\n");
+			exit(1);
+		}
+
 		locate_haproxy(haproxy_bin, 512);
 		argv[argno++] = haproxy_bin;
 		for (i = 0; i < main_argc; ++i)
@@ -113,6 +136,19 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 	else if (pid == -1) {
 		fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to fork(), please try again later.\n");
 	}
+
+	/* The parent closes the write side and waits for the child to close it
+	 * as well. Also deal the case where the fd would unexpectedly be 1 or 2
+	 * by silently draining all data.
+	 */
+	close(pipefd[1]);
+
+	do {
+		char c;
+		ret = read(pipefd[0], &c, sizeof(c));
+	} while ((ret > 0) || (ret == -1 && errno == EINTR));
+	/* the child has finished starting up */
+	close(pipefd[0]);
 }
 
 static int read_pids(char ***pid_strv)

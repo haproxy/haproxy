@@ -1962,6 +1962,7 @@ int main(int argc, char **argv)
 		int ret = 0;
 		int *children = calloc(global.nbproc, sizeof(int));
 		int proc;
+		char *wrapper_fd;
 
 		/* the father launches the required number of processes */
 		for (proc = 0; proc < global.nbproc; proc++) {
@@ -1996,6 +1997,15 @@ int main(int argc, char **argv)
 		if (pidfd >= 0) {
 			//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */
 			close(pidfd);
+		}
+
+		/* each child must notify the wrapper that it's ready by closing the requested fd */
+		wrapper_fd = getenv("HAPROXY_WRAPPER_FD");
+		if (wrapper_fd) {
+			int pipe_fd = atoi(wrapper_fd);
+
+			if (pipe_fd >= 0)
+				close(pipe_fd);
 		}
 
 		/* We won't ever use this anymore */
