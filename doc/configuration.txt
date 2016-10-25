@@ -2205,32 +2205,6 @@ balance url_param <param> [check_post]
   See also : "dispatch", "cookie", "transparent", "hash-type" and "http_proxy".
 
 
-balance-factor <factor>
-  Specify the balancing factor for bounded-load consistent hashing
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   no   |   yes
-  Arguments :
-    <factor> is the control for the maximum number of concurrent requests to
-             send to a server, expressed as a percentage of the average number
-	     of concurrent requests across all of the active servers.
-
-  Specifying a "balance-factor" for a server with "hash-type consistent"
-  enables an algorithm that prevents any one server from getting too many
-  requests at once, even if some hash buckets receive many more requests than
-  others. Setting <factor> to 0 (the default) disables the feature. Otherwise,
-  <factor> is a percentage greater than 100. For example, if <factor> is 150,
-  then no server will be allowed to have a load more than 1.5 times the average.
-  If server weights are used, they will be respected.
-
-  If the first-choice server is disqualified, the algorithm will choose another
-  server based on the request hash, until a server with additional capacity is
-  found. A higher <factor> allows more imbalance between the servers, while a
-  lower <factor> means that more servers will be checked on average, affecting
-  performance. Reasonable values are from 125 to 200.
-
-  See also : "balance" and "hash-type".
-
-
 bind [<address>]:<port_range> [, ...] [param*]
 bind /<path> [, ...] [param*]
   Define one or several listening addresses and/or ports in a frontend.
@@ -3300,6 +3274,32 @@ grace <time>
   simplify it.
 
 
+hash-balance-factor <factor>
+  Specify the balancing factor for bounded-load consistent hashing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   no   |   yes
+  Arguments :
+    <factor> is the control for the maximum number of concurrent requests to
+             send to a server, expressed as a percentage of the average number
+	     of concurrent requests across all of the active servers.
+
+  Specifying a "hash-balance-factor" for a server with "hash-type consistent"
+  enables an algorithm that prevents any one server from getting too many
+  requests at once, even if some hash buckets receive many more requests than
+  others. Setting <factor> to 0 (the default) disables the feature. Otherwise,
+  <factor> is a percentage greater than 100. For example, if <factor> is 150,
+  then no server will be allowed to have a load more than 1.5 times the average.
+  If server weights are used, they will be respected.
+
+  If the first-choice server is disqualified, the algorithm will choose another
+  server based on the request hash, until a server with additional capacity is
+  found. A higher <factor> allows more imbalance between the servers, while a
+  lower <factor> means that more servers will be checked on average, affecting
+  performance. Reasonable values are from 125 to 200.
+
+  See also : "balance" and "hash-type".
+
+
 hash-type <method> <function> <modifier>
   Specify a method to use for mapping hashes to servers
   May be used in sections :   defaults | frontend | listen | backend
@@ -3384,7 +3384,7 @@ hash-type <method> <function> <modifier>
   default function is "sdbm", the selection of a function should be based on
   the range of the values being hashed.
 
-  See also : "balance", "balance-factor", "server"
+  See also : "balance", "hash-balance-factor", "server"
 
 
 http-check disable-on-404
