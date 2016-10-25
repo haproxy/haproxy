@@ -126,6 +126,7 @@ struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px)
 	strm->target = &srv->obj_type;
 	stream_add_srv_conn(strm, srv);
 	srv->served++;
+	srv->proxy->served++;
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv);
 

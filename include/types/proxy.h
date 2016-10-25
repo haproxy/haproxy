@@ -277,6 +277,7 @@ struct proxy {
 	} tcp_rep;
 	struct server *srv, defsrv;		/* known servers; default server configuration */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
+	int served;				/* # of active sessions currently being served */
 	struct lbprm lbprm;			/* load-balancing parameters */
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */

@@ -2515,6 +2515,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 
 	if (sess->srv_conn) {
 		sess->srv_conn->served--;
+		sess->srv_conn->proxy->served--;
 		if (sess->srv_conn->proxy->lbprm.server_drop_conn)
 			sess->srv_conn->proxy->lbprm.server_drop_conn(sess->srv_conn);
 		stream_del_srv_conn(sess);
@@ -2522,6 +2523,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 
 	if (newsrv) {
 		newsrv->served++;
+		newsrv->proxy->served++;
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
 		stream_add_srv_conn(sess, newsrv);
