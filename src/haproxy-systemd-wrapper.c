@@ -107,7 +107,11 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 		fprintf(stderr, "\n");
 
 		execv(argv[0], argv);
+		fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: execv(%s) failed, please try again later.\n", argv[0]);
 		exit(1);
+	}
+	else if (pid == -1) {
+		fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to fork(), please try again later.\n");
 	}
 }
 
@@ -180,6 +184,7 @@ static void do_restart(int sig)
 	execv(wrapper_argv[0], wrapper_argv);
 	/* failed, let's reinstall the signal handler and continue */
 	setup_signal_handler();
+	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: re-exec(%s) failed.\n", wrapper_argv[0]);
 }
 
 /* handles SIGTERM and SIGINT only */
