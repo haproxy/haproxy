@@ -28,6 +28,11 @@ static char *pid_file = "/run/haproxy.pid";
 static int wrapper_argc;
 static char **wrapper_argv;
 
+static void setup_signal_handler();
+static void pause_signal_handler();
+static void reset_signal_handler();
+
+
 /* returns the path to the haproxy binary into <buffer>, whose size indicated
  * in <buffer_size> must be at least 1 byte long.
  */
@@ -76,6 +81,8 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 		char **argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
 		int i;
 		int argno = 0;
+
+		reset_signal_handler();
 		locate_haproxy(haproxy_bin, 512);
 		argv[argno++] = haproxy_bin;
 		for (i = 0; i < main_argc; ++i)
@@ -127,6 +134,34 @@ static void signal_handler(int signum)
 		caught_signal = signum;
 }
 
+static void setup_signal_handler()
+{
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof(struct sigaction));
+	sa.sa_handler = &signal_handler;
+	sigaction(SIGUSR2, &sa, NULL);
+	sigaction(SIGHUP, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+}
+
+static void pause_signal_handler()
+{
+	signal(SIGUSR2, SIG_IGN);
+	signal(SIGHUP,  SIG_IGN);
+	signal(SIGINT,  SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+}
+
+static void reset_signal_handler()
+{
+	signal(SIGUSR2, SIG_DFL);
+	signal(SIGHUP,  SIG_DFL);
+	signal(SIGINT,  SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+}
+
 /* handles SIGUSR2 and SIGHUP only */
 static void do_restart(int sig)
 {
@@ -134,7 +169,11 @@ static void do_restart(int sig)
 	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: re-executing on %s.\n",
 	        sig == SIGUSR2 ? "SIGUSR2" : "SIGHUP");
 
+	/* don't let the other process take one of those signals by accident */
+	pause_signal_handler();
 	execv(wrapper_argv[0], wrapper_argv);
+	/* failed, let's reinstall the signal handler and continue */
+	setup_signal_handler();
 }
 
 /* handles SIGTERM and SIGINT only */
@@ -168,20 +207,14 @@ static void init(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	int status;
-	struct sigaction sa;
+
+	setup_signal_handler();
 
 	wrapper_argc = argc;
 	wrapper_argv = argv;
 
 	--argc; ++argv;
 	init(argc, argv);
-
-	memset(&sa, 0, sizeof(struct sigaction));
-	sa.sa_handler = &signal_handler;
-	sigaction(SIGUSR2, &sa, NULL);
-	sigaction(SIGHUP, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
 
 	if (getenv(REEXEC_FLAG) != NULL) {
 		/* We are being re-executed: restart HAProxy gracefully */
