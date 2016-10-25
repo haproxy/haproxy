@@ -1983,6 +1983,7 @@ void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.redispatch_after = 0;
+	defproxy.lbprm.chash.balance_factor = 0;
 
 	defproxy.defsrv.check.inter = DEF_CHKINTR;
 	defproxy.defsrv.check.fastinter = 0;
@@ -2825,6 +2826,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (curproxy->cap & PR_CAP_BE) {
 			curproxy->lbprm.algo = defproxy.lbprm.algo;
+			curproxy->lbprm.chash.balance_factor = defproxy.lbprm.chash.balance_factor;
 			curproxy->fullconn = defproxy.fullconn;
 			curproxy->conn_retries = defproxy.conn_retries;
 			curproxy->redispatch_after = defproxy.redispatch_after;
@@ -5956,6 +5958,19 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+		}
+	}
+	else if (strcmp(args[0], "hash-balance-factor") == 0) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curproxy->lbprm.chash.balance_factor = atol(args[1]);
+		if (curproxy->lbprm.chash.balance_factor != 0 && curproxy->lbprm.chash.balance_factor <= 100) {
+			Alert("parsing [%s:%d] : '%s' must be 0 or greater than 100.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 	}
 	else if (strcmp(args[0], "unique-id-format") == 0) {
