@@ -77,10 +77,16 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 
 	pid = fork();
 	if (!pid) {
-		/* 3 for "haproxy -Ds -sf" */
-		char **argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
+		char **argv;
 		int i;
 		int argno = 0;
+
+		/* 3 for "haproxy -Ds -sf" */
+		argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
+		if (!argv) {
+			fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to calloc(), please try again later.\n");
+			exit(1);
+		}
 
 		reset_signal_handler();
 		locate_haproxy(haproxy_bin, 512);
