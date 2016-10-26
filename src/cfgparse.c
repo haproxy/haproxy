@@ -2040,7 +2040,7 @@ static int create_cond_regex_rule(const char *file, int line,
 		goto err;
 	}
 
-	if (warnifnotcap(px, PR_CAP_RS, file, line, cmd, NULL))
+	if (warnifnotcap(px, PR_CAP_FE | PR_CAP_BE, file, line, cmd, NULL))
 		ret_code |= ERR_WARN;
 
 	if (cond_start &&
@@ -2743,9 +2743,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
  	else if (!strcmp(args[0], "frontend"))
-		rc = PR_CAP_FE | PR_CAP_RS;
+		rc = PR_CAP_FE;
 	else if (!strcmp(args[0], "backend"))
-		rc = PR_CAP_BE | PR_CAP_RS;
+		rc = PR_CAP_BE;
 	else
 		rc = PR_CAP_NONE;
 
@@ -6502,7 +6502,7 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+		else if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
 		if (*(args[1]) == 0) {
@@ -6599,7 +6599,7 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+		else if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
 		if (*(args[1]) == 0) {

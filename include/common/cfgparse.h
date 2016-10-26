@@ -91,7 +91,6 @@ static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, i
 	switch (cap) {
 	case PR_CAP_BE: msg = "no backend"; break;
 	case PR_CAP_FE: msg = "no frontend"; break;
-	case PR_CAP_RS: msg = "no ruleset"; break;
 	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
 	default: msg = "not enough"; break;
 	}

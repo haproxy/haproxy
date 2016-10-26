@@ -77,8 +77,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_CAP_NONE    0x0000
 #define PR_CAP_FE      0x0001
 #define PR_CAP_BE      0x0002
-#define PR_CAP_RS      0x0004
-#define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE|PR_CAP_RS)
+#define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE)
 
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
