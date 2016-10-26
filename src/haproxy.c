@@ -1342,33 +1342,6 @@ static void deinit_tcp_rules(struct list *rules)
 	}
 }
 
-static void deinit_sample_arg(struct arg *p)
-{
-	struct arg *p_back = p;
-
-	if (!p)
-		return;
-
-	while (p->type != ARGT_STOP) {
-		if (p->type == ARGT_STR || p->unresolved) {
-			free(p->data.str.str);
-			p->data.str.str = NULL;
-			p->unresolved = 0;
-		}
-		else if (p->type == ARGT_REG) {
-			if (p->data.reg) {
-				regex_free(p->data.reg);
-				free(p->data.reg);
-				p->data.reg = NULL;
-			}
-		}
-		p++;
-	}
-
-	if (p_back != empty_arg_list)
-		free(p_back);
-}
-
 static void deinit_stick_rules(struct list *rules)
 {
 	struct sticking_rule *rule, *ruleb;
@@ -1376,13 +1349,7 @@ static void deinit_stick_rules(struct list *rules)
 	list_for_each_entry_safe(rule, ruleb, rules, list) {
 		LIST_DEL(&rule->list);
 		deinit_acl_cond(rule->cond);
-		if (rule->expr) {
-			struct sample_conv_expr *conv_expr, *conv_exprb;
-			list_for_each_entry_safe(conv_expr, conv_exprb, &rule->expr->conv_exprs, list)
-				deinit_sample_arg(conv_expr->arg_p);
-			deinit_sample_arg(rule->expr->arg_p);
-			free(rule->expr);
-		}
+		release_sample_expr(rule->expr);
 		free(rule);
 	}
 }

@@ -1382,6 +1382,46 @@ struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
 	return smp;
 }
 
+static void release_sample_arg(struct arg *p)
+{
+	struct arg *p_back = p;
+
+	if (!p)
+		return;
+
+	while (p->type != ARGT_STOP) {
+		if (p->type == ARGT_STR || p->unresolved) {
+			free(p->data.str.str);
+			p->data.str.str = NULL;
+			p->unresolved = 0;
+		}
+		else if (p->type == ARGT_REG) {
+			if (p->data.reg) {
+				regex_free(p->data.reg);
+				free(p->data.reg);
+				p->data.reg = NULL;
+			}
+		}
+		p++;
+	}
+
+	if (p_back != empty_arg_list)
+		free(p_back);
+}
+
+void release_sample_expr(struct sample_expr *expr)
+{
+	struct sample_conv_expr *conv_expr, *conv_exprb;
+
+	if (!expr)
+		return;
+
+	list_for_each_entry_safe(conv_expr, conv_exprb, &expr->conv_exprs, list)
+		release_sample_arg(conv_expr->arg_p);
+	release_sample_arg(expr->arg_p);
+	free(expr);
+}
+
 /*****************************************************************/
 /*    Sample format convert functions                            */
 /*    These functions set the data type on return.               */

@@ -36,6 +36,7 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 struct sample *sample_fetch_as_type(struct proxy *px, struct session *sess,
                                    struct stream *strm, unsigned int opt,
                                    struct sample_expr *expr, int smp_type);
+void release_sample_expr(struct sample_expr *expr);
 void sample_register_fetches(struct sample_fetch_kw_list *psl);
 void sample_register_convs(struct sample_conv_kw_list *psl);
 const char *sample_src_names(unsigned int use);
