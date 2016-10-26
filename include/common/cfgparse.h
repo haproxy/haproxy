@@ -74,6 +74,8 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 int cfg_register_section(char *section_name,
                          int (*section_parser)(const char *, int, char **, int));
 void cfg_unregister_sections(void);
+void cfg_backup_sections(struct list *backup_sections);
+void cfg_restore_sections(struct list *backup_sections);
 int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg);

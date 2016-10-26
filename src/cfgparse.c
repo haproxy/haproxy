@@ -9258,6 +9258,26 @@ void cfg_unregister_sections(void)
 	}
 }
 
+void cfg_backup_sections(struct list *backup_sections)
+{
+	struct cfg_section *cs, *ics;
+
+	list_for_each_entry_safe(cs, ics, &sections, list) {
+		LIST_DEL(&cs->list);
+		LIST_ADDQ(backup_sections, &cs->list);
+	}
+}
+
+void cfg_restore_sections(struct list *backup_sections)
+{
+	struct cfg_section *cs, *ics;
+
+	list_for_each_entry_safe(cs, ics, backup_sections, list) {
+		LIST_DEL(&cs->list);
+		LIST_ADDQ(&sections, &cs->list);
+	}
+}
+
 __attribute__((constructor))
 static void cfgparse_init(void)
 {
