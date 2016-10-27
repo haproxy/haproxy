@@ -144,8 +144,8 @@ SMALL_OPTS =
 #### Debug settings
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
 # Currently defined DEBUG macros include DEBUG_FULL, DEBUG_MEMORY, DEBUG_FSM,
-# DEBUG_HASH and DEBUG_AUTH. Please check sources for exact meaning or do not
-# use at all.
+# DEBUG_HASH, DEBUG_AUTH and DEBUG_SPOE. Please check sources for exact meaning
+# or do not use at all.
 DEBUG =
 
 #### Trace options
@@ -778,7 +778,7 @@ OBJS = src/haproxy.o src/base64.o src/protocol.o \
        src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o src/proto_udp.o \
        src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
        src/namespace.o src/mailers.o src/dns.o src/vars.o src/filters.o \
-       src/flt_http_comp.o src/flt_trace.o
+       src/flt_http_comp.o src/flt_trace.o src/flt_spoe.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

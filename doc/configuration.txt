@@ -106,6 +106,7 @@ Summary
 9.    Supported filters
 9.1.      Trace
 9.2.      HTTP compression
+9.3.      Stream Processing Offload Engine (SPOE)
 
 
 1. Quick reminder about HTTP
@@ -16181,6 +16182,37 @@ filters evaluation order.
 
 See also : "compression"
 
+
+9.3. Stream Processing Offload Engine (SPOE)
+--------------------------------------------
+
+filter spoe [engine <name>] config <file>
+
+  Arguments :
+
+    <name>      is the engine name that will be used to find the right scope in
+                the configuration file. If not provided, all the file will be
+                parsed.
+
+    <file>      is the path of the engine configuration file. This file can
+                contain configuration of several engines. In this case, each
+                part must be placed in its own scope.
+
+The Stream Processing Offload Engine (SPOE) is a filter communicating with
+external components. It allows the offload of some specifics processing on the
+streams in tierce applications. These external components and information
+exchanged with them are configured in dedicated files, for the main part. It
+also requires dedicated backends, defined in HAProxy configuration.
+
+SPOE communicates with external components using an in-house binary protocol,
+the Stream Processing Offload Protocol (SPOP).
+
+For all information about the SPOE configuation and the SPOP specification, see
+"doc/SPOE.txt".
+
+Important note:
+    The SPOE filter is highly experimental for now and was not heavily
+    tested. It is really not production ready. So use it carefully.
 
 /*
  * Local variables:

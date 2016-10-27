@@ -1,0 +1,829 @@
+                -----------------------------------------------
+                   Stream Processing Offload Engine (SPOE)
+                                  Version 1.0
+                          ( Last update: 2016-11-07 )
+                -----------------------------------------------
+                          Author : Christopher Faulet
+                      Contact : cfaulet at haproxy dot com
+
+
+SUMMARY
+--------
+
+  0.      Terms
+  1.      Introduction
+  2.      SPOE configuration
+  2.1.        SPOE scope
+  2.2.        "spoe-agent" section
+  2.3.        "spoe-message" section
+  2.4.        Example
+  3.      SPOP specification
+  3.1.        Data types
+  3.2.        Frames
+  3.2.1.          Frame capabilities
+  3.2.2.          Frame types overview
+  3.2.3.          Workflow
+  3.2.4.          Frame: HAPROXY-HELLO
+  3.2.5.          Frame: AGENT-HELLO
+  3.2.6.          Frame: NOTIFY
+  3.2.7.          Frame: ACK
+  3.2.8.          Frame: HAPROXY-DISCONNECT
+  3.2.9.          Frame: AGENT-DISCONNECT
+  3.3.        Events & messages
+  3.4.        Actions
+  3.5.        Error & timeouts
+
+
+0. Terms
+---------
+
+* SPOE : Stream Processing Offload Engine.
+
+    A SPOE is a filter talking to servers managed ba a SPOA to offload the
+    stream processing. An engine is attached to a proxy. A proxy can have
+    several engine. Each engine is linked to an agent and only one.
+
+* SPOA : Stream Processing Offload Agent.
+
+    A SPOA is a service that will receive info from a SPOE to offload the
+    stream processing. An agent manages several servers. It uses a backend to
+    reference all of them. By extension, these servers can also be called
+    agents.
+
+* SPOP : Stream Processing Offload Protocol, used by SPOEs to talk to SPOA
+         servers.
+
+    This protocol is used by engines to talk to agents. It is an in-house
+    binary protocol described in this documentation.
+
+
+1. Introduction
+----------------
+
+SPOE is a feature introduced in HAProxy 1.7. It makes possible the
+communication with external components to retrieve some info. The idea started
+with the problems caused by most ldap libs not working fine in event-driven
+systems (often at least the connect() is blocking). So, it is hard to properly
+implement Single Sign On solution (SSO) in HAProxy. The SPOE will ease this
+kind of processing, or we hope so.
+
+Now, the aim of SPOE is to allow any kind of offloading on the streams. First
+releases, besides being experimental, won't do lot of things. As we will see,
+there are few handled events and even less actions supported. Actually, for
+now, the SPOE can offload the processing before "tcp-request content",
+"tcp-response content", "http-request" and "http-response" rules. And it only
+supports variables definition. But, in spite of these limited features, we can
+easily imagine to implement SSO solution, ip reputation or ip geolocation
+services.
+
+
+2. SPOE configuration
+----------------------
+
+Because SPOE is implemented as a filter, To use it, you must declare a "filter
+spoe" line in a proxy section (frontend/backend/listen) :
+
+  frontend my-front
+      ...
+      filter spoe [engine <name>] config <file>
+      ...
+
+The "config" parameter is mandatory. It specififies the SPOE configuration
+file. The engine name is optional. It can be set to declare the scope to use in
+the SPOE configuration. So it is possible to use the same SPOE configuration
+for several engines. If no name is provided, the SPOE configuration must not
+contain any scope directive.
+
+We use a separate configuration file on purpose. By commenting SPOE filter
+line, you completly disable the feature, including the parsing of sections
+reserved to SPOE. This is also a way to keep the HAProxy configuration clean.
+
+A SPOE configuration file must contains, at least, the SPOA configuration
+("spoe-agent" section) and SPOE messages ("spoe-message" section) attached to
+this agent. Unused messages (not reference in "spoe-agent" section) will be
+ignored.
+
+IMPORTANT : The configuration of a SPOE filter must be located in a dedicated
+file. But the backend used by a SPOA must be declared in HAProxy configuration
+file.
+
+2.1. SPOE scope
+-------------------------
+
+If you specify an engine name on the SPOE filter line, then you need to define
+scope in the SPOE configuration with the same name. You can have several SPOE
+scope in the same file. In each scope, you must define one and only one
+"spoe-agent" section to configure the SPOA linked to your SPOE and several
+"spoe-message" sections to describe messages sent to servers mananger by your
+SPOA.
+
+A SPOE scope starts with this kind of line :
+
+  [<name>]
+
+where <name> is the same engine name specified on the SPOE filter line. The
+scope ends when the file ends or when another scope is found.
+
+  Example :
+      [my-first-engine]
+          spoe-agent my-agent
+              ...
+          spoe-message msg1
+              ...
+          spoe-message msg2
+              ...
+
+      [my-second-engine]
+          ...
+
+If no engine name is provided on the SPOE filter line, no SPOE scope must be
+found in the SPOE configuration file. All the file is considered to be in the
+same anonymous and implicit scope.
+
+2.2. "spoe-agent" section
+--------------------------
+
+For each engine, you must define one and only one "spoe-agent" section. In this
+section, you will declare SPOE messages and the backend you will use. You will
+also set timeouts and options to customize your agent's behaviour.
+
+
+spoe-agent <name>
+  Create a new SPOA with the name <name>. It must have one and only one
+  "spoe-agent" definition by SPOE scope.
+
+  Arguments :
+    <name>   is the name of the agent section.
+
+  following keywords are supported :
+    - messages
+    - option var-prefix
+    - timeout hello|idle|ack
+    - use-backend
+
+
+messages <msg-name> ...
+  Declare the list of SPOE messages that an agent will handle.
+
+  Arguments :
+    <msg-name>   is the name of a SPOE message.
+
+  Messages declared here must be found in the same engine scope, else an error
+  is triggered during the configuration parsing. You can have many "messages"
+  lines.
+
+  See also: "spoe-message" section.
+
+
+option var-prefix <prefix>
+  Define the prefix used when variables are set by an agent.
+
+  Arguments :
+
+    <prefix>   is the prefix used to limit the scope of variables set by an
+               agent.
+
+  To avoid conflict with other variables defined by HAProxy, all variables
+  names will be prefixed. By default, the "spoe-agent" name is used. This
+  option can be used to customize it.
+
+  The prefix will be added between the variable scope and its name, separated
+  by a '.'. It may only contain characters 'a-z', 'A-Z', '0-9', '.' and '_', as
+  for variables name. In HAProxy configuration, you need to use this prefix as
+  a part of the variables name. For example, if an agent define the variable
+  "myvar" in the "txn" scope, with the prefix "my_spoe_pfx", then you should
+  use "txn.my_spoe_pfx.myvar" name in your HAProxy configuration.
+
+  An agent will never set new variables at runtime. It can only set new value
+  for existing ones.
+
+
+timeout ack <timeout>
+  Set the maximum time to wait for an agent to receive the acknowledgement to a
+  NOTIFY frame.
+
+  Arguments :
+    <timeout>   is the timeout value specified in milliseconds by default, but
+                can be in any other unit if the number is suffixed by the unit,
+                as explained at the top of this document.
+
+
+timeout hello <timeout>
+  Set the maximum time to wait for an agent to receive the AGENT-HELLO frame.
+
+  Arguments :
+    <timeout>   is the timeout value specified in milliseconds by default, but
+                can be in any other unit if the number is suffixed by the unit,
+                as explained at the top of this document.
+
+  This timeout is an applicative timeout. It differ from "timeout connect"
+  defined on backends.
+
+
+timeout idle <timeout>
+  Set the maximum time to wait for an agent to close an idle connection.
+
+  Arguments :
+    <timeout>   is the timeout value specified in milliseconds by default, but
+                can be in any other unit if the number is suffixed by the unit,
+                as explained at the top of this document.
+
+
+use-backend <backend>
+  Specify the backend to use. It must be defined.
+
+  Arguments :
+    <backend>   is the name of a valid "backend" section.
+
+
+2.3. "spoe-message" section
+----------------------------
+
+To offload the stream processing, SPOE will send messages with specific
+information at a specific moment in the stream life and will wait for
+corresponding replies to know what to do.
+
+
+spoe-message <name>
+  Create a new SPOE message with the name <name>.
+
+  Arguments :
+    <name>   is the name of the SPOE message.
+
+  Here you define a message that can be referenced in a "spoe-agent"
+  section. Following keywords are supported :
+    - args
+    - event
+
+  See also: "spoe-agent" section.
+
+
+args [name=]<sample> ...
+  Define arguments passed into the SPOE message.
+
+  Arguments :
+    <sample>   is a sample expression.
+
+  When the message is processed, if a sample expression is not available, it is
+  set to NULL. Arguments are processed in their declaration order and added in
+  the message in that order. It is possible to declare named arguements.
+
+  For example:
+    args frontend=fe_id src dst
+
+
+event <name>
+  Set the event that triggers sending of the message.
+
+  Argument :
+    <name>   is the event name.
+
+  Supported events are:
+    - on-client-session
+    - on-server-connectiob
+    - on-frontend-tcp-request
+    - on-backend-tcp-request
+    - on-tcp-response
+    - on-frontend-http-request
+    - on-backend-http-request
+    - on-http-response
+
+  See section 3.5 about Events.
+
+2.4. Example
+-------------
+
+Here is a simple but complete example that sends client-ip address to a ip
+reputation service. This service can set the variable "ip_score" which is an
+integer between 0 and 100, indicating its reputation (100 means totally safe
+and 0 a blacklisted IP with no doubt).
+
+  ###
+  ### HAProxy configuration
+    frontend www
+        mode http
+        bind *:80
+
+        filter spoe engine ip-reputation config spoe-ip-reputation.conf
+
+        # Reject connection if the IP reputation is under 20
+        tcp-request content reject if  { var(sess.iprep.ip_score) -m int lt 20 }
+
+        default_backend http-servers
+
+    backend http-servers
+        mode http
+        server http A.B.C.D:80
+
+    backend iprep-servers
+        mode tcp
+        balance roundrobin
+
+        timeout connect 5s # greater than hello timeout
+        timeout server  3m # greater than idle timeout
+
+        server iprep1 A1.B1.C1.D1:12345
+        server iprep2 A2.B2.C2.D2:12345
+
+  ####
+  ### spoe-ip-reputation.conf
+    [ip-reputation]
+
+    spoe-agent iprep-agent
+        messages get-ip-reputation
+
+        option var-prefix iprep
+
+        timeout hello   2s
+        timeout ack     10ms
+        timeout idle    2m
+
+        use-backend iprep-servers
+
+    spoe-message get-ip-reputation
+        args ip=src
+        event on-client-session
+
+
+3. SPOP specification
+----------------------
+
+3.1. Data types
+----------------
+
+Here is the bytewise representation of typed data:
+
+    TYPED-DATA    : <TYPE:4 bits><FLAGS:4 bits><DATA>
+
+Supported types and their representation are:
+
+    TYPE                       |  ID | DESCRIPTION
+  -----------------------------+-----+----------------------------------
+     NULL                      |  0  |  NULL   : <0>
+     Boolean                   |  1  |  BOOL   : <1+FLAG>
+     32bits signed integer     |  2  |  INT32  : <2><VALUE:varint>
+     32bits unsigned integer   |  3  |  UINT32 : <3><VALUE:varint>
+     64bits signed integer     |  4  |  INT64  : <4><VALUE:varint>
+     32bits unsigned integer   |  5  |  UNIT64 : <5><VALUE:varint>
+     IPV4                      |  6  |  IPV4   : <6><STRUCT IN_ADDR:4 bytes>
+     IPV6                      |  7  |  IPV6   : <7><STRUCT IN_ADDR6:16 bytes>
+     String                    |  8  |  STRING : <8><LENGTH:varint><BYTES>
+     Binary                    |  9  |  BINARY : <9><LENGTH:varint><BYTES>
+    10 -> 15  unused/reserved  |  -  |  -
+  -----------------------------+-----+----------------------------------
+
+Variable-length integer (varint) are encoded using Peers encoding:
+
+
+       0  <= X < 240        : 1 byte  (7.875 bits)  [ XXXX XXXX ]
+      240 <= X < 2288       : 2 bytes (11 bits)     [ 1111 XXXX ] [ 0XXX XXXX ]
+     2288 <= X < 264432     : 3 bytes (18 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]   [ 0XXX XXXX ]
+   264432 <= X < 33818864   : 4 bytes (25 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*2 [ 0XXX XXXX ]
+ 33818864 <= X < 4328786160 : 5 bytes (32 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*3 [ 0XXX XXXX ]
+ ...
+
+For booleans, the value (true or false) is the first bit in the FLAGS
+bitfield. if this bit is set to 0, then the boolean is evaluated as false,
+otherwise, the boolean is evaluated as true.
+
+3.2. Frames
+------------
+
+Exchange between HAProxy and agents are made using FRAME packets. All frames
+must be prefixed with their size encoded on 4 bytes in network byte order:
+
+    <FRAME-LENGTH:4 bytes> <FRAME>
+
+A frame always starts with its type, on one byte, followed by metadata
+containing flags, on 4 bytes and a two variable-length integer representing the
+stream identifier and the frame identifier inside the stream:
+
+    FRAME       : <FRAME-TYPE:1 byte> <METADATA> <FRAME-PAYLOAD>
+    METADATA    : <FLAGS:4 bytes> <STREAM-ID:varint> <FRAME-ID:varint>
+
+Then comes the frame payload. Depending on the frame type, the payload can be
+of three types: a simple key/value list, a list of messages or a list of
+actions.
+
+    FRAME-PAYLOAD    : <LIST-OF-MESSAGES> | <LIST-OF-ACTIONS> | <KV-LIST>
+
+    LIST-OF-MESSAGES : [ <MESSAGE-NAME> <NB-ARGS:1 byte> <KV-LIST> ... ]
+    MESSAGE-NAME     : <STRING>
+
+    LIST-OF-ACTIONS  : [ <ACTION-TYPE:1 byte> <NB-ARGS:1 byte> <ACTION-ARGS> ... ]
+    ACTION-ARGS      : [ <TYPED-DATA>... ]
+
+    KV-LIST          : [ <KV-NAME> <KV-VALUE> ... ]
+    KV-NAME          : <STRING>
+    KV-VALUE         : <TYPED-DATA>
+
+    FLAGS :   0     1-31
+            +---+-----------+
+            | F|            |
+            | I|  RESERVED  |
+            | N|            |
+            +--+------------+
+
+    FIN: Indicates that this is the final payload fragment. The first fragment
+         may also be the final fragment.
+
+Frames cannot exceed a maximum size negociated between HAProxy and agents
+during the HELLO handshake. Most of time, payload will be small enough to send
+it in one frame. But when supported by the peer, it will be possible to
+fragment huge payload on many frames. This ability is announced during the
+HELLO handshake and it can be asynmetric (supported by agents but not by
+HAProxy or the opposite). The following rules apply to fragmentation:
+
+  * An unfragemnted payload consists of a single frame with the FIN bit set.
+
+  * A fragemented payload consists of several frames with the FIN bit clear and
+    terminated by a single frame with the FIN bit set. All these frames must
+    share the same STREAM-ID and FRAME-ID. And, of course, the FRAME-TYPE must
+    be the same.
+
+Beside the support of fragmented payload by a peer, some payload must not be
+fragmented. See below for details.
+
+IMPORTANT : The maximum size supported by peers for a frame must be greater or
+equal to 256 bytes.
+
+3.2.1. Frame capabilities
+--------------------------
+
+Here are the list of official capabilities that HAProxy and agents can support:
+
+  * fragmentation: This is the abaility for a peer to support fragmented
+                   payload in received frames.
+
+Unsupported or unknown capabilities are silently ignored, when possible.
+
+3.2.2. Frame types overview
+----------------------------
+
+Here are types of frame supported by SPOE. Frames sent by HAProxy come first,
+then frames sent by agents :
+
+    TYPE                       |  ID | DESCRIPTION
+  -----------------------------+-----+-------------------------------------
+     HAPROXY-HELLO             |  1  |  Sent by HAProxy when it opens a
+                               |     |  connection on an agent.
+                               |     |
+     HAPROXY-DISCONNECT        |  2  |  Sent by HAProxy when it want to close
+                               |     |  the connection or in reply to an
+                               |     |  AGENT-DISCONNECT frame
+                               |     |
+     NOTIFY                    |  3  |  Sent by HAProxy to pass information
+                               |     |  to an agent
+  -----------------------------+-----+-------------------------------------
+     AGENT-HELLO               | 101 |  Reply to a HAPROXY-HELLO frame, when
+                               |     |  the connection is established
+                               |     |
+     AGENT-DISCONNECT          | 102 |  Sent by an agent just before closing
+                               |     |  the connection
+                               |     |
+     ACK                       | 103 |  Sent to acknowledge a NOTIFY frame
+  -----------------------------+-----+-------------------------------------
+
+Unknown frames may be silently skipped.
+
+3.2.3. Workflow
+----------------
+
+  * Successful HELLO handshake:
+
+    HAPROXY                       AGENT SRV
+       |       HAPROXY-HELLO         |
+       | --------------------------> |
+       |                             |
+       |        AGENT-HELLO          |
+       | <-------------------------- |
+       |                             |
+
+
+  * Error encountered by agent during the HELLO handshake:
+
+    HAPROXY                       AGENT SRV
+       |       HAPROXY-HELLO         |
+       | --------------------------> |
+       |                             |
+       |     DISCONNECT + close()    |
+       | <-------------------------- |
+       |                             |
+
+  * Error encountered by HAProxy during the HELLO handshake:
+
+    HAPROXY                       AGENT SRV
+       |       HAPROXY-HELLO         |
+       | --------------------------> |
+       |                             |
+       |        AGENT-HELLO          |
+       | <-------------------------- |
+       |                             |
+       |         DISCONNECT          |
+       | --------------------------> |
+       |                             |
+       |     DISCONNECT + close()    |
+       | <-------------------------- |
+       |                             |
+
+  * Notify / Ack exchange:
+
+    HAPROXY                       AGENT SRV
+       |          NOTIFY             |
+       | --------------------------> |
+       |                             |
+       |           ACK               |
+       | <-------------------------- |
+       |                             |
+
+  * Connection closed by haproxy:
+
+    HAPROXY                       AGENT SRV
+       |         DISCONNECT          |
+       | --------------------------> |
+       |                             |
+       |     DISCONNECT + close()    |
+       | <-------------------------- |
+       |                             |
+
+  * Connection closed by agent:
+
+    HAPROXY                       AGENT SRV
+       |     DISCONNECT + close()    |
+       | <-------------------------- |
+       |                             |
+
+3.2.4. Frame: HAPROXY-HELLO
+----------------------------
+
+This frame is the first one exchanged between HAProxy and an agent, when the
+connection is established. The payload of this frame is a KV-LIST. It cannot be
+fragmented. STREAM-ID and FRAME-ID are must be set 0.
+
+Following items are mandatory in the KV-LIST:
+
+  * "supported-versions"    <STRING>
+
+    Last SPOP major versions supported by HAProxy. It is a comma-separated list
+    of versions, following the format "Major.Minor". Spaces must be ignored, if
+    any. When a major version is announced by HAProxy, it means it also support
+    all previous minor versions.
+
+    Example: "2.0, 1.5" means HAProxy supports SPOP 2.0 and 1.0 to 1.5
+
+  * "max-frame-size"    <UINT32>
+
+    This is the maximum size allowed for a frame. The HAPROXY-HELLO frame must
+    be lower or equal to this value.
+
+  * "capabilities"    <STRING>
+
+    This a comma-separated list of capabilities supported by HAProxy. Spaces
+    must be ignored, if any.
+
+To finish the HELLO handshake, the agent must return an AGENT-HELLO frame with
+its supported SPOP version, the lower value between its maximum size allowed
+for a frame and the HAProxy one and capabilities it supports. If an error
+occurs or if an incompatibility is detected with the agent configuration, an
+AGENT-DISCONNECT frame must be returned.
+
+3.2.5. Frame: AGENT-HELLO
+--------------------------
+
+This frame is sent in reply to a HAPROXY-HELLO frame to finish a HELLO
+handshake. As for HAPROXY-HELLO frame, STREAM-ID and FRAME-ID are also set
+0. The payload of this frame is a KV-LIST and it cannot be fragmented.
+
+Following items are mandatory in the KV-LIST:
+
+  * "version"    <STRING>
+
+    This is the SPOP version the agent supports. It must follow the format
+    "Major.Minor" and it must be lower or equal than one of major versions
+    announced by HAProxy.
+
+  * "max-frame-size"    <UINT32>
+
+    This is the maximum size allowed for a frame. It must be lower or equal to
+    the value in the HAPROXY-HELLO frame. This value will be used for all
+    subsequent frames.
+
+  * "capabilities"    <STRING>
+
+    This a comma-separated list of capabilities supported by agent. Spaces must
+    be ignored, if any.
+
+At this time, if everything is ok for HAProxy (supported version and valid
+max-frame-size value), the HELLO handshake is successfully completed. Else,
+HAProxy sends a HAPROXY-DISCONNECT frame with the corresponding error.
+
+3.2.6. Frame: NOTIFY
+---------------------
+
+Information are sent to the agents inside NOTIFY frames. These frames are
+attached to a stream, so STREAM-ID and FRAME-ID must be set. The payload of
+NOTIFY frames is a LIST-OF-MESSAGES and, if supported by agents, it can be
+fragmented.
+
+NOTIFY frames must be acknowledge by agents sending an ACK frame, repeating
+right STREAM-ID and FRAME-ID.
+
+3.2.7. Frame: ACK
+------------------
+
+ACK frames must be sent by agents to reply to NOTIFY frames. STREAM-ID and
+FRAME-ID found in a NOTIFY frame must be reuse in the corresponding ACK
+frame. The payload of ACK frames is a LIST-OF-ACTIONS and, if supported by
+HAProxy, it can be fragmented.
+
+3.2.8. Frame: HAPROXY-DISCONNECT
+---------------------------------
+
+If an error occurs, at anytime, from the HAProxy side, a HAPROXY-DISCONNECT
+frame is sent with information describing the error. HAProxy will wait an
+AGENT-DISCONNECT frame in reply. All other frames will be ignored. The agent
+must then close the socket.
+
+The payload of this frame is a KV-LIST. It cannot be fragmented. STREAM-ID and
+FRAME-ID are must be set 0.
+
+Following items are mandatory in the KV-LIST:
+
+  * "status-code"    <UINT32>
+
+    This is the code corresponding to the error.
+
+  * "message"    <STRING>
+
+    This is a textual message describing the error.
+
+For more information about known errors, see section "Errors & timeouts"
+
+3.2.9. Frame: AGENT-DISCONNECT
+-------------------------------
+
+If an error occurs, at anytime, from the agent size, a AGENT-DISCONNECT frame
+is sent, with information desribing the error. such frame is also sent in reply
+to a HAPROXY-DISCONNECT. The agent must close the socket just after sending
+this frame.
+
+The payload of this frame is a KV-LIST. It cannot be fragmented. STREAM-ID and
+FRAME-ID are must be set 0.
+
+Following items are mandatory in the KV-LIST:
+
+  * "status-code"    <UINT32>
+
+    This is the code corresponding to the error.
+
+  * "message"    <STRING>
+
+    This is a textual message describing the error.
+
+For more information about known errors, see section "Errors & timeouts"
+
+3.3. Events & Messages
+-----------------------
+
+Information about streams are sent in NOTIFY frames. You can specify which kind
+of information to send by defining "spoe-message" sections in your SPOE
+configuration file. for each "spoe-message" there will be a message in a NOTIFY
+frame when the right event is triggered.
+
+A NOTIFY frame is sent for an specific event when there is at least one
+"spoe-message" attached to this event. All messages for an event will be added
+in the same NOTIFY frame.
+
+Here is the list of supported events:
+
+  * on-client-session         is triggered when a new client session is created.
+                              This event is only available for SPOE filters
+                              declared in a frontend or a listen section.
+
+  * on-frontend-tcp-request   is triggered just before the evaluation of
+                              "tcp-request content" rules on the frontend side.
+                              This event is only available for SPOE filters
+                              declared in a frontend or a listen section.
+
+  * on-backend-tcp-request    is triggered just before the evaluation of
+                              "tcp-request content" rules on the backend side.
+                              This event is skipped for SPOE filters declared
+                              in a listen section.
+
+  * on-frontend-http-request  is triggered just before the evaluation of
+                              "http-request" rules on the frontend side. This
+                              event is only available for SPOE filters declared
+                              in a frontend or a listen section.
+
+  * on-backend-http-request   is triggered just before the evaluation of
+                              "http-request" rules on the backend side. This
+                              event is skipped for SPOE filters declared in a
+                              listen section.
+
+  * on-server-session         is triggered when the session with the server is
+                              established.
+
+  * on-tcp-response           is triggered just before the evaluation of
+                              "tcp-response content" rules.
+
+  * on-http-response          is triggered just before the evaluation of
+                              "http-response" rules.
+
+
+The stream processing will loop on these events, when triggered, waiting the
+agent reply.
+
+3.4. Actions
+-------------
+
+An agent must acknowledge each NOTIFY frame by sending the corresponding ACK
+frame. Actions can be added in these frames to dynamically take action on the
+processing of a stream.
+
+Here is the list of supported actions:
+
+  * set-var    set the value for an existing variable. 3 arguments must be
+               attached to this action: the variable scope (proc, sess, txn,
+               req or req), the variable name (a string) and its value.
+
+    ACTION-SET-VAR  : <SET-VAR:1 byte><NB-ARGS:1 byte><VAR-SCOPE:1 byte><VAR-NAME><VAR-VALUE>
+
+    SET-VAR     : <1>
+    NB-ARGS     : <3>
+    VAR-SCOPE   : <PROCESS> | <SESSION> | <TRANSACTION> | <REQUEST> | <RESPONSE>
+    VAR-NAME    : <STRING>
+    VAR-VALUE   : <TYPED-DATA>
+
+    PROCESS     : <0>
+    SESSION     : <1>
+    TRANSACTION : <2>
+    REQUEST     : <3>
+    RESERVED    : <4>
+
+  * unset-var    unset the value for an existing variable. 2 arguments must be
+                 attached to this action: the variable scope (proc, sess, txn,
+                 req or req) and the variable name (a string).
+
+    ACTION-UNSET-VAR  : <SET-VAR:1 byte><NB-ARGS:1 byte><VAR-SCOPE:1 byte><VAR-NAME>
+
+    SET-VAR     : <1>
+    NB-ARGS     : <3>
+    VAR-SCOPE   : <PROCESS> | <SESSION> | <TRANSACTION> | <REQUEST> | <RESPONSE>
+    VAR-NAME    : <STRING>
+
+    PROCESS     : <0>
+    SESSION     : <1>
+    TRANSACTION : <2>
+    REQUEST     : <3>
+    RESERVED    : <4>
+
+
+NOTE: Name of the variables will be automatically prefixed by HAProxy to avoid
+      name clashes with other variables used in HAProxy. Moreover, unknown
+      variable will be silently ignored.
+
+3.5. Error & timeouts
+----------------------
+
+Here is the list of all known errors:
+
+    STATUS CODE   |  DESCRIPTION
+  ----------------+--------------------------------------------------------
+     0            | normal (no error occurred)
+     1            | I/O error
+     2            | A timeout occurred
+     3            | frame is too big
+     4            | invalid frame received
+     5            | version value not found
+     6            | max-frame-size value not found
+     7            | capabilities value not found
+     8            | unsupported version
+     9            | max-frame-size too big or too small
+     99           | an unknown error occurrde
+  ----------------+--------------------------------------------------------
+
+An agent can define its own errors using a not yet assigned status code.
+
+IMPORTANT NOTE: For a specific stream, when an abnormal/unexpected error
+                occurs, the SPOE is disabled for all the transaction. So if you
+                have several events configured, such error on an event will
+                disabled all followings. For TCP streams, this will disable the
+                SPOE for the whole session. For HTTP streams, this will disable
+                it for the transaction (request and response).
+
+To avoid a stream to wait infinitly, you must carefully choose the
+acknowledgement timeout. In most of cases, it will be quiet low. But it depends
+on the responsivness of your service.
+
+You must also choose idle timeout carefully. Because connection with your
+service depends on the backend configuration used by the SPOA, it is important
+to use a lower value for idle timeout than the server timeout. Else the
+connection will be closed by HAProxy. The same is true for hello timeout. You
+should choose a lower value than the connect timeout.
+
+
+/*
+ * Local variables:
+ *  fill-column: 79
+ * End:
+ */

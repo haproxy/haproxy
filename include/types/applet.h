@@ -145,6 +145,14 @@ struct appctx {
 		struct {
 			char **var;
 		} env;
+		struct {
+			struct task *task;
+			void        *ctx;
+			void        *agent;
+			unsigned int version;
+			unsigned int max_frame_size;
+			struct list  list;
+		} spoe;                         /* used by SPOE filter */
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 

@@ -267,6 +267,8 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 		return "capture";
 	case ARGC_SRV:
 		return "server";
+	case ARGC_SPOE:
+		return "spoe-message";
 	default:
 		return "undefined(please report this bug)"; /* must never happen */
 	}
