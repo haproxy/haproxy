@@ -69,12 +69,17 @@
 
 #include <ebsttree.h>
 
+#include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/ssl_sock.h>
+#include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/arg.h>
+#include <proto/channel.h>
 #include <proto/connection.h>
+#include <proto/cli.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
@@ -83,6 +88,7 @@
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/server.h>
+#include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/shctx.h>
@@ -5977,6 +5983,270 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 	return 0;
 }
 
+/* This function is used with TLS ticket keys management. It permits to browse
+ * each reference. The variable <getnext> must contain the current node,
+ * <end> point to the root node.
+ */
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+static inline
+struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *getnext, struct list *end)
+{
+	struct tls_keys_ref *ref = getnext;
+
+	while (1) {
+
+		/* Get next list entry. */
+		ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
+
+		/* If the entry is the last of the list, return NULL. */
+		if (&ref->list == end)
+			return NULL;
+
+		return ref;
+	}
+}
+
+static inline
+struct tls_keys_ref *tlskeys_ref_lookup_ref(const char *reference)
+{
+	int id;
+	char *error;
+
+	/* If the reference starts by a '#', this is numeric id. */
+	if (reference[0] == '#') {
+		/* Try to convert the numeric id. If the conversion fails, the lookup fails. */
+		id = strtol(reference + 1, &error, 10);
+		if (*error != '\0')
+			return NULL;
+
+		/* Perform the unique id lookup. */
+		return tlskeys_ref_lookupid(id);
+	}
+
+	/* Perform the string lookup. */
+	return tlskeys_ref_lookup(reference);
+}
+#endif
+
+
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+
+static int cli_io_handler_tlskeys_files(struct appctx *appctx);
+
+static inline int cli_io_handler_tlskeys_entries(struct appctx *appctx) {
+	return cli_io_handler_tlskeys_files(appctx);
+}
+
+static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
+
+	struct stream_interface *si = appctx->owner;
+
+	switch (appctx->st2) {
+	case STAT_ST_INIT:
+		/* Display the column headers. If the message cannot be sent,
+		 * quit the fucntion with returning 0. The function is called
+		 * later and restart at the state "STAT_ST_INIT".
+		 */
+		chunk_reset(&trash);
+
+		if (appctx->io_handler == cli_io_handler_tlskeys_entries)
+			chunk_appendf(&trash, "# id secret\n");
+		else
+			chunk_appendf(&trash, "# id (file)\n");
+
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+
+		appctx->ctx.tlskeys.dump_keys_index = 0;
+
+		/* Now, we start the browsing of the references lists.
+		 * Note that the following call to LIST_ELEM return bad pointer. The only
+		 * available field of this pointer is <list>. It is used with the function
+		 * tlskeys_list_get_next() for retruning the first available entry
+		 */
+		if (appctx->ctx.tlskeys.ref == NULL) {
+			appctx->ctx.tlskeys.ref = LIST_ELEM(&tlskeys_reference, struct tls_keys_ref *, list);
+			appctx->ctx.tlskeys.ref = tlskeys_list_get_next(appctx->ctx.tlskeys.ref, &tlskeys_reference);
+		}
+
+		appctx->st2 = STAT_ST_LIST;
+		/* fall through */
+
+	case STAT_ST_LIST:
+		while (appctx->ctx.tlskeys.ref) {
+			int head = appctx->ctx.tlskeys.ref->tls_ticket_enc_index;
+
+			chunk_reset(&trash);
+			if (appctx->io_handler == cli_io_handler_tlskeys_entries && appctx->ctx.tlskeys.dump_keys_index == 0)
+				chunk_appendf(&trash, "# ");
+			if (appctx->ctx.tlskeys.dump_keys_index == 0)
+				chunk_appendf(&trash, "%d (%s)\n", appctx->ctx.tlskeys.ref->unique_id,
+				              appctx->ctx.tlskeys.ref->filename);
+			if (appctx->io_handler == cli_io_handler_tlskeys_entries) {
+				while (appctx->ctx.tlskeys.dump_keys_index < TLS_TICKETS_NO) {
+					struct chunk *t2 = get_trash_chunk();
+
+					chunk_reset(t2);
+					/* should never fail here because we dump only a key in the t2 buffer */
+					t2->len = a2base64((char *)(appctx->ctx.tlskeys.ref->tlskeys + (head + 2 + appctx->ctx.tlskeys.dump_keys_index) % TLS_TICKETS_NO),
+					                   sizeof(struct tls_sess_key), t2->str, t2->size);
+					chunk_appendf(&trash, "%d.%d %s\n", appctx->ctx.tlskeys.ref->unique_id, appctx->ctx.tlskeys.dump_keys_index, t2->str);
+
+					if (bi_putchk(si_ic(si), &trash) == -1) {
+						/* let's try again later from this stream. We add ourselves into
+						 * this stream's users so that it can remove us upon termination.
+						 */
+						si_applet_cant_put(si);
+						return 0;
+					}
+					appctx->ctx.tlskeys.dump_keys_index++;
+				}
+				appctx->ctx.tlskeys.dump_keys_index = 0;
+			}
+			if (bi_putchk(si_ic(si), &trash) == -1) {
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
+				 */
+				si_applet_cant_put(si);
+				return 0;
+			}
+
+			if (appctx->ctx.tlskeys.dump_all == 0) /* don't display everything if not necessary */
+				break;
+
+			/* get next list entry and check the end of the list */
+			appctx->ctx.tlskeys.ref = tlskeys_list_get_next(appctx->ctx.tlskeys.ref, &tlskeys_reference);
+
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		return 1;
+	}
+	return 0;
+}
+
+#endif
+
+static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *private)
+{
+	appctx->ctx.tlskeys.dump_all = 0;
+	/* no parameter, shows only file list */
+	if (!*args[2]) {
+		appctx->ctx.tlskeys.dump_all = 1;
+		appctx->st2 = STAT_ST_INIT;
+		appctx->st0 = STAT_CLI_O_CUSTOM;
+		appctx->io_handler = cli_io_handler_tlskeys_files;
+
+		return 1;
+	}
+
+	if (args[2][0] == '*') {
+		/* list every TLS ticket keys */
+		appctx->ctx.tlskeys.ref = NULL;
+		appctx->ctx.tlskeys.dump_all = 1;
+	} else {
+		appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[2]);
+		if(!appctx->ctx.tlskeys.ref) {
+			appctx->ctx.cli.msg = "'show tls-keys' unable to locate referenced filename\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
+	appctx->st2 = STAT_ST_INIT;
+	appctx->st0 = STAT_CLI_O_CUSTOM;
+	appctx->io_handler = cli_io_handler_tlskeys_entries;
+	return 1;
+}
+
+
+static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *private)
+{
+	/* Expect two parameters: the filename and the new new TLS key in encoding */
+	if (!*args[3] || !*args[4]) {
+		appctx->ctx.cli.msg = "'set ssl tls-key' expects a filename and the new TLS key in base64 encoding.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[3]);
+	if(!appctx->ctx.tlskeys.ref) {
+		appctx->ctx.cli.msg = "'set ssl tls-key' unable to locate referenced filename\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	trash.len = base64dec(args[4], strlen(args[4]), trash.str, trash.size);
+	if (trash.len != sizeof(struct tls_sess_key)) {
+		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	memcpy(appctx->ctx.tlskeys.ref->tlskeys + ((appctx->ctx.tlskeys.ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO), trash.str, trash.len);
+	appctx->ctx.tlskeys.ref->tls_ticket_enc_index = (appctx->ctx.tlskeys.ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
+
+	appctx->ctx.cli.msg = "TLS ticket key updated!";
+	appctx->st0 = STAT_CLI_PRINT;
+	return 1;
+
+}
+
+static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *private)
+{
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+	char *err = NULL;
+
+	/* Expect one parameter: the new response in base64 encoding */
+	if (!*args[3]) {
+		appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	trash.len = base64dec(args[3], strlen(args[3]), trash.str, trash.size);
+	if (trash.len < 0) {
+		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (ssl_sock_update_ocsp_response(&trash, &err)) {
+		if (err) {
+			memprintf(&err, "%s.\n", err);
+			appctx->ctx.cli.err = err;
+			appctx->st0 = STAT_CLI_PRINT_FREE;
+		}
+		return 1;
+	}
+	appctx->ctx.cli.msg = "OCSP Response updated!";
+	appctx->st0 = STAT_CLI_PRINT;
+	return 1;
+#else
+	appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n";
+	appctx->st0 = STAT_CLI_PRINT;
+	return 1;
+#endif
+
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+	{ { "show", "tls-keys", NULL }, "show tls-keys [id|*]: show tls keys references or dump tls ticket keys when id specified", cli_parse_show_tlskeys, NULL },
+	{ { "set", "ssl", "tls-keys", NULL }, NULL, cli_parse_set_tlskeys, NULL },
+	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
+#endif
+	{ { NULL }, NULL, NULL, NULL }
+}};
+
+
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -6171,6 +6441,7 @@ static void __ssl_sock_init(void)
 	bind_register_keywords(&bind_kws);
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
+	cli_register_kw(&cli_kws);
 
 	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
 	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;

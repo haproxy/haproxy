@@ -121,8 +121,6 @@ enum {
 	STAT_CLI_O_PAT,      /* list all entries of a pattern */
 	STAT_CLI_O_MLOOK,    /* lookup a map entry */
 	STAT_CLI_O_POOLS,    /* dump memory pools */
-	STAT_CLI_O_TLSK,     /* list all TLS ticket keys references */
-	STAT_CLI_O_TLSK_ENT, /* list all TLS ticket keys entries for a reference */
 	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
 	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
 	STAT_CLI_O_BACKEND,  /* dump backend list */
