@@ -1735,11 +1735,9 @@ static void peer_session_forceshutdown(struct stream * stream)
 	if (ps)
 		ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
 
-	/* call release to reinit resync states if needed */
-	peer_session_release(appctx);
 	appctx->st0 = PEER_SESS_ST_END;
 	appctx->ctx.peers.ptr = NULL;
-	task_wakeup(stream->task, TASK_WOKEN_MSG);
+	appctx_wakeup(appctx);
 }
 
 /* Pre-configures a peers frontend to accept incoming connections */
