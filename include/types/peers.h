@@ -63,7 +63,6 @@ struct peer {
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int reconnect;	      /* next connect timer */
 	unsigned int confirm;         /* confirm message counter */
-	struct stream *stream;        /* current transport stream */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
 	struct shared_table *last_local_table;
