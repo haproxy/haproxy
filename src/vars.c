@@ -148,7 +148,8 @@ void vars_init(struct vars *vars, enum vars_scope scope)
  * left inconsistent. Otherwise, it returns the pointer on the global
  * name.
  */
-static char *register_name(const char *name, int len, enum vars_scope *scope, char **err)
+static char *register_name(const char *name, int len, enum vars_scope *scope,
+			   int alloc, char **err)
 {
 	int i;
 	char **var_names2;
@@ -191,6 +192,9 @@ static char *register_name(const char *name, int len, enum vars_scope *scope, ch
 	for (i = 0; i < var_names_nb; i++)
 		if (strncmp(var_names[i], name, len) == 0)
 			return var_names[i];
+
+	if (!alloc)
+		return NULL;
 
 	/* Store variable name. If realloc fails, var_names remains valid */
 	var_names2 = realloc(var_names, (var_names_nb + 1) * sizeof(*var_names));
@@ -398,7 +402,7 @@ int vars_check_arg(struct arg *arg, char **err)
 	}
 
 	/* Register new variable name. */
-	name = register_name(arg->data.str.str, arg->data.str.len, &scope, err);
+	name = register_name(arg->data.str.str, arg->data.str.len, &scope, 1, err);
 	if (!name)
 		return 0;
 
@@ -409,6 +413,22 @@ int vars_check_arg(struct arg *arg, char **err)
 	return 1;
 }
 
+/* This function store a sample in a variable if it was already defined.
+ * In error case, it fails silently.
+ */
+void vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
+{
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, 0, NULL);
+	if (!name)
+		return;
+
+	sample_store_stream(name, scope, smp);
+}
+
+
 /* This function store a sample in a variable.
  * In error case, it fails silently.
  */
@@ -417,7 +437,7 @@ void vars_set_by_name(const char *name, size_t len, struct sample *smp)
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, NULL);
+	name = register_name(name, len, &scope, 1, NULL);
 	if (!name)
 		return;
 
@@ -435,7 +455,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, NULL);
+	name = register_name(name, len, &scope, 1, NULL);
 	if (!name)
 		return 0;
 
@@ -576,7 +596,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, err);
+	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, 1, err);
 	if (!rule->arg.vars.name)
 		return ACT_RET_PRS_ERR;
 
