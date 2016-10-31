@@ -1845,7 +1845,7 @@ static struct stream *peer_session_create(struct peers *peers, struct peer *peer
  out_free_appctx:
 	appctx_free(appctx);
  out_close:
-	return s;
+	return NULL;
 }
 
 /*
