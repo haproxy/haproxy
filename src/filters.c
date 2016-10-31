@@ -802,10 +802,11 @@ end:
 		if (s->txn && (s->txn->flags & TX_WAIT_NEXT_RQ) && !channel_input_closed(&s->req)) {
 			s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
 			s->res.analysers = 0;
+
+			/* Remove backend filters from the list */
+			flt_stream_release(s, 1);
 		}
 
-		/* Remove backend filters from the list */
-		flt_stream_release(s, 1);
 	}
 	else if (ret) {
 		/* Analyzer ends only for one channel. So wake up the stream to
