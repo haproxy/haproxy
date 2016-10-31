@@ -172,7 +172,7 @@ enum {
 #define PEER_DWNGRD_MINOR_VER 0
 
 struct peers *peers = NULL;
-static void peer_session_forceshutdown(struct stream * stream);
+static void peer_session_forceshutdown(struct appctx *appctx);
 
 int intencode(uint64_t i, char **str) {
 	int idx = 0;
@@ -669,7 +669,7 @@ switchstate:
 						appctx->st1 = PEER_SESS_SC_TRYAGAIN;
 						goto switchstate;
 					}
-					peer_session_forceshutdown(curpeer->stream);
+					peer_session_forceshutdown(curpeer->appctx);
 				}
 				if (maj_ver != (unsigned int)-1 && min_ver != (unsigned int)-1) {
 					if (min_ver == PEER_DWNGRD_MINOR_VER) {
@@ -1708,23 +1708,14 @@ static struct applet peer_applet = {
 /*
  * Use this function to force a close of a peer session
  */
-static void peer_session_forceshutdown(struct stream * stream)
+static void peer_session_forceshutdown(struct appctx *appctx)
 {
-	struct appctx *appctx = NULL;
 	struct peer *ps;
 
-	int i;
-
-	for (i = 0; i <= 1; i++) {
-		appctx = objt_appctx(stream->si[i].end);
-		if (!appctx)
-			continue;
-		if (appctx->applet != &peer_applet)
-			continue;
-		break;
-	}
-
 	if (!appctx)
+		return;
+
+	if (appctx->applet != &peer_applet)
 		return;
 
 	ps = appctx->ctx.peers.ptr;
@@ -1980,7 +1971,7 @@ static struct task *process_peer_sync(struct task * task)
 			/* disconnect all connected peers */
 			for (ps = peers->remote; ps; ps = ps->next) {
 				if (ps->stream) {
-					peer_session_forceshutdown(ps->stream);
+					peer_session_forceshutdown(ps->appctx);
 					ps->stream = NULL;
 					ps->appctx = NULL;
 				}
