@@ -4314,8 +4314,8 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                      "res"  : the variable is shared only during response
                               processing
                    This prefix is followed by a name. The separator is a '.'.
-                   The name may only contain characters 'a-z', 'A-Z', '0-9'
-                   and '_'.
+                   The name may only contain characters 'a-z', 'A-Z', '0-9',
+                   '.' and '_'.
 
          <expr>    Is a standard HAProxy expression formed by a sample-fetch
                    followed by some converters.
@@ -9076,8 +9076,8 @@ tcp-request content <action> [{if | unless} <condition>]
                  "res"  : the variable is shared only during response
                           processing
                This prefix is followed by a name. The separator is a '.'.
-               The name may only contain characters 'a-z', 'A-Z', '0-9'
-               and '_'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9',
+               '.' and '_'.
 
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
@@ -9289,8 +9289,8 @@ tcp-response content <action> [{if | unless} <condition>]
                  "res"  : the variable is shared only during response
                           processing
                This prefix is followed by a name. The separator is a '.'.
-               The name may only contain characters 'a-z', 'A-Z', '0-9'
-               and '_'.
+               The name may only contain characters 'a-z', 'A-Z', '0-9',
+               '.' and '_'.
 
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
@@ -12110,7 +12110,7 @@ add(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 and(<value>)
   Performs a bitwise "AND" between <value> and the input value of type signed
@@ -12122,7 +12122,7 @@ and(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 base64
   Converts a binary input sample to a base64 string. It is used to log or
@@ -12187,7 +12187,7 @@ div(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
@@ -12395,7 +12395,7 @@ mod(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
@@ -12408,7 +12408,7 @@ mul(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 neg
   Takes the input value of type signed integer, computes the opposite value,
@@ -12436,7 +12436,7 @@ or(<value>)
     "req"  : the variable is shared only during request processing
     "res"  : the variable is shared only during response processing
   This prefix is followed by a name. The separator is a '.'.  The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 regsub(<regex>,<subst>[,<flags>])
   Applies a regex-based substitution to the input string. It does the same
@@ -12498,7 +12498,7 @@ set-var(<var name>)
     "req"  : the variable is shared only during request processing,
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
@@ -12512,7 +12512,7 @@ sub(<value>)
     "req"  : the variable is shared only during request processing,
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -12709,7 +12709,7 @@ xor(<value>)
     "req"  : the variable is shared only during request processing,
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 
 7.3.2. Fetching samples from internal states
@@ -12972,7 +12972,7 @@ var(<var-name>) : undefined
     "req"  : the variable is shared only during request processing,
     "res"  : the variable is shared only during response processing.
   This prefix is followed by a name. The separator is a '.'. The name may only
-  contain characters 'a-z', 'A-Z', '0-9' and '_'.
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
