@@ -1859,20 +1859,70 @@ show servers state [<backend>]
      srv_name:                    Server label.
      srv_addr:                    Server IP address.
      srv_op_state:                Server operational state (UP/DOWN/...).
-                                  In source code: SRV_ST_*.
+                                    0 = SRV_ST_STOPPED
+                                      The server is down.
+                                    1 = SRV_ST_STARTING
+                                      The server is warming up (up but
+                                      throttled).
+                                    2 = SRV_ST_RUNNING
+                                      The server is fully up.
+                                    3 = SRV_ST_STOPPING
+                                      The server is up but soft-stopping
+                                      (eg: 404).
      srv_admin_state:             Server administrative state (MAINT/DRAIN/...).
-                                  In source code: SRV_ADMF_*.
+                                  The state is actually a mask of values :
+                                    0x01 = SRV_ADMF_FMAINT
+                                      The server was explicitly forced into
+                                      maintenance.
+                                    0x02 = SRV_ADMF_IMAINT
+                                      The server has inherited the maintenance
+                                      status from a tracked server.
+                                    0x04 = SRV_ADMF_CMAINT
+                                      The server is in maintenance because of
+                                      the configuration.
+                                    0x08 = SRV_ADMF_FDRAIN
+                                      The server was explicitly forced into
+                                      drain state.
+                                    0x10 = SRV_ADMF_IDRAIN
+                                      The server has inherited the drain status
+                                      from a tracked server.
      srv_uweight:                 User visible server's weight.
      srv_iweight:                 Server's initial weight.
      srv_time_since_last_change:  Time since last operational change.
      srv_check_status:            Last health check status.
      srv_check_result:            Last check result (FAILED/PASSED/...).
-                                  In source code: CHK_RES_*.
+                                    0 = CHK_RES_UNKNOWN
+                                      Initialized to this by default.
+                                    1 = CHK_RES_NEUTRAL
+                                      Valid check but no status information.
+                                    2 = CHK_RES_FAILED
+                                      Check failed.
+                                    3 = CHK_RES_PASSED
+                                      Check succeeded and server is fully up
+                                      again.
+                                    4 = CHK_RES_CONDPASS
+                                      Check reports the server doesn't want new
+                                      sessions.
      srv_check_health:            Checks rise / fall current counter.
      srv_check_state:             State of the check (ENABLED/PAUSED/...).
-                                  In source code: CHK_ST_*.
+                                  The state is actually a mask of values :
+                                    0x01 = CHK_ST_INPROGRESS
+                                      A check is currently running.
+                                    0x02 = CHK_ST_CONFIGURED
+                                      This check is configured and may be
+                                      enabled.
+                                    0x04 = CHK_ST_ENABLED
+                                      This check is currently administratively
+                                      enabled.
+                                    0x08 = CHK_ST_PAUSED
+                                      Checks are paused because of maintenance
+                                      (health only).
      srv_agent_state:             State of the agent check (ENABLED/PAUSED/...).
-                                  In source code: CHK_ST_*.
+                                  This state uses the same mask values as
+                                  "srv_check_state", adding this specific one :
+                                    0x10 = CHK_ST_AGENT
+                                      Check is an agent check (otherwise it's a
+                                      health check).
      bk_f_forced_id:              Flag to know if the backend ID is forced by
                                   configuration.
      srv_f_forced_id:             Flag to know if the server's ID is forced by
