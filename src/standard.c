@@ -625,13 +625,14 @@ const char *invalid_domainchar(const char *name) {
  * all other fields remain zero. The string is not supposed to be modified.
  * The IPv6 '::' address is IN6ADDR_ANY. If <resolve> is non-zero, the hostname
  * is resolved, otherwise only IP addresses are resolved, and anything else
- * returns NULL.
+ * returns NULL. If the address contains a port, this one is preserved.
  */
 struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, int resolve)
 {
 	struct hostent *he;
 	/* max IPv6 length, including brackets and terminating NULL */
 	char tmpip[48];
+	int port = get_host_port(sa);
 
 	/* check IPv6 with square brackets */
 	if (str[0] == '[') {
@@ -664,6 +665,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 			sa->ss_family = AF_INET6;
 		else if (sa->ss_family != AF_INET6)
 			goto fail;
+		set_host_port(sa, port);
 		return sa;
 	}
 
@@ -671,6 +673,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 	if (!str[0] || (str[0] == '*' && !str[1])) {
 		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
 			sa->ss_family = AF_INET;
+		set_host_port(sa, port);
 		return sa;
 	}
 
@@ -678,6 +681,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 	if ((!sa->ss_family || sa->ss_family == AF_UNSPEC || sa->ss_family == AF_INET6) &&
 	    inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)sa)->sin6_addr)) {
 		sa->ss_family = AF_INET6;
+		set_host_port(sa, port);
 		return sa;
 	}
 
@@ -685,6 +689,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 	if ((!sa->ss_family || sa->ss_family == AF_UNSPEC || sa->ss_family == AF_INET) &&
 	    inet_pton(AF_INET, str, &((struct sockaddr_in *)sa)->sin_addr)) {
 		sa->ss_family = AF_INET;
+		set_host_port(sa, port);
 		return sa;
 	}
 
@@ -714,9 +719,11 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 			switch (result->ai_family) {
 			case AF_INET:
 				memcpy((struct sockaddr_in *)sa, result->ai_addr, result->ai_addrlen);
+				set_host_port(sa, port);
 				return sa;
 			case AF_INET6:
 				memcpy((struct sockaddr_in6 *)sa, result->ai_addr, result->ai_addrlen);
+				set_host_port(sa, port);
 				return sa;
 			}
 		}
@@ -736,9 +743,11 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 		switch (sa->ss_family) {
 		case AF_INET:
 			((struct sockaddr_in *)sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
+			set_host_port(sa, port);
 			return sa;
 		case AF_INET6:
 			((struct sockaddr_in6 *)sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
+			set_host_port(sa, port);
 			return sa;
 		}
 	}
