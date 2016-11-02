@@ -2363,6 +2363,11 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->conf.line = linenum;
 		curr_resolvers->id = strdup(args[1]);
 		curr_resolvers->query_ids = EB_ROOT;
+		/* default hold period for nx, other, refuse and timeout is 30s */
+		curr_resolvers->hold.nx = 30000;
+		curr_resolvers->hold.other = 30000;
+		curr_resolvers->hold.refused = 30000;
+		curr_resolvers->hold.timeout = 30000;
 		/* default hold period for valid is 10s */
 		curr_resolvers->hold.valid = 10000;
 		curr_resolvers->timeout.retry = 1000;
@@ -2462,11 +2467,19 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (strcmp(args[1], "valid") == 0)
+		if (strcmp(args[1], "nx") == 0)
+			curr_resolvers->hold.nx = time;
+		else if (strcmp(args[1], "other") == 0)
+			curr_resolvers->hold.other = time;
+		else if (strcmp(args[1], "refused") == 0)
+			curr_resolvers->hold.refused = time;
+		else if (strcmp(args[1], "timeout") == 0)
+			curr_resolvers->hold.timeout = time;
+		else if (strcmp(args[1], "valid") == 0)
 			curr_resolvers->hold.valid = time;
 		else {
-			Alert("parsing [%s:%d] : '%s' unknown <event>: '%s', expects 'valid'\n",
-			file, linenum, args[0], args[1]);
+			Alert("parsing [%s:%d] : '%s' unknown <event>: '%s', expects either 'nx', 'timeout', 'valid', or 'other'.\n",
+				file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

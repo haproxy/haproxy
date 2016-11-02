@@ -11347,12 +11347,13 @@ nameserver <id> <ip>:<port>
 hold <status> <period>
   Defines <period> during which the last name resolution should be kept based
   on last resolution <status>
-    <status> : last name resolution status. Only "valid" is accepted for now.
+    <status> : last name resolution status. Acceptable values are "nx",
+               "other", "refused", "timeout", "valid".
     <period> : interval between two successive name resolution when the last
                answer was in <status>. It follows the HAProxy time format.
                <period> is in milliseconds by default.
 
-  Default value is 10s for "valid".
+  Default value is 10s for "valid" and 30s for others.
 
   Note: since the name resolution is triggered by the health checks, a new
         resolution is triggered after <period> modulo the <inter> parameter of
@@ -11384,6 +11385,10 @@ timeout <event> <time>
      nameserver dns2 10.0.0.2:53
      resolve_retries       3
      timeout retry         1s
+     hold other           30s
+     hold refused         30s
+     hold nx              30s
+     hold timeout         30s
      hold valid           10s
 
 

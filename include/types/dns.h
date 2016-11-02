@@ -148,6 +148,10 @@ struct dns_resolvers {
 	} timeout;
 	struct {			/* time to hold current data when */
 		int valid;		/*   a response is valid */
+		int nx;                 /*   a response doesn't exist */
+		int timeout;            /*   no answer was delivered */
+		int refused;            /*   dns server refused to answer */
+		int other;              /*   other dns response errors */
 	} hold;
 	struct task *t;			/* timeout management */
 	struct list curr_resolution;	/* current running resolutions */
