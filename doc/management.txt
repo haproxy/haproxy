@@ -1886,6 +1886,9 @@ show servers state [<backend>]
                                     0x10 = SRV_ADMF_IDRAIN
                                       The server has inherited the drain status
                                       from a tracked server.
+                                    0x20 = SRV_ADMF_RMAINT
+                                      The server is in maintenance because of an
+                                      IP address resolution failure.
      srv_uweight:                 User visible server's weight.
      srv_iweight:                 Server's initial weight.
      srv_time_since_last_change:  Time since last operational change.
