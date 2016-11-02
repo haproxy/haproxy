@@ -952,6 +952,12 @@ void init(int argc, char **argv)
         }
 #endif
 
+	/* Apply server states */
+	apply_server_state();
+
+	for (px = proxy; px; px = px->next)
+		srv_compute_all_admin_states(px);
+
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;
 		struct proxy *px;
@@ -972,12 +978,6 @@ void init(int argc, char **argv)
 		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
 		exit(2);
 	}
-
-	/* Apply server states */
-	apply_server_state();
-
-	for (px = proxy; px; px = px->next)
-		srv_compute_all_admin_states(px);
 
 	global_listener_queue_task = task_new();
 	if (!global_listener_queue_task) {
