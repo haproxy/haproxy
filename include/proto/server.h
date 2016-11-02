@@ -46,6 +46,8 @@ struct server *server_find_by_name(struct proxy *bk, const char *name);
 struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff);
 void apply_server_state(void);
 void srv_compute_all_admin_states(struct proxy *px);
+int srv_set_addr_via_libc(struct server *srv, int *err_code);
+int srv_init_addr(void);
 
 /* functions related to server name resolution */
 int snr_update_srv_status(struct server *s);

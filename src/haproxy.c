@@ -958,6 +958,13 @@ void init(int argc, char **argv)
 	for (px = proxy; px; px = px->next)
 		srv_compute_all_admin_states(px);
 
+	/* Apply servers' configured address */
+	err_code |= srv_init_addr();
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		Alert("Failed to initialize server(s) addr.\n");
+		exit(1);
+	}
+
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;
 		struct proxy *px;

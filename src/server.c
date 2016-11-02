@@ -34,6 +34,7 @@
 #include <proto/dns.h>
 
 static void srv_update_state(struct server *srv, int version, char **params);
+static int srv_apply_lastaddr(struct server *srv, int *err_code);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -973,7 +974,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, &fqdn, 1);
+			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL, &fqdn, 0);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -2257,23 +2258,9 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			}
 			server_recalc_eweight(srv);
 
-			/* update server IP only if DNS resolution is used on the server */
+			/* load server IP only if DNS resolution is used on the server */
 			if (srv->resolution) {
-				struct sockaddr_storage addr;
-
-				memset(&addr, 0, sizeof(struct sockaddr_storage));
-
-				if (str2ip2(params[0], &addr, AF_UNSPEC)) {
-					int port;
-
-					/* save the port, applies the new IP then reconfigure the port */
-					port = get_host_port(&srv->addr);
-					srv->addr.ss_family = addr.ss_family;
-					str2ip2(params[0], &srv->addr, srv->addr.ss_family);
-					set_host_port(&srv->addr, port);
-				}
-				else
-					chunk_appendf(msg, ", can't parse IP: %s", params[0]);
+				srv->lastaddr = strdup(params[0]);
 			}
 			break;
 		default:
@@ -3088,6 +3075,84 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 	snr_update_srv_status(s);
 	return 1;
 }
+
+/* Sets the server's address (srv->addr) from srv->hostname using the libc's
+ * resolver. This is suited for initial address configuration. Returns 0 on
+ * success otherwise a non-zero error code. In case of error, *err_code, if
+ * not NULL, is filled up.
+ */
+int srv_set_addr_via_libc(struct server *srv, int *err_code)
+{
+	if (str2ip2(srv->hostname, &srv->addr, 1) == NULL) {
+		Alert("parsing [%s:%d] : 'server %s' : invalid address: '%s'\n",
+		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+		if (err_code)
+			*err_code |= ERR_ALERT | ERR_FATAL;
+		return 1;
+	}
+	return 0;
+}
+
+/* Sets the server's address (srv->addr) from srv->lastaddr which was filled
+ * from the state file. This is suited for initial address configuration.
+ * Returns 0 on success otherwise a non-zero error code. In case of error,
+ * *err_code, if not NULL, is filled up.
+ */
+static int srv_apply_lastaddr(struct server *srv, int *err_code)
+{
+	if (!str2ip2(srv->lastaddr, &srv->addr, 0)) {
+		if (err_code)
+			*err_code |= ERR_WARN;
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * This function parses all backends and all servers within each backend
+ * and performs servers' addr resolution based on information provided by:
+ *   - configuration file
+ *   - server-state file (states provided by an 'old' haproxy process)
+ *
+ * Returns 0 if no error, otherwise, a combination of ERR_ flags.
+ */
+int srv_init_addr(void)
+{
+	struct proxy *curproxy;
+	int return_code = 0;
+
+	curproxy = proxy;
+	while (curproxy) {
+		struct server *srv;
+		int err_code = 0;
+
+		/* servers are in backend only */
+		if (!(curproxy->cap & PR_CAP_BE))
+			goto srv_init_addr_next;
+
+		for (srv = curproxy->srv; srv; srv = srv->next) {
+			err_code = 0;
+
+			if (srv->lastaddr) {
+				if (srv_apply_lastaddr(srv, &err_code) == 0)
+					continue;
+				return_code |= err_code;
+			}
+
+			if (srv->hostname) {
+				if (srv_set_addr_via_libc(srv, &err_code) == 0)
+					continue;
+				return_code = err_code;
+			}
+		}
+
+ srv_init_addr_next:
+		curproxy = curproxy->next;
+	}
+
+	return return_code;
+}
+
 
 /*
  * Local variables:

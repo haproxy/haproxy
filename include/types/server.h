@@ -227,6 +227,7 @@ struct server {
 
 	char *resolvers_id;			/* resolvers section used by this server */
 	char *hostname;				/* server hostname */
+	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_resolution *resolution;	/* server name resolution */
 	struct dns_options dns_opts;
 
