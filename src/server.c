@@ -2845,6 +2845,9 @@ out:
 int snr_update_srv_status(struct server *s)
 {
 	struct dns_resolution *resolution = s->resolution;
+	struct dns_resolvers *resolvers;
+
+	resolvers = resolution->resolvers;
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
@@ -2852,7 +2855,59 @@ int snr_update_srv_status(struct server *s)
 			trigger_resolution(s);
 			break;
 
+		case RSLV_STATUS_VALID:
+			/*
+			 * resume health checks
+			 * server will be turned back on if health check is safe
+			 */
+			if (!(s->admin & SRV_ADMF_RMAINT))
+				return 1;
+			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
+			chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer",
+			             s->proxy->id, s->id);
+
+			Warning("%s.\n", trash.str);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			return 0;
+
+		case RSLV_STATUS_NX:
+			/* stop server if resolution is NX for a long enough period */
+			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.nx), now_ms)) {
+				if (s->admin & SRV_ADMF_RMAINT)
+					return 1;
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS NX status");
+				return 0;
+			}
+			break;
+
+		case RSLV_STATUS_TIMEOUT:
+			/* stop server if resolution is TIMEOUT for a long enough period */
+			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.timeout), now_ms)) {
+				if (s->admin & SRV_ADMF_RMAINT)
+					return 1;
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS timeout status");
+				return 0;
+			}
+			break;
+
+		case RSLV_STATUS_REFUSED:
+			/* stop server if resolution is REFUSED for a long enough period */
+			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.refused), now_ms)) {
+				if (s->admin & SRV_ADMF_RMAINT)
+					return 1;
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS refused status");
+				return 0;
+			}
+			break;
+
 		default:
+			/* stop server if resolution is in unmatched error for a long enough period */
+			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.other), now_ms)) {
+				if (s->admin & SRV_ADMF_RMAINT)
+					return 1;
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "unspecified DNS error");
+				return 0;
+			}
 			break;
 	}
 
