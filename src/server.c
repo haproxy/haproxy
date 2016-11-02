@@ -1166,6 +1166,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "init-addr")) {
 				char *p, *end;
 				int done;
+				struct sockaddr_storage sa;
 
 				newsrv->init_addr_methods = 0;
 				memset(&newsrv->init_addr, 0, sizeof(newsrv->init_addr));
@@ -1176,6 +1177,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					if (*end)
 						*(end++) = 0;
 
+					memset(&sa, 0, sizeof(sa));
 					if (!strcmp(p, "libc")) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LIBC);
 					}
@@ -1184,6 +1186,16 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					}
 					else if (!strcmp(p, "none")) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_NONE);
+					}
+					else if (str2ip2(p, &sa, 0)) {
+						if (is_addr(&newsrv->init_addr)) {
+							Alert("parsing [%s:%d]: '%s' : initial address already specified, cannot add '%s'.\n",
+							      file, linenum, args[cur_arg], p);
+							err_code |= ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						newsrv->init_addr = sa;
+						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_IP);
 					}
 					else {
 						Alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.\n",
@@ -3260,6 +3272,14 @@ static int srv_iterate_initaddr(struct server *srv)
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
 			if (return_code) {
 				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
+					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+			}
+			return return_code;
+
+		case SRV_IADDR_IP:
+			ipcpy(&srv->init_addr, &srv->addr);
+			if (return_code) {
+				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
 					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 			}
 			return return_code;
