@@ -2161,15 +2161,23 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			/* apply drain mode if server is currently enabled */
 			if (!(srv->admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
 				/* The SRV_ADMF_FDRAIN flag is inherited when srv->iweight is 0
-				 * (srv->iweight is the weight set up in configuration)
-				 * so we don't want to apply it when srv_iweight is 0 and
-				 * srv->iweight is greater than 0. Purpose is to give the
-				 * chance to the admin to re-enable this server from configuration
-				 * file by setting a new weight > 0.
+				 * (srv->iweight is the weight set up in configuration).
+				 * There are two possible reasons for FDRAIN to have been present :
+				 *   - previous config weight was zero
+				 *   - "set server b/s drain" was sent to the CLI
+				 *
+				 * In the first case, we simply want to drop this drain state
+				 * if the new weight is not zero anymore, meaning the administrator
+				 * has intentionally turned the weight back to a positive value to
+				 * enable the server again after an operation. In the second case,
+				 * the drain state was forced on the CLI regardless of the config's
+				 * weight so we don't want a change to the config weight to lose this
+				 * status. What this means is :
+				 *   - if previous weight was 0 and new one is >0, drop the DRAIN state.
+				 *   - if the previous weight was >0, keep it.
 				 */
-				if ((srv_iweight == 0) && (srv->iweight > 0)) {
+				if (srv_iweight > 0 || srv->iweight == 0)
 					srv_adm_set_drain(srv);
-				}
 			}
 
 			srv->last_change = date.tv_sec - srv_last_time_change;
