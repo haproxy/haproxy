@@ -430,8 +430,10 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 
 			srv_append_status(&trash, s, NULL, -1, (mode & SRV_ADMF_FMAINT));
 
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			if (!(global.mode & MODE_STARTING)) {
+				Warning("%s.\n", trash.str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			}
 		}
 		else {	/* server was still running */
 			int srv_was_stopping = (s->state == SRV_ST_STOPPING) || (s->admin & SRV_ADMF_DRAIN);
@@ -459,8 +461,10 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 
 			srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FMAINT));
 
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
+			if (!(global.mode & MODE_STARTING)) {
+				Warning("%s.\n", trash.str);
+				send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
+			}
 
 			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 				set_backend_down(s->proxy);
@@ -488,10 +492,11 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 
 		srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FDRAIN));
 
-		Warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		send_email_alert(s, LOG_NOTICE, "%s", trash.str);
-
+		if (!(global.mode & MODE_STARTING)) {
+			Warning("%s.\n", trash.str);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			send_email_alert(s, LOG_NOTICE, "%s", trash.str);
+		}
 		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
 	}

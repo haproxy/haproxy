@@ -1326,8 +1326,10 @@ void set_backend_down(struct proxy *be)
 	be->last_change = now.tv_sec;
 	be->down_trans++;
 
-	Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
-	send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
+	if (!(global.mode & MODE_STARTING)) {
+		Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
+		send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
+	}
 }
 
 /* Apply RDP cookie persistence to the current stream. For this, the function
