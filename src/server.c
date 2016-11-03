@@ -2029,6 +2029,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			     srv_admin_state != SRV_ADMF_IMAINT &&
 			     srv_admin_state != SRV_ADMF_CMAINT &&
 			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT) &&
+			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FDRAIN) &&
 			     srv_admin_state != SRV_ADMF_FDRAIN &&
 			     srv_admin_state != SRV_ADMF_IDRAIN)) {
 				chunk_appendf(msg, ", invalid srv_admin_state value '%s'", params[2]);
