@@ -295,6 +295,16 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* return either exit code or signal+128 */
+	if (WIFEXITED(status))
+		status = WEXITSTATUS(status);
+	else if (WIFSIGNALED(status))
+		status = 128 + WTERMSIG(status);
+	else if (WIFSTOPPED(status))
+		status = 128 + WSTOPSIG(status);
+	else
+		status = 255;
+
 	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: exit, haproxy RC=%d\n",
 			status);
 	return status;
