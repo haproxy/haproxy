@@ -34,5 +34,6 @@
 /contrib/ip6range/ip6range
 /contrib/iprange/iprange
 /contrib/systemd/haproxy.service
+/contrib/spoa_example/spoa
 /src/dlmalloc.c
 /tests/test_hashes
