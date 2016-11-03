@@ -956,6 +956,9 @@ void init(int argc, char **argv)
 	/* Apply server states */
 	apply_server_state();
 
+	for (px = proxy; px; px = px->next)
+		srv_compute_all_admin_states(px);
+
 	global_listener_queue_task = task_new();
 	if (!global_listener_queue_task) {
 		Alert("Out of memory when initializing global task\n");

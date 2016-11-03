@@ -710,6 +710,40 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		srv_clr_admin_flag(srv, mode);
 }
 
+/* principle: propagate maint and drain to tracking servers. This is useful
+ * upon startup so that inherited states are correct.
+ */
+static void srv_propagate_admin_state(struct server *srv)
+{
+	struct server *srv2;
+
+	if (!srv->trackers)
+		return;
+
+	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
+		if (srv->admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
+			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT);
+
+		if (srv->admin & SRV_ADMF_DRAIN)
+			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN);
+	}
+}
+
+/* Compute and propagate the admin states for all servers in proxy <px>.
+ * Only servers *not* tracking another one are considered, because other
+ * ones will be handled when the server they track is visited.
+ */
+void srv_compute_all_admin_states(struct proxy *px)
+{
+	struct server *srv;
+
+	for (srv = px->srv; srv; srv = srv->next) {
+		if (srv->track)
+			continue;
+		srv_propagate_admin_state(srv);
+	}
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
  * all code contributors.
@@ -2028,15 +2062,17 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			p = NULL;
 			errno = 0;
 			srv_admin_state = strtol(params[2], &p, 10);
+
+			/* inherited statuses will be recomputed later */
+			srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT;
+
 			if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
 			    (srv_admin_state != 0 &&
 			     srv_admin_state != SRV_ADMF_FMAINT &&
-			     srv_admin_state != SRV_ADMF_IMAINT &&
 			     srv_admin_state != SRV_ADMF_CMAINT &&
 			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT) &&
 			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FDRAIN) &&
-			     srv_admin_state != SRV_ADMF_FDRAIN &&
-			     srv_admin_state != SRV_ADMF_IDRAIN)) {
+			     srv_admin_state != SRV_ADMF_FDRAIN)) {
 				chunk_appendf(msg, ", invalid srv_admin_state value '%s'", params[2]);
 			}
 

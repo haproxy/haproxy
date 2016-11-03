@@ -8450,13 +8450,6 @@ out_uri_auth_compat:
 					goto next_srv;
 				}
 
-				/* if the other server is forced disabled, we have to do the same here */
-				if (srv->admin & SRV_ADMF_MAINT) {
-					newsrv->admin |= SRV_ADMF_IMAINT;
-					newsrv->state = SRV_ST_STOPPED;
-					newsrv->check.health = 0;
-				}
-
 				newsrv->track = srv;
 				newsrv->tracknext = srv->trackers;
 				srv->trackers = newsrv;
