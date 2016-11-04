@@ -1182,8 +1182,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					else if (!strcmp(p, "last")) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LAST);
 					}
+					else if (!strcmp(p, "none")) {
+						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_NONE);
+					}
 					else {
-						Alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last'.\n",
+						Alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.\n",
 							file, linenum, args[cur_arg], p);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -3254,6 +3257,10 @@ static int srv_iterate_initaddr(struct server *srv)
 				return return_code;
 			return_code |= err_code;
 			break;
+
+		case SRV_IADDR_NONE:
+			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
+			return return_code;
 
 		default: /* unhandled method */
 			break;
