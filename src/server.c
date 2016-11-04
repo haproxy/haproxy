@@ -3223,6 +3223,52 @@ static int srv_apply_lastaddr(struct server *srv, int *err_code)
 	return 0;
 }
 
+/* returns 0 if no error, otherwise a combination of ERR_* flags */
+static int srv_iterate_initaddr(struct server *srv)
+{
+	int return_code = 0;
+	int err_code;
+	unsigned int methods;
+
+	methods = srv->init_addr_methods;
+	if (!methods) { // default to "last,libc"
+		srv_append_initaddr(&methods, SRV_IADDR_LAST);
+		srv_append_initaddr(&methods, SRV_IADDR_LIBC);
+	}
+
+	while (methods) {
+		err_code = 0;
+		switch (srv_get_next_initaddr(&methods)) {
+		case SRV_IADDR_LAST:
+			if (!srv->lastaddr)
+				continue;
+			if (srv_apply_lastaddr(srv, &err_code) == 0)
+				return return_code;
+			return_code |= err_code;
+			break;
+
+		case SRV_IADDR_LIBC:
+			if (!srv->hostname)
+				continue;
+			if (srv_set_addr_via_libc(srv, &err_code) == 0)
+				return return_code;
+			return_code |= err_code;
+			break;
+
+		default: /* unhandled method */
+			break;
+		}
+	}
+
+	if (!return_code) {
+		Alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
+		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+	}
+
+	return_code |= ERR_ALERT | ERR_FATAL;
+	return return_code;
+}
+
 /*
  * This function parses all backends and all servers within each backend
  * and performs servers' addr resolution based on information provided by:
@@ -3239,27 +3285,14 @@ int srv_init_addr(void)
 	curproxy = proxy;
 	while (curproxy) {
 		struct server *srv;
-		int err_code = 0;
 
 		/* servers are in backend only */
 		if (!(curproxy->cap & PR_CAP_BE))
 			goto srv_init_addr_next;
 
-		for (srv = curproxy->srv; srv; srv = srv->next) {
-			err_code = 0;
-
-			if (srv->lastaddr) {
-				if (srv_apply_lastaddr(srv, &err_code) == 0)
-					continue;
-				return_code |= err_code;
-			}
-
-			if (srv->hostname) {
-				if (srv_set_addr_via_libc(srv, &err_code) == 0)
-					continue;
-				return_code = err_code;
-			}
-		}
+		for (srv = curproxy->srv; srv; srv = srv->next)
+			if (srv->hostname)
+				return_code |= srv_iterate_initaddr(srv);
 
  srv_init_addr_next:
 		curproxy = curproxy->next;

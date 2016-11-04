@@ -244,6 +244,19 @@ static inline int srv_append_initaddr(unsigned int *list, enum srv_initaddr addr
 	return 1;
 }
 
+/* returns the next initaddr method and removes it from <list> by shifting
+ * it right (implying that it MUST NOT be the server's. Returns SRV_IADDR_END
+ * at the end.
+ */
+static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
+{
+	enum srv_initaddr ret;
+
+	ret = *list & 7;
+	*list >>= 3;
+	return ret;
+}
+
 #endif /* _PROTO_SERVER_H */
 
 /*
