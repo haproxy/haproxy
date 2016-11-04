@@ -1806,7 +1806,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				char *addr = NULL;
 				char *port = NULL;
 				if (strlen(args[4]) == 0) {
-					appctx->ctx.cli.msg = "set server <b>/<s> requires an <addr> .\n";
+					appctx->ctx.cli.msg = "set server <b>/<s> addr requires an address and optionally a port.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -1821,6 +1821,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					appctx->ctx.cli.msg = warning;
 					appctx->st0 = STAT_CLI_PRINT;
 				}
+				srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
 			}
 			else {
 				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr' and 'check-port'.\n";
