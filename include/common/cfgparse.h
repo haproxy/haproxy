@@ -62,6 +62,7 @@ struct cfg_kw_list {
 
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
+extern char *cfg_scope;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);

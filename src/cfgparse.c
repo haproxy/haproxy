@@ -205,6 +205,7 @@ static char *cursection = NULL;
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
+char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
 
 /* List head of all known configuration keywords */
 static struct cfg_kw_list cfg_keywords = {
@@ -7006,6 +7007,55 @@ out:
 	return err_code;
 }
 
+int
+cfg_parse_scope(const char *file, int linenum, char *line)
+{
+	char *beg, *end, *scope = NULL;
+	int err_code = 0;
+	const char *err;
+
+	beg = line + 1;
+	end = strchr(beg, ']');
+
+	/* Detect end of scope declaration */
+	if (!end || end == beg) {
+		Alert("parsing [%s:%d] : empty scope name is forbidden.\n",
+		      file, linenum);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	/* Get scope name and check its validity */
+	scope = my_strndup(beg, end-beg);
+	err = invalid_char(scope);
+	if (err) {
+		Alert("parsing [%s:%d] : character '%c' is not permitted in a scope name.\n",
+		      file, linenum, *err);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* Be sure to have a scope declaration alone on its line */
+	line = end+1;
+	while (isspace((unsigned char)*line))
+		line++;
+	if (*line && *line != '#' && *line != '\n' && *line != '\r') {
+		Alert("parsing [%s:%d] : character '%c' is not permitted after scope declaration.\n",
+		      file, linenum, *line);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* We have a valid scope declaration, save it */
+	free(cfg_scope);
+	cfg_scope = scope;
+	scope = NULL;
+
+  out:
+	free(scope);
+	return err_code;
+}
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, or any combination of :
@@ -7076,6 +7126,12 @@ next_line:
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
 			line++;
+
+
+		if (*line == '[') {/* This is the begining if a scope */
+			err_code |= cfg_parse_scope(file, linenum, line);
+			goto next_line;
+		}
 
 		arg = 0;
 		args[arg] = line;
@@ -7328,6 +7384,8 @@ next_line:
 		if (err_code & ERR_ABORT)
 			break;
 	}
+	free(cfg_scope);
+	cfg_scope = NULL;
 	cursection = NULL;
 	free(thisline);
 	fclose(f);
