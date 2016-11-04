@@ -2667,25 +2667,16 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 			chunk_appendf(msg, "no need to change the addr");
 			goto port;
 		}
-		current_port = get_host_port(&s->addr);
-		memset(&s->addr, '\0', sizeof(s->addr));
 		ipcpy(&sa, &s->addr);
-		set_host_port(&s->addr, current_port);
 
 		/* we also need to update check's ADDR only if it uses the server's one */
 		if ((s->check.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_CHECKADDR)) {
-			current_port = get_host_port(&s->check.addr);
-			memset(&s->check.addr, '\0', sizeof(s->check.addr));
 			ipcpy(&sa, &s->check.addr);
-			set_host_port(&s->check.addr, current_port);
 		}
 
 		/* we also need to update agent ADDR only if it use the server's one */
 		if ((s->agent.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_AGENTADDR)) {
-			current_port = get_host_port(&s->agent.addr);
-			memset(&s->agent.addr, '\0', sizeof(s->agent.addr));
 			ipcpy(&sa, &s->agent.addr);
-			set_host_port(&s->agent.addr, current_port);
 		}
 
 		/* update report for caller */

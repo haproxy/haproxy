@@ -2598,20 +2598,29 @@ int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2)
 }
 
 /* copy IP address from <source> into <dest>
- * the caller must allocate and clear <dest> before calling.
- * Returns a pointer to the destination.
+ * The caller must allocate and clear <dest> before calling.
+ * The source must be in either AF_INET or AF_INET6 family, or the destination
+ * address will be undefined. If the destination address used to hold a port,
+ * it is preserved, so that this function can be used to switch to another
+ * address family with no risk. Returns a pointer to the destination.
  */
 struct sockaddr_storage *ipcpy(struct sockaddr_storage *source, struct sockaddr_storage *dest)
 {
+	int prev_port;
+
+	prev_port = get_net_port(dest);
+	memset(dest, 0, sizeof(*dest));
 	dest->ss_family = source->ss_family;
 
 	/* copy new addr and apply it */
 	switch (source->ss_family) {
 		case AF_INET:
 			((struct sockaddr_in *)dest)->sin_addr.s_addr = ((struct sockaddr_in *)source)->sin_addr.s_addr;
+			((struct sockaddr_in *)dest)->sin_port = prev_port;
 			break;
 		case AF_INET6:
 			memcpy(((struct sockaddr_in6 *)dest)->sin6_addr.s6_addr, ((struct sockaddr_in6 *)source)->sin6_addr.s6_addr, sizeof(struct in6_addr));
+			((struct sockaddr_in6 *)dest)->sin6_port = prev_port;
 			break;
 	}
 
