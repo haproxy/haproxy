@@ -122,6 +122,10 @@
 #include <import/51d.h>
 #endif
 
+#ifdef USE_WURFL
+#include <import/wurfl.h>
+#endif
+
 /*********************************************************************/
 
 extern const struct comp_algo comp_algos[];
@@ -204,6 +208,19 @@ struct global global = {
 		.cache_size = 0,
 	},
 #endif
+#ifdef USE_WURFL
+	.wurfl = {
+		.data_file = NULL,
+		.cache_size = NULL,
+		.engine_mode = -1,
+		.useragent_priority = -1,
+		.information_list_separator = ',',
+		.information_list = LIST_HEAD_INIT(global.wurfl.information_list),
+		.patch_file_list = LIST_HEAD_INIT(global.wurfl.patch_file_list),
+		.handle = NULL,
+	},
+#endif
+
 	/* others NULL OK */
 };
 
@@ -413,6 +430,9 @@ void display_build_opts()
 #endif
 #ifdef USE_51DEGREES
 	printf("Built with 51Degrees support\n");
+#endif
+#ifdef USE_WURFL
+	printf("Built with WURFL support\n");
 #endif
 	putchar('\n');
 
@@ -976,6 +996,9 @@ void init(int argc, char **argv)
 #endif
 #ifdef USE_51DEGREES
 	init_51degrees();
+#endif
+#ifdef USE_WURFL
+	ha_wurfl_init();
 #endif
 
 	for (px = proxy; px; px = px->next) {
@@ -1645,6 +1668,10 @@ void deinit(void)
 
 #ifdef USE_51DEGREES
 	deinit_51degrees();
+#endif
+
+#ifdef USE_WURFL
+	ha_wurfl_deinit();
 #endif
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
