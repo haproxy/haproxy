@@ -1922,8 +1922,31 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		/* assumes msg->sol points to the first char, and msg->sov
 		 * points to the first character of the value.
 		 */
+
+		/* speedup: we'll skip packs of 4 or 8 bytes not containing bytes 0x0D
+		 * and lower. In fact since most of the time is spent in the loop, we
+		 * also remove the sign bit test so that bytes 0x8e..0x0d break the
+		 * loop, but we don't care since they're very rare in header values.
+		 */
+#if defined(__x86_64__)
+		while (ptr <= end - sizeof(long)) {
+			if ((*(long *)ptr - 0x0e0e0e0e0e0e0e0eULL) & 0x8080808080808080ULL)
+				goto http_msg_hdr_val2;
+			ptr += sizeof(long);
+		}
+#endif
+#if defined(__x86_64__) || \
+    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+    defined(__ARM_ARCH_7A__)
+		while (ptr <= end - sizeof(int)) {
+			if ((*(int*)ptr - 0x0e0e0e0e) & 0x80808080)
+				goto http_msg_hdr_val2;
+			ptr += sizeof(int);
+		}
+#endif
+	http_msg_hdr_val2:
 		if (likely(!HTTP_IS_CRLF(*ptr)))
-			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val, HTTP_MSG_HDR_VAL);
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val2, HTTP_MSG_HDR_VAL);
 
 		msg->eol = ptr - buf->p;
 		/* Note: we could also copy eol into ->eoh so that we have the
