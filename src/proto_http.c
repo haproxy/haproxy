@@ -1519,8 +1519,25 @@ const char *http_parse_reqline(struct http_msg *msg,
 
 	case HTTP_MSG_RQURI:
 	http_msg_rquri:
+#if defined(__x86_64__) ||						\
+    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+    defined(__ARM_ARCH_7A__)
+		/* speedup: skip bytes not between 0x21 and 0x7e inclusive */
+		while (ptr <= end - sizeof(int)) {
+			int x = *(int *)ptr - 0x21212121;
+			if (x & 0x80808080)
+				break;
+
+			x -= 0x5e5e5e5e;
+			if (!(x & 0x80808080))
+				break;
+
+			ptr += sizeof(int);
+		}
+#endif
+	http_msg_rquri2:
 		if (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */
-			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
+			EAT_AND_JUMP_OR_RETURN(http_msg_rquri2, HTTP_MSG_RQURI);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			msg->sl.rq.u_l = ptr - msg_start - msg->sl.rq.u;
