@@ -343,12 +343,12 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 
 			/* try to isolate the token from the optional q-value */
 			toklen = 0;
-			while (toklen < ctx.vlen && http_is_token[(unsigned char)*(ctx.line + ctx.val + toklen)])
+			while (toklen < ctx.vlen && HTTP_IS_TOKEN(*(ctx.line + ctx.val + toklen)))
 				toklen++;
 
 			qval = ctx.line + ctx.val + toklen;
 			while (1) {
-				while (qval < ctx.line + ctx.val + ctx.vlen && http_is_lws[(unsigned char)*qval])
+				while (qval < ctx.line + ctx.val + ctx.vlen && HTTP_IS_LWS(*qval))
 					qval++;
 
 				if (qval >= ctx.line + ctx.val + ctx.vlen || *qval != ';') {
@@ -357,7 +357,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 				}
 				qval++;
 
-				while (qval < ctx.line + ctx.val + ctx.vlen && http_is_lws[(unsigned char)*qval])
+				while (qval < ctx.line + ctx.val + ctx.vlen && HTTP_IS_LWS(*qval))
 					qval++;
 
 				if (qval >= ctx.line + ctx.val + ctx.vlen) {

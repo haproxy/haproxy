@@ -2570,7 +2570,7 @@ static int smp_check_const_meth(struct arg *args, char **err)
 		 * token = 1*tchar
 		 */
 		for (i = 0; i < args[0].data.str.len; i++) {
-			if (!http_is_token[(unsigned char)args[0].data.str.str[i]]) {
+			if (!HTTP_IS_TOKEN(args[0].data.str.str[i])) {
 				memprintf(err, "expects valid method.");
 				return 0;
 			}

@@ -42,27 +42,29 @@
  *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
  */
 
-extern const char http_is_ctl[256];
-extern const char http_is_sep[256];
-extern const char http_is_lws[256];
-extern const char http_is_spht[256];
-extern const char http_is_crlf[256];
-extern const char http_is_token[256];
-extern const char http_is_ver_token[256];
+extern const unsigned char http_char_classes[256];
+
+#define HTTP_FLG_CTL  0x01
+#define HTTP_FLG_SEP  0x02
+#define HTTP_FLG_LWS  0x04
+#define HTTP_FLG_SPHT 0x08
+#define HTTP_FLG_CRLF 0x10
+#define HTTP_FLG_TOK  0x20
+#define HTTP_FLG_VER  0x40
+
+#define HTTP_IS_CTL(x)       (http_char_classes[(unsigned char)(x)] & HTTP_FLG_CTL)
+#define HTTP_IS_SEP(x)       (http_char_classes[(unsigned char)(x)] & HTTP_FLG_SEP)
+#define HTTP_IS_LWS(x)       (http_char_classes[(unsigned char)(x)] & HTTP_FLG_LWS)
+#define HTTP_IS_SPHT(x)      (http_char_classes[(unsigned char)(x)] & HTTP_FLG_SPHT)
+#define HTTP_IS_CRLF(x)      (http_char_classes[(unsigned char)(x)] & HTTP_FLG_CRLF)
+#define HTTP_IS_TOKEN(x)     (http_char_classes[(unsigned char)(x)] & HTTP_FLG_TOK)
+#define HTTP_IS_VER_TOKEN(x) (http_char_classes[(unsigned char)(x)] & HTTP_FLG_VER)
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern struct chunk http_err_chunks[HTTP_ERR_SIZE];
 extern const char *HTTP_302;
 extern const char *HTTP_303;
 extern char *get_http_auth_buff;
-
-#define HTTP_IS_CTL(x)   (http_is_ctl[(unsigned char)(x)])
-#define HTTP_IS_SEP(x)   (http_is_sep[(unsigned char)(x)])
-#define HTTP_IS_LWS(x)   (http_is_lws[(unsigned char)(x)])
-#define HTTP_IS_SPHT(x)  (http_is_spht[(unsigned char)(x)])
-#define HTTP_IS_CRLF(x)  (http_is_crlf[(unsigned char)(x)])
-#define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
-#define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
 int process_cli(struct stream *s);
 int process_srv_data(struct stream *s);

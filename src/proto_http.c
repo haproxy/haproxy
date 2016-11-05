@@ -491,79 +491,143 @@ const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
  * table than to perform a boolean AND or OR between two tests. Refer to
- * RFC2616 for those chars.
+ * RFC2616/RFC5234/RFC7230 for those chars. A token is any ASCII char that is
+ * neither a separator nor a CTL char. An http ver_token is any ASCII which can
+ * be found in an HTTP version, which includes 'H', 'T', 'P', '/', '.' and any
+ * digit. Note: please do not overwrite values in assignment since gcc-2.95
+ * will not handle them correctly. It's worth noting that chars 128..255 are
+ * nothing, not even control chars.
  */
-
-const char http_is_spht[256] = {
-	[' '] = 1, ['\t'] = 1,
+const unsigned char http_char_classes[256] = {
+	[  0] = HTTP_FLG_CTL,
+	[  1] = HTTP_FLG_CTL,
+	[  2] = HTTP_FLG_CTL,
+	[  3] = HTTP_FLG_CTL,
+	[  4] = HTTP_FLG_CTL,
+	[  5] = HTTP_FLG_CTL,
+	[  6] = HTTP_FLG_CTL,
+	[  7] = HTTP_FLG_CTL,
+	[  8] = HTTP_FLG_CTL,
+	[  9] = HTTP_FLG_SPHT | HTTP_FLG_LWS | HTTP_FLG_SEP | HTTP_FLG_CTL,
+	[ 10] = HTTP_FLG_CRLF | HTTP_FLG_LWS | HTTP_FLG_CTL,
+	[ 11] = HTTP_FLG_CTL,
+	[ 12] = HTTP_FLG_CTL,
+	[ 13] = HTTP_FLG_CRLF | HTTP_FLG_LWS | HTTP_FLG_CTL,
+	[ 14] = HTTP_FLG_CTL,
+	[ 15] = HTTP_FLG_CTL,
+	[ 16] = HTTP_FLG_CTL,
+	[ 17] = HTTP_FLG_CTL,
+	[ 18] = HTTP_FLG_CTL,
+	[ 19] = HTTP_FLG_CTL,
+	[ 20] = HTTP_FLG_CTL,
+	[ 21] = HTTP_FLG_CTL,
+	[ 22] = HTTP_FLG_CTL,
+	[ 23] = HTTP_FLG_CTL,
+	[ 24] = HTTP_FLG_CTL,
+	[ 25] = HTTP_FLG_CTL,
+	[ 26] = HTTP_FLG_CTL,
+	[ 27] = HTTP_FLG_CTL,
+	[ 28] = HTTP_FLG_CTL,
+	[ 29] = HTTP_FLG_CTL,
+	[ 30] = HTTP_FLG_CTL,
+	[ 31] = HTTP_FLG_CTL,
+	[' '] = HTTP_FLG_SPHT | HTTP_FLG_LWS | HTTP_FLG_SEP,
+	['!'] = HTTP_FLG_TOK,
+	['"'] = HTTP_FLG_SEP,
+	['#'] = HTTP_FLG_TOK,
+	['$'] = HTTP_FLG_TOK,
+	['%'] = HTTP_FLG_TOK,
+	['&'] = HTTP_FLG_TOK,
+	[ 39] = HTTP_FLG_TOK,
+	['('] = HTTP_FLG_SEP,
+	[')'] = HTTP_FLG_SEP,
+	['*'] = HTTP_FLG_TOK,
+	['+'] = HTTP_FLG_TOK,
+	[','] = HTTP_FLG_SEP,
+	['-'] = HTTP_FLG_TOK,
+	['.'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['/'] = HTTP_FLG_SEP | HTTP_FLG_VER,
+	['0'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['1'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['2'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['3'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['4'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['5'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['6'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['7'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['8'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['9'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	[':'] = HTTP_FLG_SEP,
+	[';'] = HTTP_FLG_SEP,
+	['<'] = HTTP_FLG_SEP,
+	['='] = HTTP_FLG_SEP,
+	['>'] = HTTP_FLG_SEP,
+	['?'] = HTTP_FLG_SEP,
+	['@'] = HTTP_FLG_SEP,
+	['A'] = HTTP_FLG_TOK,
+	['B'] = HTTP_FLG_TOK,
+	['C'] = HTTP_FLG_TOK,
+	['D'] = HTTP_FLG_TOK,
+	['E'] = HTTP_FLG_TOK,
+	['F'] = HTTP_FLG_TOK,
+	['G'] = HTTP_FLG_TOK,
+	['H'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['I'] = HTTP_FLG_TOK,
+	['J'] = HTTP_FLG_TOK,
+	['K'] = HTTP_FLG_TOK,
+	['L'] = HTTP_FLG_TOK,
+	['M'] = HTTP_FLG_TOK,
+	['N'] = HTTP_FLG_TOK,
+	['O'] = HTTP_FLG_TOK,
+	['P'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['Q'] = HTTP_FLG_TOK,
+	['R'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['S'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['T'] = HTTP_FLG_TOK | HTTP_FLG_VER,
+	['U'] = HTTP_FLG_TOK,
+	['V'] = HTTP_FLG_TOK,
+	['W'] = HTTP_FLG_TOK,
+	['X'] = HTTP_FLG_TOK,
+	['Y'] = HTTP_FLG_TOK,
+	['Z'] = HTTP_FLG_TOK,
+	['['] = HTTP_FLG_SEP,
+	[ 92] = HTTP_FLG_SEP,
+	[']'] = HTTP_FLG_SEP,
+	['^'] = HTTP_FLG_TOK,
+	['_'] = HTTP_FLG_TOK,
+	['`'] = HTTP_FLG_TOK,
+	['a'] = HTTP_FLG_TOK,
+	['b'] = HTTP_FLG_TOK,
+	['c'] = HTTP_FLG_TOK,
+	['d'] = HTTP_FLG_TOK,
+	['e'] = HTTP_FLG_TOK,
+	['f'] = HTTP_FLG_TOK,
+	['g'] = HTTP_FLG_TOK,
+	['h'] = HTTP_FLG_TOK,
+	['i'] = HTTP_FLG_TOK,
+	['j'] = HTTP_FLG_TOK,
+	['k'] = HTTP_FLG_TOK,
+	['l'] = HTTP_FLG_TOK,
+	['m'] = HTTP_FLG_TOK,
+	['n'] = HTTP_FLG_TOK,
+	['o'] = HTTP_FLG_TOK,
+	['p'] = HTTP_FLG_TOK,
+	['q'] = HTTP_FLG_TOK,
+	['r'] = HTTP_FLG_TOK,
+	['s'] = HTTP_FLG_TOK,
+	['t'] = HTTP_FLG_TOK,
+	['u'] = HTTP_FLG_TOK,
+	['v'] = HTTP_FLG_TOK,
+	['w'] = HTTP_FLG_TOK,
+	['x'] = HTTP_FLG_TOK,
+	['y'] = HTTP_FLG_TOK,
+	['z'] = HTTP_FLG_TOK,
+	['{'] = HTTP_FLG_SEP,
+	['|'] = HTTP_FLG_TOK,
+	['}'] = HTTP_FLG_SEP,
+	['~'] = HTTP_FLG_TOK,
+	[127] = HTTP_FLG_CTL,
 };
-
-const char http_is_crlf[256] = {
-	['\r'] = 1, ['\n'] = 1,
-};
-
-const char http_is_lws[256] = {
-	[' '] = 1, ['\t'] = 1,
-	['\r'] = 1, ['\n'] = 1,
-};
-
-const char http_is_sep[256] = {
-	['('] = 1, [')']  = 1, ['<']  = 1, ['>'] = 1,
-	['@'] = 1, [',']  = 1, [';']  = 1, [':'] = 1,
-	['"'] = 1, ['/']  = 1, ['[']  = 1, [']'] = 1,
-	['{'] = 1, ['}']  = 1, ['?']  = 1, ['='] = 1,
-	[' '] = 1, ['\t'] = 1, ['\\'] = 1,
-};
-
-const char http_is_ctl[256] = {
-	[0 ... 31] = 1,
-	[127] = 1,
-};
-
-/*
- * A token is any ASCII char that is neither a separator nor a CTL char.
- * Do not overwrite values in assignment since gcc-2.95 will not handle
- * them correctly. Instead, define every non-CTL char's status.
- */
-const char http_is_token[256] = {
-	[' '] = 0, ['!'] = 1, ['"'] = 0, ['#'] = 1,
-	['$'] = 1, ['%'] = 1, ['&'] = 1, ['\''] = 1,
-	['('] = 0, [')'] = 0, ['*'] = 1, ['+'] = 1,
-	[','] = 0, ['-'] = 1, ['.'] = 1, ['/'] = 0,
-	['0'] = 1, ['1'] = 1, ['2'] = 1, ['3'] = 1,
-	['4'] = 1, ['5'] = 1, ['6'] = 1, ['7'] = 1,
-	['8'] = 1, ['9'] = 1, [':'] = 0, [';'] = 0,
-	['<'] = 0, ['='] = 0, ['>'] = 0, ['?'] = 0,
-	['@'] = 0, ['A'] = 1, ['B'] = 1, ['C'] = 1,
-	['D'] = 1, ['E'] = 1, ['F'] = 1, ['G'] = 1,
-	['H'] = 1, ['I'] = 1, ['J'] = 1, ['K'] = 1,
-	['L'] = 1, ['M'] = 1, ['N'] = 1, ['O'] = 1,
-	['P'] = 1, ['Q'] = 1, ['R'] = 1, ['S'] = 1,
-	['T'] = 1, ['U'] = 1, ['V'] = 1, ['W'] = 1,
-	['X'] = 1, ['Y'] = 1, ['Z'] = 1, ['['] = 0,
-	['\\'] = 0, [']'] = 0, ['^'] = 1, ['_'] = 1,
-	['`'] = 1, ['a'] = 1, ['b'] = 1, ['c'] = 1,
-	['d'] = 1, ['e'] = 1, ['f'] = 1, ['g'] = 1,
-	['h'] = 1, ['i'] = 1, ['j'] = 1, ['k'] = 1,
-	['l'] = 1, ['m'] = 1, ['n'] = 1, ['o'] = 1,
-	['p'] = 1, ['q'] = 1, ['r'] = 1, ['s'] = 1,
-	['t'] = 1, ['u'] = 1, ['v'] = 1, ['w'] = 1,
-	['x'] = 1, ['y'] = 1, ['z'] = 1, ['{'] = 0,
-	['|'] = 1, ['}'] = 0, ['~'] = 1, 
-};
-
-
-/*
- * An http ver_token is any ASCII which can be found in an HTTP version,
- * which includes 'H', 'T', 'P', '/', '.' and any digit.
- */
-const char http_is_ver_token[256] = {
-	['.'] = 1, ['/'] = 1,
-	['0'] = 1, ['1'] = 1, ['2'] = 1, ['3'] = 1, ['4'] = 1,
-	['5'] = 1, ['6'] = 1, ['7'] = 1, ['8'] = 1, ['9'] = 1,
-	['H'] = 1, ['P'] = 1, ['R'] = 1, ['S'] = 1, ['T'] = 1,
-};
-
 
 /*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
@@ -676,7 +740,7 @@ int http_find_full_header2(const char *name, int len,
 		    (strncasecmp(sol, name, len) == 0)) {
 			ctx->del = len;
 			sov = sol + len + 1;
-			while (sov < eol && http_is_lws[(unsigned char)*sov])
+			while (sov < eol && HTTP_IS_LWS(*sov))
 				sov++;
 
 			ctx->line = sol;
@@ -684,7 +748,7 @@ int http_find_full_header2(const char *name, int len,
 			ctx->idx  = cur_idx;
 			ctx->val  = sov - sol;
 			ctx->tws = 0;
-			while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
+			while (eol > sov && HTTP_IS_LWS(*(eol - 1))) {
 				eol--;
 				ctx->tws++;
 			}
@@ -739,7 +803,7 @@ int http_find_next_header(char *sol, struct hdr_idx *idx, struct hdr_ctx *ctx)
 
 		ctx->del = len;
 		sov = sol + len + 1;
-		while (sov < eol && http_is_lws[(unsigned char)*sov])
+		while (sov < eol && HTTP_IS_LWS(*sov))
 			sov++;
 
 		ctx->line = sol;
@@ -748,7 +812,7 @@ int http_find_next_header(char *sol, struct hdr_idx *idx, struct hdr_ctx *ctx)
 		ctx->val  = sov - sol;
 		ctx->tws = 0;
 
-		while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
+		while (eol > sov && HTTP_IS_LWS(*(eol - 1))) {
 			eol--;
 			ctx->tws++;
 		}
@@ -819,7 +883,7 @@ int http_find_header2(const char *name, int len,
 		 * for later use (eg: for header deletion).
 		 */
 		sov++;
-		while (sov < eol && http_is_lws[(unsigned char)*sov])
+		while (sov < eol && HTTP_IS_LWS((*sov)))
 			sov++;
 
 		goto return_hdr;
@@ -845,7 +909,7 @@ int http_find_header2(const char *name, int len,
 		    (strncasecmp(sol, name, len) == 0)) {
 			ctx->del = len;
 			sov = sol + len + 1;
-			while (sov < eol && http_is_lws[(unsigned char)*sov])
+			while (sov < eol && HTTP_IS_LWS(*sov))
 				sov++;
 
 			ctx->line = sol;
@@ -856,7 +920,7 @@ int http_find_header2(const char *name, int len,
 
 			eol = find_hdr_value_end(sov, eol);
 			ctx->tws = 0;
-			while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
+			while (eol > sov && HTTP_IS_LWS(*(eol - 1))) {
 				eol--;
 				ctx->tws++;
 			}
@@ -1233,7 +1297,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 			col++;
 
 		sov = col + 1;
-		while (sov < eol && http_is_lws[(unsigned char)*sov])
+		while (sov < eol && HTTP_IS_LWS(*sov))
 			sov++;
 				
 		for (h = cap_hdr; h; h = h->next) {
@@ -2136,7 +2200,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	if (unlikely(ptr == ptr_old))
 		goto error;
 
-	while (http_is_spht[(unsigned char)*ptr]) {
+	while (HTTP_IS_SPHT(*ptr)) {
 		if (++ptr >= end)
 			ptr = buf->data;
 		if (unlikely(ptr == stop))
@@ -7350,28 +7414,28 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
 		/* We're removing the first value, preserve the colon and add a
 		 * space if possible.
 		 */
-		if (!http_is_crlf[(unsigned char)*next])
+		if (!HTTP_IS_CRLF(*next))
 			next++;
 		prev++;
 		if (prev < next)
 			*prev++ = ' ';
 
-		while (http_is_spht[(unsigned char)*next])
+		while (HTTP_IS_SPHT(*next))
 			next++;
 	} else {
 		/* Remove useless spaces before the old delimiter. */
-		while (http_is_spht[(unsigned char)*(prev-1)])
+		while (HTTP_IS_SPHT(*(prev-1)))
 			prev--;
 		*from = prev;
 
 		/* copy the delimiter and if possible a space if we're
 		 * not at the end of the line.
 		 */
-		if (!http_is_crlf[(unsigned char)*next]) {
+		if (!HTTP_IS_CRLF(*next)) {
 			*prev++ = *next++;
 			if (prev + 1 < next)
 				*prev++ = ' ';
-			while (http_is_spht[(unsigned char)*next])
+			while (HTTP_IS_SPHT(*next))
 				next++;
 		}
 	}
@@ -7470,7 +7534,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 
 			/* find att_beg */
 			att_beg = prev + 1;
-			while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+			while (att_beg < hdr_end && HTTP_IS_SPHT(*att_beg))
 				att_beg++;
 
 			/* find att_end : this is the first character after the last non
@@ -7481,7 +7545,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 			while (equal < hdr_end) {
 				if (*equal == '=' || *equal == ',' || *equal == ';')
 					break;
-				if (http_is_spht[(unsigned char)*equal++])
+				if (HTTP_IS_SPHT(*equal++))
 					continue;
 				att_end = equal;
 			}
@@ -7494,7 +7558,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 			if (equal < hdr_end && *equal == '=') {
 				/* look for the beginning of the value */
 				val_beg = equal + 1;
-				while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+				while (val_beg < hdr_end && HTTP_IS_SPHT(*val_beg))
 					val_beg++;
 
 				/* find the end of the value, respecting quotes */
@@ -7502,7 +7566,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 
 				/* make val_end point to the first white space or delimitor after the value */
 				val_end = next;
-				while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+				while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 					val_end--;
 			} else {
 				val_beg = val_end = next = equal;
@@ -8132,7 +8196,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 
 			/* find att_beg */
 			att_beg = prev + 1;
-			while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+			while (att_beg < hdr_end && HTTP_IS_SPHT(*att_beg))
 				att_beg++;
 
 			/* find att_end : this is the first character after the last non
@@ -8143,7 +8207,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 			while (equal < hdr_end) {
 				if (*equal == '=' || *equal == ';' || (is_cookie2 && *equal == ','))
 					break;
-				if (http_is_spht[(unsigned char)*equal++])
+				if (HTTP_IS_SPHT(*equal++))
 					continue;
 				att_end = equal;
 			}
@@ -8156,7 +8220,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 			if (equal < hdr_end && *equal == '=') {
 				/* look for the beginning of the value */
 				val_beg = equal + 1;
-				while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+				while (val_beg < hdr_end && HTTP_IS_SPHT(*val_beg))
 					val_beg++;
 
 				/* find the end of the value, respecting quotes */
@@ -8164,7 +8228,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 
 				/* make val_end point to the first white space or delimitor after the value */
 				val_end = next;
-				while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+				while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 					val_end--;
 			} else {
 				/* <equal> points to next comma, semi-colon or EOL */
@@ -10878,7 +10942,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 	for (att_beg = hdr; att_beg + cookie_name_l + 1 < hdr_end; att_beg = next + 1) {
 		/* Iterate through all cookies on this line */
 
-		while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+		while (att_beg < hdr_end && HTTP_IS_SPHT(*att_beg))
 			att_beg++;
 
 		/* find att_end : this is the first character after the last non
@@ -10889,7 +10953,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 		while (equal < hdr_end) {
 			if (*equal == '=' || *equal == ';' || (list && *equal == ','))
 				break;
-			if (http_is_spht[(unsigned char)*equal++])
+			if (HTTP_IS_SPHT(*equal++))
 				continue;
 			att_end = equal;
 		}
@@ -10902,7 +10966,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 		if (equal < hdr_end && *equal == '=') {
 			/* look for the beginning of the value */
 			val_beg = equal + 1;
-			while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+			while (val_beg < hdr_end && HTTP_IS_SPHT(*val_beg))
 				val_beg++;
 
 			/* find the end of the value, respecting quotes */
@@ -10910,7 +10974,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 
 			/* make val_end point to the first white space or delimitor after the value */
 			val_end = next;
-			while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+			while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 				val_end--;
 		} else {
 			val_beg = val_end = next = equal;
