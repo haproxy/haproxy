@@ -143,6 +143,7 @@ struct worker {
 	int          status_code;
 	unsigned int stream_id;
 	unsigned int frame_id;
+	bool         healthcheck;
 	int          ip_score; /* -1 if unset, else between 0 and 100 */
 };
 
@@ -580,6 +581,24 @@ check_max_frame_size(struct worker *w, int idx)
 	return idx;
 }
 
+/* Check healthcheck value. It returns -1 if an error occurred, the number of
+ * read bytes otherwise. */
+static int
+check_healthcheck(struct worker *w, int idx)
+{
+	int type;
+
+	/* Get the "healthcheck" value of HAProxy */
+	type = w->buf[idx++];
+	if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_BOOL) {
+		w->status_code = SPOE_FRM_ERR_INVALID;
+		return -1;
+	}
+	w->healthcheck = ((type & SPOE_DATA_FL_TRUE) == SPOE_DATA_FL_TRUE);
+	return idx;
+}
+
+
 /* Decode a HELLO frame received from HAProxy. It returns -1 if an error
  * occurred, 0 if the frame must be skipped, otherwise the number of read
  * bytes. */
@@ -624,6 +643,12 @@ handle_hahello(struct worker *w)
 		/* Check "max-frame-size" K/V item "*/
 		else if (!memcmp(str, "max-frame-size", sz)) {
 			if ((i = check_max_frame_size(w, idx)) == -1)
+				goto error;
+			idx = i;
+		}
+		/* Check "healthcheck" K/V item "*/
+		else if (!memcmp(str, "healthcheck", sz)) {
+			if ((i = check_healthcheck(w, idx)) == -1)
 				goto error;
 			idx = i;
 		}
@@ -927,8 +952,8 @@ hello_handshake(int sock, struct worker *w)
 		LOG("Failed to write Agent frame");
 		goto error;
 	}
-	DEBUG("Hello handshake done: version=%s - max-frame-size=%u",
-	      SPOP_VERSION, w->size);
+	DEBUG("Hello handshake done: version=%s - max-frame-size=%u - healthcheck=%s",
+	      SPOP_VERSION, w->size, (w->healthcheck ? "true" : "false"));
 	return 0;
 error:
 	return -1;
@@ -993,7 +1018,8 @@ worker(void *data)
 
 		if (hello_handshake(csock, &w) < 0)
 			goto disconnect;
-
+		if (w.healthcheck == true)
+			goto close;
 		while (1) {
 			w.ip_score = -1;
 			if (notify_ack_roundtip(csock, &w) < 0)

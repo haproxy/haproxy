@@ -493,9 +493,21 @@ Unknown frames may be silently skipped.
 
     HAPROXY                       AGENT SRV
        |       HAPROXY-HELLO         |
+       |    (healthcheck: false)     |
        | --------------------------> |
        |                             |
        |        AGENT-HELLO          |
+       | <-------------------------- |
+       |                             |
+
+  * Successful HELLO healthcheck:
+
+    HAPROXY                       AGENT SRV
+       |       HAPROXY-HELLO         |
+       |    (healthcheck: true)      |
+       | --------------------------> |
+       |                             |
+       |   AGENT-HELLO + close()     |
        | <-------------------------- |
        |                             |
 
@@ -581,6 +593,13 @@ Following items are mandatory in the KV-LIST:
     This a comma-separated list of capabilities supported by HAProxy. Spaces
     must be ignored, if any.
 
+Following optional items can be added in the KV-LIST:
+
+  * "healthcheck"    <BOOLEAN>
+
+    If this item is set to TRUE, then the HAPROXY-HELLO frame is sent during a
+    SPOE health check. When set to FALSE, this item can be ignored.
+
 To finish the HELLO handshake, the agent must return an AGENT-HELLO frame with
 its supported SPOP version, the lower value between its maximum size allowed
 for a frame and the HAProxy one and capabilities it supports. If an error
@@ -616,6 +635,10 @@ Following items are mandatory in the KV-LIST:
 At this time, if everything is ok for HAProxy (supported version and valid
 max-frame-size value), the HELLO handshake is successfully completed. Else,
 HAProxy sends a HAPROXY-DISCONNECT frame with the corresponding error.
+
+If "healthcheck" item was set to TRUE in the HAPROXY-HELLO frame, the agent can
+safely close the connection without DISCONNECT frame. In all cases, HAProxy
+will close the connexion at the end of the health check.
 
 3.2.6. Frame: NOTIFY
 ---------------------

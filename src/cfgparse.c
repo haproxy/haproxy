@@ -5118,6 +5118,34 @@ stats_error_parsing:
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 		}
+		else if (!strcmp(args[1], "spop-check")) {
+			if (curproxy == &defproxy) {
+				Alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n",
+				      file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (curproxy->cap & PR_CAP_FE) {
+				Alert("parsing [%s:%d] : '%s %s' not allowed in 'frontend' and 'listen' sections.\n",
+				      file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			/* use SPOE request to check servers' health */
+			free(curproxy->check_req);
+			curproxy->check_req = NULL;
+			curproxy->options2 &= ~PR_O2_CHK_ANY;
+			curproxy->options2 |= PR_O2_SPOP_CHK;
+
+			if (prepare_spoe_healthcheck_request(&curproxy->check_req, &curproxy->check_len)) {
+				Alert("parsing [%s:%d] : failed to prepare SPOP healthcheck request.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
+		}
 		else if (!strcmp(args[1], "tcp-check")) {
 			/* use raw TCPCHK send/expect to check servers' health */
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))

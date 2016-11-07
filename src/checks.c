@@ -1317,6 +1317,26 @@ static void event_srv_chk_r(struct connection *conn)
 		}
 		break;
 
+	case PR_O2_SPOP_CHK: {
+		unsigned int framesz;
+		char	     err[HCHK_DESC_LEN];
+
+		if (!done && check->bi->i < 4)
+			goto wait_more_data;
+
+		memcpy(&framesz, check->bi->data, 4);
+		framesz = ntohl(framesz);
+
+		if (!done && check->bi->i < (4+framesz))
+		    goto wait_more_data;
+
+		if (!handle_spoe_healthcheck_response(check->bi->data+4, framesz, err, HCHK_DESC_LEN-1))
+			set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
+		else
+			set_server_check_status(check, HCHK_STATUS_L7STS, err);
+		break;
+	}
+
 	default:
 		/* for other checks (eg: pure TCP), delegate to the main task */
 		break;

@@ -414,6 +414,7 @@ enum spoe_data_type {
 #define VERSION_KEY                "version"
 #define MAX_FRAME_SIZE_KEY         "max-frame-size"
 #define CAPABILITIES_KEY           "capabilities"
+#define HEALTHCHECK_KEY            "healthcheck"
 #define STATUS_CODE_KEY            "status-code"
 #define MSG_KEY                    "message"
 
@@ -1075,6 +1076,70 @@ handle_spoe_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 	return idx;
 }
 
+/* This function is used in cfgparse.c and declared in proto/checks.h. It
+ * prepare the request to send to agents during a healthcheck. It returns 0 on
+ * success and -1 if an error occurred. */
+int
+prepare_spoe_healthcheck_request(char **req, int *len)
+{
+	struct appctx a;
+	char          *frame, buf[global.tune.bufsize];
+	unsigned int  framesz;
+	int	      idx;
+
+	memset(&a, 0, sizeof(a));
+	memset(buf, 0, sizeof(buf));
+	APPCTX_SPOE(&a).max_frame_size = global.tune.bufsize;
+
+	frame = buf+4;
+	idx = prepare_spoe_hahello_frame(&a, frame, global.tune.bufsize-4);
+	if (idx <= 0)
+		return -1;
+	if (idx + SLEN(HEALTHCHECK_KEY) + 1 > global.tune.bufsize-4)
+		return -1;
+
+	/* "healthcheck" K/V item */
+	idx += encode_spoe_string(HEALTHCHECK_KEY, SLEN(HEALTHCHECK_KEY), frame+idx);
+	frame[idx++] = (SPOE_DATA_T_BOOL | SPOE_DATA_FL_TRUE);
+
+	framesz = htonl(idx);
+	memcpy(buf, (char *)&framesz, 4);
+
+	if ((*req = malloc(idx+4)) == NULL)
+		return -1;
+	memcpy(*req, buf, idx+4);
+	*len = idx+4;
+	return 0;
+}
+
+/* This function is used in checks.c and declared in proto/checks.h. It decode
+ * the response received from an agent during a healthcheck. It returns 0 on
+ * success and -1 if an error occurred. */
+int
+handle_spoe_healthcheck_response(char *frame, size_t size, char *err, int errlen)
+{
+	struct appctx a;
+	int           r;
+
+	memset(&a, 0, sizeof(a));
+	APPCTX_SPOE(&a).max_frame_size = global.tune.bufsize;
+
+	if (handle_spoe_agentdiscon_frame(&a, frame, size) != 0)
+		goto error;
+	if ((r = handle_spoe_agenthello_frame(&a, frame, size)) <= 0) {
+		if (r == 0)
+			spoe_status_code = SPOE_FRM_ERR_INVALID;
+		goto error;
+	}
+
+	return 0;
+
+  error:
+	if (spoe_status_code >= SPOE_FRM_ERRS)
+		spoe_status_code = SPOE_FRM_ERR_UNKNOWN;
+	strncpy(err, spoe_frm_err_reasons[spoe_status_code], errlen);
+	return -1;
+}
 
 /********************************************************************
  * Functions that manage the SPOE applet
