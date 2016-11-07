@@ -549,6 +549,18 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 			Warning("%s.\n", trash.str);
 			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 		}
+		if (mode & SRV_ADMF_RMAINT) {
+			chunk_printf(&trash,
+			             "%sServer %s/%s ('%s') resolves again but remains in maintenance",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id, s->hostname);
+
+			if (s->track) /* normally it's mandatory here */
+				chunk_appendf(&trash, " via %s/%s",
+				              s->track->proxy->id, s->track->id);
+			Warning("%s.\n", trash.str);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		}
 		else if (mode & SRV_ADMF_IMAINT) {
 			chunk_printf(&trash,
 			             "%sServer %s/%s remains in forced maintenance",
@@ -626,6 +638,14 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 				     "%sServer %s/%s is %s/%s (leaving forced maintenance)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id,
+				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+				     (s->admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+		}
+		else if (mode & SRV_ADMF_RMAINT) {
+			chunk_printf(&trash,
+				     "%sServer %s/%s ('%s') is %s/%s (resolves again)",
+				     s->flags & SRV_F_BACKUP ? "Backup " : "",
+				     s->proxy->id, s->id, s->hostname,
 				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP",
 				     (s->admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 		}
