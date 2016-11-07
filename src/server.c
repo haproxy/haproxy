@@ -395,9 +395,10 @@ void srv_set_stopping(struct server *s, const char *reason)
  * one flag at once. The equivalent "inherited" flag is propagated to all
  * tracking servers. Maintenance mode disables health checks (but not agent
  * checks). When either the flag is already set or no flag is passed, nothing
- * is done.
+ * is done. If <cause> is non-null, it will be displayed at the end of the log
+ * lines to justify the state change.
  */
-void srv_set_admin_flag(struct server *s, enum srv_admin mode)
+void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause)
 {
 	struct check *check = &s->check;
 	struct server *srv;
@@ -426,8 +427,9 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 
 		if (s->state == SRV_ST_STOPPED) {	/* server was already down */
 			chunk_printf(&trash,
-			             "%sServer %s/%s was DOWN and now enters maintenance",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
+			             "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
+			             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
 
 			srv_append_status(&trash, s, NULL, -1, (mode & SRV_ADMF_FMAINT));
 
@@ -456,9 +458,10 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 			xferred = pendconn_redistribute(s);
 
 			chunk_printf(&trash,
-			             "%sServer %s/%s is going DOWN for maintenance",
+			             "%sServer %s/%s is going DOWN for maintenance%s%s%s",
 			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
+			             s->proxy->id, s->id,
+			             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
 
 			srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FMAINT));
 
@@ -488,8 +491,9 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 		 */
 		xferred = pendconn_redistribute(s);
 
-		chunk_printf(&trash, "%sServer %s/%s enters drain state",
-			     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
+		chunk_printf(&trash, "%sServer %s/%s enters drain state%s%s%s",
+			     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
+		             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
 
 		srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FDRAIN));
 
@@ -509,7 +513,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 		mode = SRV_ADMF_IDRAIN;
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
-		srv_set_admin_flag(srv, mode);
+		srv_set_admin_flag(srv, mode, cause);
 }
 
 /* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -743,10 +747,10 @@ static void srv_propagate_admin_state(struct server *srv)
 
 	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
 		if (srv->admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
-			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT);
+			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, NULL);
 
 		if (srv->admin & SRV_ADMF_DRAIN)
-			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN);
+			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, NULL);
 	}
 }
 

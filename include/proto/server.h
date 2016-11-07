@@ -189,9 +189,10 @@ void srv_set_stopping(struct server *s, const char *reason);
  * one flag at once. The equivalent "inherited" flag is propagated to all
  * tracking servers. Maintenance mode disables health checks (but not agent
  * checks). When either the flag is already set or no flag is passed, nothing
- * is done.
+ * is done. If <cause> is non-null, it will be displayed at the end of the log
+ * lines to justify the state change.
  */
-void srv_set_admin_flag(struct server *s, enum srv_admin mode);
+void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause);
 
 /* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
  * stop enforcing either maint mode or drain mode. It is not allowed to set more
@@ -206,7 +207,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode);
  */
 static inline void srv_adm_set_maint(struct server *s)
 {
-	srv_set_admin_flag(s, SRV_ADMF_FMAINT);
+	srv_set_admin_flag(s, SRV_ADMF_FMAINT, NULL);
 	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
 }
 
@@ -215,7 +216,7 @@ static inline void srv_adm_set_maint(struct server *s)
  */
 static inline void srv_adm_set_drain(struct server *s)
 {
-	srv_set_admin_flag(s, SRV_ADMF_FDRAIN);
+	srv_set_admin_flag(s, SRV_ADMF_FDRAIN, NULL);
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
 }
 

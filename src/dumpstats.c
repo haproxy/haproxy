@@ -5477,7 +5477,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						if (!(sv->admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
-							srv_set_admin_flag(sv, SRV_ADMF_FMAINT);
+							srv_set_admin_flag(sv, SRV_ADMF_FMAINT, "'disable' on stats page");
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
@@ -5489,7 +5489,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						break;
 					case ST_ADM_ACTION_STOP:
 						if (!(sv->admin & SRV_ADMF_FDRAIN)) {
-							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN);
+							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN, "'stop' on stats page");
 							altered_servers++;
 							total_servers++;
 						}
