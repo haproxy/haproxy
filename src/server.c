@@ -3202,10 +3202,8 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 int srv_set_addr_via_libc(struct server *srv, int *err_code)
 {
 	if (str2ip2(srv->hostname, &srv->addr, 1) == NULL) {
-		Alert("parsing [%s:%d] : 'server %s' : invalid address: '%s'\n",
-		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 		if (err_code)
-			*err_code |= ERR_ALERT | ERR_FATAL;
+			*err_code |= ERR_WARN;
 		return 1;
 	}
 	return 0;
@@ -3260,6 +3258,10 @@ static int srv_iterate_initaddr(struct server *srv)
 
 		case SRV_IADDR_NONE:
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
+			if (return_code) {
+				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
+					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+			}
 			return return_code;
 
 		default: /* unhandled method */
@@ -3269,6 +3271,10 @@ static int srv_iterate_initaddr(struct server *srv)
 
 	if (!return_code) {
 		Alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
+		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+	}
+	else {
+		Alert("parsing [%s:%d] : 'server %s' : could not resolve address '%s'.\n",
 		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 	}
 
