@@ -2859,6 +2859,24 @@ __LJMP static int hlua_channel_get_in_len(lua_State *L)
 	return 1;
 }
 
+/* Returns true if the channel is full. */
+__LJMP static int hlua_channel_is_full(lua_State *L)
+{
+	struct channel *chn;
+	int rem;
+
+	MAY_LJMP(check_args(L, 1, "is_full"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
+	rem = chn->buf->size;
+	rem -= chn->buf->o; /* Output size */
+	rem -= chn->buf->i; /* Input size */
+	rem -= global.tune.maxrewrite; /* Rewrite reserved size */
+
+	lua_pushboolean(L, rem <= 0);
+	return 1;
+}
+
 /* Just returns the number of bytes available in the output
  * side of the buffer. This function never fails.
  */
@@ -6765,6 +6783,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "forward",     hlua_channel_forward);
 	hlua_class_function(gL.T, "get_in_len",  hlua_channel_get_in_len);
 	hlua_class_function(gL.T, "get_out_len", hlua_channel_get_out_len);
+	hlua_class_function(gL.T, "is_full",     hlua_channel_is_full);
 
 	lua_rawset(gL.T, -3);
 

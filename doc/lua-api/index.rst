@@ -1070,6 +1070,11 @@ Channel class
   :param class_channel channel: The manipulated Channel.
   :param integer int: The amount of data which will be forwarded.
 
+.. js:function:: Channel.is_full(channel)
+
+  This function returns true if the buffer channel is full.
+
+  :returns: a boolean
 
 .. _http_class:
 
