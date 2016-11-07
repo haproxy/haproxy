@@ -64,6 +64,7 @@
 #define GTUNE_USE_SPLICE         (1<<4)
 #define GTUNE_USE_GAI            (1<<5)
 #define GTUNE_USE_REUSEPORT      (1<<6)
+#define GTUNE_RESOLVE_DONTFAIL   (1<<7)
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0

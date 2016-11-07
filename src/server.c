@@ -3249,6 +3249,13 @@ static int srv_iterate_initaddr(struct server *srv)
 		srv_append_initaddr(&methods, SRV_IADDR_LIBC);
 	}
 
+	/* "-dr" : always append "none" so that server addresses resolution
+	 * failures are silently ignored, this is convenient to validate some
+	 * configs out of their environment.
+	 */
+	if (global.tune.options & GTUNE_RESOLVE_DONTFAIL)
+		srv_append_initaddr(&methods, SRV_IADDR_NONE);
+
 	while (methods) {
 		err_code = 0;
 		switch (srv_get_next_initaddr(&methods)) {

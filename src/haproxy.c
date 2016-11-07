@@ -482,6 +482,7 @@ void usage(char *name)
 #if defined(SO_REUSEPORT)
 		"        -dR disables SO_REUSEPORT usage\n"
 #endif
+		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"\n",
@@ -807,6 +808,8 @@ void init(int argc, char **argv)
 				arg_mode |= MODE_FOREGROUND;
 			else if (*flag == 'd' && flag[1] == 'M')
 				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
+			else if (*flag == 'd' && flag[1] == 'r')
+				global.tune.options |= GTUNE_RESOLVE_DONTFAIL;
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c')

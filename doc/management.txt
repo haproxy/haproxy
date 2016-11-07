@@ -228,6 +228,14 @@ list of options is :
     generally be the "select" poller, which cannot be disabled and is limited
     to 1024 file descriptors.
 
+  -dr : ignore server address resolution failures. It is very common when
+    validating a configuration out of production not to have access to the same
+    resolvers and to fail on server address resolution, making it difficult to
+    test a configuration. This option simply appends the "none" method to the
+    list of address resolution methods for all servers, ensuring that even if
+    the libc fails to resolve an address, the startup sequence is not
+    interrupted.
+
   -m <limit> : limit the total allocatable memory to <limit> megabytes across
     all processes. This may cause some connection refusals or some slowdowns
     depending on the amount of memory needed for normal operations. This is
