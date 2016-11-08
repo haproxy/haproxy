@@ -2367,8 +2367,14 @@ struct task *process_stream(struct task *t)
 		/* Note: please ensure that if you branch here you disable SI_FL_DONT_WAKE */
 		t->expire = tick_first(tick_first(req->rex, req->wex),
 				       tick_first(res->rex, res->wex));
-		if (req->analysers)
-			t->expire = tick_first(t->expire, req->analyse_exp);
+		if (!req->analysers)
+			req->analyse_exp = TICK_ETERNITY;
+
+		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED) &&
+		          (!tick_isset(req->analyse_exp) || tick_is_expired(req->analyse_exp, now_ms)))
+			req->analyse_exp = tick_add(now_ms, 5000);
+
+		t->expire = tick_first(t->expire, req->analyse_exp);
 
 		if (si_f->exp)
 			t->expire = tick_first(t->expire, si_f->exp);

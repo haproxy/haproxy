@@ -5187,9 +5187,11 @@ option contstats
   only when a session finishes. It works quite well when serving small
   objects, but with big ones (for example large images or archives) or
   with A/V streaming, a graph generated from haproxy counters looks like
-  a hedgehog. With this option enabled counters get incremented continuously,
-  during a whole session. Recounting touches a hotpath directly so
-  it is not enabled by default, as it has small performance impact (~0.5%).
+  a hedgehog. With this option enabled counters get incremented frequently
+  along the session, typically every 5 seconds, which is often enough to
+  produce clean graphs. Recounting touches a hotpath directly so it is not
+  not enabled by default, as it can cause a lot of wakeups for very large
+  session counts and cause a small performance drop.
 
 
 option dontlog-normal
