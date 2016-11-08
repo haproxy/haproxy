@@ -1,0 +1,128 @@
+51Degrees Device Detection
+--------------------------
+
+You can also include 51Degrees for inbuilt device detection enabling attributes
+such as screen size (physical & pixels), supported input methods, release date,
+hardware vendor and model, browser information, and device price among many
+others. Such information can be used to improve the user experience of a web
+site by tailoring the page content, layout and business processes to the
+precise characteristics of the device. Such customisations improve profit by
+making it easier for customers to get to the information or services they
+need. Attributes of the device making a web request can be added to HTTP
+headers as configurable parameters.
+
+In order to enable 51Degrees download the 51Degrees source code from the
+official github repository :
+
+    git clone https://github.com/51Degrees/Device-Detection
+
+then run 'make' with USE_51DEGREES and 51DEGREES_SRC set. Both 51DEGREES_INC
+and 51DEGREES_LIB may additionally be used to force specific different paths
+for .o and .h, but will default to 51DEGREES_SRC. Make sure to replace
+'51D_REPO_PATH' with the path to the 51Degrees repository.
+
+51Degrees provide 2 different detection algorithms:
+
+    1. Pattern - balances main memory usage and CPU.
+    2. Trie - a very high performance detection solution which uses more main
+       memory than Pattern.
+
+To make with 51Degrees Pattern algorithm use the following command line.
+
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/pattern
+
+To use the 51Degrees Trie algorithm use the following command line.
+
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC='51D_REPO_PATH'/src/trie
+
+A data file containing information about devices, browsers, operating systems
+and their associated signatures is then needed. 51Degrees provide a free
+database with Github repo for this purpose. These free data files are located
+in '51D_REPO_PATH'/data with the extensions .dat for Pattern data and .trie for
+Trie data.
+
+The configuration file needs to set the following parameters:
+
+    global
+        51degrees-data-file           path to the Pattern or Trie data file
+        51degrees-property-name-list  list of 51Degrees properties to detect
+        51degrees-property-separator  separator to use between values
+        51degrees-cache-size          LRU-based cache size (disabled by default)
+
+The following is an example of the settings for Pattern.
+
+    global
+        51degrees-data-file '51D_REPO_PATH'/data/51Degrees-LiteV3.2.dat
+        51degrees-property-name-list IsTablet DeviceType IsMobile
+        51degrees-property-separator ,
+        51degrees-cache-size 10000
+
+HAProxy needs a way to pass device information to the backend servers. This is
+done by using the 51d converter or fetch method, which intercepts the HTTP
+headers and creates some new headers. This is controlled in the frontend
+http-in section.
+
+The following is an example which adds two new HTTP headers prefixed X-51D-
+
+    frontend http-in
+        bind *:8081
+        default_backend servers
+        http-request set-header X-51D-DeviceTypeMobileTablet %[51d.all(DeviceType,IsMobile,IsTablet)]
+        http-request set-header X-51D-Tablet %[51d.all(IsTablet)]
+
+Here, two headers are created with 51Degrees data, X-51D-DeviceTypeMobileTablet
+and X-51D-Tablet. Any number of headers can be created this way and can be
+named anything. 51d.all( ) invokes the 51degrees fetch. It can be passed up to
+five property names of values to return. Values will be returned in the same
+order, seperated by the 51-degrees-property-separator configured earlier. If a
+property name can't be found the value 'NoData' is returned instead.
+
+In addition to the device properties three additional properties related to the
+validity of the result can be returned when used with the Pattern method. The
+following example shows how Method, Difference and Rank could be included as one
+new HTTP header X-51D-Stats.
+
+    frontend http-in
+        ...
+        http-request set-header X-51D-Stats %[51d.all(Method,Difference,Rank)]
+
+These values indicate how confident 51Degrees is in the result that that was
+returned. More information is available on the 51Degrees web site at:
+
+    https://51degrees.com/support/documentation/pattern
+
+The above 51d.all fetch method uses all available HTTP headers for detection. A
+modest performance improvement can be obtained by only passing one HTTP header
+to the detection method with the 51d.single converter. The following example
+uses the User-Agent HTTP header only for detection.
+
+    frontend http-in
+        ...
+        http-request set-header X-51D-DeviceTypeMobileTablet %[req.fhdr(User-Agent),51d.single(DeviceType,IsMobile,IsTablet)]
+
+Any HTTP header could be used inplace of User-Agent by changing the parameter
+provided to req.fhdr.
+
+When compiled to use the Trie detection method the trie format data file needs
+to be provided. Changing the extension of the data file from dat to trie will
+use the correct data.
+
+    global
+        51degrees-data-file '51D_REPO_PATH'/data/51Degrees-LiteV3.2.trie
+
+When used with Trie the Method, Difference and Rank properties are not
+available.
+
+The free Lite data file contains information about screen size in pixels and
+whether the device is a mobile. A full list of available properties is located
+on the 51Degrees web site at:
+
+    https://51degrees.com/resources/property-dictionary
+
+Some properties are only available in the paid for Premium and Enterprise
+versions of 51Degrees. These data sets not only contain more properties but
+are updated weekly and daily and contain signatures for 100,000s of different
+device combinations. For more information see the data options comparison web
+page:
+
+    https://51degrees.com/compare-data-options

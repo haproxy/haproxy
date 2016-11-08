@@ -1,5 +1,5 @@
 Scientiamobile WURFL Device Detection
--------------------------------
+-------------------------------------
 
 You can also include WURFL for inbuilt device detection enabling attributes.
 

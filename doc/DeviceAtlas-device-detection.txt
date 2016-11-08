@@ -1,0 +1,57 @@
+DeviceAtlas Device Detection
+----------------------------
+
+In order to add DeviceAtlas Device Detection support, you would need to download
+the API source code from https://deviceatlas.com/deviceatlas-haproxy-module and
+once extracted :
+
+    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder>
+
+Optionally DEVICEATLAS_INC and DEVICEATLAS_LIB may be set to override the path
+to the include files and libraries respectively if they're not in the source
+directory.
+
+These are supported DeviceAtlas directives (see doc/configuration.txt) :
+  - deviceatlas-json-file <path to the DeviceAtlas JSON data file>.
+  - deviceatlas-log-level <number> (0 to 3, level of information returned by
+    the API, 0 by default).
+  - deviceatlas-property-separator <character> (character used to separate the
+    properties produced by the API, | by default).
+
+Sample configuration :
+
+    global
+	deviceatlas-json-file <path to json file>
+
+    ...
+    frontend
+	bind *:8881
+	default_backend servers
+
+There are two distinct methods available, one which leverages all HTTP headers
+and one which uses only a single HTTP header for the detection. The former
+method is highly recommended and more accurate. There are several possible use
+cases.
+
+# To transmit the DeviceAtlas data downstream to the target application
+
+All HTTP headers via the sample / fetch
+
+    http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
+
+Single HTTP header (e.g. User-Agent) via the convertor
+
+    http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
+
+# Mobile content switching with ACL
+
+All HTTP headers
+
+    acl is_mobile da-csv-fetch(mobileDevice) 1
+
+Single HTTP header
+
+    acl device_type_tablet req.fhdr(User-Agent),da-csv-conv(primaryHardwareType) "Tablet"
+
+
+Please find more information about DeviceAtlas and the detection methods at https://deviceatlas.com/resources .
