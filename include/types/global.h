@@ -36,10 +36,6 @@
 #include <import/51d.h>
 #endif
 
-#ifdef USE_WURFL
-#include <import/wurfl.h>
-#endif
-
 #ifndef UNIX_MAX_PATH
 #define UNIX_MAX_PATH 108
 #endif
@@ -222,7 +218,7 @@ struct global {
 		struct list patch_file_list; /* the list of WURFL patch file to use */
 		char information_list_separator; /* the separator used in request to separate values */
 		struct list information_list; /* the list of WURFL data to return into request */
-		wurfl_handle handle; /* the handle to WURFL engine */
+		void *handle; /* the handle to WURFL engine */
 		struct eb_root btree; /* btree containing info (name/type) on WURFL data to return */
 	} wurfl;
 #endif

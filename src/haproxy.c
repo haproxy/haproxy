@@ -114,16 +114,16 @@
 #include <proto/ssl_sock.h>
 #endif
 
+#ifdef USE_WURFL
+#include <proto/wurfl.h>
+#endif
+
 #ifdef USE_DEVICEATLAS
 #include <import/da.h>
 #endif
 
 #ifdef USE_51DEGREES
 #include <import/51d.h>
-#endif
-
-#ifdef USE_WURFL
-#include <import/wurfl.h>
 #endif
 
 /*********************************************************************/

@@ -8,9 +8,11 @@
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/sample.h>
+#include <proto/wurfl.h>
 #include <ebsttree.h>
 #include <ebmbtree.h>
-#include <import/wurfl.h>
+
+#include <wurfl/wurfl.h>
 
 
 #ifdef WURFL_DEBUG
@@ -31,6 +33,22 @@ inline static void ha_wurfl_log(char * message, ...)
 #endif
 
 #define HA_WURFL_MAX_HEADER_LENGTH 1024
+
+typedef char *(*PROP_CALLBACK_FUNC)(wurfl_handle wHandle, wurfl_device_handle dHandle);
+
+enum wurfl_data_type {
+	HA_WURFL_DATA_TYPE_UNKNOWN = 0,
+	HA_WURFL_DATA_TYPE_CAP = 100,
+	HA_WURFL_DATA_TYPE_VCAP = 200,
+	HA_WURFL_DATA_TYPE_PROPERTY = 300
+};
+
+typedef struct {
+	char *name;
+	enum wurfl_data_type type;
+	PROP_CALLBACK_FUNC func_callback;
+	struct ebmb_node nd;
+} wurfl_data_t;
 
 static const char HA_WURFL_MODULE_VERSION[] = "1.0";
 static const char HA_WURFL_ISDEVROOT_FALSE[] = "FALSE";
