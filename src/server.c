@@ -2333,10 +2333,8 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			}
 			server_recalc_eweight(srv);
 
-			/* load server IP only if DNS resolution is used on the server */
-			if (srv->resolution) {
-				srv->lastaddr = strdup(params[0]);
-			}
+			/* load server IP address */
+			srv->lastaddr = strdup(params[0]);
 			break;
 		default:
 			chunk_appendf(msg, ", version '%d' not supported", version);

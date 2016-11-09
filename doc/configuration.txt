@@ -4550,9 +4550,11 @@ load-server-state-from-file { global | local | none }
     none       don't load any stat for this backend
 
   Notes:
-    - server's IP address is not updated unless DNS resolution is enabled on
-      the server. It means that if a server IP address has been changed using
-      the stat socket, this information won't be re-applied after reloading.
+    - server's IP address is preserved across reloads by default, but the
+      order can be changed thanks to the server's "init-addr" setting. This
+      means that an IP address change performed on the CLI at run time will
+      be preserved, and that any change to the local resolver (eg: /etc/hosts)
+      will possibly not have any effect if the state file is in use.
 
     - server's weight is applied from previous running process unless it has
       has changed between previous and new configuration files.
