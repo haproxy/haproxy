@@ -118,7 +118,7 @@ case "$BRANCH" in
 	1.4) DOC=( doc/{haproxy-en,haproxy-fr,configuration}.txt )                            ;;
 	1.5) DOC=( doc/{coding-style,configuration,proxy-protocol}.txt )                      ;;
 	1.6) DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua}.txt ) ;;
-	*)   DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua}.txt ) ;;
+	*)   DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua,SPOE}.txt ) ;;
 esac
 
 echo "Ready to produce the following files in $TARGET_DIR/ :"
