@@ -933,7 +933,7 @@ S (Servers).
  16. wredis [..BS]: number of times a request was redispatched to another
      server. The server value counts the number of times that server was
      switched away from.
- 17. status [LFBS]: status (UP/DOWN/NOLB/MAINT/MAINT(via)...)
+ 17. status [LFBS]: status (UP/DOWN/NOLB/MAINT/MAINT(via)/MAINT(resolution)...)
  18. weight [..BS]: total weight (backend), server weight (server)
  19. act [..BS]: number of active servers (backend), server is active (server)
  20. bck [..BS]: number of backup servers (backend), server is backup (server)

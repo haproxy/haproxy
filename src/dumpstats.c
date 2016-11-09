@@ -3799,7 +3799,10 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 		              stats[ST_F_BCK].u.u32 ? "Y" : "-");
 
 		/* check failures: unique, fatal, down time */
-		if (stats[ST_F_CHKFAIL].type) {
+		if (strcmp(field_str(stats, ST_F_STATUS), "MAINT (resolution)") == 0) {
+			chunk_appendf(out, "<td class=ac colspan=3>resolution</td>");
+		}
+		else if (stats[ST_F_CHKFAIL].type) {
 			chunk_appendf(out, "<td><u>%lld", (long long)stats[ST_F_CHKFAIL].u.u64);
 
 			if (stats[ST_F_HANAFAIL].type)
@@ -4286,7 +4289,9 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 
 	/* status */
 	fld_status = chunk_newstr(out);
-	if (sv->admin & SRV_ADMF_IMAINT)
+	if (sv->admin & SRV_ADMF_RMAINT)
+		chunk_appendf(out, "MAINT (resolution)");
+	else if (sv->admin & SRV_ADMF_IMAINT)
 		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
 	else if (sv->admin & SRV_ADMF_MAINT)
 		chunk_appendf(out, "MAINT");
