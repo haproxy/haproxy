@@ -4577,6 +4577,27 @@ __LJMP static int hlua_set_var(lua_State *L)
 	return 0;
 }
 
+__LJMP static int hlua_unset_var(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "unset_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+
+	/* Unset the variable. */
+	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
+	vars_unset_by_name(name, len, &smp);
+	return 0;
+}
+
 __LJMP static int hlua_get_var(lua_State *L)
 {
 	struct hlua_txn *htxn;
@@ -6951,6 +6972,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
 	hlua_class_function(gL.T, "set_var",     hlua_set_var);
+	hlua_class_function(gL.T, "unset_var",   hlua_unset_var);
 	hlua_class_function(gL.T, "get_var",     hlua_get_var);
 	hlua_class_function(gL.T, "done",        hlua_txn_done);
 	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);

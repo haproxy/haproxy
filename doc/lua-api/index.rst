@@ -1419,7 +1419,13 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string var: The variable name according with the HAProxy variable syntax.
-  :param opaque value: The data which is stored in the variable.
+
+.. js:function:: TXN.unset_var(TXN, var)
+
+  Unset the variable <var>.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string var: The variable name according with the HAProxy variable syntax.
 
 .. js:function:: TXN.get_var(TXN, var)
 

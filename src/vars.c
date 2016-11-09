@@ -86,6 +86,25 @@ static int var_accounting_add(struct vars *vars, struct session *sess, struct st
 	return 1;
 }
 
+/* This fnuction remove a variable from the list and free memory it used */
+unsigned int var_clear(struct var *var)
+{
+	unsigned int size = 0;
+
+	if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN) {
+		free(var->data.u.str.str);
+		size += var->data.u.str.len;
+	}
+	else if (var->data.type == SMP_T_METH) {
+		free(var->data.u.meth.str.str);
+		size += var->data.u.meth.str.len;
+	}
+	LIST_DEL(&var->l);
+	pool_free2(var_pool, var);
+	size += sizeof(struct var);
+	return size;
+}
+
 /* This function free all the memory used by all the varaibles
  * in the list.
  */
@@ -95,18 +114,7 @@ void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 	unsigned int size = 0;
 
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		if (var->data.type == SMP_T_STR ||
-		    var->data.type == SMP_T_BIN) {
-			free(var->data.u.str.str);
-			size += var->data.u.str.len;
-		}
-		else if (var->data.type == SMP_T_METH) {
-			free(var->data.u.meth.str.str);
-			size += var->data.u.meth.str.len;
-		}
-		LIST_DEL(&var->l);
-		pool_free2(var_pool, var);
-		size += sizeof(struct var);
+		size += var_clear(var);
 	}
 	var_accounting_diff(vars, sess, strm, -size);
 }
@@ -120,18 +128,7 @@ void vars_prune_per_sess(struct vars *vars)
 	unsigned int size = 0;
 
 	list_for_each_entry_safe(var, tmp, &vars->head, l) {
-		if (var->data.type == SMP_T_STR ||
-		    var->data.type == SMP_T_BIN) {
-			free(var->data.u.str.str);
-			size += var->data.u.str.len;
-		}
-		else if (var->data.type == SMP_T_METH) {
-			free(var->data.u.meth.str.str);
-			size += var->data.u.meth.str.len;
-		}
-		LIST_DEL(&var->l);
-		pool_free2(var_pool, var);
-		size += sizeof(struct var);
+		size += var_clear(var);
 	}
 	vars->size       -= size;
 	global.vars.size -= size;
@@ -398,10 +395,43 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope, s
 	return sample_store(vars, name, smp);
 }
 
+/* Returns 0 if fails, else returns 1. Note that stream may be null for SCOPE_SESS. */
+static inline int sample_clear_stream(const char *name, enum vars_scope scope, struct sample *smp)
+{
+	struct vars *vars;
+	struct var  *var;
+	unsigned int size = 0;
+
+	switch (scope) {
+	case SCOPE_PROC: vars = &global.vars;  break;
+	case SCOPE_SESS: vars = &smp->sess->vars;  break;
+	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
+	case SCOPE_REQ:
+	case SCOPE_RES:
+	default:         vars = &smp->strm->vars_reqres; break;
+	}
+	if (vars->scope != scope)
+		return 0;
+
+	/* Look for existing variable name. */
+	var = var_get(vars, name);
+	if (var) {
+		size = var_clear(var);
+		var_accounting_diff(vars, smp->sess, smp->strm, -size);
+	}
+	return 1;
+}
+
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
 	return sample_store_stream(args[0].data.var.name, args[0].data.var.scope, smp);
+}
+
+/* Returns 0 if fails, else returns 1. */
+static int smp_conv_clear(const struct arg *args, struct sample *smp, void *private)
+{
+	return sample_clear_stream(args[0].data.var.name, args[0].data.var.scope, smp);
 }
 
 /* This fucntions check an argument entry and fill it with a variable
@@ -460,6 +490,37 @@ void vars_set_by_name(const char *name, size_t len, struct sample *smp)
 		return;
 
 	sample_store_stream(name, scope, smp);
+}
+
+/* This function unset a variable if it was already defined.
+ * In error case, it fails silently.
+ */
+void vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
+{
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, 0, NULL);
+	if (!name)
+		return;
+
+	sample_clear_stream(name, scope, smp);
+}
+
+
+/* This function unset a variable.
+ * In error case, it fails silently.
+ */
+void vars_unset_by_name(const char *name, size_t len, struct sample *smp)
+{
+	enum vars_scope scope;
+
+	/* Resolve name and scope. */
+	name = register_name(name, len, &scope, 1, NULL);
+	if (!name)
+		return;
+
+	sample_clear_stream(name, scope, smp);
 }
 
 /* this function fills a sample with the
@@ -567,6 +628,20 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
+/* Always returns ACT_RET_CONT even if an error occurs. */
+static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
+                                    struct session *sess, struct stream *s, int flags)
+{
+	struct sample smp;
+
+	memset(&smp, 0, sizeof(smp));
+	smp_set_owner(&smp, px, sess, s, SMP_OPT_FINAL);
+
+	/* Clear the variable using the sample context, and ignore errors. */
+	sample_clear_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	return ACT_RET_CONT;
+}
+
 /* This two function checks the variable name and replace the
  * configuration string name by the global string name. its
  * the same string, but the global pointer can be easy to
@@ -601,24 +676,46 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *var_name = args[*arg-1];
 	int var_len;
 	const char *kw_name;
-	int flags;
+	int flags, set_var;
 
-	var_name += strlen("set-var");
+	if (!strncmp(var_name, "set-var", 7)) {
+		var_name += 7;
+		set_var   = 1;
+	}
+	if (!strncmp(var_name, "unset-var", 9)) {
+		var_name += 9;
+		set_var   = 0;
+	}
+
 	if (*var_name != '(') {
-		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)'", args[*arg-1]);
+		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
 	var_name++; /* jump the '(' */
 	var_len = strlen(var_name);
 	var_len--; /* remove the ')' */
 	if (var_name[var_len] != ')') {
-		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)'", args[*arg-1]);
+		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
 
 	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, 1, err);
 	if (!rule->arg.vars.name)
 		return ACT_RET_PRS_ERR;
+
+	/* There is no fetch method when variable is unset. Just set the right
+	 * action and return. */
+	if (!set_var) {
+		if (*args[*arg]) {
+			memprintf(err, "fetch method not supported");
+			return ACT_RET_PRS_ERR;
+		}
+		rule->action     = ACT_CUSTOM;
+		rule->action_ptr = action_clear;
+		return ACT_RET_PRS_OK;
+	}
 
 	kw_name = args[*arg-1];
 
@@ -708,32 +805,38 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 }};
 
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-	{ "set-var", smp_conv_store, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
+	{ "set-var",   smp_conv_store, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
+	{ "unset-var", smp_conv_clear, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
 	{ /* END */ },
 }};
 
 static struct action_kw_list tcp_req_sess_kws = { { }, {
-	{ "set-var", parse_store, 1 },
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list tcp_req_cont_kws = { { }, {
-	{ "set-var", parse_store, 1 },
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list tcp_res_kws = { { }, {
-	{ "set-var", parse_store, 1 },
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "set-var", parse_store, 1 },
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
 static struct action_kw_list http_res_kws = { { }, {
-	{ "set-var", parse_store, 1 },
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 

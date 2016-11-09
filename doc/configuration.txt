@@ -3655,6 +3655,7 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
               del-map(<file name>) <key fmt> |
               set-map(<file name>) <key fmt> <value fmt> |
               set-var(<var name>) <expr> |
+              unset-var(<var name>) |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
               sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
@@ -3962,6 +3963,13 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
 
          http-request set-var(req.my_var) req.fhdr(user-agent),lower
 
+    - unset-var(<var-name>) :
+      Is used to unset a variable. See above for details about <var-name>.
+
+      Example:
+
+         http-request unset-var(req.my_var)
+
     - set-src <expr> :
       Is used to set the source IP address to the value of specified
       expression. Useful when a proxy in front of HAProxy rewrites source IP,
@@ -4119,6 +4127,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 del-map(<file name>) <key fmt> |
                 set-map(<file name>) <key fmt> <value fmt> |
                 set-var(<var-name>) <expr> |
+                unset-var(<var-name>) |
                 { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
@@ -4327,6 +4336,13 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       Example:
 
          http-response set-var(sess.last_redir) res.hdr(location)
+
+    - unset-var(<var-name>) :
+      Is used to unset a variable. See above for details about <var-name>.
+
+      Example:
+
+         http-response unset-var(sess.last_redir)
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current response. Please refer to
@@ -9036,6 +9052,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - sc-inc-gpc0(<sc-id>)
     - sc-set-gpt0(<sc-id>) <int>
     - set-var(<var-name>) <expr>
+    - unset-var(<var-name>)
     - silent-drop
 
   They have the same meaning as their counter-parts in "tcp-request connection"
@@ -9087,9 +9104,13 @@ tcp-request content <action> [{if | unless} <condition>]
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
 
+  The "unset-var" is used to unset a variable. See above for details about
+  <var-name>.
+
   Example:
 
         tcp-request content set-var(sess.my_var) src
+        tcp-request content unset-var(sess.my_var2)
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
@@ -9242,6 +9263,9 @@ tcp-response content <action> [{if | unless} <condition>]
     - set-var(<var-name>) <expr>
         Sets a variable.
 
+    - unset-var(<var-name>)
+        Unsets a variable.
+
     - sc-inc-gpc0(<sc-id>):
         This action increments the GPC0 counter according to the sticky
         counter designated by <sc-id>. If an error occurs, this action fails
@@ -9305,6 +9329,13 @@ tcp-response content <action> [{if | unless} <condition>]
 
         tcp-request content set-var(sess.my_var) src
 
+  The "unset-var" is used to unset a variable. See above for details about
+  <var-name>.
+
+  Example:
+
+        tcp-request content unset-var(sess.my_var)
+
   See section 7 about ACL usage.
 
   See also : "tcp-request content", "tcp-response inspect-delay"
@@ -9353,6 +9384,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - sc-inc-gpc0(<sc-id>)
     - sc-set-gpt0(<sc-id>) <int>
     - set-var(<var-name>) <expr>
+    - unset-var(<var-name>)
     - silent-drop
 
   These actions have the same meaning as their respective counter-parts in
@@ -12682,6 +12714,18 @@ upper
 url_dec
   Takes an url-encoded string provided as input and returns the decoded
   version as output. The input and the output are of type string.
+
+unset-var(<var name>)
+  Unsets a variable if the input content is defined. The name of the variable
+  starts with an indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
+    "sess" : the variable is shared with the whole session
+    "txn"  : the variable is shared with the transaction (request and
+             response),
+    "req"  : the variable is shared only during request processing,
+    "res"  : the variable is shared only during response processing.
+  This prefix is followed by a name. The separator is a '.'. The name may only
+  contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 utime(<format>[,<offset>])
   Converts an integer supposed to contain a date since epoch to a string
