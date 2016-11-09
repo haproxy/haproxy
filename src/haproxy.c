@@ -109,6 +109,7 @@
 #include <proto/signal.h>
 #include <proto/task.h>
 #include <proto/dns.h>
+#include <proto/vars.h>
 
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
@@ -733,6 +734,9 @@ void init(int argc, char **argv)
 
 	/* Initialise lua. */
 	hlua_init();
+
+	/* Initialize process vars */
+	vars_init(&global.vars, SCOPE_PROC);
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)
@@ -1674,6 +1678,8 @@ void deinit(void)
 		LIST_DEL(&wl->list);
 		free(wl);
 	}
+
+	vars_prune(&global.vars, NULL, NULL);
 
 	pool_destroy2(pool2_stream);
 	pool_destroy2(pool2_session);

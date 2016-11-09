@@ -618,6 +618,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
    - tune.vars.global-max-size
+   - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
    - tune.vars.sess-max-size
    - tune.vars.txn-max-size
@@ -1501,17 +1502,18 @@ tune.ssl.ssl-ctx-cache-size <number>
   1000 entries.
 
 tune.vars.global-max-size <size>
+tune.vars.proc-max-size <size>
 tune.vars.reqres-max-size <size>
 tune.vars.sess-max-size <size>
 tune.vars.txn-max-size <size>
-  These four tunes help to manage the maximum amount of memory used by the
-  variables system. "global" limits the overall amount of memory available
-  for all scopes. "sess" limits the memory for the session scope, "txn" for
-  the transaction scope, and "reqres" limits the memory for each request or
-  response processing.
-  Memory accounting is hierarchical, meaning more coarse grained limits
-  include the finer grained ones: "sess" includes "txn", and "txn" includes
-  "reqres".
+  These five tunes help to manage the maximum amount of memory used by the
+  variables system. "global" limits the overall amount of memory available for
+  all scopes. "proc" limits the memory for the process scope, "sess" limits the
+  memory for the session scope, "txn" for the transaction scope, and "reqres"
+  limits the memory for each request or response processing.
+  Memory accounting is hierarchical, meaning more coarse grained limits include
+  the finer grained ones: "proc" includes "sess", "sess" includes "txn", and
+  "txn" includes "reqres".
 
   For example, when "tune.vars.sess-max-size" is limited to 100,
   "tune.vars.txn-max-size" and "tune.vars.reqres-max-size" cannot exceed
@@ -3941,6 +3943,7 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
 
         <var-name> The name of the variable starts with an indication about
                    its scope. The scopes allowed are:
+                     "proc" : the variable is shared with the whole process
                      "sess" : the variable is shared with the whole session
                      "txn"  : the variable is shared with the transaction
                               (request and response)
@@ -4306,6 +4309,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
 
         <var-name> The name of the variable starts with an indication about
                    its scope. The scopes allowed are:
+                     "proc" : the variable is shared with the whole process
                      "sess" : the variable is shared with the whole session
                      "txn"  : the variable is shared with the transaction
                               (request and response)
@@ -9068,6 +9072,7 @@ tcp-request content <action> [{if | unless} <condition>]
 
     <var-name> The name of the variable starts with an indication about
                its scope. The scopes allowed are:
+                 "proc" : the variable is shared with the whole process
                  "sess" : the variable is shared with the whole session
                  "txn"  : the variable is shared with the transaction
                           (request and response)
@@ -9281,6 +9286,7 @@ tcp-response content <action> [{if | unless} <condition>]
 
     <var-name> The name of the variable starts with an indication about
                its scope. The scopes allowed are:
+                 "proc" : the variable is shared with the whole process
                  "sess" : the variable is shared with the whole session
                  "txn"  : the variable is shared with the transaction
                           (request and response)
@@ -12105,6 +12111,7 @@ add(<value>)
   result as a signed integer. <value> can be a numeric value or a variable
   name. The name of the variable starts with an indication about its scope. The
   scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12117,6 +12124,7 @@ and(<value>)
   integer, and returns the result as an signed integer. <value> can be a
   numeric value or a variable name. The name of the variable starts with an
   indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12182,6 +12190,7 @@ div(<value>)
   integer is returned (typically 2^63-1). <value> can be a numeric value or a
   variable name. The name of the variable starts with an indication about its
   scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12390,6 +12399,7 @@ mod(<value>)
   remainder as an signed integer. If <value> is null, then zero is returned.
   <value> can be a numeric value or a variable name. The name of the variable
   starts with an indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12403,6 +12413,7 @@ mul(<value>)
   value for the sign is returned so that the operation doesn't wrap around.
   <value> can be a numeric value or a variable name. The name of the variable
   starts with an indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12431,6 +12442,7 @@ or(<value>)
   integer, and returns the result as an signed integer. <value> can be a
   numeric value or a variable name. The name of the variable starts with an
   indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and response)
     "req"  : the variable is shared only during request processing
@@ -12492,6 +12504,7 @@ set-var(<var name>)
   Sets a variable with the input content and returns the content on the output as
   is. The variable keeps the value and the associated input type. The name of the
   variable starts with an indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and
              response),
@@ -12506,6 +12519,7 @@ sub(<value>)
   a constant, simply perform a "neg,add(value)". <value> can be a numeric value
   or a variable name. The name of the variable starts with an indication about
   its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and
              response),
@@ -12703,6 +12717,7 @@ xor(<value>)
   of type signed integer, and returns the result as an signed integer.
   <value> can be a numeric value or a variable name. The name of the variable
   starts with an indication about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and
              response),
@@ -12966,6 +12981,7 @@ var(<var-name>) : undefined
   Returns a variable with the stored type. If the variable is not set, the
   sample fetch fails. The name of the variable starts with an indication
   about its scope. The scopes allowed are:
+    "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and
              response),

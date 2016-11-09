@@ -31,6 +31,7 @@
 #include <types/listener.h>
 #include <types/proxy.h>
 #include <types/task.h>
+#include <types/vars.h>
 
 #ifdef USE_51DEGREES
 #include <import/51d.h>
@@ -179,6 +180,7 @@ struct global {
 	unsigned long cpu_map[LONGBITS];  /* list of CPU masks for the 32/64 first processes */
 #endif
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
+	struct vars   vars;         /* list of variables for the process scope. */
 #ifdef USE_DEVICEATLAS
 	struct {
 		void *atlasimgptr;

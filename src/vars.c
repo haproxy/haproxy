@@ -26,6 +26,7 @@ static int var_names_nb = 0;
 /* This array of int contains the system limits per context. */
 static unsigned int var_global_limit = 0;
 static unsigned int var_global_size = 0;
+static unsigned int var_proc_limit = 0;
 static unsigned int var_sess_limit = 0;
 static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
@@ -45,7 +46,10 @@ static void var_accounting_diff(struct vars *vars, struct session *sess, struct 
 		/* fall through */
 	case SCOPE_SESS:
 		sess->vars.size += size;
-		var_global_size += size;
+		/* fall through */
+	case SCOPE_PROC:
+		global.vars.size += size;
+		var_global_size   += size;
 	}
 }
 
@@ -70,6 +74,10 @@ static int var_accounting_add(struct vars *vars, struct session *sess, struct st
 		/* fall through */
 	case SCOPE_SESS:
 		if (var_sess_limit && sess->vars.size + size > var_sess_limit)
+			return 0;
+		/* fall through */
+	case SCOPE_PROC:
+		if (var_proc_limit && global.vars.size + size > var_proc_limit)
 			return 0;
 		if (var_global_limit && var_global_size + size > var_global_limit)
 			return 0;
@@ -125,8 +133,9 @@ void vars_prune_per_sess(struct vars *vars)
 		pool_free2(var_pool, var);
 		size += sizeof(struct var);
 	}
-	vars->size      -= size;
-	var_global_size -= size;
+	vars->size       -= size;
+	global.vars.size -= size;
+	var_global_size  -= size;
 }
 
 /* This function init a list of variabes. */
@@ -162,7 +171,12 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	}
 
 	/* Check scope. */
-	if (len > 5 && strncmp(name, "sess.", 5) == 0) {
+	if (len > 5 && strncmp(name, "proc.", 5) == 0) {
+		name += 5;
+		len -= 5;
+		*scope = SCOPE_PROC;
+	}
+	else if (len > 5 && strncmp(name, "sess.", 5) == 0) {
 		name += 5;
 		len -= 5;
 		*scope = SCOPE_SESS;
@@ -184,7 +198,7 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	}
 	else {
 		memprintf(err, "invalid variable name '%s'. A variable name must be start by its scope. "
-		               "The scope can be 'sess', 'txn', 'req' or 'res'", name);
+		               "The scope can be 'proc', 'sess', 'txn', 'req' or 'res'", name);
 		return NULL;
 	}
 
@@ -246,6 +260,9 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 
 	/* Check the availibity of the variable. */
 	switch (var_desc->scope) {
+	case SCOPE_PROC:
+		vars = &global.vars;
+		break;
 	case SCOPE_SESS:
 		vars = &smp->sess->vars;
 		break;
@@ -369,6 +386,7 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope, s
 	struct vars *vars;
 
 	switch (scope) {
+	case SCOPE_PROC: vars = &global.vars;  break;
 	case SCOPE_SESS: vars = &smp->sess->vars;  break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
@@ -461,6 +479,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 
 	/* Select "vars" pool according with the scope. */
 	switch (scope) {
+	case SCOPE_PROC: vars = &global.vars;  break;
 	case SCOPE_SESS: vars = &smp->sess->vars;  break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
@@ -494,6 +513,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 
 	/* Select "vars" pool according with the scope. */
 	switch (var_desc->scope) {
+	case SCOPE_PROC: vars = &global.vars;  break;
 	case SCOPE_SESS: vars = &smp->sess->vars;  break;
 	case SCOPE_TXN:  vars = &smp->strm->vars_txn;    break;
 	case SCOPE_REQ:
@@ -653,6 +673,13 @@ static int vars_max_size_global(char **args, int section_type, struct proxy *cur
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_global_limit);
 }
 
+static int vars_max_size_proc(char **args, int section_type, struct proxy *curpx,
+                                struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_proc_limit);
+}
+
 static int vars_max_size_sess(char **args, int section_type, struct proxy *curpx,
                               struct proxy *defpx, const char *file, int line,
                               char **err)
@@ -676,7 +703,7 @@ static int vars_max_size_reqres(char **args, int section_type, struct proxy *cur
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
-	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_L5CLI },
+	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 
@@ -712,6 +739,7 @@ static struct action_kw_list http_res_kws = { { }, {
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.vars.global-max-size", vars_max_size_global },
+	{ CFG_GLOBAL, "tune.vars.proc-max-size",   vars_max_size_proc   },
 	{ CFG_GLOBAL, "tune.vars.sess-max-size",   vars_max_size_sess   },
 	{ CFG_GLOBAL, "tune.vars.txn-max-size",    vars_max_size_txn    },
 	{ CFG_GLOBAL, "tune.vars.reqres-max-size", vars_max_size_reqres },

@@ -10,6 +10,7 @@ enum vars_scope {
 	SCOPE_TXN,
 	SCOPE_REQ,
 	SCOPE_RES,
+	SCOPE_PROC,
 };
 
 struct vars {
