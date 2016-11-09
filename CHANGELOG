@@ -1,6 +1,69 @@
 ChangeLog :
 ===========
 
+2016/11/09 : 1.7-dev6
+    - DOC: fix the entry for hash-balance-factor config option
+    - DOC: Fix typo in description of `-st` parameter in man page
+    - CLEANUP: cfgparse: Very minor spelling correction
+    - MINOR: examples: Update haproxy.spec URLs to haproxy.org
+    - BUG/MEDIUM: peers: on shutdown, wake up the appctx, not the stream
+    - BUG/MEDIUM: peers: fix use after free in peer_session_create()
+    - MINOR: peers: make peer_session_forceshutdown() use the appctx and not the stream
+    - MINOR: peers: remove the pointer to the stream
+    - BUG/MEDIUM: systemd-wrapper: return correct exit codes
+    - DOC: stats: provide state details for show servers state
+    - MEDIUM: tools: make str2ip2() preserve existing ports
+    - CLEANUP: tools: make ipcpy() preserve the original port
+    - OPTIM: http: move all http character classs tables into a single one
+    - OPTIM: http: improve parsing performance of long header lines
+    - OPTIM: http: improve parsing performance of long URIs
+    - OPTIM: http: optimize lookup of comma and quote in header values
+    - BUG/MEDIUM: srv-state: properly restore the DRAIN state
+    - BUG/MINOR: srv-state: allow to have both CMAINT and FDRAIN flags
+    - MINOR: server: do not emit warnings/logs/alerts on server state changes at boot
+    - BUG/MEDIUM: servers: properly propagate the maintenance states during startup
+    - MEDIUM: wurfl: add Scientiamobile WURFL device detection module
+    - DOC: move the device detection modules documentation to their own files
+    - CLEANUP: wurfl: reduce exposure in the rest of the code
+    - MEDIUM: ssl: Add support for OpenSSL 1.1.0
+    - MINOR: stream: make option contstats usable again
+    - MEDIUM: tools: make str2sa_range() return the FQDN even when not resolving
+    - MINOR: init: move apply_server_state in haproxy.c before MODE_CHECK
+    - MAJOR: server: postpone address resolution
+    - MINOR: new srv_admin flag: SRV_ADMF_RMAINT
+    - MINOR: server: indicate in the logs when RMAINT is cleared
+    - MINOR: stats: indicate it when a server is down due to resolution
+    - MINOR: server: make srv_set_admin_state() capable of telling why this happens
+    - MINOR: dns: implement extra 'hold' timers.
+    - MAJOR: dns: runtime resolution can change server admin state
+    - MEDIUM: cli: leave the RMAINT state when setting an IP address on the CLI
+    - MEDIUM: server: add a new init-addr server line setting
+    - MEDIUM: server: make use of init-addr
+    - MINOR: server: implement init-addr none
+    - MEDIUM: server: make libc resolution failure non-fatal
+    - MINOR: server: add support for explicit numeric address in init-addr
+    - DOC: add some documentation for the "init-addr" server keyword
+    - MINOR: init: add -dr to ignore server address resolution failures
+    - MEDIUM: server: do not restrict anymore usage of IP address from the state file
+    - BUG: vars: Fix 'set-var' converter because of a typo
+    - CLEANUP: remove last references to 'ruleset' section
+    - MEDIUM: filters: Add attch/detach and stream_set_backend callbacks
+    - MINOR: filters: Update filters documentation accordingly to recent changes
+    - MINOR: filters: Call stream_set_backend callbacks before updating backend stats
+    - MINOR: filters: Remove backend filters attached to a stream only for HTTP streams
+    - MINOR: flt_trace: Add hexdump option to dump forwarded data
+    - MINOR: cfgparse: Add functions to backup and restore registered sections
+    - MINOR: cfgparse: Parse scope lines and save the last one parsed
+    - REORG: sample: move code to release a sample expression in sample.c
+    - MINOR: vars: Allow '.' in variable names
+    - MINOR: vars: Add vars_set_by_name_ifexist function
+    - MEDIUM: vars: Add a per-process scope for variables
+    - MINOR: vars: Add 'unset-var' action/converter
+    - MAJOR: spoe: Add an experimental Stream Processing Offload Engine
+    - MINOR: spoe: add random ip-reputation service as SPOA example
+    - MINOR: spoe/checks: Add support for SPOP health checks
+    - DOC: update ROADMAP file
+
 2016/10/25 : 1.7-dev5
     - MINOR: cfgparse: few memory leaks fixes.
     - MEDIUM: log: Decompose %Tq in %Th %Ti %TR
