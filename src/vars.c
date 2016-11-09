@@ -379,7 +379,7 @@ static inline int sample_store_stream(const char *name, enum vars_scope scope, s
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return sample_store_stream(args[0].data.var.name, args[1].data.var.scope, smp);
+	return sample_store_stream(args[0].data.var.name, args[0].data.var.scope, smp);
 }
 
 /* This fucntions check an argument entry and fill it with a variable
