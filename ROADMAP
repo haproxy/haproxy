@@ -27,8 +27,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - remove lots of remaining Alert() calls or ensure that they forward to
     send_log() after the fork.
 
-  - tcp-request session
-
   - tcp-request session expect-proxy {L4|L5} if ...
 
   - wait on resource (time, mem, CPU, socket, server's conn, server's rate, ...)
