@@ -398,6 +398,21 @@ flt_stream_stop(struct stream *s)
 }
 
 /*
+ * Calls 'check_timeouts' for all filters attached to a stream. This happens when
+ * the stream is woken up because of expired timer.
+ */
+void
+flt_stream_check_timeouts(struct stream *s)
+{
+	struct filter *filter;
+
+	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+		if (FLT_OPS(filter)->check_timeouts)
+			FLT_OPS(filter)->check_timeouts(s, filter);
+	}
+}
+
+/*
  * Called when a backend is set for a stream. If the frontend and the backend
  * are not the same, this function attaches all backend filters to the
  * stream. Returns -1 if an error occurs, 0 otherwise.

@@ -1620,6 +1620,9 @@ struct task *process_stream(struct task *t)
 			si_shutr(si_b);
 		}
 
+		if (HAS_FILTERS(s))
+			flt_stream_check_timeouts(s);
+
 		/* Once in a while we're woken up because the task expires. But
 		 * this does not necessarily mean that a timeout has been reached.
 		 * So let's not run a whole stream processing if only an expiration
@@ -2365,8 +2368,9 @@ struct task *process_stream(struct task *t)
 
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SI_FL_DONT_WAKE */
-		t->expire = tick_first(tick_first(req->rex, req->wex),
-				       tick_first(res->rex, res->wex));
+		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
+				       tick_first(tick_first(req->rex, req->wex),
+						  tick_first(res->rex, res->wex)));
 		if (!req->analysers)
 			req->analyse_exp = TICK_ETERNITY;
 

@@ -104,6 +104,7 @@ void flt_stream_stop(struct stream *s);
 int  flt_set_stream_backend(struct stream *s, struct proxy *be);
 int  flt_stream_init(struct stream *s);
 void flt_stream_release(struct stream *s, int only_backend);
+void flt_stream_check_timeouts(struct stream *s);
 
 int  flt_http_data(struct stream *s, struct http_msg *msg);
 int  flt_http_chunk_trailers(struct stream *s, struct http_msg *msg);

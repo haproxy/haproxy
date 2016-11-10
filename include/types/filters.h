@@ -90,6 +90,8 @@ struct flt_kw_list {
  *                          the stream is stopped for filters defined on the
  *                          stream's frontend and when the analyze ends for
  *                          filters defined on the stream's backend.
+ *  - check_timeouts      : Called when a a stream is woken up because of an
+ *                          expired timer.
  *
  *
  *  - channel_start_analyze: Called when a filter starts to analyze a channel.
@@ -159,7 +161,7 @@ struct flt_ops {
 	int  (*stream_set_backend)(struct stream *s, struct filter *f, struct proxy *be);
 	void (*stream_stop)       (struct stream *s, struct filter *f);
 	void (*detach)            (struct stream *s, struct filter *f);
-
+	void (*check_timeouts)    (struct stream *s, struct filter *f);
 	/*
 	 * Channel callbacks
 	 */

@@ -214,6 +214,16 @@ trace_stream_stop(struct stream *s, struct filter *filter)
 		   __FUNCTION__);
 }
 
+/* Called when the stream is woken up because of an expired timer */
+static void
+trace_check_timeouts(struct stream *s, struct filter *filter)
+{
+	struct trace_config *conf = FLT_CONF(filter);
+
+	STRM_TRACE(conf, s, "%-25s",
+		   __FUNCTION__);
+}
+
 /**************************************************************************
  * Hooks to handle channels activity
  *************************************************************************/
@@ -509,6 +519,7 @@ struct flt_ops trace_ops = {
 	.stream_start       = trace_stream_start,
 	.stream_set_backend = trace_stream_set_backend,
 	.stream_stop        = trace_stream_stop,
+	.check_timeouts     = trace_check_timeouts,
 
 	/* Handle channels activity */
 	.channel_start_analyze = trace_chn_start_analyze,

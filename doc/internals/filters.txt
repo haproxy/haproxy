@@ -1,6 +1,6 @@
                    -----------------------------------------
                           Filters Guide - version 1.7
-                          ( Last update: 2016-06-21 )
+                          ( Last update: 2016-11-10 )
                    ------------------------------------------
                           Author : Christopher Faulet
               Contact : christopher dot faulet at capflam dot org
@@ -191,6 +191,7 @@ existing callbacks. Available callbacks are listed in the following structure:
         int  (*stream_set_backend)(struct stream *s, struct filter *f, struct proxy *be);
         void (*stream_stop)       (struct stream *s, struct filter *f);
         void (*detach)            (struct stream *s, struct filter *f);
+        void (*check_timeouts)    (struct stream *s, struct filter *f);
 
         /*
          * Channel callbacks
@@ -611,6 +612,25 @@ For example:
 
         /* ... */
     }
+
+Finally, you may be interested to be notified when the stream is woken up
+because of an expired timer. This could let you a chance to check your own
+timeouts, if any. To do so you can use the following callback:
+
+  * 'flt_opt.check_timeouts': It is called when a stream is woken up because
+                              of an expired timer.
+
+For example:
+
+    /* Called when a stream is woken up because of an expired timer */
+    static void
+    my_filter_check_timeouts(struct stream *s, struct filter *filter)
+    {
+        struct my_filter_config *my_conf = FLT_CONF(filter);
+
+        /* ... */
+    }
+
 
 3.5. ANALYZING THE CHANNELS ACTIVITY
 ------------------------------------
