@@ -582,6 +582,28 @@ Core class
   Give back the hand at the HAProxy scheduler. It is used when the LUA
   processing consumes a lot of processing time.
 
+.. js:function:: core.parse_addr(address)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param network: is a string describing an ipv4 or ipv6 address and optionally
+    its network length, like this: "127.0.0.1/8" or "aaaa::1234/32".
+  :returns: a userdata containing network or nil if an error occurs.
+
+  Parse ipv4 or ipv6 adresses and its facultative associated network.
+
+.. js:function:: core.match_addr(addr1, addr2)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param addr1: is an address created with "core.parse_addr".
+  :param addr2: is an address created with "core.parse_addr".
+  :returns: boolean, true if the network of the addresses matche, else returns
+    false.
+
+  Match two networks. For example "127.0.0.1/32" matchs "127.0.0.0/8". The order
+  of network is not important.
+
 .. _proxy_class:
 
 Proxy class

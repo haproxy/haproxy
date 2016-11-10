@@ -906,6 +906,77 @@ int hlua_fcn_post_init(lua_State *L)
 	return 1;
 }
 
+int hlua_parse_addr(lua_State *L)
+{
+	struct hlua_addr *addr;
+	const char *str = luaL_checkstring(L, 1);
+	unsigned char mask;
+
+	addr = lua_newuserdata(L, sizeof(struct hlua_addr));
+	if (!addr) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (str2net(str, PAT_MF_NO_DNS, &addr->addr.v4.ip, &addr->addr.v4.mask)) {
+		addr->type = AF_INET;
+		return 1;
+	}
+
+	if (str62net(str, &addr->addr.v6.ip, &mask)) {
+		len2mask6(mask, &addr->addr.v6.mask);
+		addr->type = AF_INET6;
+		return 1;
+	}
+
+	lua_pop(L, 1);
+	lua_pushnil(L);
+	return 1;
+}
+
+int hlua_match_addr(lua_State *L)
+{
+	struct hlua_addr *addr1;
+	struct hlua_addr *addr2;
+
+	if (!lua_isuserdata(L, 1) ||
+	    !lua_isuserdata(L, 2)) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	addr1 = lua_touserdata(L, 1);
+	addr2 = lua_touserdata(L, 2);
+
+	if (addr1->type != addr2->type) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	if (addr1->type == AF_INET) {
+		if ((addr1->addr.v4.ip.s_addr & addr2->addr.v4.mask.s_addr) ==
+		    (addr2->addr.v4.ip.s_addr & addr1->addr.v4.mask.s_addr)) {
+			lua_pushboolean(L, 1);
+			return 1;
+		}
+	} else {
+		if (((addr1->addr.v6.ip.s6_addr32[0] & addr2->addr.v6.mask.s6_addr32[0]) ==
+		     (addr2->addr.v6.ip.s6_addr32[0] & addr1->addr.v6.mask.s6_addr32[0])) &&
+		    ((addr1->addr.v6.ip.s6_addr32[1] & addr2->addr.v6.mask.s6_addr32[1]) ==
+		     (addr2->addr.v6.ip.s6_addr32[1] & addr1->addr.v6.mask.s6_addr32[1])) &&
+		    ((addr1->addr.v6.ip.s6_addr32[2] & addr2->addr.v6.mask.s6_addr32[2]) ==
+		     (addr2->addr.v6.ip.s6_addr32[2] & addr1->addr.v6.mask.s6_addr32[2])) &&
+		    ((addr1->addr.v6.ip.s6_addr32[3] & addr2->addr.v6.mask.s6_addr32[3]) ==
+		     (addr2->addr.v6.ip.s6_addr32[3] & addr1->addr.v6.mask.s6_addr32[3]))) {
+			lua_pushboolean(L, 1);
+			return 1;
+		}
+	}
+
+	lua_pushboolean(L, 0);
+	return 1;
+}
+
 int hlua_fcn_reg_core_fcn(lua_State *L)
 {
 	if (!hlua_concat_init(L))
@@ -918,6 +989,8 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "asctime_date", hlua_asctime_date);
 	hlua_class_function(L, "concat", hlua_concat_new);
 	hlua_class_function(L, "get_info", hlua_get_info);
+	hlua_class_function(L, "parse_addr", hlua_parse_addr);
+	hlua_class_function(L, "match_addr", hlua_match_addr);
 
 	/* Create listener object. */
 	lua_newtable(L);
