@@ -158,7 +158,7 @@ spoe-agent <name>
   following keywords are supported :
     - messages
     - option var-prefix
-    - timeout hello|idle|ack
+    - timeout hello|idle|ack|processing
     - use-backend
 
 
@@ -200,7 +200,8 @@ option var-prefix <prefix>
 
 timeout ack <timeout>
   Set the maximum time to wait for an agent to receive the acknowledgement to a
-  NOTIFY frame.
+  NOTIFY frame. It is applied on the stream that handle the connection with the
+  agent.
 
   Arguments :
     <timeout>   is the timeout value specified in milliseconds by default, but
@@ -210,6 +211,7 @@ timeout ack <timeout>
 
 timeout hello <timeout>
   Set the maximum time to wait for an agent to receive the AGENT-HELLO frame.
+  It is applied on the stream that handle the connection with the agent.
 
   Arguments :
     <timeout>   is the timeout value specified in milliseconds by default, but
@@ -221,7 +223,21 @@ timeout hello <timeout>
 
 
 timeout idle <timeout>
-  Set the maximum time to wait for an agent to close an idle connection.
+  Set the maximum time to wait for an agent to close an idle connection. It is
+  applied on the stream that handle the connection with the agent.
+
+  Arguments :
+    <timeout>   is the timeout value specified in milliseconds by default, but
+                can be in any other unit if the number is suffixed by the unit,
+                as explained at the top of this document.
+
+
+timeout processing <timeout>
+  Set the maximum time to wait for a stream to process an event, i.e to acquire
+  a stream to talk with an agent, to encode all messages, to send the NOTIFY
+  frame, to receive the corrsponding acknowledgement and to process all
+  actions. It is applied on the stream that handle the client and the server
+  sessions.
 
   Arguments :
     <timeout>   is the timeout value specified in milliseconds by default, but
