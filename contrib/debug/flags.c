@@ -295,7 +295,6 @@ void show_strm_flags(unsigned int f)
 	}
 
 	SHOW_FLAG(f, SF_SRV_REUSED);
-	SHOW_FLAG(f, SF_COMP_READY);
 	SHOW_FLAG(f, SF_IGNORE_PRST);
 
 	//printf("%s", f ? "" : " | ");
