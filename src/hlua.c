@@ -5378,11 +5378,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 				RESET_SAFE_LJMP(stream->hlua.T);
 				return 0;
 			}
-			if (!lua_checkstack(stream->hlua.T, 1)) {
-				SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-				RESET_SAFE_LJMP(stream->hlua.T);
-				return 0;
-			}
 			hlua_arg2lua(stream->hlua.T, arg_p);
 			stream->hlua.nargs++;
 		}
