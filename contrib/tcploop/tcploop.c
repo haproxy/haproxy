@@ -38,6 +38,11 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 static char trash[TRASH_SIZE];
 
 volatile int nbproc = 0;
+static struct timeval start_time;
+static int showtime;
+static int verbose;
+static int pid;
+
 
 /* display the message and exit with the code */
 __attribute__((noreturn)) void die(int code, const char *format, ...)
@@ -54,6 +59,52 @@ __attribute__((noreturn)) void die(int code, const char *format, ...)
 __attribute__((noreturn)) void usage(int code, const char *arg0)
 {
 	die(code, "Usage: %s [<ip>:]port [action*]\n", arg0);
+}
+
+void dolog(const char *format, ...)
+{
+	struct timeval date, tv;
+	int delay;
+	va_list args;
+
+	if (!verbose)
+		return;
+
+	if (showtime) {
+		gettimeofday(&date, NULL);
+		switch (showtime) {
+		case 1: // [msec] relative
+			delay = (date.tv_sec - start_time.tv_sec) * 1000000 + date.tv_usec - start_time.tv_usec;
+			fprintf(stderr, "[%d] ", delay / 1000);
+			break;
+		case 2: // [sec.usec] relative
+			tv.tv_usec = date.tv_usec - start_time.tv_usec;
+			tv.tv_sec  = date.tv_sec  - start_time.tv_sec;
+			if ((signed)tv.tv_sec > 0) {
+				if ((signed)tv.tv_usec < 0) {
+					tv.tv_usec += 1000000;
+					tv.tv_sec--;
+				}
+			} else if (tv.tv_sec == 0) {
+				if ((signed)tv.tv_usec < 0)
+					tv.tv_usec = 0;
+			} else {
+				tv.tv_sec = 0;
+				tv.tv_usec = 0;
+			}
+			fprintf(stderr, "[%d.%06d] ", tv.tv_sec, tv.tv_usec);
+			break;
+		default: // [sec.usec] absolute
+			fprintf(stderr, "[%d.%06d] ", date.tv_sec, date.tv_usec);
+			break;
+		}
+	}
+
+	fprintf(stderr, "%5d ", pid);
+
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
 }
 
 struct err_msg *alloc_err_msg(int size)
@@ -302,11 +353,14 @@ int tcp_recv(int sock, const char *arg)
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
-			if (errno != EAGAIN)
+			if (errno != EAGAIN) {
+				dolog("recv %d\n", ret);
 				return -1;
+			}
 			while (!wait_on_fd(sock, POLLIN));
 			continue;
 		}
+		dolog("recv %d\n", ret);
 		if (!ret)
 			break;
 
@@ -332,7 +386,7 @@ int tcp_send(int sock, const char *arg)
 
 	if (arg[1]) {
 		count = atoi(arg + 1);
-		if (count <= 0) {
+		if (count < 0) {
 			fprintf(stderr, "send count must be >= 0 or unset (was %d)\n", count);
 			return -1;
 		}
@@ -345,11 +399,14 @@ int tcp_send(int sock, const char *arg)
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
-			if (errno != EAGAIN)
+			if (errno != EAGAIN) {
+				dolog("send %d\n", ret);
 				return -1;
+			}
 			while (!wait_on_fd(sock, POLLOUT));
 			continue;
 		}
+		dolog("send %d\n", ret);
 		if (!count)
 			continue;
 		else if (count > 0)
@@ -387,11 +444,14 @@ int tcp_echo(int sock, const char *arg)
 			if (rcvd < 0) {
 				if (errno == EINTR)
 					continue;
-				if (errno != EAGAIN)
+				if (errno != EAGAIN) {
+					dolog("recv %d\n", rcvd);
 					return -1;
+				}
 				while (!wait_on_fd(sock, POLLIN));
 				continue;
 			}
+			dolog("recv %d\n", rcvd);
 			if (!rcvd)
 				break;
 		}
@@ -401,11 +461,14 @@ int tcp_echo(int sock, const char *arg)
 			if (ret < 0) {
 				if (errno == EINTR)
 					continue;
-				if (errno != EAGAIN)
+				if (errno != EAGAIN) {
+					dolog("send %d\n", ret);
 					return -1;
+				}
 				while (!wait_on_fd(sock, POLLOUT));
 				continue;
 			}
+			dolog("send %d\n", ret);
 			rcvd -= ret;
 			if (rcvd)
 				continue;
@@ -446,6 +509,9 @@ int tcp_wait(int sock, const char *arg)
 		ret = poll(&pollfd, 1, delay);
 	} while (ret == -1 && errno == EINTR);
 
+	if (ret > 0 && pollfd.revents & POLLERR)
+		return -1;
+
 	return 0;
 }
 
@@ -460,6 +526,10 @@ int tcp_wait_in(int sock, const char *arg)
 		pollfd.events = POLLIN;
 		ret = poll(&pollfd, 1, 1000);
 	} while (ret == -1 && errno == EINTR);
+
+	if (ret > 0 && pollfd.revents & POLLERR)
+		return -1;
+
 	return 0;
 }
 
@@ -474,6 +544,9 @@ int tcp_wait_out(int sock, const char *arg)
 		pollfd.events = POLLOUT;
 		ret = poll(&pollfd, 1, 1000);
 	} while (ret == -1 && errno == EINTR);
+
+	if (ret > 0 && pollfd.revents & POLLERR)
+		return -1;
 
 	/* Now wait for data to leave the socket */
 	do {
@@ -539,13 +612,33 @@ int main(int argc, char **argv)
 	int sock;
 
 	arg0 = argv[0];
+
+	while (argc > 1 && argv[1][0] == '-') {
+		argc--; argv++;
+		if (strcmp(argv[0], "-t") == 0)
+			showtime++;
+		else if (strcmp(argv[0], "-tt") == 0)
+			showtime += 2;
+		else if (strcmp(argv[0], "-ttt") == 0)
+			showtime += 3;
+		else if (strcmp(argv[0], "-v") == 0)
+			verbose ++;
+		else if (strcmp(argv[0], "--") == 0)
+			break;
+		else
+			usage(1, arg0);
+	}
+
 	if (argc < 2)
 		usage(1, arg0);
 
+	pid = getpid();
 	signal(SIGCHLD, sig_handler);
 
 	if (addr_to_ss(argv[1], &ss, &err) < 0)
 		die(1, "%s\n", err.msg);
+
+	gettimeofday(&start_time, NULL);
 
 	sock = -1;
 	for (arg = 2; arg < argc; arg++) {
@@ -564,6 +657,7 @@ int main(int argc, char **argv)
 				sock = tcp_connect(&ss, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_connect() failed.\n");
+			dolog("connect\n");
 			break;
 
 		case 'A':
@@ -572,6 +666,7 @@ int main(int argc, char **argv)
 			sock = tcp_accept(sock, argv[arg]);
 			if (sock < 0)
 				die(1, "Fatal: tcp_accept() failed.\n");
+			dolog("accept\n");
 			break;
 
 		case 'T':
@@ -626,6 +721,7 @@ int main(int argc, char **argv)
 				die(1, "Fatal: tcp_wait() on non-socket.\n");
 			if (tcp_wait(sock, argv[arg]) < 0)
 				die(1, "Fatal: tcp_wait() failed.\n");
+			dolog("ready_any\n");
 			break;
 
 		case 'I':
@@ -633,6 +729,7 @@ int main(int argc, char **argv)
 				die(1, "Fatal: tcp_wait_in() on non-socket.\n");
 			if (tcp_wait_in(sock, argv[arg]) < 0)
 				die(1, "Fatal: tcp_wait_in() failed.\n");
+			dolog("ready_in\n");
 			break;
 
 		case 'O':
@@ -640,11 +737,13 @@ int main(int argc, char **argv)
 				die(1, "Fatal: tcp_wait_out() on non-socket.\n");
 			if (tcp_wait_out(sock, argv[arg]) < 0)
 				die(1, "Fatal: tcp_wait_out() failed.\n");
+			dolog("ready_out\n");
 			break;
 
 		case 'K':
 			if (sock < 0 || close(sock) < 0)
 				die(1, "Fatal: close() on non-socket.\n");
+			dolog("close\n");
 			sock = -1;
 			break;
 
@@ -652,6 +751,7 @@ int main(int argc, char **argv)
 			/* ignore errors on shutdown() as they are common */
 			if (sock >= 0)
 				shutdown(sock, SHUT_WR);
+			dolog("shutdown\n");
 			break;
 
 		case 'N':
@@ -664,6 +764,7 @@ int main(int argc, char **argv)
 				continue;
 			}
 			/* OK we're in the child, let's continue */
+			pid = getpid();
 			break;
 		default:
 			usage(1, arg0);
