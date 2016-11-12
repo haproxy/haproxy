@@ -99,6 +99,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "                 Note: fd=socket,connect(fd)\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
+	    "  J            : Jump back to oldest post-fork/post-accept action\n"
 	    "  G            : disable lingering\n"
 	    "  T            : set TCP_NODELAY\n"
 	    "  Q            : disable TCP Quick-ack\n"
@@ -705,6 +706,7 @@ int main(int argc, char **argv)
 	struct sockaddr_storage ss;
 	struct err_msg err;
 	const char *arg0;
+	int loop_arg;
 	int arg;
 	int ret;
 	int sock;
@@ -739,7 +741,8 @@ int main(int argc, char **argv)
 	gettimeofday(&start_time, NULL);
 
 	sock = -1;
-	for (arg = 2; arg < argc; arg++) {
+	loop_arg = 2;
+	for (arg = loop_arg; arg < argc; arg++) {
 		switch (argv[arg][0]) {
 		case 'L':
 			/* silently ignore existing connections */
@@ -765,6 +768,7 @@ int main(int argc, char **argv)
 			if (sock < 0)
 				die(1, "Fatal: tcp_accept() failed.\n");
 			dolog("accept\n");
+			loop_arg = arg + 1; // cannot loop before accept()
 			break;
 
 		case 'T':
@@ -866,12 +870,18 @@ int main(int argc, char **argv)
 				die(1, "Fatal: fork() failed.\n");
 			if (ret > 0) {
 				/* loop back to first arg */
-				arg = 1;
+				arg = loop_arg - 1;
 				continue;
 			}
 			/* OK we're in the child, let's continue */
 			pid = getpid();
+			loop_arg = arg + 1;
 			break;
+
+		case 'J': // jump back to oldest post-fork action
+			arg = loop_arg - 1;
+			continue;
+
 		default:
 			usage(1, arg0);
 		}
