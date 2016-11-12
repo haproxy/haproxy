@@ -75,9 +75,11 @@ __attribute__((noreturn)) void die(int code, const char *format, ...)
 {
 	va_list args;
 
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	va_end(args);
+	if (format) {
+		va_start(args, format);
+		vfprintf(stderr, format, args);
+		va_end(args);
+	}
 	exit(code);
 }
 
@@ -419,9 +421,10 @@ int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
 	return -1;
 }
 
-/* receives N bytes from the socket and returns 0 (or -1 in case of error).
- * When no arg is passed, receives anything and stops. Otherwise reads the
- * requested amount of data. 0 means read as much as possible.
+/* receives N bytes from the socket and returns 0 (or -1 in case of a recv
+ * error, or -2 in case of an argument error). When no arg is passed, receives
+ * anything and stops. Otherwise reads the requested amount of data. 0 means
+ * read as much as possible.
  */
 int tcp_recv(int sock, const char *arg)
 {
@@ -432,7 +435,7 @@ int tcp_recv(int sock, const char *arg)
 		count = atoi(arg + 1);
 		if (count < 0) {
 			fprintf(stderr, "recv count must be >= 0 or unset (was %d)\n", count);
-			return -1;
+			return -2;
 		}
 	}
 
@@ -464,10 +467,11 @@ int tcp_recv(int sock, const char *arg)
 	return 0;
 }
 
-/* sends N bytes to the socket and returns 0 (or -1 in case of error). If not
- * set, sends only one block. Sending zero means try to send forever. If the
- * argument starts with ':' then whatever follows is interpreted as the payload
- * to be sent as-is. '\r', '\n', '\t' and '\\' are detected and converted. In
+/* Sends N bytes to the socket and returns 0 (or -1 in case of send error, -2
+ * in case of an argument error. If the byte count is not set, sends only one
+ * block. Sending zero means try to send forever. If the argument starts with
+ * ':' then whatever follows is interpreted as the payload to be sent as-is.
+ * Escaped characters '\r', '\n', '\t' and '\\' are detected and converted. In
  * this case, blocks must be small so that send() doesn't fragment them, as
  * they will be put into the trash and expected to be sent at once.
  */
@@ -482,7 +486,7 @@ int tcp_send(int sock, const char *arg)
 		count = atoi(arg + 1);
 		if (count < 0) {
 			fprintf(stderr, "send count must be >= 0 or unset (was %d)\n", count);
-			return -1;
+			return -2;
 		}
 	}
 
@@ -787,15 +791,23 @@ int main(int argc, char **argv)
 		case 'R':
 			if (sock < 0)
 				die(1, "Fatal: tcp_recv() on non-socket.\n");
-			if (tcp_recv(sock, argv[arg]) < 0)
+			ret = tcp_recv(sock, argv[arg]);
+			if (ret < 0) {
+				if (ret == -1) // usually ECONNRESET, silently exit
+					die(0, NULL);
 				die(1, "Fatal: tcp_recv() failed.\n");
+			}
 			break;
 
 		case 'S':
 			if (sock < 0)
 				die(1, "Fatal: tcp_send() on non-socket.\n");
-			if (tcp_send(sock, argv[arg]) < 0)
+			ret = tcp_send(sock, argv[arg]);
+			if (ret < 0) {
+				if (ret == -1) // usually a broken pipe, silently exit
+					die(0, NULL);
 				die(1, "Fatal: tcp_send() failed.\n");
+			}
 			break;
 
 		case 'E':
