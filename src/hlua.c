@@ -6348,7 +6348,6 @@ __LJMP static int hlua_register_service(lua_State *L)
 	/* Third argument : lua function. */
 	ref = MAY_LJMP(hlua_checkfunction(L, 3));
 
-	/* Check required environment. Only accepted "http" or "tcp". */
 	/* Allocate and fill the sample fetch keyword struct. */
 	akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 	if (!akl)
@@ -6376,6 +6375,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 
 	snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
+	/* Check required environment. Only accepted "http" or "tcp". */
 	if (strcmp(env, "tcp") == 0)
 		akl->kw[0].parse = action_register_service_tcp;
 	else if (strcmp(env, "http") == 0)
