@@ -1,3 +1,29 @@
+/*
+ * TCP client and server for bug hunting
+ *
+ * Copyright (C) 2016 Willy Tarreau <w@1wt.eu>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -58,7 +84,48 @@ __attribute__((noreturn)) void die(int code, const char *format, ...)
 /* display the usage message and exit with the code */
 __attribute__((noreturn)) void usage(int code, const char *arg0)
 {
-	die(code, "Usage: %s [<ip>:]port [action*]\n", arg0);
+	die(code,
+	    "Usage : %s [options]* [<ip>:]port [<action>*]\n"
+	    "\n"
+	    "options :\n"
+	    "  -v           : verbose\n"
+	    "  -t|-tt|-ttt  : show time (msec / relative / absolute)\n"
+	    "actions :\n"
+	    "  L[<backlog>] : Listens to ip:port and optionally sets backlog\n"
+	    "                 Note: fd=socket,bind(fd),listen(fd)\n"
+	    "  C            : Connects to ip:port\n"
+	    "                 Note: fd=socket,connect(fd)\n"
+	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
+	    "                 Note: fd=accept(fd)\n"
+	    "  G            : disable lingering\n"
+	    "  T            : set TCP_NODELAY\n"
+	    "  Q            : disable TCP Quick-ack\n"
+	    "  R[<size>]    : Read this amount of bytes. 0=infinite. unset=any amount.\n"
+	    "  S[<size>]    : Send this amount of bytes. 0=infinite. unset=any amount.\n"
+	    "  E[<size>]    : Echo this amount of bytes. 0=infinite. unset=any amount.\n"
+	    "  W[<time>]    : Wait for any event on the socket, maximum <time> ms\n"
+	    "  P[<time>]    : Pause for <time> ms (100 by default)\n"
+	    "  I            : wait for Input data to be present (POLLIN)\n"
+	    "  O            : wait for Output queue to be empty (POLLOUT + TIOCOUTQ)\n"
+	    "  F            : FIN : shutdown(SHUT_WR)\n"
+	    "  N<max>       : fork New process, limited to <max> concurrent (default 1)\n"
+	    "\n"
+	    "It's important to note that a single FD is used at once and that Accept\n"
+	    "replaces the listening FD with the accepted one. Thus always do it after\n"
+	    "a fork if other connections have to be accepted.\n"
+	    "\n"
+	    "After a fork, we loop back to the beginning and silently skip L/C if the\n"
+	    "main socket already exists.\n"
+	    "\n"
+	    "Example dummy HTTP request drain server :\n"
+	    "   tcploop 8001 L W N20 A R S10 [ F K ]\n"
+	    "\n"
+	    "Example large bandwidth HTTP request drain server :\n"
+	    "   tcploop 8001 L W N20 A R S0 [ F K ]\n"
+	    "\n"
+	    "Example TCP client with pauses at each step :\n"
+	    "   tcploop 8001 C T W P100 S10 O P100 R S10 O R G K\n"
+	    "", arg0);
 }
 
 void dolog(const char *format, ...)
