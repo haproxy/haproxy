@@ -40,6 +40,7 @@ void applet_run_active();
 static inline void appctx_init(struct appctx *appctx)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
+	appctx->io_release = NULL;
 }
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx

@@ -55,6 +55,8 @@ struct appctx {
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
 	struct act_rule *rule;     /* rule associated with the applet. */
 	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = STAT_CLI_O_CUSTOM */
+	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = STAT_CLI_O_CUSTOM,
+	                                               if the command is terminated or the session released */
 	void *private;
 
 	union {

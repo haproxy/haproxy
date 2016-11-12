@@ -1306,9 +1306,10 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	appctx->ctx.stats.flags = 0;
 	if ((kw = cli_find_kw(args))) {
 		if (kw->parse) {
-			if (kw->parse(args, appctx) == 0 && kw->io_handler) {
+			if (kw->parse(args, appctx, kw->private) == 0 && kw->io_handler) {
 				appctx->st0 = STAT_CLI_O_CUSTOM;
 				appctx->io_handler = kw->io_handler;
+				appctx->io_release = kw->io_release;
 			}
 		}
 	} else if (strcmp(args[0], "show") == 0) {
@@ -2844,8 +2845,13 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			case STAT_CLI_O_CUSTOM: /* use custom pointer */
 				if (appctx->io_handler)
-					if (appctx->io_handler(appctx))
+					if (appctx->io_handler(appctx)) {
 						appctx->st0 = STAT_CLI_PROMPT;
+						if (appctx->io_release) {
+							appctx->io_release(appctx);
+							appctx->io_release = NULL;
+						}
+					}
 				break;
 			default: /* abnormal state */
 				si->flags |= SI_FL_ERR;
@@ -6752,6 +6758,10 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
  */
 static void cli_release_handler(struct appctx *appctx)
 {
+	if (appctx->io_release) {
+		appctx->io_release(appctx);
+		appctx->io_release = NULL;
+	}
 	if (appctx->st0 == STAT_CLI_O_SESS && appctx->st2 == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
