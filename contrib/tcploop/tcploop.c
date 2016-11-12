@@ -102,6 +102,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "  Q            : disable TCP Quick-ack\n"
 	    "  R[<size>]    : Read this amount of bytes. 0=infinite. unset=any amount.\n"
 	    "  S[<size>]    : Send this amount of bytes. 0=infinite. unset=any amount.\n"
+	    "  S:<string>   : Send this exact string. \\r, \\n, \\t, \\\\ supported.\n"
 	    "  E[<size>]    : Echo this amount of bytes. 0=infinite. unset=any amount.\n"
 	    "  W[<time>]    : Wait for any event on the socket, maximum <time> ms\n"
 	    "  P[<time>]    : Pause for <time> ms (100 by default)\n"
@@ -172,6 +173,26 @@ void dolog(const char *format, ...)
 	va_start(args, format);
 	vfprintf(stderr, format, args);
 	va_end(args);
+}
+
+/* convert '\n', '\t', '\r', '\\' to their respective characters */
+int unescape(char *out, int size, const char *in)
+{
+	int len;
+
+	for (len = 0; len < size && *in; in++, out++, len++) {
+		if (*in == '\\') {
+			switch (in[1]) {
+			case  'n' : *out = '\n'; in++; continue;
+			case  't' : *out = '\t'; in++; continue;
+			case  'r' : *out = '\r'; in++; continue;
+			case '\\' : *out = '\\'; in++; continue;
+			default   : break;
+			}
+		}
+		*out = *in;
+	}
+	return len;
 }
 
 struct err_msg *alloc_err_msg(int size)
@@ -444,14 +465,20 @@ int tcp_recv(int sock, const char *arg)
 }
 
 /* sends N bytes to the socket and returns 0 (or -1 in case of error). If not
- * set, sends only one block. Sending zero means try to send forever.
+ * set, sends only one block. Sending zero means try to send forever. If the
+ * argument starts with ':' then whatever follows is interpreted as the payload
+ * to be sent as-is. '\r', '\n', '\t' and '\\' are detected and converted. In
+ * this case, blocks must be small so that send() doesn't fragment them, as
+ * they will be put into the trash and expected to be sent at once.
  */
 int tcp_send(int sock, const char *arg)
 {
 	int count = -1; // stop after first block
 	int ret;
 
-	if (arg[1]) {
+	if (arg[1] == ':') {
+		count = unescape(trash, sizeof(trash), arg + 2);
+	} else if (arg[1]) {
 		count = atoi(arg + 1);
 		if (count < 0) {
 			fprintf(stderr, "send count must be >= 0 or unset (was %d)\n", count);
