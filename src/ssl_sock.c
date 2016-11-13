@@ -5145,8 +5145,7 @@ static int bind_parse_ca_sign_file(char **args, int cur_arg, struct proxy *px, s
 	return 0;
 }
 
-/* parse the ca-sign-pass bind keyword */
-
+/* parse the "ca-sign-pass" bind keyword */
 static int bind_parse_ca_sign_pass(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
@@ -5238,7 +5237,7 @@ static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struc
 #endif
 }
 
-/* parse the "ecdhe" bind keyword keywords */
+/* parse the "ecdhe" bind keyword keyword */
 static int bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #if OPENSSL_VERSION_NUMBER < 0x0090800fL
@@ -5262,7 +5261,7 @@ static int bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct b
 #endif
 }
 
-/* parse the "crt_ignerr" and "ca_ignerr" bind keywords */
+/* parse the "crt-ignore-err" and "ca-ignore-err" bind keywords */
 static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	int code;
