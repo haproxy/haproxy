@@ -2137,6 +2137,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 	node = ebmb_first(&sni_keytypes_map);
 	while (node) {
 		SSL_CTX *cur_ctx;
+		char cur_file[MAXPATHLEN+1];
 
 		str = (char *)container_of(node, struct sni_keytype, name)->name.key;
 		i = container_of(node, struct sni_keytype, name)->keytypes;
@@ -2156,8 +2157,8 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 				if (i & (1<<n)) {
 					/* Key combo contains ckch[n] */
-					snprintf(trash.str, trash.size, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
-					if (ssl_sock_put_ckch_into_ctx(trash.str, &certs_and_keys[n], cur_ctx, err) != 0) {
+					snprintf(cur_file, MAXPATHLEN+1, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+					if (ssl_sock_put_ckch_into_ctx(cur_file, &certs_and_keys[n], cur_ctx, err) != 0) {
 						SSL_CTX_free(cur_ctx);
 						rv = 1;
 						goto end;
@@ -2165,7 +2166,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 					/* Load OCSP Info into context */
-					if (ssl_sock_load_ocsp(cur_ctx, trash.str) < 0) {
+					if (ssl_sock_load_ocsp(cur_ctx, cur_file) < 0) {
 						if (err)
 							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 							          *err ? *err : "", path);
