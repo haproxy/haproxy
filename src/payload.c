@@ -181,9 +181,6 @@ smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char 
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
-	/* server name not found */
-	goto not_ssl_hello;
-
  too_short:
 	smp->flags = SMP_F_MAY_CHANGE;
 
