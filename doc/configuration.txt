@@ -10110,7 +10110,7 @@ ca-sign-file <cafile>
   setting when the dynamic generation of certificates is enabled. See
   'generate-certificates' for details.
 
-ca-sign-passphrase <passphrase>
+ca-sign-pass <passphrase>
   This setting is only available when support for OpenSSL was built in. It is
   the CA private key passphrase. This setting is optional and used only when
   the dynamic generation of certificates is enabled. See
