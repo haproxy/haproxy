@@ -2169,7 +2169,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 					if (ssl_sock_load_ocsp(cur_ctx, cur_file) < 0) {
 						if (err)
 							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
-							          *err ? *err : "", path);
+							          *err ? *err : "", cur_file);
 						SSL_CTX_free(cur_ctx);
 						rv = 1;
 						goto end;
