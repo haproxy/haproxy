@@ -519,6 +519,47 @@ Core class
 
   It takes no input, and no output is expected.
 
+.. js:function:: core.register_cli([path], usage, func)
+
+  **context**: body
+
+  Register and start independent task. The task is started when the HAProxy
+  main scheduler starts. For example this type of tasks can be executed to
+  perform complex health checks.
+
+  :param array path: is the sequence of word for which the cli execute the Lua
+    binding.
+  :param string usage: is the usage message displayed in the help.
+  :param function func: is the Lua function called to handle the CLI commands.
+
+  The prototype of the Lua function used as argument is:
+
+.. code-block:: lua
+
+    function(AppletTCP, [arg1, [arg2, [...]]])
+..
+
+  I/O are managed with the :ref:`applettcp_class` object. Args are given as
+  paramter. The args embbed the registred path. If the path is declared like
+  this:
+
+.. code-block:: lua
+
+    core.register_cli({"show", "ssl", "stats"}, "Display SSL stats..", function(applet, arg1, arg2, arg3, arg4, arg5)
+	 end)
+..
+
+  And we execute this in the prompt:
+
+.. code-block:: text
+
+    > prompt
+    > show ssl stats all
+..
+
+  Then, arg1, arg2 and arg3 will contains respectivey "show", "ssl" and "stats".
+  arg4 will contain "all". arg5 contains nil.
+
 .. js:function:: core.set_nice(nice)
 
   **context**: task, action, sample-fetch, converter

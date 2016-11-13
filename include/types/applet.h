@@ -123,6 +123,10 @@ struct appctx {
 		} hlua;
 		struct {
 			struct hlua hlua;
+			struct task *task;
+		} hlua_cli;
+		struct {
+			struct hlua hlua;
 			int flags;
 			struct task *task;
 		} hlua_apptcp;

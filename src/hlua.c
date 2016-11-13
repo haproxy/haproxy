@@ -32,6 +32,7 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
+#include <proto/dumpstats.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
@@ -6383,6 +6384,239 @@ __LJMP static int hlua_register_service(lua_State *L)
 	return 0;
 }
 
+/* This function initialises Lua cli handler. It copies the
+ * arguments in the Lua stack and create channel IO objects.
+ */
+static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
+{
+	struct hlua *hlua;
+	struct hlua_function *fcn;
+	int i;
+	const char *error;
+
+	hlua = &appctx->ctx.hlua_cli.hlua;
+	fcn = private;
+	appctx->private = private;
+
+	/* Create task used by signal to wakeup applets.
+	 * We use the same wakeup fonction than the Lua applet_tcp and
+	 * applet_http. It is absolutely compatible.
+	 */
+	appctx->ctx.hlua_cli.task = task_new();
+	if (!appctx->ctx.hlua_cli.task) {
+		SEND_ERR(NULL, "Lua applet tcp '%s': out of memory.\n", fcn->name);
+		return 0;
+	}
+	appctx->ctx.hlua_cli.task->nice = 0;
+	appctx->ctx.hlua_cli.task->context = appctx;
+	appctx->ctx.hlua_cli.task->process = hlua_applet_wakeup;
+
+	/* Initialises the Lua context */
+	if (!hlua_ctx_init(hlua, appctx->ctx.hlua_cli.task)) {
+		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
+		return 1;
+	}
+
+	/* The following Lua calls can fail. */
+	if (!SET_SAFE_LJMP(hlua->T)) {
+		if (lua_type(hlua->T, -1) == LUA_TSTRING)
+			error = lua_tostring(hlua->T, -1);
+		else
+			error = "critical error";
+		SEND_ERR(NULL, "Lua cli '%s': %s.\n", fcn->name, error);
+		goto error;
+	}
+
+	/* Check stack available size. */
+	if (!lua_checkstack(hlua->T, 2)) {
+		SEND_ERR(NULL, "Lua cli '%s': full stack.\n", fcn->name);
+		goto error;
+	}
+
+	/* Restore the function in the stack. */
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, fcn->function_ref);
+
+	/* Once the arguments parsed, the CLI is like an AppletTCP,
+	 * so push AppletTCP in the stack.
+	 * TODO: get_priv() and set_priv() are useless. Maybe we will
+	 * create a new object without these two functions.
+	 */
+	if (!hlua_applet_tcp_new(hlua->T, appctx)) {
+		SEND_ERR(NULL, "Lua cli '%s': full stack.\n", fcn->name);
+		goto error;
+	}
+	hlua->nargs = 1;
+
+	/* push keywords in the stack. */
+	for (i = 0; *args[i]; i++) {
+		/* Check stack available size. */
+		if (!lua_checkstack(hlua->T, 1)) {
+			SEND_ERR(NULL, "Lua cli '%s': full stack.\n", fcn->name);
+			goto error;
+		}
+		lua_pushstring(hlua->T, args[i]);
+		hlua->nargs++;
+	}
+
+	/* We must initialize the execution timeouts. */
+	hlua->max_time = hlua_timeout_session;
+
+	/* At this point the execution is safe. */
+	RESET_SAFE_LJMP(hlua->T);
+
+	/* It's ok */
+	return 0;
+
+	/* It's not ok. */
+error:
+	RESET_SAFE_LJMP(hlua->T);
+	hlua_ctx_destroy(hlua);
+	return 1;
+}
+
+static int hlua_cli_io_handler_fct(struct appctx *appctx)
+{
+	struct hlua *hlua;
+	struct stream_interface *si;
+	struct hlua_function *fcn;
+
+	hlua = &appctx->ctx.hlua_cli.hlua;
+	si = appctx->owner;
+	fcn = appctx->private;
+
+	/* If the stream is disconnect or closed, ldo nothing. */
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+		return 1;
+
+	/* Execute the function. */
+	switch (hlua_ctx_resume(hlua, 1)) {
+
+	/* finished. */
+	case HLUA_E_OK:
+		return 1;
+
+	/* yield. */
+	case HLUA_E_AGAIN:
+		/* We want write. */
+		if (HLUA_IS_WAKERESWR(hlua))
+			si_applet_cant_put(si);
+		/* Set the timeout. */
+		if (hlua->wake_time != TICK_ETERNITY)
+			task_schedule(hlua->task, hlua->wake_time);
+		return 0;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		/* Display log. */
+		SEND_ERR(NULL, "Lua cli '%s': %s.\n",
+		         fcn->name, lua_tostring(hlua->T, -1));
+		lua_pop(hlua->T, 1);
+		return 1;
+
+	case HLUA_E_ERR:
+		/* Display log. */
+		SEND_ERR(NULL, "Lua cli '%s' return an unknown error.\n",
+		         fcn->name);
+		return 1;
+
+	default:
+		return 1;
+	}
+
+	return 1;
+}
+
+static void hlua_cli_io_release_fct(struct appctx *appctx)
+{
+	struct hlua *hlua;
+
+	hlua = &appctx->ctx.hlua_cli.hlua;
+	hlua_ctx_destroy(hlua);
+}
+
+/* This function is an LUA binding used for registering
+ * new keywords in the cli. It expects a list of keywords
+ * which are the "path". It is limited to 5 keywords. A
+ * description of the command, a function to be executed
+ * for the parsing and a function for io handlers.
+ */
+__LJMP static int hlua_register_cli(lua_State *L)
+{
+	struct cli_kw_list *cli_kws;
+	const char *message;
+	int ref_io;
+	int len;
+	struct hlua_function *fcn;
+	int index;
+	int i;
+
+	MAY_LJMP(check_args(L, 3, "register_cli"));
+
+	/* First argument : an array of maximum 5 keywords. */
+	if (!lua_istable(L, 1))
+		WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table"));
+
+	/* Second argument : string with contextual message. */
+	message = MAY_LJMP(luaL_checkstring(L, 2));
+
+	/* Third and fourth argument : lua function. */
+	ref_io = MAY_LJMP(hlua_checkfunction(L, 3));
+
+	/* Allocate and fill the sample fetch keyword struct. */
+	cli_kws = calloc(1, sizeof(*cli_kws) + sizeof(struct cli_kw) * 2);
+	if (!cli_kws)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn = calloc(1, sizeof(*fcn));
+	if (!fcn)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Fill path. */
+	index = 0;
+	lua_pushnil(L);
+	while(lua_next(L, 1) != 0) {
+		if (index >= 5)
+			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table with a maximum of 5 entries"));
+		if (lua_type(L, -1) != LUA_TSTRING)
+			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table filled with strings"));
+		cli_kws->kw[0].str_kw[index] = strdup(lua_tostring(L, -1));
+		if (!cli_kws->kw[0].str_kw[index])
+			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		index++;
+		lua_pop(L, 1);
+	}
+
+	/* Copy help message. */
+	cli_kws->kw[0].usage = strdup(message);
+	if (!cli_kws->kw[0].usage)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Fill fcn io handler. */
+	len = strlen("<lua.cli>") + 1;
+	for (i = 0; i < index; i++)
+		len += strlen(cli_kws->kw[0].str_kw[i]) + 1;
+	fcn->name = calloc(1, len);
+	if (!fcn->name)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	strncat((char *)fcn->name, "<lua.cli", len);
+	for (i = 0; i < index; i++) {
+		strncat((char *)fcn->name, ".", len);
+		strncat((char *)fcn->name, cli_kws->kw[0].str_kw[i], len);
+	}
+	strncat((char *)fcn->name, ">", len);
+	fcn->function_ref = ref_io;
+
+	/* Fill last entries. */
+	cli_kws->kw[0].private = fcn;
+	cli_kws->kw[0].parse = hlua_cli_parse_fct;
+	cli_kws->kw[0].io_handler = hlua_cli_io_handler_fct;
+	cli_kws->kw[0].io_release = hlua_cli_io_release_fct;
+
+	/* Register this new converter */
+	cli_register_kw(cli_kws);
+
+	return 0;
+}
+
 static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
                              struct proxy *defpx, const char *file, int line,
                              char **err, unsigned int *timeout)
@@ -6686,6 +6920,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
 	hlua_class_function(gL.T, "register_action", hlua_register_action);
 	hlua_class_function(gL.T, "register_service", hlua_register_service);
+	hlua_class_function(gL.T, "register_cli", hlua_register_cli);
 	hlua_class_function(gL.T, "yield", hlua_yield);
 	hlua_class_function(gL.T, "set_nice", hlua_set_nice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
