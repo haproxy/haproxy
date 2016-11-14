@@ -61,6 +61,9 @@
 /* Minimal size for a frame */
 #define MIN_FRAME_SIZE 256
 
+/* Flags set on the SPOE agent */
+#define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
+
 /* Flags set on the SPOE context */
 #define SPOE_CTX_FL_CLI_CONNECTED 0x00000001 /* Set after that on-client-session event was processed */
 #define SPOE_CTX_FL_SRV_CONNECTED 0x00000002 /* Set after that on-server-session event was processed */
@@ -196,6 +199,7 @@ struct spoe_agent {
 	} timeout;
 
 	char                 *var_pfx;        /* Prefix used for vars set by the agent */
+	unsigned int          flags;          /* SPOE_FL_* */
 
 	struct list           cache;          /* List used to cache SPOE streams. In
 					       * fact, we cache the SPOE applect ctx */
@@ -2178,7 +2182,9 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 
   error:
 	release_spoe_appctx(ctx);
-	ctx->state = SPOE_CTX_ST_ERROR;
+	ctx->state = ((agent->flags & SPOE_FL_CONT_ON_ERR)
+		      ? SPOE_CTX_ST_READY
+		      : SPOE_CTX_ST_ERROR);
 	return 1;
 }
 
@@ -2629,6 +2635,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->timeout.idle    = TICK_ETERNITY;
 		curagent->timeout.processing = TICK_ETERNITY;
 		curagent->var_pfx         = NULL;
+		curagent->flags           = 0;
 		curagent->new_applets     = 0;
 
 		for (i = 0; i < SPOE_EV_EVENTS; ++i)
@@ -2748,6 +2755,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				tmp++;
 			}
 			curagent->var_pfx = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "continue-on-error")) {
+			if (*args[2]) {
+				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
+				      file, linenum, args[3]);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			curagent->flags |= SPOE_FL_CONT_ON_ERR;
 		}
 		else {
 			Alert("parsing [%s:%d]: option '%s' is not supported.\n",

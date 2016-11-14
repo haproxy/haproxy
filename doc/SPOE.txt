@@ -157,6 +157,7 @@ spoe-agent <name>
 
   following keywords are supported :
     - messages
+    - option continue-on-error
     - option var-prefix
     - timeout hello|idle|processing
     - use-backend
@@ -173,6 +174,19 @@ messages <msg-name> ...
   lines.
 
   See also: "spoe-message" section.
+
+
+option continue-on-error
+  Do not stop the events processing when an error occurred on a stream.
+
+  By default, for a specific stream, when an abnormal/unexpected error occurs,
+  the SPOE is disabled for all the transaction. So if you have several events
+  configured, such error on an event will disabled all followings. For TCP
+  streams, this will disable the SPOE for the whole session. For HTTP streams,
+  this will disable it for the transaction (request and response).
+
+  When set, this option bypass this behaviour and only the current event will
+  be ignored.
 
 
 option var-prefix <prefix>
@@ -832,12 +846,13 @@ Here is the list of all known errors:
 
 An agent can define its own errors using a not yet assigned status code.
 
-IMPORTANT NOTE: For a specific stream, when an abnormal/unexpected error
-                occurs, the SPOE is disabled for all the transaction. So if you
-                have several events configured, such error on an event will
-                disabled all followings. For TCP streams, this will disable the
-                SPOE for the whole session. For HTTP streams, this will disable
-                it for the transaction (request and response).
+IMPORTANT NOTE: By default, for a specific stream, when an abnormal/unexpected
+                error occurs, the SPOE is disabled for all the transaction. So
+                if you have several events configured, such error on an event
+                will disabled all followings. For TCP streams, this will
+                disable the SPOE for the whole session. For HTTP streams, this
+                will disable it for the transaction (request and response).
+                See 'option continue-on-error' to bypass this limitation.
 
 To avoid a stream to wait infinitly, you must carefully choose the
 acknowledgement timeout. In most of cases, it will be quiet low. But it depends
