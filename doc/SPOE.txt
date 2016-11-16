@@ -156,11 +156,25 @@ spoe-agent <name>
     <name>   is the name of the agent section.
 
   following keywords are supported :
+    - maxconnrate
+    - maxerrrate
     - messages
     - option continue-on-error
     - option var-prefix
     - timeout hello|idle|processing
     - use-backend
+
+
+maxconnrate <number>
+  Set the maximum number of connections per second to <number>. The SPOE will
+  stop to open new connections if the maximum is reached and will wait to
+  acquire an existing one. So it is important to set "timeout hello" to a
+  relatively small value.
+
+
+maxerrrate <number>
+  Set the maximum number of errors per second to <number>. The SPOE will stop
+  its processing if the maximum is reached.
 
 
 messages <msg-name> ...
