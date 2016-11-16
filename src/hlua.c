@@ -10,8 +10,6 @@
  *
  */
 
-#include <sys/socket.h>
-
 #include <ctype.h>
 #include <setjmp.h>
 
@@ -27,13 +25,13 @@
 
 #include <common/cfgparse.h>
 
-#include <types/connection.h>
 #include <types/hlua.h>
 #include <types/proxy.h>
 
 #include <proto/arg.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
+#include <proto/connection.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
@@ -2083,13 +2081,10 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 		return 1;
 	}
 
+	conn_get_to_addr(conn);
 	if (!(conn->flags & CO_FL_ADDR_TO_SET)) {
-		unsigned int salen = sizeof(conn->addr.to);
-		if (getpeername(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to, &salen) == -1) {
-			lua_pushnil(L);
-			return 1;
-		}
-		conn->flags |= CO_FL_ADDR_TO_SET;
+		lua_pushnil(L);
+		return 1;
 	}
 
 	return MAY_LJMP(hlua_socket_info(L, &conn->addr.to));
@@ -2117,13 +2112,10 @@ static int hlua_socket_getsockname(struct lua_State *L)
 		return 1;
 	}
 
+	conn_get_from_addr(conn);
 	if (!(conn->flags & CO_FL_ADDR_FROM_SET)) {
-		unsigned int salen = sizeof(conn->addr.from);
-		if (getsockname(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from, &salen) == -1) {
-			lua_pushnil(L);
-			return 1;
-		}
-		conn->flags |= CO_FL_ADDR_FROM_SET;
+		lua_pushnil(L);
+		return 1;
 	}
 
 	return hlua_socket_info(L, &conn->addr.from);
