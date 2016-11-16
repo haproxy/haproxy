@@ -160,6 +160,7 @@ spoe-agent <name>
     - maxerrrate
     - messages
     - option continue-on-error
+    - option set-on-error
     - option var-prefix
     - timeout hello|idle|processing
     - use-backend
@@ -202,6 +203,25 @@ option continue-on-error
   When set, this option bypass this behaviour and only the current event will
   be ignored.
 
+
+option set-on-error <var name>
+  Define the variable to set when an error occurred during an event processing.
+
+  Arguments :
+
+    <var name>   is the variable name, without the scope. The name may only
+                 contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+  This variable will only be set when an error occurred in the scope of the
+  transaction. As for all other variables define by the SPOE, it will be
+  prefixed. So, if your variable name is "error" and your prefix is
+  "my_spoe_pfx", the variable will be "txn.my_spoe_pfx.error".
+
+  When set, the variable is the boolean "true". Note that if "option
+  continue-on-error" is set, the variable is not automatically removed between
+  events processing.
+
+  See also: "option continue-on-error", "option var-prefix".
 
 option var-prefix <prefix>
   Define the prefix used when variables are set by an agent.

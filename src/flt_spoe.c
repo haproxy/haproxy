@@ -193,6 +193,7 @@ struct spoe_agent {
 	} timeout;
 
 	char                 *var_pfx;        /* Prefix used for vars set by the agent */
+	char                 *var_on_error;   /* Variable to set when an error occured, in the TXN scope */
 	unsigned int          flags;          /* SPOE_FL_* */
 	unsigned int          cps_max;        /* Maximum number of connections per second */
 	unsigned int          eps_max;        /* Maximum number of errors per second */
@@ -308,6 +309,7 @@ release_spoe_agent(struct spoe_agent *agent)
 	free(agent->id);
 	free(agent->conf.file);
 	free(agent->var_pfx);
+	free(agent->var_on_error);
 	for (i = 0; i < SPOE_EV_EVENTS; ++i) {
 		list_for_each_entry_safe(msg, back, &agent->messages[i], list) {
 			LIST_DEL(&msg->list);
@@ -2186,6 +2188,18 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 	if (agent->eps_max > 0)
 		update_freq_ctr(&agent->err_per_sec, 1);
 
+	if (agent->var_on_error) {
+		struct sample smp;
+
+		memset(&smp, 0, sizeof(smp));
+		smp_set_owner(&smp, s->be, s->sess, s, dir|SMP_OPT_FINAL);
+		smp.data.u.sint = 1;
+		smp.data.type   = SMP_T_BOOL;
+
+		set_spoe_var(ctx, "txn", agent->var_on_error,
+			     strlen(agent->var_on_error), &smp);
+	}
+
 	release_spoe_appctx(ctx);
 	ctx->state = ((agent->flags & SPOE_FL_CONT_ON_ERR)
 		      ? SPOE_CTX_ST_READY
@@ -2639,6 +2653,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->timeout.idle    = TICK_ETERNITY;
 		curagent->timeout.processing = TICK_ETERNITY;
 		curagent->var_pfx         = NULL;
+		curagent->var_on_error    = NULL;
 		curagent->flags           = 0;
 		curagent->cps_max         = 0;
 		curagent->eps_max         = 0;
@@ -2769,6 +2784,28 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			curagent->flags |= SPOE_FL_CONT_ON_ERR;
+		}
+		else if (!strcmp(args[1], "set-on-error")) {
+			char *tmp;
+
+			if (!*args[2]) {
+				Alert("parsing [%s:%d]: '%s %s' expects a value.\n",
+				      file, linenum, args[0],
+				      args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			tmp = args[2];
+			while (*tmp) {
+				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+					Alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
+					      file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				tmp++;
+			}
+			curagent->var_on_error = strdup(args[2]);
 		}
 		else {
 			Alert("parsing [%s:%d]: option '%s' is not supported.\n",
