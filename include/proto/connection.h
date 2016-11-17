@@ -261,7 +261,8 @@ static inline void conn_stop_polling(struct connection *c)
 	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
 		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
 		      CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
-	fd_stop_both(c->t.sock.fd);
+	if (conn_ctrl_ready(c))
+		fd_stop_both(c->t.sock.fd);
 }
 
 /* Automatically update polling on connection <c> depending on the DATA and
