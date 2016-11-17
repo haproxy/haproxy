@@ -170,9 +170,10 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 			return NULL;
 	}
 
-	ts = pool_alloc2(t->pool) + t->data_size;
+	ts = pool_alloc2(t->pool);
 	if (ts) {
 		t->current++;
+		ts += t->data_size;
 		stksess_init(t, ts);
 		if (key)
 			stksess_setkey(t, ts, key);
