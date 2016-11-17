@@ -76,6 +76,19 @@ enum fd_states {
 	FD_ST_READY
 };
 
+
+/* This is the value used to mark a file descriptor as dead. This value is
+ * negative, this is important so that tests on fd < 0 properly match. It
+ * also has the nice property of being highly negative but not overflowing
+ * nor changing sign on 32-bit machines when multipled by sizeof(fdtab).
+ * This ensures that any unexpected dereference of such an uninitialized
+ * file descriptor will lead to so large a dereference that it will crash
+ * the process at the exact location of the bug with a clean stack trace
+ * instead of causing silent manipulation of other FDs. And it's readable
+ * when found in a dump.
+ */
+#define DEAD_FD_MAGIC 0xFDDEADFD
+
 /* info about one given fd */
 struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */

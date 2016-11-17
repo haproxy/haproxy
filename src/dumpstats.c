@@ -6088,13 +6088,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
-			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
-			              conn->flags,
-			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
+			chunk_appendf(&trash, "      flags=0x%08x", conn->flags);
+
+			if (conn->t.sock.fd >= 0) {
+				chunk_appendf(&trash, " fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
+				              conn->t.sock.fd, fdtab[conn->t.sock.fd].state,
+				              fdtab[conn->t.sock.fd].cache, fdtab[conn->t.sock.fd].updated);
+			}
+			else
+				chunk_appendf(&trash, " fd=<dead>\n");
 		}
 		else if ((tmpctx = objt_appctx(sess->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
@@ -6116,13 +6118,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
-			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
-			              conn->flags,
-			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
+			chunk_appendf(&trash, "      flags=0x%08x", conn->flags);
+
+			if (conn->t.sock.fd >= 0) {
+				chunk_appendf(&trash, " fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
+				              conn->t.sock.fd, fdtab[conn->t.sock.fd].state,
+				              fdtab[conn->t.sock.fd].cache, fdtab[conn->t.sock.fd].updated);
+			}
+			else
+				chunk_appendf(&trash, " fd=<dead>\n");
 		}
 		else if ((tmpctx = objt_appctx(sess->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
@@ -6688,7 +6692,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[0].state,
 				     curr_sess->si[0].flags,
-				     conn ? conn->t.sock.fd : -1,
+				     (conn && conn->t.sock.fd >= 0) ? conn->t.sock.fd : -1,
 				     curr_sess->si[0].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
@@ -6698,7 +6702,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[1].state,
 				     curr_sess->si[1].flags,
-				     conn ? conn->t.sock.fd : -1,
+				     (conn && conn->t.sock.fd >= 0) ? conn->t.sock.fd : -1,
 				     curr_sess->si[1].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");

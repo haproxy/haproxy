@@ -152,6 +152,7 @@ static inline void conn_force_close(struct connection *conn)
 	if (conn_ctrl_ready(conn))
 		fd_delete(conn->t.sock.fd);
 
+	conn->t.sock.fd = DEAD_FD_MAGIC;
 	conn->flags &= ~(CO_FL_XPRT_READY|CO_FL_CTRL_READY);
 }
 
@@ -481,7 +482,7 @@ static inline void conn_init(struct connection *conn)
 	conn->data = NULL;
 	conn->owner = NULL;
 	conn->send_proxy_ofs = 0;
-	conn->t.sock.fd = -1; /* just to help with debugging */
+	conn->t.sock.fd = DEAD_FD_MAGIC;
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
 	conn->proxy_netns = NULL;
