@@ -142,7 +142,6 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
-static int stats_dump_resolvers_to_buffer(struct stream_interface *si);
 
 static int dump_servers_state(struct stream_interface *si, struct chunk *buf);
 
@@ -160,8 +159,6 @@ static const char stats_sock_usage_msg[] =
 	"  show info      : report information about the running process\n"
 	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
-	"  show stat resolvers [id]: dumps counters from all resolvers section and\n"
-	"                            associated name servers\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
@@ -1081,29 +1078,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 		}
 		else if (strcmp(args[1], "stat") == 0) {
-			if (strcmp(args[2], "resolvers") == 0) {
-				struct dns_resolvers *presolvers;
-
-				if (*args[3]) {
-					appctx->ctx.resolvers.ptr = NULL;
-					list_for_each_entry(presolvers, &dns_resolvers, list) {
-						if (strcmp(presolvers->id, args[3]) == 0) {
-							appctx->ctx.resolvers.ptr = presolvers;
-							break;
-						}
-					}
-					if (appctx->ctx.resolvers.ptr == NULL) {
-						appctx->ctx.cli.msg = "Can't find that resolvers section\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-				}
-
-				appctx->st2 = STAT_ST_INIT;
-				appctx->st0 = STAT_CLI_O_RESOLVERS;
-				return 1;
-			}
-			else if (*args[2] && *args[3] && *args[4]) {
+			if (*args[2] && *args[3] && *args[4]) {
 				appctx->ctx.stats.flags |= STAT_BOUND;
 				appctx->ctx.stats.iid = atoi(args[2]);
 				appctx->ctx.stats.type = atoi(args[3]);
@@ -2068,10 +2043,6 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			case STAT_CLI_O_STAT:
 				if (stats_dump_stat_to_buffer(si, NULL))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
-			case STAT_CLI_O_RESOLVERS:
-				if (stats_dump_resolvers_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_SESS:
@@ -3307,71 +3278,6 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
 	/* we have an incomplete line, we return it as-is */
 	out->str[out->len++] = '\n';
 	return ptr;
-}
-
-/* This function dumps counters from all resolvers section and associated name servers.
- * It returns 0 if the output buffer is full and it needs
- * to be called again, otherwise non-zero.
- */
-static int stats_dump_resolvers_to_buffer(struct stream_interface *si)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	struct dns_resolvers *presolvers;
-	struct dns_nameserver *pnameserver;
-
-	chunk_reset(&trash);
-
-	switch (appctx->st2) {
-	case STAT_ST_INIT:
-		appctx->st2 = STAT_ST_LIST; /* let's start producing data */
-		/* fall through */
-
-	case STAT_ST_LIST:
-		if (LIST_ISEMPTY(&dns_resolvers)) {
-			chunk_appendf(&trash, "No resolvers found\n");
-		}
-		else {
-			list_for_each_entry(presolvers, &dns_resolvers, list) {
-				if (appctx->ctx.resolvers.ptr != NULL && appctx->ctx.resolvers.ptr != presolvers)
-					continue;
-
-				chunk_appendf(&trash, "Resolvers section %s\n", presolvers->id);
-				list_for_each_entry(pnameserver, &presolvers->nameserver_list, list) {
-					chunk_appendf(&trash, " nameserver %s:\n", pnameserver->id);
-					chunk_appendf(&trash, "  sent: %ld\n", pnameserver->counters.sent);
-					chunk_appendf(&trash, "  valid: %ld\n", pnameserver->counters.valid);
-					chunk_appendf(&trash, "  update: %ld\n", pnameserver->counters.update);
-					chunk_appendf(&trash, "  cname: %ld\n", pnameserver->counters.cname);
-					chunk_appendf(&trash, "  cname_error: %ld\n", pnameserver->counters.cname_error);
-					chunk_appendf(&trash, "  any_err: %ld\n", pnameserver->counters.any_err);
-					chunk_appendf(&trash, "  nx: %ld\n", pnameserver->counters.nx);
-					chunk_appendf(&trash, "  timeout: %ld\n", pnameserver->counters.timeout);
-					chunk_appendf(&trash, "  refused: %ld\n", pnameserver->counters.refused);
-					chunk_appendf(&trash, "  other: %ld\n", pnameserver->counters.other);
-					chunk_appendf(&trash, "  invalid: %ld\n", pnameserver->counters.invalid);
-					chunk_appendf(&trash, "  too_big: %ld\n", pnameserver->counters.too_big);
-					chunk_appendf(&trash, "  truncated: %ld\n", pnameserver->counters.truncated);
-					chunk_appendf(&trash, "  outdated: %ld\n", pnameserver->counters.outdated);
-				}
-			}
-		}
-
-		/* display response */
-		if (bi_putchk(si_ic(si), &trash) == -1) {
-			/* let's try again later from this session. We add ourselves into
-			 * this session's users so that it can remove us upon termination.
-			 */
-			si->flags |= SI_FL_WAIT_ROOM;
-			return 0;
-		}
-
-		appctx->st2 = STAT_ST_FIN;
-		/* fall through */
-
-	default:
-		appctx->st2 = STAT_ST_FIN;
-		return 1;
-	}
 }
 
 /* This function dumps all captured errors onto the stream interface's

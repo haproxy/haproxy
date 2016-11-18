@@ -118,7 +118,6 @@ enum {
 	STAT_CLI_O_SET,      /* set entries in tables */
 	STAT_CLI_O_STAT,     /* dump stats */
 	STAT_CLI_O_POOLS,    /* dump memory pools */
-	STAT_CLI_O_RESOLVERS,/* dump a resolver's section nameservers counters */
 	STAT_CLI_O_SERVERS_STATE, /* dump server state and changing information */
 	STAT_CLI_O_BACKEND,  /* dump backend list */
 	STAT_CLI_O_ENV,      /* dump environment */

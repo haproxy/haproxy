@@ -22,10 +22,15 @@
 #include <common/time.h>
 #include <common/ticks.h>
 
+#include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/dns.h>
 #include <types/proto_udp.h>
+#include <types/stats.h>
 
+#include <proto/channel.h>
+#include <proto/cli.h>
 #include <proto/checks.h>
 #include <proto/dns.h>
 #include <proto/fd.h>
@@ -33,6 +38,7 @@
 #include <proto/server.h>
 #include <proto/task.h>
 #include <proto/proto_udp.h>
+#include <proto/stream_interface.h>
 
 struct list dns_resolvers = LIST_HEAD_INIT(dns_resolvers);
 struct dns_resolution *resolution = NULL;
@@ -1261,3 +1267,108 @@ struct task *dns_process_resolve(struct task *t)
 	dns_update_resolvers_timeout(resolvers);
 	return t;
 }
+
+static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *private)
+{
+	struct dns_resolvers *presolvers;
+
+	if (*args[3]) {
+		appctx->ctx.resolvers.ptr = NULL;
+		list_for_each_entry(presolvers, &dns_resolvers, list) {
+			if (strcmp(presolvers->id, args[3]) == 0) {
+				appctx->ctx.resolvers.ptr = presolvers;
+				break;
+			}
+		}
+		if (appctx->ctx.resolvers.ptr == NULL) {
+			appctx->ctx.cli.msg = "Can't find that resolvers section\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
+
+	appctx->st2 = STAT_ST_INIT;
+	return 1;
+
+}
+
+/* This function dumps counters from all resolvers section and associated name servers.
+ * It returns 0 if the output buffer is full and it needs
+ * to be called again, otherwise non-zero.
+ */
+static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct dns_resolvers *presolvers;
+	struct dns_nameserver *pnameserver;
+
+	chunk_reset(&trash);
+
+	switch (appctx->st2) {
+	case STAT_ST_INIT:
+		appctx->st2 = STAT_ST_LIST; /* let's start producing data */
+		/* fall through */
+
+	case STAT_ST_LIST:
+		if (LIST_ISEMPTY(&dns_resolvers)) {
+			chunk_appendf(&trash, "No resolvers found\n");
+		}
+		else {
+			list_for_each_entry(presolvers, &dns_resolvers, list) {
+				if (appctx->ctx.resolvers.ptr != NULL && appctx->ctx.resolvers.ptr != presolvers)
+					continue;
+
+				chunk_appendf(&trash, "Resolvers section %s\n", presolvers->id);
+				list_for_each_entry(pnameserver, &presolvers->nameserver_list, list) {
+					chunk_appendf(&trash, " nameserver %s:\n", pnameserver->id);
+					chunk_appendf(&trash, "  sent: %ld\n", pnameserver->counters.sent);
+					chunk_appendf(&trash, "  valid: %ld\n", pnameserver->counters.valid);
+					chunk_appendf(&trash, "  update: %ld\n", pnameserver->counters.update);
+					chunk_appendf(&trash, "  cname: %ld\n", pnameserver->counters.cname);
+					chunk_appendf(&trash, "  cname_error: %ld\n", pnameserver->counters.cname_error);
+					chunk_appendf(&trash, "  any_err: %ld\n", pnameserver->counters.any_err);
+					chunk_appendf(&trash, "  nx: %ld\n", pnameserver->counters.nx);
+					chunk_appendf(&trash, "  timeout: %ld\n", pnameserver->counters.timeout);
+					chunk_appendf(&trash, "  refused: %ld\n", pnameserver->counters.refused);
+					chunk_appendf(&trash, "  other: %ld\n", pnameserver->counters.other);
+					chunk_appendf(&trash, "  invalid: %ld\n", pnameserver->counters.invalid);
+					chunk_appendf(&trash, "  too_big: %ld\n", pnameserver->counters.too_big);
+					chunk_appendf(&trash, "  truncated: %ld\n", pnameserver->counters.truncated);
+					chunk_appendf(&trash, "  outdated: %ld\n", pnameserver->counters.outdated);
+				}
+			}
+		}
+
+		/* display response */
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			/* let's try again later from this session. We add ourselves into
+			 * this session's users so that it can remove us upon termination.
+			 */
+			si->flags |= SI_FL_WAIT_ROOM;
+			return 0;
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		return 1;
+	}
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "stat", "resolvers", NULL }, "show stat resolvers [id]: dumps counters from all resolvers section and\n"
+	                                         "                          associated name servers",
+	                                         cli_parse_stat_resolvers, cli_io_handler_dump_resolvers_to_buffer },
+	{{},}
+}};
+
+
+__attribute__((constructor))
+static void __dns_init(void)
+{
+	cli_register_kw(&cli_kws);
+}
+
