@@ -2413,13 +2413,13 @@ static int hlua_check_proto(struct stream *stream, int dir)
 	if (stream->be->mode == PR_MODE_HTTP) {
 		if (dir == SMP_OPT_DIR_REQ &&
 		    !(stream->req.analysers & AN_REQ_WAIT_HTTP) &&
-		    stream->txn->req.msg_state < HTTP_MSG_BODY) {
+		    stream->txn->req.msg_state < HTTP_MSG_ERROR) {
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
 		else if (dir == SMP_OPT_DIR_RES &&
 		         !(stream->res.analysers & AN_RES_WAIT_HTTP) &&
-		         stream->txn->rsp.msg_state < HTTP_MSG_BODY) {
+		         stream->txn->rsp.msg_state < HTTP_MSG_ERROR) {
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
