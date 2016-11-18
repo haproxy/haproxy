@@ -6770,6 +6770,11 @@ static void cli_release_handler(struct appctx *appctx)
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
 	}
+	else if ((appctx->st0 == STAT_CLI_O_TAB || appctx->st0 == STAT_CLI_O_CLR) &&
+		 appctx->st2 == STAT_ST_LIST) {
+		appctx->ctx.table.entry->ref_cnt--;
+		stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+	}
 	else if (appctx->st0 == STAT_CLI_PRINT_FREE) {
 		free(appctx->ctx.cli.err);
 		appctx->ctx.cli.err = NULL;
