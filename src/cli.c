@@ -136,13 +136,11 @@ static struct field info[INF_TOTAL_FIELDS];
 static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
-static int stats_dump_servers_state_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct stream *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
 
-static int dump_servers_state(struct stream_interface *si, struct chunk *buf);
 
 static struct applet cli_applet;
 
@@ -160,7 +158,6 @@ static const char stats_sock_usage_msg[] =
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
-	"  show servers state [id]: dump volatile server information (for backend <id>)\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set table [id] : update or create a table entry's data\n"
@@ -1113,27 +1110,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
-		else if (strcmp(args[1], "servers") == 0 && strcmp(args[2], "state") == 0) {
-			appctx->ctx.server_state.iid = 0;
-			appctx->ctx.server_state.px = NULL;
-			appctx->ctx.server_state.sv = NULL;
-
-			/* check if a backend name has been provided */
-			if (*args[3]) {
-				/* read server state from local file */
-				appctx->ctx.server_state.px = proxy_be_by_name(args[3]);
-
-				if (!appctx->ctx.server_state.px) {
-					appctx->ctx.cli.msg = "Can't find backend.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-				appctx->ctx.server_state.iid = appctx->ctx.server_state.px->uuid;
-			}
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_SERVERS_STATE; // stats_dump_servers_state_to_buffer
-			return 1;
-		}
 		else if (strcmp(args[1], "sess") == 0) {
 			appctx->st2 = STAT_ST_INIT;
 			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER) {
@@ -1934,10 +1910,6 @@ static void cli_io_handler(struct appctx *appctx)
 				if (stats_dump_info_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
-			case STAT_CLI_O_SERVERS_STATE:
-				if (stats_dump_servers_state_to_buffer(si))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
 			case STAT_CLI_O_STAT:
 				if (stats_dump_stat_to_buffer(si, NULL))
 					appctx->st0 = STAT_CLI_PROMPT;
@@ -2189,65 +2161,6 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
-/* dumps server state information into <buf> for all the servers found in <backend>
- * These information are all the parameters which may change during HAProxy runtime.
- * By default, we only export to the last known server state file format.
- * These information can be used at next startup to recover same level of server state.
- */
-static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	struct server *srv;
-	char srv_addr[INET6_ADDRSTRLEN + 1];
-	time_t srv_time_since_last_change;
-	int bk_f_forced_id, srv_f_forced_id;
-
-
-	/* we don't want to report any state if the backend is not enabled on this process */
-	if (appctx->ctx.server_state.px->bind_proc && !(appctx->ctx.server_state.px->bind_proc & (1UL << (relative_pid - 1))))
-		return 1;
-
-	if (!appctx->ctx.server_state.sv)
-		appctx->ctx.server_state.sv = appctx->ctx.server_state.px->srv;
-
-	for (; appctx->ctx.server_state.sv != NULL; appctx->ctx.server_state.sv = srv->next) {
-		srv = appctx->ctx.server_state.sv;
-		srv_addr[0] = '\0';
-
-		switch (srv->addr.ss_family) {
-			case AF_INET:
-				inet_ntop(srv->addr.ss_family, &((struct sockaddr_in *)&srv->addr)->sin_addr,
-					  srv_addr, INET_ADDRSTRLEN + 1);
-				break;
-			case AF_INET6:
-				inet_ntop(srv->addr.ss_family, &((struct sockaddr_in6 *)&srv->addr)->sin6_addr,
-					  srv_addr, INET6_ADDRSTRLEN + 1);
-				break;
-		}
-		srv_time_since_last_change = now.tv_sec - srv->last_change;
-		bk_f_forced_id = appctx->ctx.server_state.px->options & PR_O_FORCED_ID ? 1 : 0;
-		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
-
-		chunk_appendf(buf,
-				"%d %s "
-				"%d %s %s "
-				"%d %d %d %d %ld "
-				"%d %d %d %d %d "
-				"%d %d"
-				"\n",
-				appctx->ctx.server_state.px->uuid, appctx->ctx.server_state.px->id,
-				srv->puid, srv->id, srv_addr,
-				srv->state, srv->admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
-				srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
-				bk_f_forced_id, srv_f_forced_id);
-		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
-			return 0;
-		}
-	}
-	return 1;
-}
-
 /* Parses backend list and simply report backend names */
 static int stats_dump_backend_to_buffer(struct stream_interface *si)
 {
@@ -2282,53 +2195,6 @@ static int stats_dump_backend_to_buffer(struct stream_interface *si)
 			si_applet_cant_put(si);
 			return 0;
 		}
-	}
-
-	return 1;
-}
-
-/* Parses backend list or simply use backend name provided by the user to return
- * states of servers to stdout.
- */
-static int stats_dump_servers_state_to_buffer(struct stream_interface *si)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	extern struct proxy *proxy;
-	struct proxy *curproxy;
-
-	chunk_reset(&trash);
-
-	if (appctx->st2 == STAT_ST_INIT) {
-		if (!appctx->ctx.server_state.px)
-			appctx->ctx.server_state.px = proxy;
-		appctx->st2 = STAT_ST_HEAD;
-	}
-
-	if (appctx->st2 == STAT_ST_HEAD) {
-		chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
-		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
-			return 0;
-		}
-		appctx->st2 = STAT_ST_INFO;
-	}
-
-	/* STAT_ST_INFO */
-	for (; appctx->ctx.server_state.px != NULL; appctx->ctx.server_state.px = curproxy->next) {
-		curproxy = appctx->ctx.server_state.px;
-		/* servers are only in backends */
-		if (curproxy->cap & PR_CAP_BE) {
-			if (!dump_servers_state(si, &trash))
-				return 0;
-
-			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
-				return 0;
-			}
-		}
-		/* only the selected proxy is dumped */
-		if (appctx->ctx.server_state.iid)
-			break;
 	}
 
 	return 1;
