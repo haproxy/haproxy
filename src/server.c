@@ -20,10 +20,15 @@
 #include <common/namespace.h>
 #include <common/time.h>
 
+#include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/cli.h>
 #include <types/dns.h>
+#include <types/stats.h>
 
+#include <proto/applet.h>
+#include <proto/cli.h>
 #include <proto/checks.h>
 #include <proto/port_range.h>
 #include <proto/protocol.h>
@@ -31,6 +36,8 @@
 #include <proto/raw_sock.h>
 #include <proto/server.h>
 #include <proto/stream.h>
+#include <proto/stream_interface.h>
+#include <proto/stats.h>
 #include <proto/task.h>
 #include <proto/dns.h>
 
@@ -3380,6 +3387,137 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 	return sv;
 }
 
+
+static int cli_parse_set_server(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+	const char *warning;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[2]);
+	if (!sv)
+		return 1;
+
+	if (strcmp(args[3], "weight") == 0) {
+		warning = server_parse_weight_change_request(sv, args[4]);
+		if (warning) {
+			appctx->ctx.cli.msg = warning;
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+	}
+	else if (strcmp(args[3], "state") == 0) {
+		if (strcmp(args[4], "ready") == 0)
+			srv_adm_set_ready(sv);
+		else if (strcmp(args[4], "drain") == 0)
+			srv_adm_set_drain(sv);
+		else if (strcmp(args[4], "maint") == 0)
+			srv_adm_set_maint(sv);
+		else {
+			appctx->ctx.cli.msg = "'set server <srv> state' expects 'ready', 'drain' and 'maint'.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+	}
+	else if (strcmp(args[3], "health") == 0) {
+		if (sv->track) {
+			appctx->ctx.cli.msg = "cannot change health on a tracking server.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+		else if (strcmp(args[4], "up") == 0) {
+			sv->check.health = sv->check.rise + sv->check.fall - 1;
+			srv_set_running(sv, "changed from CLI");
+		}
+		else if (strcmp(args[4], "stopping") == 0) {
+			sv->check.health = sv->check.rise + sv->check.fall - 1;
+			srv_set_stopping(sv, "changed from CLI");
+		}
+		else if (strcmp(args[4], "down") == 0) {
+			sv->check.health = 0;
+			srv_set_stopped(sv, "changed from CLI");
+		}
+		else {
+			appctx->ctx.cli.msg = "'set server <srv> health' expects 'up', 'stopping', or 'down'.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+	}
+	else if (strcmp(args[3], "agent") == 0) {
+		if (!(sv->agent.state & CHK_ST_ENABLED)) {
+			appctx->ctx.cli.msg = "agent checks are not enabled on this server.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+		else if (strcmp(args[4], "up") == 0) {
+			sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
+			srv_set_running(sv, "changed from CLI");
+		}
+		else if (strcmp(args[4], "down") == 0) {
+			sv->agent.health = 0;
+			srv_set_stopped(sv, "changed from CLI");
+		}
+		else {
+			appctx->ctx.cli.msg = "'set server <srv> agent' expects 'up' or 'down'.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+	}
+	else if (strcmp(args[3], "check-port") == 0) {
+		int i = 0;
+		if (strl2irc(args[4], strlen(args[4]), &i) != 0) {
+			appctx->ctx.cli.msg = "'set server <srv> check-port' expects an integer as argument.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+		if ((i < 0) || (i > 65535)) {
+			appctx->ctx.cli.msg = "provided port is not valid.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+		/* prevent the update of port to 0 if MAPPORTS are in use */
+		if ((sv->flags & SRV_F_MAPPORTS) && (i == 0)) {
+			appctx->ctx.cli.msg = "can't unset 'port' since MAPPORTS is in use.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		sv->check.port = i;
+		appctx->ctx.cli.msg = "health check port updated.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+	}
+	else if (strcmp(args[3], "addr") == 0) {
+		char *addr = NULL;
+		char *port = NULL;
+		if (strlen(args[4]) == 0) {
+			appctx->ctx.cli.msg = "set server <b>/<s> addr requires an address and optionally a port.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		else {
+			addr = args[4];
+		}
+		if (strcmp(args[5], "port") == 0) {
+			port = args[6];
+		}
+		warning = update_server_addr_port(sv, addr, port, "stats socket command");
+		if (warning) {
+			appctx->ctx.cli.msg = warning;
+			appctx->st0 = STAT_CLI_PRINT;
+		}
+		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
+	}
+	else {
+		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr' and 'check-port'.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+	}
+	return 1;
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "set", "server", NULL }, "set server     : change a server's state, weight or address",  cli_parse_set_server },
+	{{},}
+}};
+
+__attribute__((constructor))
+static void __server_init(void)
+{
+	cli_register_kw(&cli_kws);
+}
 
 /*
  * Local variables:
