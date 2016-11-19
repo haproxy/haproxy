@@ -10,14 +10,23 @@
  *
  */
 
+#include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
+#include <types/stats.h>
+
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 
+#include <proto/applet.h>
+#include <proto/cli.h>
+#include <proto/channel.h>
 #include <proto/log.h>
+#include <proto/stream_interface.h>
+#include <proto/stats.h>
 
 static struct list pools = LIST_HEAD_INIT(pools);
 int mem_poison_byte = -1;
@@ -262,6 +271,39 @@ unsigned long pool_total_used()
 	list_for_each_entry(entry, &pools, list)
 		used += entry->used * entry->size;
 	return used;
+}
+
+/* This function dumps memory usage information onto the stream interface's
+ * read buffer. It returns 0 as long as it does not complete, non-zero upon
+ * completion. No state is used.
+ */
+static int cli_io_handler_dump_pools(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+
+	dump_pools_to_trash();
+	if (bi_putchk(si_ic(si), &trash) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+	return 1;
+}
+
+static int cli_parse_show_pools(char **args, struct appctx *appctx, void *private)
+{
+	return 0;
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "pools",  NULL }, "show pools     : report information about the memory pools usage", cli_parse_show_pools, cli_io_handler_dump_pools },
+	{{},}
+}};
+
+__attribute__((constructor))
+static void __memory_init(void)
+{
+	cli_register_kw(&cli_kws);
 }
 
 /*

@@ -137,7 +137,6 @@ static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_servers_state_to_buffer(struct stream_interface *si);
-static int stats_dump_pools_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct stream *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
@@ -157,7 +156,6 @@ static const char stats_sock_usage_msg[] =
 	"  show backend   : list backends in the current running config\n"
 	"  show env [var] : dump environment variables known to the process\n"
 	"  show info      : report information about the running process\n"
-	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
@@ -1136,10 +1134,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st0 = STAT_CLI_O_SERVERS_STATE; // stats_dump_servers_state_to_buffer
 			return 1;
 		}
-		else if (strcmp(args[1], "pools") == 0) {
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_POOLS; // stats_dump_pools_to_buffer
-		}
 		else if (strcmp(args[1], "sess") == 0) {
 			appctx->st2 = STAT_ST_INIT;
 			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER) {
@@ -1961,10 +1955,6 @@ static void cli_io_handler(struct appctx *appctx)
 				if (stats_table_request(si, appctx->st0))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
-			case STAT_CLI_O_POOLS:
-				if (stats_dump_pools_to_buffer(si))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
 			case STAT_CLI_O_ENV:	/* environment dump */
 				if (stats_dump_env_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
@@ -2341,20 +2331,6 @@ static int stats_dump_servers_state_to_buffer(struct stream_interface *si)
 			break;
 	}
 
-	return 1;
-}
-
-/* This function dumps memory usage information onto the stream interface's
- * read buffer. It returns 0 as long as it does not complete, non-zero upon
- * completion. No state is used.
- */
-static int stats_dump_pools_to_buffer(struct stream_interface *si)
-{
-	dump_pools_to_trash();
-	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
-		return 0;
-	}
 	return 1;
 }
 
