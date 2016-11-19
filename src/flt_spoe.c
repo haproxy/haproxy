@@ -192,7 +192,6 @@ struct spoe_agent {
 	struct {
 		unsigned int  hello;          /* Max time to receive AGENT-HELLO frame (in SPOE applet) */
 		unsigned int  idle;           /* Max Idle timeout  (in SPOE applet) */
-		unsigned int  ack;            /* Max time to acknowledge a NOTIFY frame  (in SPOE applet)*/
 		unsigned int  processing;     /* Max time to process an event (in the main stream) */
 	} timeout;
 
@@ -1431,7 +1430,7 @@ handle_spoe_applet(struct appctx *appctx)
 				else if (!ret)
 					goto full;
 				ctx->state = SPOE_CTX_ST_WAITING_ACK;
-				APPCTX_SPOE(appctx).task->expire = tick_add_ifset(now_ms, agent->timeout.ack);
+				APPCTX_SPOE(appctx).task->expire = tick_add_ifset(now_ms, agent->timeout.idle);
 			}
 
 		  skip_notify_frame:
@@ -1495,7 +1494,7 @@ handle_spoe_applet(struct appctx *appctx)
 				    __FUNCTION__, appctx, spoe_status_code,
 				    spoe_frm_err_reasons[spoe_status_code]);
 
-			APPCTX_SPOE(appctx).task->expire = tick_add_ifset(now_ms, agent->timeout.ack);
+			APPCTX_SPOE(appctx).task->expire = tick_add_ifset(now_ms, agent->timeout.idle);
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
 			/* fall through */
 
@@ -2627,7 +2626,6 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->conf.file       = strdup(file);
 		curagent->conf.line       = linenum;
 		curagent->timeout.hello   = TICK_ETERNITY;
-		curagent->timeout.ack     = TICK_ETERNITY;
 		curagent->timeout.idle    = TICK_ETERNITY;
 		curagent->timeout.processing = TICK_ETERNITY;
 		curagent->var_pfx         = NULL;
@@ -2693,12 +2691,10 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			tv = &curagent->timeout.hello;
 		else if (!strcmp(args[1], "idle"))
 			tv = &curagent->timeout.idle;
-		else if (!strcmp(args[1], "ack"))
-			tv = &curagent->timeout.ack;
 		else if (!strcmp(args[1], "processing"))
 			tv = &curagent->timeout.processing;
 		else {
-			Alert("parsing [%s:%d] : 'timeout' supports 'connect', 'idle', 'ack' or 'processing' (got %s).\n",
+			Alert("parsing [%s:%d] : 'timeout' supports 'connect', 'idle' or 'processing' (got %s).\n",
 			      file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -3001,15 +2997,11 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	if (curagent->timeout.hello      == TICK_ETERNITY ||
 	    curagent->timeout.idle       == TICK_ETERNITY ||
-	    curagent->timeout.ack        == TICK_ETERNITY ||
 	    curagent->timeout.processing == TICK_ETERNITY) {
-		if (curagent->timeout.ack == TICK_ETERNITY)
-			curagent->timeout.ack = curagent->timeout.idle;
-
 		Warning("Proxy '%s': missing timeouts for SPOE agent '%s' declare at %s:%d.\n"
 			"   | While not properly invalid, you will certainly encounter various problems\n"
 			"   | with such a configuration. To fix this, please ensure that all following\n"
-			"   | timeouts are set to a non-zero value: 'hello', 'idle', 'ack', 'processing'.\n",
+			"   | timeouts are set to a non-zero value: 'hello', 'idle', 'processing'.\n",
 			px->id, curagent->id, curagent->conf.file, curagent->conf.line);
 	}
 	if (curagent->var_pfx == NULL) {

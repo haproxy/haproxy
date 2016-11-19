@@ -36,9 +36,9 @@ the configuration template to use for your SPOE:
 
         option var-prefix iprep
 
-        timeout hello   1s
-        timeout ack     10ms
-        timeout idle    30s
+        timeout hello      100ms
+        timeout idle       30s
+        timeout processing 15ms
 
         use-backend iprep-backend
 

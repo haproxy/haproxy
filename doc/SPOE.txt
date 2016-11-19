@@ -158,7 +158,7 @@ spoe-agent <name>
   following keywords are supported :
     - messages
     - option var-prefix
-    - timeout hello|idle|ack|processing
+    - timeout hello|idle|processing
     - use-backend
 
 
@@ -196,17 +196,6 @@ option var-prefix <prefix>
 
   An agent will never set new variables at runtime. It can only set new value
   for existing ones.
-
-
-timeout ack <timeout>
-  Set the maximum time to wait for an agent to receive the acknowledgement to a
-  NOTIFY frame. It is applied on the stream that handle the connection with the
-  agent.
-
-  Arguments :
-    <timeout>   is the timeout value specified in milliseconds by default, but
-                can be in any other unit if the number is suffixed by the unit,
-                as explained at the top of this document.
 
 
 timeout hello <timeout>
@@ -350,9 +339,9 @@ and 0 a blacklisted IP with no doubt).
 
         option var-prefix iprep
 
-        timeout hello   2s
-        timeout ack     10ms
-        timeout idle    2m
+        timeout hello      2s
+        timeout idle       2m
+        timeout processing 10ms
 
         use-backend iprep-servers
 
