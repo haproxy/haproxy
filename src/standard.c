@@ -3077,6 +3077,9 @@ static inline int parse_http_time(const char **date, int *len, struct tm *tm)
  */
 int parse_imf_date(const char *date, int len, struct tm *tm)
 {
+	/* tm_gmtoff, if present, ought to be zero'ed */
+	memset(tm, 0, sizeof(*tm));
+
 	RET0_UNLESS(parse_http_dayname(&date, &len, tm));     /* day-name */
 	RET0_UNLESS(parse_expect_char(&date, &len, ','));     /* expect "," */
 	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
@@ -3091,7 +3094,6 @@ int parse_imf_date(const char *date, int len, struct tm *tm)
 	RET0_UNLESS(parse_expect_char(&date, &len, ' '));     /* expect SP */
 	RET0_UNLESS(parse_strcmp(&date, &len, "GMT", 3));     /* GMT = %x47.4D.54 ; "GMT", case-sensitive */
 	tm->tm_isdst = -1;
-	tm->tm_gmtoff = 0;
 	return 1;
 }
 
@@ -3107,6 +3109,9 @@ int parse_imf_date(const char *date, int len, struct tm *tm)
 int parse_rfc850_date(const char *date, int len, struct tm *tm)
 {
 	int year;
+
+	/* tm_gmtoff, if present, ought to be zero'ed */
+	memset(tm, 0, sizeof(*tm));
 
 	RET0_UNLESS(parse_http_ldayname(&date, &len, tm));    /* Read the day name */
 	RET0_UNLESS(parse_expect_char(&date, &len, ','));     /* expect "," */
@@ -3145,7 +3150,6 @@ int parse_rfc850_date(const char *date, int len, struct tm *tm)
 	RET0_UNLESS(parse_expect_char(&date, &len, ' ')); /* expect SP */
 	RET0_UNLESS(parse_strcmp(&date, &len, "GMT", 3)); /* GMT = %x47.4D.54 ; "GMT", case-sensitive */
 	tm->tm_isdst = -1;
-	tm->tm_gmtoff = 0;
 
 	return 1;
 }
@@ -3163,6 +3167,9 @@ int parse_rfc850_date(const char *date, int len, struct tm *tm)
  */
 int parse_asctime_date(const char *date, int len, struct tm *tm)
 {
+	/* tm_gmtoff, if present, ought to be zero'ed */
+	memset(tm, 0, sizeof(*tm));
+
 	RET0_UNLESS(parse_http_dayname(&date, &len, tm));   /* day-name */
 	RET0_UNLESS(parse_expect_char(&date, &len, ' '));   /* expect SP */
 	RET0_UNLESS(parse_http_monthname(&date, &len, tm)); /* expect month */
@@ -3180,7 +3187,6 @@ int parse_asctime_date(const char *date, int len, struct tm *tm)
 	RET0_UNLESS(parse_4digit(&date, &len, &tm->tm_year)); /* year = 4DIGIT */
 	tm->tm_year -= 1900;
 	tm->tm_isdst = -1;
-	tm->tm_gmtoff = 0;
 	return 1;
 }
 

@@ -2742,7 +2742,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 	struct sockaddr_storage sa;
 	int ret, port_change_required;
 	char current_addr[INET6_ADDRSTRLEN];
-	u_int16_t current_port, new_port;
+	uint16_t current_port, new_port;
 	struct chunk *msg;
 
 	msg = get_trash_chunk();

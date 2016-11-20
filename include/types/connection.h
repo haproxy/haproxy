@@ -233,8 +233,8 @@ struct data_cb {
 };
 
 struct my_tcphdr {
-	u_int16_t source;
-	u_int16_t dest;
+	uint16_t source;
+	uint16_t dest;
 };
 
 /* a connection source profile defines all the parameters needed to properly
