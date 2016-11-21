@@ -38,14 +38,16 @@
 #include <common/base64.h>
 
 #include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/dns.h>
+#include <types/stats.h>
 
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/compression.h>
-#include <proto/dumpstats.h>
+#include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>

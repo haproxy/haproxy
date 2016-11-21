@@ -21,13 +21,15 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 
+#include <types/cli.h>
 #include <types/hlua.h>
 #include <types/proxy.h>
+#include <types/stats.h>
 
-#include <proto/dumpstats.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
+#include <proto/stats.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;

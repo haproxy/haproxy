@@ -41,6 +41,7 @@
 #include <types/capture.h>
 #include <types/filters.h>
 #include <types/global.h>
+#include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/action.h>
@@ -50,7 +51,7 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/compression.h>
-#include <proto/dumpstats.h>
+#include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>

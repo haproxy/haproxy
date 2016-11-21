@@ -25,14 +25,17 @@
 
 #include <common/cfgparse.h>
 
+#include <types/cli.h>
 #include <types/hlua.h>
 #include <types/proxy.h>
+#include <types/stats.h>
 
 #include <proto/arg.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
+#include <proto/cli.h>
 #include <proto/connection.h>
-#include <proto/dumpstats.h>
+#include <proto/stats.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>

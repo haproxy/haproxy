@@ -51,6 +51,7 @@
 #include <types/peers.h>
 #include <types/mailers.h>
 #include <types/dns.h>
+#include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/auth.h>
@@ -58,7 +59,7 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/compression.h>
-#include <proto/dumpstats.h>
+#include <proto/stats.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>

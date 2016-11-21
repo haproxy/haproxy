@@ -39,6 +39,7 @@
 #include <types/global.h>
 #include <types/mailers.h>
 #include <types/dns.h>
+#include <types/stats.h>
 
 #ifdef USE_OPENSSL
 #include <types/ssl_sock.h>
@@ -47,7 +48,7 @@
 
 #include <proto/backend.h>
 #include <proto/checks.h>
-#include <proto/dumpstats.h>
+#include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
