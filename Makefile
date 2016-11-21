@@ -14,11 +14,14 @@
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
 #   USE_PCRE_JIT         : enable JIT for faster regex on libpcre >= 8.32
+#   USE_PCRE2            : enable use of libpcre2 for regex.
+#   USE_PCRE2_JIT        : enable JIT for faster regex on libpcre2
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_PTHREAD_PSHARED  : enable pthread process shared mutex on sslcache.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
+#   USE_STATIC_PCRE2     : enable static libpcre2.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY     : enable full transparent proxy. Automatic.
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing. Automatic.
@@ -671,6 +674,9 @@ OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
+ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+$(error cannot compile both PCRE and PCRE2 support)
+endif
 # PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
 # by appending /include and /lib respectively. If your system does not use the
 # same sub-directories, simply force these variables instead of PCREDIR. It is
@@ -699,6 +705,54 @@ endif
 ifneq ($(USE_PCRE_JIT),)
 OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
 BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE_JIT)
+endif
+endif
+
+ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
+PCRE2DIR	:= $(shell pcre2-config --prefix 2>/dev/null || echo /usr/local)
+ifneq ($(PCRE2DIR),)
+PCRE2_INC       := $(PCRE2DIR)/include
+PCRE2_LIB       := $(PCRE2DIR)/lib
+
+ifeq ($(PCRE2_WIDTH),)
+PCRE2_WIDTH	= 8
+endif
+
+ifneq ($(PCRE2_WIDTH),8)
+ifneq ($(PCRE2_WIDTH),16)
+ifneq ($(PCRE2_WIDTH),32)
+$(error PCRE2_WIDTH needs to be set to either 8,16 or 32)
+endif
+endif
+endif
+
+
+PCRE2_LDFLAGS	:= $(shell pcre2-config --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
+
+ifeq ($(PCRE2_LDFLAGS),)
+$(error libpcre2-$(PCRE2_WIDTH) not found)
+else
+ifeq ($(PCRE2_WIDTH),8)
+PCRE2_LDFLAGS	+= -lpcre2-posix
+endif
+endif
+
+OPTIONS_CFLAGS	+= -DUSE_PCRE2 -DPCRE2_CODE_UNIT_WIDTH=$(PCRE2_WIDTH)
+OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
+
+ifneq ($(USE_STATIC_PCRE2),)
+OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
+BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE2)
+else
+OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
+BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE2)
+endif
+
+ifneq ($(USE_PCRE2_JIT),)
+OPTIONS_CFLAGS  += -DUSE_PCRE2_JIT
+BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE2_JIT)
+endif
+
 endif
 endif
 

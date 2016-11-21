@@ -36,7 +36,11 @@
 #define PCRE_STUDY_JIT_COMPILE 0
 #endif
 
-#else /* no PCRE */
+#elif USE_PCRE2
+#include <pcre2.h>
+#include <pcre2posix.h>
+
+#else /* no PCRE, nor PCRE2 */
 #include <regex.h>
 #endif
 
@@ -49,6 +53,8 @@ struct my_regex {
 #error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
 #endif
 #endif
+#elif USE_PCRE2
+	pcre2_code *reg;
 #else /* no PCRE */
 	regex_t regex;
 #endif
@@ -95,6 +101,17 @@ static inline int regex_exec(const struct my_regex *preg, char *subject) {
 	if (pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, 0, NULL, 0) < 0)
 		return 0;
 	return 1;
+#elif defined(USE_PCRE2)
+	pcre2_match_data *pm;
+	int ret;
+
+	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
+	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject),
+		0, 0, pm, NULL);
+	pcre2_match_data_free(pm);
+	if (ret < 0)
+		return 0;
+	return 1;
 #else
 	int match;
 	match = regexec(&preg->regex, subject, 0, NULL, 0);
@@ -113,6 +130,17 @@ static inline int regex_exec(const struct my_regex *preg, char *subject) {
 static inline int regex_exec2(const struct my_regex *preg, char *subject, int length) {
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	if (pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0) < 0)
+		return 0;
+	return 1;
+#elif defined(USE_PCRE2)
+	pcre2_match_data *pm;
+	int ret;
+
+	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
+	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length,
+		0, 0, pm, NULL);
+	pcre2_match_data_free(pm);
+	if (ret < 0)
 		return 0;
 	return 1;
 #else
@@ -143,6 +171,8 @@ static inline void regex_free(struct my_regex *preg) {
 #else /* PCRE_CONFIG_JIT */
 	pcre_free(preg->extra);
 #endif /* PCRE_CONFIG_JIT */
+#elif defined(USE_PCRE2) || defined(USE_PCRE2_JIT)
+	pcre2_code_free(preg->reg);
 #else
 	regfree(&preg->regex);
 #endif
