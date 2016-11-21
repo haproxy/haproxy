@@ -1802,8 +1802,9 @@ show info [typed]
       11.PoolFailed.1:MCP:u32:0
       (...)
 
-  In the typed format, the presence of the process ID at the end of the line
-  makes it very easy to visually aggregate outputs from multiple processes.
+  In the typed format, the presence of the process ID at the end of the
+  first column makes it very easy to visually aggregate outputs from
+  multiple processes.
   Example :
 
       $ ( echo show info typed | socat /var/run/haproxy.sock1 ;    \
@@ -2067,9 +2068,10 @@ show stat [<iid> <type> <sid>] [typed]
         B.3.0.55.lastsess.1:MMP:s32:-1
         (...)
 
-  In the typed format, the presence of the process ID at the end of the line
-  makes it very easy to visually aggregate outputs from multiple processes, as
-  show in the example below where each line appears for each process :
+  In the typed format, the presence of the process ID at the end of the
+  first column makes it very easy to visually aggregate outputs from
+  multiple processes, as show in the example below where each line appears
+  for each process :
 
         $ ( echo show stat typed | socat /var/run/haproxy.sock1 - ; \
             echo show stat typed | socat /var/run/haproxy.sock2 - ) | \
