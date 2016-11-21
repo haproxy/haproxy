@@ -773,12 +773,12 @@ OBJS = src/haproxy.o src/base64.o src/protocol.o \
        src/arg.o src/stick_table.o src/proto_uxst.o src/connection.o \
        src/proto_http.o src/raw_sock.o src/backend.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o src/lb_fas.o \
-       src/stream_interface.o src/dumpstats.o src/proto_tcp.o src/applet.o \
+       src/stream_interface.o src/stats.o src/proto_tcp.o src/applet.o \
        src/session.o src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \
        src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o src/proto_udp.o \
        src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
        src/namespace.o src/mailers.o src/dns.o src/vars.o src/filters.o \
-       src/flt_http_comp.o src/flt_trace.o src/flt_spoe.o
+       src/flt_http_comp.o src/flt_trace.o src/flt_spoe.o src/cli.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

@@ -513,6 +513,8 @@ enum {
 };
 
 
+int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri);
+
 #endif /* _PROTO_DUMPSTATS_H */
 
 /*
