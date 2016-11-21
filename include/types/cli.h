@@ -111,7 +111,6 @@ enum {
 	STAT_CLI_PRINT,      /* display message in cli->msg */
 	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
 	STAT_CLI_O_INFO,     /* dump info */
-	STAT_CLI_O_SESS,     /* dump streams */
 	STAT_CLI_O_ERR,      /* dump errors */
 	STAT_CLI_O_TAB,      /* dump tables */
 	STAT_CLI_O_CLR,      /* clear tables */
