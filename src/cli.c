@@ -74,7 +74,6 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
-	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
 	"  disable        : put a server or frontend in maintenance mode\n"
@@ -608,35 +607,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 	}
 	else if (strcmp(args[0], "set") == 0) {
-		if (strcmp(args[1], "timeout") == 0) {
-			if (strcmp(args[2], "cli") == 0) {
-				unsigned timeout;
-				const char *res;
-
-				if (!*args[3]) {
-					appctx->ctx.cli.msg = "Expects an integer value.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
-				if (res || timeout < 1) {
-					appctx->ctx.cli.msg = "Invalid timeout value.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				s->req.rto = s->res.wto = 1 + MS_TO_TICKS(timeout*1000);
-				task_wakeup(s->task, TASK_WOKEN_MSG); // recompute timeouts
-				return 1;
-			}
-			else {
-				appctx->ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-		}
-		else if (strcmp(args[1], "maxconn") == 0) {
+		if (strcmp(args[1], "maxconn") == 0) {
 			if (strcmp(args[2], "frontend") == 0) {
 				struct proxy *px;
 				struct listener *l;
@@ -1388,6 +1359,40 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 	return 0;
 }
 
+/* parse a "set timeout" CLI request. It always returns 1. */
+static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *private)
+{
+	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
+
+	if (strcmp(args[2], "cli") == 0) {
+		unsigned timeout;
+		const char *res;
+
+		if (!*args[3]) {
+			appctx->ctx.cli.msg = "Expects an integer value.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+
+		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
+		if (res || timeout < 1) {
+			appctx->ctx.cli.msg = "Invalid timeout value.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+
+		s->req.rto = s->res.wto = 1 + MS_TO_TICKS(timeout*1000);
+		task_wakeup(s->task, TASK_WOKEN_MSG); // recompute timeouts
+		return 1;
+	}
+	else {
+		appctx->ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+}
+
 /* parse the "level" argument on the bind lines */
 static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1420,6 +1425,7 @@ static struct applet cli_applet = {
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{{},}
 }};
