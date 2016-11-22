@@ -340,6 +340,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
  * must pass the args part in the <arg> pointer with its length in <arg_len>,
  * and varname with its length in <var> and <var_len> respectively. <arg> is
  * ignored when arg_len is 0. Neither <var> nor <var_len> may be null.
+ * Returns false in error case and err is filled, otherwise returns true.
  */
 int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions)
 {
@@ -368,7 +369,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 				} else {
 					if (logformat_keywords[j].config_callback &&
 					    logformat_keywords[j].config_callback(node, curproxy) != 0) {
-						return -1;
+						return 0;
 					}
 					curproxy->to_log |= logformat_keywords[j].lw;
 					LIST_ADDQ(list_format, &node->list);
@@ -377,12 +378,12 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					Warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
 					        curproxy->conf.args.file, curproxy->conf.args.line,
 					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
-				return 0;
+				return 1;
 			} else {
 				Warning("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode.\n",
 				        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
 				        logformat_keywords[j].name);
-				return -1;
+				return 0;
 			}
 		}
 	}
@@ -392,7 +393,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 	Warning("parsing [%s:%d] : no such format variable '%s' in '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%' in log-format expressions.\n",
 	        curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
 	var[var_len] = j;
-	return -1;
+	return 0;
 }
 
 /*
