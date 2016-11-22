@@ -74,6 +74,64 @@
 #endif
 
 
+/* These are the field names for each INF_* field position. Please pay attention
+ * to always use the exact same name except that the strings for new names must
+ * be lower case or CamelCase while the enum entries must be upper case.
+ */
+const char *info_field_names[INF_TOTAL_FIELDS] = {
+	[INF_NAME]                           = "Name",
+	[INF_VERSION]                        = "Version",
+	[INF_RELEASE_DATE]                   = "Release_date",
+	[INF_NBPROC]                         = "Nbproc",
+	[INF_PROCESS_NUM]                    = "Process_num",
+	[INF_PID]                            = "Pid",
+	[INF_UPTIME]                         = "Uptime",
+	[INF_UPTIME_SEC]                     = "Uptime_sec",
+	[INF_MEMMAX_MB]                      = "Memmax_MB",
+	[INF_POOL_ALLOC_MB]                  = "PoolAlloc_MB",
+	[INF_POOL_USED_MB]                   = "PoolUsed_MB",
+	[INF_POOL_FAILED]                    = "PoolFailed",
+	[INF_ULIMIT_N]                       = "Ulimit-n",
+	[INF_MAXSOCK]                        = "Maxsock",
+	[INF_MAXCONN]                        = "Maxconn",
+	[INF_HARD_MAXCONN]                   = "Hard_maxconn",
+	[INF_CURR_CONN]                      = "CurrConns",
+	[INF_CUM_CONN]                       = "CumConns",
+	[INF_CUM_REQ]                        = "CumReq",
+	[INF_MAX_SSL_CONNS]                  = "MaxSslConns",
+	[INF_CURR_SSL_CONNS]                 = "CurrSslConns",
+	[INF_CUM_SSL_CONNS]                  = "CumSslConns",
+	[INF_MAXPIPES]                       = "Maxpipes",
+	[INF_PIPES_USED]                     = "PipesUsed",
+	[INF_PIPES_FREE]                     = "PipesFree",
+	[INF_CONN_RATE]                      = "ConnRate",
+	[INF_CONN_RATE_LIMIT]                = "ConnRateLimit",
+	[INF_MAX_CONN_RATE]                  = "MaxConnRate",
+	[INF_SESS_RATE]                      = "SessRate",
+	[INF_SESS_RATE_LIMIT]                = "SessRateLimit",
+	[INF_MAX_SESS_RATE]                  = "MaxSessRate",
+	[INF_SSL_RATE]                       = "SslRate",
+	[INF_SSL_RATE_LIMIT]                 = "SslRateLimit",
+	[INF_MAX_SSL_RATE]                   = "MaxSslRate",
+	[INF_SSL_FRONTEND_KEY_RATE]          = "SslFrontendKeyRate",
+	[INF_SSL_FRONTEND_MAX_KEY_RATE]      = "SslFrontendMaxKeyRate",
+	[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = "SslFrontendSessionReuse_pct",
+	[INF_SSL_BACKEND_KEY_RATE]           = "SslBackendKeyRate",
+	[INF_SSL_BACKEND_MAX_KEY_RATE]       = "SslBackendMaxKeyRate",
+	[INF_SSL_CACHE_LOOKUPS]              = "SslCacheLookups",
+	[INF_SSL_CACHE_MISSES]               = "SslCacheMisses",
+	[INF_COMPRESS_BPS_IN]                = "CompressBpsIn",
+	[INF_COMPRESS_BPS_OUT]               = "CompressBpsOut",
+	[INF_COMPRESS_BPS_RATE_LIM]          = "CompressBpsRateLim",
+	[INF_ZLIB_MEM_USAGE]                 = "ZlibMemUsage",
+	[INF_MAX_ZLIB_MEM_USAGE]             = "MaxZlibMemUsage",
+	[INF_TASKS]                          = "Tasks",
+	[INF_RUN_QUEUE]                      = "Run_queue",
+	[INF_IDLE_PCT]                       = "Idle_pct",
+	[INF_NODE]                           = "node",
+	[INF_DESCRIPTION]                    = "description",
+};
+
 const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_PXNAME]         = "pxname",
 	[ST_F_SVNAME]         = "svname",
@@ -160,8 +218,11 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_DSES]           = "dses",
 };
 
+/* one line of info */
+static struct field info[INF_TOTAL_FIELDS];
 /* one line of stats */
 static struct field stats[ST_F_TOTAL_FIELDS];
+
 
 
 /*
@@ -2813,6 +2874,175 @@ static void http_stats_io_handler(struct appctx *appctx)
 	/* just to make gcc happy */ ;
 }
 
+/* Dump all fields from <info> into <out> using the "show info" format (name: value) */
+static int stats_dump_info_fields(struct chunk *out, const struct field *info)
+{
+	int field;
+
+	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+		if (!field_format(info, field))
+			continue;
+
+		if (!chunk_appendf(out, "%s: ", info_field_names[field]))
+			return 0;
+		if (!stats_emit_raw_data_field(out, &info[field]))
+			return 0;
+		if (!chunk_strcat(out, "\n"))
+			return 0;
+	}
+	return 1;
+}
+
+/* Dump all fields from <info> into <out> using the "show info typed" format */
+static int stats_dump_typed_info_fields(struct chunk *out, const struct field *info)
+{
+	int field;
+
+	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+		if (!field_format(info, field))
+			continue;
+
+		if (!chunk_appendf(out, "%d.%s.%u:", field, info_field_names[field], info[INF_PROCESS_NUM].u.u32))
+			return 0;
+		if (!stats_emit_field_tags(out, &info[field], ':'))
+			return 0;
+		if (!stats_emit_typed_data_field(out, &info[field]))
+			return 0;
+		if (!chunk_strcat(out, "\n"))
+			return 0;
+	}
+	return 1;
+}
+
+/* Fill <info> with HAProxy global info. <info> is preallocated
+ * array of length <len>. The length of the aray must be
+ * INF_TOTAL_FIELDS. If this length is less then this value, the
+ * function returns 0, otherwise, it returns 1.
+ */
+int stats_fill_info(struct field *info, int len)
+{
+	unsigned int up = (now.tv_sec - start_date.tv_sec);
+	struct chunk *out = get_trash_chunk();
+
+#ifdef USE_OPENSSL
+	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
+	int ssl_key_rate = read_freq_ctr(&global.ssl_fe_keys_per_sec);
+	int ssl_reuse = 0;
+
+	if (ssl_key_rate < ssl_sess_rate) {
+		/* count the ssl reuse ratio and avoid overflows in both directions */
+		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
+	}
+#endif
+
+	if (len < INF_TOTAL_FIELDS)
+		return 0;
+
+	chunk_reset(out);
+	memset(info, 0, sizeof(*info) * len);
+
+	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
+	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_VERSION);
+	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_DATE);
+
+	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
+	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, relative_pid);
+	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
+
+	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
+	chunk_appendf(out, "%ud %uh%02um%02us", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+
+	info[INF_UPTIME_SEC]                     = mkf_u32(FN_DURATION, up);
+	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+	info[INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+	info[INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
+	info[INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
+	info[INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
+	info[INF_MAXCONN]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
+	info[INF_HARD_MAXCONN]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
+	info[INF_CURR_CONN]                      = mkf_u32(0, actconn);
+	info[INF_CUM_CONN]                       = mkf_u32(FN_COUNTER, totalconn);
+	info[INF_CUM_REQ]                        = mkf_u32(FN_COUNTER, global.req_count);
+#ifdef USE_OPENSSL
+	info[INF_MAX_SSL_CONNS]                  = mkf_u32(FN_MAX, global.maxsslconn);
+	info[INF_CURR_SSL_CONNS]                 = mkf_u32(0, sslconns);
+	info[INF_CUM_SSL_CONNS]                  = mkf_u32(FN_COUNTER, totalsslconns);
+#endif
+	info[INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
+	info[INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
+	info[INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
+	info[INF_CONN_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	info[INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
+	info[INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
+	info[INF_SESS_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	info[INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
+	info[INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
+
+#ifdef USE_OPENSSL
+	info[INF_SSL_RATE]                       = mkf_u32(FN_RATE, ssl_sess_rate);
+	info[INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
+	info[INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
+	info[INF_SSL_FRONTEND_KEY_RATE]          = mkf_u32(0, ssl_key_rate);
+	info[INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
+	info[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = mkf_u32(0, ssl_reuse);
+	info[INF_SSL_BACKEND_KEY_RATE]           = mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	info[INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
+	info[INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
+	info[INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
+#endif
+	info[INF_COMPRESS_BPS_IN]                = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	info[INF_COMPRESS_BPS_OUT]               = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	info[INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
+#ifdef USE_ZLIB
+	info[INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
+	info[INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
+#endif
+	info[INF_TASKS]                          = mkf_u32(0, nb_tasks_cur);
+	info[INF_RUN_QUEUE]                      = mkf_u32(0, run_queue_cur);
+	info[INF_IDLE_PCT]                       = mkf_u32(FN_AVG, idle_pct);
+	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
+	if (global.desc)
+		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
+
+	return 1;
+}
+
+/* This function dumps information onto the stream interface's read buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ * No state is used.
+ */
+static int stats_dump_info_to_buffer(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS))
+		return 0;
+
+	chunk_reset(&trash);
+
+	if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
+		stats_dump_typed_info_fields(&trash, info);
+	else
+		stats_dump_info_fields(&trash, info);
+
+	if (bi_putchk(si_ic(si), &trash) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int cli_parse_show_info(char **args, struct appctx *appctx, void *private)
+{
+	if (strcmp(args[2], "typed") == 0)
+		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+	appctx->st2 = STAT_ST_INIT;
+	return 0;
+}
+
+
 static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private)
 {
 	if (*args[2] && *args[3] && *args[4]) {
@@ -2830,6 +3060,11 @@ static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private
 	return 0;
 }
 
+static int cli_io_handler_dump_info(struct appctx *appctx)
+{
+	return stats_dump_info_to_buffer(appctx->owner);
+}
+
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send raw stats over a socket.
  */
@@ -2840,6 +3075,7 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "info",  NULL }, "show info      : report information about the running process", cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
 	{{},}
 }};

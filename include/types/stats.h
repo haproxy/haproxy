@@ -224,6 +224,69 @@ struct field {
 	} u;
 };
 
+/* Show Info fields for CLI output. For any field added here, please add the text
+ * representation in the info_field_names array below. Please only append at the end,
+ * before the INF_TOTAL_FIELDS entry, and never insert anything in the middle
+ * nor at the beginning.
+ */
+enum info_field {
+	INF_NAME,
+	INF_VERSION,
+	INF_RELEASE_DATE,
+	INF_NBPROC,
+	INF_PROCESS_NUM,
+	INF_PID,
+	INF_UPTIME,
+	INF_UPTIME_SEC,
+	INF_MEMMAX_MB,
+	INF_POOL_ALLOC_MB,
+	INF_POOL_USED_MB,
+	INF_POOL_FAILED,
+	INF_ULIMIT_N,
+	INF_MAXSOCK,
+	INF_MAXCONN,
+	INF_HARD_MAXCONN,
+	INF_CURR_CONN,
+	INF_CUM_CONN,
+	INF_CUM_REQ,
+	INF_MAX_SSL_CONNS,
+	INF_CURR_SSL_CONNS,
+	INF_CUM_SSL_CONNS,
+	INF_MAXPIPES,
+	INF_PIPES_USED,
+	INF_PIPES_FREE,
+	INF_CONN_RATE,
+	INF_CONN_RATE_LIMIT,
+	INF_MAX_CONN_RATE,
+	INF_SESS_RATE,
+	INF_SESS_RATE_LIMIT,
+	INF_MAX_SESS_RATE,
+	INF_SSL_RATE,
+	INF_SSL_RATE_LIMIT,
+	INF_MAX_SSL_RATE,
+	INF_SSL_FRONTEND_KEY_RATE,
+	INF_SSL_FRONTEND_MAX_KEY_RATE,
+	INF_SSL_FRONTEND_SESSION_REUSE_PCT,
+	INF_SSL_BACKEND_KEY_RATE,
+	INF_SSL_BACKEND_MAX_KEY_RATE,
+	INF_SSL_CACHE_LOOKUPS,
+	INF_SSL_CACHE_MISSES,
+	INF_COMPRESS_BPS_IN,
+	INF_COMPRESS_BPS_OUT,
+	INF_COMPRESS_BPS_RATE_LIM,
+	INF_ZLIB_MEM_USAGE,
+	INF_MAX_ZLIB_MEM_USAGE,
+	INF_TASKS,
+	INF_RUN_QUEUE,
+	INF_IDLE_PCT,
+	INF_NODE,
+	INF_DESCRIPTION,
+
+	/* must always be the last one */
+	INF_TOTAL_FIELDS
+};
+
+
 /* Stats fields for CSV output. For any field added here, please add the text
  * representation in the stat_field_names array below. Please only append at the end,
  * before the ST_F_TOTAL_FIELDS entry, and never insert anything in the middle
