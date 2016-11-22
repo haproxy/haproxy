@@ -67,14 +67,14 @@ void strm_log(struct stream *s);
 /*
  * add to the logformat linked list
  */
-void add_to_logformat_list(char *start, char *end, int type, struct list *list_format);
+int add_to_logformat_list(char *start, char *end, int type, struct list *list_format);
 
 /*
  * Parse the log_format string and fill a linked list.
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
  * You can set arguments using { } : %{many arguments}varname
  */
-void parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap);
+int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap);
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.

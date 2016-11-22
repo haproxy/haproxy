@@ -361,7 +361,8 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 				node->options = *defoptions;
 				if (arg_len) {
 					node->arg = my_strndup(arg, arg_len);
-					parse_logformat_var_args(node->arg, node);
+					if (!parse_logformat_var_args(node->arg, node))
+						return 0;
 				}
 				if (node->type == LOG_FMT_GLOBAL) {
 					*defoptions = node->options;
@@ -381,9 +382,9 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 1;
 			} else {
-				Warning("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode.\n",
-				        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
-				        logformat_keywords[j].name);
+				Alert("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode.\n",
+				      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
+				      logformat_keywords[j].name);
 				return 0;
 			}
 		}
@@ -391,8 +392,8 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 
 	j = var[var_len];
 	var[var_len] = 0;
-	Warning("parsing [%s:%d] : no such format variable '%s' in '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%' in log-format expressions.\n",
-	        curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
+	Alert("parsing [%s:%d] : no such format variable '%s' in '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%' in log-format expressions.\n",
+	      curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
 	var[var_len] = j;
 	return 0;
 }
@@ -408,7 +409,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
  *  LOG_TEXT: copy chars from start to end excluding end.
  *
 */
-void add_to_logformat_list(char *start, char *end, int type, struct list *list_format)
+int add_to_logformat_list(char *start, char *end, int type, struct list *list_format)
 {
 	char *str;
 
@@ -433,14 +434,17 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 		node->type = LOG_FMT_SEPARATOR;
 		LIST_ADDQ(list_format, &node->list);
 	}
+	return 1;
 }
 
 /*
  * Parse the sample fetch expression <text> and add a node to <list_format> upon
  * success. At the moment, sample converters are not yet supported but fetch arguments
  * should work. The curpx->conf.args.ctx must be set by the caller.
+ *
+ * In error case, the function returns 0, otherwise it returns 1.
  */
-void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, const char *file, int line)
+int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, const char *file, int line)
 {
 	char *cmd[2];
 	struct sample_expr *expr;
@@ -454,10 +458,10 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 
 	expr = sample_parse_expr(cmd, &cmd_arg, file, line, &errmsg, &curpx->conf.args);
 	if (!expr) {
-		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
-		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
-		        text, errmsg);
-		return;
+		Alert("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
+		      curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
+		      text, errmsg);
+		return 0;
 	}
 
 	node = calloc(1, sizeof(*node));
@@ -471,7 +475,8 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
-		parse_logformat_var_args(node->arg, node);
+		if (!parse_logformat_var_args(node->arg, node))
+			return 0;
 	}
 	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
 		node->options |= LOG_OPT_REQ_CAP; /* fetch method is request-compatible */
@@ -479,10 +484,12 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	if (expr->fetch->val & cap & SMP_VAL_RESPONSE)
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
 
-	if (!(expr->fetch->val & cap))
-		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here.\n",
-		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
-			text, sample_src_names(expr->fetch->use));
+	if (!(expr->fetch->val & cap)) {
+		Alert("parsing [%s:%d] : '%s' : sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here.\n",
+		      curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
+		      text, sample_src_names(expr->fetch->use));
+		return 0;
+	}
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
@@ -495,6 +502,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	curpx->to_log |= LW_XPRT;
 	curpx->to_log |= LW_REQ;
 	LIST_ADDQ(list_format, &node->list);
+	return 1;
 }
 
 /*
@@ -508,8 +516,10 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  list_format: the destination list
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
+ *
+ * The function returns 1 in success case, otherwise, it returns 0.
  */
-void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
+int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -567,8 +577,9 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
 				sp = str - 1; /* send both the '%' and the current char */
-				Warning("parsing [%s:%d] : Fixed missing '%%' before '%c' at position %d in %s line : '%s'. Please use '%%%%' when you need the '%%' character in a log-format expression.\n",
-					curproxy->conf.args.file, curproxy->conf.args.line, *str, (int)(str - backfmt), fmt_directive(curproxy), fmt);
+				Alert("parsing [%s:%d] : Unexpected variable name near '%c' at position %d in %s line : '%s'. Maybe you want to write a simgle '%%', use the syntax '%%%%'.\n",
+				      curproxy->conf.args.file, curproxy->conf.args.line, *str, (int)(str - backfmt), fmt_directive(curproxy), fmt);
+				return 0;
 
 			}
 			else
@@ -594,10 +605,9 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				var = str;
 				break;
 			}
-			Warning("parsing [%s:%d] : Skipping isolated argument in '%s' line : '%%{%s}'\n",
-			        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy), arg);
-			cformat = LF_INIT;
-			break;
+			Alert("parsing [%s:%d] : Parse argument modifier without variable name, in '%s' near '%%{%s}'\n",
+			      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy), arg);
+			return 0;
 
 		case LF_STEXPR:                        // text immediately following '%['
 			if (*str == ']') {             // end of arg
@@ -629,27 +639,33 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_VAR:
-				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
+				if (!parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options))
+					return 0;
 				break;
 			case LF_STEXPR:
-				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap,
-				                             curproxy->conf.args.file, curproxy->conf.args.line);
+				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap,
+				                             curproxy->conf.args.file, curproxy->conf.args.line))
+					return 0;
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
-				add_to_logformat_list(sp, str, pformat, list_format);
+				if (!add_to_logformat_list(sp, str, pformat, list_format))
+					return 0;
 				break;
 			}
 			sp = str; /* new start of text at every state switch and at every separator */
 		}
 	}
 
-	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR)
-		Warning("parsing [%s:%d] : Ignoring end of truncated '%s' line after '%s'\n",
-		        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
-		        var ? var : arg ? arg : "%");
-
+	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR) {
+		Alert("parsing [%s:%d] : Truncated '%s' line after '%s'\n",
+		      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
+		      var ? var : arg ? arg : "%");
+		return 0;
+	}
 	free(backfmt);
+
+	return 1;
 }
 
 /*
