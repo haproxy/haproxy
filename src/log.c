@@ -286,7 +286,8 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
 
 
 /*
- * Parse args in a logformat_var
+ * Parse args in a logformat_var. Returns 0 in error
+ * case, otherwise, it returns 1.
  */
 int parse_logformat_var_args(char *args, struct logformat_node *node)
 {
@@ -296,7 +297,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
 	char *sp = NULL; // start pointer
 
 	if (args == NULL)
-		return 1;
+		return 0;
 
 	while (1) {
 		if (*args == '\0')
@@ -332,7 +333,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
 		}
 		args++;
 	}
-	return 0;
+	return 1;
 }
 
 /*
