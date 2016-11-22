@@ -7788,8 +7788,7 @@ int check_config_validity()
 			 */
 			pxname = rule->be.name;
 			LIST_INIT(&rule->be.expr);
-			parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR,
-			                       curproxy->conf.args.file, curproxy->conf.args.line);
+			parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR);
 			node = LIST_NEXT(&rule->be.expr, struct logformat_node *, list);
 
 			if (!LIST_ISEMPTY(&rule->be.expr)) {
@@ -8274,7 +8273,7 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.lfs_file;
 			curproxy->conf.args.line = curproxy->conf.lfs_line;
 			parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
-					       SMP_VAL_FE_LOG_END, curproxy->conf.lfs_file, curproxy->conf.lfs_line);
+					       SMP_VAL_FE_LOG_END);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
 		}
@@ -8284,7 +8283,7 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.lfsd_file;
 			curproxy->conf.args.line = curproxy->conf.lfsd_line;
 			parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd, LOG_OPT_MANDATORY,
-					       SMP_VAL_FE_LOG_END, curproxy->conf.lfsd_file, curproxy->conf.lfsd_line);
+					       SMP_VAL_FE_LOG_END);
 			add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
@@ -8295,8 +8294,7 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
 			parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, LOG_OPT_HTTP,
-					       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
-					       curproxy->conf.uif_file, curproxy->conf.uif_line);
+					       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
 		}

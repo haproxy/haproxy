@@ -509,7 +509,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
  */
-void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap, const char *file, int line)
+void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -632,7 +632,8 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
 				break;
 			case LF_STEXPR:
-				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, file, line);
+				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap,
+				                             curproxy->conf.args.file, curproxy->conf.args.line);
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
