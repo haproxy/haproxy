@@ -28,10 +28,10 @@
 
 static inline void in6_bswap(struct in6_addr *a)
 {
-	a->in6_u.u6_addr32[0] = ntohl(a->in6_u.u6_addr32[0]);
-	a->in6_u.u6_addr32[1] = ntohl(a->in6_u.u6_addr32[1]);
-	a->in6_u.u6_addr32[2] = ntohl(a->in6_u.u6_addr32[2]);
-	a->in6_u.u6_addr32[3] = ntohl(a->in6_u.u6_addr32[3]);
+	a->s6_addr32[0] = ntohl(a->s6_addr32[0]);
+	a->s6_addr32[1] = ntohl(a->s6_addr32[1]);
+	a->s6_addr32[2] = ntohl(a->s6_addr32[2]);
+	a->s6_addr32[3] = ntohl(a->s6_addr32[3]);
 }
 
 /* returns a string version of an IPv6 address in host order */
@@ -49,48 +49,48 @@ static const char *get_addr(struct in6_addr *addr)
 {
 	static char out[50];
 	snprintf(out, 50, "%08x:%08x:%08x:%08x",
-	         addr->in6_u.u6_addr32[0],
-	         addr->in6_u.u6_addr32[1],
-	         addr->in6_u.u6_addr32[2],
-	         addr->in6_u.u6_addr32[3]);
+	         addr->s6_addr32[0],
+	         addr->s6_addr32[1],
+	         addr->s6_addr32[2],
+	         addr->s6_addr32[3]);
 	return out;
 }
 
 /* a <= b */
 static inline int a_le_b(struct in6_addr *a, struct in6_addr *b)
 {
-	if (a->in6_u.u6_addr32[0] < b->in6_u.u6_addr32[0]) return 1;
-	if (a->in6_u.u6_addr32[0] > b->in6_u.u6_addr32[0]) return 0;
-	if (a->in6_u.u6_addr32[1] < b->in6_u.u6_addr32[1]) return 1;
-	if (a->in6_u.u6_addr32[1] > b->in6_u.u6_addr32[1]) return 0;
-	if (a->in6_u.u6_addr32[2] < b->in6_u.u6_addr32[2]) return 1;
-	if (a->in6_u.u6_addr32[2] > b->in6_u.u6_addr32[2]) return 0;
-	if (a->in6_u.u6_addr32[3] < b->in6_u.u6_addr32[3]) return 1;
-	if (a->in6_u.u6_addr32[3] > b->in6_u.u6_addr32[3]) return 0;
+	if (a->s6_addr32[0] < b->s6_addr32[0]) return 1;
+	if (a->s6_addr32[0] > b->s6_addr32[0]) return 0;
+	if (a->s6_addr32[1] < b->s6_addr32[1]) return 1;
+	if (a->s6_addr32[1] > b->s6_addr32[1]) return 0;
+	if (a->s6_addr32[2] < b->s6_addr32[2]) return 1;
+	if (a->s6_addr32[2] > b->s6_addr32[2]) return 0;
+	if (a->s6_addr32[3] < b->s6_addr32[3]) return 1;
+	if (a->s6_addr32[3] > b->s6_addr32[3]) return 0;
 	return 1;
 }
 
 /* a == b */
 static inline int a_eq_b(struct in6_addr *a, struct in6_addr *b)
 {
-	if (a->in6_u.u6_addr32[0] != b->in6_u.u6_addr32[0]) return 0;
-	if (a->in6_u.u6_addr32[1] != b->in6_u.u6_addr32[1]) return 0;
-	if (a->in6_u.u6_addr32[2] != b->in6_u.u6_addr32[2]) return 0;
-	if (a->in6_u.u6_addr32[3] != b->in6_u.u6_addr32[3]) return 0;
+	if (a->s6_addr32[0] != b->s6_addr32[0]) return 0;
+	if (a->s6_addr32[1] != b->s6_addr32[1]) return 0;
+	if (a->s6_addr32[2] != b->s6_addr32[2]) return 0;
+	if (a->s6_addr32[3] != b->s6_addr32[3]) return 0;
 	return 1;
 }
 
 /* a > b */
 static inline int a_gt_b(struct in6_addr *a, struct in6_addr *b)
 {
-	if (a->in6_u.u6_addr32[0] > b->in6_u.u6_addr32[0]) return 1;
-	if (a->in6_u.u6_addr32[0] < b->in6_u.u6_addr32[0]) return 0;
-	if (a->in6_u.u6_addr32[1] > b->in6_u.u6_addr32[1]) return 1;
-	if (a->in6_u.u6_addr32[1] < b->in6_u.u6_addr32[1]) return 0;
-	if (a->in6_u.u6_addr32[2] > b->in6_u.u6_addr32[2]) return 1;
-	if (a->in6_u.u6_addr32[2] < b->in6_u.u6_addr32[2]) return 0;
-	if (a->in6_u.u6_addr32[3] > b->in6_u.u6_addr32[3]) return 1;
-	if (a->in6_u.u6_addr32[3] < b->in6_u.u6_addr32[3]) return 0;
+	if (a->s6_addr32[0] > b->s6_addr32[0]) return 1;
+	if (a->s6_addr32[0] < b->s6_addr32[0]) return 0;
+	if (a->s6_addr32[1] > b->s6_addr32[1]) return 1;
+	if (a->s6_addr32[1] < b->s6_addr32[1]) return 0;
+	if (a->s6_addr32[2] > b->s6_addr32[2]) return 1;
+	if (a->s6_addr32[2] < b->s6_addr32[2]) return 0;
+	if (a->s6_addr32[3] > b->s6_addr32[3]) return 1;
+	if (a->s6_addr32[3] < b->s6_addr32[3]) return 0;
 	return 0;
 }
 
@@ -99,34 +99,34 @@ static inline struct in6_addr *hmask(unsigned int b, struct in6_addr *r)
 {
 
 	if (b < 32) {
-		r->in6_u.u6_addr32[3] = (1 << b) - 1;
-		r->in6_u.u6_addr32[2] = 0;
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = (1 << b) - 1;
+		r->s6_addr32[2] = 0;
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 64) {
-		r->in6_u.u6_addr32[3] = 0xffffffff;
-		r->in6_u.u6_addr32[2] = (1 << (b - 32)) - 1;
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 0xffffffff;
+		r->s6_addr32[2] = (1 << (b - 32)) - 1;
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 96) {
-		r->in6_u.u6_addr32[3] = 0xffffffff;
-		r->in6_u.u6_addr32[2] = 0xffffffff;
-		r->in6_u.u6_addr32[1] = (1 << (b - 64)) - 1;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 0xffffffff;
+		r->s6_addr32[2] = 0xffffffff;
+		r->s6_addr32[1] = (1 << (b - 64)) - 1;
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 128) {
-		r->in6_u.u6_addr32[3] = 0xffffffff;
-		r->in6_u.u6_addr32[2] = 0xffffffff;
-		r->in6_u.u6_addr32[1] = 0xffffffff;
-		r->in6_u.u6_addr32[0] = (1 << (b - 96)) - 1;
+		r->s6_addr32[3] = 0xffffffff;
+		r->s6_addr32[2] = 0xffffffff;
+		r->s6_addr32[1] = 0xffffffff;
+		r->s6_addr32[0] = (1 << (b - 96)) - 1;
 	}
 	else {
-		r->in6_u.u6_addr32[3] = 0xffffffff;
-		r->in6_u.u6_addr32[2] = 0xffffffff;
-		r->in6_u.u6_addr32[1] = 0xffffffff;
-		r->in6_u.u6_addr32[0] = 0xffffffff;
+		r->s6_addr32[3] = 0xffffffff;
+		r->s6_addr32[2] = 0xffffffff;
+		r->s6_addr32[1] = 0xffffffff;
+		r->s6_addr32[0] = 0xffffffff;
 	}
 	return r;
 }
@@ -135,34 +135,34 @@ static inline struct in6_addr *hmask(unsigned int b, struct in6_addr *r)
 static inline struct in6_addr *one_ls_b(unsigned int b, struct in6_addr *r)
 {
 	if (b < 32) {
-		r->in6_u.u6_addr32[3] = 1 << b;
-		r->in6_u.u6_addr32[2] = 0;
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 1 << b;
+		r->s6_addr32[2] = 0;
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 64) {
-		r->in6_u.u6_addr32[3] = 0;
-		r->in6_u.u6_addr32[2] = 1 << (b - 32);
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 0;
+		r->s6_addr32[2] = 1 << (b - 32);
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 96) {
-		r->in6_u.u6_addr32[3] = 0;
-		r->in6_u.u6_addr32[2] = 0;
-		r->in6_u.u6_addr32[1] = 1 << (b - 64);
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 0;
+		r->s6_addr32[2] = 0;
+		r->s6_addr32[1] = 1 << (b - 64);
+		r->s6_addr32[0] = 0;
 	}
 	else if (b < 128) {
-		r->in6_u.u6_addr32[3] = 0;
-		r->in6_u.u6_addr32[2] = 0;
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 1 << (b - 96);
+		r->s6_addr32[3] = 0;
+		r->s6_addr32[2] = 0;
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 1 << (b - 96);
 	}
 	else {
-		r->in6_u.u6_addr32[3] = 0;
-		r->in6_u.u6_addr32[2] = 0;
-		r->in6_u.u6_addr32[1] = 0;
-		r->in6_u.u6_addr32[0] = 0;
+		r->s6_addr32[3] = 0;
+		r->s6_addr32[2] = 0;
+		r->s6_addr32[1] = 0;
+		r->s6_addr32[0] = 0;
 	}
 	return r;
 }
@@ -174,9 +174,9 @@ static inline struct in6_addr *a_plus_b(struct in6_addr *a, struct in6_addr *b, 
 	int i;
 
 	for (i=3; i>=0; i--) {
-		c = (unsigned long long int)a->in6_u.u6_addr32[i] +
-		    (unsigned long long int)b->in6_u.u6_addr32[i] + c;
-		r->in6_u.u6_addr32[i] = c;
+		c = (unsigned long long int)a->s6_addr32[i] +
+		    (unsigned long long int)b->s6_addr32[i] + c;
+		r->s6_addr32[i] = c;
 		c >>= 32;
 	}
 
@@ -192,20 +192,20 @@ static inline struct in6_addr *a_minus_b(struct in6_addr *a, struct in6_addr *b,
 
 	/* Check sign. Return 0xff..ff (-1) if the result is less than 0. */
 	if (a_gt_b(b, a)) {
-		r->in6_u.u6_addr32[3] = 0xffffffff;
-		r->in6_u.u6_addr32[2] = 0xffffffff;
-		r->in6_u.u6_addr32[1] = 0xffffffff;
-		r->in6_u.u6_addr32[0] = 0xffffffff;
+		r->s6_addr32[3] = 0xffffffff;
+		r->s6_addr32[2] = 0xffffffff;
+		r->s6_addr32[1] = 0xffffffff;
+		r->s6_addr32[0] = 0xffffffff;
 		return r;
 	}
 
 	for (i=3; i>=0; i--) {
-		d = (unsigned long long int)b->in6_u.u6_addr32[i] + c;
-		c = (unsigned long long int)a->in6_u.u6_addr32[i];
+		d = (unsigned long long int)b->s6_addr32[i] + c;
+		c = (unsigned long long int)a->s6_addr32[i];
 		if (c < d)
 			c += 0x100000000ULL;
 		c -= d;
-		r->in6_u.u6_addr32[i] = c;
+		r->s6_addr32[i] = c;
 		c >>= 32;
 	}
 
@@ -215,24 +215,24 @@ static inline struct in6_addr *a_minus_b(struct in6_addr *a, struct in6_addr *b,
 /* a & b -> r */
 static inline struct in6_addr *a_and_b(struct in6_addr *a, struct in6_addr *b, struct in6_addr *r)
 {
-	r->in6_u.u6_addr32[0] = a->in6_u.u6_addr32[0] & b->in6_u.u6_addr32[0];
-	r->in6_u.u6_addr32[1] = a->in6_u.u6_addr32[1] & b->in6_u.u6_addr32[1];
-	r->in6_u.u6_addr32[2] = a->in6_u.u6_addr32[2] & b->in6_u.u6_addr32[2];
-	r->in6_u.u6_addr32[3] = a->in6_u.u6_addr32[3] & b->in6_u.u6_addr32[3];
+	r->s6_addr32[0] = a->s6_addr32[0] & b->s6_addr32[0];
+	r->s6_addr32[1] = a->s6_addr32[1] & b->s6_addr32[1];
+	r->s6_addr32[2] = a->s6_addr32[2] & b->s6_addr32[2];
+	r->s6_addr32[3] = a->s6_addr32[3] & b->s6_addr32[3];
 	return r;
 }
 
 /* a != 0 */
 int is_set(struct in6_addr *a)
 {
-	return a->in6_u.u6_addr32[0] ||
-	       a->in6_u.u6_addr32[1] ||
-	       a->in6_u.u6_addr32[2] ||
-	       a->in6_u.u6_addr32[3];
+	return a->s6_addr32[0] ||
+	       a->s6_addr32[1] ||
+	       a->s6_addr32[2] ||
+	       a->s6_addr32[3];
 }
 
 /* 1 */
-static struct in6_addr one = { .in6_u.u6_addr32 = {0, 0, 0, 1} };
+static struct in6_addr one = { .s6_addr32 = {0, 0, 0, 1} };
 
 /* print all networks present between address <low> and address <high> in
  * cidr format, followed by <eol>.
