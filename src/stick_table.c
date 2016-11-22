@@ -12,6 +12,7 @@
  */
 
 #include <string.h>
+#include <errno.h>
 
 #include <common/config.h>
 #include <common/memory.h>
@@ -22,12 +23,17 @@
 #include <ebmbtree.h>
 #include <ebsttree.h>
 
+#include <types/cli.h>
+#include <types/stats.h>
+
 #include <proto/arg.h>
+#include <proto/cli.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
+#include <proto/stream_interface.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>
 #include <proto/peers.h>
@@ -1514,6 +1520,568 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 	return ACT_RET_PRS_OK;
 }
 
+
+/* The functions below are used to manipulate table contents from the CLI.
+ * There are 3 main actions, "clear", "set" and "show". The code is shared
+ * between all actions, and the action is encoded in the void *private in
+ * the appctx as well as in the keyword registration, among one of the
+ * following values.
+ */
+
+enum {
+	STK_CLI_ACT_CLR,
+	STK_CLI_ACT_SET,
+	STK_CLI_ACT_SHOW,
+};
+
+/* Dump the status of a table to a stream interface's
+ * read buffer. It returns 0 if the output buffer is full
+ * and needs to be called again, otherwise non-zero.
+ */
+static int table_dump_head_to_buffer(struct chunk *msg, struct stream_interface *si,
+                                     struct proxy *proxy, struct proxy *target)
+{
+	struct stream *s = si_strm(si);
+
+	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
+		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
+
+	/* any other information should be dumped here */
+
+	if (target && strm_li(s)->bind_conf->level < ACCESS_LVL_OPER)
+		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
+
+	if (bi_putchk(si_ic(si), msg) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Dump a table entry to a stream interface's
+ * read buffer. It returns 0 if the output buffer is full
+ * and needs to be called again, otherwise non-zero.
+ */
+static int table_dump_entry_to_buffer(struct chunk *msg, struct stream_interface *si,
+                                      struct proxy *proxy, struct stksess *entry)
+{
+	int dt;
+
+	chunk_appendf(msg, "%p:", entry);
+
+	if (proxy->table.type == SMP_T_IPV4) {
+		char addr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, (const void *)&entry->key.key, addr, sizeof(addr));
+		chunk_appendf(msg, " key=%s", addr);
+	}
+	else if (proxy->table.type == SMP_T_IPV6) {
+		char addr[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6, (const void *)&entry->key.key, addr, sizeof(addr));
+		chunk_appendf(msg, " key=%s", addr);
+	}
+	else if (proxy->table.type == SMP_T_SINT) {
+		chunk_appendf(msg, " key=%u", *(unsigned int *)entry->key.key);
+	}
+	else if (proxy->table.type == SMP_T_STR) {
+		chunk_appendf(msg, " key=");
+		dump_text(msg, (const char *)entry->key.key, proxy->table.key_size);
+	}
+	else {
+		chunk_appendf(msg, " key=");
+		dump_binary(msg, (const char *)entry->key.key, proxy->table.key_size);
+	}
+
+	chunk_appendf(msg, " use=%d exp=%d", entry->ref_cnt - 1, tick_remain(now_ms, entry->expire));
+
+	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
+		void *ptr;
+
+		if (proxy->table.data_ofs[dt] == 0)
+			continue;
+		if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
+			chunk_appendf(msg, " %s(%d)=", stktable_data_types[dt].name, proxy->table.data_arg[dt].u);
+		else
+			chunk_appendf(msg, " %s=", stktable_data_types[dt].name);
+
+		ptr = stktable_data_ptr(&proxy->table, entry, dt);
+		switch (stktable_data_types[dt].std_type) {
+		case STD_T_SINT:
+			chunk_appendf(msg, "%d", stktable_data_cast(ptr, std_t_sint));
+			break;
+		case STD_T_UINT:
+			chunk_appendf(msg, "%u", stktable_data_cast(ptr, std_t_uint));
+			break;
+		case STD_T_ULL:
+			chunk_appendf(msg, "%lld", stktable_data_cast(ptr, std_t_ull));
+			break;
+		case STD_T_FRQP:
+			chunk_appendf(msg, "%d",
+				     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+							  proxy->table.data_arg[dt].u));
+			break;
+		}
+	}
+	chunk_appendf(msg, "\n");
+
+	if (bi_putchk(si_ic(si), msg) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	return 1;
+}
+
+
+/* Processes a single table entry matching a specific key passed in argument.
+ * returns 0 if wants to be called again, 1 if has ended processing.
+ */
+static int table_process_entry_per_key(struct appctx *appctx, char **args)
+{
+	struct stream_interface *si = appctx->owner;
+	int action = (long)appctx->private;
+	struct proxy *px = appctx->ctx.table.target;
+	struct stksess *ts;
+	uint32_t uint32_key;
+	unsigned char ip6_key[sizeof(struct in6_addr)];
+	long long value;
+	int data_type;
+	int cur_arg;
+	void *ptr;
+	struct freq_ctr_period *frqp;
+
+	if (!*args[4]) {
+		appctx->ctx.cli.msg = "Key value expected\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	switch (px->table.type) {
+	case SMP_T_IPV4:
+		uint32_key = htonl(inetaddr_host(args[4]));
+		static_table_key->key = &uint32_key;
+		break;
+	case SMP_T_IPV6:
+		inet_pton(AF_INET6, args[4], ip6_key);
+		static_table_key->key = &ip6_key;
+		break;
+	case SMP_T_SINT:
+		{
+			char *endptr;
+			unsigned long val;
+			errno = 0;
+			val = strtoul(args[4], &endptr, 10);
+			if ((errno == ERANGE && val == ULONG_MAX) ||
+			    (errno != 0 && val == 0) || endptr == args[4] ||
+			    val > 0xffffffff) {
+				appctx->ctx.cli.msg = "Invalid key\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			uint32_key = (uint32_t) val;
+			static_table_key->key = &uint32_key;
+			break;
+		}
+		break;
+	case SMP_T_STR:
+		static_table_key->key = args[4];
+		static_table_key->key_len = strlen(args[4]);
+		break;
+	default:
+		switch (action) {
+		case STK_CLI_ACT_SHOW:
+			appctx->ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
+			break;
+		case STK_CLI_ACT_CLR:
+			appctx->ctx.cli.msg = "Removing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
+			break;
+		case STK_CLI_ACT_SET:
+			appctx->ctx.cli.msg = "Inserting keys into tables of type other than ip, ipv6, string and integer is not supported\n";
+			break;
+		default:
+			appctx->ctx.cli.msg = "Unknown action\n";
+			break;
+		}
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* check permissions */
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	ts = stktable_lookup_key(&px->table, static_table_key);
+
+	switch (action) {
+	case STK_CLI_ACT_SHOW:
+		if (!ts)
+			return 1;
+		chunk_reset(&trash);
+		if (!table_dump_head_to_buffer(&trash, si, px, px))
+			return 0;
+		if (!table_dump_entry_to_buffer(&trash, si, px, ts))
+			return 0;
+		break;
+
+	case STK_CLI_ACT_CLR:
+		if (!ts)
+			return 1;
+		if (ts->ref_cnt) {
+			/* don't delete an entry which is currently referenced */
+			appctx->ctx.cli.msg = "Entry currently in use, cannot remove\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		stksess_kill(&px->table, ts);
+		break;
+
+	case STK_CLI_ACT_SET:
+		if (ts)
+			stktable_touch(&px->table, ts, 1);
+		else {
+			ts = stksess_new(&px->table, static_table_key);
+			if (!ts) {
+				/* don't delete an entry which is currently referenced */
+				appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			stktable_store(&px->table, ts, 1);
+		}
+
+		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
+			if (strncmp(args[cur_arg], "data.", 5) != 0) {
+				appctx->ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			data_type = stktable_get_data_type(args[cur_arg] + 5);
+			if (data_type < 0) {
+				appctx->ctx.cli.msg = "Unknown data type\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!px->table.data_ofs[data_type]) {
+				appctx->ctx.cli.msg = "Data type not stored in this table\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!*args[cur_arg+1] || strl2llrc(args[cur_arg+1], strlen(args[cur_arg+1]), &value) != 0) {
+				appctx->ctx.cli.msg = "Require a valid integer value to store\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			ptr = stktable_data_ptr(&px->table, ts, data_type);
+
+			switch (stktable_data_types[data_type].std_type) {
+			case STD_T_SINT:
+				stktable_data_cast(ptr, std_t_sint) = value;
+				break;
+			case STD_T_UINT:
+				stktable_data_cast(ptr, std_t_uint) = value;
+				break;
+			case STD_T_ULL:
+				stktable_data_cast(ptr, std_t_ull) = value;
+				break;
+			case STD_T_FRQP:
+				/* We set both the current and previous values. That way
+				 * the reported frequency is stable during all the period
+				 * then slowly fades out. This allows external tools to
+				 * push measures without having to update them too often.
+				 */
+				frqp = &stktable_data_cast(ptr, std_t_frqp);
+				frqp->curr_tick = now_ms;
+				frqp->prev_ctr = 0;
+				frqp->curr_ctr = value;
+				break;
+			}
+		}
+		break;
+
+	default:
+		appctx->ctx.cli.msg = "Unknown action\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		break;
+	}
+	return 1;
+}
+
+/* Prepares the appctx fields with the data-based filters from the command line.
+ * Returns 0 if the dump can proceed, 1 if has ended processing.
+ */
+static int table_prepare_data_request(struct appctx *appctx, char **args)
+{
+	int action = (long)appctx->private;
+
+	if (action != STK_CLI_ACT_SHOW && action != STK_CLI_ACT_CLR) {
+		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* condition on stored data value */
+	appctx->ctx.table.data_type = stktable_get_data_type(args[3] + 5);
+	if (appctx->ctx.table.data_type < 0) {
+		appctx->ctx.cli.msg = "Unknown data type\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!((struct proxy *)appctx->ctx.table.target)->table.data_ofs[appctx->ctx.table.data_type]) {
+		appctx->ctx.cli.msg = "Data type not stored in this table\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	appctx->ctx.table.data_op = get_std_op(args[4]);
+	if (appctx->ctx.table.data_op < 0) {
+		appctx->ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &appctx->ctx.table.value) != 0) {
+		appctx->ctx.cli.msg = "Require a valid integer value to compare against\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* OK we're done, all the fields are set */
+	return 0;
+}
+
+/* returns 0 if wants to be called, 1 if has ended processing */
+static int cli_parse_table_req(char **args, struct appctx *appctx, void *private)
+{
+	int action = (long)private;
+
+	appctx->private = private;
+	appctx->ctx.table.data_type = -1;
+	appctx->st2 = STAT_ST_INIT;
+	appctx->ctx.table.target = NULL;
+	appctx->ctx.table.proxy = NULL;
+	appctx->ctx.table.entry = NULL;
+
+	if (*args[2]) {
+		appctx->ctx.table.target = proxy_tbl_by_name(args[2]);
+		if (!appctx->ctx.table.target) {
+			appctx->ctx.cli.msg = "No such table\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
+	else {
+		if (action != STK_CLI_ACT_SHOW)
+			goto err_args;
+		return 0;
+	}
+
+	if (strcmp(args[3], "key") == 0)
+		return table_process_entry_per_key(appctx, args);
+	else if (strncmp(args[3], "data.", 5) == 0)
+		return table_prepare_data_request(appctx, args);
+	else if (*args[3])
+		goto err_args;
+
+	return 0;
+
+err_args:
+	switch (action) {
+	case STK_CLI_ACT_SHOW:
+		appctx->ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
+		break;
+	case STK_CLI_ACT_CLR:
+		appctx->ctx.cli.msg = "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n";
+		break;
+	case STK_CLI_ACT_SET:
+		appctx->ctx.cli.msg = "Required arguments: <table> key <key> [data.<store_data_type> <value>]*\n";
+		break;
+	default:
+		appctx->ctx.cli.msg = "Unknown action\n";
+		break;
+	}
+	appctx->st0 = STAT_CLI_PRINT;
+	return 1;
+}
+
+/* This function is used to deal with table operations (dump or clear depending
+ * on the action stored in appctx->private). It returns 0 if the output buffer is
+ * full and it needs to be called again, otherwise non-zero.
+ */
+static int cli_io_handler_table(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	int action = (long)appctx->private;
+	struct stream *s = si_strm(si);
+	struct ebmb_node *eb;
+	int dt;
+	int skip_entry;
+	int show = action == STK_CLI_ACT_SHOW;
+
+	/*
+	 * We have 3 possible states in appctx->st2 :
+	 *   - STAT_ST_INIT : the first call
+	 *   - STAT_ST_INFO : the proxy pointer points to the next table to
+	 *     dump, the entry pointer is NULL ;
+	 *   - STAT_ST_LIST : the proxy pointer points to the current table
+	 *     and the entry pointer points to the next entry to be dumped,
+	 *     and the refcount on the next entry is held ;
+	 *   - STAT_ST_END : nothing left to dump, the buffer may contain some
+	 *     data though.
+	 */
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+		/* in case of abort, remove any refcount we might have set on an entry */
+		if (appctx->st2 == STAT_ST_LIST) {
+			appctx->ctx.table.entry->ref_cnt--;
+			stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+		}
+		return 1;
+	}
+
+	chunk_reset(&trash);
+
+	while (appctx->st2 != STAT_ST_FIN) {
+		switch (appctx->st2) {
+		case STAT_ST_INIT:
+			appctx->ctx.table.proxy = appctx->ctx.table.target;
+			if (!appctx->ctx.table.proxy)
+				appctx->ctx.table.proxy = proxy;
+
+			appctx->ctx.table.entry = NULL;
+			appctx->st2 = STAT_ST_INFO;
+			break;
+
+		case STAT_ST_INFO:
+			if (!appctx->ctx.table.proxy ||
+			    (appctx->ctx.table.target &&
+			     appctx->ctx.table.proxy != appctx->ctx.table.target)) {
+				appctx->st2 = STAT_ST_END;
+				break;
+			}
+
+			if (appctx->ctx.table.proxy->table.size) {
+				if (show && !table_dump_head_to_buffer(&trash, si, appctx->ctx.table.proxy, appctx->ctx.table.target))
+					return 0;
+
+				if (appctx->ctx.table.target &&
+				    strm_li(s)->bind_conf->level >= ACCESS_LVL_OPER) {
+					/* dump entries only if table explicitly requested */
+					eb = ebmb_first(&appctx->ctx.table.proxy->table.keys);
+					if (eb) {
+						appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+						appctx->ctx.table.entry->ref_cnt++;
+						appctx->st2 = STAT_ST_LIST;
+						break;
+					}
+				}
+			}
+			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
+			break;
+
+		case STAT_ST_LIST:
+			skip_entry = 0;
+
+			if (appctx->ctx.table.data_type >= 0) {
+				/* we're filtering on some data contents */
+				void *ptr;
+				long long data;
+
+				dt = appctx->ctx.table.data_type;
+				ptr = stktable_data_ptr(&appctx->ctx.table.proxy->table,
+							appctx->ctx.table.entry,
+							dt);
+
+				data = 0;
+				switch (stktable_data_types[dt].std_type) {
+				case STD_T_SINT:
+					data = stktable_data_cast(ptr, std_t_sint);
+					break;
+				case STD_T_UINT:
+					data = stktable_data_cast(ptr, std_t_uint);
+					break;
+				case STD_T_ULL:
+					data = stktable_data_cast(ptr, std_t_ull);
+					break;
+				case STD_T_FRQP:
+					data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								    appctx->ctx.table.proxy->table.data_arg[dt].u);
+					break;
+				}
+
+				/* skip the entry if the data does not match the test and the value */
+				if ((data < appctx->ctx.table.value &&
+				     (appctx->ctx.table.data_op == STD_OP_EQ ||
+				      appctx->ctx.table.data_op == STD_OP_GT ||
+				      appctx->ctx.table.data_op == STD_OP_GE)) ||
+				    (data == appctx->ctx.table.value &&
+				     (appctx->ctx.table.data_op == STD_OP_NE ||
+				      appctx->ctx.table.data_op == STD_OP_GT ||
+				      appctx->ctx.table.data_op == STD_OP_LT)) ||
+				    (data > appctx->ctx.table.value &&
+				     (appctx->ctx.table.data_op == STD_OP_EQ ||
+				      appctx->ctx.table.data_op == STD_OP_LT ||
+				      appctx->ctx.table.data_op == STD_OP_LE)))
+					skip_entry = 1;
+			}
+
+			if (show && !skip_entry &&
+			    !table_dump_entry_to_buffer(&trash, si, appctx->ctx.table.proxy, appctx->ctx.table.entry))
+			    return 0;
+
+			appctx->ctx.table.entry->ref_cnt--;
+
+			eb = ebmb_next(&appctx->ctx.table.entry->key);
+			if (eb) {
+				struct stksess *old = appctx->ctx.table.entry;
+				appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+				if (show)
+					stksess_kill_if_expired(&appctx->ctx.table.proxy->table, old);
+				else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
+					stksess_kill(&appctx->ctx.table.proxy->table, old);
+				appctx->ctx.table.entry->ref_cnt++;
+				break;
+			}
+
+
+			if (show)
+				stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+			else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
+				stksess_kill(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+
+			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
+			appctx->st2 = STAT_ST_INFO;
+			break;
+
+		case STAT_ST_END:
+			appctx->st2 = STAT_ST_FIN;
+			break;
+		}
+	}
+	return 1;
+}
+
+static void cli_release_show_table(struct appctx *appctx)
+{
+	if (appctx->st2 == STAT_ST_LIST) {
+		appctx->ctx.table.entry->ref_cnt--;
+		stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+	}
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "clear", "table", NULL }, "clear table    : remove an entry from a table", cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_CLR },
+	{ { "set",   "table", NULL }, "set table [id] : update or create a table entry's data", cli_parse_table_req, cli_io_handler_table, NULL, (void *)STK_CLI_ACT_SET },
+	{ { "show",  "table", NULL }, "show table [id]: report table usage stats or dump this table's contents", cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_SHOW },
+	{{},}
+}};
+
+
 static struct action_kw_list tcp_conn_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
@@ -1587,4 +2155,5 @@ static void __stick_table_init(void)
 
 	/* register sample fetch and format conversion keywords */
 	sample_register_convs(&sample_conv_kws);
+	cli_register_kw(&cli_kws);
 }
