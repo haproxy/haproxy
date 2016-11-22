@@ -104,7 +104,6 @@ void stats_io_handler(struct stream_interface *si);
 int stats_emit_raw_data_field(struct chunk *out, const struct field *f);
 int stats_emit_typed_data_field(struct chunk *out, const struct field *f);
 int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim);
-int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri);
 
 #endif /* _PROTO_STATS_H */
 

@@ -150,7 +150,6 @@ static const char stats_sock_usage_msg[] =
 	"  quit           : disconnect\n"
 	"  show env [var] : dump environment variables known to the process\n"
 	"  show info      : report information about the running process\n"
-	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
 	"  set table [id] : update or create a table entry's data\n"
@@ -1077,21 +1076,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->st2 = STAT_ST_END;
 			}
 		}
-		else if (strcmp(args[1], "stat") == 0) {
-			if (*args[2] && *args[3] && *args[4]) {
-				appctx->ctx.stats.flags |= STAT_BOUND;
-				appctx->ctx.stats.iid = atoi(args[2]);
-				appctx->ctx.stats.type = atoi(args[3]);
-				appctx->ctx.stats.sid = atoi(args[4]);
-				if (strcmp(args[5], "typed") == 0)
-					appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-			}
-			else if (strcmp(args[2], "typed") == 0)
-				appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
-		}
 		else if (strcmp(args[1], "info") == 0) {
 			if (strcmp(args[2], "typed") == 0)
 				appctx->ctx.stats.flags |= STAT_FMT_TYPED;
@@ -1825,10 +1809,6 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			case STAT_CLI_O_INFO:
 				if (stats_dump_info_to_buffer(si))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
-			case STAT_CLI_O_STAT:
-				if (stats_dump_stat_to_buffer(si, NULL))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_ERR:	/* errors dump */

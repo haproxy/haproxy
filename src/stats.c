@@ -38,6 +38,7 @@
 #include <common/base64.h>
 
 #include <types/applet.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/dns.h>
 #include <types/stats.h>
@@ -45,6 +46,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/cli.h>
 #include <proto/compression.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
@@ -2199,7 +2201,7 @@ static void stats_dump_html_end()
  * and the stream must be closed, or -1 in case of any error. This function is
  * used by both the CLI and the HTTP handlers.
  */
-int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
+static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
@@ -2811,12 +2813,49 @@ static void http_stats_io_handler(struct appctx *appctx)
 	/* just to make gcc happy */ ;
 }
 
+static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private)
+{
+	if (*args[2] && *args[3] && *args[4]) {
+		appctx->ctx.stats.flags |= STAT_BOUND;
+		appctx->ctx.stats.iid = atoi(args[2]);
+		appctx->ctx.stats.type = atoi(args[3]);
+		appctx->ctx.stats.sid = atoi(args[4]);
+		if (strcmp(args[5], "typed") == 0)
+			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+	}
+	else if (strcmp(args[2], "typed") == 0)
+		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+
+	appctx->st2 = STAT_ST_INIT;
+	return 0;
+}
+
+/* This I/O handler runs as an applet embedded in a stream interface. It is
+ * used to send raw stats over a socket.
+ */
+static int cli_io_handler_dump_stat(struct appctx *appctx)
+{
+	return stats_dump_stat_to_buffer(appctx->owner, NULL);
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
+	{{},}
+}};
+
 struct applet http_stats_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
 	.release = NULL,
 };
+
+__attribute__((constructor))
+static void __stat_init(void)
+{
+	cli_register_kw(&cli_kws);
+}
 
 /*
  * Local variables:
