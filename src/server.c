@@ -3507,9 +3507,68 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 	return 1;
 }
 
+static int cli_parse_get_weight(char **args, struct appctx *appctx, void *private)
+{
+	struct stream_interface *si = appctx->owner;
+	struct proxy *px;
+	struct server *sv;
+	char *line;
+
+
+	/* split "backend/server" and make <line> point to server */
+	for (line = args[2]; *line; line++)
+		if (*line == '/') {
+			*line++ = '\0';
+			break;
+		}
+
+	if (!*line) {
+		appctx->ctx.cli.msg = "Require 'backend/server'.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!get_backend_server(args[2], line, &px, &sv)) {
+		appctx->ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* return server's effective weight at the moment */
+	snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
+	if (bi_putstr(si_ic(si), trash.str) == -1)
+		si_applet_cant_put(si);
+
+	return 1;
+}
+
+static int cli_parse_set_weight(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+	const char *warning;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[2]);
+	if (!sv)
+		return 1;
+
+	warning = server_parse_weight_change_request(sv, args[3]);
+	if (warning) {
+		appctx->ctx.cli.msg = warning;
+		appctx->st0 = STAT_CLI_PRINT;
+	}
+	return 1;
+}
+
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "server", NULL }, "set server     : change a server's state, weight or address",  cli_parse_set_server },
+	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
+	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
+
 	{{},}
 }};
 

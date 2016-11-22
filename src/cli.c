@@ -153,8 +153,6 @@ static const char stats_sock_usage_msg[] =
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
-	"  get weight     : report a server's current weight\n"
-	"  set weight     : change a server's weight\n"
 	"  set table [id] : update or create a table entry's data\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
@@ -1190,58 +1188,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 0;
 		}
 	}
-	else if (strcmp(args[0], "get") == 0) {
-		if (strcmp(args[1], "weight") == 0) {
-			struct proxy *px;
-			struct server *sv;
-
-			/* split "backend/server" and make <line> point to server */
-			for (line = args[2]; *line; line++)
-				if (*line == '/') {
-					*line++ = '\0';
-					break;
-				}
-
-			if (!*line) {
-				appctx->ctx.cli.msg = "Require 'backend/server'.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!get_backend_server(args[2], line, &px, &sv)) {
-				appctx->ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			/* return server's effective weight at the moment */
-			snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
-			if (bi_putstr(si_ic(si), trash.str) == -1)
-				si_applet_cant_put(si);
-
-			return 1;
-		}
-		else { /* not "get weight" */
-			return 0;
-		}
-	}
 	else if (strcmp(args[0], "set") == 0) {
-		if (strcmp(args[1], "weight") == 0) {
-			struct server *sv;
-			const char *warning;
-
-			sv = expect_server_admin(s, si, args[2]);
-			if (!sv)
-				return 1;
-
-			warning = server_parse_weight_change_request(sv, args[3]);
-			if (warning) {
-				appctx->ctx.cli.msg = warning;
-				appctx->st0 = STAT_CLI_PRINT;
-			}
-			return 1;
-		}
-		else if (strcmp(args[1], "timeout") == 0) {
+		if (strcmp(args[1], "timeout") == 0) {
 			if (strcmp(args[2], "cli") == 0) {
 				unsigned timeout;
 				const char *res;
