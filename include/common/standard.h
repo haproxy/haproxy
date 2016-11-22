@@ -1129,6 +1129,11 @@ static inline unsigned long long rdtsc()
 struct list;
 int list_append_word(struct list *li, const char *str, char **err);
 
+int dump_text(struct chunk *out, const char *buf, int bsize);
+int dump_binary(struct chunk *out, const char *buf, int bsize);
+int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
+                   int *line, int ptr);
+
 /* same as realloc() except that ptr is also freed upon failure */
 static inline void *my_realloc2(void *ptr, size_t size)
 {

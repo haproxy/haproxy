@@ -3640,6 +3640,131 @@ fail_wl:
 	return 0;
 }
 
+/* print a string of text buffer to <out>. The format is :
+ * Non-printable chars \t, \n, \r and \e are * encoded in C format.
+ * Other non-printable chars are encoded "\xHH". Space, '\', and '=' are also escaped.
+ * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
+ */
+int dump_text(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (buf[ptr] && ptr < bsize) {
+		c = buf[ptr];
+		if (isprint(c) && isascii(c) && c != '\\' && c != ' ' && c != '=') {
+			if (out->len > out->size - 1)
+				break;
+			out->str[out->len++] = c;
+		}
+		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ' || c == '=') {
+			if (out->len > out->size - 2)
+				break;
+			out->str[out->len++] = '\\';
+			switch (c) {
+			case ' ': c = ' '; break;
+			case '\t': c = 't'; break;
+			case '\n': c = 'n'; break;
+			case '\r': c = 'r'; break;
+			case '\e': c = 'e'; break;
+			case '\\': c = '\\'; break;
+			case '=': c = '='; break;
+			}
+			out->str[out->len++] = c;
+		}
+		else {
+			if (out->len > out->size - 4)
+				break;
+			out->str[out->len++] = '\\';
+			out->str[out->len++] = 'x';
+			out->str[out->len++] = hextab[(c >> 4) & 0xF];
+			out->str[out->len++] = hextab[c & 0xF];
+		}
+		ptr++;
+	}
+
+	return ptr;
+}
+
+/* print a buffer in hexa.
+ * Print stopped if <bsize> is reached, or if no more place in the chunk.
+ */
+int dump_binary(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (ptr < bsize) {
+		c = buf[ptr];
+
+		if (out->len > out->size - 2)
+			break;
+		out->str[out->len++] = hextab[(c >> 4) & 0xF];
+		out->str[out->len++] = hextab[c & 0xF];
+
+		ptr++;
+	}
+	return ptr;
+}
+
+/* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
+ * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
+ * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are
+ * encoded in C format. Other non-printable chars are encoded "\xHH". Original
+ * lines are respected within the limit of 70 output chars. Lines that are
+ * continuation of a previous truncated line begin with "+" instead of " "
+ * after the offset. The new pointer is returned.
+ */
+int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
+                   int *line, int ptr)
+{
+	int end;
+	unsigned char c;
+
+	end = out->len + 80;
+	if (end > out->size)
+		return ptr;
+
+	chunk_appendf(out, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
+
+	while (ptr < len && ptr < bsize) {
+		c = buf[ptr];
+		if (isprint(c) && isascii(c) && c != '\\') {
+			if (out->len > end - 2)
+				break;
+			out->str[out->len++] = c;
+		} else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\') {
+			if (out->len > end - 3)
+				break;
+			out->str[out->len++] = '\\';
+			switch (c) {
+			case '\t': c = 't'; break;
+			case '\n': c = 'n'; break;
+			case '\r': c = 'r'; break;
+			case '\e': c = 'e'; break;
+			case '\\': c = '\\'; break;
+			}
+			out->str[out->len++] = c;
+		} else {
+			if (out->len > end - 5)
+				break;
+			out->str[out->len++] = '\\';
+			out->str[out->len++] = 'x';
+			out->str[out->len++] = hextab[(c >> 4) & 0xF];
+			out->str[out->len++] = hextab[c & 0xF];
+		}
+		if (buf[ptr++] == '\n') {
+			/* we had a line break, let's return now */
+			out->str[out->len++] = '\n';
+			*line = ptr;
+			return ptr;
+		}
+	}
+	/* we have an incomplete line, we return it as-is */
+	out->str[out->len++] = '\n';
+	return ptr;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
