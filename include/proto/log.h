@@ -65,17 +65,6 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 void strm_log(struct stream *s);
 
 /*
- * Parse args in a logformat_var
- */
-int parse_logformat_var_args(char *args, struct logformat_node *node);
-
-/*
- * Parse a variable '%varname' or '%{args}varname' in log-format
- *
- */
-int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions);
-
-/*
  * add to the logformat linked list
  */
 void add_to_logformat_list(char *start, char *end, int type, struct list *list_format);
