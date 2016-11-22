@@ -47,7 +47,6 @@ enum {
 	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
 	STAT_CLI_PRINT,      /* display message in cli->msg */
 	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
-	STAT_CLI_O_ERR,      /* dump errors */
 	STAT_CLI_O_ENV,      /* dump environment */
 	STAT_CLI_O_CUSTOM,   /* custom callback pointer */
 };
