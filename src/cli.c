@@ -66,8 +66,6 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-static int stats_dump_env_to_buffer(struct stream_interface *si);
-
 static struct applet cli_applet;
 
 static const char stats_sock_usage_msg[] =
@@ -76,7 +74,6 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
-	"  show env [var] : dump environment variables known to the process\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
@@ -544,38 +541,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->io_handler = kw->io_handler;
 				appctx->io_release = kw->io_release;
 			}
-		}
-	} else if (strcmp(args[0], "show") == 0) {
-		if (strcmp(args[1], "env") == 0) {
-			extern char **environ;
-
-			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER) {
-				appctx->ctx.cli.msg = stats_permission_denied_msg;
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-			appctx->ctx.env.var = environ;
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_ENV; // stats_dump_env_to_buffer
-
-			if (*args[2]) {
-				int len = strlen(args[2]);
-
-				for (; *appctx->ctx.env.var; appctx->ctx.env.var++) {
-					if (strncmp(*appctx->ctx.env.var, args[2], len) == 0 &&
-					    (*appctx->ctx.env.var)[len] == '=')
-						break;
-				}
-				if (!*appctx->ctx.env.var) {
-					appctx->ctx.cli.msg = "Variable not found\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-				appctx->st2 = STAT_ST_END;
-			}
-		}
-		else { /* neither "stat" nor "info" nor "sess" nor "errors" nor "table" */
-			return 0;
 		}
 	}
 	else if (strcmp(args[0], "clear") == 0) {
@@ -1274,10 +1239,6 @@ static void cli_io_handler(struct appctx *appctx)
 				else
 					si_applet_cant_put(si);
 				break;
-			case STAT_CLI_O_ENV:	/* environment dump */
-				if (stats_dump_env_to_buffer(si))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
 			case STAT_CLI_O_CUSTOM: /* use custom pointer */
 				if (appctx->io_handler)
 					if (appctx->io_handler(appctx)) {
@@ -1368,9 +1329,9 @@ static void cli_release_handler(struct appctx *appctx)
  * if the output buffer is full and it needs to be called again, otherwise
  * non-zero. Dumps only one entry if st2 == STAT_ST_END.
  */
-static int stats_dump_env_to_buffer(struct stream_interface *si)
+static int cli_io_handler_show_env(struct appctx *appctx)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
+	struct stream_interface *si = appctx->owner;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -1394,6 +1355,37 @@ static int stats_dump_env_to_buffer(struct stream_interface *si)
 
 	/* dump complete */
 	return 1;
+}
+
+/* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
+ * wants to stop here.
+ */
+static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
+{
+	extern char **environ;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	appctx->ctx.env.var = environ;
+	appctx->st2 = STAT_ST_INIT;
+
+	if (*args[2]) {
+		int len = strlen(args[2]);
+
+		for (; *appctx->ctx.env.var; appctx->ctx.env.var++) {
+			if (strncmp(*appctx->ctx.env.var, args[2], len) == 0 &&
+			    (*appctx->ctx.env.var)[len] == '=')
+				break;
+		}
+		if (!*appctx->ctx.env.var) {
+			appctx->ctx.cli.msg = "Variable not found\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		appctx->st2 = STAT_ST_END;
+	}
+	return 0;
 }
 
 /* parse the "level" argument on the bind lines */
@@ -1426,6 +1418,12 @@ static struct applet cli_applet = {
 	.release = cli_release_handler,
 };
 
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
+	{{},}
+}};
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "stats", stats_parse_global },
 	{ 0, NULL, NULL },
@@ -1440,6 +1438,7 @@ __attribute__((constructor))
 static void __dumpstats_module_init(void)
 {
 	cfg_register_keywords(&cfg_kws);
+	cli_register_kw(&cli_kws);
 	bind_register_keywords(&bind_kws);
 }
 
