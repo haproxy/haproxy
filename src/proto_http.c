@@ -9139,8 +9139,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9171,8 +9175,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		}
 
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 
@@ -9285,8 +9293,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9313,8 +9325,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9341,8 +9357,12 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9372,14 +9392,22 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		proxy->conf.args.ctx = ARGC_HRQ;
 
 		/* key pattern */
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s' key: %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 
 		/* value pattern */
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-request %s' pattern: %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9551,8 +9579,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		proxy->conf.args.ctx = ARGC_HRS;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9583,8 +9615,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		}
 
 		proxy->conf.args.ctx = ARGC_HRQ;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 
@@ -9631,8 +9667,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRS;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9660,8 +9700,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRS;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9688,8 +9732,12 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		LIST_INIT(&rule->arg.map.key);
 		proxy->conf.args.ctx = ARGC_HRS;
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s' %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 		free(proxy->conf.lfs_file);
@@ -9720,14 +9768,22 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		proxy->conf.args.ctx = ARGC_HRS;
 
 		/* key pattern */
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s' name: %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 
 		/* value pattern */
+		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
-		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR)) {
+		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
+			Alert("parsing [%s:%d]: 'http-response %s' value: %s.\n",
+			      file, linenum, args[0], error);
+			free(error);
 			goto out_err;
 		}
 
@@ -9975,7 +10031,8 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			if (!parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
 			                            dir ? (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRS_HDR : SMP_VAL_BE_HRS_HDR
-			                                : (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+			                                : (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			                            errmsg)) {
 				return  NULL;
 			}
 			free(curproxy->conf.lfs_file);
@@ -12471,7 +12528,7 @@ enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct p
 	LIST_INIT(&rule->arg.http.logfmt);
 	proxy->conf.args.ctx = ARGC_HRQ;
 	if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.http.logfmt, LOG_OPT_HTTP,
-	                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+	                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
 		return ACT_RET_PRS_ERR;
 	}
 

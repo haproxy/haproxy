@@ -7502,6 +7502,7 @@ int check_config_validity()
 	int err_code = 0;
 	unsigned int next_pxid = 1;
 	struct bind_conf *bind_conf;
+	char *err;
 
 	bind_conf = NULL;
 	/*
@@ -7801,7 +7802,11 @@ int check_config_validity()
 			curproxy->conf.args.ctx = ARGC_UBK;
 			curproxy->conf.args.file = rule->file;
 			curproxy->conf.args.line = rule->line;
-			if (!parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR)) {
+			err = NULL;
+			if (!parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR, &err)) {
+				Alert("Parsing [%s:%d]: failed to parse use_backend rule '%s' : %s.\n",
+				      rule->file, rule->line, pxname, err);
+				free(err);
 				cfgerr++;
 				continue;
 			}
@@ -8288,8 +8293,12 @@ out_uri_auth_compat:
 			curproxy->conf.args.ctx = ARGC_LOG;
 			curproxy->conf.args.file = curproxy->conf.lfs_file;
 			curproxy->conf.args.line = curproxy->conf.lfs_line;
+			err = NULL;
 			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
-			                            SMP_VAL_FE_LOG_END)) {
+			                            SMP_VAL_FE_LOG_END, &err)) {
+				Alert("Parsing [%s:%d]: failed to parse log-format : %s.\n",
+				      curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+				free(err);
 				cfgerr++;
 			}
 			curproxy->conf.args.file = NULL;
@@ -8300,10 +8309,17 @@ out_uri_auth_compat:
 			curproxy->conf.args.ctx = ARGC_LOGSD;
 			curproxy->conf.args.file = curproxy->conf.lfsd_file;
 			curproxy->conf.args.line = curproxy->conf.lfsd_line;
+			err = NULL;
 			if (!parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd, LOG_OPT_MANDATORY,
-			                            SMP_VAL_FE_LOG_END)) {
+			                            SMP_VAL_FE_LOG_END, &err)) {
+				Alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
+				      curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+				free(err);
 				cfgerr++;
-			} else if (!add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd)) {
+			} else if (!add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &curproxy->logformat_sd, &err)) {
+				Alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
+				      curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
+				free(err);
 				cfgerr++;
 			}
 			curproxy->conf.args.file = NULL;
@@ -8314,8 +8330,12 @@ out_uri_auth_compat:
 			curproxy->conf.args.ctx = ARGC_UIF;
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
+			err = NULL;
 			if (!parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, LOG_OPT_HTTP,
-			                            (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)) {
+			                            (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &err)) {
+				Alert("Parsing [%s:%d]: failed to parse unique-id : %s.\n",
+				      curproxy->conf.uif_file, curproxy->conf.uif_line, err);
+				free(err);
 				cfgerr++;
 			}
 			curproxy->conf.args.file = NULL;

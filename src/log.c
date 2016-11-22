@@ -291,15 +291,17 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
  * Parse args in a logformat_var. Returns 0 in error
  * case, otherwise, it returns 1.
  */
-int parse_logformat_var_args(char *args, struct logformat_node *node)
+int parse_logformat_var_args(char *args, struct logformat_node *node, char **err)
 {
 	int i = 0;
 	int end = 0;
 	int flags = 0;  // 1 = +  2 = -
 	char *sp = NULL; // start pointer
 
-	if (args == NULL)
+	if (args == NULL) {
+		memprintf(err, "internal error: parse_logformat_var_args() expects non null 'args'");
 		return 0;
+	}
 
 	while (1) {
 		if (*args == '\0')
@@ -345,7 +347,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
  * ignored when arg_len is 0. Neither <var> nor <var_len> may be null.
  * Returns false in error case and err is filled, otherwise returns true.
  */
-int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions)
+int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
 {
 	int j;
 	struct logformat_node *node;
@@ -356,14 +358,14 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
 				node = calloc(1, sizeof(*node));
 				if (!node) {
-					Alert("Out of memory error.\n");
+					memprintf(err, "out of memory error");
 					return 0;
 				}
 				node->type = logformat_keywords[j].type;
 				node->options = *defoptions;
 				if (arg_len) {
 					node->arg = my_strndup(arg, arg_len);
-					if (!parse_logformat_var_args(node->arg, node))
+					if (!parse_logformat_var_args(node->arg, node, err))
 						return 0;
 				}
 				if (node->type == LOG_FMT_GLOBAL) {
@@ -384,9 +386,8 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 1;
 			} else {
-				Alert("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode.\n",
-				      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
-				      logformat_keywords[j].name);
+				memprintf(err, "format variable '%s' is reserved for HTTP mode",
+				          logformat_keywords[j].name);
 				return 0;
 			}
 		}
@@ -394,8 +395,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 
 	j = var[var_len];
 	var[var_len] = 0;
-	Alert("parsing [%s:%d] : no such format variable '%s' in '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%' in log-format expressions.\n",
-	      curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
+	memprintf(err, "no such format variable '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", var);
 	var[var_len] = j;
 	return 0;
 }
@@ -411,14 +411,14 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
  *  LOG_TEXT: copy chars from start to end excluding end.
  *
 */
-int add_to_logformat_list(char *start, char *end, int type, struct list *list_format)
+int add_to_logformat_list(char *start, char *end, int type, struct list *list_format, char **err)
 {
 	char *str;
 
 	if (type == LF_TEXT) { /* type text */
 		struct logformat_node *node = calloc(1, sizeof(*node));
 		if (!node) {
-			Alert("Out of memory error.\n");
+			memprintf(err, "out of memory error");
 			return 0;
 		}
 		str = calloc(1, end - start + 1);
@@ -430,7 +430,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 	} else if (type == LF_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(*node));
 		if (!node) {
-			Alert("Out of memory error.\n");
+			memprintf(err, "out of memory error");
 			return 0;
 		}
 		node->type = LOG_FMT_SEPARATOR;
@@ -446,29 +446,26 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
  *
  * In error case, the function returns 0, otherwise it returns 1.
  */
-int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, const char *file, int line)
+int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err)
 {
 	char *cmd[2];
 	struct sample_expr *expr;
 	struct logformat_node *node;
 	int cmd_arg;
-	char *errmsg = NULL;
 
 	cmd[0] = text;
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, file, line, &errmsg, &curpx->conf.args);
+	expr = sample_parse_expr(cmd, &cmd_arg, curpx->conf.args.file, curpx->conf.args.line, err, &curpx->conf.args);
 	if (!expr) {
-		Alert("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
-		      curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
-		      text, errmsg);
+		memprintf(err, "failed to parse sample expression <%s> : %s", text, *err);
 		return 0;
 	}
 
 	node = calloc(1, sizeof(*node));
 	if (!node) {
-		Alert("Out of memory error.\n");
+		memprintf(err, "out of memory error");
 		return 0;
 	}
 	node->type = LOG_FMT_EXPR;
@@ -477,7 +474,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
-		if (!parse_logformat_var_args(node->arg, node))
+		if (!parse_logformat_var_args(node->arg, node, err))
 			return 0;
 	}
 	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
@@ -487,9 +484,8 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
 
 	if (!(expr->fetch->val & cap)) {
-		Alert("parsing [%s:%d] : '%s' : sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here.\n",
-		      curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
-		      text, sample_src_names(expr->fetch->use));
+		memprintf(err, "sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here",
+		          text, sample_src_names(expr->fetch->use));
 		return 0;
 	}
 
@@ -519,9 +515,9 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
  *
- * The function returns 1 in success case, otherwise, it returns 0.
+ * The function returns 1 in success case, otherwise, it returns 0 and err is filled.
  */
-int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
+int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -534,7 +530,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 	sp = str = backfmt = strdup(fmt);
 	if (!str) {
-		Alert("Out of memory error.\n");
+		memprintf(err, "out of memory error");
 		return 0;
 	}
 	curproxy->to_log |= LW_INIT;
@@ -579,8 +575,8 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
 				sp = str - 1; /* send both the '%' and the current char */
-				Alert("parsing [%s:%d] : Unexpected variable name near '%c' at position %d in %s line : '%s'. Maybe you want to write a simgle '%%', use the syntax '%%%%'.\n",
-				      curproxy->conf.args.file, curproxy->conf.args.line, *str, (int)(str - backfmt), fmt_directive(curproxy), fmt);
+				memprintf(err, "unexpected variable name near '%c' at position %d line : '%s'. Maybe you want to write a simgle '%%', use the syntax '%%%%'",
+				          *str, (int)(str - backfmt), fmt);
 				return 0;
 
 			}
@@ -607,8 +603,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				var = str;
 				break;
 			}
-			Alert("parsing [%s:%d] : Parse argument modifier without variable name, in '%s' near '%%{%s}'\n",
-			      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy), arg);
+			memprintf(err, "parse argument modifier without variable name near '%%{%s}'", arg);
 			return 0;
 
 		case LF_STEXPR:                        // text immediately following '%['
@@ -641,17 +636,16 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		if (cformat != pformat || pformat == LF_SEPARATOR) {
 			switch (pformat) {
 			case LF_VAR:
-				if (!parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options))
+				if (!parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options, err))
 					return 0;
 				break;
 			case LF_STEXPR:
-				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap,
-				                             curproxy->conf.args.file, curproxy->conf.args.line))
+				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err))
 					return 0;
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
-				if (!add_to_logformat_list(sp, str, pformat, list_format))
+				if (!add_to_logformat_list(sp, str, pformat, list_format, err))
 					return 0;
 				break;
 			}
@@ -660,9 +654,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	}
 
 	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR) {
-		Alert("parsing [%s:%d] : Truncated '%s' line after '%s'\n",
-		      curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
-		      var ? var : arg ? arg : "%");
+		memprintf(err, "truncated line after '%s'", var ? var : arg ? arg : "%");
 		return 0;
 	}
 	free(backfmt);
