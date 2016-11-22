@@ -351,6 +351,10 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 		    strncmp(var, logformat_keywords[j].name, var_len) == 0) {
 			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
 				node = calloc(1, sizeof(*node));
+				if (!node) {
+					Alert("Out of memory error.\n");
+					return 0;
+				}
 				node->type = logformat_keywords[j].type;
 				node->options = *defoptions;
 				if (arg_len) {
@@ -408,6 +412,10 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 
 	if (type == LF_TEXT) { /* type text */
 		struct logformat_node *node = calloc(1, sizeof(*node));
+		if (!node) {
+			Alert("Out of memory error.\n");
+			return 0;
+		}
 		str = calloc(1, end - start + 1);
 		strncpy(str, start, end - start);
 		str[end - start] = '\0';
@@ -416,6 +424,10 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 		LIST_ADDQ(list_format, &node->list);
 	} else if (type == LF_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(*node));
+		if (!node) {
+			Alert("Out of memory error.\n");
+			return 0;
+		}
 		node->type = LOG_FMT_SEPARATOR;
 		LIST_ADDQ(list_format, &node->list);
 	}
@@ -447,6 +459,10 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	}
 
 	node = calloc(1, sizeof(*node));
+	if (!node) {
+		Alert("Out of memory error.\n");
+		return 0;
+	}
 	node->type = LOG_FMT_EXPR;
 	node->expr = expr;
 	node->options = options;
@@ -503,6 +519,10 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 	struct logformat_node *tmplf, *back;
 
 	sp = str = backfmt = strdup(fmt);
+	if (!str) {
+		Alert("Out of memory error.\n");
+		return 0;
+	}
 	curproxy->to_log |= LW_INIT;
 
 	/* flush the list first. */
