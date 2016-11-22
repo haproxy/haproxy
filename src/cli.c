@@ -133,7 +133,6 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 /* one line of stats */
 static struct field info[INF_TOTAL_FIELDS];
 
-static int stats_dump_backend_to_buffer(struct stream_interface *si);
 static int stats_dump_env_to_buffer(struct stream_interface *si);
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
@@ -149,7 +148,6 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
-	"  show backend   : list backends in the current running config\n"
 	"  show env [var] : dump environment variables known to the process\n"
 	"  show info      : report information about the running process\n"
 	"  show stat      : report counters for each proxy and server\n"
@@ -1053,12 +1051,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 		}
 	} else if (strcmp(args[0], "show") == 0) {
-		if (strcmp(args[1], "backend") == 0) {
-			appctx->ctx.be.px = NULL;
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_BACKEND;
-		}
-		else if (strcmp(args[1], "env") == 0) {
+		if (strcmp(args[1], "env") == 0) {
 			extern char **environ;
 
 			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER) {
@@ -1882,10 +1875,6 @@ static void cli_io_handler(struct appctx *appctx)
 				else
 					si_applet_cant_put(si);
 				break;
-			case STAT_CLI_O_BACKEND:
-				if (stats_dump_backend_to_buffer(si))
-					appctx->st0 = STAT_CLI_PROMPT;
-				break;
 			case STAT_CLI_O_INFO:
 				if (stats_dump_info_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
@@ -2137,44 +2126,6 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
-/* Parses backend list and simply report backend names */
-static int stats_dump_backend_to_buffer(struct stream_interface *si)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	extern struct proxy *proxy;
-	struct proxy *curproxy;
-
-	chunk_reset(&trash);
-
-	if (!appctx->ctx.be.px) {
-		chunk_printf(&trash, "# name\n");
-		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
-			return 0;
-		}
-		appctx->ctx.be.px = proxy;
-	}
-
-	for (; appctx->ctx.be.px != NULL; appctx->ctx.be.px = curproxy->next) {
-		curproxy = appctx->ctx.be.px;
-
-		/* looking for backends only */
-		if (!(curproxy->cap & PR_CAP_BE))
-			continue;
-
-		/* we don't want to list a backend which is bound to this process */
-		if (curproxy->bind_proc && !(curproxy->bind_proc & (1UL << (relative_pid - 1))))
-			continue;
-
-		chunk_appendf(&trash, "%s\n", curproxy->id);
-		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
-			return 0;
-		}
-	}
-
-	return 1;
-}
 
 /* This is called when the stream interface is closed. For instance, upon an
  * external abort, we won't call the i/o handler anymore so we may need to

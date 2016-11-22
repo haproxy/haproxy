@@ -1374,10 +1374,55 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	return 1;
 }
 
+static int cli_parse_show_backend(char **args, struct appctx *appctx, void *private)
+{
+	appctx->ctx.be.px = NULL;
+	return 0;
+}
+
+/* Parses backend list and simply report backend names */
+static int cli_io_handler_show_backend(struct appctx *appctx)
+{
+	extern struct proxy *proxy;
+	struct stream_interface *si = appctx->owner;
+	struct proxy *curproxy;
+
+	chunk_reset(&trash);
+
+	if (!appctx->ctx.be.px) {
+		chunk_printf(&trash, "# name\n");
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+		appctx->ctx.be.px = proxy;
+	}
+
+	for (; appctx->ctx.be.px != NULL; appctx->ctx.be.px = curproxy->next) {
+		curproxy = appctx->ctx.be.px;
+
+		/* looking for backends only */
+		if (!(curproxy->cap & PR_CAP_BE))
+			continue;
+
+		/* we don't want to list a backend which is bound to this process */
+		if (curproxy->bind_proc && !(curproxy->bind_proc & (1UL << (relative_pid - 1))))
+			continue;
+
+		chunk_appendf(&trash, "%s\n", curproxy->id);
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+	}
+
+	return 1;
+}
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
+	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", cli_parse_show_backend, cli_io_handler_show_backend },
 	{{},}
 }};
 
