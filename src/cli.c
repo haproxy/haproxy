@@ -472,6 +472,24 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
+/* Verifies that the CLI at least has a level at least as high as <level>
+ * (typically ACCESS_LVL_ADMIN). Returns 1 if OK, otherwise 0. In case of
+ * failure, an error message is prepared and the appctx's state is adjusted
+ * to print it so that a return 1 is enough to abort any processing.
+ */
+int cli_has_level(struct appctx *appctx, int level)
+{
+	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
+
+	if (strm_li(s)->bind_conf->level < level) {
+		appctx->ctx.cli.msg = stats_permission_denied_msg;
+		appctx->st0 = STAT_CLI_PRINT;
+		return 0;
+	}
+	return 1;
+}
+
 
 /* print a string of text buffer to <out>. The format is :
  * Non-printable chars \t, \n, \r and \e are * encoded in C format.
