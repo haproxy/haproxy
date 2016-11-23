@@ -580,22 +580,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 				return 1;
 			}
-			else if (strcmp(args[2], "server") == 0) {
-				struct server *sv;
-				const char *warning;
-
-				sv = expect_server_admin(s, si, args[3]);
-				if (!sv)
-					return 1;
-
-				warning = server_parse_maxconn_change_request(sv, args[4]);
-				if (warning) {
-					appctx->ctx.cli.msg = warning;
-					appctx->st0 = STAT_CLI_PRINT;
-				}
-
-				return 1;
-			}
 			else {
 				appctx->ctx.cli.msg = "'set maxconn' only supports 'frontend', 'server', and 'global'.\n";
 				appctx->st0 = STAT_CLI_PRINT;

@@ -3562,9 +3562,30 @@ static int cli_parse_set_weight(char **args, struct appctx *appctx, void *privat
 	return 1;
 }
 
+/* parse a "set maxconn server" command. It always returns 1. */
+static int cli_parse_set_maxconn_server(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+	const char *warning;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[3]);
+	if (!sv)
+		return 1;
+
+	warning = server_parse_maxconn_change_request(sv, args[4]);
+	if (warning) {
+		appctx->ctx.cli.msg = warning;
+		appctx->st0 = STAT_CLI_PRINT;
+	}
+	return 1;
+}
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "set", "maxconn", "server",  NULL }, "set maxconn server : change a server's maxconn setting", cli_parse_set_maxconn_server, NULL },
 	{ { "set", "server", NULL }, "set server     : change a server's state, weight or address",  cli_parse_set_server },
 	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
 	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
