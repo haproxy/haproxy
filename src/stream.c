@@ -3914,9 +3914,30 @@ static void cli_release_show_sess(struct appctx *appctx)
 	}
 }
 
+/* Parses the "shutdown session server" directive, it always returns 1 */
+static int cli_parse_shutdown_sessions_server(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+	struct stream *strm, *strm_bck;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[3]);
+	if (!sv)
+		return 1;
+
+	/* kill all the stream that are on this server */
+	list_for_each_entry_safe(strm, strm_bck, &sv->actconns, by_srv)
+		if (strm->srv_conn == sv)
+			stream_shutdown(strm, SF_ERR_KILLED);
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "sess",  NULL }, "show sess [id] : report the list of current sessions or dump this session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
+	{ { "shutdown", "sessions",  "server" }, "shutdown sessions server : kill sessions on a server", cli_parse_shutdown_sessions_server, NULL, NULL },
 	{{},}
 }};
 
