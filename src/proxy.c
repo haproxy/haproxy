@@ -1419,8 +1419,52 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	return 1;
 }
 
+/* Parses the "set maxconn frontend" directive, it always returns 1 */
+static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct listener *l;
+	int v;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_frontend(appctx, args[3]);
+	if (!px)
+		return 1;
+
+	if (!*args[4]) {
+		appctx->ctx.cli.msg = "Integer value expected.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	v = atoi(args[4]);
+	if (v < 0) {
+		appctx->ctx.cli.msg = "Value out of range.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* OK, the value is fine, so we assign it to the proxy and to all of
+	 * its listeners. The blocked ones will be dequeued.
+	 */
+	px->maxconn = v;
+	list_for_each_entry(l, &px->conf.listeners, by_fe) {
+		l->maxconn = v;
+		if (l->state == LI_FULL)
+			resume_listener(l);
+	}
+
+	if (px->maxconn > px->feconn && !LIST_ISEMPTY(&px->listener_queue))
+		dequeue_all_listeners(&px->listener_queue);
+
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", cli_parse_show_backend, cli_io_handler_show_backend },
 	{{},}

@@ -73,7 +73,6 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
-	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
 	"  disable        : put a server or frontend in maintenance mode\n"
 	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
@@ -542,51 +541,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 	}
 	else if (strcmp(args[0], "set") == 0) {
-		if (strcmp(args[1], "maxconn") == 0) {
-			if (strcmp(args[2], "frontend") == 0) {
-				struct proxy *px;
-				struct listener *l;
-				int v;
-
-				px = expect_frontend_admin(s, si, args[3]);
-				if (!px)
-					return 1;
-
-				if (!*args[4]) {
-					appctx->ctx.cli.msg = "Integer value expected.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				v = atoi(args[4]);
-				if (v < 0) {
-					appctx->ctx.cli.msg = "Value out of range.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				/* OK, the value is fine, so we assign it to the proxy and to all of
-				 * its listeners. The blocked ones will be dequeued.
-				 */
-				px->maxconn = v;
-				list_for_each_entry(l, &px->conf.listeners, by_fe) {
-					l->maxconn = v;
-					if (l->state == LI_FULL)
-						resume_listener(l);
-				}
-
-				if (px->maxconn > px->feconn && !LIST_ISEMPTY(&px->listener_queue))
-					dequeue_all_listeners(&px->listener_queue);
-
-				return 1;
-			}
-			else {
-				appctx->ctx.cli.msg = "'set maxconn' only supports 'frontend', 'server', and 'global'.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-		}
-		else if (strcmp(args[1], "rate-limit") == 0) {
+		if (strcmp(args[1], "rate-limit") == 0) {
 			if (strcmp(args[2], "connections") == 0) {
 				if (strcmp(args[3], "global") == 0) {
 					int v;
