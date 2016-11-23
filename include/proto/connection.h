@@ -598,6 +598,57 @@ static inline const char *conn_err_code_str(struct connection *c)
 	return NULL;
 }
 
+static inline const char *conn_get_ctrl_name(const struct connection *conn)
+{
+	if (!conn_ctrl_ready(conn))
+		return "NONE";
+	return conn->ctrl->name;
+}
+
+static inline const char *conn_get_xprt_name(const struct connection *conn)
+{
+	static char ptr[19]; /* 0x... */
+	extern struct xprt_ops raw_sock; // should theorically not be exported
+	extern struct xprt_ops ssl_sock; // should theorically not be exported
+
+	if (!conn_xprt_ready(conn))
+		return "NONE";
+
+	if (conn->xprt == &raw_sock)
+		return "RAW";
+
+#ifdef USE_OPENSSL
+	if (conn->xprt == &ssl_sock)
+		return "SSL";
+#endif
+	snprintf(ptr, sizeof(ptr), "%p", conn->xprt);
+	return ptr;
+}
+
+static inline const char *conn_get_data_name(const struct connection *conn)
+{
+	static char ptr[19]; /* 0x... */
+	extern struct data_cb sess_conn_cb;  // should theorically not be exported
+	extern struct data_cb si_conn_cb;    // should theorically not be exported
+	extern struct data_cb check_conn_cb; // should theorically not be exported
+
+	if (!conn->data)
+		return "NONE";
+
+	if (conn->data == &sess_conn_cb)
+		return "SESS";
+
+	if (conn->data == &si_conn_cb)
+		return "STRM";
+
+	if (conn->data == &check_conn_cb)
+		return "CHCK";
+
+	snprintf(ptr, sizeof(ptr), "%p", conn->data);
+	return ptr;
+}
+
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*
