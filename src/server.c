@@ -21,6 +21,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/cli.h>
 #include <types/dns.h>
 
 #include <proto/checks.h>
@@ -3337,6 +3338,46 @@ int srv_init_addr(void)
 	}
 
 	return return_code;
+}
+
+/* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
+ * and returns the pointer to the server. Otherwise, display adequate error messages
+ * on the CLI, sets the CLI's state to STAT_CLI_PRINT and returns NULL. This is only
+ * used for CLI commands requiring a server name.
+ * Important: the <arg> is modified to remove the '/'.
+ */
+struct server *cli_find_server(struct appctx *appctx, char *arg)
+{
+	struct proxy *px;
+	struct server *sv;
+	char *line;
+
+	/* split "backend/server" and make <line> point to server */
+	for (line = arg; *line; line++)
+		if (*line == '/') {
+			*line++ = '\0';
+			break;
+		}
+
+	if (!*line || !*arg) {
+		appctx->ctx.cli.msg = "Require 'backend/server'.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	if (!get_backend_server(arg, line, &px, &sv)) {
+		appctx->ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.msg = "Proxy is disabled.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	return sv;
 }
 
 
