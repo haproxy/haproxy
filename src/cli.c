@@ -596,40 +596,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 				return 1;
 			}
-			else if (strcmp(args[2], "global") == 0) {
-				int v;
-
-				if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-					appctx->ctx.cli.msg = stats_permission_denied_msg;
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				if (!*args[3]) {
-					appctx->ctx.cli.msg = "Expects an integer value.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				v = atoi(args[3]);
-				if (v > global.hardmaxconn) {
-					appctx->ctx.cli.msg = "Value out of range.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				/* check for unlimited values */
-				if (v <= 0)
-					v = global.hardmaxconn;
-
-				global.maxconn = v;
-
-				/* Dequeues all of the listeners waiting for a resource */
-				if (!LIST_ISEMPTY(&global_listener_queue))
-					dequeue_all_listeners(&global_listener_queue);
-
-				return 1;
-			}
 			else {
 				appctx->ctx.cli.msg = "'set maxconn' only supports 'frontend', 'server', and 'global'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
@@ -1328,6 +1294,40 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 	}
 }
 
+/* parse a "set maxconn global" command. It always returns 1. */
+static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void *private)
+{
+	int v;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3]) {
+		appctx->ctx.cli.msg = "Expects an integer value.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	v = atoi(args[3]);
+	if (v > global.hardmaxconn) {
+		appctx->ctx.cli.msg = "Value out of range.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	/* check for unlimited values */
+	if (v <= 0)
+		v = global.hardmaxconn;
+
+	global.maxconn = v;
+
+	/* Dequeues all of the listeners waiting for a resource */
+	if (!LIST_ISEMPTY(&global_listener_queue))
+		dequeue_all_listeners(&global_listener_queue);
+
+	return 1;
+}
+
 /* parse the "level" argument on the bind lines */
 static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1360,6 +1360,7 @@ static struct applet cli_applet = {
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{{},}
