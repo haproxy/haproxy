@@ -70,7 +70,6 @@ static struct applet cli_applet;
 
 static const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
-	"  clear counters : clear max statistics counters (add 'all' for all counters)\n"
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
@@ -540,70 +539,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->io_handler = kw->io_handler;
 				appctx->io_release = kw->io_release;
 			}
-		}
-	}
-	else if (strcmp(args[0], "clear") == 0) {
-		if (strcmp(args[1], "counters") == 0) {
-			struct proxy *px;
-			struct server *sv;
-			struct listener *li;
-			int clrall = 0;
-
-			if (strcmp(args[2], "all") == 0)
-				clrall = 1;
-
-			/* check permissions */
-			if (strm_li(s)->bind_conf->level < ACCESS_LVL_OPER ||
-			    (clrall && strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN)) {
-				appctx->ctx.cli.msg = stats_permission_denied_msg;
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			for (px = proxy; px; px = px->next) {
-				if (clrall) {
-					memset(&px->be_counters, 0, sizeof(px->be_counters));
-					memset(&px->fe_counters, 0, sizeof(px->fe_counters));
-				}
-				else {
-					px->be_counters.conn_max = 0;
-					px->be_counters.p.http.rps_max = 0;
-					px->be_counters.sps_max = 0;
-					px->be_counters.cps_max = 0;
-					px->be_counters.nbpend_max = 0;
-
-					px->fe_counters.conn_max = 0;
-					px->fe_counters.p.http.rps_max = 0;
-					px->fe_counters.sps_max = 0;
-					px->fe_counters.cps_max = 0;
-					px->fe_counters.nbpend_max = 0;
-				}
-
-				for (sv = px->srv; sv; sv = sv->next)
-					if (clrall)
-						memset(&sv->counters, 0, sizeof(sv->counters));
-					else {
-						sv->counters.cur_sess_max = 0;
-						sv->counters.nbpend_max = 0;
-						sv->counters.sps_max = 0;
-					}
-
-				list_for_each_entry(li, &px->conf.listeners, by_fe)
-					if (li->counters) {
-						if (clrall)
-							memset(li->counters, 0, sizeof(*li->counters));
-						else
-							li->counters->conn_max = 0;
-					}
-			}
-
-			global.cps_max = 0;
-			global.sps_max = 0;
-			return 1;
-		}
-		else {
-			/* unknown "clear" argument */
-			return 0;
 		}
 	}
 	else if (strcmp(args[0], "set") == 0) {

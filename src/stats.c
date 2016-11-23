@@ -3034,6 +3034,64 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
+static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct server *sv;
+	struct listener *li;
+	int clrall = 0;
+
+	if (strcmp(args[2], "all") == 0)
+		clrall = 1;
+
+	/* check permissions */
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER) ||
+	    (clrall && !cli_has_level(appctx, ACCESS_LVL_ADMIN)))
+		return 1;
+
+	for (px = proxy; px; px = px->next) {
+		if (clrall) {
+			memset(&px->be_counters, 0, sizeof(px->be_counters));
+			memset(&px->fe_counters, 0, sizeof(px->fe_counters));
+		}
+		else {
+			px->be_counters.conn_max = 0;
+			px->be_counters.p.http.rps_max = 0;
+			px->be_counters.sps_max = 0;
+			px->be_counters.cps_max = 0;
+			px->be_counters.nbpend_max = 0;
+
+			px->fe_counters.conn_max = 0;
+			px->fe_counters.p.http.rps_max = 0;
+			px->fe_counters.sps_max = 0;
+			px->fe_counters.cps_max = 0;
+			px->fe_counters.nbpend_max = 0;
+		}
+
+		for (sv = px->srv; sv; sv = sv->next)
+			if (clrall)
+				memset(&sv->counters, 0, sizeof(sv->counters));
+			else {
+				sv->counters.cur_sess_max = 0;
+				sv->counters.nbpend_max = 0;
+				sv->counters.sps_max = 0;
+			}
+
+		list_for_each_entry(li, &px->conf.listeners, by_fe)
+			if (li->counters) {
+				if (clrall)
+					memset(li->counters, 0, sizeof(*li->counters));
+				else
+					li->counters->conn_max = 0;
+			}
+	}
+
+	global.cps_max = 0;
+	global.sps_max = 0;
+	return 1;
+}
+
+
 static int cli_parse_show_info(char **args, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[2], "typed") == 0)
@@ -3075,6 +3133,7 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "clear", "counters",  NULL }, "clear counters : clear max statistics counters (add 'all' for all counters)", cli_parse_clear_counters, NULL, NULL },
 	{ { "show", "info",  NULL }, "show info      : report information about the running process", cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
 	{{},}
