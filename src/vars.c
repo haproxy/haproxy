@@ -676,7 +676,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *var_name = args[*arg-1];
 	int var_len;
 	const char *kw_name;
-	int flags, set_var;
+	int flags, set_var = 0;
 
 	if (!strncmp(var_name, "set-var", 7)) {
 		var_name += 7;
