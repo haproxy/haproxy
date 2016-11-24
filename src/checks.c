@@ -1414,6 +1414,7 @@ struct data_cb check_conn_cb = {
 	.recv = event_srv_chk_r,
 	.send = event_srv_chk_w,
 	.wake = wake_srv_chk,
+	.name = "CHCK",
 };
 
 /*

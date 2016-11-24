@@ -213,6 +213,7 @@ struct xprt_ops {
 	void (*shutw)(struct connection *, int);    /* shutw function */
 	void (*close)(struct connection *);         /* close the transport layer */
 	int  (*init)(struct connection *conn);      /* initialize the transport layer */
+	char name[8];                               /* transport layer name, zero-terminated */
 };
 
 /* data_cb describes the data layer's recv and send callbacks which are called
@@ -230,6 +231,7 @@ struct data_cb {
 	void (*send)(struct connection *conn);  /* data-layer send callback */
 	int  (*wake)(struct connection *conn);  /* data-layer callback to report activity */
 	int  (*init)(struct connection *conn);  /* data-layer initialization */
+	char name[8];                           /* data layer name, zero-terminated */
 };
 
 struct my_tcphdr {

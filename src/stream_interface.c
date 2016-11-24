@@ -86,12 +86,14 @@ struct data_cb si_conn_cb = {
 	.recv    = si_conn_recv_cb,
 	.send    = si_conn_send_cb,
 	.wake    = si_conn_wake_cb,
+	.name    = "STRM",
 };
 
 struct data_cb si_idle_conn_cb = {
 	.recv    = si_idle_conn_null_cb,
 	.send    = si_idle_conn_null_cb,
 	.wake    = si_idle_conn_wake_cb,
+	.name    = "IDLE",
 };
 
 /*

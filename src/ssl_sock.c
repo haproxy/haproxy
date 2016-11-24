@@ -6127,6 +6127,7 @@ struct xprt_ops ssl_sock = {
 	.shutw    = ssl_sock_shutw,
 	.close    = ssl_sock_close,
 	.init     = ssl_sock_init,
+	.name     = "SSL",
 };
 
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)

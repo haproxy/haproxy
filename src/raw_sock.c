@@ -416,6 +416,7 @@ struct xprt_ops raw_sock = {
 	.shutr    = NULL,
 	.shutw    = NULL,
 	.close    = NULL,
+	.name     = "RAW",
 };
 
 /*

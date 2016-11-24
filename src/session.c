@@ -41,6 +41,7 @@ struct data_cb sess_conn_cb = {
 	.send = NULL,
 	.wake = conn_update_session,
 	.init = conn_complete_session,
+	.name = "SESS",
 };
 
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
