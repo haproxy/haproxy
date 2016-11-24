@@ -915,6 +915,53 @@ int hlua_fcn_post_init(lua_State *L)
 	return 1;
 }
 
+/* This Lua function take a string, a list of separators.
+ * It tokenize the input string using the list of separators
+ * as separator.
+ *
+ * The functionreturns a tablle filled with tokens.
+ */
+int hlua_tokenize(lua_State *L)
+{
+	const char *str;
+	const char *sep;
+	int index;
+	const char *token;
+	const char *p;
+	const char *c;
+	int ignore_empty;
+
+	ignore_empty = 0;
+
+	str = luaL_checkstring(L, 1);
+	sep = luaL_checkstring(L, 2);
+	if (lua_gettop(L) == 3)
+		ignore_empty = hlua_checkboolean(L, 3);
+
+	lua_newtable(L);
+	index = 1;
+	token = str;
+	p = str;
+	while(1) {
+		for (c = sep; *c != '\0'; c++)
+			if (*p == *c)
+				break;
+		if (*p == *c) {
+			if ((!ignore_empty) || (p - token > 0)) {
+				lua_pushlstring(L, token, p - token);
+				lua_rawseti(L, -2, index);
+				index++;
+			}
+			token = p + 1;
+		}
+		if (*p == '\0')
+			break;
+		p++;
+	}
+
+	return 1;
+}
+
 int hlua_parse_addr(lua_State *L)
 {
 	struct hlua_addr *addr;
@@ -1000,6 +1047,7 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "get_info", hlua_get_info);
 	hlua_class_function(L, "parse_addr", hlua_parse_addr);
 	hlua_class_function(L, "match_addr", hlua_match_addr);
+	hlua_class_function(L, "tokenize", hlua_tokenize);
 
 	/* Create listener object. */
 	lua_newtable(L);

@@ -645,6 +645,40 @@ Core class
   Match two networks. For example "127.0.0.1/32" matchs "127.0.0.0/8". The order
   of network is not important.
 
+.. js:function:: core.tokenize(str, separators [, noblank])
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  This function is useful for tokenizing an entry, or splitting some messages.
+  :param string str: The string which will be split.
+  :param string separators: A string containing a list of separators.
+  :param boolean noblank: Ignore empty entries.
+  :returns: an array of string.
+
+  For example:
+
+.. code-block:: lua
+
+	local array = core.tokenize("This function is useful, for tokenizing an entry.", "., ", true)
+	print_r(array)
+..
+
+  Returns this array:
+
+.. code-block:: text
+
+	(table) table: 0x21c01e0 [
+	    1: (string) "This"
+	    2: (string) "function"
+	    3: (string) "is"
+	    4: (string) "useful"
+	    5: (string) "for"
+	    6: (string) "tokenizing"
+	    7: (string) "an"
+	    8: (string) "entry"
+	]
+..
+
 .. _proxy_class:
 
 Proxy class
