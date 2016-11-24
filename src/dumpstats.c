@@ -1890,8 +1890,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						resume_listener(l);
 				}
 
-				if (px->maxconn > px->feconn && !LIST_ISEMPTY(&strm_fe(s)->listener_queue))
-					dequeue_all_listeners(&strm_fe(s)->listener_queue);
+				if (px->maxconn > px->feconn && !LIST_ISEMPTY(&px->listener_queue))
+					dequeue_all_listeners(&px->listener_queue);
 
 				return 1;
 			}
