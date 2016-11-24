@@ -41,6 +41,13 @@ static int class_listener_ref;
 
 static struct field stats[STATS_LEN];
 
+int hlua_checkboolean(lua_State *L, int index)
+{
+	if (!lua_isboolean(L, index))
+		luaL_argerror(L, index, "boolean expected");
+	return lua_toboolean(L, index);
+}
+
 /* This function gets a struct field and convert it in Lua
  * variable. The variable is pushed at the top of the stak.
  */
