@@ -1849,6 +1849,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 				s->req.rto = s->res.wto = 1 + MS_TO_TICKS(timeout*1000);
+				task_wakeup(s->task, TASK_WOKEN_MSG); // recompute timeouts
 				return 1;
 			}
 			else {
