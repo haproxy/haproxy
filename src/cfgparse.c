@@ -4018,6 +4018,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		rule->cond = cond;
 		rule->be.name = strdup(args[1]);
+		rule->line = linenum;
+		rule->file = strdup(file);
+		if (!rule->file) {
+			Alert("Out of memory error.\n");
+			goto out;
+		}
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
@@ -7792,6 +7798,9 @@ int check_config_validity()
 			 */
 			pxname = rule->be.name;
 			LIST_INIT(&rule->be.expr);
+			curproxy->conf.args.ctx = ARGC_UBK;
+			curproxy->conf.args.file = rule->file;
+			curproxy->conf.args.line = rule->line;
 			if (!parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR)) {
 				cfgerr++;
 				continue;

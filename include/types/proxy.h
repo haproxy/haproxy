@@ -446,6 +446,8 @@ struct switching_rule {
 		char *name;			/* target backend name during config parsing */
 		struct list expr;		/* logformat expression to use for dynamic rules */
 	} be;
+	char *file;
+	int line;
 };
 
 struct server_rule {

@@ -77,6 +77,7 @@ enum {
 	ARGC_CAP,      /* capture rule */
 	ARGC_SRV,      /* server line */
 	ARGC_SPOE,     /* spoe message args */
+	ARGC_UBK,      /* use_backend message */
 };
 
 /* flags used when compiling and executing regex */
