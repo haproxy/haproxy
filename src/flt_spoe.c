@@ -2017,8 +2017,10 @@ process_spoe_actions(struct stream *s, struct spoe_context *ctx,
 					goto skip;
 				memset(&smp, 0, sizeof(smp));
 				smp_set_owner(&smp, s->be, s->sess, s, dir|SMP_OPT_FINAL);
-				if (decode_spoe_data(p+idx, p+size, &smp) == -1)
+
+				if ((i = decode_spoe_data(p+idx, p+size, &smp)) == -1)
 					goto skip;
+				idx += i;
 
 				SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 					    " - set-var '%s.%s.%.*s'\n",
