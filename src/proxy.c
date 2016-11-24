@@ -29,6 +29,7 @@
 #include <ebistree.h>
 
 #include <types/capture.h>
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
@@ -1215,6 +1216,29 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ 0, NULL, NULL },
 }};
+
+/* Expects to find a frontend named <arg> and returns it, otherwise displays various
+ * adequate error messages and returns NULL. This function is designed to be used by
+ * functions requiring a frontend on the CLI.
+ */
+struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
+{
+	struct proxy *px;
+
+	if (!*arg) {
+		appctx->ctx.cli.msg = "A frontend name is expected.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	px = proxy_fe_by_name(arg);
+	if (!px) {
+		appctx->ctx.cli.msg = "No such frontend.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+	return px;
+}
 
 __attribute__((constructor))
 static void __proxy_module_init(void)

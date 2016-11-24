@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <common/ticks.h>
 #include <common/time.h>
+#include <types/applet.h>
 #include <types/global.h>
 #include <types/proxy.h>
 #include <types/listener.h>
@@ -56,6 +57,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
 int get_backend_server(const char *bk_name, const char *sv_name,
 		       struct proxy **bk, struct server **sv);
+struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 
 /*
  * This function returns a string containing the type of the proxy in a format
