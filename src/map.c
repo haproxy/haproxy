@@ -597,8 +597,6 @@ static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
 
 		/* no parameter: display all map available */
 		if (!*args[2]) {
-			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = CLI_ST_CALLBACK;
 			appctx->io_handler = cli_io_handler_pats_list;
 			return 0;
 		}
@@ -614,8 +612,6 @@ static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		appctx->st2 = STAT_ST_INIT;
-		appctx->st0 = CLI_ST_CALLBACK;
 		appctx->io_handler = cli_io_handler_pat_list;
 		return 0;
 	}

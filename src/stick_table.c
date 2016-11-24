@@ -1861,7 +1861,6 @@ static int cli_parse_table_req(char **args, struct appctx *appctx, void *private
 
 	appctx->private = private;
 	appctx->ctx.table.data_type = -1;
-	appctx->st2 = STAT_ST_INIT;
 	appctx->ctx.table.target = NULL;
 	appctx->ctx.table.proxy = NULL;
 	appctx->ctx.table.entry = NULL;

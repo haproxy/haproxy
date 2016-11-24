@@ -729,7 +729,6 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 		return 1;
 
 	appctx->ctx.env.var = environ;
-	appctx->st2 = STAT_ST_INIT;
 
 	if (*args[2]) {
 		int len = strlen(args[2]);

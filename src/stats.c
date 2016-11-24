@@ -3096,7 +3096,6 @@ static int cli_parse_show_info(char **args, struct appctx *appctx, void *private
 {
 	if (strcmp(args[2], "typed") == 0)
 		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-	appctx->st2 = STAT_ST_INIT;
 	return 0;
 }
 
@@ -3114,7 +3113,6 @@ static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private
 	else if (strcmp(args[2], "typed") == 0)
 		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
 
-	appctx->st2 = STAT_ST_INIT;
 	return 0;
 }
 

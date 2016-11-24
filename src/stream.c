@@ -3671,7 +3671,6 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 static int cli_parse_show_sess(char **args, struct appctx *appctx, void *private)
 {
-	appctx->st2 = STAT_ST_INIT;
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 

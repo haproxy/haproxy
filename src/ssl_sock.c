@@ -6139,10 +6139,7 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 	/* no parameter, shows only file list */
 	if (!*args[2]) {
 		appctx->ctx.tlskeys.dump_all = 1;
-		appctx->st2 = STAT_ST_INIT;
-		appctx->st0 = CLI_ST_CALLBACK;
 		appctx->io_handler = cli_io_handler_tlskeys_files;
-
 		return 1;
 	}
 
@@ -6152,14 +6149,12 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 		appctx->ctx.tlskeys.dump_all = 1;
 	} else {
 		appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[2]);
-		if(!appctx->ctx.tlskeys.ref) {
+		if (!appctx->ctx.tlskeys.ref) {
 			appctx->ctx.cli.msg = "'show tls-keys' unable to locate referenced filename\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 	}
-	appctx->st2 = STAT_ST_INIT;
-	appctx->st0 = CLI_ST_CALLBACK;
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
 	return 1;
 }

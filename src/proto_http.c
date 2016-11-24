@@ -12839,7 +12839,6 @@ static int cli_parse_show_errors(char **args, struct appctx *appctx, void *priva
 	else
 		appctx->ctx.errors.iid	= -1;
 	appctx->ctx.errors.px = NULL;
-	appctx->st2 = STAT_ST_INIT;
 	return 0;
 }
 
