@@ -848,39 +848,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stop_proxy(px);
 			return 1;
 		}
-		else if (strcmp(args[1], "session") == 0) {
-			struct stream *sess, *ptr;
-
-			if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-				appctx->ctx.cli.msg = stats_permission_denied_msg;
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!*args[2]) {
-				appctx->ctx.cli.msg = "Session pointer expected (use 'show sess').\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			ptr = (void *)strtoul(args[2], NULL, 0);
-
-			/* first, look for the requested stream in the stream table */
-			list_for_each_entry(sess, &streams, list) {
-				if (sess == ptr)
-					break;
-			}
-
-			/* do we have the stream ? */
-			if (sess != ptr) {
-				appctx->ctx.cli.msg = "No such session (use 'show sess').\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			stream_shutdown(sess, SF_ERR_KILLED);
-			return 1;
-		}
 		else { /* unknown "disable" parameter */
 			appctx->ctx.cli.msg = "'shutdown' only supports 'frontend', 'session' and 'sessions'.\n";
 			appctx->st0 = STAT_CLI_PRINT;

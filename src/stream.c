@@ -3914,6 +3914,39 @@ static void cli_release_show_sess(struct appctx *appctx)
 	}
 }
 
+/* Parses the "shutdown session" directive, it always returns 1 */
+static int cli_parse_shutdown_session(char **args, struct appctx *appctx, void *private)
+{
+	struct stream *strm, *ptr;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[2]) {
+		appctx->ctx.cli.msg = "Session pointer expected (use 'show sess').\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	ptr = (void *)strtoul(args[2], NULL, 0);
+
+	/* first, look for the requested stream in the stream table */
+	list_for_each_entry(strm, &streams, list) {
+		if (strm == ptr)
+			break;
+	}
+
+	/* do we have the stream ? */
+	if (strm != ptr) {
+		appctx->ctx.cli.msg = "No such session (use 'show sess').\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	stream_shutdown(strm, SF_ERR_KILLED);
+	return 1;
+}
+
 /* Parses the "shutdown session server" directive, it always returns 1 */
 static int cli_parse_shutdown_sessions_server(char **args, struct appctx *appctx, void *private)
 {
@@ -3937,6 +3970,7 @@ static int cli_parse_shutdown_sessions_server(char **args, struct appctx *appctx
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "sess",  NULL }, "show sess [id] : report the list of current sessions or dump this session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
+	{ { "shutdown", "session",  NULL }, "shutdown session : kill a specific session", cli_parse_shutdown_session, NULL, NULL },
 	{ { "shutdown", "sessions",  "server" }, "shutdown sessions server : kill sessions on a server", cli_parse_shutdown_sessions_server, NULL, NULL },
 	{{},}
 }};
