@@ -394,36 +394,6 @@ int cli_has_level(struct appctx *appctx, int level)
 }
 
 
-/* Expects to find a frontend named <arg> and returns it, otherwise displays various
- * adequate error messages and returns NULL. This function also expects the stream
- * level to be admin.
- */
-static struct proxy *expect_frontend_admin(struct stream *s, struct stream_interface *si, const char *arg)
-{
-	struct appctx *appctx = __objt_appctx(si->end);
-	struct proxy *px;
-
-	if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-		appctx->ctx.cli.msg = stats_permission_denied_msg;
-		appctx->st0 = STAT_CLI_PRINT;
-		return NULL;
-	}
-
-	if (!*arg) {
-		appctx->ctx.cli.msg = "A frontend name is expected.\n";
-		appctx->st0 = STAT_CLI_PRINT;
-		return NULL;
-	}
-
-	px = proxy_fe_by_name(arg);
-	if (!px) {
-		appctx->ctx.cli.msg = "No such frontend.\n";
-		appctx->st0 = STAT_CLI_PRINT;
-		return NULL;
-	}
-	return px;
-}
-
 /* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
  * and returns the pointer to the server. Otherwise, display adequate error messages
  * and returns NULL. This function also expects the stream level to be admin. Note:
@@ -731,32 +701,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			srv_adm_set_ready(sv);
 			return 1;
 		}
-		else if (strcmp(args[1], "frontend") == 0) {
-			struct proxy *px;
-
-			px = expect_frontend_admin(s, si, args[2]);
-			if (!px)
-				return 1;
-
-			if (px->state == PR_STSTOPPED) {
-				appctx->ctx.cli.msg = "Frontend was previously shut down, cannot enable.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->state != PR_STPAUSED) {
-				appctx->ctx.cli.msg = "Frontend is already enabled.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!resume_proxy(px)) {
-				appctx->ctx.cli.msg = "Failed to resume frontend, check logs for precise cause (port conflict?).\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-			return 1;
-		}
 		else { /* unknown "enable" parameter */
 			appctx->ctx.cli.msg = "'enable' only supports 'agent', 'frontend', 'health', and 'server'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
@@ -792,32 +736,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 
 			srv_adm_set_maint(sv);
-			return 1;
-		}
-		else if (strcmp(args[1], "frontend") == 0) {
-			struct proxy *px;
-
-			px = expect_frontend_admin(s, si, args[2]);
-			if (!px)
-				return 1;
-
-			if (px->state == PR_STSTOPPED) {
-				appctx->ctx.cli.msg = "Frontend was previously shut down, cannot disable.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->state == PR_STPAUSED) {
-				appctx->ctx.cli.msg = "Frontend is already disabled.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!pause_proxy(px)) {
-				appctx->ctx.cli.msg = "Failed to pause frontend, check logs for precise cause.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
 			return 1;
 		}
 		else { /* unknown "disable" parameter */

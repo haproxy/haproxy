@@ -1488,8 +1488,74 @@ static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void 
 	return 1;
 }
 
+/* Parses the "disable frontend" directive, it always returns 1 */
+static int cli_parse_disable_frontend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_frontend(appctx, args[2]);
+	if (!px)
+		return 1;
+
+	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot disable.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (px->state == PR_STPAUSED) {
+		appctx->ctx.cli.msg = "Frontend is already disabled.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!pause_proxy(px)) {
+		appctx->ctx.cli.msg = "Failed to pause frontend, check logs for precise cause.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+	return 1;
+}
+
+/* Parses the "enable frontend" directive, it always returns 1 */
+static int cli_parse_enable_frontend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_frontend(appctx, args[2]);
+	if (!px)
+		return 1;
+
+	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot enable.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (px->state != PR_STPAUSED) {
+		appctx->ctx.cli.msg = "Frontend is already enabled.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!resume_proxy(px)) {
+		appctx->ctx.cli.msg = "Failed to resume frontend, check logs for precise cause (port conflict?).\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "disable", "frontend",  NULL }, "disable frontend : temporarily disable specific frontend", cli_parse_disable_frontend, NULL, NULL },
+	{ { "enable", "frontend",  NULL }, "enable frontend : re-enable specific frontend", cli_parse_enable_frontend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", cli_parse_show_backend, cli_io_handler_show_backend },
