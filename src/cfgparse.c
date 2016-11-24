@@ -4012,6 +4012,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			Alert("Out of memory error.\n");
+			goto out;
+		}
 		rule->cond = cond;
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
