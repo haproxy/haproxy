@@ -3924,7 +3924,7 @@ static int cli_parse_shutdown_session(char **args, struct appctx *appctx, void *
 
 	if (!*args[2]) {
 		appctx->ctx.cli.msg = "Session pointer expected (use 'show sess').\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -3939,7 +3939,7 @@ static int cli_parse_shutdown_session(char **args, struct appctx *appctx, void *
 	/* do we have the stream ? */
 	if (strm != ptr) {
 		appctx->ctx.cli.msg = "No such session (use 'show sess').\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 

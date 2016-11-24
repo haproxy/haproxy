@@ -6140,7 +6140,7 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 	if (!*args[2]) {
 		appctx->ctx.tlskeys.dump_all = 1;
 		appctx->st2 = STAT_ST_INIT;
-		appctx->st0 = STAT_CLI_O_CUSTOM;
+		appctx->st0 = CLI_ST_CALLBACK;
 		appctx->io_handler = cli_io_handler_tlskeys_files;
 
 		return 1;
@@ -6154,12 +6154,12 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 		appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[2]);
 		if(!appctx->ctx.tlskeys.ref) {
 			appctx->ctx.cli.msg = "'show tls-keys' unable to locate referenced filename\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 	}
 	appctx->st2 = STAT_ST_INIT;
-	appctx->st0 = STAT_CLI_O_CUSTOM;
+	appctx->st0 = CLI_ST_CALLBACK;
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
 	return 1;
 }
@@ -6170,21 +6170,21 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 	/* Expect two parameters: the filename and the new new TLS key in encoding */
 	if (!*args[3] || !*args[4]) {
 		appctx->ctx.cli.msg = "'set ssl tls-key' expects a filename and the new TLS key in base64 encoding.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[3]);
 	if(!appctx->ctx.tlskeys.ref) {
 		appctx->ctx.cli.msg = "'set ssl tls-key' unable to locate referenced filename\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	trash.len = base64dec(args[4], strlen(args[4]), trash.str, trash.size);
 	if (trash.len != sizeof(struct tls_sess_key)) {
 		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -6192,7 +6192,7 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 	appctx->ctx.tlskeys.ref->tls_ticket_enc_index = (appctx->ctx.tlskeys.ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
 
 	appctx->ctx.cli.msg = "TLS ticket key updated!";
-	appctx->st0 = STAT_CLI_PRINT;
+	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 
 }
@@ -6205,14 +6205,14 @@ static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *
 	/* Expect one parameter: the new response in base64 encoding */
 	if (!*args[3]) {
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	trash.len = base64dec(args[3], strlen(args[3]), trash.str, trash.size);
 	if (trash.len < 0) {
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -6220,16 +6220,16 @@ static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *
 		if (err) {
 			memprintf(&err, "%s.\n", err);
 			appctx->ctx.cli.err = err;
-			appctx->st0 = STAT_CLI_PRINT_FREE;
+			appctx->st0 = CLI_ST_PRINT_FREE;
 		}
 		return 1;
 	}
 	appctx->ctx.cli.msg = "OCSP Response updated!";
-	appctx->st0 = STAT_CLI_PRINT;
+	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 #else
 	appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n";
-	appctx->st0 = STAT_CLI_PRINT;
+	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 #endif
 

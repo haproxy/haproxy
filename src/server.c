@@ -3349,7 +3349,7 @@ int srv_init_addr(void)
 
 /* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
  * and returns the pointer to the server. Otherwise, display adequate error messages
- * on the CLI, sets the CLI's state to STAT_CLI_PRINT and returns NULL. This is only
+ * on the CLI, sets the CLI's state to CLI_ST_PRINT and returns NULL. This is only
  * used for CLI commands requiring a server name.
  * Important: the <arg> is modified to remove the '/'.
  */
@@ -3368,19 +3368,19 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 
 	if (!*line || !*arg) {
 		appctx->ctx.cli.msg = "Require 'backend/server'.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
 	}
 
 	if (!get_backend_server(arg, line, &px, &sv)) {
 		appctx->ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
 	}
 
 	if (px->state == PR_STSTOPPED) {
 		appctx->ctx.cli.msg = "Proxy is disabled.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
 	}
 
@@ -3404,7 +3404,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		warning = server_parse_weight_change_request(sv, args[4]);
 		if (warning) {
 			appctx->ctx.cli.msg = warning;
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 	}
 	else if (strcmp(args[3], "state") == 0) {
@@ -3416,13 +3416,13 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			srv_adm_set_maint(sv);
 		else {
 			appctx->ctx.cli.msg = "'set server <srv> state' expects 'ready', 'drain' and 'maint'.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 	}
 	else if (strcmp(args[3], "health") == 0) {
 		if (sv->track) {
 			appctx->ctx.cli.msg = "cannot change health on a tracking server.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 		else if (strcmp(args[4], "up") == 0) {
 			sv->check.health = sv->check.rise + sv->check.fall - 1;
@@ -3438,13 +3438,13 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		}
 		else {
 			appctx->ctx.cli.msg = "'set server <srv> health' expects 'up', 'stopping', or 'down'.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 	}
 	else if (strcmp(args[3], "agent") == 0) {
 		if (!(sv->agent.state & CHK_ST_ENABLED)) {
 			appctx->ctx.cli.msg = "agent checks are not enabled on this server.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 		else if (strcmp(args[4], "up") == 0) {
 			sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
@@ -3456,35 +3456,35 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		}
 		else {
 			appctx->ctx.cli.msg = "'set server <srv> agent' expects 'up' or 'down'.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 	}
 	else if (strcmp(args[3], "check-port") == 0) {
 		int i = 0;
 		if (strl2irc(args[4], strlen(args[4]), &i) != 0) {
 			appctx->ctx.cli.msg = "'set server <srv> check-port' expects an integer as argument.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 		if ((i < 0) || (i > 65535)) {
 			appctx->ctx.cli.msg = "provided port is not valid.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 		/* prevent the update of port to 0 if MAPPORTS are in use */
 		if ((sv->flags & SRV_F_MAPPORTS) && (i == 0)) {
 			appctx->ctx.cli.msg = "can't unset 'port' since MAPPORTS is in use.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 		sv->check.port = i;
 		appctx->ctx.cli.msg = "health check port updated.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 	}
 	else if (strcmp(args[3], "addr") == 0) {
 		char *addr = NULL;
 		char *port = NULL;
 		if (strlen(args[4]) == 0) {
 			appctx->ctx.cli.msg = "set server <b>/<s> addr requires an address and optionally a port.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 		else {
@@ -3496,13 +3496,13 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		warning = update_server_addr_port(sv, addr, port, "stats socket command");
 		if (warning) {
 			appctx->ctx.cli.msg = warning;
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 		}
 		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
 	}
 	else {
 		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr' and 'check-port'.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 	}
 	return 1;
 }
@@ -3524,13 +3524,13 @@ static int cli_parse_get_weight(char **args, struct appctx *appctx, void *privat
 
 	if (!*line) {
 		appctx->ctx.cli.msg = "Require 'backend/server'.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!get_backend_server(args[2], line, &px, &sv)) {
 		appctx->ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -3557,7 +3557,7 @@ static int cli_parse_set_weight(char **args, struct appctx *appctx, void *privat
 	warning = server_parse_weight_change_request(sv, args[3]);
 	if (warning) {
 		appctx->ctx.cli.msg = warning;
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 	}
 	return 1;
 }
@@ -3578,7 +3578,7 @@ static int cli_parse_set_maxconn_server(char **args, struct appctx *appctx, void
 	warning = server_parse_maxconn_change_request(sv, args[4]);
 	if (warning) {
 		appctx->ctx.cli.msg = warning;
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 	}
 	return 1;
 }
@@ -3645,7 +3645,7 @@ static int cli_parse_enable_agent(char **args, struct appctx *appctx, void *priv
 
 	if (!(sv->agent.state & CHK_ST_CONFIGURED)) {
 		appctx->ctx.cli.msg = "Agent was not configured on this server, cannot enable.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 

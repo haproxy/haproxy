@@ -38,16 +38,16 @@ struct cli_kw_list {
 	struct cli_kw kw[VAR_ARRAY];
 };
 
-/* stats socket states */
+/* CLI states */
 enum {
-	STAT_CLI_INIT = 0,   /* initial state, must leave to zero ! */
-	STAT_CLI_END,        /* final state, let's close */
-	STAT_CLI_GETREQ,     /* wait for a request */
-	STAT_CLI_OUTPUT,     /* all states after this one are responses */
-	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
-	STAT_CLI_PRINT,      /* display message in cli->msg */
-	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
-	STAT_CLI_O_CUSTOM,   /* custom callback pointer */
+	CLI_ST_INIT = 0,   /* initial state, must leave to zero ! */
+	CLI_ST_END,        /* final state, let's close */
+	CLI_ST_GETREQ,     /* wait for a request */
+	CLI_ST_OUTPUT,     /* all states after this one are responses */
+	CLI_ST_PROMPT,     /* display the prompt (first output, same code) */
+	CLI_ST_PRINT,      /* display message in cli->msg */
+	CLI_ST_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
+	CLI_ST_CALLBACK,   /* custom callback pointer */
 };
 
 

@@ -384,7 +384,7 @@ int cli_has_level(struct appctx *appctx, int level)
 
 	if (strm_li(s)->bind_conf->level < level) {
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 0;
 	}
 	return 1;
@@ -453,7 +453,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	if ((kw = cli_find_kw(args))) {
 		if (kw->parse) {
 			if (kw->parse(args, appctx, kw->private) == 0 && kw->io_handler) {
-				appctx->st0 = STAT_CLI_O_CUSTOM;
+				appctx->st0 = CLI_ST_CALLBACK;
 				appctx->io_handler = kw->io_handler;
 				appctx->io_release = kw->io_release;
 			}
@@ -468,7 +468,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
  * state machine handling requests and various responses. We read a request,
  * then we process it and send the response, and we possibly display a prompt.
  * Then we can read again. The state is stored in appctx->st0 and is one of the
- * STAT_CLI_* constants. appctx->st1 is used to indicate whether prompt is enabled
+ * CLI_ST_* constants. appctx->st1 is used to indicate whether prompt is enabled
  * or not.
  */
 static void cli_io_handler(struct appctx *appctx)
@@ -483,19 +483,19 @@ static void cli_io_handler(struct appctx *appctx)
 		goto out;
 
 	while (1) {
-		if (appctx->st0 == STAT_CLI_INIT) {
+		if (appctx->st0 == CLI_ST_INIT) {
 			/* Stats output not initialized yet */
 			memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
-			appctx->st0 = STAT_CLI_GETREQ;
+			appctx->st0 = CLI_ST_GETREQ;
 		}
-		else if (appctx->st0 == STAT_CLI_END) {
+		else if (appctx->st0 == CLI_ST_END) {
 			/* Let's close for real now. We just close the request
 			 * side, the conditions below will complete if needed.
 			 */
 			si_shutw(si);
 			break;
 		}
-		else if (appctx->st0 == STAT_CLI_GETREQ) {
+		else if (appctx->st0 == CLI_ST_GETREQ) {
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
@@ -508,7 +508,7 @@ static void cli_io_handler(struct appctx *appctx)
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
-				appctx->st0 = STAT_CLI_END;
+				appctx->st0 = CLI_ST_END;
 				continue;
 			}
 
@@ -533,7 +533,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 			len = reql - 1;
 			if (trash.str[len] != '\n') {
-				appctx->st0 = STAT_CLI_END;
+				appctx->st0 = CLI_ST_END;
 				continue;
 			}
 
@@ -542,10 +542,10 @@ static void cli_io_handler(struct appctx *appctx)
 
 			trash.str[len] = '\0';
 
-			appctx->st0 = STAT_CLI_PROMPT;
+			appctx->st0 = CLI_ST_PROMPT;
 			if (len) {
 				if (strcmp(trash.str, "quit") == 0) {
-					appctx->st0 = STAT_CLI_END;
+					appctx->st0 = CLI_ST_END;
 					continue;
 				}
 				else if (strcmp(trash.str, "prompt") == 0)
@@ -557,10 +557,10 @@ static void cli_io_handler(struct appctx *appctx)
 						appctx->ctx.cli.msg = dynamic_usage_msg;
 					else
 						appctx->ctx.cli.msg = stats_sock_usage_msg;
-					appctx->st0 = STAT_CLI_PRINT;
+					appctx->st0 = CLI_ST_PRINT;
 				}
 				/* NB: stats_sock_parse_request() may have put
-				 * another STAT_CLI_O_* into appctx->st0.
+				 * another CLI_ST_O_* into appctx->st0.
 				 */
 			}
 			else if (!appctx->st1) {
@@ -573,7 +573,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->ctx.cli.msg = dynamic_usage_msg;
 				else
 					appctx->ctx.cli.msg = stats_sock_usage_msg;
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 			}
 
 			/* re-adjust req buffer */
@@ -582,26 +582,26 @@ static void cli_io_handler(struct appctx *appctx)
 		}
 		else {	/* output functions */
 			switch (appctx->st0) {
-			case STAT_CLI_PROMPT:
+			case CLI_ST_PROMPT:
 				break;
-			case STAT_CLI_PRINT:
+			case CLI_ST_PRINT:
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
-					appctx->st0 = STAT_CLI_PROMPT;
+					appctx->st0 = CLI_ST_PROMPT;
 				else
 					si_applet_cant_put(si);
 				break;
-			case STAT_CLI_PRINT_FREE:
+			case CLI_ST_PRINT_FREE:
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.err) != -1) {
 					free(appctx->ctx.cli.err);
-					appctx->st0 = STAT_CLI_PROMPT;
+					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
 					si_applet_cant_put(si);
 				break;
-			case STAT_CLI_O_CUSTOM: /* use custom pointer */
+			case CLI_ST_CALLBACK: /* use custom pointer */
 				if (appctx->io_handler)
 					if (appctx->io_handler(appctx)) {
-						appctx->st0 = STAT_CLI_PROMPT;
+						appctx->st0 = CLI_ST_PROMPT;
 						if (appctx->io_release) {
 							appctx->io_release(appctx);
 							appctx->io_release = NULL;
@@ -614,15 +614,15 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
-			if (appctx->st0 == STAT_CLI_PROMPT) {
+			if (appctx->st0 == CLI_ST_PROMPT) {
 				if (bi_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
-					appctx->st0 = STAT_CLI_GETREQ;
+					appctx->st0 = CLI_ST_GETREQ;
 				else
 					si_applet_cant_put(si);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
-			if (appctx->st0 >= STAT_CLI_OUTPUT)
+			if (appctx->st0 >= CLI_ST_OUTPUT)
 				break;
 
 			/* Now we close the output if one of the writers did so,
@@ -631,12 +631,12 @@ static void cli_io_handler(struct appctx *appctx)
 			 * to be sent in non-interactive mode.
 			 */
 			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!appctx->st1 && !req->buf->o)) {
-				appctx->st0 = STAT_CLI_END;
+				appctx->st0 = CLI_ST_END;
 				continue;
 			}
 
 			/* switch state back to GETREQ to read next requests */
-			appctx->st0 = STAT_CLI_GETREQ;
+			appctx->st0 = CLI_ST_GETREQ;
 		}
 	}
 
@@ -651,7 +651,7 @@ static void cli_io_handler(struct appctx *appctx)
 		si_shutw(si);
 	}
 
-	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && (appctx->st0 < STAT_CLI_OUTPUT)) {
+	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && (appctx->st0 < CLI_ST_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* We have no more processing to do, and nothing more to send, and
@@ -678,7 +678,7 @@ static void cli_release_handler(struct appctx *appctx)
 		appctx->io_release(appctx);
 		appctx->io_release = NULL;
 	}
-	else if (appctx->st0 == STAT_CLI_PRINT_FREE) {
+	else if (appctx->st0 == CLI_ST_PRINT_FREE) {
 		free(appctx->ctx.cli.err);
 		appctx->ctx.cli.err = NULL;
 	}
@@ -739,7 +739,7 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 		}
 		if (!*appctx->ctx.env.var) {
 			appctx->ctx.cli.msg = "Variable not found\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 		appctx->st2 = STAT_ST_END;
@@ -759,14 +759,14 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 
 		if (!*args[3]) {
 			appctx->ctx.cli.msg = "Expects an integer value.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 
 		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
 		if (res || timeout < 1) {
 			appctx->ctx.cli.msg = "Invalid timeout value.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 
@@ -776,7 +776,7 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 	}
 	else {
 		appctx->ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 }
@@ -791,14 +791,14 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 
 	if (!*args[3]) {
 		appctx->ctx.cli.msg = "Expects an integer value.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	v = atoi(args[3]);
 	if (v > global.hardmaxconn) {
 		appctx->ctx.cli.msg = "Value out of range.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -846,20 +846,20 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 			"   - 'ssl-session global' to set the per-process maximum SSL session rate\n"
 #endif
 			"   - 'http-compression global' to set the per-process maximum compression speed in kB/s\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!*args[4]) {
 		appctx->ctx.cli.msg = "Expects an integer value.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	v = atoi(args[4]);
 	if (v < 0) {
 		appctx->ctx.cli.msg = "Value out of range.\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 

@@ -1652,7 +1652,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 
 	if (!*args[4]) {
 		appctx->ctx.cli.msg = "Key value expected\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -1675,7 +1675,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			    (errno != 0 && val == 0) || endptr == args[4] ||
 			    val > 0xffffffff) {
 				appctx->ctx.cli.msg = "Invalid key\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 			uint32_key = (uint32_t) val;
@@ -1702,7 +1702,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			appctx->ctx.cli.msg = "Unknown action\n";
 			break;
 		}
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -1729,7 +1729,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		if (ts->ref_cnt) {
 			/* don't delete an entry which is currently referenced */
 			appctx->ctx.cli.msg = "Entry currently in use, cannot remove\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 		stksess_kill(&px->table, ts);
@@ -1743,7 +1743,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			if (!ts) {
 				/* don't delete an entry which is currently referenced */
 				appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 			stktable_store(&px->table, ts, 1);
@@ -1752,26 +1752,26 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
 			if (strncmp(args[cur_arg], "data.", 5) != 0) {
 				appctx->ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 
 			data_type = stktable_get_data_type(args[cur_arg] + 5);
 			if (data_type < 0) {
 				appctx->ctx.cli.msg = "Unknown data type\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 
 			if (!px->table.data_ofs[data_type]) {
 				appctx->ctx.cli.msg = "Data type not stored in this table\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 
 			if (!*args[cur_arg+1] || strl2llrc(args[cur_arg+1], strlen(args[cur_arg+1]), &value) != 0) {
 				appctx->ctx.cli.msg = "Require a valid integer value to store\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
 
@@ -1804,7 +1804,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 
 	default:
 		appctx->ctx.cli.msg = "Unknown action\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		break;
 	}
 	return 1;
@@ -1819,7 +1819,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 
 	if (action != STK_CLI_ACT_SHOW && action != STK_CLI_ACT_CLR) {
 		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -1827,26 +1827,26 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 	appctx->ctx.table.data_type = stktable_get_data_type(args[3] + 5);
 	if (appctx->ctx.table.data_type < 0) {
 		appctx->ctx.cli.msg = "Unknown data type\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!((struct proxy *)appctx->ctx.table.target)->table.data_ofs[appctx->ctx.table.data_type]) {
 		appctx->ctx.cli.msg = "Data type not stored in this table\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	appctx->ctx.table.data_op = get_std_op(args[4]);
 	if (appctx->ctx.table.data_op < 0) {
 		appctx->ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &appctx->ctx.table.value) != 0) {
 		appctx->ctx.cli.msg = "Require a valid integer value to compare against\n";
-		appctx->st0 = STAT_CLI_PRINT;
+		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
@@ -1870,7 +1870,7 @@ static int cli_parse_table_req(char **args, struct appctx *appctx, void *private
 		appctx->ctx.table.target = proxy_tbl_by_name(args[2]);
 		if (!appctx->ctx.table.target) {
 			appctx->ctx.cli.msg = "No such table\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 	}
@@ -1904,7 +1904,7 @@ err_args:
 		appctx->ctx.cli.msg = "Unknown action\n";
 		break;
 	}
-	appctx->st0 = STAT_CLI_PRINT;
+	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 }
 
