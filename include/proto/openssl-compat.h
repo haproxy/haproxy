@@ -14,22 +14,8 @@
 #include <openssl/dh.h>
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1000000fL)
-/*
- * Functions introduced in OpenSSL 1.0.1
- */
-static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned char *sid_ctx, unsigned int sid_ctx_len)
-{
-	s->sid_ctx_length = sid_ctx_len;
-	memcpy(s->sid_ctx, sid_ctx, sid_ctx_len);
-	return 1;
-}
-
-static inline int EVP_PKEY_base_id(const EVP_PKEY *pkey)
-{
-	return EVP_PKEY_type(pkey->type);
-}
-
+#if (OPENSSL_VERSION_NUMBER < 0x0090800fL)
+/* Functions present in OpenSSL 0.9.8, older not tested */
 static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
 {
 	*sid_length = sess->session_id_length;
@@ -61,15 +47,37 @@ static inline int X509_NAME_entry_count(X509_NAME *name)
 	return sk_X509_NAME_ENTRY_num(name->entries)
 }
 
-int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned char **pk, int *ppklen, X509_ALGOR **pa, X509_PUBKEY *pub)
-{
-	*ppkalg = pub->algor->algorithm;
-	return 1;
-}
-
 static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void **ppval, const X509_ALGOR *algor)
 {
 	*paobj = algor->algorithm;
+}
+
+#endif // OpenSSL < 0.9.8
+
+
+#if (OPENSSL_VERSION_NUMBER < 0x1000000fL)
+/*
+ * Functions introduced in OpenSSL 1.0.1
+ */
+static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned char *sid_ctx, unsigned int sid_ctx_len)
+{
+	s->sid_ctx_length = sid_ctx_len;
+	memcpy(s->sid_ctx, sid_ctx, sid_ctx_len);
+	return 1;
+}
+
+static inline int EVP_PKEY_base_id(const EVP_PKEY *pkey)
+{
+	return EVP_PKEY_type(pkey->type);
+}
+
+/* minimal implementation based on the fact that the only known call place
+ * doesn't make use of other arguments.
+ */
+static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned char **pk, int *ppklen, X509_ALGOR **pa, X509_PUBKEY *pub)
+{
+	*ppkalg = pub->algor->algorithm;
+	return 1;
 }
 
 #ifndef X509_get_X509_PUBKEY
