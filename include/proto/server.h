@@ -26,6 +26,7 @@
 
 #include <common/config.h>
 #include <common/time.h>
+#include <types/applet.h>
 #include <types/dns.h>
 #include <types/proxy.h>
 #include <types/queue.h>
