@@ -391,15 +391,16 @@ int cli_has_level(struct appctx *appctx, int level)
 }
 
 
-/* Processes the stats interpreter on the statistics socket. This function is
- * called from an applet running in a stream interface. The function returns 1
- * if the request was understood, otherwise zero. It sets appctx->st0 to a value
- * designating the function which will have to process the request, which can
- * also be the print function to display the return message set into cli.msg.
+/* Processes the CLI interpreter on the stats socket. This function is called
+ * from the CLI's IO handler running in an appctx context. The function returns 1
+ * if the request was understood, otherwise zero. It is called with appctx->st0
+ * set to CLI_ST_GETREQ and presets ->st2 to 0 so that parsers don't have to do
+ * it. It will possilbly leave st0 to CLI_ST_CALLBACK if the keyword needs to
+ * have its own I/O handler called again. Most of the time, parsers will only
+ * set st0 to CLI_ST_PRINT and put their message to be displayed into cli.msg.
  */
-static int stats_sock_parse_request(struct stream_interface *si, char *line)
+static int cli_parse_request(struct appctx *appctx, char *line)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
 	struct cli_kw *kw;
 	int arg;
@@ -450,17 +451,18 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = 0;
-	if ((kw = cli_find_kw(args))) {
-		if (kw->parse) {
-			if (kw->parse(args, appctx, kw->private) == 0 && kw->io_handler) {
-				appctx->st0 = CLI_ST_CALLBACK;
-				appctx->io_handler = kw->io_handler;
-				appctx->io_release = kw->io_release;
-			}
-		}
-		return 1;
+	appctx->st2 = 0;
+
+	kw = cli_find_kw(args);
+	if (!kw || !kw->parse)
+		return 0;
+
+	appctx->io_handler = kw->io_handler;
+	if (kw->parse(args, appctx, kw->private) == 0 && appctx->io_handler) {
+		appctx->st0 = CLI_ST_CALLBACK;
+		appctx->io_release = kw->io_release;
 	}
-	return 0;
+	return 1;
 }
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
@@ -551,7 +553,7 @@ static void cli_io_handler(struct appctx *appctx)
 				else if (strcmp(trash.str, "prompt") == 0)
 					appctx->st1 = !appctx->st1;
 				else if (strcmp(trash.str, "help") == 0 ||
-					 !stats_sock_parse_request(si, trash.str)) {
+					 !cli_parse_request(appctx, trash.str)) {
 					cli_gen_usage_msg();
 					if (dynamic_usage_msg)
 						appctx->ctx.cli.msg = dynamic_usage_msg;
