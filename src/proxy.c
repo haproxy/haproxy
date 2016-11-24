@@ -1462,11 +1462,38 @@ static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, vo
 	return 1;
 }
 
+/* Parses the "shutdown frontend" directive, it always returns 1 */
+static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_frontend(appctx, args[2]);
+	if (!px)
+		return 1;
+
+	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.msg = "Frontend was already shut down.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+	        px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
+	send_log(px, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+	         px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
+	stop_proxy(px);
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", cli_parse_show_backend, cli_io_handler_show_backend },
+	{ { "shutdown", "frontend",  NULL }, "shutdown frontend : stop a specific frontend", cli_parse_shutdown_frontend, NULL, NULL },
 	{{},}
 }};
 

@@ -76,7 +76,6 @@ static const char stats_sock_usage_msg[] =
 	"  set rate-limit : change a rate limiting value\n"
 	"  disable        : put a server or frontend in maintenance mode\n"
 	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
-	"  shutdown       : kill a session or a frontend (eg:to release listening ports)\n"
 	"";
 
 static const char stats_permission_denied_msg[] =
@@ -823,33 +822,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else { /* unknown "disable" parameter */
 			appctx->ctx.cli.msg = "'disable' only supports 'agent', 'frontend', 'health', and 'server'.\n";
-			appctx->st0 = STAT_CLI_PRINT;
-			return 1;
-		}
-	}
-	else if (strcmp(args[0], "shutdown") == 0) {
-		if (strcmp(args[1], "frontend") == 0) {
-			struct proxy *px;
-
-			px = expect_frontend_admin(s, si, args[2]);
-			if (!px)
-				return 1;
-
-			if (px->state == PR_STSTOPPED) {
-				appctx->ctx.cli.msg = "Frontend was already shut down.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-				px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
-			send_log(px, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-				 px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
-			stop_proxy(px);
-			return 1;
-		}
-		else { /* unknown "disable" parameter */
-			appctx->ctx.cli.msg = "'shutdown' only supports 'frontend', 'session' and 'sessions'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
