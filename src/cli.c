@@ -73,7 +73,6 @@ static const char stats_sock_usage_msg[] =
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
-	"  set rate-limit : change a rate limiting value\n"
 	"";
 
 static const char stats_permission_denied_msg[] =
@@ -400,7 +399,6 @@ int cli_has_level(struct appctx *appctx, int level)
  */
 static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
-	struct stream *s = si_strm(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
 	struct cli_kw *kw;
@@ -460,160 +458,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->io_release = kw->io_release;
 			}
 		}
+		return 1;
 	}
-	else if (strcmp(args[0], "set") == 0) {
-		if (strcmp(args[1], "rate-limit") == 0) {
-			if (strcmp(args[2], "connections") == 0) {
-				if (strcmp(args[3], "global") == 0) {
-					int v;
-
-					if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-						appctx->ctx.cli.msg = stats_permission_denied_msg;
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					if (!*args[4]) {
-						appctx->ctx.cli.msg = "Expects an integer value.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					v = atoi(args[4]);
-					if (v < 0) {
-						appctx->ctx.cli.msg = "Value out of range.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					global.cps_lim = v;
-
-					/* Dequeues all of the listeners waiting for a resource */
-					if (!LIST_ISEMPTY(&global_listener_queue))
-						dequeue_all_listeners(&global_listener_queue);
-
-					return 1;
-				}
-				else {
-					appctx->ctx.cli.msg = "'set rate-limit connections' only supports 'global'.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-			else if (strcmp(args[2], "sessions") == 0) {
-				if (strcmp(args[3], "global") == 0) {
-					int v;
-
-					if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-						appctx->ctx.cli.msg = stats_permission_denied_msg;
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					if (!*args[4]) {
-						appctx->ctx.cli.msg = "Expects an integer value.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					v = atoi(args[4]);
-					if (v < 0) {
-						appctx->ctx.cli.msg = "Value out of range.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					global.sps_lim = v;
-
-					/* Dequeues all of the listeners waiting for a resource */
-					if (!LIST_ISEMPTY(&global_listener_queue))
-						dequeue_all_listeners(&global_listener_queue);
-
-					return 1;
-				}
-				else {
-					appctx->ctx.cli.msg = "'set rate-limit sessions' only supports 'global'.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-#ifdef USE_OPENSSL
-			else if (strcmp(args[2], "ssl-sessions") == 0) {
-				if (strcmp(args[3], "global") == 0) {
-					int v;
-
-					if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-						appctx->ctx.cli.msg = stats_permission_denied_msg;
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					if (!*args[4]) {
-						appctx->ctx.cli.msg = "Expects an integer value.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					v = atoi(args[4]);
-					if (v < 0) {
-						appctx->ctx.cli.msg = "Value out of range.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					global.ssl_lim = v;
-
-					/* Dequeues all of the listeners waiting for a resource */
-					if (!LIST_ISEMPTY(&global_listener_queue))
-						dequeue_all_listeners(&global_listener_queue);
-
-					return 1;
-				}
-				else {
-					appctx->ctx.cli.msg = "'set rate-limit ssl-sessions' only supports 'global'.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-#endif
-			else if (strcmp(args[2], "http-compression") == 0) {
-				if (strcmp(args[3], "global") == 0) {
-					int v;
-
-					if (strm_li(s)->bind_conf->level < ACCESS_LVL_ADMIN) {
-						appctx->ctx.cli.msg = stats_permission_denied_msg;
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					if (!*args[4]) {
-						appctx->ctx.cli.msg = "Expects a maximum input byte rate in kB/s.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-
-					v = atoi(args[4]);
-					global.comp_rate_lim = v * 1024; /* Kilo to bytes. */
-				}
-				else {
-					appctx->ctx.cli.msg = "'set rate-limit http-compression' only supports 'global'.\n";
-					appctx->st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-			else {
-				appctx->ctx.cli.msg = "'set rate-limit' supports 'connections', 'sessions', 'ssl-sessions', and 'http-compression'.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-		} else { /* unknown "set" parameter */
-			return 0;
-		}
-	}
-	else { /* not "show" nor "clear" nor "get" nor "set" nor "enable" nor "disable" */
-		return 0;
-	}
-	return 1;
+	return 0;
 }
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
@@ -968,6 +815,63 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 	return 1;
 }
 
+/* parse a "set rate-limit" command. It always returns 1. */
+static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *private)
+{
+	int v;
+	int *res;
+	int mul = 1;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (strcmp(args[2], "connections") == 0 && strcmp(args[3], "global") == 0)
+		res = &global.cps_lim;
+	else if (strcmp(args[2], "sessions") == 0 && strcmp(args[3], "global") == 0)
+		res = &global.sps_lim;
+#ifdef USE_OPENSSL
+	else if (strcmp(args[2], "ssl-sessions") == 0 && strcmp(args[3], "global") == 0)
+		res = &global.ssl_lim;
+#endif
+	else if (strcmp(args[2], "http-compression") == 0 && strcmp(args[3], "global") == 0) {
+		res = &global.comp_rate_lim;
+		mul = 1024;
+	}
+	else {
+		appctx->ctx.cli.msg =
+			"'set rate-limit' only supports :\n"
+			"   - 'connections global' to set the per-process maximum connection rate\n"
+			"   - 'sessions global' to set the per-process maximum session rate\n"
+#ifdef USE_OPENSSL
+			"   - 'ssl-session global' to set the per-process maximum SSL session rate\n"
+#endif
+			"   - 'http-compression global' to set the per-process maximum compression speed in kB/s\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	if (!*args[4]) {
+		appctx->ctx.cli.msg = "Expects an integer value.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	v = atoi(args[4]);
+	if (v < 0) {
+		appctx->ctx.cli.msg = "Value out of range.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	*res = v * mul;
+
+	/* Dequeues all of the listeners waiting for a resource */
+	if (!LIST_ISEMPTY(&global_listener_queue))
+		dequeue_all_listeners(&global_listener_queue);
+
+	return 1;
+}
+
 /* parse the "level" argument on the bind lines */
 static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1001,6 +905,7 @@ static struct applet cli_applet = {
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
+	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{{},}
