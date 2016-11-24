@@ -3583,6 +3583,22 @@ static int cli_parse_set_maxconn_server(char **args, struct appctx *appctx, void
 	return 1;
 }
 
+/* parse a "disable agent" command. It always returns 1. */
+static int cli_parse_disable_agent(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[2]);
+	if (!sv)
+		return 1;
+
+	sv->agent.state &= ~CHK_ST_ENABLED;
+	return 1;
+}
+
 /* parse a "disable health" command. It always returns 1. */
 static int cli_parse_disable_health(char **args, struct appctx *appctx, void *private)
 {
@@ -3612,6 +3628,28 @@ static int cli_parse_disable_server(char **args, struct appctx *appctx, void *pr
 		return 1;
 
 	srv_adm_set_maint(sv);
+	return 1;
+}
+
+/* parse a "enable agent" command. It always returns 1. */
+static int cli_parse_enable_agent(char **args, struct appctx *appctx, void *private)
+{
+	struct server *sv;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	sv = cli_find_server(appctx, args[2]);
+	if (!sv)
+		return 1;
+
+	if (!(sv->agent.state & CHK_ST_CONFIGURED)) {
+		appctx->ctx.cli.msg = "Agent was not configured on this server, cannot enable.\n";
+		appctx->st0 = STAT_CLI_PRINT;
+		return 1;
+	}
+
+	sv->agent.state |= CHK_ST_ENABLED;
 	return 1;
 }
 
@@ -3649,8 +3687,10 @@ static int cli_parse_enable_server(char **args, struct appctx *appctx, void *pri
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "disable", "agent",  NULL }, "disable agent  : disable agent checks (use 'set server' instead)", cli_parse_disable_agent, NULL },
 	{ { "disable", "health",  NULL }, "disable health : disable health checks (use 'set server' instead)", cli_parse_disable_health, NULL },
 	{ { "disable", "server",  NULL }, "disable server : disable a server for maintenance (use 'set server' instead)", cli_parse_disable_server, NULL },
+	{ { "enable", "agent",  NULL }, "enable agent   : enable agent checks (use 'set server' instead)", cli_parse_enable_agent, NULL },
 	{ { "enable", "health",  NULL }, "enable health  : enable health checks (use 'set server' instead)", cli_parse_enable_health, NULL },
 	{ { "enable", "server",  NULL }, "enable server  : enable a disabled server (use 'set server' instead)", cli_parse_enable_server, NULL },
 	{ { "set", "maxconn", "server",  NULL }, "set maxconn server : change a server's maxconn setting", cli_parse_set_maxconn_server, NULL },
