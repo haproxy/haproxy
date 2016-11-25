@@ -1,6 +1,115 @@
 ChangeLog :
 ===========
 
+2016/11/25 : 1.7.0
+    - SCRIPTS: make publish-release also copy the new SPOE doc
+    - BUILD: http: include types/sample.h in proto_http.h
+    - BUILD: debug/flags: remove test for SF_COMP_READY
+    - CONTRIB: debug/flags: add check for SF_ERR_CHK_PORT
+    - MINOR: lua: add function which return true if the channel is full.
+    - MINOR: lua: add ip addresses and network manipulation function
+    - CONTRIB: tcploop: scriptable TCP I/O for debugging purposes
+    - CONTRIB: tcploop: implement fork()
+    - CONTRIB: tcploop: implement logging when called with -v
+    - CONTRIB: tcploop: update the usage output
+    - CONTRIB: tcploop: support sending plain strings
+    - CONTRIB: tcploop: don't report failed send() or recv()
+    - CONTRIB: tcploop: add basic loops via a jump instruction
+    - BUG/MEDIUM: channel: bad unlikely macro
+    - CLEANUP: lua: move comment
+    - CLEANUP: lua: control executed twice
+    - BUG/MEDIUM: ssl: Store certificate filename in a variable
+    - BUG/MINOR: ssl: Print correct filename when error occurs reading OCSP
+    - CLEANUP: ssl: Remove goto after return dead code
+    - CLEANUP: ssl: Fix bind keywords name in comments
+    - DOC: ssl: Use correct wording for ca-sign-pass
+    - CLEANUP: lua: avoid directly calling getsockname/getpeername()
+    - BUG/MINOR: stick-table: handle out-of-memory condition gracefully
+    - MINOR: cli: add private pointer and release function
+    - MEDIUM: lua: Add cli handler for Lua
+    - BUG/MEDIUM: connection: check the control layer before stopping polling
+    - DEBUG: connection: mark the closed FDs with a value that is easier to detect
+    - BUG/MEDIUM: stick-table: fix regression caused by recent fix for out-of-memory
+    - BUG/MINOR: cli: properly decrement ref count on tables during failed dumps
+    - BUG/MEDIUM: lua: In some case, the return of sample-fetche is ignored
+    - MINOR: filters: Add check_timeouts callback to handle timers expiration on streams
+    - MINOR: spoe: Add 'timeout processing' option to limit time to process an event
+    - MINOR: spoe: Remove useless 'timeout ack' option
+    - MINOR: spoe: Add 'option continue-on-error' statement in spoe-agent section
+    - MINOR: spoe: Add "maxconnrate" and "maxerrrate" statements
+    - MINOR: spoe: Add "option set-on-error" statement
+    - MINOR: stats: correct documentation of process ID for typed output
+    - BUILD: contrib: fix ip6range build on Centos 7
+    - BUILD: fix build on Solaris 10/11
+    - BUG/MINOR: cli: fix pointer size when reporting data/transport layer name
+    - BUG/MINOR: cli: dequeue from the proxy when changing a maxconn
+    - BUG/MINOR: cli: wake up the CLI's task after a timeout update
+    - MINOR: connection: add a few functions to report the data and xprt layers' names
+    - MINOR: connection: add names for transport and data layers
+    - REORG: cli: split dumpstats.c in src/cli.c and src/stats.c
+    - REORG: cli: split dumpstats.h in stats.h and cli.h
+    - REORG: cli: move ssl CLI functions to ssl_sock.c
+    - REORG: cli: move map and acl code to map.c
+    - REORG: cli: move show stat resolvers to dns.c
+    - MINOR: cli: create new function cli_has_level() to validate permissions
+    - MINOR: server: create new function cli_find_server() to find a server
+    - MINOR: proxy: create new function cli_find_frontend() to find a frontend
+    - REORG: cli: move 'set server' to server.c
+    - REORG: cli: move 'show pools' to memory.c
+    - REORG: cli: move 'show servers' to proxy.c
+    - REORG: cli: move 'show sess' to stream.c
+    - REORG: cli: move 'show backend' to proxy.c
+    - REORG: cli: move get/set weight to server.c
+    - REORG: cli: move "show stat" to stats.c
+    - REORG: cli: move "show info" to stats.c
+    - REORG: cli: move dump_text(), dump_text_line(), and dump_binary() to standard.c
+    - REORG: cli: move table dump/clear/set to stick_table.c
+    - REORG: cli: move "show errors" out of cli.c
+    - REORG: cli: make "show env" also use the generic keyword registration
+    - REORG: cli: move "set timeout" to its own handler
+    - REORG: cli: move "clear counters" to stats.c
+    - REORG: cli: move "set maxconn global" to its own handler
+    - REORG: cli: move "set maxconn server" to server.c
+    - REORG: cli: move "set maxconn frontend" to proxy.c
+    - REORG: cli: move "shutdown sessions server" to stream.c
+    - REORG: cli: move "shutdown session" to stream.c
+    - REORG: cli: move "shutdown frontend" to proxy.c
+    - REORG: cli: move "{enable|disable} frontend" to proxy.c
+    - REORG: cli: move "{enable|disable} server" to server.c
+    - REORG: cli: move "{enable|disable} health" to server.c
+    - REORG: cli: move "{enable|disable} agent" to server.c
+    - REORG: cli: move the "set rate-limit" functions to their own parser
+    - CLEANUP: cli: rename STAT_CLI_* to CLI_ST_*
+    - CLEANUP: cli: simplify the request parser a little bit
+    - CLEANUP: cli: remove assignments to st0 and st2 in keyword parsers
+    - BUILD: server: remove a build warning introduced by latest series
+    - BUG/MINOR: log-format: uncatched memory allocation functions
+    - CLEANUP: log-format: useless file and line in json converter
+    - CLEANUP/MINOR: log-format: unexport functions parse_logformat_var_args() and parse_logformat_var()
+    - CLEANUP: log-format: fix return code of the function parse_logformat_var()
+    - CLEANUP: log-format: fix return code of function parse_logformat_var_args()
+    - CLEANUP: log-format: remove unused arguments
+    - MEDIUM: log-format: strict parsing and enable fail
+    - MEDIUM: log-format/conf: take into account the parse_logformat_string() return code
+    - BUILD: ssl: make the SSL layer build again with openssl 0.9.8
+    - BUILD: vars: remove a build warning on vars.c
+    - MINOR: lua: add utility function for check boolean argument
+    - MINOR: lua: Add tokenize function.
+    - BUG/MINOR: conf: calloc untested
+    - MINOR: http/conf: store the use_backend configuration file and line for logs
+    - MEDIUM: log-format: Use standard HAProxy log system to report errors
+    - CLEANUP: sample: report "converter" instead of "conv method" in error messages
+    - BUG: spoe: Fix parsing of SPOE actions in ACK frames
+    - MINOR: cli: make "show stat" support a proxy name
+    - MINOR: cli: make "show errors" support a proxy name
+    - MINOR: cli: make "show errors" capable of dumping only request or response
+    - BUG/MINOR: freq-ctr: make swrate_add() support larger values
+    - CLEANUP: counters: move from 3 types to 2 types
+    - CLEANUP: cfgparse: cascade the warnif_misplaced_* rules
+    - REORG: tcp-rules: move tcp rules processing to their own file
+    - REORG: stkctr: move all the stick counters processing to stick-tables.c
+    - DOC: update the roadmap file with the latest changes
+
 2016/11/09 : 1.7-dev6
     - DOC: fix the entry for hash-balance-factor config option
     - DOC: Fix typo in description of `-st` parameter in man page
