@@ -1,14 +1,11 @@
-Medium-long term roadmap - 2015/10/13
+Medium-long term wish list - 2016/11/25
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.7 or later :
+1.8 or later :
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
 
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
-
-  - add the ability to only dump response errors to more easily detect
-    anomalies without being polluted with attacks in requests.
 
   - have multi-criteria analysers which subscribe to req flags, rsp flags, and
     stream interface changes. This would result in a single analyser to wait
@@ -17,8 +14,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - support for time-ordered priority queues with ability to add an offset
     based on request matching. Each session will have one ebtree node to be
     attached to whatever queue the session is waiting in.
-
-  - add a flag in logs to indicate keep-alive requests ?
 
   - make it possible to condition a timeout on an ACL (dynamic timeouts)
 
@@ -48,10 +43,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - evaluate the changes required for multi-process+shared mem or multi-thread
     +thread-local+fast locking.
-
-  - ability to decide whether to drain or kill sessions when putting a server
-    to maintenance mode => requires a per-server session list and the change
-    above.
 
 Old, maybe obsolete points :
   - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
