@@ -12907,10 +12907,24 @@ static int cli_parse_show_errors(char **args, struct appctx *appctx, void *priva
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	if (*args[2])
-		appctx->ctx.errors.iid	= atoi(args[2]);
+	if (*args[2]) {
+		struct proxy *px;
+
+		px = proxy_find_by_name(args[2], 0, 0);
+		if (px)
+			appctx->ctx.errors.iid = px->uuid;
+		else
+			appctx->ctx.errors.iid = atoi(args[2]);
+
+		if (!appctx->ctx.errors.iid) {
+			appctx->ctx.cli.msg = "No such proxy.\n";
+			appctx->st0 = CLI_ST_PRINT;
+			return 1;
+		}
+	}
 	else
-		appctx->ctx.errors.iid	= -1;
+		appctx->ctx.errors.iid	= -1; // dump all proxies
+
 	appctx->ctx.errors.px = NULL;
 	return 0;
 }

@@ -1684,12 +1684,13 @@ show env [<name>]
   ensure that they contain the expected values. This command is restricted and
   can only be issued on sockets configured for levels "operator" or "admin".
 
-show errors [<iid>]
+show errors [<iid>|<proxy>]
   Dump last known request and response errors collected by frontends and
   backends. If <iid> is specified, the limit the dump to errors concerning
-  either frontend or backend whose ID is <iid>. This command is restricted
-  and can only be issued on sockets configured for levels "operator" or
-  "admin".
+  either frontend or backend whose ID is <iid>. Proxy ID "-1" will cause
+  all instances to be dumped. If a proxy name is specified instead, its ID
+  will be used as the filter. This command is restricted and can only be
+  issued on sockets configured for levels "operator" or "admin".
 
   The errors which may be collected are the last request and response errors
   caused by protocol violations, often due to invalid characters in header
