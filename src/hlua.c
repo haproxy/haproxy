@@ -44,7 +44,6 @@
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
-#include <proto/proto_tcp.h>
 #include <proto/raw_sock.h>
 #include <proto/sample.h>
 #include <proto/server.h>
@@ -53,6 +52,7 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This

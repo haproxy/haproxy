@@ -771,7 +771,7 @@ OBJS = src/haproxy.o src/base64.o src/protocol.o \
        src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/frontend.o src/proxy.o src/peers.o \
        src/arg.o src/stick_table.o src/proto_uxst.o src/connection.o \
-       src/proto_http.o src/raw_sock.o src/backend.o \
+       src/proto_http.o src/raw_sock.o src/backend.o src/tcp_rules.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o src/lb_fas.o \
        src/stream_interface.o src/stats.o src/proto_tcp.o src/applet.o \
        src/session.o src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \

@@ -7,9 +7,9 @@
 
 #include <proto/arg.h>
 #include <proto/proto_http.h>
-#include <proto/proto_tcp.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
+#include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
 /* This contains a pool of struct vars */

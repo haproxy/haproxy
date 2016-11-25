@@ -36,28 +36,9 @@ int tcp_connect_probe(struct connection *conn);
 int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_drain(int fd);
-int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);
-int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);
-int tcp_exec_l4_rules(struct session *sess);
-int tcp_exec_l5_rules(struct session *sess);
-
-/* TCP keywords. */
-void tcp_req_conn_keywords_register(struct action_kw_list *kw_list);
-void tcp_req_sess_keywords_register(struct action_kw_list *kw_list);
-void tcp_req_cont_keywords_register(struct action_kw_list *kw_list);
-void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 
 /* Export some samples. */
 int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);
-
-
-/* for a tcp-request action ACT_TCP_TRK_*, return a tracking index starting at
- * zero for SC0. Unknown actions also return zero.
- */
-static inline int tcp_trk_idx(int trk_action)
-{
-	return trk_action - ACT_ACTION_TRK_SC0;
-}
 
 #endif /* _PROTO_PROTO_TCP_H */
 

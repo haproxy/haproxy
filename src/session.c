@@ -22,11 +22,11 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
-#include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/raw_sock.h>
 #include <proto/session.h>
 #include <proto/stream.h>
+#include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
 struct pool_head *pool2_session;

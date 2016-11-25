@@ -81,8 +81,9 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/raw_sock.h>
-#include <proto/task.h>
 #include <proto/stick_table.h>
+#include <proto/task.h>
+#include <proto/tcp_rules.h>
 
 #ifdef USE_OPENSSL
 #include <types/ssl_sock.h>

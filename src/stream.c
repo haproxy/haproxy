@@ -57,6 +57,7 @@
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
 struct pool_head *pool2_stream;

@@ -24,12 +24,12 @@
 #include <ebsttree.h>
 
 #include <types/cli.h>
+#include <types/global.h>
 #include <types/stats.h>
 
 #include <proto/arg.h>
 #include <proto/cli.h>
 #include <proto/proto_http.h>
-#include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
@@ -37,7 +37,7 @@
 #include <proto/stick_table.h>
 #include <proto/task.h>
 #include <proto/peers.h>
-#include <types/global.h>
+#include <proto/tcp_rules.h>
 
 /* structure used to return a table key built from a sample */
 struct stktable_key *static_table_key;
