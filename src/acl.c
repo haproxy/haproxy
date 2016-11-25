@@ -242,7 +242,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 			if (*arg && *arg != ',') {
 				if (ckw)
-					memprintf(err, "ACL keyword '%s' : missing comma after conv keyword '%s'.",
+					memprintf(err, "ACL keyword '%s' : missing comma after converter '%s'.",
 						  aclkw->kw, ckw);
 				else
 					memprintf(err, "ACL keyword '%s' : missing comma after fetch keyword.",
@@ -253,7 +253,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			while (*arg == ',') /* then trailing commas */
 				arg++;
 
-			begw = arg; /* start of conv keyword */
+			begw = arg; /* start of converter keyword */
 
 			if (!*begw)
 				/* none ? end of converters */
@@ -267,7 +267,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			conv = find_sample_conv(begw, endw - begw);
 			if (!conv) {
 				/* Unknown converter method */
-				memprintf(err, "ACL keyword '%s' : unknown conv method '%s'.",
+				memprintf(err, "ACL keyword '%s' : unknown converter '%s'.",
 					  aclkw->kw, ckw);
 				goto out_free_smp;
 			}
@@ -278,21 +278,21 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				while (*arg && *arg != ')')
 					arg++;
 				if (*arg != ')') {
-					memprintf(err, "ACL keyword '%s' : syntax error: missing ')' after conv keyword '%s'.",
+					memprintf(err, "ACL keyword '%s' : syntax error: missing ')' after converter '%s'.",
 						  aclkw->kw, ckw);
 					goto out_free_smp;
 				}
 			}
 
 			if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
-				memprintf(err, "ACL keyword '%s' : returns type of conv method '%s' is unknown.",
+				memprintf(err, "ACL keyword '%s' : returns type of converter '%s' is unknown.",
 					  aclkw->kw, ckw);
 				goto out_free_smp;
 			}
 
 			/* If impossible type conversion */
 			if (!sample_casts[cur_type][conv->in_type]) {
-				memprintf(err, "ACL keyword '%s' : conv method '%s' cannot be applied.",
+				memprintf(err, "ACL keyword '%s' : converter '%s' cannot be applied.",
 					  aclkw->kw, ckw);
 				goto out_free_smp;
 			}
@@ -310,7 +310,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				int err_arg;
 
 				if (!conv->arg_mask) {
-					memprintf(err, "ACL keyword '%s' : conv method '%s' does not support any args.",
+					memprintf(err, "ACL keyword '%s' : converter '%s' does not support any args.",
 						  aclkw->kw, ckw);
 					goto out_free_smp;
 				}
@@ -318,7 +318,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				al->kw = smp->fetch->kw;
 				al->conv = conv_expr->conv->kw;
 				if (make_arg_list(endw + 1, arg - endw - 1, conv->arg_mask, &conv_expr->arg_p, err, NULL, &err_arg, al) < 0) {
-					memprintf(err, "ACL keyword '%s' : invalid arg %d in conv method '%s' : %s.",
+					memprintf(err, "ACL keyword '%s' : invalid arg %d in converter '%s' : %s.",
 						  aclkw->kw, err_arg+1, ckw, *err);
 					goto out_free_smp;
 				}
@@ -327,13 +327,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 					conv_expr->arg_p = empty_arg_list;
 
 				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err)) {
-					memprintf(err, "ACL keyword '%s' : invalid args in conv method '%s' : %s.",
+					memprintf(err, "ACL keyword '%s' : invalid args in converter '%s' : %s.",
 						  aclkw->kw, ckw, *err);
 					goto out_free_smp;
 				}
 			}
 			else if (ARGM(conv->arg_mask)) {
-				memprintf(err, "ACL keyword '%s' : missing args for conv method '%s'.",
+				memprintf(err, "ACL keyword '%s' : missing args for converter '%s'.",
 					  aclkw->kw, ckw);
 				goto out_free_smp;
 			}

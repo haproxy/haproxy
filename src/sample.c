@@ -918,7 +918,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 
 		if (*endt && *endt != ',') {
 			if (ckw)
-				memprintf(err_msg, "missing comma after conv keyword '%s'", ckw);
+				memprintf(err_msg, "missing comma after converter '%s'", ckw);
 			else
 				memprintf(err_msg, "missing comma after fetch keyword '%s'", fkw);
 			goto out_error;
@@ -927,7 +927,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		while (*endt == ',') /* then trailing commas */
 			endt++;
 
-		begw = endt; /* start of conv keyword */
+		begw = endt; /* start of converter */
 
 		if (!*begw) {
 			/* none ? skip to next string */
@@ -947,7 +947,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			/* we found an isolated keyword that we don't know, it's not ours */
 			if (begw == str[*idx])
 				break;
-			memprintf(err_msg, "unknown conv method '%s'", ckw);
+			memprintf(err_msg, "unknown converter '%s'", ckw);
 			goto out_error;
 		}
 
@@ -957,19 +957,19 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			while (*endt && *endt != ')')
 				endt++;
 			if (*endt != ')') {
-				memprintf(err_msg, "syntax error: missing ')' after conv keyword '%s'", ckw);
+				memprintf(err_msg, "syntax error: missing ')' after converter '%s'", ckw);
 				goto out_error;
 			}
 		}
 
 		if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
-			memprintf(err_msg, "returns type of conv method '%s' is unknown", ckw);
+			memprintf(err_msg, "returns type of converter '%s' is unknown", ckw);
 			goto out_error;
 		}
 
 		/* If impossible type conversion */
 		if (!sample_casts[prev_type][conv->in_type]) {
-			memprintf(err_msg, "conv method '%s' cannot be applied", ckw);
+			memprintf(err_msg, "converter '%s' cannot be applied", ckw);
 			goto out_error;
 		}
 
@@ -985,14 +985,14 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			int err_arg;
 
 			if (!conv->arg_mask) {
-				memprintf(err_msg, "conv method '%s' does not support any args", ckw);
+				memprintf(err_msg, "converter '%s' does not support any args", ckw);
 				goto out_error;
 			}
 
 			al->kw = expr->fetch->kw;
 			al->conv = conv_expr->conv->kw;
 			if (make_arg_list(endw + 1, endt - endw - 1, conv->arg_mask, &conv_expr->arg_p, err_msg, NULL, &err_arg, al) < 0) {
-				memprintf(err_msg, "invalid arg %d in conv method '%s' : %s", err_arg+1, ckw, *err_msg);
+				memprintf(err_msg, "invalid arg %d in converter '%s' : %s", err_arg+1, ckw, *err_msg);
 				goto out_error;
 			}
 
@@ -1000,12 +1000,12 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 				conv_expr->arg_p = empty_arg_list;
 
 			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err_msg)) {
-				memprintf(err_msg, "invalid args in conv method '%s' : %s", ckw, *err_msg);
+				memprintf(err_msg, "invalid args in converter '%s' : %s", ckw, *err_msg);
 				goto out_error;
 			}
 		}
 		else if (ARGM(conv->arg_mask)) {
-			memprintf(err_msg, "missing args for conv method '%s'", ckw);
+			memprintf(err_msg, "missing args for converter '%s'", ckw);
 			goto out_error;
 		}
 	}
