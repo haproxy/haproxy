@@ -1957,12 +1957,14 @@ show sess <id>
   The special id "all" dumps the states of all sessions, which must be avoided
   as much as possible as it is highly CPU intensive and can take a lot of time.
 
-show stat [<iid> <type> <sid>] [typed]
+show stat [{<iid>|<proxy>} <type> <sid>] [typed]
   Dump statistics using the CSV format, or using the extended typed output
   format described in the section above if "typed" is passed after the other
   arguments. By passing <id>, <type> and <sid>, it is possible to dump only
   selected items :
-    - <iid> is a proxy ID, -1 to dump everything
+    - <iid> is a proxy ID, -1 to dump everything. Alternatively, a proxy name
+      <proxy> may be specified. In this case, this proxy's ID will be used as
+      the ID selector.
     - <type> selects the type of dumpable objects : 1 for frontends, 2 for
        backends, 4 for servers, -1 for everything. These values can be ORed,
        for example:

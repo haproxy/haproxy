@@ -3103,8 +3103,21 @@ static int cli_parse_show_info(char **args, struct appctx *appctx, void *private
 static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private)
 {
 	if (*args[2] && *args[3] && *args[4]) {
+		struct proxy *px;
+
+		px = proxy_find_by_name(args[2], 0, 0);
+		if (px)
+			appctx->ctx.stats.iid = px->uuid;
+		else
+			appctx->ctx.stats.iid = atoi(args[2]);
+
+		if (!appctx->ctx.stats.iid) {
+			appctx->ctx.cli.msg = "No such proxy.\n";
+			appctx->st0 = CLI_ST_PRINT;
+			return 1;
+		}
+
 		appctx->ctx.stats.flags |= STAT_BOUND;
-		appctx->ctx.stats.iid = atoi(args[2]);
 		appctx->ctx.stats.type = atoi(args[3]);
 		appctx->ctx.stats.sid = atoi(args[4]);
 		if (strcmp(args[5], "typed") == 0)
