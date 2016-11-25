@@ -1684,13 +1684,15 @@ show env [<name>]
   ensure that they contain the expected values. This command is restricted and
   can only be issued on sockets configured for levels "operator" or "admin".
 
-show errors [<iid>|<proxy>]
+show errors [<iid>|<proxy>] [request|response]
   Dump last known request and response errors collected by frontends and
   backends. If <iid> is specified, the limit the dump to errors concerning
   either frontend or backend whose ID is <iid>. Proxy ID "-1" will cause
   all instances to be dumped. If a proxy name is specified instead, its ID
-  will be used as the filter. This command is restricted and can only be
-  issued on sockets configured for levels "operator" or "admin".
+  will be used as the filter. If "request" or "response" is added after the
+  proxy name or ID, only request or response errors will be dumped. This
+  command is restricted and can only be issued on sockets configured for
+  levels "operator" or "admin".
 
   The errors which may be collected are the last request and response errors
   caused by protocol violations, often due to invalid characters in header
@@ -1716,7 +1718,7 @@ show errors [<iid>|<proxy>]
   line.
 
   Example :
-        $ echo "show errors" | socat stdio /tmp/sock1
+        $ echo "show errors -1 response" | socat stdio /tmp/sock1
     >>> [04/Mar/2009:15:46:56.081] backend http-in (#2) : invalid response
           src 127.0.0.1, session #54, frontend fe-eth0 (#1), server s2 (#1)
           response length 213 bytes, error at position 23:

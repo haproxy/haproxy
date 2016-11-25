@@ -12925,6 +12925,11 @@ static int cli_parse_show_errors(char **args, struct appctx *appctx, void *priva
 	else
 		appctx->ctx.errors.iid	= -1; // dump all proxies
 
+	appctx->ctx.errors.flag = 0;
+	if (strcmp(args[3], "request") == 0)
+		appctx->ctx.errors.flag |= 4; // ignore response
+	else if (strcmp(args[3], "response") == 0)
+		appctx->ctx.errors.flag |= 2; // ignore request
 	appctx->ctx.errors.px = NULL;
 	return 0;
 }
@@ -12962,7 +12967,6 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		}
 
 		appctx->ctx.errors.px = proxy;
-		appctx->ctx.errors.buf = 0;
 		appctx->ctx.errors.bol = 0;
 		appctx->ctx.errors.ptr = -1;
 	}
@@ -12973,10 +12977,16 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	while (appctx->ctx.errors.px) {
 		struct error_snapshot *es;
 
-		if (appctx->ctx.errors.buf == 0)
+		if ((appctx->ctx.errors.flag & 1) == 0) {
 			es = &appctx->ctx.errors.px->invalid_req;
-		else
+			if (appctx->ctx.errors.flag & 2) // skip req
+				goto next;
+		}
+		else {
 			es = &appctx->ctx.errors.px->invalid_rep;
+			if (appctx->ctx.errors.flag & 4) // skip resp
+				goto next;
+		}
 
 		if (!es->when.tv_sec)
 			goto next;
@@ -13007,7 +13017,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				port = 0;
 			}
 
-			switch (appctx->ctx.errors.buf) {
+			switch (appctx->ctx.errors.flag & 1) {
 			case 0:
 				chunk_appendf(&trash,
 					     " frontend %s (#%d): invalid request\n"
@@ -13081,11 +13091,9 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	next:
 		appctx->ctx.errors.bol = 0;
 		appctx->ctx.errors.ptr = -1;
-		appctx->ctx.errors.buf++;
-		if (appctx->ctx.errors.buf > 1) {
-			appctx->ctx.errors.buf = 0;
+		appctx->ctx.errors.flag ^= 1;
+		if (!(appctx->ctx.errors.flag & 1))
 			appctx->ctx.errors.px = appctx->ctx.errors.px->next;
-		}
 	}
 
 	/* dump complete */
