@@ -182,7 +182,19 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
  *
  * So basically by summing values and applying the last result an (N-1)/N factor
  * we just get N times the values over the long term, so we can recover the
- * constant value V by dividing by N.
+ * constant value V by dividing by N. In order to limit the impact of integer
+ * overflows, we'll use this equivalence which saves us one multiply :
+ *
+ *               N - 1                   1             x0
+ *    x1 = x0 * -------   =  x0 * ( 1 - --- )  = x0 - ----
+ *                 N                     N              N
+ *
+ * And given that x0 is discrete here we'll have to saturate the values before
+ * performing the divide, so the value insertion will become :
+ *
+ *               x0 + N - 1
+ *    x1 = x0 - ------------
+ *                    N
  *
  * A value added at the entry of the sliding window of N values will thus be
  * reduced to 1/e or 36.7% after N terms have been added. After a second batch,
@@ -220,7 +232,7 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
  */
 static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigned int v)
 {
-	return *sum = *sum * (n - 1) / n + v;
+	return *sum = *sum - (*sum + n - 1) / n + v;
 }
 
 /* Returns the average sample value for the sum <sum> over a sliding window of
