@@ -1,6 +1,8 @@
 ChangeLog :
 ===========
 
+2016/11/25 : 1.8-dev0
+
 2016/11/25 : 1.7.0
     - SCRIPTS: make publish-release also copy the new SPOE doc
     - BUILD: http: include types/sample.h in proto_http.h
