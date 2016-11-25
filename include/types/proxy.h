@@ -362,8 +362,8 @@ struct proxy {
 	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the streams */
 	                 *rsp_cap_pool;
 	struct list req_add, rsp_add;           /* headers to be added */
-	struct pxcounters be_counters;		/* backend statistics counters */
-	struct pxcounters fe_counters;		/* frontend statistics counters */
+	struct be_counters be_counters;		/* backend statistics counters */
+	struct fe_counters fe_counters;		/* frontend statistics counters */
 
 	struct list listener_queue;		/* list of the temporarily limited listeners because of lack of a proxy resource */
 	struct stktable table;			/* table for storing sticking streams */

@@ -192,7 +192,7 @@ struct server {
 	int nbpend;				/* number of pending connections */
 	int maxqueue;				/* maximum number of pending connections allowed */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
-	struct srvcounters counters;		/* statistics counters */
+	struct be_counters counters;		/* statistics counters */
 
 	struct list pendconns;			/* pending connections */
 	struct list actconns;			/* active connections */

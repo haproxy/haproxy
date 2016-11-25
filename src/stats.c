@@ -929,7 +929,6 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
-			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
 				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
 			              "",
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
@@ -941,8 +940,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              U2H(stats[ST_F_HRSP_3XX].u.u64),
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
-			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
-			              U2H(stats[ST_F_INTERCEPTED].u.u64));
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64));
 		}
 
 		chunk_appendf(out, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
@@ -1547,7 +1545,6 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
 		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
 		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
-		stats[ST_F_INTERCEPTED] = mkf_u64(FN_COUNTER, px->be_counters.intercepted_req);
 	}
 
 	stats[ST_F_CLI_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
@@ -3065,7 +3062,6 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 			px->fe_counters.p.http.rps_max = 0;
 			px->fe_counters.sps_max = 0;
 			px->fe_counters.cps_max = 0;
-			px->fe_counters.nbpend_max = 0;
 		}
 
 		for (sv = px->srv; sv; sv = sv->next)

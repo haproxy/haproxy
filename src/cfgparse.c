@@ -9009,7 +9009,7 @@ out_uri_auth_compat:
 
 			/* enable separate counters */
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
-				listener->counters = calloc(1, sizeof(struct licounters));
+				listener->counters = calloc(1, sizeof(*listener->counters));
 				if (!listener->name)
 					memprintf(&listener->name, "sock-%d", listener->luid);
 			}

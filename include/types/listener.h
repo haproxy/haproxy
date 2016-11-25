@@ -39,7 +39,7 @@ struct task;
 struct protocol;
 struct xprt_ops;
 struct proxy;
-struct licounters;
+struct fe_counters;
 
 /* listener state */
 enum li_state {
@@ -171,7 +171,7 @@ struct listener {
 	char *name;			/* listener's name */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
-	struct licounters *counters;	/* statistics counters */
+	struct fe_counters *counters;	/* statistics counters */
 	struct protocol *proto;		/* protocol this listener belongs to */
 	struct xprt_ops *xprt;          /* transport-layer operations for this socket */
 	int nbconn;			/* current number of connections on this listener */
