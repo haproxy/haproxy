@@ -50,7 +50,7 @@ static inline enum field_nature field_nature(const struct field *f, int e)
 
 static inline const char *field_str(const struct field *f, int e)
 {
-	return (field_format(f, e) == FF_STR) ? f[e].u.str : "";
+	return (field_format(f, e) == FF_STR && f[e].u.str) ? f[e].u.str : "";
 }
 
 static inline struct field mkf_s32(uint32_t type, int32_t value)
