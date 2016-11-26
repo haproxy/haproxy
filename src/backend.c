@@ -1429,8 +1429,10 @@ const char *backend_lb_algo_str(int algo) {
 		return "hdr";
 	else if (algo == BE_LB_ALGO_RCH)
 		return "rdp-cookie";
+	else if (algo == BE_LB_ALGO_NONE)
+		return "none";
 	else
-		return NULL;
+		return "unknown";
 }
 
 /* This function parses a "balance" statement in a backend section describing
