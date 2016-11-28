@@ -6250,17 +6250,18 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * The length of a message body is determined by one of the following
 	 *   (in order of precedence):
 	 *
-	 *   1.  Any response to a HEAD request and any response with a 1xx
+	 *   1.  Any 2xx (Successful) response to a CONNECT request implies that
+	 *       the connection will become a tunnel immediately after the empty
+	 *       line that concludes the header fields.  A client MUST ignore
+	 *       any Content-Length or Transfer-Encoding header fields received
+	 *       in such a message. Any 101 response (Switching Protocols) is
+	 *       managed in the same manner.
+	 *
+	 *   2.  Any response to a HEAD request and any response with a 1xx
 	 *       (Informational), 204 (No Content), or 304 (Not Modified) status
 	 *       code is always terminated by the first empty line after the
 	 *       header fields, regardless of the header fields present in the
 	 *       message, and thus cannot contain a message body.
-	 *
-	 *   2.  Any 2xx (Successful) response to a CONNECT request implies that
-	 *       the connection will become a tunnel immediately after the empty
-	 *       line that concludes the header fields.  A client MUST ignore any
-	 *       Content-Length or Transfer-Encoding header fields received in
-	 *       such a message.
 	 *
 	 *   3.  If a Transfer-Encoding header field is present and the chunked
 	 *       transfer coding (Section 4.1) is the final encoding, the message
@@ -6318,6 +6319,22 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * the real header value, and we note that we know the response's length.
 	 * FIXME: should we parse anyway and return an error on chunked encoding ?
 	 */
+	if (unlikely((txn->meth == HTTP_METH_CONNECT && txn->status == 200) ||
+		     txn->status == 101)) {
+		/* Either we've established an explicit tunnel, or we're
+		 * switching the protocol. In both cases, we're very unlikely
+		 * to understand the next protocols. We have to switch to tunnel
+		 * mode, so that we transfer the request and responses then let
+		 * this protocol pass unmodified. When we later implement specific
+		 * parsers for such protocols, we'll want to check the Upgrade
+		 * header which contains information about that protocol for
+		 * responses with status 101 (eg: see RFC2817 about TLS).
+		 */
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
+		msg->flags |= HTTP_MSGF_XFER_LEN;
+		goto end;
+	}
+
 	if (txn->meth == HTTP_METH_HEAD ||
 	    (txn->status >= 100 && txn->status < 200) ||
 	    txn->status == 204 || txn->status == 304) {
@@ -6371,7 +6388,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->body_len = msg->chunk_len = cl;
 	}
 
-skip_content_length:
+ skip_content_length:
 	/* Now we have to check if we need to modify the Connection header.
 	 * This is more difficult on the response than it is on the request,
 	 * because we can have two different HTTP versions and we don't know
@@ -6388,24 +6405,10 @@ skip_content_length:
 	 * HTTP/1.0 clients which may not necessarily understand keep-alive.
 	 * See doc/internals/connection-header.txt for the complete matrix.
 	 */
-
-	if (unlikely((txn->meth == HTTP_METH_CONNECT && txn->status == 200) ||
-		     txn->status == 101)) {
-		/* Either we've established an explicit tunnel, or we're
-		 * switching the protocol. In both cases, we're very unlikely
-		 * to understand the next protocols. We have to switch to tunnel
-		 * mode, so that we transfer the request and responses then let
-		 * this protocol pass unmodified. When we later implement specific
-		 * parsers for such protocols, we'll want to check the Upgrade
-		 * header which contains information about that protocol for
-		 * responses with status 101 (eg: see RFC2817 about TLS).
-		 */
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
-	}
-	else if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
-		 ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-		  ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		   (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+	if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
+	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
+	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		int to_del = 0;
 
 		/* this situation happens when combining pretend-keepalive with httpclose. */
@@ -6445,6 +6448,7 @@ skip_content_length:
 		}
 	}
 
+ end:
 	/* we want to have the response time before we start processing it */
 	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
