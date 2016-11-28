@@ -1839,8 +1839,8 @@ struct task *process_stream(struct task *t)
 				FLT_ANALYZE(s, req, tcp_persist_rdp_cookie,     ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
 				FLT_ANALYZE(s, req, process_sticking_rules,     ana_list, ana_back, AN_REQ_STICKING_RULES);
 				ANALYZE    (s, req, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
-				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
 				ANALYZE    (s, req, http_request_forward_body,  ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
+				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
 				ANALYZE    (s, req, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
 				break;
 			}
@@ -1918,8 +1918,8 @@ struct task *process_stream(struct task *t)
 				FLT_ANALYZE(s, res, process_store_rules,        ana_list, ana_back, AN_RES_STORE_RULES);
 				FLT_ANALYZE(s, res, http_process_res_common,    ana_list, ana_back, AN_RES_HTTP_PROCESS_BE, s->be);
 				ANALYZE    (s, res, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
-				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
 				ANALYZE    (s, res, http_response_forward_body, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
+				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
 				ANALYZE    (s, res, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
 				break;
 			}
