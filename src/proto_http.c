@@ -5598,6 +5598,10 @@ int http_resync_states(struct stream *s)
 		s->res.analysers &= AN_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
+		if (txn->req.msg_state == HTTP_MSG_TUNNEL && HAS_REQ_DATA_FILTERS(s))
+			s->req.analysers |= AN_FLT_XFER_DATA;
+		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL && HAS_RSP_DATA_FILTERS(s))
+			s->res.analysers |= AN_FLT_XFER_DATA;
 	}
 	else if ((txn->req.msg_state >= HTTP_MSG_DONE &&
 		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->res.flags & CF_SHUTW))) ||
