@@ -47,11 +47,11 @@
 
 #define HAS_REQ_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_req_data_filters != 0)
 #define HAS_RSP_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_rsp_data_filters != 0)
-#define HAS_DATA_FILTERS(strm, chn) ((chn->flags & CF_ISRESP) ? HAS_RSP_DATA_FILTERS(strm) : HAS_REQ_DATA_FILTERS(strm))
+#define HAS_DATA_FILTERS(strm, chn) (((chn)->flags & CF_ISRESP) ? HAS_RSP_DATA_FILTERS(strm) : HAS_REQ_DATA_FILTERS(strm))
 
 #define IS_REQ_DATA_FILTER(flt)  ((flt)->flags & FLT_FL_IS_REQ_DATA_FILTER)
 #define IS_RSP_DATA_FILTER(flt)  ((flt)->flags & FLT_FL_IS_RSP_DATA_FILTER)
-#define IS_DATA_FILTER(flt, chn) ((chn->flags & CF_ISRESP) ? IS_RSP_DATA_FILTER(flt) : IS_REQ_DATA_FILTER(flt))
+#define IS_DATA_FILTER(flt, chn) (((chn)->flags & CF_ISRESP) ? IS_RSP_DATA_FILTER(flt) : IS_REQ_DATA_FILTER(flt))
 
 #define FLT_STRM_CB(strm, call)						\
 	do {								\
