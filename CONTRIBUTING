@@ -103,7 +103,7 @@ do not think about them anymore after a few patches.
    licenses and to contribute your changes under the same licenses. If you want
    to create new files, they will be under the main license, or any license of
    your choice that you have verified to be compatible with the main license,
-   and that will be explicitly mentionned in the affected files. The project's
+   and that will be explicitly mentioned in the affected files. The project's
    maintainers are free to reject contributions proposing license changes they
    feel are not appropriate or could cause future trouble.
 
@@ -301,7 +301,7 @@ do not think about them anymore after a few patches.
    mangle the context in an invisible way. Such patches with trailing spaces at
    end of lines will be rejected.
 
-10) Please cut your work in series of patches that can be independantly reviewed
+10) Please cut your work in series of patches that can be independently reviewed
     and merged. Each patch must do something on its own that you can explain to
     someone without being ashamed of what you did. For example, you must not say
     "This is the patch that implements SSL, it was tricky". There's clearly
@@ -327,14 +327,14 @@ do not think about them anymore after a few patches.
     required to use Git, it is strongly recommended because it helps you do the
     cleanest job with the least effort. Patches always have the format of an
     e-mail made of a subject, a description and the actual patch. If you're
-    sending a patch as an e-mail formated this way, it can quickly be applied
+    sending a patch as an e-mail formatted this way, it can quickly be applied
     with limited effort so that's acceptable. But in any case, it is important
     that there is a clean description of what the patch does, the motivation for
     what it does, why it's the best way to do it, its impacts, and what it does
     not yet cover. Also, in HAProxy, like many projects which take a great care
     of maintaining stable branches, patches are reviewed later so that some of
     them can be backported to stable releases. While reviewing hundreds of
-    patches can seem cumbersome, with a proper formating of the subject line it
+    patches can seem cumbersome, with a proper formatting of the subject line it
     actually becomes very easy. For example, here's how one can find patches
     that need to be reviewed for backports (bugs and doc) between since commit
     ID 827752e :
@@ -354,22 +354,22 @@ do not think about them anymore after a few patches.
         386a127 DOC: match several lua configuration option names to those impl
         0f4eadd BUG/MEDIUM: counters: ensure that src_{inc,clr}_gpc0 creates a
 
-    It is made possible by the fact that subject lines are properly formated and
+    It is made possible by the fact that subject lines are properly formatted and
     always respect the same principle : one part indicating the nature and
     severity of the patch, another one to indicate which subsystem is affected,
-    and the last one is a succint description of the change, with the important
+    and the last one is a succinct description of the change, with the important
     part at the beginning so that it's obvious what it does even when lines are
     truncated like above. The whole stable maintenance process relies on this.
     For this reason, it is mandatory to respect some easy rules regarding the
     way the subject is built. Please see the section below for more information
-    regarding this formating.
+    regarding this formatting.
 
 12) When submitting changes, please always CC the mailing list address so that
     everyone gets a chance to spot any issue in your code. It will also serve
     as an advertisement for your work, you'll get more testers quicker and
     you'll feel better knowing that people really use your work. It is also
-    important to CC any author mentionned in the file you change, or a subsystem
-    maintainers whose address is mentionned in a MAINTAINERS file. Not everyone
+    important to CC any author mentioned in the file you change, or a subsystem
+    maintainers whose address is mentioned in a MAINTAINERS file. Not everyone
     reads the list on a daily basis so it's very easy to miss some changes.
     Don't consider it as a failure when a reviewer tells you you have to modify
     your patch, actually it's a success because now you know what is missing for
@@ -407,7 +407,7 @@ patch types include :
              identifier was assigned before you publish the fix, you can mention
              it in the commit message, it will help distro maintainers.
 
-  - CLEANUP  code cleanup, silence of warnings, etc... theorically no impact.
+  - CLEANUP  code cleanup, silence of warnings, etc... theoretically no impact.
              These patches will rarely be seen in stable branches, though they
              may appear when they remove some annoyance or when they make
              backporting easier. By nature, a cleanup is always of minor
@@ -621,7 +621,7 @@ Then reorder/merge/edit your patches :
    $ git rebase -i master
 
 When you think you're ready, reread your whole patchset to ensure there is no
-formating or style issue :
+formatting or style issue :
 
    $ git show master..
 

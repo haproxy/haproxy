@@ -1323,7 +1323,7 @@ tune.idletimer <timeout>
 
 tune.lua.forced-yield <number>
   This directive forces the Lua engine to execute a yield each <number> of
-  instructions executed. This permits interruptng a long script and allows the
+  instructions executed. This permits interrupting a long script and allows the
   HAProxy scheduler to process other tasks like accepting connections or
   forwarding traffic. The default value is 10000 instructions. If HAProxy often
   executes some Lua code but more reactivity is required, this value can be
@@ -3294,10 +3294,10 @@ filter <name> [param*]
     <name>     is the name of the filter. Officially supported filters are
                referenced in section 9.
 
-    <param*>   is a list of parameters accpeted by the filter <name>. The
+    <param*>   is a list of parameters accepted by the filter <name>. The
                parsing of these parameters are the responsibility of the
-               filter. Please refer to the documention of the corresponding
-               filter (section 9) from all details on the supported parameters.
+               filter. Please refer to the documentation of the corresponding
+               filter (section 9) for all details on the supported parameters.
 
   Multiple occurrences of the filter line can be used for the same proxy. The
   same filter can be referenced many times if needed.
@@ -5377,7 +5377,7 @@ no option http-buffer-request
   frontend or backend forces the HTTP processing to wait until either the whole
   body is received, or the request buffer is full, or the first chunk is
   complete in case of chunked encoding. It can have undesired side effects with
-  some applications abusing HTTP by expecting unbufferred transmissions between
+  some applications abusing HTTP by expecting unbuffered transmissions between
   the frontend and the backend, so this should definitely not be used by
   default.
 
@@ -10482,10 +10482,10 @@ strict-sni
   See the "crt" option for more information.
 
 tcp-ut <delay>
-  Sets the TCP User Timeout for all incoming connections instanciated from this
+  Sets the TCP User Timeout for all incoming connections instantiated from this
   listening socket. This option is available on Linux since version 2.6.37. It
   allows haproxy to configure a timeout for sockets which contain data not
-  receiving an acknoledgement for the configured delay. This is especially
+  receiving an acknowledgement for the configured delay. This is especially
   useful on long-lived connections experiencing long idle periods such as
   remote terminals or database connection pools, where the client and server
   timeouts must remain high to allow a long period of idle, but where it is
@@ -11122,7 +11122,7 @@ resolve-prefer <family>
 resolve-net <network>[,<network[,...]]
   This options prioritize th choice of an ip address matching a network. This is
   useful with clouds to prefer a local ip. In some cases, a cloud high
-  avalailibility service can be announced with many ip addresses on many
+  availability service can be announced with many ip addresses on many
   differents datacenters. The latency between datacenter is not negligible, so
   this patch permitsto prefers a local datacenter. If none address matchs the
   configured network, another address is selected.
@@ -11272,7 +11272,7 @@ tcp-ut <delay>
   Sets the TCP User Timeout for all outgoing connections to this server. This
   option is available on Linux since version 2.6.37. It allows haproxy to
   configure a timeout for sockets which contain data not receiving an
-  acknoledgement for the configured delay. This is especially useful on
+  acknowledgement for the configured delay. This is especially useful on
   long-lived connections experiencing long idle periods such as remote
   terminals or database connection pools, where the client and server timeouts
   must remain high to allow a long period of idle, but where it is important to
@@ -12197,7 +12197,7 @@ bool
 bytes(<offset>[,<length>])
   Extracts some bytes from an input binary sample. The result is a binary
   sample starting at an offset (in bytes) of the original sample and
-  optionnaly truncated at the given length.
+  optionally truncated at the given length.
 
 cpl
   Takes the input value of type signed integer, applies a ones-complement
@@ -12398,7 +12398,7 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
   strings are stored in trees, so the first of the finest match will be used.
   Other keys are stored in lists, so the first matching occurrence will be used.
 
-  The following array contains the list of all map functions avalaible sorted by
+  The following array contains the list of all map functions available sorted by
   input type, match type and output type.
 
   input type | match method | output type str | output type int | output type ip
@@ -14386,7 +14386,7 @@ query : string
   question mark. If no question mark is present, this fetch returns nothing. If
   a question mark is present but nothing follows, it returns an empty string.
   This means it's possible to easily know whether a query string is present
-  using the "found" matching method. This fetch is the completemnt of "path"
+  using the "found" matching method. This fetch is the complement of "path"
   which stops before the question mark.
 
 req.hdr_names([<delim>]) : string
@@ -16225,7 +16225,7 @@ also requires dedicated backends, defined in HAProxy configuration.
 SPOE communicates with external components using an in-house binary protocol,
 the Stream Processing Offload Protocol (SPOP).
 
-For all information about the SPOE configuation and the SPOP specification, see
+For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
 Important note:
