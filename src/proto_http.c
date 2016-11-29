@@ -7025,8 +7025,9 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 		goto missing_data_or_waiting;
 	}
 
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !(chn->flags & CF_SHUTR)) {
-		/* The server still sending data */
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !(chn->flags & CF_SHUTR) &&
+	    HAS_DATA_FILTERS(s, chn)) {
+		/* The server still sending data that should be filtered */
 		goto missing_data_or_waiting;
 	}
 	msg->msg_state = HTTP_MSG_ENDING;
