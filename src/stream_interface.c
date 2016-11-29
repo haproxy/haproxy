@@ -1173,8 +1173,8 @@ static void si_conn_recv_cb(struct connection *conn)
 		}
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
-			si->flags |= SI_FL_WAIT_ROOM;
-			__conn_data_stop_recv(conn);
+			if (__conn_data_done_recv(conn))
+				si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
 

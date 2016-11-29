@@ -296,6 +296,20 @@ static inline void __conn_data_stop_recv(struct connection *c)
 	c->flags &= ~CO_FL_DATA_RD_ENA;
 }
 
+/* this one is used only to stop speculative recv(). It doesn't stop it if the
+ * fd is already polled in order to avoid expensive polling status changes.
+ * Since it might require the upper layer to re-enable reading, we'll return 1
+ * if we've really stopped something otherwise zero.
+ */
+static inline int __conn_data_done_recv(struct connection *c)
+{
+	if (!conn_ctrl_ready(c) || !fd_recv_polled(c->t.sock.fd)) {
+		c->flags &= ~CO_FL_DATA_RD_ENA;
+		return 1;
+	}
+	return 0;
+}
+
 static inline void __conn_data_want_send(struct connection *c)
 {
 	c->flags |= CO_FL_DATA_WR_ENA;
