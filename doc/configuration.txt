@@ -975,7 +975,7 @@ description <text>
   Please note that this option is only available when haproxy has been
   compiled with USE_51DEGREES.
 
-51degrees-property-name-list [<string>]
+51degrees-property-name-list [<string> ...]
   A list of 51Degrees property names to be load from the dataset. A full list
   of names is available on the 51Degrees website:
   https://51degrees.com/resources/property-dictionary
@@ -12157,6 +12157,23 @@ bool) which make it possible to report a match without having to write an ACL.
 
 The currently available list of transformation keywords include :
 
+51d.single(<prop>[,<prop>*])
+  Returns values for the properties requested as a string, where values are
+  separated by the delimiter specified with "51degrees-property-separator".
+  The device is identified using the User-Agent header passed to the
+  converter. The function can be passed up to five property names, and if a
+  property name can't be found, the value "NoData" is returned.
+
+  Example :
+    # Here the header "X-51D-DeviceTypeMobileTablet" is added to the request
+    # containg values for the three properties requested by using the
+    # User-Agent passed to the converter.
+    frontend http-in
+      bind *:8081
+      default_backend servers
+      http-request set-header X-51D-DeviceTypeMobileTablet \
+        %[req.fhdr(User-Agent),51d.single(DeviceType,IsMobile,IsTablet)]
+
 add(<value>)
   Adds <value> to the input value of type signed integer, and returns the
   result as a signed integer. <value> can be a numeric value or a variable
@@ -13556,6 +13573,23 @@ closest to the session once all the connection handshakes are finished, but
 when no content is yet made available. The fetch methods described here are
 usable as low as the "tcp-request content" rule sets unless they require some
 future information. Those generally include the results of SSL negotiations.
+
+51d.all(<prop>[,<prop>*]) : string
+  Returns values for the properties requested as a string, where values are
+  separated by the delimiter specified with "51degrees-property-separator".
+  The device is identified using all the important HTTP headers from the
+  request. The function can be passed up to five property names, and if a
+  property name can't be found, the value "NoData" is returned.
+
+  Example :
+    # Here the header "X-51D-DeviceTypeMobileTablet" is added to the request
+    # containing the three properties requested using all relevant headers from
+    # the request.
+    frontend http-in
+      bind *:8081
+      default_backend servers
+      http-request set-header X-51D-DeviceTypeMobileTablet \
+        %[51d.all(DeviceType,IsMobile,IsTablet)]
 
 ssl_bc : boolean
   Returns true when the back connection was made via an SSL/TLS transport
