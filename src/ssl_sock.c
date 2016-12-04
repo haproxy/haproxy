@@ -5426,6 +5426,32 @@ unsigned int ssl_sock_get_verify_result(struct connection *conn)
 	return (unsigned int)SSL_get_verify_result(conn->xprt_ctx);
 }
 
+/* Returns the application layer protocol name in <str> and <len> when known.
+ * Zero is returned if the protocol name was not found, otherwise non-zero is
+ * returned. The string is allocated in the SSL context and doesn't have to be
+ * freed by the caller. NPN is also checked if available since older versions
+ * of openssl (1.0.1) which are more common in field only support this one.
+ */
+static int ssl_sock_get_alpn(const struct connection *conn, const char **str, int *len)
+{
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+
+	*str = NULL;
+
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	SSL_get0_alpn_selected(conn->xprt_ctx, (const unsigned char **)str, (unsigned *)len);
+	if (*str)
+		return 1;
+#endif
+#ifdef OPENSSL_NPN_NEGOTIATED
+	SSL_get0_next_proto_negotiated(conn->xprt_ctx, (const unsigned char **)str, (unsigned *)len);
+	if (*str)
+		return 1;
+#endif
+	return 0;
+}
+
 /***** Below are some sample fetching functions for ACL/patterns *****/
 
 /* boolean, returns true if client cert was present */
@@ -8039,6 +8065,7 @@ static struct xprt_ops ssl_sock = {
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.prepare_srv = ssl_sock_prepare_srv_ctx,
 	.destroy_srv = ssl_sock_free_srv_ctx,
+	.get_alpn = ssl_sock_get_alpn,
 	.name     = "SSL",
 };
 
