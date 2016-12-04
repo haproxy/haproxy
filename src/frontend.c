@@ -56,6 +56,14 @@ int frontend_accept(struct stream *s)
 	struct connection *conn = objt_conn(sess->origin);
 	struct listener *l = sess->listener;
 	struct proxy *fe = sess->fe;
+	const char *alpn_str = NULL;
+	int alpn_len;
+
+	/* check if we're in HTTP mode, directly connected to the connection,
+	 * and with ALPN advertising H2.
+	 */
+	if (conn->owner == &s->si[0])
+		conn_get_alpn(conn, &alpn_str, &alpn_len);
 
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
 	    && (!LIST_ISEMPTY(&fe->logsrvs))) {
