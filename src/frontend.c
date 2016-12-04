@@ -101,21 +101,28 @@ int frontend_accept(struct stream *s)
 	if (unlikely((global.mode & MODE_DEBUG) && conn &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		char pn[INET6_ADDRSTRLEN];
+		char alpn[16] = "<none>";
 
 		conn_get_from_addr(conn);
+
+		if (alpn_str) {
+			int len = MIN(alpn_len, sizeof(alpn) - 1);
+			memcpy(alpn, alpn_str, len);
+			alpn[len] = 0;
+		}
 
 		switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
-			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
+			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->t.sock.fd,
-			             pn, get_host_port(&conn->addr.from));
+			             pn, get_host_port(&conn->addr.from), alpn);
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
-			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
+			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->t.sock.fd,
-			             l->luid);
+			             l->luid, alpn);
 			break;
 		}
 
