@@ -57,30 +57,6 @@ int frontend_accept(struct stream *s)
 	struct listener *l = sess->listener;
 	struct proxy *fe = sess->fe;
 
-	if (unlikely(fe->nb_req_cap > 0)) {
-		if ((s->req_cap = pool_alloc2(fe->req_cap_pool)) == NULL)
-			goto out_return;	/* no memory */
-		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
-	}
-
-	if (unlikely(fe->nb_rsp_cap > 0)) {
-		if ((s->res_cap = pool_alloc2(fe->rsp_cap_pool)) == NULL)
-			goto out_free_reqcap;	/* no memory */
-		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
-	}
-
-	if (fe->http_needed) {
-		/* we have to allocate header indexes only if we know
-		 * that we may make use of them. This of course includes
-		 * (mode == PR_MODE_HTTP).
-		 */
-		if (unlikely(!http_alloc_txn(s)))
-			goto out_free_rspcap; /* no memory */
-
-		/* and now initialize the HTTP transaction state */
-		http_init_txn(s);
-	}
-
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
 	    && (!LIST_ISEMPTY(&fe->logsrvs))) {
 		if (likely(!LIST_ISEMPTY(&fe->logformat))) {
@@ -140,6 +116,30 @@ int frontend_accept(struct stream *s)
 
 	if (fe->mode == PR_MODE_HTTP)
 		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
+
+	if (unlikely(fe->nb_req_cap > 0)) {
+		if ((s->req_cap = pool_alloc2(fe->req_cap_pool)) == NULL)
+			goto out_return;	/* no memory */
+		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
+	}
+
+	if (unlikely(fe->nb_rsp_cap > 0)) {
+		if ((s->res_cap = pool_alloc2(fe->rsp_cap_pool)) == NULL)
+			goto out_free_reqcap;	/* no memory */
+		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
+	}
+
+	if (fe->http_needed) {
+		/* we have to allocate header indexes only if we know
+		 * that we may make use of them. This of course includes
+		 * (mode == PR_MODE_HTTP).
+		 */
+		if (unlikely(!http_alloc_txn(s)))
+			goto out_free_rspcap; /* no memory */
+
+		/* and now initialize the HTTP transaction state */
+		http_init_txn(s);
+	}
 
 	/* everything's OK, let's go on */
 	return 1;
