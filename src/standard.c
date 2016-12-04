@@ -3765,6 +3765,51 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 	return ptr;
 }
 
+/* displays a <len> long memory block at <buf>, assuming first byte of <buf>
+ * has address <baseaddr>. The output is emitted to file <out>.
+ */
+void debug_hexdump(FILE *out, char *buf, unsigned int baseaddr, int len)
+{
+	unsigned int i, j;
+	int b;
+
+	for (i = 0; i < (len + (baseaddr & 15)); i += 16) {
+		b = i - (baseaddr & 15);
+		fprintf(out, "%08x: ", i + (baseaddr & ~15));
+		for (j = 0; j < 8; j++) {
+			if (b + j >= 0 && b + j < len)
+				fprintf(out, "%02x ", (unsigned char)buf[b + j]);
+			else
+				fprintf(out, "   ");
+		}
+
+		if (b + j >= 0 && b + j < len)
+			fputc('-', out);
+		else
+			fputc(' ', out);
+
+		for (j = 8; j < 16; j++) {
+			if (b + j >= 0 && b + j < len)
+				fprintf(out, " %02x", (unsigned char)buf[b + j]);
+			else
+				fprintf(out, "   ");
+		}
+
+		fprintf(out, "   ");
+		for (j = 0; j < 16; j++) {
+			if (b + j >= 0 && b + j < len) {
+				if (isprint((unsigned char)buf[b + j]))
+					fputc((unsigned char)buf[b + j], out);
+				else
+					fputc('.', out);
+			}
+			else
+				fputc(' ', out);
+		}
+		fputc('\n', out);
+	}
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
