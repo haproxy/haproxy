@@ -650,6 +650,13 @@ static inline struct xprt_ops *xprt_get(int id)
 	return registered_xprt[id];
 }
 
+static inline int conn_get_alpn(const struct connection *conn, const char **str, int *len)
+{
+	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)
+		return 0;
+	return conn->xprt->get_alpn(conn, str, len);
+}
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*

@@ -228,6 +228,7 @@ struct xprt_ops {
 	void (*destroy_bind_conf)(struct bind_conf *conf); /* destroy a whole bind_conf */
 	int  (*prepare_srv)(struct server *srv);    /* prepare a server context */
 	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
+	int  (*get_alpn)(const struct connection *conn, const char **str, int *len); /* get application layer name */
 	char name[8];                               /* transport layer name, zero-terminated */
 };
 
