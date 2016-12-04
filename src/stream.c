@@ -189,7 +189,8 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	stream_init_srv_conn(s);
-	s->target = NULL;
+	s->target = sess->listener ? sess->listener->default_target : NULL;
+
 	s->pend_pos = NULL;
 
 	/* init store persistence */
@@ -197,7 +198,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 
 	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
-	s->req.analysers = 0;
+	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
 	channel_auto_connect(&s->req);  /* don't wait to establish connection */
 	channel_auto_close(&s->req);    /* let the producer forward close requests */
 

@@ -116,7 +116,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	struct connection *cli_conn;
 	struct proxy *p = l->bind_conf->frontend;
 	struct session *sess;
-	struct stream *strm;
 	struct task *t;
 	int ret;
 
@@ -269,12 +268,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_sess;
 
 	session_count_new(sess);
-	strm = stream_new(sess, t, &cli_conn->obj_type);
-	if (!strm)
+	if (!stream_new(sess, t, &cli_conn->obj_type))
 		goto out_free_task;
-
-	strm->target         = sess->listener->default_target;
-	strm->req.analysers |= sess->listener->analysers;
 
 	task_wakeup(t, TASK_WOKEN_INIT);
 	return 1;
@@ -424,7 +419,6 @@ static int conn_complete_session(struct connection *conn)
 {
 	struct task *task = conn->owner;
 	struct session *sess = task->context;
-	struct stream *strm;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
@@ -439,12 +433,9 @@ static int conn_complete_session(struct connection *conn)
 
 	session_count_new(sess);
 	task->process = sess->listener->handler;
-	strm = stream_new(sess, task, &conn->obj_type);
-	if (!strm)
+	if (!stream_new(sess, task, &conn->obj_type))
 		goto fail;
 
-	strm->target         = sess->listener->default_target;
-	strm->req.analysers |= sess->listener->analysers;
 	conn->flags &= ~CO_FL_INIT_DATA;
 
 	task_wakeup(task, TASK_WOKEN_INIT);
