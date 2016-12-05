@@ -1360,11 +1360,6 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 		if (curproxy->cap & PR_CAP_BE) {
 			if (!dump_servers_state(si, &trash))
 				return 0;
-
-			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
-				return 0;
-			}
 		}
 		/* only the selected proxy is dumped */
 		if (appctx->ctx.server_state.iid)
