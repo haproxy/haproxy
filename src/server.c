@@ -3536,9 +3536,10 @@ static int cli_parse_get_weight(char **args, struct appctx *appctx, void *privat
 
 	/* return server's effective weight at the moment */
 	snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
-	if (bi_putstr(si_ic(si), trash.str) == -1)
+	if (bi_putstr(si_ic(si), trash.str) == -1) {
 		si_applet_cant_put(si);
-
+		return 0;
+	}
 	return 1;
 }
 
