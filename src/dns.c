@@ -1286,7 +1286,7 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 			return 1;
 		}
 	}
-	return 1;
+	return 0;
 }
 
 /* This function dumps counters from all resolvers section and associated name servers.

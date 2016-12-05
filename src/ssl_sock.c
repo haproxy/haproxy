@@ -6140,7 +6140,7 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 	if (!*args[2]) {
 		appctx->ctx.tlskeys.dump_all = 1;
 		appctx->io_handler = cli_io_handler_tlskeys_files;
-		return 1;
+		return 0;
 	}
 
 	if (args[2][0] == '*') {
@@ -6156,7 +6156,7 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 		}
 	}
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
-	return 1;
+	return 0;
 }
 
 
