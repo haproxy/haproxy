@@ -80,8 +80,8 @@
 
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
-extern unsigned int run_queue;    /* run queue size */
-extern unsigned int run_queue_cur;
+extern unsigned int tasks_run_queue;    /* run queue size */
+extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
@@ -132,16 +132,16 @@ static inline struct task *task_unlink_wq(struct task *t)
 }
 
 /*
- * Unlink the task from the run queue. The run_queue size and number of niced
- * tasks are updated too. A pointer to the task itself is returned. The task
- * *must* already be in the run queue before calling this function. If unsure,
- * use the safer task_unlink_rq() function. Note that the pointer to the next
- * run queue entry is neither checked nor updated.
+ * Unlink the task from the run queue. The tasks_run_queue size and number of
+ * niced tasks are updated too. A pointer to the task itself is returned. The
+ * task *must* already be in the run queue before calling this function. If
+ * unsure, use the safer task_unlink_rq() function. Note that the pointer to the
+ * next run queue entry is neither checked nor updated.
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
 	eb32_delete(&t->rq);
-	run_queue--;
+	tasks_run_queue--;
 	if (likely(t->nice))
 		niced_tasks--;
 	return t;

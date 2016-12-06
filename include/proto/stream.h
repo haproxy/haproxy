@@ -302,7 +302,7 @@ static inline void stream_offer_buffers()
 	 */
 	avail = pool2_buffer->allocated - pool2_buffer->used - global.tune.reserved_bufs / 2;
 
-	if (avail > (int)run_queue)
+	if (avail > (int)tasks_run_queue)
 		__stream_offer_buffers(avail);
 }
 

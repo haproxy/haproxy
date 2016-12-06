@@ -449,7 +449,7 @@ void __stream_offer_buffers(int rqlimit)
 	struct stream *sess, *bak;
 
 	list_for_each_entry_safe(sess, bak, &buffer_wq, buffer_wait) {
-		if (rqlimit <= run_queue)
+		if (rqlimit <= tasks_run_queue)
 			break;
 
 		if (sess->task->state & TASK_RUNNING)

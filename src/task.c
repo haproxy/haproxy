@@ -26,8 +26,8 @@
 struct pool_head *pool2_task;
 
 unsigned int nb_tasks = 0;
-unsigned int run_queue = 0;
-unsigned int run_queue_cur = 0;    /* copy of the run queue size */
+unsigned int tasks_run_queue = 0;
+unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 struct eb32_node *last_timer = NULL;  /* optimization: last queued timer */
@@ -39,15 +39,15 @@ static unsigned int rqueue_ticks;  /* insertion count */
 
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
  * returned. The nice value assigns boosts in 32th of the run queue size. A
- * nice value of -1024 sets the task to -run_queue*32, while a nice value of
- * 1024 sets the task to run_queue*32. The state flags are cleared, so the
- * caller will have to set its flags after this call.
+ * nice value of -1024 sets the task to -tasks_run_queue*32, while a nice value
+ * of 1024 sets the task to tasks_run_queue*32. The state flags are cleared, so
+ * the caller will have to set its flags after this call.
  * The task must not already be in the run queue. If unsure, use the safer
  * task_wakeup() function.
  */
 struct task *__task_wakeup(struct task *t)
 {
-	run_queue++;
+	tasks_run_queue++;
 	t->rq.key = ++rqueue_ticks;
 
 	if (likely(t->nice)) {
@@ -55,9 +55,9 @@ struct task *__task_wakeup(struct task *t)
 
 		niced_tasks++;
 		if (likely(t->nice > 0))
-			offset = (unsigned)((run_queue * (unsigned int)t->nice) / 32U);
+			offset = (unsigned)((tasks_run_queue * (unsigned int)t->nice) / 32U);
 		else
-			offset = -(unsigned)((run_queue * (unsigned int)-t->nice) / 32U);
+			offset = -(unsigned)((tasks_run_queue * (unsigned int)-t->nice) / 32U);
 		t->rq.key += offset;
 	}
 
@@ -191,11 +191,11 @@ void process_runnable_tasks()
 	struct task *t;
 	unsigned int max_processed;
 
-	run_queue_cur = run_queue; /* keep a copy for reporting */
+	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
-	max_processed = run_queue;
+	max_processed = tasks_run_queue;
 
-	if (!run_queue)
+	if (!tasks_run_queue)
 		return;
 
 	if (max_processed > 200)

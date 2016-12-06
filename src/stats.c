@@ -2083,7 +2083,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              global.rlimit_nofile,
 	              global.maxsock, global.maxconn, global.maxpipes,
 	              actconn, pipes_used, pipes_used+pipes_free, read_freq_ctr(&global.conn_per_sec),
-	              run_queue_cur, nb_tasks_cur, idle_pct
+	              tasks_run_queue_cur, nb_tasks_cur, idle_pct
 	              );
 
 	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
@@ -2996,7 +2996,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_MAX_ZLIB_MEM_USAGE]             = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
 #endif
 	info[INF_TASKS]                          = mkf_u32(0, nb_tasks_cur);
-	info[INF_RUN_QUEUE]                      = mkf_u32(0, run_queue_cur);
+	info[INF_RUN_QUEUE]                      = mkf_u32(0, tasks_run_queue_cur);
 	info[INF_IDLE_PCT]                       = mkf_u32(FN_AVG, idle_pct);
 	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
 	if (global.desc)
