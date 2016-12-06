@@ -1730,7 +1730,7 @@ void run_poll_loop()
 			break;
 
 		/* expire immediately if events are pending */
-		if (fd_cache_num || run_queue || signal_queue_len || !LIST_ISEMPTY(&applet_active_queue))
+		if (fd_cache_num || run_queue || signal_queue_len || applets_active_queue)
 			next = now_ms;
 
 		/* The poller will ensure it returns around <next> */

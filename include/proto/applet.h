@@ -29,6 +29,9 @@
 #include <types/applet.h>
 #include <proto/connection.h>
 
+extern unsigned int nb_applets;
+extern unsigned int applets_active_queue;
+
 extern struct list applet_active_queue;
 
 void applet_run_active();
@@ -58,6 +61,7 @@ static inline struct appctx *appctx_new(struct applet *applet)
 		appctx->applet = applet;
 		appctx_init(appctx);
 		LIST_INIT(&appctx->runq);
+		nb_applets++;
 	}
 	return appctx;
 }
@@ -67,16 +71,21 @@ static inline struct appctx *appctx_new(struct applet *applet)
  */
 static inline void appctx_free(struct appctx *appctx)
 {
-	if (!LIST_ISEMPTY(&appctx->runq))
+	if (!LIST_ISEMPTY(&appctx->runq)) {
 		LIST_DEL(&appctx->runq);
+		applets_active_queue--;
+	}
 	pool_free2(pool2_connection, appctx);
+	nb_applets--;
 }
 
 /* wakes up an applet when conditions have changed */
 static inline void appctx_wakeup(struct appctx *appctx)
 {
-	if (LIST_ISEMPTY(&appctx->runq))
+	if (LIST_ISEMPTY(&appctx->runq)) {
 		LIST_ADDQ(&applet_active_queue, &appctx->runq);
+		applets_active_queue++;
+	}
 }
 
 /* removes an applet from the list of active applets */
@@ -85,6 +94,7 @@ static inline void appctx_pause(struct appctx *appctx)
 	if (!LIST_ISEMPTY(&appctx->runq)) {
 		LIST_DEL(&appctx->runq);
 		LIST_INIT(&appctx->runq);
+		applets_active_queue--;
 	}
 }
 

@@ -19,8 +19,11 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
+unsigned int nb_applets = 0;
+unsigned int applets_active_queue = 0;
+
 struct list applet_active_queue = LIST_HEAD_INIT(applet_active_queue);
-struct list applet_run_queue    = LIST_HEAD_INIT(applet_run_queue);
+struct list applet_cur_queue    = LIST_HEAD_INIT(applet_cur_queue);
 
 void applet_run_active()
 {
@@ -31,18 +34,18 @@ void applet_run_active()
 		return;
 
 	/* move active queue to run queue */
-	applet_active_queue.n->p = &applet_run_queue;
-	applet_active_queue.p->n = &applet_run_queue;
+	applet_active_queue.n->p = &applet_cur_queue;
+	applet_active_queue.p->n = &applet_cur_queue;
 
-	applet_run_queue = applet_active_queue;
+	applet_cur_queue = applet_active_queue;
 	LIST_INIT(&applet_active_queue);
 
 	/* The list is only scanned from the head. This guarantees that if any
 	 * applet removes another one, there is no side effect while walking
 	 * through the list.
 	 */
-	while (!LIST_ISEMPTY(&applet_run_queue)) {
-		curr = LIST_ELEM(applet_run_queue.n, typeof(curr), runq);
+	while (!LIST_ISEMPTY(&applet_cur_queue)) {
+		curr = LIST_ELEM(applet_cur_queue.n, typeof(curr), runq);
 		si = curr->owner;
 
 		/* now we'll need a buffer */
@@ -63,7 +66,7 @@ void applet_run_active()
 		curr->applet->fct(curr);
 		si_applet_wake_cb(si);
 
-		if (applet_run_queue.n == &curr->runq) {
+		if (applet_cur_queue.n == &curr->runq) {
 			/* curr was left in the list, move it back to the active list */
 			LIST_DEL(&curr->runq);
 			LIST_ADDQ(&applet_active_queue, &curr->runq);
