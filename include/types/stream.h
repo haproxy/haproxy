@@ -129,6 +129,9 @@ struct stream {
 	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
 
 	struct task *task;              /* the task associated with this stream */
+	unsigned short pending_events;	/* the pending events not yet processed by the stream.
+					 * This is a bit field of TASK_WOKEN_* */
+
 	struct list list;               /* position in global streams list */
 	struct list by_srv;             /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */

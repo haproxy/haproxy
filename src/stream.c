@@ -145,6 +145,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->unique_id = NULL;
 
 	s->task = t;
+	s->pending_events = 0;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
@@ -1584,10 +1585,13 @@ struct task *process_stream(struct task *t)
 	si_f->flags |= SI_FL_DONT_WAKE;
 	si_b->flags |= SI_FL_DONT_WAKE;
 
+	/* update pending events */
+	s->pending_events |= (t->state & TASK_WOKEN_ANY);
+
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream interfaces when their timeouts have expired.
 	 */
-	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
+	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
 		stream_int_check_timeouts(si_f);
 		stream_int_check_timeouts(si_b);
 
@@ -1635,7 +1639,7 @@ struct task *process_stream(struct task *t)
 		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
 		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
 		    !((si_f->flags | si_b->flags) & (SI_FL_EXP|SI_FL_ERR)) &&
-		    ((t->state & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
+		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			si_f->flags &= ~SI_FL_DONT_WAKE;
 			si_b->flags &= ~SI_FL_DONT_WAKE;
 			goto update_exp_and_leave;
@@ -1769,7 +1773,7 @@ struct task *process_stream(struct task *t)
 	    ((req->flags ^ rqf_last) & CF_MASK_STATIC) ||
 	    si_f->state != rq_prod_last ||
 	    si_b->state != rq_cons_last ||
-	    s->task->state & TASK_WOKEN_MSG) {
+	    s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = req->flags;
 
 		if (si_f->state >= SI_ST_EST) {
@@ -1868,7 +1872,7 @@ struct task *process_stream(struct task *t)
 		 (res->flags ^ rpf_last) & CF_MASK_STATIC ||
 		 si_f->state != rp_cons_last ||
 		 si_b->state != rp_prod_last ||
-		 s->task->state & TASK_WOKEN_MSG) {
+		 s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = res->flags;
 
 		if ((res->flags & CF_MASK_ANALYSER) &&
@@ -2369,6 +2373,9 @@ struct task *process_stream(struct task *t)
 			req->rex = TICK_ETERNITY;
 		}
 
+		/* Reset pending events now */
+		s->pending_events = 0;
+
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SI_FL_DONT_WAKE */
 		t->expire = tick_first((tick_is_expired(t->expire, now_ms) ? 0 : t->expire),
@@ -2402,6 +2409,7 @@ struct task *process_stream(struct task *t)
 		if (!tick_isset(t->expire))
 			ABORT_NOW();
 #endif
+		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 		return t; /* nothing more to do */
 	}
