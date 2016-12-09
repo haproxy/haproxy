@@ -36,6 +36,10 @@ extern struct list applet_active_queue;
 
 void applet_run_active();
 
+
+static int inline appctx_res_wakeup(struct appctx *appctx);
+
+
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
  * 3 integer states st0, st1, st2 are zeroed.
@@ -61,6 +65,9 @@ static inline struct appctx *appctx_new(struct applet *applet)
 		appctx->applet = applet;
 		appctx_init(appctx);
 		LIST_INIT(&appctx->runq);
+		LIST_INIT(&appctx->buffer_wait.list);
+		appctx->buffer_wait.target = appctx;
+		appctx->buffer_wait.wakeup_cb = (int (*)(void *))appctx_res_wakeup;
 		nb_applets++;
 	}
 	return appctx;
@@ -74,6 +81,10 @@ static inline void appctx_free(struct appctx *appctx)
 	if (!LIST_ISEMPTY(&appctx->runq)) {
 		LIST_DEL(&appctx->runq);
 		applets_active_queue--;
+	}
+	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
+		LIST_DEL(&appctx->buffer_wait.list);
+		LIST_INIT(&appctx->buffer_wait.list);
 	}
 	pool_free2(pool2_connection, appctx);
 	nb_applets--;
@@ -97,6 +108,19 @@ static inline void appctx_pause(struct appctx *appctx)
 		applets_active_queue--;
 	}
 }
+
+/* Callback used to wake up an applet when a buffer is available. The applet
+ * <appctx> is woken up is if it is not already in the list of "active"
+ * applets. This functions returns 1 is the stream is woken up, otherwise it
+ * returns 0. */
+static inline int appctx_res_wakeup(struct appctx *appctx)
+{
+	if (!LIST_ISEMPTY(&appctx->runq))
+		return 0;
+	appctx_wakeup(appctx);
+	return 1;
+}
+
 
 #endif /* _PROTO_APPLET_H */
 

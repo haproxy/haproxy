@@ -2766,6 +2766,12 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
+	/* Check if the input buffer is avalaible. */
+	if (res->buf->size == 0) {
+		si_applet_cant_put(si);
+		goto out;
+	}
+
 	/* check that the output is not closed */
 	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
 		appctx->st0 = STAT_HTTP_DONE;

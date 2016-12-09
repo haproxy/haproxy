@@ -26,6 +26,7 @@
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stream.h>
+#include <common/buffer.h>
 #include <common/chunk.h>
 #include <common/config.h>
 
@@ -58,6 +59,7 @@ struct appctx {
 	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
 	                                               if the command is terminated or the session released */
 	void *private;
+	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 
 	union {
 		struct {

@@ -32,7 +32,6 @@
 
 extern struct pool_head *pool2_stream;
 extern struct list streams;
-extern struct list buffer_wq;
 
 extern struct data_cb sess_conn_cb;
 
@@ -55,11 +54,7 @@ int parse_track_counters(char **args, int *arg,
 
 /* Update the stream's backend and server time stats */
 void stream_update_time_stats(struct stream *s);
-void __stream_offer_buffers(int rqlimit);
-static inline void stream_offer_buffers();
-int stream_alloc_work_buffer(struct stream *s);
 void stream_release_buffers(struct stream *s);
-int stream_alloc_recv_buffer(struct channel *chn);
 
 /* returns the session this stream belongs to */
 static inline struct session *strm_sess(const struct stream *strm)
@@ -285,25 +280,16 @@ static void inline stream_init_srv_conn(struct stream *sess)
 	LIST_INIT(&sess->by_srv);
 }
 
-static inline void stream_offer_buffers()
+/* Callback used to wake up a stream when a buffer is available. The stream <s>
+ * is woken up is if it is not already running and if it is not already in the
+ * task run queue. This functions returns 1 is the stream is woken up, otherwise
+ * it returns 0. */
+static int inline stream_res_wakeup(struct stream *s)
 {
-	int avail;
-
-	if (LIST_ISEMPTY(&buffer_wq))
-		return;
-
-	/* all streams will need 1 buffer, so we can stop waking up streams
-	 * once we have enough of them to eat all the buffers. Note that we
-	 * don't really know if they are streams or just other tasks, but
-	 * that's a rough estimate. Similarly, for each cached event we'll need
-	 * 1 buffer. If no buffer is currently used, always wake up the number
-	 * of tasks we can offer a buffer based on what is allocated, and in
-	 * any case at least one task per two reserved buffers.
-	 */
-	avail = pool2_buffer->allocated - pool2_buffer->used - global.tune.reserved_bufs / 2;
-
-	if (avail > (int)tasks_run_queue)
-		__stream_offer_buffers(avail);
+	if (s->task->state & TASK_RUNNING || task_in_rq(s->task))
+		return 0;
+	task_wakeup(s->task, TASK_WOKEN_RES);
+	return 1;
 }
 
 void service_keywords_register(struct action_kw_list *kw_list);

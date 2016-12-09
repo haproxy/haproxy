@@ -224,7 +224,7 @@ struct spoe_context {
 	struct appctx      *appctx;       /* The SPOE appctx */
 	struct list        *messages;     /* List of messages that will be sent during the stream processing */
 	struct buffer      *buffer;       /* Buffer used to store a NOTIFY or ACK frame */
-	struct list         buffer_wait;  /* position in the list of streams waiting for a buffer */
+	struct buffer_wait  buffer_wait;  /* position in the list of streams waiting for a buffer */
 	struct list         applet_wait;  /* position in the list of streams waiting for a SPOE applet */
 
 	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
@@ -1232,6 +1232,9 @@ send_spoe_frame(struct appctx *appctx,
 	int                      framesz, ret;
 	uint32_t                 netint;
 
+	if (si_ic(si)->buf->size == 0)
+		return -1;
+
 	ret = prepare(appctx, trash.str, APPCTX_SPOE(appctx).max_frame_size);
 	if (ret <= 0)
 		goto skip_or_error;
@@ -1524,7 +1527,7 @@ handle_spoe_applet(struct appctx *appctx)
 			/* fall through */
 
 		case SPOE_APPCTX_ST_END:
-			break;
+			return;
 	}
 
  out:
@@ -1693,13 +1696,13 @@ acquire_spoe_appctx(struct spoe_context *ctx, int dir)
 	/* If needed, initialize the buffer that will be used to encode messages
 	 * and decode actions. */
 	if (ctx->buffer == &buf_empty) {
-		if (!LIST_ISEMPTY(&ctx->buffer_wait)) {
-			LIST_DEL(&ctx->buffer_wait);
-			LIST_INIT(&ctx->buffer_wait);
+		if (!LIST_ISEMPTY(&ctx->buffer_wait.list)) {
+			LIST_DEL(&ctx->buffer_wait.list);
+			LIST_INIT(&ctx->buffer_wait.list);
 		}
 
-		if (!b_alloc_margin(&ctx->buffer, 0)) {
-			LIST_ADDQ(&buffer_wq, &ctx->buffer_wait);
+		if (!b_alloc_margin(&ctx->buffer, global.tune.reserved_bufs)) {
+			LIST_ADDQ(&buffer_wq, &ctx->buffer_wait.list);
 			goto wait;
 		}
 	}
@@ -1794,8 +1797,7 @@ release_spoe_appctx(struct spoe_context *ctx)
 	/* Release the buffer if needed */
 	if (ctx->buffer != &buf_empty) {
 		b_free(&ctx->buffer);
-		if (!LIST_ISEMPTY(&buffer_wq))
-			stream_offer_buffers();
+		offer_buffers(ctx, tasks_run_queue + applets_active_queue);
 	}
 
 	/* If there is no SPOE applet, all is done */
@@ -2213,6 +2215,12 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 /***************************************************************************
  * Functions that create/destroy SPOE contexts
  **************************************************************************/
+static int wakeup_spoe_context(struct spoe_context *ctx)
+{
+	task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
+	return 1;
+}
+
 static struct spoe_context *
 create_spoe_context(struct filter *filter)
 {
@@ -2229,7 +2237,9 @@ create_spoe_context(struct filter *filter)
 	ctx->flags    = 0;
 	ctx->messages = conf->agent->messages;
 	ctx->buffer   = &buf_empty;
-	LIST_INIT(&ctx->buffer_wait);
+	LIST_INIT(&ctx->buffer_wait.list);
+	ctx->buffer_wait.target = ctx;
+	ctx->buffer_wait.wakeup_cb = (int (*)(void *))wakeup_spoe_context;
 	LIST_INIT(&ctx->applet_wait);
 
 	ctx->stream_id   = 0;
@@ -2247,8 +2257,8 @@ destroy_spoe_context(struct spoe_context *ctx)
 
 	if (ctx->appctx)
 		APPCTX_SPOE(ctx->appctx).ctx = NULL;
-	if (!LIST_ISEMPTY(&ctx->buffer_wait))
-		LIST_DEL(&ctx->buffer_wait);
+	if (!LIST_ISEMPTY(&ctx->buffer_wait.list))
+		LIST_DEL(&ctx->buffer_wait.list);
 	if (!LIST_ISEMPTY(&ctx->applet_wait))
 		LIST_DEL(&ctx->applet_wait);
 	pool_free2(pool2_spoe_ctx, ctx);
@@ -2459,8 +2469,13 @@ spoe_check_timeouts(struct stream *s, struct filter *filter)
 {
 	struct spoe_context *ctx = filter->ctx;
 
-	if (tick_is_expired(ctx->process_exp, now_ms))
-		s->task->state |= TASK_WOKEN_MSG;
+	if (tick_is_expired(ctx->process_exp, now_ms)) {
+		s->pending_events |= TASK_WOKEN_MSG;
+		if (ctx->buffer != &buf_empty) {
+			b_free(&ctx->buffer);
+			offer_buffers(ctx, tasks_run_queue + applets_active_queue);
+		}
+	}
 }
 
 /* Called when we are ready to filter data on a channel */

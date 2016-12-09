@@ -1884,10 +1884,8 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (socket->s->req.buf->size == 0) {
-		if (!stream_alloc_recv_buffer(&socket->s->req)) {
-			socket->s->si[0].flags |= SI_FL_WAIT_ROOM;
-			goto hlua_socket_write_yield_return;
-		}
+		si_applet_cant_put(&socket->s->si[0]);
+		goto hlua_socket_write_yield_return;
 	}
 
 	/* Check for avalaible space. */
@@ -2610,6 +2608,14 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	int ret;
 	int max;
 
+	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	 * the request buffer if its not required.
+	 */
+	if (chn->buf->size == 0) {
+		si_applet_cant_put(chn_prod(chn));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
+	}
+
 	max = channel_recv_limit(chn) - buffer_len(chn->buf);
 	if (max > len - l)
 		max = len - l;
@@ -2700,10 +2706,8 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf->size == 0) {
-		if (!stream_alloc_recv_buffer(chn)) {
-			chn_prod(chn)->flags |= SI_FL_WAIT_ROOM;
-			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
-		}
+		si_applet_cant_put(chn_prod(chn));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 	}
 
 	/* the writed data will be immediatly sent, so we can check

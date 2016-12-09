@@ -547,6 +547,10 @@ static void peer_io_handler(struct appctx *appctx)
 	size_t proto_len = strlen(PEER_SESSION_PROTO_NAME);
 	unsigned int maj_ver, min_ver;
 
+	/* Check if the input buffer is avalaible. */
+	if (si_ic(si)->buf->size == 0)
+		goto full;
+
 	while (1) {
 switchstate:
 		maj_ver = min_ver = (unsigned int)-1;

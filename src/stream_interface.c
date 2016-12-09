@@ -538,8 +538,6 @@ void stream_int_notify(struct stream_interface *si)
 	}
 	if (ic->flags & CF_READ_ACTIVITY)
 		ic->flags &= ~CF_READ_DONTWAIT;
-
-	stream_release_buffers(si_strm(si));
 }
 
 
@@ -571,6 +569,7 @@ static int si_conn_wake_cb(struct connection *conn)
 	 * stream-int status.
 	 */
 	stream_int_notify(si);
+	channel_release_buffer(ic, &(si_strm(si)->buffer_wait));
 
 	/* Third step : update the connection's polling status based on what
 	 * was done above (eg: maybe some buffers got emptied).
@@ -1128,8 +1127,8 @@ static void si_conn_recv_cb(struct connection *conn)
 		ic->pipe = NULL;
 	}
 
-	/* now we'll need a buffer */
-	if (!stream_alloc_recv_buffer(ic)) {
+	/* now we'll need a input buffer for the stream */
+	if (!channel_alloc_buffer(ic, &(si_strm(si)->buffer_wait))) {
 		si->flags |= SI_FL_WAIT_ROOM;
 		goto end_recv;
 	}

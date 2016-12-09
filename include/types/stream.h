@@ -135,7 +135,7 @@ struct stream {
 	struct list list;               /* position in global streams list */
 	struct list by_srv;             /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */
-	struct list buffer_wait;        /* position in the list of streams waiting for a buffer */
+	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 
 	struct {
 		struct stksess *ts;

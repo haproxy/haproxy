@@ -488,6 +488,12 @@ static void cli_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
+	/* Check if the input buffer is avalaible. */
+	if (res->buf->size == 0) {
+		si_applet_cant_put(si);
+		goto out;
+	}
+
 	while (1) {
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* Stats output not initialized yet */

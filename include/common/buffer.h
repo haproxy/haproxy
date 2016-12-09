@@ -39,9 +39,18 @@ struct buffer {
 	char data[0];                   /* <size> bytes */
 };
 
+/* an element of the <buffer_wq> list. It represents an object that need to
+ * acquire a buffer to continue its process. */
+struct buffer_wait {
+	void *target;              /* The waiting object that should be woken up */
+	int (*wakeup_cb)(void *);  /* The function used to wake up the <target>, passed as argument */
+	struct list list;          /* Next element in the <buffer_wq> list */
+};
+
 extern struct pool_head *pool2_buffer;
 extern struct buffer buf_empty;
 extern struct buffer buf_wanted;
+extern struct list buffer_wq;
 
 int init_buffer();
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
@@ -520,6 +529,16 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 	b_reset(next);
 	*buf = next;
 	return next;
+}
+
+
+void __offer_buffer(void *from, unsigned int threshold);
+
+static inline void offer_buffers(void *from, unsigned int threshold)
+{
+	if (LIST_ISEMPTY(&buffer_wq))
+		return;
+	__offer_buffer(from, threshold);
 }
 
 #endif /* _COMMON_BUFFER_H */

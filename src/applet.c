@@ -16,6 +16,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <proto/applet.h>
+#include <proto/channel.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
@@ -48,13 +49,12 @@ void applet_run_active()
 		curr = LIST_ELEM(applet_cur_queue.n, typeof(curr), runq);
 		si = curr->owner;
 
-		/* now we'll need a buffer */
-		if (!stream_alloc_recv_buffer(si_ic(si))) {
-			si->flags |= SI_FL_WAIT_ROOM;
-			LIST_DEL(&curr->runq);
-			LIST_INIT(&curr->runq);
-			continue;
-		}
+		/* Now we'll try to allocate the input buffer. We wake up the
+		 * applet in all cases. So this is the applet responsibility to
+		 * check if this buffer was allocated or not. This let a chance
+		 * for applets to do some other processing if needed. */
+		if (!channel_alloc_buffer(si_ic(si), &curr->buffer_wait))
+			si_applet_cant_put(si);
 
 		/* We always pretend the applet can't get and doesn't want to
 		 * put, it's up to it to change this if needed. This ensures
@@ -65,6 +65,7 @@ void applet_run_active()
 
 		curr->applet->fct(curr);
 		si_applet_wake_cb(si);
+		channel_release_buffer(si_ic(si), &curr->buffer_wait);
 
 		if (applet_cur_queue.n == &curr->runq) {
 			/* curr was left in the list, move it back to the active list */

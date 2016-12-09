@@ -31,6 +31,9 @@ struct pool_head *pool2_buffer;
 struct buffer buf_empty  = { .p = buf_empty.data };
 struct buffer buf_wanted = { .p = buf_wanted.data };
 
+/* list of objects waiting for at least one buffer */
+struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
@@ -278,6 +281,35 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 	fflush(o);
 }
 
+void __offer_buffer(void *from, unsigned int threshold)
+{
+	struct buffer_wait *wait, *bak;
+	int avail;
+
+	/* For now, we consider that all objects need 1 buffer, so we can stop
+	 * waking up them once we have enough of them to eat all the available
+	 * buffers. Note that we don't really know if they are streams or just
+	 * other tasks, but that's a rough estimate. Similarly, for each cached
+	 * event we'll need 1 buffer. If no buffer is currently used, always
+	 * wake up the number of tasks we can offer a buffer based on what is
+	 * allocated, and in any case at least one task per two reserved
+	 * buffers.
+	 */
+	avail = pool2_buffer->allocated - pool2_buffer->used - global.tune.reserved_bufs / 2;
+
+	list_for_each_entry_safe(wait, bak, &buffer_wq, list) {
+		if (avail <= threshold)
+			break;
+
+		if (wait->target == from || !wait->wakeup_cb(wait->target))
+			continue;
+
+		LIST_DEL(&wait->list);
+		LIST_INIT(&wait->list);
+
+		avail--;
+	}
+}
 
 /*
  * Local variables:

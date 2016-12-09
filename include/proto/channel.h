@@ -36,6 +36,9 @@
 #include <types/stream.h>
 #include <types/stream_interface.h>
 
+#include <proto/applet.h>
+#include <proto/task.h>
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
 
@@ -437,6 +440,41 @@ static inline int channel_recv_max(const struct channel *chn)
 	if (ret < 0)
 		ret = 0;
 	return ret;
+}
+
+/* Allocates a buffer for channel <chn>, but only if it's guaranteed that it's
+ * not the last available buffer or it's the response buffer. Unless the buffer
+ * is the response buffer, an extra control is made so that we always keep
+ * <tune.buffers.reserved> buffers available after this allocation. Returns 0 in
+ * case of failure, non-zero otherwise.
+ *
+ * If no buffer are available, the requester, represented by <wait> pointer,
+ * will be added in the list of objects waiting for an available buffer.
+ */
+static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *wait)
+{
+	int margin = 0;
+
+	if (!(chn->flags & CF_ISRESP))
+		margin = global.tune.reserved_bufs;
+
+	if (b_alloc_margin(&chn->buf, margin) != NULL)
+		return 1;
+
+	if (LIST_ISEMPTY(&wait->list))
+		LIST_ADDQ(&buffer_wq, &wait->list);
+	return 0;
+}
+
+/* Releases a possibly allocated buffer for channel <chn>. If it was not
+ * allocated, this function does nothing. Else the buffer is released and we try
+ * to wake up as many streams/applets as possible. */
+static inline void channel_release_buffer(struct channel *chn, struct buffer_wait *wait)
+{
+	if (chn->buf->size && buffer_empty(chn->buf)) {
+		b_free(&chn->buf);
+		offer_buffers(wait->target, tasks_run_queue + applets_active_queue);
+	}
 }
 
 /* Truncate any unread data in the channel's buffer, and disable forwarding.
