@@ -333,7 +333,7 @@ event <name>
 
   Supported events are:
     - on-client-session
-    - on-server-connectiob
+    - on-server-session
     - on-frontend-tcp-request
     - on-backend-tcp-request
     - on-tcp-response
@@ -840,10 +840,10 @@ Here is the list of supported actions:
                  attached to this action: the variable scope (proc, sess, txn,
                  req or req) and the variable name (a string).
 
-    ACTION-UNSET-VAR  : <SET-VAR:1 byte><NB-ARGS:1 byte><VAR-SCOPE:1 byte><VAR-NAME>
+    ACTION-UNSET-VAR  : <UNSET-VAR:1 byte><NB-ARGS:1 byte><VAR-SCOPE:1 byte><VAR-NAME>
 
-    SET-VAR     : <1>
-    NB-ARGS     : <3>
+    UNSET-VAR   : <2>
+    NB-ARGS     : <2>
     VAR-SCOPE   : <PROCESS> | <SESSION> | <TRANSACTION> | <REQUEST> | <RESPONSE>
     VAR-NAME    : <STRING>
 
