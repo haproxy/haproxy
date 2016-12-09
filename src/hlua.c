@@ -6147,6 +6147,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
                                               struct act_rule *rule, char **err)
 {
 	struct hlua_function *fcn = rule->kw->private;
+	int i;
 
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
@@ -6155,11 +6156,30 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 
+	/* Memory for arguments. */
+	rule->arg.hlua_rule->args = calloc(fcn->nargs + 1, sizeof(char *));
+	if (!rule->arg.hlua_rule->args) {
+		memprintf(err, "out of memory error");
+		return ACT_RET_PRS_ERR;
+	}
+
 	/* Reference the Lua function and store the reference. */
 	rule->arg.hlua_rule->fcn = *fcn;
 
-	/* TODO: later accept arguments. */
-	rule->arg.hlua_rule->args = NULL;
+	/* Expect some arguments */
+	for (i = 0; i < fcn->nargs; i++) {
+		if (*args[i+1] == '\0') {
+			memprintf(err, "expect %d arguments", fcn->nargs);
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.hlua_rule->args[i] = strdup(args[i + 1]);
+		if (!rule->arg.hlua_rule->args[i]) {
+			memprintf(err, "out of memory error");
+			return ACT_RET_PRS_ERR;
+		}
+		(*cur_arg)++;
+	}
+	rule->arg.hlua_rule->args[i] = NULL;
 
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = hlua_action;
@@ -6217,8 +6237,13 @@ __LJMP static int hlua_register_action(lua_State *L)
 	int ref;
 	int len;
 	struct hlua_function *fcn;
+	int nargs;
 
-	MAY_LJMP(check_args(L, 3, "register_action"));
+	/* Initialise the number of expected arguments at 0. */
+	nargs = 0;
+
+	if (lua_gettop(L) < 3 || lua_gettop(L) > 4)
+		WILL_LJMP(luaL_error(L, "'register_action' needs between 3 and 4 arguments"));
 
 	/* First argument : converter name. */
 	name = MAY_LJMP(luaL_checkstring(L, 1));
@@ -6229,6 +6254,10 @@ __LJMP static int hlua_register_action(lua_State *L)
 
 	/* Third argument : lua function. */
 	ref = MAY_LJMP(hlua_checkfunction(L, 3));
+
+	/* Fouth argument : number of mandatories arguments expected on the configuration line. */
+	if (lua_gettop(L) >= 4)
+		nargs = MAY_LJMP(luaL_checkinteger(L, 4));
 
 	/* browse the second argulent as an array. */
 	lua_pushnil(L);
@@ -6250,6 +6279,9 @@ __LJMP static int hlua_register_action(lua_State *L)
 		if (!fcn->name)
 			WILL_LJMP(luaL_error(L, "lua out of memory error."));
 		fcn->function_ref = ref;
+
+		/* Set the expected number od arguments. */
+		fcn->nargs = nargs;
 
 		/* List head */
 		akl->list.n = akl->list.p = NULL;

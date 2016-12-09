@@ -90,6 +90,7 @@ struct hlua_init_function {
 struct hlua_function {
 	char *name;
 	int function_ref;
+	int nargs;
 };
 
 /* This struct is used with the structs:
