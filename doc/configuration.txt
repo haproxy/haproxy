@@ -16203,7 +16203,7 @@ See also : "filter"
 9.1. Trace
 ----------
 
-filter trace [name <name>] [random-parsing] [random-forwarding]
+filter trace [name <name>] [random-parsing] [random-forwarding] [hexdump]
 
   Arguments:
     <name>               is an arbitrary name that will be reported in
@@ -16218,6 +16218,8 @@ filter trace [name <name>] [random-parsing] [random-forwarding]
                          default, this filter forwards all previously parsed
                          data. With this parameter, it only forwards a random
                          amount of the parsed data.
+
+    <hexump>             dumps all forwarded data to the server and the client.
 
 This filter can be used as a base to develop new filters. It defines all
 callbacks and print a message on the standard error stream (stderr) with useful
