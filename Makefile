@@ -765,20 +765,20 @@ else
 all: haproxy $(EXTRA)
 endif
 
-OBJS = src/haproxy.o src/base64.o src/protocol.o \
-       src/uri_auth.o src/standard.o src/buffer.o src/log.o src/task.o \
-       src/chunk.o src/channel.o src/listener.o src/lru.o src/xxhash.o \
-       src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
-       src/checks.o src/queue.o src/frontend.o src/proxy.o src/peers.o \
-       src/arg.o src/stick_table.o src/proto_uxst.o src/connection.o \
-       src/proto_http.o src/raw_sock.o src/backend.o src/tcp_rules.o \
-       src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o src/lb_fas.o \
-       src/stream_interface.o src/stats.o src/proto_tcp.o src/applet.o \
-       src/session.o src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \
-       src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o src/proto_udp.o \
-       src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
-       src/namespace.o src/mailers.o src/dns.o src/vars.o src/filters.o \
-       src/flt_http_comp.o src/flt_trace.o src/flt_spoe.o src/cli.o
+OBJS = src/cfgparse.o src/proto_http.o src/stats.o src/server.o src/stream.o \
+       src/checks.o src/standard.o src/log.o src/flt_spoe.o src/stick_table.o \
+       src/peers.o src/pattern.o src/sample.o src/proto_tcp.o src/backend.o \
+       src/haproxy.o src/stream_interface.o src/tcp_rules.o src/proxy.o \
+       src/listener.o src/acl.o src/flt_http_comp.o src/filters.o src/dns.o \
+       src/cli.o src/flt_trace.o src/connection.o src/session.o src/vars.o \
+       src/map.o src/payload.o src/namespace.o src/compression.o \
+       src/mailers.o src/auth.o src/proto_udp.o src/memory.o src/freq_ctr.o \
+       src/signal.o src/uri_auth.o src/buffer.o src/task.o src/chunk.o \
+       src/channel.o src/lru.o src/xxhash.o src/time.o src/fd.o src/pipe.o \
+       src/regex.o src/queue.o src/frontend.o src/arg.o src/proto_uxst.o \
+       src/raw_sock.o src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o \
+       src/lb_fas.o src/applet.o src/hdr_idx.o src/ev_select.o src/hash.o \
+       src/lb_map.o src/base64.o src/protocol.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
@@ -801,7 +801,7 @@ DEP = $(INCLUDES) .build_opts
 # Used only to force a rebuild if some build options change
 .build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 
-haproxy: $(OBJS) $(OPTIONS_OBJS) $(EBTREE_OBJS)
+haproxy: $(OPTIONS_OBJS) $(EBTREE_OBJS) $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 haproxy-systemd-wrapper: $(WRAPPER_OBJS)
