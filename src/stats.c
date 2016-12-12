@@ -914,7 +914,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SLIM].u.u32),
+		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
 		              U2H(stats[ST_F_STOT].u.u64),
 		              U2H(stats[ST_F_STOT].u.u64));
 
