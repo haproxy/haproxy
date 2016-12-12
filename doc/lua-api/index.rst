@@ -2056,6 +2056,29 @@ AppletHTTP class
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param opaque data: The data which is stored in the transaction.
 
+.. js:function:: AppletHTTP.set_var(applet, var, value)
+
+  Converts a Lua type in a HAProxy type and store it in a variable <var>.
+
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
+  :param type value: The value associated to the variable. The type ca be string or
+                     integer.
+
+.. js:function:: AppletHTTP.unset_var(applet, var)
+
+  Unset the variable <var>.
+
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
+
+.. js:function:: AppletHTTP.get_var(applet, var)
+
+  Returns data stored in the variable <var> converter in Lua type.
+
+  :param class_AppletHTTP applet: An :ref:`applethttp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
+
 .. _applettcp_class:
 
 AppletTCP class
@@ -2136,6 +2159,29 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param opaque data: The data which is stored in the transaction.
+
+.. js:function:: AppletTCP.set_var(applet, var, value)
+
+  Converts a Lua type in a HAProxy type and stores it in a variable <var>.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
+  :param type value: The value associated to the variable. The type can be string or
+                     integer.
+
+.. js:function:: AppletTCP.unset_var(applet, var)
+
+  Unsets the variable <var>.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
+
+.. js:function:: AppletTCP.get_var(applet, var)
+
+  Returns data stored in the variable <var> converter in Lua type.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :param string var: The variable name according with the HAProxy variable syntax.
 
 External Lua libraries
 ======================
