@@ -7192,11 +7192,11 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "getline",  hlua_applet_tcp_getline);
-	hlua_class_function(gL.T, "receive",  hlua_applet_tcp_recv);
-	hlua_class_function(gL.T, "send",     hlua_applet_tcp_send);
-	hlua_class_function(gL.T, "set_priv", hlua_applet_tcp_set_priv);
-	hlua_class_function(gL.T, "get_priv", hlua_applet_tcp_get_priv);
+	hlua_class_function(gL.T, "getline",   hlua_applet_tcp_getline);
+	hlua_class_function(gL.T, "receive",   hlua_applet_tcp_recv);
+	hlua_class_function(gL.T, "send",      hlua_applet_tcp_send);
+	hlua_class_function(gL.T, "set_priv",  hlua_applet_tcp_set_priv);
+	hlua_class_function(gL.T, "get_priv",  hlua_applet_tcp_get_priv);
 
 	lua_settable(gL.T, -3);
 
