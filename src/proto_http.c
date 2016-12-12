@@ -4914,6 +4914,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 				if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
 				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
 					bo_inject(&s->res, http_100_chunk.str, http_100_chunk.len);
+					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 				}
 			}
 			msg->msg_state = HTTP_MSG_100_SENT;
