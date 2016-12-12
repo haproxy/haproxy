@@ -1521,6 +1521,8 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string var: The variable name according with the HAProxy variable syntax.
+  :param type value: The value associated to the variable. The type can be string or
+                     integer.
 
 .. js:function:: TXN.unset_var(TXN, var)
 
