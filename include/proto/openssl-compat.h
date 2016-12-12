@@ -86,9 +86,9 @@ static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned ch
 
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
 /*
- * Functions introduced in OpenSSL 1.1.0
+ * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
  */
 
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)

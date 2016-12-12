@@ -1790,7 +1790,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, 
 /* The following code is used for loading multiple crt files into
  * SSL_CTX's based on CN/SAN
  */
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined(LIBRESSL_VERSION_NUMBER)
 /* This is used to preload the certifcate, private key
  * and Cert Chain of a file passed in via the crt
  * argument
@@ -3524,7 +3524,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
 					int empty_handshake;
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 					OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)conn->xprt_ctx);
 					empty_handshake = state == TLS_ST_BEFORE;
 #else
@@ -3594,7 +3594,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			return 0;
 		}
 		else if (ret == SSL_ERROR_SYSCALL) {
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 			OSSL_HANDSHAKE_STATE state;
 #endif
 			int empty_handshake;
@@ -3602,7 +3602,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 			state = SSL_get_state((SSL *)conn->xprt_ctx);
 			empty_handshake = state == TLS_ST_BEFORE;
 #else
