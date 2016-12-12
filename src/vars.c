@@ -201,7 +201,7 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 
 	/* Look for existing variable name. */
 	for (i = 0; i < var_names_nb; i++)
-		if (strncmp(var_names[i], name, len) == 0)
+		if (strncmp(var_names[i], name, len) == 0 && var_names[i][len] == '\0')
 			return var_names[i];
 
 	if (!alloc)
