@@ -996,7 +996,7 @@ S (Servers).
  45. hanafail [...S]: failed health checks details
  46. req_rate [.F..]: HTTP requests per second over last elapsed second
  47. req_rate_max [.F..]: max number of HTTP requests per second observed
- 48. req_tot [.F..]: total number of HTTP requests received
+ 48. req_tot [.FB.]: total number of HTTP requests received
  49. cli_abrt [..BS]: number of data transfers aborted by the client
  50. srv_abrt [..BS]: number of data transfers aborted by the server
      (inc. in eresp)
