@@ -1681,6 +1681,24 @@ smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void
 	return 1;
 }
 
+/* set string to the name of the backend */
+static int
+smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.str.str = (char *)smp->strm->be->id;
+	if (!smp->data.u.str.str)
+	        return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.len = strlen(smp->data.u.str.str);
+
+	return 1;
+}
+
 /* set temp integer to the id of the server */
 static int
 smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -1803,6 +1821,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "be_name",       smp_fetch_be_name,        0,           NULL, SMP_T_STR,  SMP_USE_BKEND, },
 	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "connslots",     smp_fetch_connslots,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
