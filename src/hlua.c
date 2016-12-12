@@ -3194,6 +3194,81 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 	return 1;
 }
 
+__LJMP static int hlua_applet_tcp_set_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 3, "set_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	/* Converts the third argument in a sample. */
+	hlua_lua2smp(L, 3, &smp);
+
+	/* Store the sample in a variable. */
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	vars_set_by_name(name, len, &smp);
+	return 0;
+}
+
+__LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "unset_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	/* Unset the variable. */
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	vars_unset_by_name(name, len, &smp);
+	return 0;
+}
+
+__LJMP static int hlua_applet_tcp_get_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "get_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	if (!vars_get_by_name(name, len, &smp)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	return hlua_smp2lua(L, &smp);
+}
+
 __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
@@ -3565,6 +3640,81 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	lua_setmetatable(L, -2);
 
 	return 1;
+}
+
+__LJMP static int hlua_applet_http_set_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 3, "set_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	/* Converts the third argument in a sample. */
+	hlua_lua2smp(L, 3, &smp);
+
+	/* Store the sample in a variable. */
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	vars_set_by_name(name, len, &smp);
+	return 0;
+}
+
+__LJMP static int hlua_applet_http_unset_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "unset_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	/* Unset the variable. */
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	vars_unset_by_name(name, len, &smp);
+	return 0;
+}
+
+__LJMP static int hlua_applet_http_get_var(lua_State *L)
+{
+	struct hlua_appctx *appctx;
+	struct stream *s;
+	const char *name;
+	size_t len;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "get_var"));
+
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
+	 */
+	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	s = appctx->htxn.s;
+
+	smp_set_owner(&smp, s->be, s->sess, s, 0);
+	if (!vars_get_by_name(name, len, &smp)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	return hlua_smp2lua(L, &smp);
 }
 
 __LJMP static int hlua_applet_http_set_priv(lua_State *L)
@@ -7197,6 +7347,9 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "send",      hlua_applet_tcp_send);
 	hlua_class_function(gL.T, "set_priv",  hlua_applet_tcp_set_priv);
 	hlua_class_function(gL.T, "get_priv",  hlua_applet_tcp_get_priv);
+	hlua_class_function(gL.T, "set_var",   hlua_applet_tcp_set_var);
+	hlua_class_function(gL.T, "unset_var", hlua_applet_tcp_unset_var);
+	hlua_class_function(gL.T, "get_var",   hlua_applet_tcp_get_var);
 
 	lua_settable(gL.T, -3);
 
@@ -7219,6 +7372,9 @@ void hlua_init(void)
 	/* Register Lua functions. */
 	hlua_class_function(gL.T, "set_priv",       hlua_applet_http_set_priv);
 	hlua_class_function(gL.T, "get_priv",       hlua_applet_http_get_priv);
+	hlua_class_function(gL.T, "set_var",        hlua_applet_http_set_var);
+	hlua_class_function(gL.T, "unset_var",      hlua_applet_http_unset_var);
+	hlua_class_function(gL.T, "get_var",        hlua_applet_http_get_var);
 	hlua_class_function(gL.T, "getline",        hlua_applet_http_getline);
 	hlua_class_function(gL.T, "receive",        hlua_applet_http_recv);
 	hlua_class_function(gL.T, "send",           hlua_applet_http_send);
