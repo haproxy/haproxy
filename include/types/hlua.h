@@ -49,6 +49,22 @@ enum hlua_exec {
 	HLUA_E_ERR,    /* LUA stack execution failed without error message. */
 };
 
+/* This struct is use for storing HAProxy parsers state
+ * before executing some Lua code. The goal is we can
+ * check and compare the parser state a the end of Lua
+ * execution. If the state is changed by Lua towards
+ * an unexpected state, we can abort the transaction.
+ */
+struct hlua_consistency {
+	enum pr_mode mode;
+	union {
+		struct {
+			int dir;
+			enum ht_state state;
+		} http;
+	} data;
+};
+
 struct hlua {
 	lua_State *T; /* The LUA stack. */
 	int Tref; /* The reference of the stack in coroutine case.
@@ -65,6 +81,7 @@ struct hlua {
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */
 	struct ebpt_node node;
+	struct hlua_consistency cons; /* Store data consistency check. */
 };
 
 struct hlua_com {

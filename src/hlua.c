@@ -2397,33 +2397,49 @@ static void hlua_resynchonize_proto(struct stream *stream, int dir)
 	}
 }
 
-/* Check the protocole integrity after the Lua manipulations. Close the stream
- * and returns 0 if fails, otherwise returns 1. The direction is set using dir,
- * which equals either SMP_OPT_DIR_REQ or SMP_OPT_DIR_RES.
+/* This function is called before the Lua execution. It stores
+ * the differents parsers state before executing some Lua code.
  */
-static int hlua_check_proto(struct stream *stream, int dir)
+static inline void consistency_set(struct stream *stream, int opt, struct hlua_consistency *c)
 {
-	const struct chunk msg = { .len = 0 };
+	c->mode = stream->be->mode;
+	switch (c->mode) {
+	case PR_MODE_HTTP:
+		c->data.http.dir = opt & SMP_OPT_DIR;
+		if (c->data.http.dir == SMP_OPT_DIR_REQ)
+			c->data.http.state = stream->txn->req.msg_state;
+		else
+			c->data.http.state = stream->txn->rsp.msg_state;
+		break;
+	default:
+		break;
+	}
+}
 
-	/* Protocol HTTP. The message parsing state must match the request or
-	 * response state. The problem that may happen is that Lua modifies
-	 * the request or response message *after* it was parsed, and corrupted
-	 * it so that it could not be processed anymore. We just need to verify
-	 * if the parser is still expected to run or not.
-	 */
-	if (stream->be->mode == PR_MODE_HTTP) {
-		if (dir == SMP_OPT_DIR_REQ &&
-		    !(stream->req.analysers & AN_REQ_WAIT_HTTP) &&
-		    stream->txn->req.msg_state < HTTP_MSG_ERROR) {
-			stream_int_retnclose(&stream->si[0], &msg);
+/* This function is called after the Lua execution. it
+ * returns true if the parser state is consistent, otherwise,
+ * it return false.
+ *
+ * In HTTP mode, the parser state must be in the same state
+ * or greater when we exit the function. Even if we do a
+ * control yield. This prevent to break the HTTP message
+ * from the Lua code.
+ */
+static inline int consistency_check(struct stream *stream, int opt, struct hlua_consistency *c)
+{
+	if (c->mode != stream->be->mode)
+		return 0;
+
+	switch (c->mode) {
+	case PR_MODE_HTTP:
+		if (c->data.http.dir != (opt & SMP_OPT_DIR))
 			return 0;
-		}
-		else if (dir == SMP_OPT_DIR_RES &&
-		         !(stream->res.analysers & AN_RES_WAIT_HTTP) &&
-		         stream->txn->rsp.msg_state < HTTP_MSG_ERROR) {
-			stream_int_retnclose(&stream->si[0], &msg);
-			return 0;
-		}
+		if (c->data.http.dir == SMP_OPT_DIR_REQ)
+			return stream->txn->req.msg_state >= c->data.http.state;
+		else
+			return stream->txn->rsp.msg_state >= c->data.http.state;
+	default:
+		return 1;
 	}
 	return 1;
 }
@@ -5474,6 +5490,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
+	const struct chunk msg = { .len = 0 };
 
 	if (!stream)
 		return 0;
@@ -5487,6 +5504,8 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
 	}
+
+	consistency_set(stream, smp->opt, &stream->hlua.cons);
 
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(&stream->hlua)) {
@@ -5543,8 +5562,10 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	switch (hlua_ctx_resume(&stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (!hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES))
+		if (!consistency_check(stream, smp->opt, &stream->hlua.cons)) {
+			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
+		}
 		/* Convert the returned value in sample. */
 		hlua_lua2smp(stream->hlua.T, -1, smp);
 		lua_pop(stream->hlua.T, 1);
@@ -5555,13 +5576,15 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
+		if (!consistency_check(stream, smp->opt, &stream->hlua.cons))
+			stream_int_retnclose(&stream->si[0], &msg);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
+		if (!consistency_check(stream, smp->opt, &stream->hlua.cons))
+			stream_int_retnclose(&stream->si[0], &msg);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
 		         fcn->name, lua_tostring(stream->hlua.T, -1));
@@ -5569,7 +5592,8 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		return 0;
 
 	case HLUA_E_ERR:
-		hlua_check_proto(stream, (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES);
+		if (!consistency_check(stream, smp->opt, &stream->hlua.cons))
+			stream_int_retnclose(&stream->si[0], &msg);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
 
@@ -5706,6 +5730,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	unsigned int analyzer;
 	int dir;
 	const char *error;
+	const struct chunk msg = { .len = 0 };
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = SMP_OPT_DIR_REQ; break;
@@ -5716,6 +5741,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		SEND_ERR(px, "Lua: internal error while execute action.\n");
 		return ACT_RET_CONT;
 	}
+
+	consistency_set(s, dir, &s->hlua.cons);
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -5785,8 +5812,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	switch (hlua_ctx_resume(&s->hlua, !(flags & ACT_FLAG_FINAL))) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (!hlua_check_proto(s, dir))
+		if (!consistency_check(s, dir, &s->hlua.cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
 			return ACT_RET_ERR;
+		}
 		if (s->hlua.flags & HLUA_STOP)
 			return ACT_RET_STOP;
 		return ACT_RET_CONT;
@@ -5811,12 +5840,17 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 		if (HLUA_IS_WAKEREQWR(&s->hlua))
 			s->req.flags |= CF_WAKE_WRITE;
+		/* We can quit the fcuntion without consistency check
+		 * because HAProxy is not able to manipulate data, it
+		 * is only allowed to call me again. */
 		return ACT_RET_YIELD;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		if (!hlua_check_proto(s, dir))
+		if (!consistency_check(s, dir, &s->hlua.cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
 			return ACT_RET_ERR;
+		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua.T, -1));
@@ -5824,8 +5858,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 
 	case HLUA_E_ERR:
-		if (!hlua_check_proto(s, dir))
+		if (!consistency_check(s, dir, &s->hlua.cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
 			return ACT_RET_ERR;
+		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s' return an unknown error.\n",
 		         rule->arg.hlua_rule->fcn.name);
