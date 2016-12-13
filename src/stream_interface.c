@@ -455,9 +455,13 @@ void stream_int_notify(struct stream_interface *si)
 		oc->wex = TICK_ETERNITY;
 	}
 
-	/* indicate that we may be waiting for data from the output channel */
+	/* indicate that we may be waiting for data from the output channel or
+	 * we're about to close and can't expect more data if SHUTW_NOW is there.
+	 */
 	if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && channel_may_recv(oc))
 		si->flags |= SI_FL_WAIT_DATA;
+	else if ((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW)
+		si->flags &= ~SI_FL_WAIT_DATA;
 
 	/* update OC timeouts and wake the other side up if it's waiting for room */
 	if (oc->flags & CF_WRITE_ACTIVITY) {
