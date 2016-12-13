@@ -724,12 +724,14 @@ static void sess_establish(struct stream *s)
 		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
-	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
+	if (!(s->flags & SF_TUNNEL)) {
+		rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
-	/* Be sure to filter response headers if the backend is an HTTP proxy
-	 * and if there are filters attached to the stream. */
-	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
-		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
+		/* Be sure to filter response headers if the backend is an HTTP proxy
+		 * and if there are filters attached to the stream. */
+		if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
+			rep->analysers |= AN_RES_FLT_HTTP_HDRS;
+	}
 
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
