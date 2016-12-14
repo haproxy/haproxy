@@ -95,6 +95,7 @@ struct appctx {
 			long long value;	/* value to compare against */
 			signed char data_type;	/* type of data to compare, or -1 if none */
 			signed char data_op;	/* operator (STD_OP_*) when data_type set */
+			char action;            /* action on the table : one of STK_CLI_ACT_* */
 		} table;
 		struct {
 			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */

@@ -2344,7 +2344,6 @@ static int table_dump_entry_to_buffer(struct chunk *msg, struct stream_interface
 static int table_process_entry_per_key(struct appctx *appctx, char **args)
 {
 	struct stream_interface *si = appctx->owner;
-	int action = (long)appctx->private;
 	struct proxy *px = appctx->ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
@@ -2393,7 +2392,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		static_table_key->key_len = strlen(args[4]);
 		break;
 	default:
-		switch (action) {
+		switch (appctx->ctx.table.action) {
 		case STK_CLI_ACT_SHOW:
 			appctx->ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
 			break;
@@ -2417,7 +2416,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 
 	ts = stktable_lookup_key(&px->table, static_table_key);
 
-	switch (action) {
+	switch (appctx->ctx.table.action) {
 	case STK_CLI_ACT_SHOW:
 		if (!ts)
 			return 1;
@@ -2520,9 +2519,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
  */
 static int table_prepare_data_request(struct appctx *appctx, char **args)
 {
-	int action = (long)appctx->private;
-
-	if (action != STK_CLI_ACT_SHOW && action != STK_CLI_ACT_CLR) {
+	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR) {
 		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -2562,13 +2559,11 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 /* returns 0 if wants to be called, 1 if has ended processing */
 static int cli_parse_table_req(char **args, struct appctx *appctx, void *private)
 {
-	int action = (long)private;
-
-	appctx->private = private;
 	appctx->ctx.table.data_type = -1;
 	appctx->ctx.table.target = NULL;
 	appctx->ctx.table.proxy = NULL;
 	appctx->ctx.table.entry = NULL;
+	appctx->ctx.table.action = (long)private; // keyword argument, one of STK_CLI_ACT_*
 
 	if (*args[2]) {
 		appctx->ctx.table.target = proxy_tbl_by_name(args[2]);
@@ -2579,7 +2574,7 @@ static int cli_parse_table_req(char **args, struct appctx *appctx, void *private
 		}
 	}
 	else {
-		if (action != STK_CLI_ACT_SHOW)
+		if (appctx->ctx.table.action != STK_CLI_ACT_SHOW)
 			goto err_args;
 		return 0;
 	}
@@ -2594,7 +2589,7 @@ static int cli_parse_table_req(char **args, struct appctx *appctx, void *private
 	return 0;
 
 err_args:
-	switch (action) {
+	switch (appctx->ctx.table.action) {
 	case STK_CLI_ACT_SHOW:
 		appctx->ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
 		break;
@@ -2619,12 +2614,11 @@ err_args:
 static int cli_io_handler_table(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
-	int action = (long)appctx->private;
 	struct stream *s = si_strm(si);
 	struct ebmb_node *eb;
 	int dt;
 	int skip_entry;
-	int show = action == STK_CLI_ACT_SHOW;
+	int show = appctx->ctx.table.action == STK_CLI_ACT_SHOW;
 
 	/*
 	 * We have 3 possible states in appctx->st2 :
