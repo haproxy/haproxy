@@ -2080,10 +2080,6 @@ AppletHTTP class
   AppletHTTP.headers["accept"][2] = "*/*, q=0.1"
 ..
 
-.. js:attribute:: AppletHTTP.headers
-
-  Contains an array containing all the request headers.
-
 .. js:function:: AppletHTTP.set_status(applet, code)
 
   This function sets the HTTP status code for the response. The allowed code are
