@@ -165,6 +165,14 @@ Core class
 
   This attribute is an integer, it contains the value of the loglevel "debug" (7).
 
+.. js:attribute:: core.proxies
+
+  **context**: task, action, sample-fetch, converter
+
+  This attribute is an array of declared proxies (frontend and backends). Each
+  proxy give an access to his list of listeners and servers. Each entry is of
+  type :ref:`proxy_class`
+
 .. js:function:: core.log(loglevel, msg)
 
   **context**: body, init, task, action, sample-fetch, converter
@@ -176,19 +184,20 @@ Core class
   :param integer loglevel: Is the log level asociated with the message. It is a
     number between 0 and 7.
   :param string msg: The log content.
-  :see: core.emerg, core.alert, core.crit, core.err, core.warning, core.notice,
-    core.info, core.debug (log level definitions)
-  :see: code.Debug
-  :see: core.Info
-  :see: core.Warning
-  :see: core.Alert
+  :see: :js:attr:`core.emerg`, :js:attr:`core.alert`, :js:attr:`core.crit`,
+    :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
+    :js:attr:`core.info`, :js:attr:`core.debug` (log level definitions)
+  :see: :js:func:`core.Debug`
+  :see: :js:func:`core.Info`
+  :see: :js:func:`core.Warning`
+  :see: :js:func:`core.Alert`
 
 .. js:function:: core.Debug(msg)
 
   **context**: body, init, task, action, sample-fetch, converter
 
   :param string msg: The log content.
-  :see: log
+  :see: :js:func:`core.log`
 
   Does the same job than:
 
@@ -204,7 +213,7 @@ Core class
   **context**: body, init, task, action, sample-fetch, converter
 
   :param string msg: The log content.
-  :see: log
+  :see: :js:func:`core.log`
 
 .. code-block:: lua
 
@@ -218,7 +227,7 @@ Core class
   **context**: body, init, task, action, sample-fetch, converter
 
   :param string msg: The log content.
-  :see: log
+  :see: :js:func:`core.log`
 
 .. code-block:: lua
 
@@ -232,7 +241,7 @@ Core class
   **context**: body, init, task, action, sample-fetch, converter
 
   :param string msg: The log content.
-  :see: log
+  :see: :js:func:`core.log`
 
 .. code-block:: lua
 
@@ -1097,8 +1106,8 @@ Fetches class
   **warning** some sample fetches are not available in some context. These
   limitations are specified in this documentation when theire useful.
 
-  :see: TXN.f
-  :see: TXN.sf
+  :see: :js:attr:`TXN.f`
+  :see: :js:attr:`TXN.sf`
 
   Fetches are useful for:
 
@@ -1131,8 +1140,8 @@ Converters class
   HAProxy documentation "configuration.txt" for more information about her
   usage. Its the chapter 7.3.1.
 
-  :see: TXN.c
-  :see: TXN.sc
+  :see: :js:attr:`TXN.c`
+  :see: :js:attr:`TXN.sc`
 
   Converters provides statefull transformation. They are useful for:
 
@@ -1275,7 +1284,7 @@ HTTP class
 
   :param class_http http: The related http object.
   :returns: array of headers.
-  :see: HTTP.res_get_headers()
+  :see: :js:func:`HTTP.res_get_headers`
 
   This is the form of the returned array:
 
@@ -1296,7 +1305,7 @@ HTTP class
 
   :param class_http http: The related http object.
   :returns: array of headers.
-  :see: HTTP.req_get_headers()
+  :see: :js:func:`HTTP.req_get_headers`
 
   This is the form of the returned array:
 
@@ -1319,7 +1328,7 @@ HTTP class
   :param class_http http: The related http object.
   :param string name: The header name.
   :param string value: The header value.
-  :see: HTTP.res_add_header()
+  :see: :js:func:`HTTP.res_add_header`
 
 .. js:function:: HTTP.res_add_header(http, name, value)
 
@@ -1329,7 +1338,7 @@ HTTP class
   :param class_http http: The related http object.
   :param string name: The header name.
   :param string value: The header value.
-  :see: HTTP.req_add_header()
+  :see: :js:func:`HTTP.req_add_header`
 
 .. js:function:: HTTP.req_del_header(http, name)
 
@@ -1338,7 +1347,7 @@ HTTP class
 
   :param class_http http: The related http object.
   :param string name: The header name.
-  :see: HTTP.res_del_header()
+  :see: :js:func:`HTTP.res_del_header`
 
 .. js:function:: HTTP.res_del_header(http, name)
 
@@ -1347,7 +1356,7 @@ HTTP class
 
   :param class_http http: The related http object.
   :param string name: The header name.
-  :see: HTTP.req_del_header()
+  :see: :js:func:`HTTP.req_del_header`
 
 .. js:function:: HTTP.req_set_header(http, name, value)
 
@@ -1357,7 +1366,7 @@ HTTP class
   :param class_http http: The related http object.
   :param string name: The header name.
   :param string value: The header value.
-  :see: HTTP.res_set_header()
+  :see: :js:func:`HTTP.res_set_header`
 
   This function does the same work as the folowwing code:
 
@@ -1377,7 +1386,7 @@ HTTP class
   :param class_http http: The related http object.
   :param string name: The header name.
   :param string value: The header value.
-  :see: HTTP.req_rep_header()
+  :see: :js:func:`HTTP.req_rep_header()`
 
 .. js:function:: HTTP.req_rep_header(http, name, regex, replace)
 
@@ -1390,7 +1399,7 @@ HTTP class
   :param string name: The header name.
   :param string regex: The match regular expression.
   :param string replace: The replacement value.
-  :see: HTTP.res_rep_header()
+  :see: :js:func:`HTTP.res_rep_header()`
 
 .. js:function:: HTTP.res_rep_header(http, name, regex, string)
 
@@ -1403,7 +1412,7 @@ HTTP class
   :param string name: The header name.
   :param string regex: The match regular expression.
   :param string replace: The replacement value.
-  :see: HTTP.req_replace_header()
+  :see: :js:func:`HTTP.req_rep_header()`
 
 .. js:function:: HTTP.req_set_method(http, method)
 
@@ -1514,13 +1523,14 @@ TXN class
   :param integer loglevel: Is the log level asociated with the message. It is a
     number between 0 and 7.
   :param string msg: The log content.
-  :see: core.emerg, core.alert, core.crit, core.err, core.warning, core.notice,
-    core.info, core.debug (log level definitions)
-  :see: TXN.deflog
-  :see: TXN.Debug
-  :see: TXN.Info
-  :see: TXN.Warning
-  :see: TXN.Alert
+  :see: :js:attr:`core.emerg`, :js:attr:`core.alert`, :js:attr:`core.crit`,
+    :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
+    :js:attr:`core.info`, :js:attr:`core.debug` (log level definitions)
+  :see: :js:func:`TXN.deflog`
+  :see: :js:func:`TXN.Debug`
+  :see: :js:func:`TXN.Info`
+  :see: :js:func:`TXN.Warning`
+  :see: :js:func:`TXN.Alert`
 
 .. js:function:: TXN.deflog(TXN, msg)
 
@@ -1529,13 +1539,13 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: TXN.log
+  :see: :js:func:`TXN.log
 
 .. js:function:: TXN.Debug(txn, msg)
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: TXN.log
+  :see: :js:func:`TXN.log`
 
   Does the same job than:
 
@@ -1550,7 +1560,7 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: TXN.log
+  :see: :js:func:`TXN.log`
 
 .. code-block:: lua
 
@@ -1563,7 +1573,7 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: TXN.log
+  :see: :js:func:`TXN.log`
 
 .. code-block:: lua
 
@@ -1576,7 +1586,7 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param string msg: The log content.
-  :see: TXN.log
+  :see: :js:func:`TXN.log`
 
 .. code-block:: lua
 
@@ -1645,7 +1655,9 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
   :param integer loglevel: The required log level. This variable can be one of
-  :see: core.<loglevel>
+  :see: :js:attr:`core.emerg`, :js:attr:`core.alert`, :js:attr:`core.crit`,
+    :js:attr:`core.err`, :js:attr:`core.warning`, :js:attr:`core.notice`,
+    :js:attr:`core.info`, :js:attr:`core.debug` (log level definitions)
 
 .. js:function:: TXN.set_tos(txn, tos)
 
@@ -1937,7 +1949,10 @@ Map class
   :param integer method: Is the map pattern matching method. See the attributes
     of the Map class.
   :returns: a class Map object.
-  :see: The Map attributes.
+  :see: The Map attributes: :js:attr:`Map.int`, :js:attr:`Map.ip`,
+    :js:attr:`Map.str`, :js:attr:`Map.beg`, :js:attr:`Map.sub`,
+    :js:attr:`Map.dir`, :js:attr:`Map.dom`, :js:attr:`Map.end` and
+    :js:attr:`Map.reg`.
 
 .. js:function:: Map.lookup(map, str)
 
@@ -2127,13 +2142,13 @@ AppletHTTP class
 
 .. js:function:: AppletHTTP.get_priv(applet)
 
-  Return Lua data stored in the current transaction (with the
-  `AppletHTTP.set_priv()`) function. If no data are stored, it returns a nil
-  value.
+  Return Lua data stored in the current transaction. If no data are stored,
+  it returns a nil value.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :returns: the opaque data previsously stored, or nil if nothing is
      avalaible.
+  :see: :js:func:`AppletHTTP.set_priv`
 
 .. js:function:: AppletHTTP.set_priv(applet, data)
 
@@ -2142,6 +2157,7 @@ AppletHTTP class
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param opaque data: The data which is stored in the transaction.
+  :see: :js:func:`AppletHTTP.get_priv`
 
 .. js:function:: AppletHTTP.set_var(applet, var, value)
 
@@ -2151,6 +2167,8 @@ AppletHTTP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type ca be string or
                      integer.
+  :see: :js:func:`AppletHTTP.unset_var`
+  :see: :js:func:`AppletHTTP.get_var`
 
 .. js:function:: AppletHTTP.unset_var(applet, var)
 
@@ -2158,6 +2176,8 @@ AppletHTTP class
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string var: The variable name according with the HAProxy variable syntax.
+  :see: :js:func:`AppletHTTP.set_var`
+  :see: :js:func:`AppletHTTP.get_var`
 
 .. js:function:: AppletHTTP.get_var(applet, var)
 
@@ -2165,6 +2185,8 @@ AppletHTTP class
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string var: The variable name according with the HAProxy variable syntax.
+  :see: :js:func:`AppletHTTP.set_var`
+  :see: :js:func:`AppletHTTP.unset_var`
 
 .. _applettcp_class:
 
@@ -2231,13 +2253,13 @@ AppletTCP class
 
 .. js:function:: AppletTCP.get_priv(applet)
 
-  Return Lua data stored in the current transaction (with the
-  `AppletTCP.set_priv()`) function. If no data are stored, it returns a nil
-  value.
+  Return Lua data stored in the current transaction. If no data are stored,
+  it returns a nil value.
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :returns: the opaque data previsously stored, or nil if nothing is
      avalaible.
+  :see: :js:func:`AppletTCP.set_priv`
 
 .. js:function:: AppletTCP.set_priv(applet, data)
 
@@ -2246,6 +2268,7 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param opaque data: The data which is stored in the transaction.
+  :see: :js:func:`AppletTCP.get_priv`
 
 .. js:function:: AppletTCP.set_var(applet, var, value)
 
@@ -2255,6 +2278,8 @@ AppletTCP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type can be string or
                      integer.
+  :see: :js:func:`AppletTCP.unset_var`
+  :see: :js:func:`AppletTCP.get_var`
 
 .. js:function:: AppletTCP.unset_var(applet, var)
 
@@ -2262,6 +2287,8 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param string var: The variable name according with the HAProxy variable syntax.
+  :see: :js:func:`AppletTCP.unset_var`
+  :see: :js:func:`AppletTCP.set_var`
 
 .. js:function:: AppletTCP.get_var(applet, var)
 
@@ -2269,6 +2296,8 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param string var: The variable name according with the HAProxy variable syntax.
+  :see: :js:func:`AppletTCP.unset_var`
+  :see: :js:func:`AppletTCP.set_var`
 
 External Lua libraries
 ======================
