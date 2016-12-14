@@ -28,7 +28,7 @@
 #   show-backports -q -m -r hapee-r2 hapee-r1
 
 
-USAGE="Usage: ${0##*/} [-q] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...]"
+USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...]"
 BASES=( )
 BRANCHES=( )
 REF=master
@@ -38,6 +38,7 @@ LOGEXPR=
 SUBJECT=
 MISSING=
 UPSTREAM=
+BODYHASH=
 
 die() {
 	[ "$#" -eq 0 ] || echo "$*" >&2
@@ -75,10 +76,12 @@ dump_commit_matrix() {
 
 		upstream="none"
 		missing=0
+		refbhash=""
 		line=""
 		for branch in "${BRANCHES[@]}"; do
 			set -- $(grep -m 1 $ref "$WORK/${branch//\//_}")
 			newhash=$1 ; shift
+			bhash=""
 			# count the number of cherry-picks after this one. Since we shift,
 			# the result is in "$#"
 			while [ -n "$1" -a "$1" != "$ref" ]; do
@@ -108,6 +111,19 @@ dump_commit_matrix() {
 						break
 					fi
 				done
+				if [ -z "$newhash" -a -n "$BODYHASH" ]; then
+					if [ -z "$refbhash" ]; then
+						refbhash=$(git log -1 --pretty="%an|%ae|%at|%B" "$ref" | sed -n '/^\(Signed-off-by\|(cherry picked\)/q;p' | md5sum)
+					fi
+
+
+					set -- $(grep -m 1 "H$refbhash\$" "$WORK/${branch//\//_}")
+					newhash=$1 ; shift
+					if [ -n "$newhash" ]; then
+						line="${line} $(short $newhash)+?"
+						break
+					fi
+				fi
 				if [ -z "$newhash" ]; then
 					line="${line} -"
 					missing=1
@@ -136,6 +152,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-q)        QUIET=1        ; shift   ;;
 		-m)        MISSING=1      ; shift   ;;
 		-u)        UPSTREAM=1     ; shift   ;;
+		-H)        BODYHASH=1     ; shift   ;;
 		-h|--help) quit "$USAGE" ;;
 		*)         die  "$USAGE" ;;
 	esac
@@ -194,8 +211,13 @@ while [ $branch_num -lt "${#BRANCHES[@]}" ]; do
 	base="${base:-$BASE}"
 	rm -f "$WORK/${branch//\//_}"
 	git log --reverse --pretty="%H %s" "$base".."$branch" | grep "${SUBJECT}" | while read h subject; do
-		echo "$h" $(git log -1 --pretty --format=%B "$h" | \
+		echo -n "$h" $(git log -1 --pretty --format=%B "$h" | \
 			sed -n 's/^commit \([^)]*\) upstream\.$/\1/p;s/^(cherry picked from commit \([^)]*\))/\1/p')
+		if [ -n "$BODYHASH" ]; then
+			echo " H$(git log -1 --pretty="%an|%ae|%at|%B" "$h" | sed -n '/^\(Signed-off-by\|(cherry picked\)/q;p' | md5sum)"
+		else
+			echo
+		fi
 	done > "$WORK/${branch//\//_}"
 	(( branch_num++ ))
 done
