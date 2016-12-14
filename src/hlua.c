@@ -6620,8 +6620,8 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	const char *error;
 
 	hlua = &appctx->ctx.hlua_cli.hlua;
+	appctx->ctx.hlua_cli.fcn = private;
 	fcn = private;
-	appctx->private = private;
 
 	/* Create task used by signal to wakeup applets.
 	 * We use the same wakeup fonction than the Lua applet_tcp and
@@ -6707,7 +6707,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 
 	hlua = &appctx->ctx.hlua_cli.hlua;
 	si = appctx->owner;
-	fcn = appctx->private;
+	fcn = appctx->ctx.hlua_cli.fcn;
 
 	/* If the stream is disconnect or closed, ldo nothing. */
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))

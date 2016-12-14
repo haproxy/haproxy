@@ -126,6 +126,7 @@ struct appctx {
 		struct {
 			struct hlua hlua;
 			struct task *task;
+			struct hlua_function *fcn;
 		} hlua_cli;
 		struct {
 			struct hlua hlua;
