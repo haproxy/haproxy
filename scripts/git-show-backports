@@ -183,7 +183,7 @@ mkdir -p .git/.show-backports #|| die "Can't create .git/.show-backports"
 WORK=.git/.show-backports
 
 rm -f "$WORK/${REF//\//_}"
-git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" | grep "${SUBJECT}" > "$WORK/${branch//\//_}" > "$WORK/${REF//\//_}"
+git log --reverse ${LOGEXPR:+--grep $LOGEXPR} --pretty="%H %s" "$BASE".."$REF" | grep "${SUBJECT}" > "$WORK/${REF//\//_}"
 
 # for each branch, enumerate all commits and their ancestry
 
