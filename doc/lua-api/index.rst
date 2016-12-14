@@ -297,6 +297,93 @@ Core class
     contains the current at the epoch format, and "usec" contains the
     current microseconds.
 
+.. js:function:: core.http_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting http date, and returns an integer
+  containing the corresponding date with a epoch format. A valid http date
+  me respect the format IMF, RFC850 or ASCTIME.
+
+  :param string date: a date http-date formatted
+  :returns: integer containing epoch date
+  :see: :js:func:`core.imf_date`.
+  :see: :js:func:`core.rfc850_date`.
+  :see: :js:func:`core.asctime_date`.
+  :see: https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+
+.. js:function:: core.imf_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting IMF date, and returns an integer
+  containing the corresponding date with a epoch format.
+
+  :param string date: a date IMF formatted
+  :returns: integer containing epoch date
+  :see: https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+
+  The IMF format is like this:
+
+.. code-block:: text
+
+	Sun, 06 Nov 1994 08:49:37 GMT
+..
+
+.. js:function:: core.rfc850_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting RFC850 date, and returns an integer
+  containing the corresponding date with a epoch format.
+
+  :param string date: a date RFC859 formatted
+  :returns: integer containing epoch date
+  :see: https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+
+  The RFC850 format is like this:
+
+.. code-block:: text
+
+	Sunday, 06-Nov-94 08:49:37 GMT
+..
+
+.. js:function:: core.asctime_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting ASCTIME date, and returns an integer
+  containing the corresponding date with a epoch format.
+
+  :param string date: a date ASCTIME formatted
+  :returns: integer containing epoch date
+  :see: https://tools.ietf.org/html/rfc7231#section-7.1.1.1
+
+  The ASCTIME format is like this:
+
+.. code-block:: text
+
+	Sun Nov  6 08:49:37 1994
+..
+
+.. js:function:: core.rfc850_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting http date, and returns an integer
+  containing the corresponding date with a epoch format.
+
+  :param string date: a date http-date formatted
+
+.. js:function:: core.asctime_date(date)
+
+  **context**: body, init, task, action
+
+  This function take a string repsenting http date, and returns an integer
+  containing the corresponding date with a epoch format.
+
+  :param string date: a date http-date formatted
+
 .. js:function:: core.msleep(milliseconds)
 
   **context**: body, init, task, action
