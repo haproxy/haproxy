@@ -162,6 +162,7 @@ struct appctx {
 			unsigned int max_frame_size;
 			struct list  list;
 		} spoe;                         /* used by SPOE filter */
+		struct list *cli_socket;        /* pointer to the latest dumped CLI socket in the list */
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 

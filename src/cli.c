@@ -728,6 +728,104 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	return 1;
 }
 
+/*
+ * CLI IO handler for `show cli sockets`
+ */
+static int cli_io_handler_show_cli_sock(struct appctx *appctx)
+{
+	struct bind_conf *bind_conf;
+	struct stream_interface *si = appctx->owner;
+
+	chunk_reset(&trash);
+
+	switch (appctx->st2) {
+		case STAT_ST_INIT:
+			chunk_printf(&trash, "# socket lvl processes\n");
+			if (bi_putchk(si_ic(si), &trash) == -1) {
+				si_applet_cant_put(si);
+				return 0;
+			}
+			appctx->ctx.cli_socket = NULL;
+			appctx->st2 = STAT_ST_LIST;
+
+		case STAT_ST_LIST:
+			if (global.stats_fe) {
+				list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+					struct listener *l;
+
+					/*
+					 * get the latest dumped node in appctx->ctx.cli_socket
+					 * if the current node is the first of the list
+					 */
+
+					if (appctx->ctx.cli_socket  &&
+					    &bind_conf->by_fe == (&global.stats_fe->conf.bind)->n
+					   ) {
+						/* change the current node to the latest dumped and continue the loop */
+						bind_conf = LIST_ELEM(appctx->ctx.cli_socket, typeof(bind_conf), by_fe);
+						continue;
+					}
+
+					list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+
+						char addr[46];
+						char port[6];
+
+						if (l->addr.ss_family == AF_UNIX) {
+							const struct sockaddr_un *un;
+
+							un = (struct sockaddr_un *)&l->addr;
+							chunk_appendf(&trash, "%s ", un->sun_path);
+						} else if (l->addr.ss_family == AF_INET) {
+							addr_to_str(&l->addr, addr, sizeof(addr));
+							port_to_str(&l->addr, port, sizeof(port));
+							chunk_appendf(&trash, "%s:%s ", addr, port);
+						} else if (l->addr.ss_family == AF_INET6) {
+							addr_to_str(&l->addr, addr, sizeof(addr));
+							port_to_str(&l->addr, port, sizeof(port));
+							chunk_appendf(&trash, "[%s]:%s ", addr, port);
+						} else
+							continue;
+
+						if (bind_conf->level == ACCESS_LVL_USER)
+							chunk_appendf(&trash, "user ");
+						else if (bind_conf->level == ACCESS_LVL_OPER)
+							chunk_appendf(&trash, "operator ");
+						else if (bind_conf->level == ACCESS_LVL_ADMIN)
+							chunk_appendf(&trash, "admin ");
+						else
+							chunk_appendf(&trash, "  ");
+
+						if (bind_conf->bind_proc != 0) {
+							int pos;
+
+							for (pos = 0; pos < sizeof(bind_conf->bind_proc); pos++) {
+								if (bind_conf->bind_proc & (1 << pos)) {
+									chunk_appendf(&trash, "%d,", pos+1);
+								}
+							}
+							/* replace the latest comma by a newline */
+							trash.str[trash.len-1] = '\n';
+
+						} else {
+							chunk_appendf(&trash, "all\n");
+						}
+
+						if (bi_putchk(si_ic(si), &trash) == -1) {
+							si_applet_cant_put(si);
+							return 0;
+						}
+					}
+					appctx->ctx.cli_socket = &bind_conf->by_fe; /* store the latest list node dumped */
+				}
+			}
+		default:
+			appctx->st2 = STAT_ST_FIN;
+			return 1;
+	}
+}
+
+
 /* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
  * wants to stop here.
  */
@@ -826,6 +924,12 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 	return 1;
 }
 
+
+int cli_parse_default(char **args, struct appctx *appctx, void *private)
+{
+	return 0;
+}
+
 /* parse a "set rate-limit" command. It always returns 1. */
 static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *private)
 {
@@ -919,6 +1023,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
+	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL },
 	{{},}
 }};
 
