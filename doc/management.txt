@@ -1674,6 +1674,23 @@ set weight <backend>/<server> <weight>[%]
   "admin". Both the backend and the server may be specified either by their
   name or by their numeric ID, prefixed with a sharp ('#').
 
+show cli sockets
+  List CLI sockets. The output format is composed of 3 fields separated by
+  spaces. The first field is the socket address, it can be a unix socket, a
+  ipv4 address:port couple or a ipv6 one. Socket of other types won't be dump.
+  The second field describe the level of the socket: 'admin', 'user' or
+  'operator'. The last field list the processes on which the socket is bound,
+  separated by commas, it can be numbers or 'all'.
+
+  Example :
+
+     $ echo 'show cli sockets' | socat stdio /tmp/sock1
+     # socket lvl processes
+     /tmp/sock1 admin all
+     127.0.0.1:9999 user 2,3,4
+     127.0.0.2:9969 user 2
+     [::1]:9999 operator 2
+
 show env [<name>]
   Dump one or all environment variables known by the process. Without any
   argument, all variables are dumped. With an argument, only the specified
