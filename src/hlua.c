@@ -6629,7 +6629,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	 */
 	appctx->ctx.hlua_cli.task = task_new();
 	if (!appctx->ctx.hlua_cli.task) {
-		SEND_ERR(NULL, "Lua applet tcp '%s': out of memory.\n", fcn->name);
+		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
 		return 0;
 	}
 	appctx->ctx.hlua_cli.task->nice = 0;
