@@ -122,7 +122,7 @@ struct appctx {
 			struct hlua_socket *socket;
 			struct list wake_on_read;
 			struct list wake_on_write;
-		} hlua;
+		} hlua_cosocket;
 		struct {
 			struct hlua hlua;
 			struct task *task;

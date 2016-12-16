@@ -1537,18 +1537,18 @@ static void hlua_socket_handler(struct appctx *appctx)
 		si_shutw(si);
 		si_shutr(si);
 		si_ic(si)->flags |= CF_READ_NULL;
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 		return;
 	}
 
 	/* If we cant write, wakeup the pending write signals. */
 	if (channel_output_closed(si_ic(si)))
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
 	/* If we cant read, wakeup the pending read signals. */
 	if (channel_input_closed(si_oc(si)))
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 
 	/* if the connection is not estabkished, inform the stream that we want
 	 * to be notified whenever the connection completes.
@@ -1560,15 +1560,15 @@ static void hlua_socket_handler(struct appctx *appctx)
 	}
 
 	/* This function is called after the connect. */
-	appctx->ctx.hlua.connected = 1;
+	appctx->ctx.hlua_cosocket.connected = 1;
 
 	/* Wake the tasks which wants to write if the buffer have avalaible space. */
 	if (channel_may_recv(si_ic(si)))
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
 	/* Wake the tasks which wants to read if the buffer contains data. */
 	if (!channel_is_empty(si_oc(si)))
-		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 }
 
 /* This function is called when the "struct stream" is destroyed.
@@ -1578,12 +1578,12 @@ static void hlua_socket_handler(struct appctx *appctx)
 static void hlua_socket_release(struct appctx *appctx)
 {
 	/* Remove my link in the original object. */
-	if (appctx->ctx.hlua.socket)
-		appctx->ctx.hlua.socket->s = NULL;
+	if (appctx->ctx.hlua_cosocket.socket)
+		appctx->ctx.hlua_cosocket.socket->s = NULL;
 
 	/* Wake all the task waiting for me. */
-	hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
-	hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
+	hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+	hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 }
 
 /* If the garbage collectio of the object is launch, nobody
@@ -1607,7 +1607,7 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 	appctx = objt_appctx(socket->s->si[0].end);
 	stream_shutdown(socket->s, SF_ERR_KILLED);
 	socket->s = NULL;
-	appctx->ctx.hlua.socket = NULL;
+	appctx->ctx.hlua_cosocket.socket = NULL;
 
 	return 0;
 }
@@ -1629,7 +1629,7 @@ __LJMP static int hlua_socket_close(lua_State *L)
 	/* Close the stream and remove the associated stop task. */
 	stream_shutdown(socket->s, SF_ERR_KILLED);
 	appctx = objt_appctx(socket->s->si[0].end);
-	appctx->ctx.hlua.socket = NULL;
+	appctx->ctx.hlua_cosocket.socket = NULL;
 	socket->s = NULL;
 
 	return 0;
@@ -1767,7 +1767,7 @@ connection_closed:
 connection_empty:
 
 	appctx = objt_appctx(socket->s->si[0].end);
-	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_read))
+	if (!hlua_com_new(hlua, &appctx->ctx.hlua_cosocket.wake_on_read))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY, 0));
 	return 0;
@@ -1930,7 +1930,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 
 hlua_socket_write_yield_return:
 	appctx = objt_appctx(socket->s->si[0].end);
-	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
+	if (!hlua_com_new(hlua, &appctx->ctx.hlua_cosocket.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY, 0));
 	return 0;
@@ -2147,12 +2147,12 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 	appctx = objt_appctx(socket->s->si[0].end);
 
 	/* Check for connection established. */
-	if (appctx->ctx.hlua.connected) {
+	if (appctx->ctx.hlua_cosocket.connected) {
 		lua_pushinteger(L, 1);
 		return 1;
 	}
 
-	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
+	if (!hlua_com_new(hlua, &appctx->ctx.hlua_cosocket.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory error"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 	return 0;
@@ -2219,7 +2219,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	hlua->flags |= HLUA_MUST_GC;
 
-	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
+	if (!hlua_com_new(hlua, &appctx->ctx.hlua_cosocket.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
@@ -2298,10 +2298,10 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_conf;
 	}
 
-	appctx->ctx.hlua.socket = socket;
-	appctx->ctx.hlua.connected = 0;
-	LIST_INIT(&appctx->ctx.hlua.wake_on_write);
-	LIST_INIT(&appctx->ctx.hlua.wake_on_read);
+	appctx->ctx.hlua_cosocket.socket = socket;
+	appctx->ctx.hlua_cosocket.connected = 0;
+	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_write);
+	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_read);
 
 	/* Now create a session, task and stream for this applet */
 	sess = session_new(&socket_proxy, NULL, &appctx->obj_type);
