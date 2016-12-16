@@ -455,6 +455,7 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 	}
 
 	appctx->st2 = 0;
+	memset(&appctx->ctx.cli, 0, sizeof(appctx->ctx.cli));
 
 	kw = cli_find_kw(args);
 	if (!kw)

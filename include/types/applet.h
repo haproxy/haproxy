@@ -93,6 +93,8 @@ struct appctx {
 		struct {
 			const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
 			char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+			void *p0, *p1;          /* general purpose pointers and integers for registered commands, initialized */
+			int i0, i1;             /* to 0 by the CLI before first invocation of the keyword parser. */
 		} cli;                          /* context used by the CLI */
 
 		/* all entries below are used by various CLI commands, please
