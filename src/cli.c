@@ -798,9 +798,8 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 						if (bind_conf->bind_proc != 0) {
 							int pos;
-
 							for (pos = 0; pos < 8 * sizeof(bind_conf->bind_proc); pos++) {
-								if (bind_conf->bind_proc & (1 << pos)) {
+								if (bind_conf->bind_proc & (1UL << pos)) {
 									chunk_appendf(&trash, "%d,", pos+1);
 								}
 							}
