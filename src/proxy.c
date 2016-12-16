@@ -1369,13 +1369,9 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	return 1;
 }
 
-static int cli_parse_show_backend(char **args, struct appctx *appctx, void *private)
-{
-	appctx->ctx.be.px = NULL;
-	return 0;
-}
-
-/* Parses backend list and simply report backend names */
+/* Parses backend list and simply report backend names. It keeps the proxy
+ * pointer in cli.p0.
+ */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
 	extern struct proxy *proxy;
@@ -1384,17 +1380,17 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	if (!appctx->ctx.be.px) {
+	if (!appctx->ctx.cli.p0) {
 		chunk_printf(&trash, "# name\n");
 		if (bi_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
-		appctx->ctx.be.px = proxy;
+		appctx->ctx.cli.p0 = proxy;
 	}
 
-	for (; appctx->ctx.be.px != NULL; appctx->ctx.be.px = curproxy->next) {
-		curproxy = appctx->ctx.be.px;
+	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
+		curproxy = appctx->ctx.cli.p0;
 
 		/* looking for backends only */
 		if (!(curproxy->cap & PR_CAP_BE))
@@ -1553,7 +1549,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "enable", "frontend",  NULL }, "enable frontend : re-enable specific frontend", cli_parse_enable_frontend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
-	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", cli_parse_show_backend, cli_io_handler_show_backend },
+	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", NULL, cli_io_handler_show_backend },
 	{ { "shutdown", "frontend",  NULL }, "shutdown frontend : stop a specific frontend", cli_parse_shutdown_frontend, NULL, NULL },
 	{{},}
 }};
