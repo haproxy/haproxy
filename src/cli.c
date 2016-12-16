@@ -698,11 +698,13 @@ static void cli_release_handler(struct appctx *appctx)
 
 /* This function dumps all environmnent variables to the buffer. It returns 0
  * if the output buffer is full and it needs to be called again, otherwise
- * non-zero. Dumps only one entry if st2 == STAT_ST_END.
+ * non-zero. Dumps only one entry if st2 == STAT_ST_END. It uses cli.p0 as the
+ * pointer to the current variable.
  */
 static int cli_io_handler_show_env(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
+	char **var = appctx->ctx.cli.p0;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -712,8 +714,8 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	while (*appctx->ctx.env.var) {
-		chunk_printf(&trash, "%s\n", *appctx->ctx.env.var);
+	while (*var) {
+		chunk_printf(&trash, "%s\n", *var);
 
 		if (bi_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
@@ -721,7 +723,8 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 		}
 		if (appctx->st2 == STAT_ST_END)
 			break;
-		appctx->ctx.env.var++;
+		var++;
+		appctx->ctx.cli.p0 = var;
 	}
 
 	/* dump complete */
@@ -825,32 +828,35 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 
 /* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
- * wants to stop here.
+ * wants to stop here. It puts the variable to be dumped into cli.p0 if a single
+ * variable is requested otherwise puts environ there.
  */
 static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 {
 	extern char **environ;
+	char **var;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	appctx->ctx.env.var = environ;
+	var = environ;
 
 	if (*args[2]) {
 		int len = strlen(args[2]);
 
-		for (; *appctx->ctx.env.var; appctx->ctx.env.var++) {
-			if (strncmp(*appctx->ctx.env.var, args[2], len) == 0 &&
-			    (*appctx->ctx.env.var)[len] == '=')
+		for (; *var; var++) {
+			if (strncmp(*var, args[2], len) == 0 &&
+			    (*var)[len] == '=')
 				break;
 		}
-		if (!*appctx->ctx.env.var) {
+		if (!*var) {
 			appctx->ctx.cli.msg = "Variable not found\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
 		appctx->st2 = STAT_ST_END;
 	}
+	appctx->ctx.cli.p0 = var;
 	return 0;
 }
 

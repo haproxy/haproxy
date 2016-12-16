@@ -165,9 +165,6 @@ struct appctx {
 		struct {
 			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
 		} be;				/* used by "show backends" command */
-		struct {
-			char **var;
-		} env;
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */
