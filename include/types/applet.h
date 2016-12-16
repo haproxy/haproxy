@@ -154,11 +154,6 @@ struct appctx {
 			struct task *task;
 			struct hlua_function *fcn;
 		} hlua_cli;
-		struct {
-			int iid;		/* if >= 0, ID of the proxy to filter on */
-			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
-			struct server *sv;	/* current server being dumped, NULL = not started yet. */
-		} server_state;
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */

@@ -1245,52 +1245,54 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
 }
 
 /* parse a "show servers" CLI line, returns 0 if it wants to start the dump or
- * 1 if it stops immediately.
+ * 1 if it stops immediately. If an argument is specified, it will set the proxy
+ * pointer into cli.p0 and its ID into cli.i0.
  */
 static int cli_parse_show_servers(char **args, struct appctx *appctx, void *private)
 {
-	appctx->ctx.server_state.iid = 0;
-	appctx->ctx.server_state.px = NULL;
-	appctx->ctx.server_state.sv = NULL;
+	struct proxy *px;
 
 	/* check if a backend name has been provided */
 	if (*args[3]) {
 		/* read server state from local file */
-		appctx->ctx.server_state.px = proxy_be_by_name(args[3]);
+		px = proxy_be_by_name(args[3]);
 
-		if (!appctx->ctx.server_state.px) {
+		if (!px) {
 			appctx->ctx.cli.msg = "Can't find backend.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		appctx->ctx.server_state.iid = appctx->ctx.server_state.px->uuid;
+		appctx->ctx.cli.p0 = px;
+		appctx->ctx.cli.i0 = px->uuid;
 	}
 	return 0;
 }
 
-/* dumps server state information into <buf> for all the servers found in <backend>
+/* dumps server state information into <buf> for all the servers found in backend cli.p0.
  * These information are all the parameters which may change during HAProxy runtime.
  * By default, we only export to the last known server state file format.
  * These information can be used at next startup to recover same level of server state.
+ * It uses the proxy pointer from cli.p0, the proxy's id from cli.i0 and the server's
+ * pointer from cli.p1.
  */
 static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
+	struct proxy *px = appctx->ctx.cli.p0;
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];
 	time_t srv_time_since_last_change;
 	int bk_f_forced_id, srv_f_forced_id;
 
-
 	/* we don't want to report any state if the backend is not enabled on this process */
-	if (appctx->ctx.server_state.px->bind_proc && !(appctx->ctx.server_state.px->bind_proc & (1UL << (relative_pid - 1))))
+	if (px->bind_proc && !(px->bind_proc & (1UL << (relative_pid - 1))))
 		return 1;
 
-	if (!appctx->ctx.server_state.sv)
-		appctx->ctx.server_state.sv = appctx->ctx.server_state.px->srv;
+	if (!appctx->ctx.cli.p1)
+		appctx->ctx.cli.p1 = px->srv;
 
-	for (; appctx->ctx.server_state.sv != NULL; appctx->ctx.server_state.sv = srv->next) {
-		srv = appctx->ctx.server_state.sv;
+	for (; appctx->ctx.cli.p1 != NULL; appctx->ctx.cli.p1 = srv->next) {
+		srv = appctx->ctx.cli.p1;
 		srv_addr[0] = '\0';
 
 		switch (srv->addr.ss_family) {
@@ -1304,7 +1306,7 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 				break;
 		}
 		srv_time_since_last_change = now.tv_sec - srv->last_change;
-		bk_f_forced_id = appctx->ctx.server_state.px->options & PR_O_FORCED_ID ? 1 : 0;
+		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 
 		chunk_appendf(buf,
@@ -1314,7 +1316,7 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 				"%d %d %d %d %d "
 				"%d %d"
 				"\n",
-				appctx->ctx.server_state.px->uuid, appctx->ctx.server_state.px->id,
+				px->uuid, px->id,
 				srv->puid, srv->id, srv_addr,
 				srv->state, srv->admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
 				srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
@@ -1328,7 +1330,8 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 }
 
 /* Parses backend list or simply use backend name provided by the user to return
- * states of servers to stdout.
+ * states of servers to stdout. It dumps proxy <cli.p0> and stops if <cli.i0> is
+ * non-null.
  */
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
@@ -1339,8 +1342,8 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	if (appctx->st2 == STAT_ST_INIT) {
-		if (!appctx->ctx.server_state.px)
-			appctx->ctx.server_state.px = proxy;
+		if (!appctx->ctx.cli.p0)
+			appctx->ctx.cli.p0 = proxy;
 		appctx->st2 = STAT_ST_HEAD;
 	}
 
@@ -1354,15 +1357,15 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	}
 
 	/* STAT_ST_INFO */
-	for (; appctx->ctx.server_state.px != NULL; appctx->ctx.server_state.px = curproxy->next) {
-		curproxy = appctx->ctx.server_state.px;
+	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
+		curproxy = appctx->ctx.cli.p0;
 		/* servers are only in backends */
 		if (curproxy->cap & PR_CAP_BE) {
 			if (!dump_servers_state(si, &trash))
 				return 0;
 		}
 		/* only the selected proxy is dumped */
-		if (appctx->ctx.server_state.iid)
+		if (appctx->ctx.cli.i0)
 			break;
 	}
 
