@@ -398,6 +398,8 @@ int cli_has_level(struct appctx *appctx, int level)
  * it. It will possilbly leave st0 to CLI_ST_CALLBACK if the keyword needs to
  * have its own I/O handler called again. Most of the time, parsers will only
  * set st0 to CLI_ST_PRINT and put their message to be displayed into cli.msg.
+ * If a keyword parser is NULL and an I/O handler is declared, the I/O handler
+ * will automatically be used.
  */
 static int cli_parse_request(struct appctx *appctx, char *line)
 {
@@ -458,11 +460,11 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 	appctx->st2 = 0;
 
 	kw = cli_find_kw(args);
-	if (!kw || !kw->parse)
+	if (!kw)
 		return 0;
 
 	appctx->io_handler = kw->io_handler;
-	if (kw->parse(args, appctx, kw->private) == 0 && appctx->io_handler) {
+	if ((!kw->parse || kw->parse(args, appctx, kw->private) == 0) && appctx->io_handler) {
 		appctx->st0 = CLI_ST_CALLBACK;
 		appctx->io_release = kw->io_release;
 	}
