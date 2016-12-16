@@ -3298,7 +3298,10 @@ __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream *s = appctx->htxn.s;
-	struct hlua *hlua = &s->hlua;
+	struct hlua *hlua;
+
+	/* Note that this hlua struct is from the session and not from the applet. */
+	hlua = &s->hlua;
 
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
@@ -3317,7 +3320,10 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream *s = appctx->htxn.s;
-	struct hlua *hlua = &s->hlua;
+	struct hlua *hlua;
+
+	/* Note that this hlua struct is from the session and not from the applet. */
+	hlua = &s->hlua;
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -3746,7 +3752,10 @@ __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream *s = appctx->htxn.s;
-	struct hlua *hlua = &s->hlua;
+	struct hlua *hlua;
+
+	/* Note that this hlua struct is from the session and not from the applet. */
+	hlua = &s->hlua;
 
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
@@ -3765,7 +3774,10 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream *s = appctx->htxn.s;
-	struct hlua *hlua = &s->hlua;
+	struct hlua *hlua;
+
+	/* Note that this hlua struct is from the session and not from the applet. */
+	hlua = &s->hlua;
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -6693,8 +6705,6 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 
 	/* Once the arguments parsed, the CLI is like an AppletTCP,
 	 * so push AppletTCP in the stack.
-	 * TODO: get_priv() and set_priv() are useless. Maybe we will
-	 * create a new object without these two functions.
 	 */
 	if (!hlua_applet_tcp_new(hlua->T, appctx)) {
 		SEND_ERR(NULL, "Lua cli '%s': full stack.\n", fcn->name);
