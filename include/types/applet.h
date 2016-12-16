@@ -62,6 +62,43 @@ struct appctx {
 
 	union {
 		struct {
+			void *ptr;              /* multi-purpose pointer for peers */
+		} peers;                        /* used by the peers applet */
+		struct {
+			int connected;
+			struct hlua_socket *socket;
+			struct list wake_on_read;
+			struct list wake_on_write;
+		} hlua_cosocket;                /* used by the Lua cosockets */
+		struct {
+			struct hlua *hlua;
+			int flags;
+			struct task *task;
+		} hlua_apptcp;                  /* used by the Lua TCP services */
+		struct {
+			struct hlua *hlua;
+			int left_bytes;         /* The max amount of bytes that we can read. */
+			int flags;
+			int status;
+			struct task *task;
+		} hlua_apphttp;                 /* used by the Lua HTTP services */
+		struct {
+			struct task *task;
+			void        *ctx;
+			void        *agent;
+			unsigned int version;
+			unsigned int max_frame_size;
+			struct list  list;
+		} spoe;                         /* used by SPOE filter */
+		struct {
+			const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
+			char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
+		} cli;                          /* context used by the CLI */
+
+		/* all entries below are used by various CLI commands, please
+		 * keep the grouped together and avoid adding new ones.
+		 */
+		struct {
 			struct proxy *px;
 			struct server *sv;
 			void *l;
@@ -97,13 +134,6 @@ struct appctx {
 			char action;            /* action on the table : one of STK_CLI_ACT_* */
 		} table;
 		struct {
-			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
-			char *err;        /* pointer to a 'must free' message to be returned in PRINT_FREE state */
-		} cli;
-		struct {
-			void *ptr;              /* multi-purpose pointer for peers */
-		} peers;
-		struct {
 			unsigned int display_flags;
 			struct pat_ref *ref;
 			struct pat_ref_elt *elt;
@@ -118,28 +148,10 @@ struct appctx {
 		} tlskeys;
 #endif
 		struct {
-			int connected;
-			struct hlua_socket *socket;
-			struct list wake_on_read;
-			struct list wake_on_write;
-		} hlua_cosocket;
-		struct {
 			struct hlua *hlua;
 			struct task *task;
 			struct hlua_function *fcn;
 		} hlua_cli;
-		struct {
-			struct hlua *hlua;
-			int flags;
-			struct task *task;
-		} hlua_apptcp;
-		struct {
-			struct hlua *hlua;
-			int left_bytes; /* The max amount of bytes that we can read. */
-			int flags;
-			int status;
-			struct task *task;
-		} hlua_apphttp;
 		struct {
 			struct dns_resolvers *ptr;
 		} resolvers;
@@ -154,16 +166,11 @@ struct appctx {
 		struct {
 			char **var;
 		} env;
-		struct {
-			struct task *task;
-			void        *ctx;
-			void        *agent;
-			unsigned int version;
-			unsigned int max_frame_size;
-			struct list  list;
-		} spoe;                         /* used by SPOE filter */
 		struct list *cli_socket;        /* pointer to the latest dumped CLI socket in the list */
-	} ctx;					/* used by stats I/O handlers to dump the stats */
+		/* NOTE: please add regular applet contexts (ie: not
+		 * CLI-specific ones) above, before "cli".
+		 */
+	} ctx;					/* context-specific variables used by any applet */
 };
 
 #endif /* _TYPES_APPLET_H */
