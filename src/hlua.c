@@ -137,6 +137,11 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 /* The main Lua execution context. */
 struct hlua gL;
 
+/* This is the memory pool containing struct lua for applets
+ * (including cli).
+ */
+struct pool_head *pool2_hlua;
+
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each requiered signal between two tasks.
  */
@@ -5890,12 +5895,19 @@ struct task *hlua_applet_wakeup(struct task *t)
 static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
 {
 	struct stream_interface *si = ctx->owner;
-	struct hlua *hlua = &ctx->ctx.hlua_apptcp.hlua;
+	struct hlua *hlua;
 	struct task *task;
 	char **arg;
 	const char *error;
 
+	hlua = pool_alloc2(pool2_hlua);
+	if (!hlua) {
+		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		return 0;
+	}
 	HLUA_INIT(hlua);
+	ctx->ctx.hlua_apptcp.hlua = hlua;
 	ctx->ctx.hlua_apptcp.flags = 0;
 
 	/* Create task used by signal to wakeup applets. */
@@ -5984,7 +5996,7 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 	struct channel *res = si_ic(si);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
-	struct hlua *hlua = &ctx->ctx.hlua_apptcp.hlua;
+	struct hlua *hlua = ctx->ctx.hlua_apptcp.hlua;
 
 	/* The applet execution is already done. */
 	if (ctx->ctx.hlua_apptcp.flags & APPLET_DONE)
@@ -6045,7 +6057,9 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
 {
 	task_free(ctx->ctx.hlua_apptcp.task);
 	ctx->ctx.hlua_apptcp.task = NULL;
-	hlua_ctx_destroy(&ctx->ctx.hlua_apptcp.hlua);
+	hlua_ctx_destroy(ctx->ctx.hlua_apptcp.hlua);
+	pool_free2(pool2_hlua, ctx->ctx.hlua_apptcp.hlua);
+	ctx->ctx.hlua_apptcp.hlua = NULL;
 }
 
 /* The function returns 1 if the initialisation is complete, 0 if
@@ -6058,7 +6072,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	struct channel *req = si_oc(si);
 	struct http_msg *msg;
 	struct http_txn *txn;
-	struct hlua *hlua = &ctx->ctx.hlua_apphttp.hlua;
+	struct hlua *hlua;
 	char **arg;
 	struct hdr_ctx hdr;
 	struct task *task;
@@ -6083,7 +6097,14 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
 
+	hlua = pool_alloc2(pool2_hlua);
+	if (!hlua) {
+		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
+		         ctx->rule->arg.hlua_rule->fcn.name);
+		return 0;
+	}
 	HLUA_INIT(hlua);
+	ctx->ctx.hlua_apphttp.hlua = hlua;
 	ctx->ctx.hlua_apphttp.left_bytes = -1;
 	ctx->ctx.hlua_apphttp.flags = 0;
 
@@ -6182,7 +6203,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	struct channel *res = si_ic(si);
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
-	struct hlua *hlua = &ctx->ctx.hlua_apphttp.hlua;
+	struct hlua *hlua = ctx->ctx.hlua_apphttp.hlua;
 	char *blk1;
 	int len1;
 	char *blk2;
@@ -6323,7 +6344,9 @@ static void hlua_applet_http_release(struct appctx *ctx)
 {
 	task_free(ctx->ctx.hlua_apphttp.task);
 	ctx->ctx.hlua_apphttp.task = NULL;
-	hlua_ctx_destroy(&ctx->ctx.hlua_apphttp.hlua);
+	hlua_ctx_destroy(ctx->ctx.hlua_apphttp.hlua);
+	pool_free2(pool2_hlua, ctx->ctx.hlua_apphttp.hlua);
+	ctx->ctx.hlua_apphttp.hlua = NULL;
 }
 
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
@@ -6619,9 +6642,16 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	int i;
 	const char *error;
 
-	hlua = &appctx->ctx.hlua_cli.hlua;
-	appctx->ctx.hlua_cli.fcn = private;
 	fcn = private;
+	appctx->ctx.hlua_cli.fcn = private;
+
+	hlua = pool_alloc2(pool2_hlua);
+	if (!hlua) {
+		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
+		return 0;
+	}
+	HLUA_INIT(hlua);
+	appctx->ctx.hlua_cli.hlua = hlua;
 
 	/* Create task used by signal to wakeup applets.
 	 * We use the same wakeup fonction than the Lua applet_tcp and
@@ -6705,7 +6735,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	struct stream_interface *si;
 	struct hlua_function *fcn;
 
-	hlua = &appctx->ctx.hlua_cli.hlua;
+	hlua = appctx->ctx.hlua_cli.hlua;
 	si = appctx->owner;
 	fcn = appctx->ctx.hlua_cli.fcn;
 
@@ -6753,10 +6783,9 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 
 static void hlua_cli_io_release_fct(struct appctx *appctx)
 {
-	struct hlua *hlua;
-
-	hlua = &appctx->ctx.hlua_cli.hlua;
-	hlua_ctx_destroy(hlua);
+	hlua_ctx_destroy(appctx->ctx.hlua_cli.hlua);
+	pool_free2(pool2_hlua, appctx->ctx.hlua_cli.hlua);
+	appctx->ctx.hlua_cli.hlua = NULL;
 }
 
 /* This function is an LUA binding used for registering
@@ -7089,7 +7118,8 @@ void hlua_init(void)
 	};
 #endif
 
-	/* Initialise com signals pool */
+	/* Initialise struct hlua and com signals pool */
+	pool2_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
 
 	/* Register configuration keywords. */

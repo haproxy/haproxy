@@ -124,17 +124,17 @@ struct appctx {
 			struct list wake_on_write;
 		} hlua_cosocket;
 		struct {
-			struct hlua hlua;
+			struct hlua *hlua;
 			struct task *task;
 			struct hlua_function *fcn;
 		} hlua_cli;
 		struct {
-			struct hlua hlua;
+			struct hlua *hlua;
 			int flags;
 			struct task *task;
 		} hlua_apptcp;
 		struct {
-			struct hlua hlua;
+			struct hlua *hlua;
 			int left_bytes; /* The max amount of bytes that we can read. */
 			int flags;
 			int status;
