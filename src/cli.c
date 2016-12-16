@@ -454,9 +454,6 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 		arg++;
 	}
 
-	appctx->ctx.stats.scope_str = 0;
-	appctx->ctx.stats.scope_len = 0;
-	appctx->ctx.stats.flags = 0;
 	appctx->st2 = 0;
 
 	kw = cli_find_kw(args);

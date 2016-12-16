@@ -3096,6 +3096,10 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 
 static int cli_parse_show_info(char **args, struct appctx *appctx, void *private)
 {
+	appctx->ctx.stats.scope_str = 0;
+	appctx->ctx.stats.scope_len = 0;
+	appctx->ctx.stats.flags = 0;
+
 	if (strcmp(args[2], "typed") == 0)
 		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
 	return 0;
@@ -3104,6 +3108,10 @@ static int cli_parse_show_info(char **args, struct appctx *appctx, void *private
 
 static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private)
 {
+	appctx->ctx.stats.scope_str = 0;
+	appctx->ctx.stats.scope_len = 0;
+	appctx->ctx.stats.flags = 0;
+
 	if (*args[2] && *args[3] && *args[4]) {
 		struct proxy *px;
 
