@@ -289,14 +289,9 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
 	return 1;
 }
 
-static int cli_parse_show_pools(char **args, struct appctx *appctx, void *private)
-{
-	return 0;
-}
-
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "pools",  NULL }, "show pools     : report information about the memory pools usage", cli_parse_show_pools, cli_io_handler_dump_pools },
+	{ { "show", "pools",  NULL }, "show pools     : report information about the memory pools usage", NULL, cli_io_handler_dump_pools },
 	{{},}
 }};
 
