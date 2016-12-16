@@ -1268,19 +1268,19 @@ struct task *dns_process_resolve(struct task *t)
 	return t;
 }
 
+/* if an arg is found, it sets the resolvers section pointer into cli.p0 */
 static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *private)
 {
 	struct dns_resolvers *presolvers;
 
 	if (*args[3]) {
-		appctx->ctx.resolvers.ptr = NULL;
 		list_for_each_entry(presolvers, &dns_resolvers, list) {
 			if (strcmp(presolvers->id, args[3]) == 0) {
-				appctx->ctx.resolvers.ptr = presolvers;
+				appctx->ctx.cli.p0 = presolvers;
 				break;
 			}
 		}
-		if (appctx->ctx.resolvers.ptr == NULL) {
+		if (appctx->ctx.cli.p0 == NULL) {
 			appctx->ctx.cli.msg = "Can't find that resolvers section\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
@@ -1289,9 +1289,10 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 	return 0;
 }
 
-/* This function dumps counters from all resolvers section and associated name servers.
- * It returns 0 if the output buffer is full and it needs
- * to be called again, otherwise non-zero.
+/* This function dumps counters from all resolvers section and associated name
+ * servers. It returns 0 if the output buffer is full and it needs to be called
+ * again, otherwise non-zero. It may limit itself to the resolver pointed to by
+ * <cli.p0> if it's not null.
  */
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
@@ -1312,7 +1313,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 		}
 		else {
 			list_for_each_entry(presolvers, &dns_resolvers, list) {
-				if (appctx->ctx.resolvers.ptr != NULL && appctx->ctx.resolvers.ptr != presolvers)
+				if (appctx->ctx.cli.p0 != NULL && appctx->ctx.cli.p0 != presolvers)
 					continue;
 
 				chunk_appendf(&trash, "Resolvers section %s\n", presolvers->id);
