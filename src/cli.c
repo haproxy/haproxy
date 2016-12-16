@@ -729,7 +729,8 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 }
 
 /*
- * CLI IO handler for `show cli sockets`
+ * CLI IO handler for `show cli sockets`.
+ * Uses ctx.cli.p0 to store the restart pointer.
  */
 static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 {
@@ -745,7 +746,6 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 				si_applet_cant_put(si);
 				return 0;
 			}
-			appctx->ctx.cli_socket = NULL;
 			appctx->st2 = STAT_ST_LIST;
 
 		case STAT_ST_LIST:
@@ -754,15 +754,14 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 					struct listener *l;
 
 					/*
-					 * get the latest dumped node in appctx->ctx.cli_socket
+					 * get the latest dumped node in appctx->ctx.cli.p0
 					 * if the current node is the first of the list
 					 */
 
-					if (appctx->ctx.cli_socket  &&
-					    &bind_conf->by_fe == (&global.stats_fe->conf.bind)->n
-					   ) {
+					if (appctx->ctx.cli.p0  &&
+					    &bind_conf->by_fe == (&global.stats_fe->conf.bind)->n) {
 						/* change the current node to the latest dumped and continue the loop */
-						bind_conf = LIST_ELEM(appctx->ctx.cli_socket, typeof(bind_conf), by_fe);
+						bind_conf = LIST_ELEM(appctx->ctx.cli.p0, typeof(bind_conf), by_fe);
 						continue;
 					}
 
@@ -815,7 +814,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 							return 0;
 						}
 					}
-					appctx->ctx.cli_socket = &bind_conf->by_fe; /* store the latest list node dumped */
+					appctx->ctx.cli.p0 = &bind_conf->by_fe; /* store the latest list node dumped */
 				}
 			}
 		default:

@@ -168,7 +168,6 @@ struct appctx {
 		struct {
 			char **var;
 		} env;
-		struct list *cli_socket;        /* pointer to the latest dumped CLI socket in the list */
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */
