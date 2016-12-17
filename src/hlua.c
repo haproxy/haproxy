@@ -6665,7 +6665,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	hlua = pool_alloc2(pool2_hlua);
 	if (!hlua) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
-		return 0;
+		return 1;
 	}
 	HLUA_INIT(hlua);
 	appctx->ctx.hlua_cli.hlua = hlua;
@@ -6677,7 +6677,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	appctx->ctx.hlua_cli.task = task_new();
 	if (!appctx->ctx.hlua_cli.task) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
-		return 1;
+		goto error;
 	}
 	appctx->ctx.hlua_cli.task->nice = 0;
 	appctx->ctx.hlua_cli.task->context = appctx;
@@ -6686,7 +6686,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	/* Initialises the Lua context */
 	if (!hlua_ctx_init(hlua, appctx->ctx.hlua_cli.task)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
-		return 1;
+		goto error;
 	}
 
 	/* The following Lua calls can fail. */
@@ -6741,6 +6741,8 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 error:
 	RESET_SAFE_LJMP(hlua->T);
 	hlua_ctx_destroy(hlua);
+	pool_free2(pool2_hlua, hlua);
+	appctx->ctx.hlua_cli.hlua = NULL;
 	return 1;
 }
 
