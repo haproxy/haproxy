@@ -221,8 +221,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->res.analyse_exp = TICK_ETERNITY;
 
 	s->txn = NULL;
-
-	HLUA_INIT(&s->hlua);
+	s->hlua = NULL;
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -299,7 +298,8 @@ static void stream_free(struct stream *s)
 		offer_buffers(NULL, tasks_run_queue + applets_active_queue);
 	}
 
-	hlua_ctx_destroy(&s->hlua);
+	hlua_ctx_destroy(s->hlua);
+	s->hlua = NULL;
 	if (s->txn)
 		http_end_txn(s);
 

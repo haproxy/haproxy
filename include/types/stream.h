@@ -165,7 +165,7 @@ struct stream {
 	/* These two pointers are used to resume the execution of the rule lists. */
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
-	struct hlua hlua;                       /* lua runtime context */
+	struct hlua *hlua;                      /* lua runtime context */
 };
 
 #endif /* _TYPES_STREAM_H */
