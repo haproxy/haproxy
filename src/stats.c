@@ -1501,7 +1501,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 	stats[ST_F_QCUR]     = mkf_u32(0, px->nbpend);
 	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
-	stats[ST_F_SCUR]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->beconn);
+	stats[ST_F_SCUR]     = mkf_u32(0, px->beconn);
 	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->be_counters.conn_max);
 	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
 	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
