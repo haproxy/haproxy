@@ -6010,6 +6010,107 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* parse various global tune.ssl settings consisting in positive integers.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_int(char **args, int section_type, struct proxy *curpx,
+                                struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	int *target;
+
+	if (strcmp(args[0], "tune.ssl.cachesize") == 0)
+		target = &global.tune.sslcachesize;
+	else if (strcmp(args[0], "tune.ssl.maxrecord") == 0)
+		target = (int *)&global.tune.ssl_max_record;
+	else if (strcmp(args[0], "tune.ssl.ssl-ctx-cache-size") == 0)
+		target = &global.tune.ssl_ctx_cache;
+	else {
+		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		return -1;
+	}
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.", args[0]);
+		return -1;
+	}
+
+	*target = atoi(args[1]);
+	if (*target < 0) {
+		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+/* parse "ssl.force-private-cache".
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_private_cache(char **args, int section_type, struct proxy *curpx,
+                                          struct proxy *defpx, const char *file, int line,
+                                          char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	global.tune.sslprivatecache = 1;
+	return 0;
+}
+
+/* parse "ssl.lifetime".
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy *curpx,
+                                     struct proxy *defpx, const char *file, int line,
+                                     char **err)
+{
+	const char *res;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects ssl sessions <lifetime> in seconds as argument.", args[0]);
+		return -1;
+	}
+
+	res = parse_time_err(args[1], &global.tune.ssllifetime, TIME_UNIT_S);
+	if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+#ifndef OPENSSL_NO_DH
+/* parse "ssl.default-dh-param".
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_default_dh(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.", args[0]);
+		return -1;
+	}
+
+	global.tune.ssl_default_dh_param = atoi(args[1]);
+	if (global.tune.ssl_default_dh_param < 1024) {
+		memprintf(err, "'%s' expects a value >= 1024.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+#endif
+
+
 /* This function is used with TLS ticket keys management. It permits to browse
  * each reference. The variable <getnext> must contain the current node,
  * <end> point to the root node.
@@ -6411,6 +6512,14 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
+	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
+#ifndef OPENSSL_NO_DH
+	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
+#endif
+	{ CFG_GLOBAL, "tune.ssl.force-private-cache",  ssl_parse_global_private_cache },
+	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },
+	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
+	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ 0, NULL, NULL },
 }};
 
