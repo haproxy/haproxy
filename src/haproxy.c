@@ -285,6 +285,17 @@ struct post_check_fct {
 	int (*fct)();
 };
 
+/* These functions are called when freeing the global sections at the end
+ * of deinit, after everything is stopped. They don't return anything, and
+ * they work in best effort mode as their sole goal is to make valgrind
+ * mostly happy.
+ */
+struct list post_deinit_list = LIST_HEAD_INIT(post_deinit_list);
+struct post_deinit_fct {
+	struct list list;
+	void (*fct)();
+};
+
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
 /*********************************************************************/
@@ -318,6 +329,22 @@ void hap_register_post_check(int (*fct)())
 	}
 	b->fct = fct;
 	LIST_ADDQ(&post_check_list, &b->list);
+}
+
+/* used to register some de-initialization functions to call after everything
+ * has stopped.
+ */
+void hap_register_post_deinit(void (*fct)())
+{
+	struct post_deinit_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&post_deinit_list, &b->list);
 }
 
 static void display_version()
@@ -1283,6 +1310,7 @@ static void deinit(void)
 	struct logformat_node *lf, *lfb;
 	struct bind_conf *bind_conf, *bind_back;
 	struct build_opts_str *bol, *bolb;
+	struct post_deinit_fct *pdf;
 	int i;
 
 	deinit_signals();
@@ -1562,6 +1590,9 @@ static void deinit(void)
 #ifdef USE_WURFL
 	ha_wurfl_deinit();
 #endif
+
+	list_for_each_entry(pdf, &post_deinit_list, list)
+		pdf->fct();
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
 	chunk_destroy(&global.log_tag);
