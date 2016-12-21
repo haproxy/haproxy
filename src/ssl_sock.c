@@ -6413,6 +6413,8 @@ static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
+	char *ptr;
+
 	STACK_OF(SSL_COMP)* cm;
 
 #ifdef LISTEN_DEFAULT_CIPHERS
@@ -6440,6 +6442,47 @@ static void __ssl_sock_init(void)
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
 	cli_register_kw(&cli_kws);
+
+	ptr = NULL;
+	memprintf(&ptr, "Built with OpenSSL version : "
+#ifdef OPENSSL_IS_BORINGSSL
+		"BoringSSL\n");
+#else /* OPENSSL_IS_BORINGSSL */
+	        OPENSSL_VERSION_TEXT
+		"\nRunning on OpenSSL version : %s%s",
+	       SSLeay_version(SSLEAY_VERSION),
+	       ((OPENSSL_VERSION_NUMBER ^ SSLeay()) >> 8) ? " (VERSIONS DIFFER!)" : "");
+#endif
+	memprintf(&ptr, "%s\nOpenSSL library supports TLS extensions : "
+#if OPENSSL_VERSION_NUMBER < 0x00907000L
+		"no (library version too old)"
+#elif defined(OPENSSL_NO_TLSEXT)
+		"no (disabled via OPENSSL_NO_TLSEXT)"
+#else
+		"yes"
+#endif
+		"", ptr);
+
+	memprintf(&ptr, "%s\nOpenSSL library supports SNI : "
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		"yes"
+#else
+#ifdef OPENSSL_NO_TLSEXT
+		"no (because of OPENSSL_NO_TLSEXT)"
+#else
+		"no (version might be too old, 0.9.8f min needed)"
+#endif
+#endif
+	       "", ptr);
+
+	memprintf(&ptr, "%s\nOpenSSL library supports prefer-server-ciphers : "
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+		"yes"
+#else
+		"no (0.9.7 or later needed)"
+#endif
+		"", ptr);
+	hap_register_build_opts(ptr, 1);
 
 	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
 	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
