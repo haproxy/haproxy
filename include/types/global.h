@@ -26,7 +26,6 @@
 
 #include <common/config.h>
 #include <common/standard.h>
-#include <import/da.h>
 #include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/proxy.h>
@@ -177,19 +176,6 @@ struct global {
 #endif
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 	struct vars   vars;         /* list of variables for the process scope. */
-#ifdef USE_DEVICEATLAS
-	struct {
-		void *atlasimgptr;
-		char *jsonpath;
-		char *cookiename;
-		size_t cookienamelen;
-		da_atlas_t atlas;
-		da_evidence_id_t useragentid;
-		da_severity_t loglevel;
-		char separator;
-		unsigned char daset:1;
-	} deviceatlas;
-#endif
 };
 
 extern struct global global;

@@ -167,17 +167,6 @@ struct global global = {
 	.maxsslconn = DEFAULT_MAXSSLCONN,
 #endif
 #endif
-#ifdef USE_DEVICEATLAS
-	.deviceatlas = {
-		.loglevel = 0,
-		.jsonpath = 0,
-		.cookiename = 0,
-		.cookienamelen = 0,
-		.useragentid = 0,
-		.daset = 0,
-		.separator = '|',
-	},
-#endif
 	/* others NULL OK */
 };
 
