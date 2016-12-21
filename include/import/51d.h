@@ -3,7 +3,6 @@
 
 #include <51Degrees.h>
 
-int init_51degrees(void);
 void deinit_51degrees(void);
 
 #endif

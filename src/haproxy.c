@@ -929,9 +929,6 @@ static void init(int argc, char **argv)
 #if defined(USE_DEVICEATLAS)
 	init_deviceatlas();
 #endif
-#ifdef USE_51DEGREES
-	init_51degrees();
-#endif
 
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();

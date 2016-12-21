@@ -3,6 +3,7 @@
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/buffer.h>
+#include <common/errors.h>
 #include <proto/arg.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
@@ -507,7 +508,10 @@ void _51d_init_http_headers()
 }
 #endif
 
-int init_51degrees(void)
+/*
+ * module init / deinit functions. Returns 0 if OK, or a combination of ERR_*.
+ */
+static int init_51degrees(void)
 {
 	int i = 0;
 	struct chunk *temp;
@@ -516,7 +520,7 @@ int init_51degrees(void)
 	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
 
 	if (!global._51degrees.data_file_path)
-		return -1;
+		return 0;
 
 	if (!LIST_ISEMPTY(&global._51degrees.property_names)) {
 		i = 0;
@@ -582,7 +586,7 @@ int init_51degrees(void)
 			Alert("51Degrees Setup - Error reading 51Degrees data file. %s\n", temp->str);
 		else
 			Alert("51Degrees Setup - Error reading 51Degrees data file.\n");
-		exit(1);
+		return ERR_ALERT | ERR_FATAL;
 	}
 	free(_51d_property_list);
 
@@ -649,4 +653,5 @@ static void __51d_init(void)
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&_51dcfg_kws);
 	hap_register_build_opts("Built with 51Degrees support.", 0);
+	hap_register_post_check(init_51degrees);
 }
