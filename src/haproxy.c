@@ -89,7 +89,6 @@
 #include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/checks.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
@@ -945,9 +944,6 @@ static void init(int argc, char **argv)
 			exit(1);
 		}
 	}
-
-	if (start_checks() < 0)
-		exit(1);
 
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();

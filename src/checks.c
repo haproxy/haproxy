@@ -2331,9 +2331,10 @@ static int start_check_task(struct check *check, int mininter,
 
 /*
  * Start health-check.
- * Returns 0 if OK, -1 if error, and prints the error in this case.
+ * Returns 0 if OK, ERR_FATAL on error, and prints the error in this case.
  */
-int start_checks() {
+static int start_checks()
+{
 
 	struct proxy *px;
 	struct server *s;
@@ -2352,7 +2353,7 @@ int start_checks() {
 			if (s->slowstart) {
 				if ((t = task_new()) == NULL) {
 					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
-					return -1;
+					return ERR_ALERT | ERR_FATAL;
 				}
 				/* We need a warmup task that will be called when the server
 				 * state switches from down to up.
@@ -2396,7 +2397,7 @@ int start_checks() {
 		if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
 			if (init_pid_list()) {
 				Alert("Starting [%s] check: out of memory.\n", px->id);
-				return -1;
+				return ERR_ALERT | ERR_FATAL;
 			}
 		}
 
@@ -2405,17 +2406,17 @@ int start_checks() {
 			if (s->check.state & CHK_ST_CONFIGURED) {
 				if (s->check.type == PR_O2_EXT_CHK) {
 					if (!prepare_external_check(&s->check))
-						return -1;
+						return ERR_ALERT | ERR_FATAL;
 				}
 				if (!start_check_task(&s->check, mininter, nbcheck, srvpos))
-					return -1;
+					return ERR_ALERT | ERR_FATAL;
 				srvpos++;
 			}
 
 			/* A task for a auxiliary agent check */
 			if (s->agent.state & CHK_ST_CONFIGURED) {
 				if (!start_check_task(&s->agent, mininter, nbcheck, srvpos)) {
-					return -1;
+					return ERR_ALERT | ERR_FATAL;
 				}
 				srvpos++;
 			}
@@ -3453,6 +3454,12 @@ int srv_check_healthcheck_port(struct check *chk)
 		return i;
 
 	return 0;
+}
+
+__attribute__((constructor))
+static void __check_init(void)
+{
+	hap_register_post_check(start_checks);
 }
 
 
