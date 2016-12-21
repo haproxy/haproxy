@@ -5491,16 +5491,12 @@ static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bi
 /* parse the "ssl" bind keyword */
 static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
+	conf->xprt = &ssl_sock;
 	conf->is_ssl = 1;
 
 	if (global.listen_default_ciphers && !conf->ciphers)
 		conf->ciphers = strdup(global.listen_default_ciphers);
 	conf->ssl_options |= global.listen_default_ssloptions;
-
-	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->xprt = &ssl_sock;
 
 	return 0;
 }

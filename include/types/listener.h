@@ -142,6 +142,7 @@ struct bind_conf {
 	X509     *ca_sign_cert;    /* CA certificate referenced by ca_file */
 	EVP_PKEY *ca_sign_pkey;    /* CA private key referenced by ca_key */
 #endif
+	struct xprt_ops *xprt;     /* transport-layer operations for all listeners */
 	int is_ssl;                /* SSL is required for these listeners */
 	int generate_certs;        /* 1 if generate-certificates option is set, else 0 */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
@@ -173,7 +174,6 @@ struct listener {
 	int options;			/* socket options : LI_O_* */
 	struct fe_counters *counters;	/* statistics counters */
 	struct protocol *proto;		/* protocol this listener belongs to */
-	struct xprt_ops *xprt;          /* transport-layer operations for this socket */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */

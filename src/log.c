@@ -1630,7 +1630,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 				tmplog += iret;
 #ifdef USE_OPENSSL
-				if (sess->listener->xprt == &ssl_sock)
+				if (sess->listener->bind_conf->xprt == &ssl_sock)
 					LOGCHAR('~');
 #endif
 				if (tmp->options & LOG_OPT_QUOTE)
@@ -1642,7 +1642,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(sess->origin);
 				if (conn) {
-					if (sess->listener->xprt == &ssl_sock)
+					if (sess->listener->bind_conf->xprt == &ssl_sock)
 						src = ssl_sock_get_cipher_name(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
@@ -1656,7 +1656,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(sess->origin);
 				if (conn) {
-					if (sess->listener->xprt == &ssl_sock)
+					if (sess->listener->bind_conf->xprt == &ssl_sock)
 						src = ssl_sock_get_proto_version(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);

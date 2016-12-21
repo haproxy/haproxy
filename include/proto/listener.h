@@ -123,7 +123,8 @@ void bind_dump_kws(char **out);
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.
  */
-static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *file, int line, const char *arg)
+static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *file,
+                                 int line, const char *arg, struct xprt_ops *xprt)
 {
 	struct bind_conf *bind_conf = (void *)calloc(1, sizeof(struct bind_conf));
 
@@ -137,6 +138,7 @@ static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *fil
 	bind_conf->ux.uid = -1;
 	bind_conf->ux.gid = -1;
 	bind_conf->ux.mode = 0;
+	bind_conf->xprt = xprt;
 
 	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;

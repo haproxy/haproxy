@@ -215,7 +215,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
-		bind_conf = bind_conf_alloc(&global.stats_fe->conf.bind, file, line, args[2]);
+		bind_conf = bind_conf_alloc(&global.stats_fe->conf.bind, file, line, args[2], &raw_sock);
 		bind_conf->level = ACCESS_LVL_OPER; /* default access level */
 
 		if (!str2listener(args[2], global.stats_fe, bind_conf, file, line, err)) {

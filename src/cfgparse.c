@@ -302,7 +302,6 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 			l->fd = fd;
 			memcpy(&l->addr, &ss, sizeof(ss));
-			l->xprt = &raw_sock;
 			l->state = LI_INIT;
 
 			if (ss.ss_family == AF_INET) {
@@ -2033,7 +2032,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->conf.args.line = curpeers->peers_fe->conf.line = linenum;
 				peers_setup_frontend(curpeers->peers_fe);
 
-				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
+				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2], &raw_sock);
 
 				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
 					if (errmsg && *errmsg) {
@@ -2882,7 +2881,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1]);
+		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1], &raw_sock);
 
 		/* use default settings for unix sockets */
 		bind_conf->ux.uid  = global.unix_bind.ux.uid;

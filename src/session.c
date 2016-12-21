@@ -127,7 +127,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (unlikely((cli_conn = conn_new()) == NULL))
 		goto out_close;
 
-	conn_prepare(cli_conn, l->proto, l->xprt);
+	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
 
 	cli_conn->t.sock.fd = cfd;
 	cli_conn->addr.from = *addr;
@@ -292,7 +292,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
  out_close:
-	if (ret < 0 && l->xprt == &raw_sock && p->mode == PR_MODE_HTTP) {
+	if (ret < 0 && l->bind_conf->xprt == &raw_sock && p->mode == PR_MODE_HTTP) {
 		/* critical error, no more memory, try to emit a 500 response */
 		struct chunk *err_msg = &p->errmsg[HTTP_ERR_500];
 		if (!err_msg->str)
