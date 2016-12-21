@@ -464,9 +464,6 @@ static void display_build_opts()
 #ifdef USE_51DEGREES
 	printf("Built with 51Degrees support\n");
 #endif
-#ifdef USE_WURFL
-	printf("Built with WURFL support\n");
-#endif
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}

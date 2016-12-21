@@ -672,6 +672,7 @@ static void __wurfl_init(void)
 	sample_register_fetches(&fetch_kws);
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&wurflcfg_kws);
+	hap_register_build_opts("Built with WURFL support.", 0);
 }
 
 // WURFL properties wrapper functions
