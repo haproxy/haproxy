@@ -273,6 +273,19 @@ struct build_opts_str {
 	int must_free;
 };
 
+/* These functions are called just after the point where the program exits
+ * after a config validity check, so they are generally suited for resource
+ * allocation and slow initializations that should be skipped during basic
+ * config checks. The functions must return 0 on success, or a combination
+ * of ERR_* flags (ERR_WARN, ERR_ABORT, ERR_FATAL, ...). The 2 latter cause
+ * and immediate exit, so the function must have emitted any useful error.
+ */
+struct list post_check_list = LIST_HEAD_INIT(post_check_list);
+struct post_check_fct {
+	struct list list;
+	int (*fct)();
+};
+
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
 /*********************************************************************/
@@ -292,6 +305,20 @@ void hap_register_build_opts(const char *str, int must_free)
 	b->str = str;
 	b->must_free = must_free;
 	LIST_ADDQ(&build_opts_list, &b->list);
+}
+
+/* used to register some initialization functions to call after the checks. */
+void hap_register_post_check(int (*fct)())
+{
+	struct post_check_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&post_check_list, &b->list);
 }
 
 static void display_version()
@@ -584,6 +611,7 @@ static void init(int argc, char **argv)
 	char *progname;
 	char *change_dir = NULL;
 	struct proxy *px;
+	struct post_check_fct *pcf;
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 	alloc_trash_buffers(global.tune.bufsize);
@@ -920,6 +948,12 @@ static void init(int argc, char **argv)
 
 	if (start_checks() < 0)
 		exit(1);
+
+	list_for_each_entry(pcf, &post_check_list, list) {
+		err_code |= pcf->fct();
+		if (err_code & (ERR_ABORT|ERR_FATAL))
+			exit(1);
+	}
 
 	if (cfg_maxconn > 0)
 		global.maxconn = cfg_maxconn;
