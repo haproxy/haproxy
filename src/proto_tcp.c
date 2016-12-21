@@ -1875,6 +1875,28 @@ static void __tcp_protocol_init(void)
 	tcp_res_cont_keywords_register(&tcp_res_cont_actions);
 	http_req_keywords_register(&http_req_actions);
 	http_res_keywords_register(&http_res_actions);
+
+
+	hap_register_build_opts("Built with transparent proxy support using:"
+#if defined(IP_TRANSPARENT)
+	       " IP_TRANSPARENT"
+#endif
+#if defined(IPV6_TRANSPARENT)
+	       " IPV6_TRANSPARENT"
+#endif
+#if defined(IP_FREEBIND)
+	       " IP_FREEBIND"
+#endif
+#if defined(IP_BINDANY)
+	       " IP_BINDANY"
+#endif
+#if defined(IPV6_BINDANY)
+	       " IPV6_BINDANY"
+#endif
+#if defined(SO_BINDANY)
+	       " SO_BINDANY"
+#endif
+		"", 0);
 }
 
 

@@ -431,29 +431,6 @@ static void display_build_opts()
 	printf("Built without Lua support\n");
 #endif
 
-#if defined(CONFIG_HAP_TRANSPARENT)
-	printf("Built with transparent proxy support using:"
-#if defined(IP_TRANSPARENT)
-	       " IP_TRANSPARENT"
-#endif
-#if defined(IPV6_TRANSPARENT)
-	       " IPV6_TRANSPARENT"
-#endif
-#if defined(IP_FREEBIND)
-	       " IP_FREEBIND"
-#endif
-#if defined(IP_BINDANY)
-	       " IP_BINDANY"
-#endif
-#if defined(IPV6_BINDANY)
-	       " IPV6_BINDANY"
-#endif
-#if defined(SO_BINDANY)
-	       " SO_BINDANY"
-#endif
-	       "\n");
-#endif
-
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}
