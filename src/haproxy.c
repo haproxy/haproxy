@@ -113,10 +113,6 @@
 #include <proto/ssl_sock.h>
 #endif
 
-#ifdef USE_WURFL
-#include <proto/wurfl.h>
-#endif
-
 #ifdef USE_DEVICEATLAS
 #include <import/da.h>
 #endif
@@ -1585,10 +1581,6 @@ static void deinit(void)
 
 #ifdef USE_51DEGREES
 	deinit_51degrees();
-#endif
-
-#ifdef USE_WURFL
-	ha_wurfl_deinit();
 #endif
 
 	list_for_each_entry(pdf, &post_deinit_list, list)

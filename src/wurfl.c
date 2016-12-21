@@ -9,7 +9,6 @@
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/sample.h>
-#include <proto/wurfl.h>
 #include <ebsttree.h>
 #include <ebmbtree.h>
 
@@ -475,7 +474,7 @@ static int ha_wurfl_init(void)
 	return 0;
 }
 
-void ha_wurfl_deinit(void)
+static void ha_wurfl_deinit(void)
 {
 	wurfl_information_t *wi, *wi2;
 	wurfl_patches_t *wp, *wp2;
@@ -675,6 +674,7 @@ static void __wurfl_init(void)
 	cfg_register_keywords(&wurflcfg_kws);
 	hap_register_build_opts("Built with WURFL support.", 0);
 	hap_register_post_check(ha_wurfl_init);
+	hap_register_post_deinit(ha_wurfl_deinit);
 }
 
 // WURFL properties wrapper functions
