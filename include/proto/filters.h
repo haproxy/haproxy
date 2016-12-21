@@ -95,7 +95,6 @@
 
 extern struct pool_head *pool2_filter;
 
-int  flt_init(struct proxy *p);
 void flt_deinit(struct proxy *p);
 int  flt_check(struct proxy *p);
 

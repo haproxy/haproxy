@@ -251,7 +251,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
  * the configuration parsing. Filters can finish to fill their config. Returns
  * (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
  */
-int
+static int
 flt_init(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
@@ -259,6 +259,24 @@ flt_init(struct proxy *proxy)
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
 		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
+	}
+	return 0;
+}
+
+/* Calls flt_init() for all proxies, see above */
+static int
+flt_init_all()
+{
+	struct proxy *px;
+	int err_code = 0;
+
+	for (px = proxy; px; px = px->next) {
+		err_code |= flt_init(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			Alert("Failed to initialize filters for proxy '%s'.\n",
+			      px->id);
+			return err_code;
+		}
 	}
 	return 0;
 }
@@ -1078,6 +1096,7 @@ __filters_init(void)
 {
         pool2_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
 	cfg_register_keywords(&cfg_kws);
+	hap_register_post_check(flt_init_all);
 }
 
 __attribute__((destructor))

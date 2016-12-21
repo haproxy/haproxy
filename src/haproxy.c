@@ -936,15 +936,6 @@ static void init(int argc, char **argv)
 	ha_wurfl_init();
 #endif
 
-	for (px = proxy; px; px = px->next) {
-		err_code |= flt_init(px);
-		if (err_code & (ERR_ABORT|ERR_FATAL)) {
-			Alert("Failed to initialize filters for proxy '%s'.\n",
-			      px->id);
-			exit(1);
-		}
-	}
-
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();
 		if (err_code & (ERR_ABORT|ERR_FATAL))
