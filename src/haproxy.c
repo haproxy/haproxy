@@ -325,14 +325,6 @@ static void display_build_opts()
 	       "\n\n",
 	       DEFAULT_MAXCONN, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
-	printf("Encrypted password support via crypt(3): "
-#ifdef CONFIG_HAP_CRYPT
-		"yes"
-#else
-		"no"
-#endif
-		"\n");
-
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}
