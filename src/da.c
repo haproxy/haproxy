@@ -146,7 +146,7 @@ out:
 	return err_code;
 }
 
-void deinit_deviceatlas(void)
+static void deinit_deviceatlas(void)
 {
 	if (global.deviceatlas.jsonpath != 0) {
 		free(global.deviceatlas.jsonpath);
@@ -374,4 +374,5 @@ static void __da_init(void)
 	cfg_register_keywords(&dacfg_kws);
 	hap_register_build_opts("Built with DeviceAtlas support.", 0);
 	hap_register_post_check(init_deviceatlas);
+	hap_register_post_deinit(deinit_deviceatlas);
 }

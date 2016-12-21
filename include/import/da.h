@@ -5,6 +5,5 @@
 #include <types/global.h>
 #include <dac.h>
 
-void deinit_deviceatlas(void);
 #endif
 #endif

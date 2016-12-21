@@ -113,10 +113,6 @@
 #include <proto/ssl_sock.h>
 #endif
 
-#ifdef USE_DEVICEATLAS
-#include <import/da.h>
-#endif
-
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
@@ -1570,10 +1566,6 @@ static void deinit(void)
 	chunk_destroy(&trash);
 
 	protocol_unbind_all();
-
-#if defined(USE_DEVICEATLAS)
-	deinit_deviceatlas();
-#endif
 
 	list_for_each_entry(pdf, &post_deinit_list, list)
 		pdf->fct();
