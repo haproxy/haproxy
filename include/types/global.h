@@ -264,6 +264,8 @@ static inline int already_warned(unsigned int warning)
 	return 0;
 }
 
+void hap_register_build_opts(const char *str, int must_free);
+
 #endif /* _TYPES_GLOBAL_H */
 
 /*

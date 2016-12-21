@@ -267,9 +267,39 @@ static struct task *manage_global_listener_queue(struct task *t);
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
 
+
+/* These are strings to be reported in the output of "haproxy -vv". They may
+ * either be constants (in which case must_free must be zero) or dynamically
+ * allocated strings to pass to free() on exit, and in this case must_free
+ * must be non-zero.
+ */
+struct list build_opts_list = LIST_HEAD_INIT(build_opts_list);
+struct build_opts_str {
+	struct list list;
+	const char *str;
+	int must_free;
+};
+
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
 /*********************************************************************/
+
+/* used to register some build option strings at boot. Set must_free to
+ * non-zero if the string must be freed upon exit.
+ */
+void hap_register_build_opts(const char *str, int must_free)
+{
+	struct build_opts_str *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->str = str;
+	b->must_free = must_free;
+	LIST_ADDQ(&build_opts_list, &b->list);
+}
 
 static void display_version()
 {
@@ -279,6 +309,8 @@ static void display_version()
 
 static void display_build_opts()
 {
+	struct build_opts_str *item;
+
 	printf("Build options :"
 #ifdef BUILD_TARGET
 	       "\n  TARGET  = " BUILD_TARGET
@@ -435,6 +467,10 @@ static void display_build_opts()
 #ifdef USE_WURFL
 	printf("Built with WURFL support\n");
 #endif
+	list_for_each_entry(item, &build_opts_list, list) {
+		puts(item->str);
+	}
+
 	putchar('\n');
 
 	list_pollers(stdout);
@@ -1376,6 +1412,7 @@ static void deinit(void)
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
 	struct bind_conf *bind_conf, *bind_back;
+	struct build_opts_str *bol, *bolb;
 	int i;
 
 	deinit_signals();
@@ -1678,6 +1715,13 @@ static void deinit(void)
 		free(wl->s);
 		LIST_DEL(&wl->list);
 		free(wl);
+	}
+
+	list_for_each_entry_safe(bol, bolb, &build_opts_list, list) {
+		if (bol->must_free)
+			free((void *)bol->str);
+		LIST_DEL(&bol->list);
+		free(bol);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
