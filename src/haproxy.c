@@ -178,17 +178,6 @@ struct global global = {
 		.separator = '|',
 	},
 #endif
-#ifdef USE_51DEGREES
-	._51degrees = {
-		.property_separator = ',',
-		.property_names = LIST_HEAD_INIT(global._51degrees.property_names),
-		.data_file_path = NULL,
-#ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-		.data_set = { },
-#endif
-		.cache_size = 0,
-	},
-#endif
 	/* others NULL OK */
 };
 
