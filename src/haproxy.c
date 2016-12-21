@@ -189,19 +189,6 @@ struct global global = {
 		.cache_size = 0,
 	},
 #endif
-#ifdef USE_WURFL
-	.wurfl = {
-		.data_file = NULL,
-		.cache_size = NULL,
-		.engine_mode = -1,
-		.useragent_priority = -1,
-		.information_list_separator = ',',
-		.information_list = LIST_HEAD_INIT(global.wurfl.information_list),
-		.patch_file_list = LIST_HEAD_INIT(global.wurfl.patch_file_list),
-		.handle = NULL,
-	},
-#endif
-
 	/* others NULL OK */
 };
 

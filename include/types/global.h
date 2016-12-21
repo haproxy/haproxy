@@ -212,19 +212,6 @@ struct global {
 		int cache_size;
 	} _51degrees;
 #endif
-#ifdef USE_WURFL
-	struct {
-		char *data_file; /* the WURFL data file */
-		char *cache_size; /* the WURFL cache parameters */
-		int engine_mode; /* the WURFL engine mode */
-		int useragent_priority; /* the WURFL ua priority */
-		struct list patch_file_list; /* the list of WURFL patch file to use */
-		char information_list_separator; /* the separator used in request to separate values */
-		struct list information_list; /* the list of WURFL data to return into request */
-		void *handle; /* the handle to WURFL engine */
-		struct eb_root btree; /* btree containing info (name/type) on WURFL data to return */
-	} wurfl;
-#endif
 };
 
 extern struct global global;
