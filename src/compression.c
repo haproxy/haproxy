@@ -624,8 +624,26 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 __attribute__((constructor))
 static void __comp_fetch_init(void)
 {
+	char *ptr = NULL;
+	int i;
+
 #ifdef USE_SLZ
 	slz_make_crc_table();
 	slz_prepare_dist_table();
 #endif
+#ifdef USE_ZLIB
+	memprintf(&ptr, "Built with zlib version : " ZLIB_VERSION);
+	memprintf(&ptr, "%s\nRunning on zlib version : %s", ptr, zlibVersion());
+#elif defined(USE_SLZ)
+	memprintf(&ptr, "Built with libslz for stateless compression.");
+#endif
+	memprintf(&ptr, "%s\nCompression algorithms supported :", ptr);
+
+	for (i = 0; comp_algos[i].cfg_name; i++)
+		memprintf(&ptr, "%s%s %s(\"%s\")", ptr, (i == 0 ? "" : ","), comp_algos[i].cfg_name, comp_algos[i].ua_name);
+
+	if (i == 0)
+		memprintf(&ptr, "%s none", ptr);
+
+	hap_register_build_opts(ptr, 1);
 }

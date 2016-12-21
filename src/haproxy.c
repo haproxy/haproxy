@@ -78,7 +78,6 @@
 #include <common/version.h>
 
 #include <types/capture.h>
-#include <types/compression.h>
 #include <types/filters.h>
 #include <types/global.h>
 #include <types/acl.h>
@@ -126,12 +125,6 @@
 #ifdef USE_51DEGREES
 #include <import/51d.h>
 #endif
-
-/*********************************************************************/
-
-extern const struct comp_algo comp_algos[];
-
-/*********************************************************************/
 
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
@@ -339,27 +332,6 @@ static void display_build_opts()
 		"no"
 #endif
 		"\n");
-
-#ifdef USE_ZLIB
-	printf("Built with zlib version : " ZLIB_VERSION "\n");
-	printf("Running on zlib version : %s\n", zlibVersion());
-#elif defined(USE_SLZ)
-	printf("Built with libslz for stateless compression.\n");
-#else /* USE_ZLIB */
-	printf("Built without compression support (neither USE_ZLIB nor USE_SLZ are set)\n");
-#endif
-	printf("Compression algorithms supported :");
-	{
-		int i;
-
-		for (i = 0; comp_algos[i].cfg_name; i++) {
-			printf("%s %s(\"%s\")", (i == 0 ? "" : ","), comp_algos[i].cfg_name, comp_algos[i].ua_name);
-		}
-		if (i == 0) {
-			printf("none");
-		}
-	}
-	printf("\n");
 
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
