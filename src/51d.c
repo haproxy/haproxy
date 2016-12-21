@@ -648,4 +648,5 @@ static void __51d_init(void)
 	sample_register_fetches(&sample_fetch_keywords);
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&_51dcfg_kws);
+	hap_register_build_opts("Built with 51Degrees support.", 0);
 }
