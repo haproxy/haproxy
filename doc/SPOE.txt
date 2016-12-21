@@ -505,8 +505,23 @@ equal to 256 bytes.
 
 Here are the list of official capabilities that HAProxy and agents can support:
 
-  * fragmentation: This is the abaility for a peer to support fragmented
-                   payload in received frames.
+  * fragmentation: This is the ability for a peer to support fragmented
+                   payload in received frames. This is an asymmectical
+                   capability, it only concerns the peer that announces
+                   it. This is the responsibility to the other peer to use it
+                   or not.
+
+  * pipelining: This is the ability for a peer to decouple NOTIFY and ACK
+                frames. This is a symmectical capability. To be used, it must
+                be supported by HAproxy and agents. Unlike HTTP pipelining, the
+                ACK frames can be send in any order, but always on the same TCP
+                connection used for the corresponding NOTIFY frame.
+
+  * async: This ability is similar to the pipelining, but here any TCP
+           connection established between HAProxy and the agent can be used to
+           send ACK frames. if an agent accepts connections from multiple
+           HAProxy, it can use the "engine-id" value to group TCP
+           connections. See details about HAPROXY-HELLO frame.
 
 Unsupported or unknown capabilities are silently ignored, when possible.
 
@@ -652,6 +667,10 @@ Following optional items can be added in the KV-LIST:
 
     If this item is set to TRUE, then the HAPROXY-HELLO frame is sent during a
     SPOE health check. When set to FALSE, this item can be ignored.
+
+  * "engine-id"    <STRING>
+
+    This is a uniq string that identify a SPOE engine.
 
 To finish the HELLO handshake, the agent must return an AGENT-HELLO frame with
 its supported SPOP version, the lower value between its maximum size allowed
@@ -834,7 +853,7 @@ Here is the list of supported actions:
     SESSION     : <1>
     TRANSACTION : <2>
     REQUEST     : <3>
-    RESERVED    : <4>
+    RESPONSE    : <4>
 
   * unset-var    unset the value for an existing variable. 2 arguments must be
                  attached to this action: the variable scope (proc, sess, txn,
@@ -851,7 +870,7 @@ Here is the list of supported actions:
     SESSION     : <1>
     TRANSACTION : <2>
     REQUEST     : <3>
-    RESERVED    : <4>
+    RESPONSE    : <4>
 
 
 NOTE: Name of the variables will be automatically prefixed by HAProxy to avoid

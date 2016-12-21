@@ -85,10 +85,11 @@ struct appctx {
 		} hlua_apphttp;                 /* used by the Lua HTTP services */
 		struct {
 			struct task *task;
-			void        *ctx;
 			void        *agent;
 			unsigned int version;
 			unsigned int max_frame_size;
+			unsigned int flags;
+			struct list  waiting_queue;
 			struct list  list;
 		} spoe;                         /* used by SPOE filter */
 		struct {
