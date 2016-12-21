@@ -3223,6 +3223,47 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	return err;
 }
 
+/* Prepares all the contexts for a bind_conf and allocates the shared SSL
+ * context if needed. Returns < 0 on error, 0 on success. The warnings and
+ * alerts are directly emitted since the rest of the stack does it below.
+ */
+int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
+{
+	struct proxy *px = bind_conf->frontend;
+	int alloc_ctx;
+	int err;
+
+	if (!bind_conf->is_ssl) {
+		if (bind_conf->default_ctx) {
+			Warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
+				px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		}
+		return 0;
+	}
+	if (!bind_conf->default_ctx) {
+		Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
+		      px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		return -1;
+	}
+
+	alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global.tune.sslprivatecache && (global.nbproc > 1)) ? 1 : 0);
+	if (alloc_ctx < 0) {
+		if (alloc_ctx == SHCTX_E_INIT_LOCK)
+			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
+		else
+			Alert("Unable to allocate SSL session cache.\n");
+		return -1;
+	}
+
+	err = 0;
+	/* initialize all certificate contexts */
+	err += ssl_sock_prepare_all_ctx(bind_conf);
+
+	/* initialize CA variables if the certificates generation is enabled */
+	err += ssl_sock_load_ca(bind_conf);
+
+	return -err;
+}
 
 /* release ssl context allocated for servers. */
 void ssl_sock_free_srv_ctx(struct server *srv)
@@ -6590,6 +6631,7 @@ struct xprt_ops ssl_sock = {
 	.shutw    = ssl_sock_shutw,
 	.close    = ssl_sock_close,
 	.init     = ssl_sock_init,
+	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.name     = "SSL",
 };
 

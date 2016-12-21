@@ -8717,45 +8717,15 @@ out_uri_auth_compat:
 		struct listener *listener;
 		unsigned int next_id;
 
-#ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
 		 */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			int alloc_ctx;
-
-			if (!bind_conf->is_ssl) {
-				if (bind_conf->default_ctx) {
-					Warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
-					        curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-				}
-				continue;
-			}
-			if (!bind_conf->default_ctx) {
-				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
-				      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			if (bind_conf->xprt->prepare_bind_conf &&
+			    bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
 				cfgerr++;
-				continue;
-			}
-
-			alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global.tune.sslprivatecache && (global.nbproc > 1)) ? 1 : 0);
-			if (alloc_ctx < 0) {
-				if (alloc_ctx == SHCTX_E_INIT_LOCK)
-					Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
-				else
-					Alert("Unable to allocate SSL session cache.\n");
-				cfgerr++;
-				continue;
-			}
-
-			/* initialize all certificate contexts */
-			cfgerr += ssl_sock_prepare_all_ctx(bind_conf);
-
-			/* initialize CA variables if the certificates generation is enabled */
-			cfgerr += ssl_sock_load_ca(bind_conf);
 		}
-#endif /* USE_OPENSSL */
 
 		/* adjust this proxy's listeners */
 		next_id = 1;
