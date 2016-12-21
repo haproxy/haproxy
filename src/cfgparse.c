@@ -1105,22 +1105,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 #endif /* SYSTEM_MAXCONN */
 	}
-	else if (!strcmp(args[0], "maxsslconn")) {
-#ifdef USE_OPENSSL
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.maxsslconn = atol(args[1]);
-#else
-		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-#endif
-	}
 	else if (!strcmp(args[0], "ssl-default-bind-ciphers")) {
 #ifdef USE_OPENSSL
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

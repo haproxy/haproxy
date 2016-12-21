@@ -6025,6 +6025,8 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		target = (int *)&global.tune.ssl_max_record;
 	else if (strcmp(args[0], "tune.ssl.ssl-ctx-cache-size") == 0)
 		target = &global.tune.ssl_ctx_cache;
+	else if (strcmp(args[0], "maxsslconn") == 0)
+		target = &global.maxsslconn;
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
 		return -1;
@@ -6510,6 +6512,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
+	{ CFG_GLOBAL, "maxsslconn", ssl_parse_global_int },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
