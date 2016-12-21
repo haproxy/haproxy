@@ -932,9 +932,6 @@ static void init(int argc, char **argv)
 #ifdef USE_51DEGREES
 	init_51degrees();
 #endif
-#ifdef USE_WURFL
-	ha_wurfl_init();
-#endif
 
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();
