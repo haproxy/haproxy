@@ -600,7 +600,7 @@ static int init_51degrees(void)
 	return 0;
 }
 
-void deinit_51degrees(void)
+static void deinit_51degrees(void)
 {
 	struct _51d_property_names *_51d_prop_name, *_51d_prop_nameb;
 
@@ -654,4 +654,5 @@ static void __51d_init(void)
 	cfg_register_keywords(&_51dcfg_kws);
 	hap_register_build_opts("Built with 51Degrees support.", 0);
 	hap_register_post_check(init_51degrees);
+	hap_register_post_deinit(deinit_51degrees);
 }

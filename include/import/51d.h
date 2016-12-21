@@ -3,6 +3,4 @@
 
 #include <51Degrees.h>
 
-void deinit_51degrees(void);
-
 #endif
