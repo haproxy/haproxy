@@ -364,4 +364,5 @@ static void __da_init(void)
 	sample_register_fetches(&fetch_kws);
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&dacfg_kws);
+	hap_register_build_opts("Built with DeviceAtlas support.", 0);
 }

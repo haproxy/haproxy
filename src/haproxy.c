@@ -458,9 +458,6 @@ static void display_build_opts()
 	printf("Built with network namespace support\n");
 #endif
 
-#ifdef USE_DEVICEATLAS
-    printf("Built with DeviceAtlas support\n");
-#endif
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}
