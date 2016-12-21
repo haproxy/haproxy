@@ -329,6 +329,44 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 }
 
 /*
+ * Report an error in <msg> when there are too many arguments. This version is
+ * intended to be used by keyword parsers so that the message will be included
+ * into the general error message. The index is the current keyword in args.
+ * Return 0 if the number of argument is correct, otherwise build a message and
+ * return 1. Fill err_code with an ERR_ALERT and an ERR_FATAL if not null. The
+ * message may also be null, it will simply not be produced (useful to check only).
+ * <msg> and <err_code> are only affected on error.
+ */
+int too_many_args_idx(int maxarg, int index, char **args, char **msg, int *err_code)
+{
+	int i;
+
+	if (!*args[index + maxarg + 1])
+		return 0;
+
+	if (msg) {
+		*msg = NULL;
+		memprintf(msg, "%s", args[0]);
+		for (i = 1; i <= index; i++)
+			memprintf(msg, "%s %s", *msg, args[i]);
+
+		memprintf(msg, "'%s' cannot handle unexpected argument '%s'.", *msg, args[index + maxarg + 1]);
+	}
+	if (err_code)
+		*err_code |= ERR_ALERT | ERR_FATAL;
+
+	return 1;
+}
+
+/*
+ * same as too_many_args_idx with a 0 index
+ */
+int too_many_args(int maxarg, char **args, char **msg, int *err_code)
+{
+	return too_many_args_idx(maxarg, 0, args, msg, err_code);
+}
+
+/*
  * Report a fatal Alert when there is too much arguments
  * The index is the current keyword in args
  * Return 0 if the number of argument is correct, otherwise emit an alert and return 1
