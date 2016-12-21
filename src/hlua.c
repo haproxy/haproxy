@@ -7703,3 +7703,11 @@ void hlua_init(void)
 
 	RESET_SAFE_LJMP(gL.T);
 }
+
+__attribute__((constructor))
+static void __hlua_init(void)
+{
+	char *ptr = NULL;
+	memprintf(&ptr, "Built with Lua version : %s", LUA_RELEASE);
+	hap_register_build_opts(ptr, 1);
+}

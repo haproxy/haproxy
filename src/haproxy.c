@@ -425,12 +425,6 @@ static void display_build_opts()
 	printf("Built without PCRE support (using libc's regex instead)\n");
 #endif
 
-#ifdef USE_LUA
-	printf("Built with Lua version : %s\n", LUA_RELEASE);
-#else
-	printf("Built without Lua support\n");
-#endif
-
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}
