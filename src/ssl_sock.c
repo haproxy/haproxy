@@ -6112,6 +6112,28 @@ static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy
 }
 
 #ifndef OPENSSL_NO_DH
+/* parse "ssl-dh-param-file".
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_dh_param_file(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a file path as an argument.", args[0]);
+		return -1;
+	}
+
+	if (ssl_sock_load_global_dh_param_from_file(args[1])) {
+		memprintf(err, "'%s': unable to load DH parameters from file <%s>.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 /* parse "ssl.default-dh-param".
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -6539,6 +6561,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "maxsslconn", ssl_parse_global_int },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
+#ifndef OPENSSL_NO_DH
+	{ CFG_GLOBAL, "ssl-dh-param-file", ssl_parse_global_dh_param_file },
+#endif
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },

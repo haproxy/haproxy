@@ -1105,22 +1105,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 #endif /* SYSTEM_MAXCONN */
 	}
-#ifdef USE_OPENSSL
-#ifndef OPENSSL_NO_DH
-	else if (!strcmp(args[0], "ssl-dh-param-file")) {
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects a file path as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (ssl_sock_load_global_dh_param_from_file(args[1])) {
-			Alert("parsing [%s:%d] : '%s': unable to load DH parameters from file <%s>.\n", file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-#endif
-#endif
 	else if (!strcmp(args[0], "ssl-server-verify")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
