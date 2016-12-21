@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <types/global.h>
 #include <common/config.h>
 #include <common/defaults.h>
 #include <common/regex.h>
@@ -324,6 +325,34 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 	}
 #endif
 	return 1;
+}
+
+__attribute__((constructor))
+static void __regex_init(void)
+{
+	char *ptr = NULL;
+
+#ifdef USE_PCRE
+	memprintf(&ptr, "Built with PCRE version : %s", (HAP_XSTRING(Z PCRE_PRERELEASE)[1] == 0)?
+		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR PCRE_DATE) :
+		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR) HAP_XSTRING(PCRE_PRERELEASE PCRE_DATE));
+	memprintf(&ptr, "%s\nRunning on PCRE version : %s", ptr, pcre_version());
+
+	memprintf(&ptr, "%s\nPCRE library supports JIT : %s", ptr,
+#ifdef USE_PCRE_JIT
+		  ({
+			  int r;
+			  pcre_config(PCRE_CONFIG_JIT, &r);
+			  r ? "yes" : "no (libpcre build without JIT?)";
+		  })
+#else
+		  "no (USE_PCRE_JIT not set)"
+#endif
+		  );
+#else
+	memprintf(&ptr, "Built without PCRE support (using libc's regex instead)");
+#endif
+	hap_register_build_opts(ptr, 1);
 }
 
 /*

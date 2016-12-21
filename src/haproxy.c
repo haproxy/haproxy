@@ -402,29 +402,6 @@ static void display_build_opts()
 	printf("Built without OpenSSL support (USE_OPENSSL not set)\n");
 #endif
 
-#ifdef USE_PCRE
-	printf("Built with PCRE version : %s\n", (HAP_XSTRING(Z PCRE_PRERELEASE)[1] == 0)?
-		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR PCRE_DATE) :
-		HAP_XSTRING(PCRE_MAJOR.PCRE_MINOR) HAP_XSTRING(PCRE_PRERELEASE PCRE_DATE));
-	printf("Running on PCRE version : %s", pcre_version());
-	printf("\nPCRE library supports JIT : ");
-#ifdef USE_PCRE_JIT
-	{
-		int r;
-		pcre_config(PCRE_CONFIG_JIT, &r);
-		if (r)
-			printf("yes");
-		else
-			printf("no (libpcre build without JIT?)");
-	}
-#else
-	printf("no (USE_PCRE_JIT not set)");
-#endif
-	printf("\n");
-#else
-	printf("Built without PCRE support (using libc's regex instead)\n");
-#endif
-
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}
