@@ -5983,6 +5983,33 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 	return 0;
 }
 
+/* parse the "ca-base" / "crt-base" keywords in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct proxy *curpx,
+                                        struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	char **target;
+
+	target = (args[0][1] == 'a') ? &global.ca_base : &global.crt_base;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*target) {
+		memprintf(err, "'%s' already specified.", args[0]);
+		return -1;
+	}
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a directory path as an argument.", args[0]);
+		return -1;
+	}
+	*target = strdup(args[1]);
+	return 0;
+}
+
 /* This function is used with TLS ticket keys management. It permits to browse
  * each reference. The variable <getnext> must contain the current node,
  * <end> point to the root node.
@@ -6380,6 +6407,8 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 }};
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
+	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
 	{ 0, NULL, NULL },
