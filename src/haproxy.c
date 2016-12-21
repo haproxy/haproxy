@@ -271,13 +271,13 @@ unsigned int warned = 0;
 /*  general purpose functions  ***************************************/
 /*********************************************************************/
 
-void display_version()
+static void display_version()
 {
 	printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
 	printf("Copyright 2000-2016 Willy Tarreau <willy@haproxy.org>\n\n");
 }
 
-void display_build_opts()
+static void display_build_opts()
 {
 	printf("Build options :"
 #ifdef BUILD_TARGET
@@ -446,7 +446,7 @@ void display_build_opts()
 /*
  * This function prints the command line usage and exits
  */
-void usage(char *name)
+static void usage(char *name)
 {
 	display_version();
 	fprintf(stderr,
@@ -502,7 +502,7 @@ void usage(char *name)
  * a signal zero to all subscribers. This means that it's as easy as
  * subscribing to signal 0 to get informed about an imminent shutdown.
  */
-void sig_soft_stop(struct sig_handler *sh)
+static void sig_soft_stop(struct sig_handler *sh)
 {
 	soft_stop();
 	signal_unregister_handler(sh);
@@ -512,7 +512,7 @@ void sig_soft_stop(struct sig_handler *sh)
 /*
  * upon SIGTTOU, we pause everything
  */
-void sig_pause(struct sig_handler *sh)
+static void sig_pause(struct sig_handler *sh)
 {
 	pause_proxies();
 	pool_gc2();
@@ -521,7 +521,7 @@ void sig_pause(struct sig_handler *sh)
 /*
  * upon SIGTTIN, let's have a soft stop.
  */
-void sig_listen(struct sig_handler *sh)
+static void sig_listen(struct sig_handler *sh)
 {
 	resume_proxies();
 }
@@ -529,7 +529,7 @@ void sig_listen(struct sig_handler *sh)
 /*
  * this function dumps every server's state when the process receives SIGHUP.
  */
-void sig_dump_state(struct sig_handler *sh)
+static void sig_dump_state(struct sig_handler *sh)
 {
 	struct proxy *p = proxy;
 
@@ -575,7 +575,7 @@ void sig_dump_state(struct sig_handler *sh)
 	}
 }
 
-void dump(struct sig_handler *sh)
+static void dump(struct sig_handler *sh)
 {
 	/* dump memory usage then free everything possible */
 	dump_pools();
@@ -589,7 +589,7 @@ void dump(struct sig_handler *sh)
  * It add only files with .cfg extension.
  * It doesn't add files with name starting with '.'
  */
-void cfgfiles_expand_directories(void)
+static void cfgfiles_expand_directories(void)
 {
 	struct wordlist *wl, *wlb;
 	char *err = NULL;
@@ -679,7 +679,7 @@ next_dir_entry:
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
  */
-void init(int argc, char **argv)
+static void init(int argc, char **argv)
 {
 	int arg_mode = 0;	/* MODE_DEBUG, ... */
 	char *tmp;
@@ -1358,7 +1358,7 @@ static void deinit_stick_rules(struct list *rules)
 	}
 }
 
-void deinit(void)
+static void deinit(void)
 {
 	struct proxy *p = proxy, *p0;
 	struct cap_hdr *h,*h_next;
@@ -1710,7 +1710,7 @@ static int tell_old_pids(int sig)
 }
 
 /* Runs the polling loop */
-void run_poll_loop()
+static void run_poll_loop()
 {
 	int next;
 
