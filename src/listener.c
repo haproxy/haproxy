@@ -295,7 +295,7 @@ void delete_listener(struct listener *listener)
 void listener_accept(int fd)
 {
 	struct listener *l = fdtab[fd].owner;
-	struct proxy *p = l->frontend;
+	struct proxy *p = l->bind_conf->frontend;
 	int max_accept = l->maxaccept ? l->maxaccept : 1;
 	int expire;
 	int cfd;

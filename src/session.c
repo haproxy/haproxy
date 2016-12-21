@@ -115,7 +115,7 @@ static void session_count_new(struct session *sess)
 int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
 	struct connection *cli_conn;
-	struct proxy *p = l->frontend;
+	struct proxy *p = l->bind_conf->frontend;
 	struct session *sess;
 	struct stream *strm;
 	struct task *t;

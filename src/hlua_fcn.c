@@ -470,12 +470,12 @@ int hlua_listener_get_stats(lua_State *L)
 
 	li = hlua_check_listener(L, 1);
 
-	if (!li->frontend) {
+	if (!li->bind_conf->frontend) {
 		lua_pushnil(L);
 		return 1;
 	}
 
-	stats_fill_li_stats(li->frontend, li, ST_SHLGNDS, stats, STATS_LEN);
+	stats_fill_li_stats(li->bind_conf->frontend, li, ST_SHLGNDS, stats, STATS_LEN);
 
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {

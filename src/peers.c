@@ -1753,7 +1753,7 @@ void peers_setup_frontend(struct proxy *fe)
 static struct appctx *peer_session_create(struct peers *peers, struct peer *peer)
 {
 	struct listener *l = LIST_NEXT(&peers->peers_fe->conf.listeners, struct listener *, by_fe);
-	struct proxy *p = l->frontend; /* attached frontend */
+	struct proxy *p = l->bind_conf->frontend; /* attached frontend */
 	struct appctx *appctx;
 	struct session *sess;
 	struct stream *s;

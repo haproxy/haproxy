@@ -119,19 +119,18 @@ struct bind_kw *bind_find_kw(const char *kw);
 /* Dumps all registered "bind" keywords to the <out> string pointer. */
 void bind_dump_kws(char **out);
 
-/* allocate an bind_conf struct for a bind line, and chain it to list head <lh>.
+/* allocate an bind_conf struct for a bind line, and chain it to the frontend <fe>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.
  */
-static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *file,
+static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
                                  int line, const char *arg, struct xprt_ops *xprt)
 {
 	struct bind_conf *bind_conf = (void *)calloc(1, sizeof(struct bind_conf));
 
 	bind_conf->file = strdup(file);
 	bind_conf->line = line;
-	if (lh)
-		LIST_ADDQ(lh, &bind_conf->by_fe);
+	LIST_ADDQ(&fe->conf.bind, &bind_conf->by_fe);
 	if (arg)
 		bind_conf->arg = strdup(arg);
 
@@ -139,6 +138,7 @@ static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *fil
 	bind_conf->ux.gid = -1;
 	bind_conf->ux.mode = 0;
 	bind_conf->xprt = xprt;
+	bind_conf->frontend = fe;
 
 	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;
