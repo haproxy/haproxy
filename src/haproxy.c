@@ -926,9 +926,6 @@ static void init(int argc, char **argv)
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_buffer();
-#if defined(USE_DEVICEATLAS)
-	init_deviceatlas();
-#endif
 
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();

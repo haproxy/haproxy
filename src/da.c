@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include <common/cfgparse.h>
+#include <common/errors.h>
 #include <proto/arg.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
@@ -87,9 +88,13 @@ static void da_haproxy_log(da_severity_t severity, da_status_t status,
 
 #define	DA_COOKIENAME_DEFAULT		"DAPROPS"
 
-int init_deviceatlas(void)
+/*
+ * module init / deinit functions. Returns 0 if OK, or a combination of ERR_*.
+ */
+static int init_deviceatlas(void)
 {
-	da_status_t status = DA_SYS;
+	int err_code = 0;
+
 	if (global.deviceatlas.jsonpath != 0) {
 		FILE *jsonp;
 		da_property_decl_t extraprops[] = {{0, 0}};
@@ -100,6 +105,7 @@ int init_deviceatlas(void)
 		if (jsonp == 0) {
 			Alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
 				global.deviceatlas.jsonpath);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
@@ -111,6 +117,7 @@ int init_deviceatlas(void)
 		if (status != DA_OK) {
 			Alert("deviceatlas : '%s' json file is invalid.\n",
 				global.deviceatlas.jsonpath);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
@@ -119,6 +126,7 @@ int init_deviceatlas(void)
 
 		if (status != DA_OK) {
 			Alert("deviceatlas : data could not be compiled.\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
@@ -135,7 +143,7 @@ int init_deviceatlas(void)
 	}
 
 out:
-	return status == DA_OK;
+	return err_code;
 }
 
 void deinit_deviceatlas(void)
@@ -365,4 +373,5 @@ static void __da_init(void)
 	sample_register_convs(&conv_kws);
 	cfg_register_keywords(&dacfg_kws);
 	hap_register_build_opts("Built with DeviceAtlas support.", 0);
+	hap_register_post_check(init_deviceatlas);
 }
