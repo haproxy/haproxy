@@ -454,10 +454,6 @@ static void display_build_opts()
 	       "\n");
 #endif
 
-#if defined(CONFIG_HAP_NS)
-	printf("Built with network namespace support\n");
-#endif
-
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
 	}

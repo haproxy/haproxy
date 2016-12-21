@@ -112,3 +112,9 @@ int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol
 
 	return sock;
 }
+
+__attribute__((constructor))
+static void __ns_init(void)
+{
+	hap_register_build_opts("Built with network namespace support.", 0);
+}
