@@ -8801,31 +8801,8 @@ out_uri_auth_compat:
 
 		/* Release unused SSL configs */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			if (bind_conf->is_ssl)
-				continue;
-#ifdef USE_OPENSSL
-			ssl_sock_free_ca(bind_conf);
-			ssl_sock_free_all_ctx(bind_conf);
-			free(bind_conf->ca_file);
-			free(bind_conf->ca_sign_file);
-			free(bind_conf->ca_sign_pass);
-			free(bind_conf->ciphers);
-			free(bind_conf->ecdhe);
-			free(bind_conf->crl_file);
-			if(bind_conf->keys_ref) {
-				free(bind_conf->keys_ref->filename);
-				free(bind_conf->keys_ref->tlskeys);
-				LIST_DEL(&bind_conf->keys_ref->list);
-				free(bind_conf->keys_ref);
-			}
-			bind_conf->keys_ref = NULL;
-			bind_conf->crl_file = NULL;
-			bind_conf->ecdhe = NULL;
-			bind_conf->ciphers = NULL;
-			bind_conf->ca_sign_pass = NULL;
-			bind_conf->ca_sign_file = NULL;
-			bind_conf->ca_file = NULL;
-#endif /* USE_OPENSSL */
+			if (!bind_conf->is_ssl && bind_conf->xprt->destroy_bind_conf)
+				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 
 		if (my_popcountl(curproxy->bind_proc & nbits(global.nbproc)) > 1) {

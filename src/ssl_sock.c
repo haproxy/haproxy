@@ -3308,6 +3308,32 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 	bind_conf->default_ctx = NULL;
 }
 
+/* Destroys all the contexts for a bind_conf. This is used during deinit(). */
+void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)
+{
+	ssl_sock_free_ca(bind_conf);
+	ssl_sock_free_all_ctx(bind_conf);
+	free(bind_conf->ca_file);
+	free(bind_conf->ca_sign_file);
+	free(bind_conf->ca_sign_pass);
+	free(bind_conf->ciphers);
+	free(bind_conf->ecdhe);
+	free(bind_conf->crl_file);
+	if (bind_conf->keys_ref) {
+		free(bind_conf->keys_ref->filename);
+		free(bind_conf->keys_ref->tlskeys);
+		LIST_DEL(&bind_conf->keys_ref->list);
+		free(bind_conf->keys_ref);
+	}
+	bind_conf->keys_ref = NULL;
+	bind_conf->crl_file = NULL;
+	bind_conf->ecdhe = NULL;
+	bind_conf->ciphers = NULL;
+	bind_conf->ca_sign_pass = NULL;
+	bind_conf->ca_sign_file = NULL;
+	bind_conf->ca_file = NULL;
+}
+
 /* Load CA cert file and private key used to generate certificates */
 int
 ssl_sock_load_ca(struct bind_conf *bind_conf)
@@ -6632,6 +6658,7 @@ struct xprt_ops ssl_sock = {
 	.close    = ssl_sock_close,
 	.init     = ssl_sock_init,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
+	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.name     = "SSL",
 };
 
