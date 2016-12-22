@@ -3334,6 +3334,8 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
 		EVP_PKEY_free(bind_conf->ca_sign_pkey);
 	if (bind_conf->ca_sign_cert)
 		X509_free(bind_conf->ca_sign_cert);
+	bind_conf->ca_sign_pkey = NULL;
+	bind_conf->ca_sign_cert = NULL;
 }
 
 /*

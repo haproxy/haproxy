@@ -8850,6 +8850,13 @@ out_uri_auth_compat:
 				LIST_DEL(&bind_conf->keys_ref->list);
 				free(bind_conf->keys_ref);
 			}
+			bind_conf->keys_ref = NULL;
+			bind_conf->crl_file = NULL;
+			bind_conf->ecdhe = NULL;
+			bind_conf->ciphers = NULL;
+			bind_conf->ca_sign_pass = NULL;
+			bind_conf->ca_sign_file = NULL;
+			bind_conf->ca_file = NULL;
 #endif /* USE_OPENSSL */
 		}
 
