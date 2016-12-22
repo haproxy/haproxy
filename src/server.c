@@ -1072,6 +1072,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
+			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
 			if (newsrv->check.port)
@@ -1096,9 +1097,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->onmarkedup      = curproxy->defsrv.onmarkedup;
 			newsrv->consecutive_errors_limit
 						= curproxy->defsrv.consecutive_errors_limit;
-#ifdef OPENSSL
-			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
-#endif
 			newsrv->uweight = newsrv->iweight
 						= curproxy->defsrv.iweight;
 

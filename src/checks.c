@@ -3427,9 +3427,7 @@ int srv_check_healthcheck_port(struct check *chk)
 	 * default, unless one is specified.
 	 */
 	if (!chk->port && !is_addr(&chk->addr)) {
-#ifdef USE_OPENSSL
 		chk->use_ssl |= (srv->use_ssl || (srv->proxy->options & PR_O_TCPCHK_SSL));
-#endif
 		chk->send_proxy |= (srv->pp_opts);
 	}
 

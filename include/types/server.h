@@ -249,8 +249,8 @@ struct server {
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
 
+	int use_ssl;				/* ssl enabled  */
 #ifdef USE_OPENSSL
-	int use_ssl;				/* ssl enabled */
 	struct {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;
