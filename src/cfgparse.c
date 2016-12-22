@@ -84,11 +84,6 @@
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
 
-#ifdef USE_OPENSSL
-#include <types/ssl_sock.h>
-#include <proto/ssl_sock.h>
-#include <proto/shctx.h>
-#endif /*USE_OPENSSL */
 
 /* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
  * ssl-hello-chk option to ensure that the remote server speaks SSL.
@@ -8286,10 +8281,11 @@ out_uri_auth_compat:
 				newsrv->minconn = newsrv->maxconn;
 			}
 
-#ifdef USE_OPENSSL
-			if (newsrv->use_ssl || newsrv->check.use_ssl)
-				cfgerr += ssl_sock_prepare_srv_ctx(newsrv);
-#endif /* USE_OPENSSL */
+			/* this will also properly set the transport layer for prod and checks */
+			if (newsrv->use_ssl || newsrv->check.use_ssl) {
+				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
+					cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
+			}
 
 			/* set the check type on the server */
 			newsrv->check.type = curproxy->options2 & PR_O2_CHK_ANY;

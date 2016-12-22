@@ -48,7 +48,6 @@
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream.h>
-#include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
@@ -7697,7 +7696,8 @@ void hlua_init(void)
 	}
 
 	/* Initialize SSL server. */
-	ssl_sock_prepare_srv_ctx(&socket_ssl);
+	if (socket_ssl.xprt->prepare_srv)
+		socket_ssl.xprt->prepare_srv(&socket_ssl);
 #endif
 
 	RESET_SAFE_LJMP(gL.T);

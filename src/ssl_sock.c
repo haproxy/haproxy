@@ -6660,6 +6660,8 @@ static struct xprt_ops ssl_sock = {
 	.init     = ssl_sock_init,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
+	.prepare_srv = ssl_sock_prepare_srv_ctx,
+	.destroy_srv = ssl_sock_free_srv_ctx,
 	.name     = "SSL",
 };
 
