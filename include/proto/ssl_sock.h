@@ -65,7 +65,6 @@ int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err);
 int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err);
 struct tls_keys_ref *tlskeys_ref_lookup(const char *filename);
 struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id);
-void tlskeys_finalize_config(void);
 #endif
 #ifndef OPENSSL_NO_DH
 int ssl_sock_load_global_dh_param_from_file(const char *filename);

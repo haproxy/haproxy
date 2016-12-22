@@ -574,9 +574,10 @@ int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err) {
 }
 
 /* This function finalize the configuration parsing. Its set all the
- * automatic ids
+ * automatic ids. It's called just after the basic checks. It returns
+ * 0 on success otherwise ERR_*.
  */
-void tlskeys_finalize_config(void)
+static int tlskeys_finalize_config(void)
 {
 	int i = 0;
 	struct tls_keys_ref *ref, *ref2, *ref3;
@@ -618,6 +619,7 @@ void tlskeys_finalize_config(void)
 	/* swap root */
 	LIST_ADD(&tkr, &tlskeys_reference);
 	LIST_DEL(&tkr);
+	return 0;
 }
 
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
@@ -6710,6 +6712,9 @@ static void __ssl_sock_init(void)
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
 	cli_register_kw(&cli_kws);
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+	hap_register_post_check(tlskeys_finalize_config);
+#endif
 
 	ptr = NULL;
 	memprintf(&ptr, "Built with OpenSSL version : "
