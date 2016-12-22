@@ -213,6 +213,7 @@ struct xprt_ops {
 	void (*shutw)(struct connection *, int);    /* shutw function */
 	void (*close)(struct connection *);         /* close the transport layer */
 	int  (*init)(struct connection *conn);      /* initialize the transport layer */
+	int  (*prepare_bind_conf)(struct bind_conf *conf); /* prepare a whole bind_conf */
 	char name[8];                               /* transport layer name, zero-terminated */
 };
 
