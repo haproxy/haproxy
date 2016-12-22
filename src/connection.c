@@ -27,6 +27,7 @@
 #endif
 
 struct pool_head *pool2_connection;
+struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection()

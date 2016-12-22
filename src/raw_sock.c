@@ -419,6 +419,13 @@ struct xprt_ops raw_sock = {
 	.name     = "RAW",
 };
 
+
+__attribute__((constructor))
+static void __ssl_sock_deinit(void)
+{
+	xprt_register(XPRT_RAW, &raw_sock);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

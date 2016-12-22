@@ -6694,6 +6694,7 @@ static void __ssl_sock_init(void)
 	global.listen_default_ssloptions = BC_SSL_O_NONE;
 	global.connect_default_ssloptions = SRV_SSL_O_NONE;
 
+	xprt_register(XPRT_SSL, &ssl_sock);
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);

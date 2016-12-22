@@ -199,6 +199,13 @@ enum {
 	CO_SFL_STREAMER    = 0x0002,    /* Producer is continuously streaming data */
 };
 
+/* known transport layers (for ease of lookup) */
+enum {
+	XPRT_RAW = 0,
+	XPRT_SSL = 1,
+	XPRT_ENTRIES /* must be last one */
+};
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)

@@ -30,6 +30,7 @@
 #include <proto/obj_type.h>
 
 extern struct pool_head *pool2_connection;
+extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection();
@@ -633,6 +634,21 @@ static inline const char *conn_get_data_name(const struct connection *conn)
 	return conn->data->name;
 }
 
+/* registers pointer to transport layer <id> (XPRT_*) */
+static inline void xprt_register(int id, struct xprt_ops *xprt)
+{
+	if (id >= XPRT_ENTRIES)
+		return;
+	registered_xprt[id] = xprt;
+}
+
+/* returns pointer to transport layer <id> (XPRT_*) or NULL if not registered */
+static inline struct xprt_ops *xprt_get(int id)
+{
+	if (id >= XPRT_ENTRIES)
+		return NULL;
+	return registered_xprt[id];
+}
 
 #endif /* _PROTO_CONNECTION_H */
 
