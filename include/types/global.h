@@ -76,10 +76,6 @@ enum {
 
 /* FIXME : this will have to be redefined correctly */
 struct global {
-#ifdef USE_OPENSSL
-	char *crt_base;             /* base directory path for certificates */
-	char *ca_base;              /* base directory path for CAs and CRLs */
-#endif
 	int uid;
 	int gid;
 	int external_check;
@@ -90,12 +86,6 @@ struct global {
 	int ssl_handshake_max_cost; /* how many bytes an SSL handshake may use */
 	int ssl_used_frontend;      /* non-zero if SSL is used in a frontend */
 	int ssl_used_backend;       /* non-zero if SSL is used in a backend */
-#ifdef USE_OPENSSL
-	char *listen_default_ciphers;
-	char *connect_default_ciphers;
-	int listen_default_ssloptions;
-	int connect_default_ssloptions;
-#endif
 	unsigned int ssl_server_verify; /* default verify mode on servers side */
 	struct freq_ctr conn_per_sec;
 	struct freq_ctr sess_per_sec;
@@ -149,13 +139,6 @@ struct global {
 		int cookie_len;    /* max length of cookie captures */
 		int pattern_cache; /* max number of entries in the pattern cache. */
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
-#ifdef USE_OPENSSL
-		int sslprivatecache; /* Force to use a private session cache even if nbproc > 1 */
-		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
-		unsigned int ssl_max_record; /* SSL max record size */
-		unsigned int ssl_default_dh_param; /* SSL maximum DH parameter size */
-		int ssl_ctx_cache; /* max number of entries in the ssl_ctx cache. */
-#endif
 		int comp_maxlevel;    /* max HTTP compression level */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
 	} tune;

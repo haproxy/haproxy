@@ -138,11 +138,6 @@ struct global global = {
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
 #ifdef USE_OPENSSL
 		.sslcachesize = SSLCACHESIZE,
-		.ssl_default_dh_param = SSL_DEFAULT_DH_PARAM,
-#ifdef DEFAULT_SSL_MAX_RECORD
-		.ssl_max_record = DEFAULT_SSL_MAX_RECORD,
-#endif
-		.ssl_ctx_cache = DEFAULT_SSL_CTX_CACHE,
 #endif
 		.comp_maxlevel = 1,
 #ifdef DEFAULT_IDLE_TIMER

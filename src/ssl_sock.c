@@ -132,6 +132,38 @@ int sslconns = 0;
 int totalsslconns = 0;
 static struct xprt_ops ssl_sock;
 
+static struct {
+	char *crt_base;             /* base directory path for certificates */
+	char *ca_base;              /* base directory path for CAs and CRLs */
+
+	char *listen_default_ciphers;
+	char *connect_default_ciphers;
+	int listen_default_ssloptions;
+	int connect_default_ssloptions;
+
+	int private_cache; /* Force to use a private session cache even if nbproc > 1 */
+	unsigned int life_time;   /* SSL session lifetime in seconds */
+	unsigned int max_record; /* SSL max record size */
+	unsigned int default_dh_param; /* SSL maximum DH parameter size */
+	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
+} global_ssl = {
+#ifdef LISTEN_DEFAULT_CIPHERS
+	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
+#endif
+#ifdef CONNECT_DEFAULT_CIPHERS
+	.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS,
+#endif
+	.listen_default_ssloptions = BC_SSL_O_NONE,
+	.connect_default_ssloptions = SRV_SSL_O_NONE,
+
+#ifdef DEFAULT_SSL_MAX_RECORD
+	.max_record = DEFAULT_SSL_MAX_RECORD,
+#endif
+	.default_dh_param = SSL_DEFAULT_DH_PARAM,
+	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
+};
+
+
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
@@ -1623,7 +1655,7 @@ static DH *ssl_get_dh_4096(void)
 }
 
 /* Returns Diffie-Hellman parameters matching the private key length
-   but not exceeding global.tune.ssl_default_dh_param */
+   but not exceeding global_ssl.default_dh_param */
 static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 {
 	DH *dh = NULL;
@@ -1639,8 +1671,8 @@ static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
 		keylen = EVP_PKEY_bits(pkey);
 	}
 
-	if (keylen > global.tune.ssl_default_dh_param) {
-		keylen = global.tune.ssl_default_dh_param;
+	if (keylen > global_ssl.default_dh_param) {
+		keylen = global_ssl.default_dh_param;
 	}
 
 	if (keylen >= 4096) {
@@ -1712,7 +1744,7 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 		/* Clear openssl global errors stack */
 		ERR_clear_error();
 
-		if (global.tune.ssl_default_dh_param <= 1024) {
+		if (global_ssl.default_dh_param <= 1024) {
 			/* we are limited to DH parameter of 1024 bits anyway */
 			if (local_dh_1024 == NULL)
 				local_dh_1024 = ssl_get_dh_1024();
@@ -2795,8 +2827,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx)
 	}
 #endif
 
-	if (global.tune.ssllifetime)
-		SSL_CTX_set_timeout(ctx, global.tune.ssllifetime);
+	if (global_ssl.life_time)
+		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
 
 	shared_context_set_cache(ctx);
 	if (bind_conf->ciphers &&
@@ -2809,7 +2841,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx)
 	/* If tune.ssl.default-dh-param has not been set,
 	   neither has ssl-default-dh-file and no static DH
 	   params were in the certificate file. */
-	if (global.tune.ssl_default_dh_param == 0 &&
+	if (global_ssl.default_dh_param == 0 &&
 	    global_dh == NULL &&
 	    (ssl_dh_ptr_index == -1 ||
 	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
@@ -2839,19 +2871,19 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx)
 			Warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
 		}
 
-		global.tune.ssl_default_dh_param = 1024;
+		global_ssl.default_dh_param = 1024;
 	}
 
 #ifndef OPENSSL_NO_DH
-	if (global.tune.ssl_default_dh_param >= 1024) {
+	if (global_ssl.default_dh_param >= 1024) {
 		if (local_dh_1024 == NULL) {
 			local_dh_1024 = ssl_get_dh_1024();
 		}
-		if (global.tune.ssl_default_dh_param >= 2048) {
+		if (global_ssl.default_dh_param >= 2048) {
 			if (local_dh_2048 == NULL) {
 				local_dh_2048 = ssl_get_dh_2048();
 			}
-			if (global.tune.ssl_default_dh_param >= 4096) {
+			if (global_ssl.default_dh_param >= 4096) {
 				if (local_dh_4096 == NULL) {
 					local_dh_4096 = ssl_get_dh_4096();
 				}
@@ -3170,8 +3202,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 #endif
 	}
 
-	if (global.tune.ssllifetime)
-		SSL_CTX_set_timeout(srv->ssl_ctx.ctx, global.tune.ssllifetime);
+	if (global_ssl.life_time)
+		SSL_CTX_set_timeout(srv->ssl_ctx.ctx, global_ssl.life_time);
 
 	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
 	if (srv->ssl_ctx.ciphers &&
@@ -3249,7 +3281,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		return -1;
 	}
 
-	alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global.tune.sslprivatecache && (global.nbproc > 1)) ? 1 : 0);
+	alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
 	if (alloc_ctx < 0) {
 		if (alloc_ctx == SHCTX_E_INIT_LOCK)
 			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
@@ -3351,8 +3383,8 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 		return err;
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if (global.tune.ssl_ctx_cache)
-		ssl_ctx_lru_tree = lru64_new(global.tune.ssl_ctx_cache);
+	if (global_ssl.ctx_cache)
+		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
 #endif
 
@@ -3903,8 +3935,8 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 		if (!(flags & CO_SFL_STREAMER) &&
 		    !(conn->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&
-		    global.tune.ssl_max_record && try > global.tune.ssl_max_record) {
-			try = global.tune.ssl_max_record;
+		    global_ssl.max_record && try > global_ssl.max_record) {
+			try = global_ssl.max_record;
 		}
 		else {
 			/* we need to keep the information about the fact that
@@ -5203,8 +5235,8 @@ static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[cur_arg + 1] != '/') && global.ca_base)
-		memprintf(&conf->ca_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
+	if ((*args[cur_arg + 1] != '/') && global_ssl.ca_base)
+		memprintf(&conf->ca_file, "%s/%s", global_ssl.ca_base, args[cur_arg + 1]);
 	else
 		memprintf(&conf->ca_file, "%s", args[cur_arg + 1]);
 
@@ -5220,8 +5252,8 @@ static int bind_parse_ca_sign_file(char **args, int cur_arg, struct proxy *px, s
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[cur_arg + 1] != '/') && global.ca_base)
-		memprintf(&conf->ca_sign_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
+	if ((*args[cur_arg + 1] != '/') && global_ssl.ca_base)
+		memprintf(&conf->ca_sign_file, "%s/%s", global_ssl.ca_base, args[cur_arg + 1]);
 	else
 		memprintf(&conf->ca_sign_file, "%s", args[cur_arg + 1]);
 
@@ -5263,12 +5295,12 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[cur_arg + 1] != '/' ) && global.crt_base) {
-		if ((strlen(global.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > MAXPATHLEN) {
+	if ((*args[cur_arg + 1] != '/' ) && global_ssl.crt_base) {
+		if ((strlen(global_ssl.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > MAXPATHLEN) {
 			memprintf(err, "'%s' : path too long", args[cur_arg]);
 			return ERR_ALERT | ERR_FATAL;
 		}
-		snprintf(path, sizeof(path), "%s/%s",  global.crt_base, args[cur_arg + 1]);
+		snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, args[cur_arg + 1]);
 		if (ssl_sock_load_cert(path, conf, err) > 0)
 			return ERR_ALERT | ERR_FATAL;
 
@@ -5311,8 +5343,8 @@ static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[cur_arg + 1] != '/') && global.ca_base)
-		memprintf(&conf->crl_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
+	if ((*args[cur_arg + 1] != '/') && global_ssl.ca_base)
+		memprintf(&conf->crl_file, "%s/%s", global_ssl.ca_base, args[cur_arg + 1]);
 	else
 		memprintf(&conf->crl_file, "%s", args[cur_arg + 1]);
 
@@ -5567,9 +5599,9 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	conf->xprt = &ssl_sock;
 	conf->is_ssl = 1;
 
-	if (global.listen_default_ciphers && !conf->ciphers)
-		conf->ciphers = strdup(global.listen_default_ciphers);
-	conf->ssl_options |= global.listen_default_ssloptions;
+	if (global_ssl.listen_default_ciphers && !conf->ciphers)
+		conf->ciphers = strdup(global_ssl.listen_default_ciphers);
+	conf->ssl_options |= global_ssl.listen_default_ssloptions;
 
 	return 0;
 }
@@ -5704,8 +5736,8 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[*cur_arg + 1] != '/') && global.ca_base)
-		memprintf(&newsrv->ssl_ctx.ca_file, "%s/%s", global.ca_base, args[*cur_arg + 1]);
+	if ((*args[*cur_arg + 1] != '/') && global_ssl.ca_base)
+		memprintf(&newsrv->ssl_ctx.ca_file, "%s/%s", global_ssl.ca_base, args[*cur_arg + 1]);
 	else
 		memprintf(&newsrv->ssl_ctx.ca_file, "%s", args[*cur_arg + 1]);
 
@@ -5716,9 +5748,9 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->check.use_ssl = 1;
-	if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
-		newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
-	newsrv->ssl_ctx.options |= global.connect_default_ssloptions;
+	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
+	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
 	return 0;
 }
 
@@ -5749,8 +5781,8 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[*cur_arg + 1] != '/') && global.ca_base)
-		memprintf(&newsrv->ssl_ctx.crl_file, "%s/%s", global.ca_base, args[*cur_arg + 1]);
+	if ((*args[*cur_arg + 1] != '/') && global_ssl.ca_base)
+		memprintf(&newsrv->ssl_ctx.crl_file, "%s/%s", global_ssl.ca_base, args[*cur_arg + 1]);
 	else
 		memprintf(&newsrv->ssl_ctx.crl_file, "%s", args[*cur_arg + 1]);
 
@@ -5767,8 +5799,8 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((*args[*cur_arg + 1] != '/') && global.crt_base)
-		memprintf(&newsrv->ssl_ctx.client_crt, "%s/%s", global.ca_base, args[*cur_arg + 1]);
+	if ((*args[*cur_arg + 1] != '/') && global_ssl.crt_base)
+		memprintf(&newsrv->ssl_ctx.client_crt, "%s/%s", global_ssl.ca_base, args[*cur_arg + 1]);
 	else
 		memprintf(&newsrv->ssl_ctx.client_crt, "%s", args[*cur_arg + 1]);
 
@@ -5914,8 +5946,8 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->use_ssl = 1;
-	if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
-		newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
+	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
 	return 0;
 }
 
@@ -5968,20 +6000,20 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 	}
 	while (*(args[i])) {
 		if (!strcmp(args[i], "no-sslv3"))
-			global.listen_default_ssloptions |= BC_SSL_O_NO_SSLV3;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_SSLV3;
 		else if (!strcmp(args[i], "no-tlsv10"))
-			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV10;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV10;
 		else if (!strcmp(args[i], "no-tlsv11"))
-			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV11;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV11;
 		else if (!strcmp(args[i], "no-tlsv12"))
-			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV12;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV12;
 		else if (!strcmp(args[i], "force-sslv3"))
-			global.listen_default_ssloptions |= BC_SSL_O_USE_SSLV3;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_SSLV3;
 		else if (!strcmp(args[i], "force-tlsv10"))
-			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV10;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV10;
 		else if (!strcmp(args[i], "force-tlsv11")) {
 #if SSL_OP_NO_TLSv1_1
-			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV11;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV11;
 #else
 			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
 			return -1;
@@ -5989,14 +6021,14 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 		}
 		else if (!strcmp(args[i], "force-tlsv12")) {
 #if SSL_OP_NO_TLSv1_2
-			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV12;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV12;
 #else
 			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
 			return -1;
 #endif
 		}
 		else if (!strcmp(args[i], "no-tls-tickets"))
-			global.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
 		else {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
@@ -6018,20 +6050,20 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 	}
 	while (*(args[i])) {
 		if (!strcmp(args[i], "no-sslv3"))
-			global.connect_default_ssloptions |= SRV_SSL_O_NO_SSLV3;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_SSLV3;
 		else if (!strcmp(args[i], "no-tlsv10"))
-			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV10;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV10;
 		else if (!strcmp(args[i], "no-tlsv11"))
-			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV11;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV11;
 		else if (!strcmp(args[i], "no-tlsv12"))
-			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV12;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV12;
 		else if (!strcmp(args[i], "force-sslv3"))
-			global.connect_default_ssloptions |= SRV_SSL_O_USE_SSLV3;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_SSLV3;
 		else if (!strcmp(args[i], "force-tlsv10"))
-			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV10;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV10;
 		else if (!strcmp(args[i], "force-tlsv11")) {
 #if SSL_OP_NO_TLSv1_1
-			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV11;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV11;
 #else
 			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
 			return -1;
@@ -6039,14 +6071,14 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 		}
 		else if (!strcmp(args[i], "force-tlsv12")) {
 #if SSL_OP_NO_TLSv1_2
-			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV12;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV12;
 #else
 			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
 			return -1;
 #endif
 		}
 		else if (!strcmp(args[i], "no-tls-tickets"))
-			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
+			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
 		else {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
@@ -6065,7 +6097,7 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 {
 	char **target;
 
-	target = (args[0][1] == 'a') ? &global.ca_base : &global.crt_base;
+	target = (args[0][1] == 'a') ? &global_ssl.ca_base : &global_ssl.crt_base;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -6092,7 +6124,7 @@ static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy 
 {
 	char **target;
 
-	target = (args[0][12] == 'b') ? &global.listen_default_ciphers : &global.connect_default_ciphers;
+	target = (args[0][12] == 'b') ? &global_ssl.listen_default_ciphers : &global_ssl.connect_default_ciphers;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -6119,9 +6151,9 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 	if (strcmp(args[0], "tune.ssl.cachesize") == 0)
 		target = &global.tune.sslcachesize;
 	else if (strcmp(args[0], "tune.ssl.maxrecord") == 0)
-		target = (int *)&global.tune.ssl_max_record;
+		target = (int *)&global_ssl.max_record;
 	else if (strcmp(args[0], "tune.ssl.ssl-ctx-cache-size") == 0)
-		target = &global.tune.ssl_ctx_cache;
+		target = &global_ssl.ctx_cache;
 	else if (strcmp(args[0], "maxsslconn") == 0)
 		target = &global.maxsslconn;
 	else {
@@ -6155,7 +6187,7 @@ static int ssl_parse_global_private_cache(char **args, int section_type, struct 
 	if (too_many_args(0, args, err, NULL))
 		return -1;
 
-	global.tune.sslprivatecache = 1;
+	global_ssl.private_cache = 1;
 	return 0;
 }
 
@@ -6176,7 +6208,7 @@ static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy
 		return -1;
 	}
 
-	res = parse_time_err(args[1], &global.tune.ssllifetime, TIME_UNIT_S);
+	res = parse_time_err(args[1], &global_ssl.life_time, TIME_UNIT_S);
 	if (res) {
 		memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[0]);
 		return -1;
@@ -6222,8 +6254,8 @@ static int ssl_parse_global_default_dh(char **args, int section_type, struct pro
 		return -1;
 	}
 
-	global.tune.ssl_default_dh_param = atoi(args[1]);
-	if (global.tune.ssl_default_dh_param < 1024) {
+	global_ssl.default_dh_param = atoi(args[1]);
+	if (global_ssl.default_dh_param < 1024) {
 		memprintf(err, "'%s' expects a value >= 1024.", args[0]);
 		return -1;
 	}
@@ -6686,18 +6718,10 @@ static void __ssl_sock_init(void)
 
 	STACK_OF(SSL_COMP)* cm;
 
-#ifdef LISTEN_DEFAULT_CIPHERS
-	global.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS;
-#endif
-#ifdef CONNECT_DEFAULT_CIPHERS
-	global.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS;
-#endif
-	if (global.listen_default_ciphers)
-		global.listen_default_ciphers = strdup(global.listen_default_ciphers);
-	if (global.connect_default_ciphers)
-		global.connect_default_ciphers = strdup(global.connect_default_ciphers);
-	global.listen_default_ssloptions = BC_SSL_O_NONE;
-	global.connect_default_ssloptions = SRV_SSL_O_NONE;
+	if (global_ssl.listen_default_ciphers)
+		global_ssl.listen_default_ciphers = strdup(global_ssl.listen_default_ciphers);
+	if (global_ssl.connect_default_ciphers)
+		global_ssl.connect_default_ciphers = strdup(global_ssl.connect_default_ciphers);
 
 	xprt_register(XPRT_SSL, &ssl_sock);
 	SSL_library_init();
