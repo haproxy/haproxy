@@ -26,6 +26,7 @@
 #undef free_func
 #endif /* USE_ZLIB */
 
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/memory.h>
 
@@ -52,6 +53,9 @@ static struct pool_head *zlib_pool_head = NULL;
 static struct pool_head *zlib_pool_pending_buf = NULL;
 
 long zlib_used_memory = 0;
+
+static int global_tune_zlibmemlevel = 8;            /* zlib memlevel */
+static int global_tune_zlibwindowsize = MAX_WBITS;  /* zlib window size */
 
 #endif
 
@@ -479,7 +483,7 @@ static int gzip_init(struct comp_ctx **comp_ctx, int level)
 
 	strm = &(*comp_ctx)->strm;
 
-	if (deflateInit2(strm, level, Z_DEFLATED, global.tune.zlibwindowsize + 16, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
+	if (deflateInit2(strm, level, Z_DEFLATED, global_tune_zlibwindowsize + 16, global_tune_zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
 		deinit_comp_ctx(comp_ctx);
 		return -1;
 	}
@@ -499,7 +503,7 @@ static int raw_def_init(struct comp_ctx **comp_ctx, int level)
 
 	strm = &(*comp_ctx)->strm;
 
-	if (deflateInit2(strm, level, Z_DEFLATED, -global.tune.zlibwindowsize, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
+	if (deflateInit2(strm, level, Z_DEFLATED, -global_tune_zlibwindowsize, global_tune_zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
 		deinit_comp_ctx(comp_ctx);
 		return -1;
 	}
@@ -521,7 +525,7 @@ static int deflate_init(struct comp_ctx **comp_ctx, int level)
 
 	strm = &(*comp_ctx)->strm;
 
-	if (deflateInit2(strm, level, Z_DEFLATED, global.tune.zlibwindowsize, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
+	if (deflateInit2(strm, level, Z_DEFLATED, global_tune_zlibwindowsize, global_tune_zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
 		deinit_comp_ctx(comp_ctx);
 		return -1;
 	}
@@ -619,7 +623,60 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 	return ret;
 }
 
+/* config parser for global "tune.zlibmemlevel" */
+static int zlib_parse_global_memlevel(char **args, int section_type, struct proxy *curpx,
+                                      struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+        if (too_many_args(1, args, err, NULL))
+                return -1;
+
+        if (*(args[1]) == 0) {
+                memprintf(err, "'%s' expects a numeric value between 1 and 9.", args[0]);
+                return -1;
+        }
+
+	global_tune_zlibmemlevel = atoi(args[1]);
+	if (global_tune_zlibmemlevel < 1 || global_tune_zlibmemlevel > 9) {
+                memprintf(err, "'%s' expects a numeric value between 1 and 9.", args[0]);
+                return -1;
+	}
+        return 0;
+}
+
+
+/* config parser for global "tune.zlibwindowsize" */
+static int zlib_parse_global_windowsize(char **args, int section_type, struct proxy *curpx,
+                                        struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+        if (too_many_args(1, args, err, NULL))
+                return -1;
+
+        if (*(args[1]) == 0) {
+                memprintf(err, "'%s' expects a numeric value between 8 and 15.", args[0]);
+                return -1;
+        }
+
+	global_tune_zlibwindowsize = atoi(args[1]);
+	if (global_tune_zlibwindowsize < 8 || global_tune_zlibwindowsize > 15) {
+                memprintf(err, "'%s' expects a numeric value between 8 and 15.", args[0]);
+                return -1;
+	}
+        return 0;
+}
+
 #endif /* USE_ZLIB */
+
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+#ifdef USE_ZLIB
+	{ CFG_GLOBAL, "tune.zlib.memlevel",   zlib_parse_global_memlevel },
+	{ CFG_GLOBAL, "tune.zlib.windowsize", zlib_parse_global_windowsize },
+#endif
+	{ 0, NULL, NULL }
+}};
 
 __attribute__((constructor))
 static void __comp_fetch_init(void)
@@ -630,6 +687,9 @@ static void __comp_fetch_init(void)
 #ifdef USE_SLZ
 	slz_make_crc_table();
 	slz_prepare_dist_table();
+#endif
+#if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
+	global.tune.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
 #endif
 #ifdef USE_ZLIB
 	memprintf(&ptr, "Built with zlib version : " ZLIB_VERSION);
@@ -646,4 +706,5 @@ static void __comp_fetch_init(void)
 		memprintf(&ptr, "%s none", ptr);
 
 	hap_register_build_opts(ptr, 1);
+	cfg_register_keywords(&cfg_kws);
 }

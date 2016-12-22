@@ -123,11 +123,7 @@ struct global global = {
 	.nbproc = 1,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
-#if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
-	.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
-#else
 	.maxzlibmem = 0,
-#endif
 	.comp_rate_lim = 0,
 	.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED,
 	.unix_bind = {
@@ -150,10 +146,6 @@ struct global global = {
 		.ssl_max_record = DEFAULT_SSL_MAX_RECORD,
 #endif
 		.ssl_ctx_cache = DEFAULT_SSL_CTX_CACHE,
-#endif
-#ifdef USE_ZLIB
-		.zlibmemlevel = 8,
-		.zlibwindowsize = MAX_WBITS,
 #endif
 		.comp_maxlevel = 1,
 #ifdef DEFAULT_IDLE_TIMER
