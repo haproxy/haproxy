@@ -4248,11 +4248,26 @@ char *ssl_sock_get_version(struct connection *conn)
 	return (char *)SSL_get_version(conn->xprt_ctx);
 }
 
+/* Sets advertised SNI for outgoing connections. Please set <hostname> to NULL
+ * to disable SNI.
+ */
 void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	char *prev_name;
+
 	if (!ssl_sock_is_ssl(conn))
 		return;
+
+	/* if the SNI changes, we must destroy the reusable context so that a
+	 * new connection will present a new SNI. As an optimization we could
+	 * later imagine having a small cache of ssl_ctx to hold a few SNI per
+	 * server.
+	 */
+	prev_name = (char *)SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
+	if ((!prev_name && hostname) ||
+	    (prev_name && (!hostname || strcmp(hostname, prev_name) != 0)))
+		SSL_set_session(conn->xprt_ctx, NULL);
 
 	SSL_set_tlsext_host_name(conn->xprt_ctx, hostname);
 #endif
