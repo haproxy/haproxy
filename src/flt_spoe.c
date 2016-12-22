@@ -1557,8 +1557,6 @@ create_spoe_appctx(struct spoe_config *conf)
 	struct session     *sess;
 	struct task        *task;
 	struct stream      *strm;
-	struct listener    *l = LIST_NEXT(&conf->agent_fe.conf.listeners,
-					  struct listener *, by_fe);
 
 	if ((appctx = appctx_new(&spoe_applet)) == NULL)
 		goto out_error;
@@ -1575,7 +1573,7 @@ create_spoe_appctx(struct spoe_config *conf)
 	APPCTX_SPOE(appctx).max_frame_size  = global.tune.bufsize;
 	task_wakeup(APPCTX_SPOE(appctx).task, TASK_WOKEN_INIT);
 
-	sess = session_new(&conf->agent_fe, l, &appctx->obj_type);
+	sess = session_new(&conf->agent_fe, NULL, &appctx->obj_type);
 	if (!sess)
 		goto out_free_spoe;
 
@@ -1585,8 +1583,6 @@ create_spoe_appctx(struct spoe_config *conf)
 	if ((strm = stream_new(sess, task, &appctx->obj_type)) == NULL)
 		goto out_free_task;
 
-	strm->target         = sess->listener->default_target;
-	strm->req.analysers |= sess->listener->analysers;
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */
@@ -2306,7 +2302,6 @@ static int
 spoe_init(struct proxy *px, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
-	struct listener   *l;
 
         memset(&conf->agent_fe, 0, sizeof(conf->agent_fe));
         init_new_proxy(&conf->agent_fe);
@@ -2324,26 +2319,12 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 	conf->agent_fe.default_target = &spoe_applet.obj_type;
 	conf->agent_fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
 
-	if ((l = calloc(1, sizeof(*l))) == NULL) {
-		Alert("spoe_init : out of memory.\n");
-		goto out_error;
-	}
-	l->obj_type = OBJ_TYPE_LISTENER;
-        l->obj_type  = OBJ_TYPE_LISTENER;
-        l->frontend  = &conf->agent_fe;
-        l->state     = LI_READY;
-        l->analysers = conf->agent_fe.fe_req_ana;
-	LIST_ADDQ(&conf->agent_fe.conf.listeners, &l->by_fe);
-
 	if (!sighandler_registered) {
 		signal_register_fct(0, sig_stop_spoe, 0);
 		sighandler_registered = 1;
 	}
 
 	return 0;
-
- out_error:
-	return -1;
 }
 
 /* Free ressources allocated by the SPOE filter. */
