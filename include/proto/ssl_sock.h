@@ -43,12 +43,12 @@ int ssl_sock_is_ssl(struct connection *conn)
 }
 
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
-int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px);
-int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *px);
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx);
+int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
+int ssl_sock_prepare_srv_ctx(struct server *srv);
 void ssl_sock_free_srv_ctx(struct server *srv);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
-int ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px);
+int ssl_sock_load_ca(struct bind_conf *bind_conf);
 void ssl_sock_free_ca(struct bind_conf *bind_conf);
 const char *ssl_sock_get_cipher_name(struct connection *conn);
 const char *ssl_sock_get_proto_version(struct connection *conn);

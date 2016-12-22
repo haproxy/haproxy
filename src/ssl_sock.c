@@ -2030,7 +2030,7 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
  *     0 on success
  *     1 on failure
  */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, char **sni_filter, int fcount, char **err)
 {
 	char fp[MAXPATHLEN+1] = {0};
 	int n = 0;
@@ -2238,7 +2238,7 @@ end:
 }
 #else
 /* This is a dummy, that just logs an error and returns error */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, char **sni_filter, int fcount, char **err)
 {
 	memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 	          err && *err ? *err : "", path, strerror(errno));
@@ -2352,7 +2352,7 @@ end:
 	return ret;
 }
 
-static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, char **sni_filter, int fcount, char **err)
 {
 	int ret;
 	SSL_CTX *ctx;
@@ -2440,7 +2440,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	return 0;
 }
 
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 {
 	struct dirent **de_list;
 	int i, n;
@@ -2457,7 +2457,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	if (stat(path, &buf) == 0) {
 		dir = opendir(path);
 		if (!dir)
-			return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, 0, err);
+			return ssl_sock_load_cert_file(path, bind_conf, NULL, 0, err);
 
 		/* strip trailing slashes, including first one */
 		for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -2517,7 +2517,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						ssl_sock_load_multi_cert(fp, bind_conf, curproxy, NULL, 0, err);
+						ssl_sock_load_multi_cert(fp, bind_conf, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -2525,7 +2525,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 				}
 
 #endif
-				cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, 0, err);
+				cfgerr += ssl_sock_load_cert_file(fp, bind_conf, NULL, 0, err);
 ignore_entry:
 				free(de);
 			}
@@ -2535,7 +2535,7 @@ ignore_entry:
 		return cfgerr;
 	}
 
-	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, curproxy, NULL, 0, err);
+	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -2556,7 +2556,7 @@ static int ssl_initialize_random()
 	return random_initialized;
 }
 
-int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, char **err)
 {
 	char thisline[LINESIZE*CRTLIST_FACTOR];
 	FILE *f;
@@ -2620,9 +2620,9 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			continue;
 
 		if (stat(args[0], &buf) == 0) {
-			cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, &args[1], arg-1, err);
+			cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, &args[1], arg-1, err);
 		} else {
-			cfgerr = ssl_sock_load_multi_cert(args[0], bind_conf, curproxy, &args[1], arg-1, err);
+			cfgerr = ssl_sock_load_multi_cert(args[0], bind_conf, &args[1], arg-1, err);
 		}
 
 		if (cfgerr) {
@@ -2670,8 +2670,9 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #define SSL_MODE_SMALL_BUFFERS 0
 #endif
 
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *curproxy)
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx)
 {
+	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
 	int verify = SSL_VERIFY_NONE;
 	long ssloptions =
@@ -3022,8 +3023,9 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 }
 
 /* prepare ssl context from servers options. Returns an error count */
-int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
+int ssl_sock_prepare_srv_ctx(struct server *srv)
 {
+	struct proxy *curproxy = srv->proxy;
 	int cfgerr = 0;
 	long options =
 		SSL_OP_ALL | /* all known workarounds for bugs */
@@ -3184,7 +3186,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
  * be NULL, in which case nothing is done. Returns the number of errors
  * encountered.
  */
-int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
+int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 {
 	struct ebmb_node *node;
 	struct sni_ctx *sni;
@@ -3197,7 +3199,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 	global.ssl_used_frontend = 1;
 
 	if (bind_conf->default_ctx)
-		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ctx, px);
+		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ctx);
 
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
@@ -3205,7 +3207,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 		if (!sni->order && sni->ctx != bind_conf->default_ctx)
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
+			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx);
 		node = ebmb_next(node);
 	}
 
@@ -3215,7 +3217,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 		if (!sni->order && sni->ctx != bind_conf->default_ctx)
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
+			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx);
 		node = ebmb_next(node);
 	}
 	return err;
@@ -3267,8 +3269,9 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 
 /* Load CA cert file and private key used to generate certificates */
 int
-ssl_sock_load_ca(struct bind_conf *bind_conf, struct proxy *px)
+ssl_sock_load_ca(struct bind_conf *bind_conf)
 {
+	struct proxy *px = bind_conf->frontend;
 	FILE     *fp;
 	X509     *cacert = NULL;
 	EVP_PKEY *capkey = NULL;
@@ -5196,13 +5199,13 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 			return ERR_ALERT | ERR_FATAL;
 		}
 		snprintf(path, sizeof(path), "%s/%s",  global.crt_base, args[cur_arg + 1]);
-		if (ssl_sock_load_cert(path, conf, px, err) > 0)
+		if (ssl_sock_load_cert(path, conf, err) > 0)
 			return ERR_ALERT | ERR_FATAL;
 
 		return 0;
 	}
 
-	if (ssl_sock_load_cert(args[cur_arg + 1], conf, px, err) > 0)
+	if (ssl_sock_load_cert(args[cur_arg + 1], conf, err) > 0)
 		return ERR_ALERT | ERR_FATAL;
 
 	return 0;
@@ -5216,7 +5219,7 @@ static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err) > 0) {
+	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, err) > 0) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}

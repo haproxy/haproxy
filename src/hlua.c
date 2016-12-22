@@ -7698,7 +7698,7 @@ void hlua_init(void)
 	}
 
 	/* Initialize SSL server. */
-	ssl_sock_prepare_srv_ctx(&socket_ssl, &socket_proxy);
+	ssl_sock_prepare_srv_ctx(&socket_ssl);
 #endif
 
 	RESET_SAFE_LJMP(gL.T);

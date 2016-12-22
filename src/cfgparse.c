@@ -8289,7 +8289,7 @@ out_uri_auth_compat:
 
 #ifdef USE_OPENSSL
 			if (newsrv->use_ssl || newsrv->check.use_ssl)
-				cfgerr += ssl_sock_prepare_srv_ctx(newsrv, curproxy);
+				cfgerr += ssl_sock_prepare_srv_ctx(newsrv);
 #endif /* USE_OPENSSL */
 
 			/* set the check type on the server */
@@ -8750,10 +8750,10 @@ out_uri_auth_compat:
 			}
 
 			/* initialize all certificate contexts */
-			cfgerr += ssl_sock_prepare_all_ctx(bind_conf, curproxy);
+			cfgerr += ssl_sock_prepare_all_ctx(bind_conf);
 
 			/* initialize CA variables if the certificates generation is enabled */
-			cfgerr += ssl_sock_load_ca(bind_conf, curproxy);
+			cfgerr += ssl_sock_load_ca(bind_conf);
 		}
 #endif /* USE_OPENSSL */
 
