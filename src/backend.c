@@ -1607,7 +1607,9 @@ smp_fetch_nbsrv(const struct arg *args, struct sample *smp, const char *kw, void
 	smp->data.type = SMP_T_SINT;
 	px = args->data.prx;
 
-	if (px->srv_act)
+	if (px->state == PR_STSTOPPED)
+		smp->data.u.sint = 0;
+	else if (px->srv_act)
 		smp->data.u.sint = px->srv_act;
 	else if (px->lbprm.fbck)
 		smp->data.u.sint = 1;
