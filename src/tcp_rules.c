@@ -168,7 +168,7 @@ resume_execution:
 
 				s->be->be_counters.denied_req++;
 				sess->fe->fe_counters.denied_req++;
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					sess->listener->counters->denied_req++;
 
 				if (!(s->flags & SF_ERR_MASK))
@@ -346,7 +346,7 @@ resume_execution:
 
 				s->be->be_counters.denied_resp++;
 				sess->fe->fe_counters.denied_resp++;
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					sess->listener->counters->denied_resp++;
 
 				if (!(s->flags & SF_ERR_MASK))
@@ -428,7 +428,7 @@ int tcp_exec_l4_rules(struct session *sess)
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				sess->fe->fe_counters.denied_conn++;
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					sess->listener->counters->denied_conn++;
 
 				result = 0;
@@ -515,7 +515,7 @@ int tcp_exec_l5_rules(struct session *sess)
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				sess->fe->fe_counters.denied_sess++;
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					sess->listener->counters->denied_sess++;
 
 				result = 0;
