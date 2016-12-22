@@ -28,7 +28,6 @@
 #include <types/proxy.h>
 #include <types/stream_interface.h>
 
-extern struct xprt_ops ssl_sock;
 extern int sslconns;
 extern int totalsslconns;
 
@@ -36,7 +35,7 @@ extern int totalsslconns;
 static inline
 int ssl_sock_is_ssl(struct connection *conn)
 {
-	if (!conn || conn->xprt != &ssl_sock || !conn->xprt_ctx)
+	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
 		return 0;
 	else
 		return 1;

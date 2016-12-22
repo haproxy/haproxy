@@ -130,6 +130,7 @@ enum {
 
 int sslconns = 0;
 int totalsslconns = 0;
+static struct xprt_ops ssl_sock;
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
@@ -6648,7 +6649,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 /* transport-layer operations for SSL sockets */
-struct xprt_ops ssl_sock = {
+static struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
 	.rcv_buf  = ssl_sock_to_buf,
 	.rcv_pipe = NULL,

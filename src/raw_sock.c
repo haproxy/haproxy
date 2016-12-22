@@ -406,7 +406,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 
 /* transport-layer operations for RAW sockets */
-struct xprt_ops raw_sock = {
+static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
 	.rcv_buf  = raw_sock_to_buf,
 #if defined(CONFIG_HAP_LINUX_SPLICE)

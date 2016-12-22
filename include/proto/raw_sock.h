@@ -24,8 +24,6 @@
 
 #include <types/stream_interface.h>
 
-extern struct xprt_ops raw_sock;
-
 #endif /* _PROTO_RAW_SOCK_H */
 
 /*
