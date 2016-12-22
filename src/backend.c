@@ -51,7 +51,6 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/stream.h>
-#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -1150,7 +1149,7 @@ int connect_server(struct stream *s)
 		}
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
+			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), xprt_get(XPRT_RAW));
 			if (!objt_conn(s->si[1].end) || !objt_conn(s->si[1].end)->ctrl)
 				return SF_ERR_INTERNAL;
 		}

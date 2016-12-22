@@ -33,7 +33,6 @@
 #include <proto/port_range.h>
 #include <proto/protocol.h>
 #include <proto/queue.h>
-#include <proto/raw_sock.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -1063,7 +1062,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
  skip_name_resolution:
 			newsrv->addr = *sk;
-			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = &raw_sock;
+			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = xprt_get(XPRT_RAW);
 
 			if (!protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",

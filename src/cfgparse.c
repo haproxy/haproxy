@@ -80,7 +80,6 @@
 #include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream.h>
-#include <proto/raw_sock.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
@@ -2009,7 +2008,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		newpeer->addr = *sk;
 		newpeer->proto = proto;
-		newpeer->xprt  = &raw_sock;
+		newpeer->xprt  = xprt_get(XPRT_RAW);
 		newpeer->sock_init_arg = NULL;
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
@@ -2031,7 +2030,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->conf.args.line = curpeers->peers_fe->conf.line = linenum;
 				peers_setup_frontend(curpeers->peers_fe);
 
-				bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], &raw_sock);
+				bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
 
 				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
 					if (errmsg && *errmsg) {
@@ -2439,7 +2438,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 
 		newmailer->addr = *sk;
 		newmailer->proto = proto;
-		newmailer->xprt  = &raw_sock;
+		newmailer->xprt  = xprt_get(XPRT_RAW);
 		newmailer->sock_init_arg = NULL;
 	}
 	else if (strcmp(args[0], "timeout") == 0) {
@@ -2880,7 +2879,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		bind_conf = bind_conf_alloc(curproxy, file, linenum, args[1], &raw_sock);
+		bind_conf = bind_conf_alloc(curproxy, file, linenum, args[1], xprt_get(XPRT_RAW));
 
 		/* use default settings for unix sockets */
 		bind_conf->ux.uid  = global.unix_bind.ux.uid;

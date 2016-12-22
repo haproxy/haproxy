@@ -44,7 +44,6 @@
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
-#include <proto/raw_sock.h>
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
@@ -7629,7 +7628,7 @@ void hlua_init(void)
 	socket_tcp.agent.health = socket_tcp.agent.rise;   /* socket, but will fall down at first failure */
 	socket_tcp.agent.server = &socket_tcp;
 
-	socket_tcp.xprt = &raw_sock;
+	socket_tcp.xprt = xprt_get(XPRT_RAW);
 
 #ifdef USE_OPENSSL
 	/* Init TCP server: unchanged parameters */
@@ -7676,7 +7675,7 @@ void hlua_init(void)
 	socket_ssl.agent.server = &socket_ssl;
 
 	socket_ssl.use_ssl = 1;
-	socket_ssl.xprt = &ssl_sock;
+	socket_ssl.xprt = xprt_get(XPRT_SSL);
 
 	for (idx = 0; args[idx] != NULL; idx++) {
 		if ((kw = srv_find_kw(args[idx])) != NULL) { /* Maybe it's registered server keyword */

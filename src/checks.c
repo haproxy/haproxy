@@ -41,11 +41,6 @@
 #include <types/dns.h>
 #include <types/stats.h>
 
-#ifdef USE_OPENSSL
-#include <types/ssl_sock.h>
-#include <proto/ssl_sock.h>
-#endif /* USE_OPENSSL */
-
 #include <proto/backend.h>
 #include <proto/checks.h>
 #include <proto/stats.h>
@@ -57,7 +52,6 @@
 #include <proto/proto_tcp.h>
 #include <proto/protocol.h>
 #include <proto/proxy.h>
-#include <proto/raw_sock.h>
 #include <proto/server.h>
 #include <proto/signal.h>
 #include <proto/stream_interface.h>
@@ -2738,16 +2732,12 @@ static void tcpcheck_main(struct connection *conn)
 			else if (check->port)
 				set_host_port(&conn->addr.to, check->port);
 
-#ifdef USE_OPENSSL
 			if (check->current_step->conn_opts & TCPCHK_OPT_SSL) {
-				xprt = &ssl_sock;
+				xprt = xprt_get(XPRT_SSL);
 			}
 			else {
-				xprt = &raw_sock;
+				xprt = xprt_get(XPRT_RAW);
 			}
-#else  /* USE_OPENSSL */
-			xprt = &raw_sock;
-#endif /* USE_OPENSSL */
 			conn_prepare(conn, proto, xprt);
 
 			ret = SF_ERR_INTERNAL;
