@@ -39,6 +39,7 @@
 /* referenced below */
 struct connection;
 struct buffer;
+struct server;
 struct pipe;
 
 /* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
@@ -222,6 +223,8 @@ struct xprt_ops {
 	int  (*init)(struct connection *conn);      /* initialize the transport layer */
 	int  (*prepare_bind_conf)(struct bind_conf *conf); /* prepare a whole bind_conf */
 	void (*destroy_bind_conf)(struct bind_conf *conf); /* destroy a whole bind_conf */
+	int  (*prepare_srv)(struct server *srv);    /* prepare a server context */
+	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
 	char name[8];                               /* transport layer name, zero-terminated */
 };
 
