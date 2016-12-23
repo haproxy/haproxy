@@ -15491,6 +15491,26 @@ frontend, 3 control points are reported under the form "Tw/Tc/Tt", and in HTTP
 mode, 5 control points are reported under the form "TR/Tw/Tc/Tr/Ta". In
 addition, three other measures are provided, "Th", "Ti", and "Tq".
 
+Timings events in HTTP mode:
+
+                 first request               2nd request
+      |<-------------------------------->|<-------------- ...
+      t         tr                       t    tr ...
+   ---|----|----|----|----|----|----|----|----|--
+      : Th   Ti   TR   Tw   Tc   Tr   Td : Ti   ...
+      :<---- Tq ---->:                   :
+      :<-------------- Tt -------------->:
+                :<--------- Ta --------->:
+
+Timings events in TCP mode:
+
+           TCP session
+      |<----------------->|
+      t                   t
+   ---|----|----|----|----|---
+      | Th   Tw   Tc   Td |
+      |<------ Tt ------->|
+
   - Th: total time to accept tcp connection and execute handshakes for low level
     protocols. Currently, these protocoles are proxy-protocol and SSL. This may
     only happen once during the whole connection's lifetime. A large time here
