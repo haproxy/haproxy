@@ -1016,14 +1016,16 @@ int hlua_match_addr(lua_State *L)
 			return 1;
 		}
 	} else {
-		if (((addr1->addr.v6.ip.s6_addr32[0] & addr2->addr.v6.mask.s6_addr32[0]) ==
-		     (addr2->addr.v6.ip.s6_addr32[0] & addr1->addr.v6.mask.s6_addr32[0])) &&
-		    ((addr1->addr.v6.ip.s6_addr32[1] & addr2->addr.v6.mask.s6_addr32[1]) ==
-		     (addr2->addr.v6.ip.s6_addr32[1] & addr1->addr.v6.mask.s6_addr32[1])) &&
-		    ((addr1->addr.v6.ip.s6_addr32[2] & addr2->addr.v6.mask.s6_addr32[2]) ==
-		     (addr2->addr.v6.ip.s6_addr32[2] & addr1->addr.v6.mask.s6_addr32[2])) &&
-		    ((addr1->addr.v6.ip.s6_addr32[3] & addr2->addr.v6.mask.s6_addr32[3]) ==
-		     (addr2->addr.v6.ip.s6_addr32[3] & addr1->addr.v6.mask.s6_addr32[3]))) {
+		int i;
+
+		for (i = 0; i < 16; i += 4) {
+			if ((*(uint32_t *)&addr1->addr.v6.ip.s6_addr[i] &
+			     *(uint32_t *)&addr2->addr.v6.mask.s6_addr[i]) !=
+			    (*(uint32_t *)&addr2->addr.v6.ip.s6_addr[i] &
+			     *(uint32_t *)&addr1->addr.v6.mask.s6_addr[i]))
+				break;
+		}
+		if (i == 16) {
 			lua_pushboolean(L, 1);
 			return 1;
 		}
