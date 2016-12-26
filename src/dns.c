@@ -782,19 +782,23 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	 *
 	 * For these three priorities, a score is calculated. The
 	 * weight are:
-	 *  4 - prefered netwok ip version.
-	 *  2 - prefered network.
+	 *  8 - prefered netwok ip version.
+	 *  4 - prefered network.
+	 *  2 - if the ip in the record is not affected to any other server in the same backend (duplication)
 	 *  1 - current ip.
 	 * The result with the biggest score is returned.
 	 */
 	max_score = -1;
 	for (i = 0; i < rec_nb; i++) {
+		struct server *srv, *tmpsrv;
+		struct proxy *be;
+		int record_ip_already_affected = 0;
 
 		score = 0;
 
 		/* Check for prefered ip protocol. */
 		if (rec[i].type == family_priority)
-			score += 4;
+			score += 8;
 
 		/* Check for prefered network. */
 		for (j = 0; j < resol->opts->pref_net_nb; j++) {
@@ -811,10 +815,42 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			     in_net_ipv6(rec[i].ip,
 			                 &resol->opts->pref_net[j].mask.in6,
 			                 &resol->opts->pref_net[j].addr.in6))) {
-				score += 2;
+				score += 4;
 				break;
 			}
 		}
+
+		/* Check if the IP found in the record is already affected to an other server. */
+		srv = resol->requester;
+		be = srv->proxy;
+		for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
+			/* We want to compare the IP in the record with the IP of the servers in the
+			 * same backend, only if:
+			 *   * DNS resolution is enabled on the server
+			 *   * the hostname used for the resolution by our server is the same than the
+			 *     one used for the server found in the backend
+			 *   * the server found in the backend is not our current server
+			 */
+			if ((tmpsrv->resolution == NULL) ||
+			    (srv->resolution->hostname_dn_len != tmpsrv->resolution->hostname_dn_len) ||
+			    (strcmp(srv->resolution->hostname_dn, tmpsrv->resolution->hostname_dn) != 0) ||
+			    (srv->puid == tmpsrv->puid))
+				continue;
+
+			/* At this point, we have 2 different servers using the same DNS hostname
+			 * for their respective resolution.
+			 */
+			if (rec[i].type == tmpsrv->addr.ss_family &&
+			    ((tmpsrv->addr.ss_family == AF_INET &&
+			      memcmp(rec[i].ip, &((struct sockaddr_in *)&tmpsrv->addr)->sin_addr, 4) == 0) ||
+			     (tmpsrv->addr.ss_family == AF_INET6 &&
+			      memcmp(rec[i].ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
+				record_ip_already_affected = 1;
+				break;
+			}
+		}
+		if (!record_ip_already_affected)
+			score += 2;
 
 		/* Check for current ip matching. */
 		if (rec[i].type == currentip_sin_family &&
@@ -827,8 +863,9 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 		} else
 			currentip_sel = 0;
 
+
 		/* Keep the address if the score is better than the previous
-		 * score. The maximum score is 7, if this value is reached,
+		 * score. The maximum score is 15, if this value is reached,
 		 * we break the parsing. Implicitly, this score is reached
 		 * the ip selected is the current ip.
 		 */
@@ -838,7 +875,7 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			else
 				newip6 = rec[i].ip;
 			currentip_found = currentip_sel;
-			if (score == 7)
+			if (score == 15)
 				return DNS_UPD_NO;
 			max_score = score;
 		}
