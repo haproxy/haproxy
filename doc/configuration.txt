@@ -12806,6 +12806,24 @@ xor(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+xxh32([<seed>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the 32-bit
+  variant of the XXHash hash function. This hash supports a seed which defaults
+  to zero but a different value maybe passed as the <seed> argument. This hash
+  is known to be very good and very fast so it can be used to hash URLs and/or
+  URL parameters for use as stick-table keys to collect statistics with a low
+  collision rate, though care must be taken as the algorithm is not considered
+  as cryptographically secure.
+
+xxh64([<seed>])
+  Hashes a binary input sample into a signed 64-bit quantity using the 64-bit
+  variant of the XXHash hash function. This hash supports a seed which defaults
+  to zero but a different value maybe passed as the <seed> argument. This hash
+  is known to be very good and very fast so it can be used to hash URLs and/or
+  URL parameters for use as stick-table keys to collect statistics with a low
+  collision rate, though care must be taken as the algorithm is not considered
+  as cryptographically secure.
+
 
 7.3.2. Fetching samples from internal states
 --------------------------------------------
