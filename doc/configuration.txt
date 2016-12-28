@@ -1805,7 +1805,7 @@ backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
 bind-process                              X          X         X         X
-block                                     -          X         X         X
+block                       (deprecated)  -          X         X         X
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
@@ -2468,7 +2468,7 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   See also : "nbproc" in global section, and "process" in section 5.1.
 
 
-block { if | unless } <condition>
+block { if | unless } <condition> (deprecated)
   Block a layer 7 request if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -2479,6 +2479,9 @@ block { if | unless } <condition>
   typically used to deny access to certain sensitive resources if some
   conditions are met or not met. There is no fixed limit to the number of
   "block" statements per instance.
+
+  This form is deprecated, do not use it in any new configuration, use the new
+  "http-request deny" instead.
 
   Example:
         acl invalid_src  src          0.0.0.0/7 224.0.0.0/3
