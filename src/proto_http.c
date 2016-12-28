@@ -343,7 +343,7 @@ const char *get_reason(unsigned int status)
 	case 499: return "client has closed connection";
 	case 500: return "Internal Server Error";
 	case 501: return "Not Implemented";
-	case 502: return "Bad Gateway ou Proxy Error";
+	case 502: return "Bad Gateway or Proxy Error";
 	case 503: return "Service Unavailable";
 	case 504: return "Gateway Time-out";
 	case 505: return "HTTP Version not supported";
