@@ -10248,10 +10248,14 @@ crt-ignore-err <errors>
 
 crt-list <file>
   This setting is only available when support for OpenSSL was built in. It
-  designates a list of PEM file with an optional list of SNI filter per
-  certificate, with the following format for each line :
+  designates a list of PEM file with an optional ssl configuration and a SNI
+  filter per certificate, with the following format for each line :
 
-        <crtfile> [[!]<snifilter> ...]
+        <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
+
+  sslbindconf support "npn", "alpn", "verify", "ca_file", "crl_file", "ecdhe",
+  "ciphers" configuration and ssl options (see "ssl-default-bind-options").
+  It override the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
   only useful in combination with a wildcard filter to exclude a particular SNI.
@@ -10265,6 +10269,12 @@ crt-list <file>
   Multi-cert bundling (see "crt") is supported with crt-list, as long as only
   the base name is given in the crt-list. SNI filter will do the same work on
   all bundled certificates.
+
+  crt-list file example:
+        cert1.pem
+        cert2.pem [npn h2,http/1.1]
+        certW.pem                   *.domain.tld !secure.domain.tld
+        certS.pem [ecdhe secp521r1 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It

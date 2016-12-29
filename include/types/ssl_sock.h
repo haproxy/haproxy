@@ -22,6 +22,7 @@
 #ifndef _TYPES_SSL_SOCK_H
 #define _TYPES_SSL_SOCK_H
 
+#include <types/listener.h>
 #include <openssl/ssl.h>
 #include <ebmbtree.h>
 
@@ -29,6 +30,7 @@ struct sni_ctx {
 	SSL_CTX *ctx;             /* context associated to the certificate */
 	int order;                /* load order for the certificate */
 	int neg;                  /* reject if match */
+	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
 	struct ebmb_node name;    /* node holding the servername value */
 };
 

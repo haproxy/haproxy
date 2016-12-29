@@ -115,22 +115,34 @@ enum li_state {
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
 #endif
 
+/* ssl "bind" settings */
+struct ssl_bind_conf {
+#ifdef USE_OPENSSL
+#ifdef OPENSSL_NPN_NEGOTIATED
+	char *npn_str;             /* NPN protocol string */
+	int npn_len;               /* NPN protocol string length */
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	char *alpn_str;            /* ALPN protocol string */
+	int alpn_len;              /* ALPN protocol string length */
+#endif
+	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
+	char *ca_file;             /* CAfile to use on verify */
+	char *crl_file;            /* CRLfile to use on verify */
+	char *ciphers;             /* cipher suite to use if non-null */
+	char *ecdhe;               /* named curve to use for ECDHE */
+	int ssl_options;           /* ssl options */
+#endif
+};
+
 /* "bind" line settings */
 struct bind_conf {
 #ifdef USE_OPENSSL
-	char *ca_file;             /* CAfile to use on verify */
+	struct ssl_bind_conf ssl_conf; /* ssl conf for ctx setting */
 	unsigned long long ca_ignerr;  /* ignored verify errors in handshake if depth > 0 */
 	unsigned long long crt_ignerr; /* ignored verify errors in handshake if depth == 0 */
-	char *ciphers;             /* cipher suite to use if non-null */
-	char *crl_file;            /* CRLfile to use on verify */
-	char *ecdhe;               /* named curve to use for ECDHE */
-	int ssl_options;           /* ssl options */
-	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
-	char *npn_str;             /* NPN protocol string */
-	int npn_len;               /* NPN protocol string length */
-	char *alpn_str;            /* ALPN protocol string */
-	int alpn_len;              /* ALPN protocol string length */
+	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
@@ -211,6 +223,11 @@ struct listener {
 struct bind_kw {
 	const char *kw;
 	int (*parse)(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err);
+	int skip; /* nb of args to skip */
+};
+struct ssl_bind_kw {
+	const char *kw;
+	int (*parse)(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err);
 	int skip; /* nb of args to skip */
 };
 
