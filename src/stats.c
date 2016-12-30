@@ -636,7 +636,8 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 
 		if (flags & ST_SHOWADMIN)
 			chunk_appendf(out,
-			              "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
+			              "<td><input class='%s-checkbox' type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
+			              field_str(stats, ST_F_PXNAME),
 			              field_str(stats, ST_F_SVNAME));
 
 		chunk_appendf(out,
@@ -1642,7 +1643,12 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 
 	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
 		/* Column heading for Enable or Disable server */
-		chunk_appendf(&trash, "<th rowspan=2 width=1></th>");
+        chunk_appendf(&trash,
+                "<th rowspan=2 width=1><input type=\"checkbox\" \
+                onclick=\"for(c in document.getElementsByClassName('%s-checkbox')) \
+                document.getElementsByClassName('%s-checkbox').item(c).checked = this.checked\"></th>",
+                px->id,
+                px->id);
 	}
 
 	chunk_appendf(&trash,
