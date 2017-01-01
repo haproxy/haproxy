@@ -135,6 +135,7 @@ struct act_rule {
 		} cap;
 		struct {
 			unsigned int code;     /* HTTP status code */
+			const char *reason;    /* HTTP status reason */
 		} status;
 		struct {
 			struct sample_expr *expr;

@@ -4122,7 +4122,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-header <name> <fmt> | del-header <name> |
                 replace-header <name> <regex-match> <replace-fmt> |
                 replace-value <name> <regex-match> <replace-fmt> |
-                set-status <status> |
+                set-status <status> [reason <str>] |
                 set-log-level <level> | set-mark <mark> | set-tos <tos> |
                 add-acl(<file name>) <key fmt> |
                 del-acl(<file name>) <key fmt> |
@@ -4215,13 +4215,16 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
         Cache-Control: max-age=3600, private
 
     - "set-status" replaces the response status code with <status> which must
-      be an integer between 100 and 999. Note that the reason is automatically
-      adapted to the new code.
+      be an integer between 100 and 999. Optionally, a custom reason text can be
+      provided defined by <str>, or the default reason for the specified code
+      will be used as a fallback.
 
       Example:
 
         # return "431 Request Header Fields Too Large"
         http-response set-status 431
+        # return "503 Slow Down", custom reason
+        http-response set-status 503 reason "Slow Down".
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same

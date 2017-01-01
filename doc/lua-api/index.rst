@@ -1443,13 +1443,15 @@ HTTP class
   :param class_http http: The related http object.
   :param string uri: The new uri.
 
-.. js:function:: HTTP.res_set_status(http, status)
+.. js:function:: HTTP.res_set_status(http, status [, reason])
 
-  Rewrites the response status code with the parameter "code". Note that the
-  reason is automatically adapted to the new code.
+  Rewrites the response status code with the parameter "code".
+
+  If no custom reason is provided, it will be generated from the status.
 
   :param class_http http: The related http object.
   :param integer status: The new response status code.
+  :param string reason: The new response reason (optional).
 
 .. _txn_class:
 
@@ -2080,13 +2082,14 @@ AppletHTTP class
   AppletHTTP.headers["accept"][2] = "*/*, q=0.1"
 ..
 
-.. js:function:: AppletHTTP.set_status(applet, code)
+.. js:function:: AppletHTTP.set_status(applet, code [, reason])
 
   This function sets the HTTP status code for the response. The allowed code are
   from 100 to 599.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param integer code: the status code returned to the client.
+  :param string reason: the status reason returned to the client (optional).
 
 .. js:function:: AppletHTTP.add_header(applet, name, value)
 

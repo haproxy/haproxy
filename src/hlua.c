@@ -3591,6 +3591,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	lua_rawseti(L, -2, 0);
 	appctx->appctx = ctx;
 	appctx->appctx->ctx.hlua_apphttp.status = 200; /* Default status code returned. */
+	appctx->appctx->ctx.hlua_apphttp.reason = NULL; /* Use default reason based on status */
 	appctx->htxn.s = s;
 	appctx->htxn.p = px;
 
@@ -4119,6 +4120,7 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	int status = MAY_LJMP(luaL_checkinteger(L, 2));
+	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 
 	if (status < 100 || status > 599) {
 		lua_pushboolean(L, 0);
@@ -4126,6 +4128,7 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 	}
 
 	appctx->appctx->ctx.hlua_apphttp.status = status;
+	appctx->appctx->ctx.hlua_apphttp.reason = reason;
 	lua_pushboolean(L, 1);
 	return 1;
 }
@@ -4178,12 +4181,16 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	int hdr_connection = 0;
 	int hdr_contentlength = -1;
 	int hdr_chunked = 0;
+	const char *reason = appctx->appctx->ctx.hlua_apphttp.reason;
+
+	if (reason == NULL)
+		reason = get_reason(appctx->appctx->ctx.hlua_apphttp.status);
 
 	/* Use the same http version than the request. */
 	chunk_appendf(tmp, "HTTP/1.%c %d %s\r\n",
 	              appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11 ? '1' : '0',
 	              appctx->appctx->ctx.hlua_apphttp.status,
-	              get_reason(appctx->appctx->ctx.hlua_apphttp.status));
+	              reason);
 
 	/* Get the array associated to the field "response" in the object AppletHTTP. */
 	lua_pushvalue(L, 0);
@@ -4737,17 +4744,18 @@ static int hlua_http_req_set_uri(lua_State *L)
 	return 1;
 }
 
-/* This function set the response code. */
+/* This function set the response code & optionally reason. */
 static int hlua_http_res_set_status(lua_State *L)
 {
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	unsigned int code = MAY_LJMP(luaL_checkinteger(L, 2));
+	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 
 	/* Check if a valid response is parsed */
 	if (unlikely(htxn->s->txn->rsp.msg_state < HTTP_MSG_BODY))
 		return 0;
 
-	http_set_status(code, htxn->s);
+	http_set_status(code, reason, htxn->s);
 	return 0;
 }
 

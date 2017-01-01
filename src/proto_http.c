@@ -12454,14 +12454,14 @@ int http_replace_req_line(int action, const char *replace, int len,
 /* This function replace the HTTP status code and the associated message. The
  * variable <status> contains the new status code. This function never fails.
  */
-void http_set_status(unsigned int status, struct stream *s)
+void http_set_status(unsigned int status, const char *reason, struct stream *s)
 {
 	struct http_txn *txn = s->txn;
 	char *cur_ptr, *cur_end;
 	int delta;
 	char *res;
 	int c_l;
-	const char *msg;
+	const char *msg = reason;
 	int msg_len;
 
 	chunk_reset(&trash);
@@ -12472,9 +12472,10 @@ void http_set_status(unsigned int status, struct stream *s)
 	trash.str[c_l] = ' ';
 	trash.len = c_l + 1;
 
-	msg = get_reason(status);
+	/* Do we have a custom reason format string? */
+	if (msg == NULL)
+		msg = get_reason(status);
 	msg_len = strlen(msg);
-
 	strncpy(&trash.str[trash.len], msg, trash.size - trash.len);
 	trash.len += msg_len;
 
@@ -12520,7 +12521,7 @@ enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px
 enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
-	http_set_status(rule->arg.status.code, s);
+	http_set_status(rule->arg.status.code, rule->arg.status.reason, s);
 	return ACT_RET_CONT;
 }
 
@@ -12596,7 +12597,7 @@ enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struc
 
 	/* Check if an argument is available */
 	if (!*args[*orig_arg]) {
-		memprintf(err, "expects exactly 1 argument <status>");
+		memprintf(err, "expects 1 argument: <status>; or 3 arguments: <status> reason <fmt>");
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -12608,6 +12609,16 @@ enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struc
 	}
 
 	(*orig_arg)++;
+
+	/* set custom reason string */
+	rule->arg.status.reason = NULL; // If null, we use the default reason for the status code.
+	if (*args[*orig_arg] && strcmp(args[*orig_arg], "reason") == 0 &&
+	    (*args[*orig_arg + 1] && strcmp(args[*orig_arg + 1], "if") != 0 && strcmp(args[*orig_arg + 1], "unless") != 0)) {
+		(*orig_arg)++;
+		rule->arg.status.reason = strdup(args[*orig_arg]);
+		(*orig_arg)++;
+	}
+
 	return ACT_RET_PRS_OK;
 }
 

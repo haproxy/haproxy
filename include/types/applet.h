@@ -80,6 +80,7 @@ struct appctx {
 			int left_bytes;         /* The max amount of bytes that we can read. */
 			int flags;
 			int status;
+			const char *reason;
 			struct task *task;
 		} hlua_apphttp;                 /* used by the Lua HTTP services */
 		struct {
