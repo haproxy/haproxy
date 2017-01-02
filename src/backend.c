@@ -563,12 +563,14 @@ int assign_server(struct stream *s)
 	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
 	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
 	     ((s->be->options & PR_O_PREF_LAST) &&
+              (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
 	      (!s->be->max_ka_queue ||
 	       server_has_room(__objt_server(conn->target)) ||
 	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
 	    srv_is_usable(__objt_server(conn->target))) {
 		/* This stream was relying on a server in a previous request
-		 * and the proxy has "option prefer-last-server" set, so
+		 * and the proxy has "option prefer-last-server" set
+		 * and balance algorithm dont tell us to do otherwise, so
 		 * let's try to reuse the same server.
 		 */
 		srv = __objt_server(conn->target);
