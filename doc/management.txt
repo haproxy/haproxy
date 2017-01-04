@@ -1858,7 +1858,14 @@ show info [typed|json]
       (...)
 
   The format of JSON output is described in a schema which may be output
-  using "show schema json" (to be implemented).
+  using "show schema json".
+
+  The JSON output contains no extra whitespace in order to reduce the
+  volume of output. For human consumption passing the output through a
+  pretty printer may be helpful. Example :
+
+  $ echo "show info json" | socat /var/run/haproxy.sock stdio | \
+    python -m json.tool
 
   The JSON output contains no extra whitespace in order to reduce the
   volume of output. For human consumption passing the output through a
@@ -2137,7 +2144,14 @@ show stat [{<iid>|<proxy>} <type> <sid>] [typed|json]
         (...)
 
   The format of JSON output is described in a schema which may be output
-  using "show schema json" (to be implemented).
+  using "show schema json".
+
+  The JSON output contains no extra whitespace in order to reduce the
+  volume of output. For human consumption passing the output through a
+  pretty printer may be helpful. Example :
+
+  $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
+    python -m json.tool
 
   The JSON output contains no extra whitespace in order to reduce the
   volume of output. For human consumption passing the output through a
@@ -2245,6 +2259,21 @@ show tls-keys [id|*]
   can be used to update the TLS keys using "set ssl tls-key". If an ID is
   specified as parameter, it will dump the tickets, using * it will dump every
   keys from every references.
+
+show schema json
+  Dump the schema used for the output of "show info json" and "show stat json".
+
+  The contains no extra whitespace in order to reduce the volume of output.
+  For human consumption passing the output through a pretty printer may be
+  helpful. Example :
+
+  $ echo "show schema json" | socat /var/run/haproxy.sock stdio | \
+    python -m json.tool
+
+  The schema follows "JSON Schema" (json-schema.org) and accordingly
+  verifiers may be used to verify the output of "show info json" and "show
+  stat json" against the schema.
+
 
 shutdown frontend <frontend>
   Completely delete the specified frontend. All the ports it was bound to will

@@ -3299,6 +3299,234 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
+/* This function dumps the schema onto the stream interface's read buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ * No state is used.
+ *
+ * Integer values bouned to the range [-(2**53)+1, (2**53)-1] as
+ * per the recommendation for interoperable integers in section 6 of RFC 7159.
+ */
+static void stats_dump_json_schema(struct chunk *out)
+{
+
+	int old_len = out->len;
+
+	chunk_strcat(out,
+		     "{"
+		      "\"$schema\":\"http://json-schema.org/draft-04/schema#\","
+		      "\"oneOf\":["
+		       "{"
+			"\"title\":\"Info\","
+			"\"type\":\"array\","
+			"\"items\":{"
+			 "\"properties\":{"
+			  "\"title\":\"InfoItem\","
+			  "\"type\":\"object\","
+			  "\"field\":{\"$ref\":\"#/definitions/field\"},"
+			  "\"processNum\":{\"$ref\":\"#/definitions/processNum\"},"
+			  "\"tags\":{\"$ref\":\"#/definitions/tags\"},"
+			  "\"value\":{\"$ref\":\"#/definitions/typedValue\"}"
+			 "},"
+			 "\"required\":[\"field\",\"processNum\",\"tags\","
+				       "\"value\"]"
+			"}"
+		       "},"
+		       "{"
+			"\"title\":\"Stat\","
+			"\"type\":\"array\","
+			"\"items\":{"
+			 "\"title\":\"InfoItem\","
+			 "\"type\":\"object\","
+			 "\"properties\":{"
+			  "\"objType\":{"
+			   "\"enum\":[\"Frontend\",\"Backend\",\"Listener\","
+				     "\"Server\",\"Unknown\"]"
+			  "},"
+			  "\"proxyId\":{"
+			   "\"type\":\"integer\","
+			   "\"minimum\":0"
+			  "},"
+			  "\"id\":{"
+			   "\"type\":\"integer\","
+			   "\"minimum\":0"
+			  "},"
+			  "\"field\":{\"$ref\":\"#/definitions/field\"},"
+			  "\"processNum\":{\"$ref\":\"#/definitions/processNum\"},"
+			  "\"tags\":{\"$ref\":\"#/definitions/tags\"},"
+			  "\"typedValue\":{\"$ref\":\"#/definitions/typedValue\"}"
+			 "},"
+			 "\"required\":[\"objType\",\"proxyId\",\"id\","
+				       "\"field\",\"processNum\",\"tags\","
+				       "\"value\"]"
+			"}"
+		       "},"
+		       "{"
+			"\"title\":\"Error\","
+			"\"type\":\"object\","
+			"\"properties\":{"
+			 "\"errorStr\":{"
+			  "\"type\":\"string\""
+			 "},"
+			 "\"required\":[\"errorStr\"]"
+			"}"
+		       "}"
+		      "],"
+		      "\"definitions\":{"
+		       "\"field\":{"
+			"\"type\":\"object\","
+			"\"pos\":{"
+			 "\"type\":\"integer\","
+			 "\"minimum\":0"
+			"},"
+			"\"name\":{"
+			 "\"type\":\"string\""
+			"},"
+			"\"required\":[\"pos\",\"name\"]"
+		       "},"
+		       "\"processNum\":{"
+			"\"type\":\"integer\","
+			"\"minimum\":1"
+		       "},"
+		       "\"tags\":{"
+			"\"type\":\"object\","
+			"\"origin\":{"
+			 "\"type\":\"string\","
+			 "\"enum\":[\"Metric\",\"Status\",\"Key\","
+				   "\"Config\",\"Product\",\"Unknown\"]"
+			"},"
+			"\"nature\":{"
+			 "\"type\":\"string\","
+			 "\"enum\":[\"Gauge\",\"Limit\",\"Min\",\"Max\","
+				   "\"Rate\",\"Counter\",\"Duration\","
+				   "\"Age\",\"Time\",\"Name\",\"Output\","
+				   "\"Avg\", \"Unknown\"]"
+			"},"
+			"\"scope\":{"
+			 "\"type\":\"string\","
+			 "\"enum\":[\"Cluster\",\"Process\",\"Service\","
+				   "\"System\",\"Unknown\"]"
+			"},"
+			"\"required\":[\"origin\",\"nature\",\"scope\"]"
+		       "},"
+		       "\"typedValue\":{"
+			"\"type\":\"object\","
+			"\"oneOf\":["
+			 "{\"$ref\":\"#/definitions/typedValue/definitions/s32Value\"},"
+			 "{\"$ref\":\"#/definitions/typedValue/definitions/s64Value\"},"
+			 "{\"$ref\":\"#/definitions/typedValue/definitions/u32Value\"},"
+			 "{\"$ref\":\"#/definitions/typedValue/definitions/u64Value\"},"
+			 "{\"$ref\":\"#/definitions/typedValue/definitions/strValue\"}"
+			"],"
+			"\"definitions\":{"
+			 "\"s32Value\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"s32\"]"
+			   "},"
+			   "\"value\":{"
+			    "\"type\":\"integer\","
+			    "\"minimum\":-2147483648,"
+			    "\"maximum\":2147483647"
+			   "}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "},"
+			 "\"s64Value\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"s64\"]"
+			   "},"
+			   "\"value\":{"
+			    "\"type\":\"integer\","
+			    "\"minimum\":-9007199254740991,"
+			    "\"maximum\":9007199254740991"
+			   "}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "},"
+			 "\"u32Value\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"u32\"]"
+			   "},"
+			   "\"value\":{"
+			    "\"type\":\"integer\","
+			    "\"minimum\":0,"
+			    "\"maximum\":4294967295"
+			   "}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "},"
+			 "\"u64Value\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"u64\"]"
+			   "},"
+			   "\"value\":{"
+			    "\"type\":\"integer\","
+			    "\"minimum\":0,"
+			    "\"maximum\":9007199254740991"
+			   "}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "},"
+			 "\"strValue\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"str\"]"
+			   "},"
+			   "\"value\":{\"type\":\"string\"}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "},"
+			 "\"unknownValue\":{"
+			  "\"properties\":{"
+			   "\"type\":{"
+			    "\"type\":\"integer\","
+			    "\"minimum\":0"
+			   "},"
+			   "\"value\":{"
+			    "\"type\":\"string\","
+			    "\"enum\":[\"unknown\"]"
+			   "}"
+			  "},"
+			  "\"required\":[\"type\",\"value\"]"
+			 "}"
+			"}"
+		       "}"
+		      "}"
+		     "}");
+
+	if (old_len == out->len) {
+		chunk_reset(out);
+		chunk_appendf(out,
+			      "{\"errorStr\":\"output buffer too short\"}");
+	}
+}
+
+/* This function dumps the schema onto the stream interface's read buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ * No state is used.
+ */
+static int stats_dump_json_schema_to_buffer(struct stream_interface *si)
+{
+	chunk_reset(&trash);
+
+	stats_dump_json_schema(&trash);
+
+	if (bi_putchk(si_ic(si), &trash) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	return 1;
+}
+
 static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
@@ -3420,11 +3648,17 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 	return stats_dump_stat_to_buffer(appctx->owner, NULL);
 }
 
+static int cli_io_handler_dump_json_schema(struct appctx *appctx)
+{
+	return stats_dump_json_schema_to_buffer(appctx->owner);
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL }, "clear counters : clear max statistics counters (add 'all' for all counters)", cli_parse_clear_counters, NULL, NULL },
 	{ { "show", "info",  NULL }, "show info      : report information about the running process", cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
+	{ { "show", "schema",  "json", NULL }, "show schema json : report schema used for stats", NULL, cli_io_handler_dump_json_schema, NULL },
 	{{},}
 }};
 

@@ -215,8 +215,9 @@ enum field_scope {
 	FS_MASK     = 0xFF000000,
 };
 
-/* Please consider updating stats_dump_fields_*() and
- * stats_dump_.*_info_fields() when modifying struct field or related enums.
+/* Please consider updating stats_dump_fields_*(),
+ * stats_dump_.*_info_fields() and stats_*_schema()
+ * when modifying struct field or related enums.
  */
 struct field {
 	uint32_t type;
