@@ -319,8 +319,9 @@ enum {
  */
 struct http_msg {
 	enum ht_state msg_state;               /* where we are in the current message parsing */
+	enum ht_state err_state;               /* the state where the parsing error was detected, only is MSG_ERROR */
 	unsigned char flags;                   /* flags describing the message (HTTP version, ...) */
-	/* 6 bytes unused here */
+	/* 5 bytes unused here */
 	struct channel *chn;                   /* pointer to the channel transporting the message */
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
 	int sov;                               /* current header: start of value ; data: start of body */
