@@ -2058,6 +2058,10 @@ queue_spoe_context(struct spoe_context *ctx)
 			    " - failed to create SPOE appctx\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
 			    __FUNCTION__, ctx->strm);
+		send_log(ctx->strm->be, LOG_EMERG,
+			 "SPOE: [%s] failed to create SPOE applet\n",
+			 agent->id);
+
 		goto end;
 	}
 	if (agent->applets_act <= min_applets)
@@ -2442,9 +2446,6 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 			    " - failed to process event '%s': timeout\n",
 			    (int)now.tv_sec, (int)now.tv_usec,
 			    agent->id, __FUNCTION__, s, spoe_event_str[ev]);
-		send_log(ctx->strm->be, LOG_WARNING,
-			 "failed to process event '%s': timeout.\n",
-			 spoe_event_str[ev]);
 		ctx->status_code = SPOE_CTX_ERR_TOUT;
 		goto error;
 	}
@@ -2515,6 +2516,9 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 		set_spoe_var(ctx, "txn", agent->var_on_error,
 			     strlen(agent->var_on_error), &smp);
 	}
+	send_log(ctx->strm->be, LOG_WARNING,
+		 "SPOE: [%s] failed to process event '%s': code=%u\n",
+		 agent->id, spoe_event_str[ev], ctx->status_code);
 
 	ctx->state = ((agent->flags & SPOE_FL_CONT_ON_ERR)
 		      ? SPOE_CTX_ST_READY
@@ -2746,18 +2750,23 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 static int
 spoe_start(struct stream *s, struct filter *filter)
 {
+	struct spoe_config  *conf  = FLT_CONF(filter);
+	struct spoe_agent   *agent = conf->agent;
 	struct spoe_context *ctx;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p\n",
-		    (int)now.tv_sec, (int)now.tv_usec,
-		    ((struct spoe_config *)FLT_CONF(filter))->agent->id,
+		    (int)now.tv_sec, (int)now.tv_usec, agent->id,
 		    __FUNCTION__, s);
 
 	ctx = create_spoe_context(filter);
 	if (ctx == NULL) {
+		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
+			    " - failed to create SPOE context\n",
+			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
+			    __FUNCTION__, ctx->strm);
 		send_log(s->be, LOG_EMERG,
-			 "failed to create SPOE context for proxy %s\n",
-			 s->be->id);
+			 "SPOE: [%s] failed to create SPOE context\n",
+			 agent->id);
 		return 0;
 	}
 
