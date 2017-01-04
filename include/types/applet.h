@@ -84,13 +84,7 @@ struct appctx {
 			struct task *task;
 		} hlua_apphttp;                 /* used by the Lua HTTP services */
 		struct {
-			struct task *task;
-			void        *agent;
-			unsigned int version;
-			unsigned int max_frame_size;
-			unsigned int flags;
-			struct list  waiting_queue;
-			struct list  list;
+			void *ptr;              /* private pointer for SPOE filter */
 		} spoe;                         /* used by SPOE filter */
 		struct {
 			const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
