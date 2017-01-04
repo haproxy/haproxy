@@ -1769,16 +1769,18 @@ show errors [<iid>|<proxy>] [request|response]
 show backend
   Dump the list of backends available in the running process
 
-show info [typed]
+show info [typed|json]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
   report information found in fields they don't know. Each field is dumped on
-  its own line. By default, the format contains only two columns delimited by a
-  colon (':'). The left one is the field name and the right one is the value.
-  It is very important to note that in typed output format, the dump for a
-  single object is contiguous so that there is no need for a consumer to store
-  everything at once.
+  its own line. If "json" is passed as an optional argument then
+  information provided by "typed" output is provided in JSON format as a
+  list of JSON objects. By default, the format contains only two columns
+  delimited by a colon (':'). The left one is the field name and the right
+  one is the value.  It is very important to note that in typed output
+  format, the dump for a single object is contiguous so that there is no
+  need for a consumer to store everything at once.
 
   When using the typed output format, each line is made of 4 columns delimited
   by colons (':'). The first column is a dot-delimited series of 3 elements. The
@@ -1854,6 +1856,16 @@ show info [typed]
       6.Uptime.1:MDP:str:0d 0h01m28s
       6.Uptime.2:MDP:str:0d 0h01m28s
       (...)
+
+  The format of JSON output is described in a schema which may be output
+  using "show schema json" (to be implemented).
+
+  The JSON output contains no extra whitespace in order to reduce the
+  volume of output. For human consumption passing the output through a
+  pretty printer may be helpful. Example :
+
+  $ echo "show info json" | socat /var/run/haproxy.sock stdio | \
+    python -m json.tool
 
 show map [<map>]
   Dump info about map converters. Without argument, the list of all available
@@ -1986,11 +1998,12 @@ show sess <id>
   The special id "all" dumps the states of all sessions, which must be avoided
   as much as possible as it is highly CPU intensive and can take a lot of time.
 
-show stat [{<iid>|<proxy>} <type> <sid>] [typed]
-  Dump statistics using the CSV format, or using the extended typed output
-  format described in the section above if "typed" is passed after the other
-  arguments. By passing <id>, <type> and <sid>, it is possible to dump only
-  selected items :
+show stat [{<iid>|<proxy>} <type> <sid>] [typed|json]
+  Dump statistics using the CSV format; using the extended typed output
+  format described in the section above if "typed" is passed after the
+  other arguments; or in JSON if "json" is passed after the other arguments
+  . By passing <id>, <type> and <sid>, it is possible to dump only selected
+  items :
     - <iid> is a proxy ID, -1 to dump everything. Alternatively, a proxy name
       <proxy> may be specified. In this case, this proxy's ID will be used as
       the ID selector.
@@ -2122,6 +2135,16 @@ show stat [{<iid>|<proxy>} <type> <sid>] [typed]
         B.3.0.6.slim.1:MGP:u32:1000
         B.3.0.6.slim.2:MGP:u32:1000
         (...)
+
+  The format of JSON output is described in a schema which may be output
+  using "show schema json" (to be implemented).
+
+  The JSON output contains no extra whitespace in order to reduce the
+  volume of output. For human consumption passing the output through a
+  pretty printer may be helpful. Example :
+
+  $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
+    python -m json.tool
 
 show stat resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections

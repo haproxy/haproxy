@@ -229,6 +229,7 @@ static struct field stats[ST_F_TOTAL_FIELDS];
  * http_stats_io_handler()
  *     -> stats_dump_stat_to_buffer()     // same as above, but used for CSV or HTML
  *        -> stats_dump_csv_header()      // emits the CSV headers (same as above)
+ *        -> stats_dump_json_header()     // emits the JSON headers (same as above)
  *        -> stats_dump_html_head()       // emits the HTML headers
  *        -> stats_dump_html_info()       // emits the equivalent of "show info" at the top
  *        -> stats_dump_proxy_to_buffer() // same as above, valid for CSV and HTML
@@ -239,6 +240,7 @@ static struct field stats[ST_F_TOTAL_FIELDS];
  *           -> stats_dump_be_stats()
  *           -> stats_dump_html_px_end()
  *        -> stats_dump_html_end()       // emits HTML trailer
+ *        -> stats_dump_json_end()       // emits JSON trailer
  */
 
 
@@ -294,6 +296,58 @@ int stats_emit_typed_data_field(struct chunk *out, const struct field *f)
 	}
 }
 
+/* Limit JSON integer values to the range [-(2**53)+1, (2**53)-1] as per
+ * the recommendation for interoperable integers in section 6 of RFC 7159.
+ */
+#define JSON_INT_MAX ((1ULL << 53) - 1)
+#define JSON_INT_MIN (0 - JSON_INT_MAX)
+
+/* Emits a stats field value and its type in JSON.
+ * Returns non-zero on success, 0 on error.
+ */
+int stats_emit_json_data_field(struct chunk *out, const struct field *f)
+{
+	int old_len;
+	char buf[20];
+	const char *type, *value = buf, *quote = "";
+
+	switch (field_format(f, 0)) {
+	case FF_EMPTY: return 1;
+	case FF_S32:   type = "\"s32\"";
+		       snprintf(buf, sizeof(buf), "%d", f->u.s32);
+		       break;
+	case FF_U32:   type = "\"u32\"";
+		       snprintf(buf, sizeof(buf), "%u", f->u.u32);
+		       break;
+	case FF_S64:   type = "\"s64\"";
+		       if (f->u.s64 < JSON_INT_MIN || f->u.s64 > JSON_INT_MAX)
+			       return 0;
+		       type = "\"s64\"";
+		       snprintf(buf, sizeof(buf), "%lld", (long long)f->u.s64);
+		       break;
+	case FF_U64:   if (f->u.u64 > JSON_INT_MAX)
+			       return 0;
+		       type = "\"u64\"";
+		       snprintf(buf, sizeof(buf), "%llu",
+				(unsigned long long) f->u.u64);
+		       break;
+	case FF_STR:   type = "\"str\"";
+		       value = field_str(f, 0);
+		       quote = "\"";
+		       break;
+	default:       snprintf(buf, sizeof(buf), "%u", f->type);
+		       type = buf;
+		       value = "unknown";
+		       quote = "\"";
+		       break;
+	}
+
+	old_len = out->len;
+	chunk_appendf(out, ",\"value\":{\"type\":%s,\"value\":%s%s%s}",
+		      type, quote, value, quote);
+	return !(old_len == out->len);
+}
+
 /* Emits an encoding of the field type on 3 characters followed by a delimiter.
  * Returns non-zero on success, 0 if the buffer is full.
  */
@@ -337,6 +391,55 @@ int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim)
 	return chunk_appendf(out, "%c%c%c%c", origin, nature, scope, delim);
 }
 
+/* Emits an encoding of the field type as JSON.
+  * Returns non-zero on success, 0 if the buffer is full.
+  */
+int stats_emit_json_field_tags(struct chunk *out, const struct field *f)
+{
+	const char *origin, *nature, *scope;
+	int old_len;
+
+	switch (field_origin(f, 0)) {
+	case FO_METRIC:  origin = "Metric";  break;
+	case FO_STATUS:  origin = "Status";  break;
+	case FO_KEY:     origin = "Key";     break;
+	case FO_CONFIG:  origin = "Config";  break;
+	case FO_PRODUCT: origin = "Product"; break;
+	default:         origin = "Unknown"; break;
+	}
+
+	switch (field_nature(f, 0)) {
+	case FN_GAUGE:    nature = "Gauge";    break;
+	case FN_LIMIT:    nature = "Limit";    break;
+	case FN_MIN:      nature = "Min";      break;
+	case FN_MAX:      nature = "Max";      break;
+	case FN_RATE:     nature = "Rate";     break;
+	case FN_COUNTER:  nature = "Counter";  break;
+	case FN_DURATION: nature = "Duration"; break;
+	case FN_AGE:      nature = "Age";      break;
+	case FN_TIME:     nature = "Time";     break;
+	case FN_NAME:     nature = "Name";     break;
+	case FN_OUTPUT:   nature = "Output";   break;
+	case FN_AVG:      nature = "Avg";      break;
+	default:          nature = "Unknown";  break;
+	}
+
+	switch (field_scope(f, 0)) {
+	case FS_PROCESS: scope = "Process"; break;
+	case FS_SERVICE: scope = "Service"; break;
+	case FS_SYSTEM:  scope = "System";  break;
+	case FS_CLUSTER: scope = "Cluster"; break;
+	default:         scope = "Unknown"; break;
+	}
+
+	old_len = out->len;
+	chunk_appendf(out, "\"tags\":{"
+			    "\"origin\":\"%s\","
+			    "\"nature\":\"%s\","
+			    "\"scope\":\"%s\""
+			   "}", origin, nature, scope);
+	return !(old_len == out->len);
+}
 
 /* Dump all fields from <stats> into <out> using CSV format */
 static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
@@ -379,6 +482,123 @@ static int stats_dump_fields_typed(struct chunk *out, const struct field *stats)
 			return 0;
 	}
 	return 1;
+}
+
+/* Dump all fields from <stats> into <out> using the "show info json" format */
+static int stats_dump_json_info_fields(struct chunk *out,
+				       const struct field *info)
+{
+	int field;
+	int started = 0;
+
+	if (!chunk_strcat(out, "["))
+		return 0;
+
+	for (field = 0; field < INF_TOTAL_FIELDS; field++) {
+		int old_len;
+
+		if (!field_format(info, field))
+			continue;
+
+		if (started && !chunk_strcat(out, ","))
+			goto err;
+		started = 1;
+
+		old_len = out->len;
+		chunk_appendf(out,
+			      "{\"field\":{\"pos\":%d,\"name\":\"%s\"},"
+			      "\"processNum\":%u,",
+			      field, info_field_names[field],
+			      info[INF_PROCESS_NUM].u.u32);
+		if (old_len == out->len)
+			goto err;
+
+		if (!stats_emit_json_field_tags(out, &info[field]))
+			goto err;
+
+		if (!stats_emit_json_data_field(out, &info[field]))
+			goto err;
+
+		if (!chunk_strcat(out, "}"))
+			goto err;
+	}
+
+	if (!chunk_strcat(out, "]"))
+		goto err;
+	return 1;
+
+err:
+	chunk_reset(out);
+	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
+	return 0;
+}
+
+/* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
+static int stats_dump_fields_json(struct chunk *out, const struct field *stats,
+				  int first_stat)
+{
+	int field;
+	int started = 0;
+
+	if (!first_stat && !chunk_strcat(out, ","))
+		return 0;
+	if (!chunk_strcat(out, "["))
+		return 0;
+
+	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+		const char *obj_type;
+		int old_len;
+
+		if (!stats[field].type)
+			continue;
+
+		if (started && !chunk_strcat(out, ","))
+			goto err;
+		started = 1;
+
+		switch (stats[ST_F_TYPE].u.u32) {
+		case STATS_TYPE_FE: obj_type = "Frontend"; break;
+		case STATS_TYPE_BE: obj_type = "Backend";  break;
+		case STATS_TYPE_SO: obj_type = "Listener"; break;
+		case STATS_TYPE_SV: obj_type = "Server";   break;
+		default:            obj_type = "Unknown";  break;
+		}
+
+		old_len = out->len;
+		chunk_appendf(out,
+			      "{"
+				"\"objType\":\"%s\","
+				"\"proxyId\":%d,"
+				"\"id\":%d,"
+				"\"field\":{\"pos\":%d,\"name\":\"%s\"},"
+				"\"processNum\":%u,",
+			       obj_type, stats[ST_F_IID].u.u32,
+			       stats[ST_F_SID].u.u32, field,
+			       stat_field_names[field], stats[ST_F_PID].u.u32);
+		if (old_len == out->len)
+			goto err;
+
+		if (!stats_emit_json_field_tags(out, &stats[field]))
+			goto err;
+
+		if (!stats_emit_json_data_field(out, &stats[field]))
+			goto err;
+
+		if (!chunk_strcat(out, "}"))
+			goto err;
+	}
+
+	if (!chunk_strcat(out, "]"))
+		goto err;
+
+	return 1;
+
+err:
+	chunk_reset(out);
+	if (!first_stat)
+	    chunk_strcat(out, ",");
+	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
+	return 0;
 }
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
@@ -1022,15 +1242,26 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 
 int stats_dump_one_line(const struct field *stats, unsigned int flags, struct proxy *px, struct appctx *appctx)
 {
+	int ret;
+
 	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
 		flags |= ST_SHOWADMIN;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-		return stats_dump_fields_html(&trash, stats, flags);
+		ret = stats_dump_fields_html(&trash, stats, flags);
 	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
-		return stats_dump_fields_typed(&trash, stats);
+		ret = stats_dump_fields_typed(&trash, stats);
+	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
+		ret = stats_dump_fields_json(&trash, stats,
+					     !(appctx->ctx.stats.flags &
+					       STAT_STARTED));
 	else
-		return stats_dump_fields_csv(&trash, stats);
+		ret = stats_dump_fields_csv(&trash, stats);
+
+	if (ret)
+		appctx->ctx.stats.flags |= STAT_STARTED;
+
+	return ret;
 }
 
 /* Fill <stats> with the frontend statistics. <stats> is
@@ -2258,6 +2489,23 @@ static void stats_dump_html_end()
 	chunk_appendf(&trash, "</body></html>\n");
 }
 
+/* Dumps the stats JSON header to the trash buffer which. The caller is responsible
+ * for clearing it if needed.
+ */
+static void stats_dump_json_header()
+{
+	chunk_strcat(&trash, "[");
+}
+
+
+/* Dumps the JSON stats trailer block to the trash. The caller is responsible
+ * for clearing the trash if needed.
+ */
+static void stats_dump_json_end()
+{
+	chunk_strcat(&trash, "]");
+}
+
 /* This function dumps statistics onto the stream interface's read buffer in
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
  * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
@@ -2281,6 +2529,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_HEAD:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 			stats_dump_html_head(uri);
+		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
+			stats_dump_json_header(uri);
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
 			stats_dump_csv_header();
 
@@ -2329,8 +2579,11 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* fall through */
 
 	case STAT_ST_END:
-		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-			stats_dump_html_end();
+		if (appctx->ctx.stats.flags & (STAT_FMT_HTML|STAT_FMT_JSON)) {
+			if (appctx->ctx.stats.flags & STAT_FMT_HTML)
+				stats_dump_html_end();
+			else
+				stats_dump_json_end();
 			if (bi_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
@@ -2757,6 +3010,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	return 1;
 }
 
+
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * appctx->st0 contains the operation in progress (dump, done). The handler
@@ -3032,6 +3286,8 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 
 	if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
 		stats_dump_typed_info_fields(&trash, info);
+	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
+		stats_dump_json_info_fields(&trash, info);
 	else
 		stats_dump_info_fields(&trash, info);
 
@@ -3108,6 +3364,8 @@ static int cli_parse_show_info(char **args, struct appctx *appctx, void *private
 
 	if (strcmp(args[2], "typed") == 0)
 		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+	else if (strcmp(args[2], "json") == 0)
+		appctx->ctx.stats.flags |= STAT_FMT_JSON;
 	return 0;
 }
 
@@ -3138,9 +3396,13 @@ static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private
 		appctx->ctx.stats.sid = atoi(args[4]);
 		if (strcmp(args[5], "typed") == 0)
 			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+		else if (strcmp(args[5], "json") == 0)
+			appctx->ctx.stats.flags |= STAT_FMT_JSON;
 	}
 	else if (strcmp(args[2], "typed") == 0)
 		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+	else if (strcmp(args[2], "json") == 0)
+		appctx->ctx.stats.flags |= STAT_FMT_JSON;
 
 	return 0;
 }

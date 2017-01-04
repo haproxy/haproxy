@@ -23,11 +23,13 @@
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
 #define STAT_FMT_TYPED  0x00000002      /* use the typed output format */
+#define STAT_FMT_JSON   0x00000004      /* dump the stats in JSON format */
 #define STAT_HIDE_DOWN  0x00000008	/* hide 'down' servers in the stats page */
 #define STAT_NO_REFRESH 0x00000010	/* do not automatically refresh the stats page */
 #define STAT_ADMIN      0x00000020	/* indicate a stats admin level */
 #define STAT_CHUNKED    0x00000040      /* use chunked encoding (HTTP/1.1) */
 #define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
+#define STAT_STARTED    0x01000000	/* some output has occurred */
 
 #define STATS_TYPE_FE  0
 #define STATS_TYPE_BE  1
@@ -213,6 +215,9 @@ enum field_scope {
 	FS_MASK     = 0xFF000000,
 };
 
+/* Please consider updating stats_dump_fields_*() and
+ * stats_dump_.*_info_fields() when modifying struct field or related enums.
+ */
 struct field {
 	uint32_t type;
 	union {
