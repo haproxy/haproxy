@@ -217,9 +217,22 @@ option set-on-error <var name>
   prefixed. So, if your variable name is "error" and your prefix is
   "my_spoe_pfx", the variable will be "txn.my_spoe_pfx.error".
 
-  When set, the variable is the boolean "true". Note that if "option
-  continue-on-error" is set, the variable is not automatically removed between
-  events processing.
+  When set, the variable is an integer representing the error reason. For values
+  under 256, it represents an error coming from the engine. Below 256, it
+  reports a SPOP error. In this case, to retrieve the right SPOP status code,
+  you must remove 256 to this value. Here are possible values:
+
+    * 1       a timeout occurred during the event processing.
+
+    * 2       an error was triggered during the ressources allocation.
+
+    * 255     an unknown error occurred during the event processing.
+
+    * 256+N   a SPOP error occurred during the event processing (see section
+              "Errors & timeouts").
+
+  Note that if "option continue-on-error" is set, the variable is not
+  automatically removed between events processing.
 
   See also: "option continue-on-error", "option var-prefix".
 
@@ -341,7 +354,7 @@ event <name>
     - on-backend-http-request
     - on-http-response
 
-  See section 3.5 about Events.
+  See section "Events & Messages".
 
 2.4. Example
 -------------

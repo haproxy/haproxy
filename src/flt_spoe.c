@@ -119,6 +119,15 @@ enum spoe_event {
 	SPOE_EV_EVENTS
 };
 
+/* Errors triggered by streams */
+enum spoe_context_error {
+	SPOE_CTX_ERR_NONE = 0,
+	SPOE_CTX_ERR_TOUT,
+	SPOE_CTX_ERR_RES,
+	SPOE_CTX_ERR_UNKNOWN = 255,
+	SPOE_CTX_ERRS,
+};
+
 /* Errors triggerd by SPOE applet */
 enum spoe_frame_error {
 	SPOE_FRM_ERR_NONE = 0,
@@ -243,6 +252,7 @@ struct spoe_context {
 
 	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
 	unsigned int        flags;        /* SPOE_CTX_FL_* */
+	unsigned int        status_code;  /* SPOE_CTX_ERR_* */
 
 	unsigned int        stream_id;    /* stream_id and frame_id are used */
 	unsigned int        frame_id;     /* to map NOTIFY and ACK frames */
@@ -259,6 +269,7 @@ struct spoe_appctx {
 	unsigned int        max_frame_size; /* the negotiated max-frame-size value */
 	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
 
+	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
 	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
 	struct list         list;           /* next spoe appctx for the same agent */
 };
@@ -793,8 +804,10 @@ prepare_spoe_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 			+ 1 + SLEN(CAPABILITIES_KEY) + 1 + 1 + SLEN(CAPABILITIES_VAL)
 			+ 1 + SLEN(ENGINE_ID_KEY) + 1 + 1 + 36);
 
-	if (size < max)
+	if (size < max) {
+		spoe_status_code = SPOE_FRM_ERR_TOO_BIG;
 		return -1;
+	}
 
 	/* Frame type */
 	frame[idx++] = SPOE_FRM_T_HAPROXY_HELLO;
@@ -890,9 +903,6 @@ prepare_spoe_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 {
 	int idx = 0;
 
-	if (size < SPOE_APPCTX(appctx)->max_frame_size)
-		return -1;
-
 	frame[idx++] = SPOE_FRM_T_HAPROXY_NOTIFY;
 
 	/* No flags for now */
@@ -904,8 +914,10 @@ prepare_spoe_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 	idx += encode_spoe_varint(ctx->frame_id, frame+idx);
 
 	/* Copy encoded messages */
-	if (idx + ctx->buffer->i > size)
+	if (idx + ctx->buffer->i > size) {
+		spoe_status_code = SPOE_FRM_ERR_TOO_BIG;
 		return 0;
+	}
 
 	/* Copy encoded messages */
 	memcpy(frame+idx, ctx->buffer->p, ctx->buffer->i);
@@ -1218,7 +1230,7 @@ handle_spoe_agentack_frame(struct appctx *appctx, char *frame, size_t size)
 	return 0;
 
   found:
-	if (acquire_spoe_buffer(ctx) <= 0)
+	if (!acquire_spoe_buffer(ctx))
 		return 1; /* Retry later */
 
 	/* Copy encoded actions */
@@ -1327,6 +1339,7 @@ send_spoe_frame(struct appctx *appctx, char *buf, size_t framesz)
 	if (ret <= 0) {
 		if (ret == -1)
 			return 1; /* retry */
+		spoe_status_code = SPOE_FRM_ERR_IO;
 		return -1; /* error */
 	}
 	return framesz;
@@ -1411,6 +1424,8 @@ release_spoe_applet(struct appctx *appctx)
 		si_shutr(si);
 		si_ic(si)->flags |= CF_READ_NULL;
 		appctx->st0 = SPOE_APPCTX_ST_END;
+		if (SPOE_APPCTX(appctx)->status_code == SPOE_FRM_ERR_NONE)
+			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
 	}
 
 	if (SPOE_APPCTX(appctx)->task) {
@@ -1422,6 +1437,7 @@ release_spoe_applet(struct appctx *appctx)
 		LIST_DEL(&ctx->list);
 		LIST_INIT(&ctx->list);
 		ctx->state = SPOE_CTX_ST_ERROR;
+		ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
@@ -1434,6 +1450,7 @@ release_spoe_applet(struct appctx *appctx)
 		LIST_DEL(&ctx->list);
 		LIST_INIT(&ctx->list);
 		ctx->state = SPOE_CTX_ST_ERROR;
+		ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
@@ -1441,6 +1458,7 @@ release_spoe_applet(struct appctx *appctx)
 		LIST_DEL(&ctx->list);
 		LIST_INIT(&ctx->list);
 		ctx->state = SPOE_CTX_ST_ERROR;
+		ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 }
@@ -1458,12 +1476,15 @@ handle_connect_spoe_applet(struct appctx *appctx)
 		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}
-	if (si->state != SI_ST_EST)
+	if (si->state != SI_ST_EST) {
+		spoe_status_code = SPOE_FRM_ERR_IO;
 		goto exit;
+	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p - Connection timed out\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id, __FUNCTION__, appctx);
+		spoe_status_code = SPOE_FRM_ERR_TOUT;
 		goto exit;
 	}
 
@@ -1495,6 +1516,7 @@ handle_connect_spoe_applet(struct appctx *appctx)
   stop:
 	return 1;
   exit:
+	SPOE_APPCTX(appctx)->status_code = spoe_status_code;
 	appctx->st0 = SPOE_APPCTX_ST_EXIT;
 	return 0;
 }
@@ -1508,12 +1530,15 @@ handle_connecting_spoe_applet(struct appctx *appctx)
 	int   ret, framesz = 0;
 
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO)
+	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+		spoe_status_code = SPOE_FRM_ERR_IO;
 		goto exit;
+	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p - Connection timed out\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id, __FUNCTION__, appctx);
+		spoe_status_code = SPOE_FRM_ERR_TOUT;
 		goto exit;
 	}
 
@@ -1562,6 +1587,7 @@ handle_connecting_spoe_applet(struct appctx *appctx)
   stop:
 	return 1;
   exit:
+	SPOE_APPCTX(appctx)->status_code = spoe_status_code;
 	appctx->st0 = SPOE_APPCTX_ST_EXIT;
 	return 0;
 }
@@ -1576,8 +1602,10 @@ handle_processing_spoe_applet(struct appctx *appctx)
 	unsigned int  fpa = 0;
 	int           ret, framesz = 0, skip_sending = 0, skip_receiving = 0;
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO)
+	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+		spoe_status_code = SPOE_FRM_ERR_IO;
 		goto exit;
+	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
 		spoe_status_code = SPOE_FRM_ERR_TOUT;
@@ -1617,6 +1645,7 @@ handle_processing_spoe_applet(struct appctx *appctx)
 		case 0: /* ignore */
 			agent->sending_rate++;
 			ctx->state = SPOE_CTX_ST_ERROR;
+			ctx->status_code = (spoe_status_code + 0x100);
 			release_spoe_buffer(ctx);
 			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 			LIST_DEL(&ctx->list);
@@ -1702,6 +1731,7 @@ handle_processing_spoe_applet(struct appctx *appctx)
 	return 1;
 
   exit:
+	SPOE_APPCTX(appctx)->status_code = spoe_status_code;
 	appctx->st0 = SPOE_APPCTX_ST_EXIT;
 	return 0;
 }
@@ -1713,6 +1743,8 @@ handle_disconnect_spoe_applet(struct appctx *appctx)
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 	char *frame = trash.str;
 	int ret;
+
+	SPOE_APPCTX(appctx)->status_code = spoe_status_code;
 
 	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO)
 		goto exit;
@@ -1763,11 +1795,15 @@ handle_disconnecting_spoe_applet(struct appctx *appctx)
 	char *frame = trash.str;
 	int   ret, framesz = 0;
 
-	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO)
+	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
+		spoe_status_code = SPOE_FRM_ERR_IO;
 		goto exit;
+	}
 
-	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT)
+	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {
+		spoe_status_code = SPOE_FRM_ERR_TOUT;
 		goto exit;
+	}
 
 	framesz = 0;
 	ret = recv_spoe_frame(appctx, frame, SPOE_APPCTX(appctx)->max_frame_size);
@@ -1813,6 +1849,8 @@ handle_disconnecting_spoe_applet(struct appctx *appctx)
   stop:
 	return 1;
   exit:
+	if (SPOE_APPCTX(appctx)->status_code == SPOE_FRM_ERR_NONE)
+		SPOE_APPCTX(appctx)->status_code = spoe_status_code;
 	appctx->st0 = SPOE_APPCTX_ST_EXIT;
 	return 0;
 }
@@ -1824,6 +1862,8 @@ handle_spoe_applet(struct appctx *appctx)
 	struct stream_interface *si    = appctx->owner;
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
 
+	spoe_status_code = SPOE_FRM_ERR_NONE;
+
   switchstate:
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p"
 		    " - appctx-state=%s\n",
@@ -1832,7 +1872,6 @@ handle_spoe_applet(struct appctx *appctx)
 
 	switch (appctx->st0) {
 		case SPOE_APPCTX_ST_CONNECT:
-			spoe_status_code = SPOE_FRM_ERR_NONE;
 			if (handle_connect_spoe_applet(appctx))
 				goto out;
 			goto switchstate;
@@ -1923,6 +1962,7 @@ create_spoe_appctx(struct spoe_config *conf)
 	SPOE_APPCTX(appctx)->version         = 0;
 	SPOE_APPCTX(appctx)->max_frame_size  = conf->agent->max_frame_size;
 	SPOE_APPCTX(appctx)->flags           = 0;
+	SPOE_APPCTX(appctx)->status_code     = SPOE_FRM_ERR_NONE;
 
 	LIST_INIT(&SPOE_APPCTX(appctx)->list);
 	LIST_INIT(&SPOE_APPCTX(appctx)->waiting_queue);
@@ -2330,15 +2370,13 @@ process_spoe_actions(struct stream *s, struct spoe_context *ctx,
 static int
 start_event_processing(struct spoe_context *ctx, int dir)
 {
-	int ret;
 	/* If a process is already started for this SPOE context, retry
 	 * later. */
 	if (ctx->flags & SPOE_CTX_FL_PROCESS)
 		goto wait;
 
-	ret = acquire_spoe_buffer(ctx);
-	if (ret <= 0)
-		return ret;
+	if (!acquire_spoe_buffer(ctx))
+		goto wait;
 
 	/* Set the right flag to prevent request and response processing
 	 * in same time. */
@@ -2357,6 +2395,8 @@ stop_event_processing(struct spoe_context *ctx)
 {
 	/* Reset the flag to allow next processing */
 	ctx->flags &= ~SPOE_CTX_FL_PROCESS;
+
+	ctx->status_code = 0;
 
 	/* Reset processing timer */
 	ctx->process_exp = TICK_ETERNITY;
@@ -2405,6 +2445,7 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 		send_log(ctx->strm->be, LOG_WARNING,
 			 "failed to process event '%s': timeout.\n",
 			 spoe_event_str[ev]);
+		ctx->status_code = SPOE_CTX_ERR_TOUT;
 		goto error;
 	}
 
@@ -2425,20 +2466,16 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 						      ctx->process_exp);
 		}
 		ret = start_event_processing(ctx, dir);
-		if (ret <= 0) {
-			if (!ret)
-				goto out;
-			goto error;
-		}
+		if (!ret)
+			goto out;
 		ret = process_spoe_messages(s, ctx, &(ctx->messages[ev]), dir);
-		if (ret <= 0) {
-			if (!ret)
-				goto skip;
+		if (!ret)
+			goto skip;
+
+		if (!queue_spoe_context(ctx)) {
+			ctx->status_code = SPOE_CTX_ERR_RES;
 			goto error;
 		}
-
-		if (!queue_spoe_context(ctx))
-			goto error;
 
 		ctx->state = SPOE_CTX_ST_SENDING_MSGS;
 		/* fall through */
@@ -2452,11 +2489,8 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 
 	if (ctx->state == SPOE_CTX_ST_DONE) {
 		ret = process_spoe_actions(s, ctx, ev, dir);
-		if (ret <= 0) {
-			if (!ret)
-				goto skip;
-			goto error;
-		}
+		if (!ret)
+			goto skip;
 		ctx->frame_id++;
 		ctx->state = SPOE_CTX_ST_READY;
 		goto end;
@@ -2475,7 +2509,7 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 		// FIXME: Get the error code here
 		memset(&smp, 0, sizeof(smp));
 		smp_set_owner(&smp, s->be, s->sess, s, dir|SMP_OPT_FINAL);
-		smp.data.u.sint = 1;
+		smp.data.u.sint = ctx->status_code;
 		smp.data.type   = SMP_T_BOOL;
 
 		set_spoe_var(ctx, "txn", agent->var_on_error,
@@ -2484,7 +2518,7 @@ process_spoe_event(struct stream *s, struct spoe_context *ctx,
 
 	ctx->state = ((agent->flags & SPOE_FL_CONT_ON_ERR)
 		      ? SPOE_CTX_ST_READY
-		      : SPOE_CTX_ST_ERROR);
+		      : SPOE_CTX_ST_NONE);
 	ret = 1;
 	goto end;
 
@@ -2550,11 +2584,12 @@ create_spoe_context(struct filter *filter)
 		return NULL;
 	}
 	memset(ctx, 0, sizeof(*ctx));
-	ctx->filter   = filter;
-	ctx->state    = SPOE_CTX_ST_NONE;
-	ctx->flags    = 0;
-	ctx->messages = conf->agent->messages;
-	ctx->buffer   = &buf_empty;
+	ctx->filter      = filter;
+	ctx->state       = SPOE_CTX_ST_NONE;
+	ctx->status_code = SPOE_CTX_ERR_NONE;
+	ctx->flags       = 0;
+	ctx->messages    = conf->agent->messages;
+	ctx->buffer      = &buf_empty;
 	LIST_INIT(&ctx->buffer_wait.list);
 	ctx->buffer_wait.target = ctx;
 	ctx->buffer_wait.wakeup_cb = (int (*)(void *))wakeup_spoe_context;
@@ -2791,6 +2826,9 @@ spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 		    ((struct spoe_config *)FLT_CONF(filter))->agent->id,
 		    __FUNCTION__, s, spoe_ctx_state_str[ctx->state], ctx->flags);
 
+	if (ctx->state == SPOE_CTX_ST_NONE)
+		goto out;
+
 	if (!(chn->flags & CF_ISRESP)) {
 		if (filter->pre_analyzers & AN_REQ_INSPECT_FE)
 			chn->analysers |= AN_REQ_INSPECT_FE;
@@ -2801,11 +2839,9 @@ spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 			goto out;
 
 		ctx->stream_id = s->uniq_id;
-		if (ctx->state != SPOE_CTX_ST_NONE && ctx->state != SPOE_CTX_ST_ERROR) {
-			ret = process_spoe_event(s, ctx, SPOE_EV_ON_CLIENT_SESS);
-			if (ret != 1)
-				goto out;
-		}
+		ret = process_spoe_event(s, ctx, SPOE_EV_ON_CLIENT_SESS);
+		if (!ret)
+			goto out;
 		ctx->flags |= SPOE_CTX_FL_CLI_CONNECTED;
 	}
 	else {
@@ -2815,16 +2851,13 @@ spoe_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 		if (ctx->flags & SPOE_CTX_FL_SRV_CONNECTED)
 			goto out;
 
-		if (ctx->state != SPOE_CTX_ST_NONE && ctx->state != SPOE_CTX_ST_ERROR) {
-			ret = process_spoe_event(s, ctx, SPOE_EV_ON_SERVER_SESS);
-			if (ret != 1)
-				goto out;
-		}
-		ctx->flags |= SPOE_CTX_FL_SRV_CONNECTED;
+		ret = process_spoe_event(s, ctx, SPOE_EV_ON_SERVER_SESS);
 		if (!ret) {
 			channel_dont_read(chn);
 			channel_dont_close(chn);
+			goto out;
 		}
+		ctx->flags |= SPOE_CTX_FL_SRV_CONNECTED;
 	}
 
   out:
@@ -2846,7 +2879,7 @@ spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
 		    __FUNCTION__, s, spoe_ctx_state_str[ctx->state],
 		    ctx->flags, an_bit);
 
-	if (ctx->state == SPOE_CTX_ST_NONE || ctx->state == SPOE_CTX_ST_ERROR)
+	if (ctx->state == SPOE_CTX_ST_NONE)
 		goto out;
 
 	switch (an_bit) {
