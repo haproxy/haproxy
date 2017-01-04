@@ -1560,6 +1560,10 @@ const char *http_parse_reqline(struct http_msg *msg,
 			ptr += sizeof(int);
 		}
 #endif
+		if (ptr >= end) {
+			state = HTTP_MSG_RQURI;
+			goto http_msg_ood;
+		}
 	http_msg_rquri2:
 		if (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri2, HTTP_MSG_RQURI);
@@ -1994,6 +1998,10 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			ptr += sizeof(int);
 		}
 #endif
+		if (ptr >= end) {
+			state = HTTP_MSG_HDR_VAL;
+			goto http_msg_ood;
+		}
 	http_msg_hdr_val2:
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val2, HTTP_MSG_HDR_VAL);
