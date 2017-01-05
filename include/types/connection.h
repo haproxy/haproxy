@@ -127,7 +127,10 @@ enum {
 	/* This connection may not be shared between clients */
 	CO_FL_PRIVATE       = 0x10000000,
 
-	/* unused : 0x20000000, 0x40000000 */
+	/* This flag is used to know that a PROXY protocol header was sent by the client */
+	CO_FL_RCVD_PROXY    = 0x20000000,
+
+	/* unused : 0x40000000 */
 
 	/* This last flag indicates that the transport layer is used (for instance
 	 * by logs) and must not be cleared yet. The last call to conn_xprt_close()

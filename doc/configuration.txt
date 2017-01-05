@@ -13149,6 +13149,10 @@ dst_port : integer
   a same server, or to pass the destination port information to a server using
   an HTTP header.
 
+fc_rcvd_proxy : boolean
+  Returns true if the client initiated the connection with a PROXY protocol
+  header.
+
 fc_rtt(<unit>) : integer
   Returns the Round Trip Time (RTT) measured by the kernel for the client
   connection. <unit> is facultative, by default the unit is milliseconds. <unit>

@@ -21,6 +21,7 @@
 #include <proto/frontend.h>
 #include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>
+#include <proto/sample.h>
 
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
@@ -603,6 +604,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	} while (0);
 
 	conn->flags &= ~flag;
+	conn->flags |= CO_FL_RCVD_PROXY;
 	return 1;
 
  missing:
@@ -1039,4 +1041,42 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	hdr->len = htons((uint16_t)(ret - PP2_HEADER_LEN));
 
 	return ret;
+}
+
+/* fetch if the received connection used a PROXY protocol header */
+int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = (conn->flags & CO_FL_RCVD_PROXY) ? 1 : 0;
+
+	return 1;
+}
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Note: fetches that may return multiple types must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones. For
+ * instance v4/v6 must be declared v4.
+ */
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
+	{ /* END */ },
+}};
+
+
+__attribute__((constructor))
+static void __connection_init(void)
+{
+	sample_register_fetches(&sample_fetch_keywords);
 }
