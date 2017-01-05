@@ -192,6 +192,10 @@ echo "Updating haproxy.c ..."
 sed -e "s:Copyright 2000-[0-9]*\s*Willy Tarreau.*>:Copyright 2000-$YEAR Willy Tarreau <willy@haproxy.org>:" \
     -i src/haproxy.c
 
+echo "Updating version.h ..."
+sed -e "s:^\(#define\s*PRODUCT_BRANCH\s*\)\"[^\"]*\":\1\"$BRANCH\":" \
+    -i include/common/version.h
+
 if [ -n "$INTERACTIVE" ]; then
 	vi CHANGELOG VERSION VERDATE examples/haproxy*.spec \
 	   src/haproxy.c README doc/configuration.txt \
