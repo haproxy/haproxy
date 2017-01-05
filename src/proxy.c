@@ -1172,7 +1172,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	/* Be sure to filter request headers if the backend is an HTTP proxy and
 	 * if there are filters attached to the stream. */
 	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
-		s->req.analysers |= AN_FLT_HTTP_HDRS;
+		s->req.analysers |= AN_REQ_FLT_HTTP_HDRS;
 
 	if (s->txn) {
 		if (be->options2 & PR_O2_RSPBUG_OK)

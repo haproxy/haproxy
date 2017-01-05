@@ -8592,11 +8592,11 @@ out_uri_auth_compat:
 
 			/* Add filters analyzers if needed */
 			if (!LIST_ISEMPTY(&curproxy->filter_configs)) {
-				curproxy->fe_req_ana |= AN_FLT_ALL_FE;
-				curproxy->fe_rsp_ana |= AN_FLT_ALL_FE;
+				curproxy->fe_req_ana |= AN_REQ_FLT_START_FE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
+				curproxy->fe_rsp_ana |= AN_RES_FLT_START_FE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
 				if (curproxy->mode == PR_MODE_HTTP) {
-					curproxy->fe_req_ana |= AN_FLT_HTTP_HDRS;
-					curproxy->fe_rsp_ana |= AN_FLT_HTTP_HDRS;
+					curproxy->fe_req_ana |= AN_REQ_FLT_HTTP_HDRS;
+					curproxy->fe_rsp_ana |= AN_RES_FLT_HTTP_HDRS;
 				}
 			}
 		}
@@ -8622,11 +8622,11 @@ out_uri_auth_compat:
 
 			/* Add filters analyzers if needed */
 			if (!LIST_ISEMPTY(&curproxy->filter_configs)) {
-				curproxy->be_req_ana |= AN_FLT_ALL_BE;
-				curproxy->be_rsp_ana |= AN_FLT_ALL_BE;
+				curproxy->be_req_ana |= AN_REQ_FLT_START_BE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
+				curproxy->be_rsp_ana |= AN_RES_FLT_START_BE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
 				if (curproxy->mode == PR_MODE_HTTP) {
-					curproxy->be_req_ana |= AN_FLT_HTTP_HDRS;
-					curproxy->be_rsp_ana |= AN_FLT_HTTP_HDRS;
+					curproxy->be_req_ana |= AN_REQ_FLT_HTTP_HDRS;
+					curproxy->be_rsp_ana |= AN_RES_FLT_HTTP_HDRS;
 				}
 			}
 		}

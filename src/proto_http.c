@@ -2718,7 +2718,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 400;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, NULL);
-			req->analysers &= AN_FLT_END;
+			req->analysers &= AN_REQ_FLT_END;
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
 			sess->fe->fe_counters.failed_req++;
@@ -2749,7 +2749,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 408;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_408));
-			req->analysers &= AN_FLT_END;
+			req->analysers &= AN_REQ_FLT_END;
 
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -2778,7 +2778,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 400;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
-			req->analysers &= AN_FLT_END;
+			req->analysers &= AN_REQ_FLT_END;
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -2834,7 +2834,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 */
 		txn->status = 0;
 		msg->msg_state = HTTP_MSG_RQBEFORE;
-		req->analysers &= AN_FLT_END;
+		req->analysers &= AN_REQ_FLT_END;
 		s->logs.logwait = 0;
 		s->logs.level = 0;
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
@@ -3161,7 +3161,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	req->analysers &= AN_FLT_END;
+	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 	return 0;
 }
@@ -4219,8 +4219,8 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		bi_fast_delete(req->chn->buf, req->sov);
 		req->next -= req->sov;
 		req->sov = 0;
-		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_FLT_END);
-		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->req.analysers & AN_FLT_END);
+		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_REQ_FLT_END);
+		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->req.analysers & AN_RES_FLT_END);
 		req->msg_state = HTTP_MSG_CLOSED;
 		res->msg_state = HTTP_MSG_DONE;
 		/* Trim any possible response */
@@ -4236,7 +4236,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			trash.len += 23;
 		}
 		http_reply_and_close(s, txn->status, &trash);
-		req->chn->analysers &= AN_FLT_END;
+		req->chn->analysers &= AN_REQ_FLT_END;
 	}
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -4379,8 +4379,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			s->flags |= SF_FINST_R;
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers &= (AN_REQ_HTTP_BODY | AN_FLT_HTTP_HDRS | AN_FLT_END);
-		req->analysers &= ~AN_FLT_XFER_DATA;
+		req->analysers &= (AN_REQ_HTTP_BODY | AN_REQ_FLT_HTTP_HDRS | AN_REQ_FLT_END);
+		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 		goto done;
 	}
@@ -4437,7 +4437,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (s->be->cookie_name || sess->fe->capture_name)
 		manage_client_side_cookies(s, req);
 
-	req->analysers &= AN_FLT_END; /* remove switching rules etc... */
+	req->analysers &= AN_REQ_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
 	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
 	if (!req->analyse_exp)
@@ -4492,7 +4492,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	req->analysers &= AN_FLT_END;
+	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 	return 0;
 
@@ -4548,7 +4548,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		if (unlikely((conn = si_alloc_conn(&s->si[1])) == NULL)) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
-			req->analysers &= AN_FLT_END;
+			req->analysers &= AN_REQ_FLT_END;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -4780,7 +4780,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	if (msg->flags & HTTP_MSGF_XFER_LEN) {
-		req->analysers &= ~AN_FLT_XFER_DATA;
+		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 #ifdef TCP_QUICKACK
 		/* We expect some data from the client. Unless we know for sure
@@ -4823,7 +4823,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	req->analysers &= AN_FLT_END;
+	req->analysers &= AN_REQ_FLT_END;
 	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	sess->fe->fe_counters.failed_req++;
@@ -4867,7 +4867,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	if (!(req->flags & CF_READ_ERROR))
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
-	req->analysers &= AN_FLT_END;
+	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -5022,7 +5022,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		s->flags |= SF_FINST_R;
 
  return_err_msg:
-	req->analysers &= AN_FLT_END;
+	req->analysers &= AN_REQ_FLT_END;
 	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
@@ -5272,8 +5272,8 @@ void http_end_txn_clean_session(struct stream *s)
 	}
 
 	if (HAS_FILTERS(s)) {
-		s->req.analysers &= AN_FLT_END;
-		s->res.analysers &= AN_FLT_END;
+		s->req.analysers &= AN_REQ_FLT_END;
+		s->res.analysers &= AN_RES_FLT_END;
 	}
 	else {
 		s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
@@ -5591,25 +5591,25 @@ int http_resync_states(struct stream *s)
 	    txn->rsp.msg_state == HTTP_MSG_TUNNEL ||
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
-		s->req.analysers &= AN_FLT_END;
+		s->req.analysers &= AN_REQ_FLT_END;
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
-		s->res.analysers &= AN_FLT_END;
+		s->res.analysers &= AN_RES_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
 		if (txn->req.msg_state == HTTP_MSG_TUNNEL && HAS_REQ_DATA_FILTERS(s))
-			s->req.analysers |= AN_FLT_XFER_DATA;
+			s->req.analysers |= AN_REQ_FLT_XFER_DATA;
 		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL && HAS_RSP_DATA_FILTERS(s))
-			s->res.analysers |= AN_FLT_XFER_DATA;
+			s->res.analysers |= AN_RES_FLT_XFER_DATA;
 	}
 	else if ((txn->req.msg_state >= HTTP_MSG_DONE &&
 		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->res.flags & CF_SHUTW))) ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 txn->req.msg_state == HTTP_MSG_ERROR) {
-		s->res.analysers &= AN_FLT_END;
+		s->res.analysers &= AN_RES_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
-		s->req.analysers &= AN_FLT_END;
+		s->req.analysers &= AN_REQ_FLT_END;
 		channel_abort(&s->req);
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
@@ -5818,8 +5818,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = 400;
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 	}
-	req->analysers   &= AN_FLT_END;
-	s->res.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
+	req->analysers   &= AN_REQ_FLT_END;
+	s->res.analysers &= AN_RES_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -5840,8 +5840,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = 502;
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 	}
-	req->analysers   &= AN_FLT_END;
-	s->res.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
+	req->analysers   &= AN_REQ_FLT_END;
+	s->res.analysers &= AN_RES_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	sess->fe->fe_counters.srv_aborts++;
 	s->be->be_counters.srv_aborts++;
@@ -5977,7 +5977,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 		abort_response:
 			channel_auto_close(rep);
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6012,7 +6012,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6037,7 +6037,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 504;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6057,7 +6057,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (objt_server(s->target))
 				objt_server(s->target)->counters.cli_aborts++;
 
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			channel_auto_close(rep);
 
 			txn->status = 400;
@@ -6087,7 +6087,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6108,7 +6108,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
-			rep->analysers &= AN_FLT_END;
+			rep->analysers &= AN_RES_FLT_END;
 			channel_auto_close(rep);
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -6467,8 +6467,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * any other information so that the client retries.
 	 */
 	txn->status = 0;
-	rep->analysers   &= AN_FLT_END;
-	s->req.analysers &= AN_FLT_END;
+	rep->analysers   &= AN_RES_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END;
 	channel_auto_close(rep);
 	s->logs.logwait = 0;
 	s->logs.level = 0;
@@ -6568,7 +6568,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				}
 				s->be->be_counters.failed_resp++;
 			return_srv_prx_502:
-				rep->analysers &= AN_FLT_END;
+				rep->analysers &= AN_RES_FLT_END;
 				txn->status = 502;
 				s->logs.t_data = -1; /* was not a valid response */
 				s->si[1].flags |= SI_FL_NOLINGER;
@@ -6788,7 +6788,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
  skip_header_mangling:
 	if ((msg->flags & HTTP_MSGF_XFER_LEN) || HAS_FILTERS(s) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
-		rep->analysers &= ~AN_FLT_XFER_DATA;
+		rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 		rep->analysers |= AN_RES_HTTP_XFER_BODY;
 	}
 
@@ -6966,8 +6966,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
-	res->analysers   &= AN_FLT_END;
-	s->req.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
+	res->analysers   &= AN_RES_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END; /* we're in data phase, we want to abort both directions */
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 
@@ -6981,8 +6981,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
-	res->analysers   &= AN_FLT_END;
-	s->req.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
+	res->analysers   &= AN_RES_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	sess->fe->fe_counters.cli_aborts++;
 	s->be->be_counters.cli_aborts++;

@@ -760,13 +760,13 @@ are listed in 'include/types/channels.h'. Here is an example:
 To surround activity of a filter during the channel analyzing, two new analyzers
 has been added:
 
-  * 'flt_start_analyze' (AN_FLT_START_FE/AN_FLT_START_BE): For a specific
-    filter, this analyzer is called before any call to the 'channel_analyze'
-    callback. From the filter point of view, it calls the
+  * 'flt_start_analyze' (AN_REQ/RES_FLT_START_FE/AN_REQ_RES_FLT_START_BE): For
+    a specific filter, this analyzer is called before any call to the
+    'channel_analyze' callback. From the filter point of view, it calls the
     'flt_ops.channel_start_analyze' callback.
 
-  * 'flt_end_analyze' (AN_FLT_END): For a specific filter, this analyzer is
-    called when all other analyzers have finished their processing. From the
+  * 'flt_end_analyze' (AN_REQ/RES_FLT_END): For a specific filter, this analyzer
+    is called when all other analyzers have finished their processing. From the
     filter point of view, it calls the 'flt_ops.channel_end_analyze' callback.
 
 For TCP streams, these analyzers are called only once. For HTTP streams, if the

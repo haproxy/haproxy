@@ -133,39 +133,51 @@
  * The field is blanked by channel_init() and only by analysers themselves
  * afterwards.
  */
-/* unused: 0x00000001 */
+/* AN_REQ_FLT_START_FE:         0x00000001 */
 #define AN_REQ_INSPECT_FE       0x00000002  /* inspect request contents in the frontend */
 #define AN_REQ_WAIT_HTTP        0x00000004  /* wait for an HTTP request */
 #define AN_REQ_HTTP_BODY        0x00000008  /* wait for HTTP request body */
 #define AN_REQ_HTTP_PROCESS_FE  0x00000010  /* process the frontend's HTTP part */
 #define AN_REQ_SWITCHING_RULES  0x00000020  /* apply the switching rules */
-#define AN_REQ_INSPECT_BE       0x00000040  /* inspect request contents in the backend */
-#define AN_REQ_HTTP_PROCESS_BE  0x00000080  /* process the backend's HTTP part */
-#define AN_REQ_SRV_RULES        0x00000100  /* use-server rules */
-#define AN_REQ_HTTP_INNER       0x00000200  /* inner processing of HTTP request */
-#define AN_REQ_HTTP_TARPIT      0x00000400  /* wait for end of HTTP tarpit */
-#define AN_REQ_STICKING_RULES   0x00000800  /* table persistence matching */
+/* AN_REQ_FLT_START_BE:         0x00000040 */
+#define AN_REQ_INSPECT_BE       0x00000080  /* inspect request contents in the backend */
+#define AN_REQ_HTTP_PROCESS_BE  0x00000100  /* process the backend's HTTP part */
+#define AN_REQ_HTTP_TARPIT      0x00000200  /* wait for end of HTTP tarpit */
+#define AN_REQ_SRV_RULES        0x00000400  /* use-server rules */
+#define AN_REQ_HTTP_INNER       0x00000800  /* inner processing of HTTP request */
 #define AN_REQ_PRST_RDP_COOKIE  0x00001000  /* persistence on rdp cookie */
-#define AN_REQ_HTTP_XFER_BODY   0x00002000  /* forward request body */
-#define AN_REQ_ALL              0x00003ffe  /* all of the request analysers */
+#define AN_REQ_STICKING_RULES   0x00002000  /* table persistence matching */
+/* AN_REQ_FLT_HTTP_HDRS:        0x00004000 */
+#define AN_REQ_HTTP_XFER_BODY   0x00008000  /* forward request body */
+/* AN_REQ_FLT_XFER_DATA:        0x00010000 */
+/* AN_REQ_FLT_END:              0x00020000 */
+#define AN_REQ_ALL              0x0000bfbe  /* all of the request analysers */
 
 /* response analysers */
-#define AN_RES_INSPECT          0x00010000  /* content inspection */
-#define AN_RES_WAIT_HTTP        0x00020000  /* wait for HTTP response */
-#define AN_RES_HTTP_PROCESS_BE  0x00040000  /* process backend's HTTP part */
-#define AN_RES_HTTP_PROCESS_FE  0x00040000  /* process frontend's HTTP part (same for now) */
-#define AN_RES_STORE_RULES      0x00080000  /* table persistence matching */
-#define AN_RES_HTTP_XFER_BODY   0x00100000  /* forward response body */
-#define AN_RES_ALL              0x001f0000  /* all of the response analysers */
+/* AN_RES_FLT_START_FE:         0x00040000 */
+/* AN_RES_FLT_START_BE:         0x00080000 */
+#define AN_RES_INSPECT          0x00100000  /* content inspection */
+#define AN_RES_WAIT_HTTP        0x00200000  /* wait for HTTP response */
+#define AN_RES_STORE_RULES      0x00400000  /* table persistence matching */
+#define AN_RES_HTTP_PROCESS_BE  0x00800000  /* process backend's HTTP part */
+#define AN_RES_HTTP_PROCESS_FE  0x00800000  /* process frontend's HTTP part (same for now) */
+/* AN_RES_FLT_HTTP_HDRS:        0x01000000 */
+#define AN_RES_HTTP_XFER_BODY   0x02000000  /* forward response body */
+/* AN_RES_FLT_XFER_DATA:        0x04000000 */
+/* AN_RES_FLT_END:              0x08000000 */
+#define AN_RES_ALL              0x02f00000  /* all of the response analysers */
 
-#define AN_FLT_START_FE         0x01000000
-#define AN_FLT_START_BE         0x02000000
-#define AN_FLT_END              0x04000000
-#define AN_FLT_XFER_DATA        0x08000000
-#define AN_FLT_HTTP_HDRS        0x10000000
+#define AN_REQ_FLT_START_FE     0x00000001
+#define AN_REQ_FLT_START_BE     0x00000040
+#define AN_REQ_FLT_HTTP_HDRS    0x00004000
+#define AN_REQ_FLT_XFER_DATA    0x00010000
+#define AN_REQ_FLT_END          0x00020000
 
-#define AN_FLT_ALL_FE           0x0d000000
-#define AN_FLT_ALL_BE           0x0e000000
+#define AN_RES_FLT_START_FE     0x00040000
+#define AN_RES_FLT_START_BE     0x00080000
+#define AN_RES_FLT_HTTP_HDRS    0x01000000
+#define AN_RES_FLT_XFER_DATA    0x04000000
+#define AN_RES_FLT_END          0x08000000
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)

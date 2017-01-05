@@ -694,8 +694,16 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	 * so we do not need to check the filter list's emptiness. */
 
 	RESUME_FILTER_LOOP(s, chn) {
-		if (an_bit == AN_FLT_START_BE && !(filter->flags & FLT_FL_IS_BACKEND_FILTER))
-			continue;
+		if (!(chn->flags & CF_ISRESP)) {
+			if (an_bit == AN_REQ_FLT_START_BE &&
+			    !(filter->flags & FLT_FL_IS_BACKEND_FILTER))
+				continue;
+		}
+		else {
+			if (an_bit == AN_RES_FLT_START_BE &&
+			    !(filter->flags & FLT_FL_IS_BACKEND_FILTER))
+				continue;
+		}
 
 		FLT_NXT(filter, chn) = 0;
 		FLT_FWD(filter, chn) = 0;
@@ -764,9 +772,9 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 }
 
 /*
- * This function is the AN_FLT_HTTP_HDRS analyzer, used to filter HTTP headers
- * or a request or a response. Returns 0 if an error occurs or if it needs to
- * wait, any other value otherwise.
+ * This function is the AN_REQ/RES_FLT_HTTP_HDRS analyzer, used to filter HTTP
+ * headers or a request or a response. Returns 0 if an error occurs or if it
+ * needs to wait, any other value otherwise.
  */
 int
 flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit)
@@ -828,7 +836,7 @@ end:
 
 	/* Check if 'channel_end_analyze' callback has been called for the
 	 * request and the response. */
-	if (!(s->req.analysers & AN_FLT_END) && !(s->res.analysers & AN_FLT_END)) {
+	if (!(s->req.analysers & AN_REQ_FLT_END) && !(s->res.analysers & AN_RES_FLT_END)) {
 		/* When we are waiting for a new request, so we must reset
 		 * stream analyzers. The input must not be closed the request
 		 * channel, else it is useless to wait. */
@@ -967,11 +975,11 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 
 /*
  * Called when TCP data must be filtered on a channel. This function is the
- * AN_FLT_XFER_DATA analyzer. When called, it is responsible to forward data
- * when the proxy is not in http mode. Behind the scene, it calls consecutively
- * 'tcp_data' and 'tcp_forward_data' callbacks for all "data" filters attached
- * to a stream. Returns 0 if an error occurs or if it needs to wait, any other
- * value otherwise.
+ * AN_REQ/RES_FLT_XFER_DATA analyzer. When called, it is responsible to forward
+ * data when the proxy is not in http mode. Behind the scene, it calls
+ * consecutively 'tcp_data' and 'tcp_forward_data' callbacks for all "data"
+ * filters attached to a stream. Returns 0 if an error occurs or if it needs to
+ * wait, any other value otherwise.
  */
 int
 flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
@@ -1045,12 +1053,12 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 	channel_abort(&s->res);
 
 	if (!(chn->flags & CF_ISRESP)) {
-		s->req.analysers &= AN_FLT_END;
+		s->req.analysers &= AN_REQ_FLT_END;
 		finst = SF_FINST_R;
 		/* FIXME: incr counters */
 	}
 	else {
-		s->res.analysers &= AN_FLT_END;
+		s->res.analysers &= AN_RES_FLT_END;
 		finst = SF_FINST_H;
 		/* FIXME: incr counters */
 	}

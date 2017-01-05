@@ -725,7 +725,7 @@ static void sess_establish(struct stream *s)
 	/* Be sure to filter response headers if the backend is an HTTP proxy
 	 * and if there are filters attached to the stream. */
 	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
-		rep->analysers |= AN_FLT_HTTP_HDRS;
+		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
@@ -1155,7 +1155,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	if (fe == s->be) {
 		s->req.analysers &= ~AN_REQ_INSPECT_BE;
 		s->req.analysers &= ~AN_REQ_HTTP_PROCESS_BE;
-		s->req.analysers &= ~AN_FLT_START_BE;
+		s->req.analysers &= ~AN_REQ_FLT_START_BE;
 	}
 
 	/* as soon as we know the backend, we must check if we have a matching forced or ignored
@@ -1196,7 +1196,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	if (s->txn)
 		s->txn->status = 500;
-	s->req.analysers &= AN_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END;
 	s->req.analyse_exp = TICK_ETERNITY;
 	return 0;
 }
@@ -1465,7 +1465,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 /* These 2 following macros call an analayzer for the specified channel if the
  * right flag is set. The first one is used for "filterable" analyzers. If a
  * stream has some registered filters, pre and post analyaze callbacks are
- * called. The second are used for other analyzers (AN_FLT_* and
+ * called. The second are used for other analyzers (AN_REQ/RES_FLT_* and
  * AN_REQ/RES_HTTP_XFER_BODY) */
 #define FLT_ANALYZE(strm, chn, fun, list, back, flag, ...)			\
 	{									\
@@ -1785,13 +1785,13 @@ struct task *process_stream(struct task *t)
 			ana_list = ana_back = req->analysers;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
-				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_FE);
+				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_REQ_FLT_START_FE);
 				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_FE);
 				FLT_ANALYZE(s, req, http_wait_for_request,      ana_list, ana_back, AN_REQ_WAIT_HTTP);
 				FLT_ANALYZE(s, req, http_wait_for_request_body, ana_list, ana_back, AN_REQ_HTTP_BODY);
 				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE, sess->fe);
 				FLT_ANALYZE(s, req, process_switching_rules,    ana_list, ana_back, AN_REQ_SWITCHING_RULES);
-				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_BE);
+				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_REQ_FLT_START_BE);
 				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_BE);
 				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE, s->be);
 				FLT_ANALYZE(s, req, http_process_tarpit,        ana_list, ana_back, AN_REQ_HTTP_TARPIT);
@@ -1799,10 +1799,10 @@ struct task *process_stream(struct task *t)
 				FLT_ANALYZE(s, req, http_process_request,       ana_list, ana_back, AN_REQ_HTTP_INNER);
 				FLT_ANALYZE(s, req, tcp_persist_rdp_cookie,     ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
 				FLT_ANALYZE(s, req, process_sticking_rules,     ana_list, ana_back, AN_REQ_STICKING_RULES);
-				ANALYZE    (s, req, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
+				ANALYZE    (s, req, flt_analyze_http_headers,   ana_list, ana_back, AN_REQ_FLT_HTTP_HDRS);
 				ANALYZE    (s, req, http_request_forward_body,  ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
-				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
-				ANALYZE    (s, req, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
+				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_REQ_FLT_XFER_DATA);
+				ANALYZE    (s, req, flt_end_analyze,            ana_list, ana_back, AN_REQ_FLT_END);
 				break;
 			}
 		}
@@ -1872,16 +1872,16 @@ struct task *process_stream(struct task *t)
 			ana_list = ana_back = res->analysers;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
-				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_FE);
-				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_FLT_START_BE);
+				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_RES_FLT_START_FE);
+				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_RES_FLT_START_BE);
 				FLT_ANALYZE(s, res, tcp_inspect_response,       ana_list, ana_back, AN_RES_INSPECT);
 				FLT_ANALYZE(s, res, http_wait_for_response,     ana_list, ana_back, AN_RES_WAIT_HTTP);
 				FLT_ANALYZE(s, res, process_store_rules,        ana_list, ana_back, AN_RES_STORE_RULES);
 				FLT_ANALYZE(s, res, http_process_res_common,    ana_list, ana_back, AN_RES_HTTP_PROCESS_BE, s->be);
-				ANALYZE    (s, res, flt_analyze_http_headers,   ana_list, ana_back, AN_FLT_HTTP_HDRS);
+				ANALYZE    (s, res, flt_analyze_http_headers,   ana_list, ana_back, AN_RES_FLT_HTTP_HDRS);
 				ANALYZE    (s, res, http_response_forward_body, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
-				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_FLT_XFER_DATA);
-				ANALYZE    (s, res, flt_end_analyze,            ana_list, ana_back, AN_FLT_END);
+				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_RES_FLT_XFER_DATA);
+				ANALYZE    (s, res, flt_end_analyze,            ana_list, ana_back, AN_RES_FLT_END);
 				break;
 			}
 		}
