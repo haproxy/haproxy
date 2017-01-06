@@ -967,7 +967,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 		if (!defsrv) {
 			struct sockaddr_storage *sk;
-			int port1, port2;
+			int port1, port2, port;
 			struct protocol *proto;
 			struct dns_resolution *curr_resolution;
 
@@ -1005,7 +1005,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, &fqdn, 0);
+			sk = str2sa_range(args[2], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1062,7 +1062,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
  skip_name_resolution:
 			newsrv->addr = *sk;
-			newsrv->svc_port = get_host_port(sk);
+			newsrv->svc_port = port;
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = xprt_get(XPRT_RAW);
 
 			if (!protocol_by_family(newsrv->addr.ss_family)) {
