@@ -958,14 +958,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 * set or if resolve is set, otherwise it's an error.
 		 */
 		if (str2ip2(str2, &ss, 0) == NULL) {
-			if (!resolve && fqdn) {
-				/* we'll still want to store the port, so let's
-				 * force it to IPv4 for now.
-				 */
-				memset(&ss, 0, sizeof(ss));
-				ss.ss_family = AF_INET;
-			}
-			else if ((!resolve && !fqdn) ||
+			if ((!resolve && !fqdn) ||
 				 (resolve && str2ip2(str2, &ss, 1) == NULL)) {
 				memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
 				goto out;
