@@ -3009,6 +3009,9 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			serverip = &((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr;
 			break;
 
+		case AF_UNSPEC:
+			break;
+
 		default:
 			goto invalid;
 	}
