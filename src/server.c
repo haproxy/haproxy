@@ -1013,7 +1013,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			proto = protocol_by_family(sk->ss_family);
-			if (!proto || !proto->connect) {
+			if (!fqdn && (!proto || !proto->connect)) {
 				Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
 				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1065,7 +1065,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->svc_port = port;
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = xprt_get(XPRT_RAW);
 
-			if (!protocol_by_family(newsrv->addr.ss_family)) {
+			if (!newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 				      file, linenum, newsrv->addr.ss_family, args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
