@@ -1409,7 +1409,7 @@ int port_to_str(struct sockaddr_storage *addr, char *str, int size)
 	uint16_t port;
 
 
-	if (size < 5)
+	if (size < 6)
 		return 0;
 	*str = '\0';
 
