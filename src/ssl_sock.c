@@ -834,11 +834,14 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 
 	if (!callback) {
 		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(*cb_arg));
+		EVP_PKEY *pkey;
 
 		cb_arg->is_single = 1;
 		cb_arg->s_ocsp = iocsp;
 
-		cb_arg->single_kt = EVP_PKEY_base_id(X509_get_pubkey(x));
+		pkey = X509_get_pubkey(x);
+		cb_arg->single_kt = EVP_PKEY_base_id(pkey);
+		EVP_PKEY_free(pkey);
 
 		SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
 		SSL_CTX_set_tlsext_status_arg(ctx, cb_arg);
@@ -851,6 +854,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		struct certificate_ocsp *tmp_ocsp;
 		int index;
 		int key_type;
+		EVP_PKEY *pkey;
 
 #ifdef SSL_CTX_get_tlsext_status_arg
 		SSL_CTX_ctrl(ctx, SSL_CTRL_GET_TLSEXT_STATUS_REQ_CB_ARG, 0, &cb_arg);
@@ -869,7 +873,10 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		cb_arg->is_single = 0;
 		cb_arg->single_kt = 0;
 
-		key_type = EVP_PKEY_base_id(X509_get_pubkey(x));
+		pkey = X509_get_pubkey(x);
+		key_type = EVP_PKEY_base_id(pkey);
+		EVP_PKEY_free(pkey);
+
 		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
 		if (index >= 0 && !cb_arg->m_ocsp[index])
 			cb_arg->m_ocsp[index] = iocsp;
