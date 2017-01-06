@@ -527,7 +527,10 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 			     (s->state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
 
 	addr_to_str(&s->addr, addr, sizeof(addr));
-	port_to_str(&s->addr, port, sizeof(port));
+	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
+		snprintf(port, sizeof(port), "%u", s->svc_port);
+	else
+		*port = 0;
 
 	hlen += snprintf(buffer + hlen,  size - hlen, "; address=%s; port=%s; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
 			     addr, port, s->proxy->id, s->id,
@@ -1778,7 +1781,11 @@ static int prepare_external_check(struct check *check)
 
 	addr_to_str(&s->addr, buf, sizeof(buf));
 	check->argv[3] = strdup(buf);
-	port_to_str(&s->addr, buf, sizeof(buf));
+
+	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
+		snprintf(buf, sizeof(buf), "%u", s->svc_port);
+	else
+		*buf = 0;
 	check->argv[4] = strdup(buf);
 
 	for (i = 0; i < 5; i++) {
@@ -3437,7 +3444,8 @@ int srv_check_healthcheck_port(struct check *chk)
 	 */
 	if (srv->flags & SRV_F_MAPPORTS)
 		return 0;
-	i = get_host_port(&srv->addr); /* by default */
+
+	i = srv->svc_port; /* by default */
 	if (i > 0)
 		return i;
 

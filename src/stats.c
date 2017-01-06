@@ -1445,11 +1445,11 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 		case AF_INET:
 			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "%s:%d", str, get_host_port(&sv->addr));
+			chunk_appendf(out, "%s:%d", str, sv->svc_port);
 			break;
 		case AF_INET6:
 			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "[%s]:%d", str, get_host_port(&sv->addr));
+			chunk_appendf(out, "[%s]:%d", str, sv->svc_port);
 			break;
 		case AF_UNIX:
 			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");

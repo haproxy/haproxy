@@ -769,6 +769,7 @@ int assign_server_address(struct stream *s)
 			return SRV_STATUS_INTERNAL;
 
 		srv_conn->addr.to = objt_server(s->target)->addr;
+		set_host_port(&srv_conn->addr.to, objt_server(s->target)->svc_port);
 
 		if (!is_addr(&srv_conn->addr.to) && cli_conn) {
 			/* if the server has no address, we use the same address
@@ -1345,7 +1346,8 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	int              ret;
 	struct sample    smp;
 	struct server *srv = px->srv;
-	struct sockaddr_in addr;
+	uint16_t port;
+	uint32_t addr;
 	char *p;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
@@ -1366,22 +1368,25 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.u.str.len == 0)
 		goto no_cookie;
 
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-
-	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return */
-	addr.sin_addr.s_addr = strtoul(smp.data.u.str.str, &p, 10);
+	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return.
+	 * The cookie format is <ip> "." <port> where "ip" is the integer corresponding to the
+	 * server's IP address in network order, and "port" is the integer corresponding to the
+	 * server's port in network order. Comments please Emeric.
+	 */
+	addr = strtoul(smp.data.u.str.str, &p, 10);
 	if (*p != '.')
 		goto no_cookie;
 	p++;
-	addr.sin_port = (unsigned short)strtoul(p, &p, 10);
+
+	port = ntohs(strtoul(p, &p, 10));
 	if (*p != '.')
 		goto no_cookie;
 
 	s->target = NULL;
 	while (srv) {
 		if (srv->addr.ss_family == AF_INET &&
-		    memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
+		    port == srv->svc_port &&
+		    addr == ((struct sockaddr_in *)&srv->addr)->sin_addr.s_addr) {
 			if ((srv->state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SF_DIRECT | SF_ASSIGNED;

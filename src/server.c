@@ -1062,6 +1062,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
  skip_name_resolution:
 			newsrv->addr = *sk;
+			newsrv->svc_port = get_host_port(sk);
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = xprt_get(XPRT_RAW);
 
 			if (!protocol_by_family(newsrv->addr.ss_family)) {
@@ -2807,7 +2808,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 			chunk_appendf(msg, ", ");
 
 		/* collecting data currently setup */
-		current_port = get_host_port(&s->addr);
+		current_port = s->svc_port;
 
 		/* check if PORT change is required */
 		port_change_required = 0;
@@ -2848,7 +2849,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 		/* applying PORT changes if required and update response message */
 		if (port_change_required) {
 			/* apply new port */
-			set_host_port(&s->addr, new_port);
+			s->svc_port = new_port;
 
 			/* prepare message */
 			chunk_appendf(msg, "port changed from '");
