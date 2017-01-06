@@ -2198,7 +2198,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	conn->target = socket->s->target;
 
 	/* Parse ip address. */
-	addr = str2sa_range(ip, &low, &high, NULL, NULL, NULL, 0);
+	addr = str2sa_range(ip, NULL, &low, &high, NULL, NULL, NULL, 0);
 	if (!addr)
 		WILL_LJMP(luaL_error(L, "connect: cannot parse destination address '%s'", ip));
 	if (low != high)

@@ -816,7 +816,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * When a file descriptor is passed, its value is put into the s_addr part of
  * the address when cast to sockaddr_in and the address family is AF_UNSPEC.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
+struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
 {
 	static struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -983,6 +983,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 
 	ret = &ss;
  out:
+	if (port)
+		*port = porta;
 	if (low)
 		*low = portl;
 	if (high)
