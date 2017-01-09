@@ -2627,6 +2627,8 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 		conf->crl_file = NULL;
 		free(conf->ciphers);
 		conf->ciphers = NULL;
+		free(conf->curves);
+		conf->curves = NULL;
 		free(conf->ecdhe);
 		conf->ecdhe = NULL;
 	}
@@ -2851,6 +2853,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	struct ssl_bind_conf *ssl_conf_cur;
 	int conf_ssl_options = bind_conf->ssl_conf.ssl_options | (ssl_conf ? ssl_conf->ssl_options : 0);
 	const char *conf_ciphers;
+	const char *conf_curves = NULL;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -3040,8 +3043,22 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
+#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
+	if (conf_curves) {
+		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
+			Alert("Proxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
+			      curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr++;
+		}
+#ifndef OPENSSL_IS_BORINGSSL
+		else
+			SSL_CTX_set_ecdh_auto(ctx, 1);
+#endif
+	}
+#endif
 #if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
-	{
+	if (!conf_curves) {
 		int i;
 		EC_KEY  *ecdh;
 		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
@@ -5511,6 +5528,28 @@ static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struc
 	return ssl_bind_parse_crl_file(args, cur_arg, px, &conf->ssl_conf, err);
 }
 
+/* parse the "curves" bind keyword keyword */
+static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing curve suite", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	conf->curves = strdup(args[cur_arg + 1]);
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support curve suite", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	return ssl_bind_parse_curves(args, cur_arg, px, &conf->ssl_conf, err);
+}
+
 /* parse the "ecdhe" bind keyword keyword */
 static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
@@ -6814,6 +6853,7 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process verify on client cert */
 	{ "ciphers",               ssl_bind_parse_ciphers,          1 }, /* set SSL cipher suite */
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificat revocation list file use on client cert verify */
+	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "force-sslv3",           ssl_bind_parse_force_sslv3,      0 }, /* force SSLv3 */
 	{ "force-tlsv10",          ssl_bind_parse_force_tlsv10,     0 }, /* force TLSv10 */
@@ -6840,6 +6880,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crt",                   bind_parse_crt,             1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,      1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "crt-list",              bind_parse_crt_list,        1 }, /* load a list of crt from this location */
+	{ "curves",                bind_parse_curves,          1 }, /* set SSL curve suite */
 	{ "ecdhe",                 bind_parse_ecdhe,           1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "force-sslv3",           bind_parse_force_sslv3,     0 }, /* force SSLv3 */
 	{ "force-tlsv10",          bind_parse_force_tlsv10,    0 }, /* force TLSv10 */

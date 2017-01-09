@@ -130,6 +130,7 @@ struct ssl_bind_conf {
 	char *ca_file;             /* CAfile to use on verify */
 	char *crl_file;            /* CRLfile to use on verify */
 	char *ciphers;             /* cipher suite to use if non-null */
+	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	int ssl_options;           /* ssl options */
 #endif
