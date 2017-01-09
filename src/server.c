@@ -1151,6 +1151,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->agent.inter = val;
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "agent-addr")) {
+				if(str2ip(args[cur_arg + 1], &newsrv->agent.addr) == NULL) {
+					Alert("parsing agent-addr failed. Check if %s is correct address.\n", args[cur_arg + 1]);
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
 			else if (!strcmp(args[cur_arg], "agent-port")) {
 				global.maxsock++;
 				newsrv->agent.port = atol(args[cur_arg + 1]);
