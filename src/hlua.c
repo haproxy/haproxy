@@ -216,12 +216,12 @@ struct hlua_mem_allocator {
 static struct hlua_mem_allocator hlua_global_allocator;
 
 static const char error_500[] =
-	"HTTP/1.0 500 Server Error\r\n"
+	"HTTP/1.0 500 Internal Server Error\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the

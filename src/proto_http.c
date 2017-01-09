@@ -196,12 +196,12 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"<html><body><h1>429 Too Many Requests</h1>\nYou have sent too many requests in a given amount of time.\n</body></html>\n",
 
 	[HTTP_ERR_500] =
-	"HTTP/1.0 500 Server Error\r\n"
+	"HTTP/1.0 500 Internal Server Error\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
 
 	[HTTP_ERR_502] =
 	"HTTP/1.0 502 Bad Gateway\r\n"
