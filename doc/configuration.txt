@@ -10708,6 +10708,14 @@ agent-inter <delay>
 
   Supported in default-server: Yes
 
+agent-addr <addr>
+  The "agent-addr" parameter sets address for agent check.
+
+  You can offload agent-check to another target, so you can make single place
+  managing status and weights of servers defined in haproxy in case you can't
+  make self-aware and self-managing services. You can specify both IP or
+  hostname, it will be resolved.
+
 agent-port <port>
   The "agent-port" parameter sets the TCP port used for agent checks.
 
