@@ -3490,6 +3490,9 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 	list_for_each_entry_safe(mp, mpback, &curmps, list) {
 		list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
+			struct spoe_arg *arg;
+			unsigned int     where;
+
 			if (!strcmp(msg->id, mp->id)) {
 				if ((px->cap & (PR_CAP_FE|PR_CAP_BE)) == (PR_CAP_FE|PR_CAP_BE)) {
 					if (msg->event == SPOE_EV_ON_TCP_REQ_BE)
@@ -3509,6 +3512,69 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 						px->id, msg->conf.file, msg->conf.line);
 					goto next;
 				}
+
+				where = 0;
+				switch (msg->event) {
+					case SPOE_EV_ON_CLIENT_SESS:
+						where |= SMP_VAL_FE_CON_ACC;
+						break;
+
+					case SPOE_EV_ON_TCP_REQ_FE:
+						where |= SMP_VAL_FE_REQ_CNT;
+						break;
+
+					case SPOE_EV_ON_HTTP_REQ_FE:
+						where |= SMP_VAL_FE_HRQ_HDR;
+						break;
+
+					case SPOE_EV_ON_TCP_REQ_BE:
+						if (px->cap & PR_CAP_FE)
+							where |= SMP_VAL_FE_REQ_CNT;
+						if (px->cap & PR_CAP_BE)
+							where |= SMP_VAL_BE_REQ_CNT;
+						break;
+
+					case SPOE_EV_ON_HTTP_REQ_BE:
+						if (px->cap & PR_CAP_FE)
+							where |= SMP_VAL_FE_HRQ_HDR;
+						if (px->cap & PR_CAP_BE)
+							where |= SMP_VAL_BE_HRQ_HDR;
+						break;
+
+					case SPOE_EV_ON_SERVER_SESS:
+						where |= SMP_VAL_BE_SRV_CON;
+						break;
+
+					case SPOE_EV_ON_TCP_RSP:
+						if (px->cap & PR_CAP_FE)
+							where |= SMP_VAL_FE_RES_CNT;
+						if (px->cap & PR_CAP_BE)
+							where |= SMP_VAL_BE_RES_CNT;
+						break;
+
+					case SPOE_EV_ON_HTTP_RSP:
+						if (px->cap & PR_CAP_FE)
+							where |= SMP_VAL_FE_HRS_HDR;
+						if (px->cap & PR_CAP_BE)
+							where |= SMP_VAL_BE_HRS_HDR;
+						break;
+
+					default:
+						break;
+				}
+
+				list_for_each_entry(arg, &msg->args, list) {
+					if (!(arg->expr->fetch->val & where)) {
+						Warning("Proxy '%s': Ignore SPOE message at %s:%d: "
+							"some args extract information from '%s', "
+							"none of which is available here ('%s').\n",
+							px->id, msg->conf.file, msg->conf.line,
+							sample_ckp_names(arg->expr->fetch->use),
+							sample_ckp_names(where));
+						goto next;
+					}
+				}
+
 				msg->agent = curagent;
 				LIST_DEL(&msg->list);
 				LIST_ADDQ(&curagent->messages[msg->event], &msg->list);
