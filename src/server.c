@@ -3469,6 +3469,33 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->st0 = CLI_ST_PRINT;
 		}
 	}
+	else if (strcmp(args[3], "agent-addr") == 0) {
+		if (!(sv->agent.state & CHK_ST_ENABLED)) {
+			appctx->ctx.cli.msg = "agent checks are not enabled on this server.\n";
+			appctx->st0 = CLI_ST_PRINT;
+		} else {
+			if (str2ip(args[4], &sv->agent.addr) == NULL) {
+				appctx->ctx.cli.msg = "incorrect addr address given for agent.\n";
+				appctx->st0 = CLI_ST_PRINT;
+			}
+		}
+	}
+	else if (strcmp(args[3], "agent-send") == 0) {
+		if (!(sv->agent.state & CHK_ST_ENABLED)) {
+			appctx->ctx.cli.msg = "agent checks are not enabled on this server.\n";
+			appctx->st0 = CLI_ST_PRINT;
+		} else {
+			char *nss = strdup(args[4]);
+			if (!nss) {
+				appctx->ctx.cli.msg = "cannot allocate memory for new string.\n";
+				appctx->st0 = CLI_ST_PRINT;
+			} else {
+				free(sv->agent.send_string);
+				sv->agent.send_string = nss;
+				sv->agent.send_string_len = strlen(args[4]);
+			}
+		}
+	}
 	else if (strcmp(args[3], "check-port") == 0) {
 		int i = 0;
 		if (strl2irc(args[4], strlen(args[4]), &i) != 0) {
