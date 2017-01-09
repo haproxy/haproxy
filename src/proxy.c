@@ -1156,7 +1156,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	 * be more reliable to store the list of analysers that have been run,
 	 * but what we do here is OK for now.
 	 */
-	s->req.analysers |= be->be_req_ana & (strm_li(s) ? ~strm_li(s)->analysers : 0);
+	s->req.analysers |= be->be_req_ana & ~(strm_li(s) ? strm_li(s)->analysers : 0);
 
 	/* If the target backend requires HTTP processing, we have to allocate
 	 * the HTTP transaction and hdr_idx if we did not have one.
