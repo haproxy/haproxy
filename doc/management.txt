@@ -1603,6 +1603,15 @@ set server <backend>/<server> agent [ up | down ]
   switch a server's state regardless of some slow agent checks for example.
   Note that the change is propagated to tracking servers if any.
 
+set server <backend>/<server> agent-addr <addr>
+  Change addr for servers agent checks. Allows to migrate agent-checks to
+  another address at runtime. You can specify both IP and hostname, it will be
+  resolved.
+
+set server <backend>/<server> agent-send <value>
+  Change agent string sent to agent check target. Allows to update string while
+  changing server address to keep those two matching.
+
 set server <backend>/<server> health [ up | stopping | down ]
   Force a server's health to a new state. This can be useful to immediately
   switch a server's state regardless of some slow health checks for example.
