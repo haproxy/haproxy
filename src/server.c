@@ -2814,6 +2814,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 		port_change_required = 0;
 
 		sign = *port;
+		errno = 0;
 		new_port = strtol(port, &endptr, 10);
 		if ((errno != 0) || (port == endptr)) {
 			chunk_appendf(msg, "problem converting port '%s' to an int", port);
