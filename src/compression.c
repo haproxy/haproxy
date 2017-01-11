@@ -696,6 +696,8 @@ static void __comp_fetch_init(void)
 	memprintf(&ptr, "%s\nRunning on zlib version : %s", ptr, zlibVersion());
 #elif defined(USE_SLZ)
 	memprintf(&ptr, "Built with libslz for stateless compression.");
+#else
+	memprintf(&ptr, "Built without compression support (neither USE_ZLIB nor USE_SLZ are set).");
 #endif
 	memprintf(&ptr, "%s\nCompression algorithms supported :", ptr);
 
