@@ -6794,13 +6794,6 @@ static void __ssl_sock_init(void)
 #endif
 	       "", ptr);
 
-	memprintf(&ptr, "%s\nOpenSSL library supports prefer-server-ciphers : "
-#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-		"yes"
-#else
-		"no (0.9.7 or later needed)"
-#endif
-		"", ptr);
 	hap_register_build_opts(ptr, 1);
 
 	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
