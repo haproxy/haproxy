@@ -7542,7 +7542,8 @@ int check_config_validity()
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
-
+				/* Update tot_fe_maxconn for a further fullconn's computation */
+				target->tot_fe_maxconn += curproxy->maxconn;
 				/* Emit a warning if this proxy also has some servers */
 				if (curproxy->srv) {
 					Warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
@@ -7550,6 +7551,14 @@ int check_config_validity()
 					err_code |= ERR_WARN;
 				}
 			}
+		}
+
+		if (!curproxy->defbe.be && (curproxy->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
+			/* Case of listen without default backend
+			 * The curproxy will be its own default backend
+			 * so we update tot_fe_maxconn for a further
+			 * fullconn's computation */
+			curproxy->tot_fe_maxconn += curproxy->maxconn;
 		}
 
 		/* find the target proxy for 'use_backend' rules */
@@ -7613,6 +7622,23 @@ int check_config_validity()
 			} else {
 				free((void *)rule->be.name);
 				rule->be.backend = target;
+				/* For each target of switching rules, we update
+				 * their tot_fe_maxconn, except if a previous rule point
+				 * on the same backend or on the default backend */
+				if (rule->be.backend != curproxy->defbe.be) {
+					struct switching_rule *swrule;
+
+					list_for_each_entry(swrule, &curproxy->switching_rules, list) {
+						if (rule == swrule) {
+							target->tot_fe_maxconn += curproxy->maxconn;
+							break;
+						}
+						else if (!swrule->dynamic && swrule->be.backend == rule->be.backend) {
+							/* there is multiple ref of this backend */
+							break;
+						}
+					}
+				}
 			}
 		}
 
@@ -8869,48 +8895,11 @@ out_uri_auth_compat:
 		 * the possible incoming frontend's maxconns.
 		 */
 		if (!curproxy->fullconn && (curproxy->cap & PR_CAP_BE)) {
-			struct proxy *fe;
-			int total = 0;
-
-			/* sum up the number of maxconns of frontends which
-			 * reference this backend at least once or which are
-			 * the same one ('listen').
-			 */
-			for (fe = proxy; fe; fe = fe->next) {
-				struct switching_rule *rule;
-				int found = 0;
-
-				if (!(fe->cap & PR_CAP_FE))
-					continue;
-
-				if (fe == curproxy)  /* we're on a "listen" instance */
-					found = 1;
-
-				if (fe->defbe.be == curproxy) /* "default_backend" */
-					found = 1;
-
-				/* check if a "use_backend" rule matches */
-				if (!found) {
-					list_for_each_entry(rule, &fe->switching_rules, list) {
-						if (!rule->dynamic && rule->be.backend == curproxy) {
-							found = 1;
-							break;
-						}
-					}
-				}
-
-				/* now we've checked all possible ways to reference a backend
-				 * from a frontend.
-				 */
-				if (!found)
-					continue;
-				total += fe->maxconn;
-			}
 			/* we have the sum of the maxconns in <total>. We only
 			 * keep 10% of that sum to set the default fullconn, with
 			 * a hard minimum of 1 (to avoid a divide by zero).
 			 */
-			curproxy->fullconn = (total + 9) / 10;
+			curproxy->fullconn = (curproxy->tot_fe_maxconn + 9) / 10;
 			if (!curproxy->fullconn)
 				curproxy->fullconn = 1;
 		}

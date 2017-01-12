@@ -326,6 +326,7 @@ struct proxy {
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
+	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
 	struct in_addr except_to;		/* don't x-original-to for this address. */
 	struct in_addr except_mask_to;		/* the netmask for except_to. */
