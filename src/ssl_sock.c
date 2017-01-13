@@ -176,7 +176,7 @@ static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
 #endif /* OPENSSL_NO_DH */
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 /* X509V3 Extensions that will be added on generated certificates */
 #define X509V3_EXT_SIZE 5
 static char *x509v3_ext_names[X509V3_EXT_SIZE] = {
@@ -193,13 +193,12 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 	"keyid,issuer:always",
 	"nonRepudiation,digitalSignature,keyEncipherment"
 };
-
-static struct ssl_bind_kw ssl_bind_kws[];
-
 /* LRU cache to store generated certificate */
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
+
+static struct ssl_bind_kw ssl_bind_kws[];
 
 #if OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* The order here matters for picking a default context,
@@ -214,6 +213,27 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 #else
 #define SSL_SOCK_NUM_KEYTYPES 1
 #endif
+
+/*
+ * This function gives the detail of the SSL error. It is used only
+ * if the debug mode and the verbose mode are activated. It dump all
+ * the SSL error until the stack was empty.
+ */
+static forceinline void ssl_sock_dump_errors(struct connection *conn)
+{
+	unsigned long ret;
+
+	if (unlikely(global.mode & MODE_DEBUG)) {
+		while(1) {
+			ret = ERR_get_error();
+			if (ret == 0)
+				return;
+			fprintf(stderr, "fd[%04x] OpenSSL error[0x%lx] %s: %s\n",
+			        (unsigned short)conn->t.sock.fd, ret,
+			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
+		}
+	}
+}
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 /*
@@ -241,27 +261,6 @@ struct ocsp_cbk_arg {
 		struct certificate_ocsp *m_ocsp[SSL_SOCK_NUM_KEYTYPES];
 	};
 };
-
-/*
- * This function gives the detail of the SSL error. It is used only
- * if the debug mode and the verbose mode are activated. It dump all
- * the SSL error until the stack was empty.
- */
-static forceinline void ssl_sock_dump_errors(struct connection *conn)
-{
-	unsigned long ret;
-
-	if (unlikely(global.mode & MODE_DEBUG)) {
-		while(1) {
-			ret = ERR_get_error();
-			if (ret == 0)
-				return;
-			fprintf(stderr, "fd[%04x] OpenSSL error[0x%lx] %s: %s\n",
-			        (unsigned short)conn->t.sock.fd, ret,
-			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
-		}
-	}
-}
 
 /*
  *  This function returns the number of seconds  elapsed
@@ -532,6 +531,7 @@ end:
 
 	return ret;
 }
+#endif
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, HMAC_CTX *hctx, int enc)
@@ -655,9 +655,9 @@ static int tlskeys_finalize_config(void)
 	LIST_DEL(&tkr);
 	return 0;
 }
-
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 
+#ifndef OPENSSL_NO_OCSP
 int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype)
 {
 	switch (evp_keytype) {
@@ -1212,6 +1212,7 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#ifndef SSL_NO_GENERATE_CERTIFICATES
 static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
 
 /* Create a X509 certificate with the specified servername and serial. This
@@ -1432,21 +1433,24 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 	}
 	return ssl_ctx;
 }
+#endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
  * will keep being used.
  */
-static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
+static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 {
 	const char *servername;
 	const char *wildp = NULL;
 	struct ebmb_node *node, *n;
+	struct bind_conf *s = priv;
 	int i;
 	(void)al; /* shut gcc stupid warning */
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
+#if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		if (s->generate_certs) {
 			struct connection *conn = SSL_get_app_data(ssl);
 			unsigned int key;
@@ -1463,7 +1467,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 				}
 			}
 		}
-
+#endif
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
 			SSL_TLSEXT_ERR_NOACK);
@@ -1493,12 +1497,14 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 		node = ebst_lookup(&s->sni_w_ctx, wildp);
 	}
 	if (!node || container_of(node, struct sni_ctx, name)->neg) {
+#if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		SSL_CTX *ctx;
 		if (s->generate_certs &&
 		    (ctx = ssl_sock_generate_certificate(servername, s, ssl))) {
 			/* switch ctx */
 			return SSL_TLSEXT_ERR_OK;
 		}
+#endif
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
 			SSL_TLSEXT_ERR_ALERT_WARNING);
@@ -2840,7 +2846,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
-	SSL_CIPHER * cipher = NULL;
+	const SSL_CIPHER * cipher = NULL;
 	char cipher_description[128];
 	/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
 	   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
@@ -2871,6 +2877,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		ssloptions |= SSL_OP_NO_TLSv1_2;
 	if (conf_ssl_options & BC_SSL_O_NO_TLS_TICKETS)
 		ssloptions |= SSL_OP_NO_TICKET;
+#ifndef OPENSSL_IS_BORINGSSL
 	if (conf_ssl_options & BC_SSL_O_USE_SSLV3) {
 #ifndef OPENSSL_NO_SSL3
 		SSL_CTX_set_ssl_version(ctx, SSLv3_server_method());
@@ -2889,7 +2896,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	if (conf_ssl_options & BC_SSL_O_USE_TLSV12)
 		SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method());
 #endif
-
+#endif
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
 	switch ((ssl_conf && ssl_conf->verify) ? ssl_conf->verify : bind_conf->ssl_conf.verify) {
@@ -2938,7 +2945,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #endif
 		ERR_clear_error();
 	}
-
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	if(bind_conf->keys_ref) {
 		if (!SSL_CTX_set_tlsext_ticket_key_cb(ctx, ssl_tlsext_ticket_key_cb)) {
@@ -3276,6 +3282,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		options |= SSL_OP_NO_TLSv1_2;
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
 		options |= SSL_OP_NO_TICKET;
+#ifndef OPENSSL_IS_BORINGSSL
 	if (srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3) {
 #ifndef OPENSSL_NO_SSL3
 		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, SSLv3_client_method());
@@ -3294,7 +3301,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
 		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_2_client_method());
 #endif
-
+#endif
 	SSL_CTX_set_options(srv->ssl_ctx.ctx, options);
 	SSL_CTX_set_mode(srv->ssl_ctx.ctx, mode);
 
@@ -3532,7 +3539,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 	if (!bind_conf || !bind_conf->generate_certs)
 		return err;
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	if (global_ssl.ctx_cache)
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
@@ -3780,6 +3787,9 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
+#ifdef OPENSSL_NO_HEARTBEATS  /* BoringSSL */
+					conn->err_code = CO_ER_SSL_HANDSHAKE;
+#else
 					int empty_handshake;
 #if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 					OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)conn->xprt_ctx);
@@ -3787,7 +3797,6 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 #else
 					empty_handshake = !((SSL *)conn->xprt_ctx)->packet_length;
 #endif
-
 					if (empty_handshake) {
 						if (!errno) {
 							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
@@ -3808,6 +3817,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 						else
 							conn->err_code = CO_ER_SSL_HANDSHAKE;
 					}
+#endif
 				}
 				goto out_error;
 			}
@@ -3851,39 +3861,41 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			return 0;
 		}
 		else if (ret == SSL_ERROR_SYSCALL) {
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
-			OSSL_HANDSHAKE_STATE state;
-#endif
-			int empty_handshake;
 			/* if errno is null, then connection was successfully established */
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
-
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
-			state = SSL_get_state((SSL *)conn->xprt_ctx);
-			empty_handshake = state == TLS_ST_BEFORE;
+			if (!conn->err_code) {
+#ifdef OPENSSL_NO_HEARTBEATS  /* BoringSSL */
+				conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
-			empty_handshake = !((SSL *)conn->xprt_ctx)->packet_length;
+				int empty_handshake;
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
+				OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)conn->xprt_ctx);
+				empty_handshake = state == TLS_ST_BEFORE;
+#else
+				empty_handshake = !((SSL *)conn->xprt_ctx)->packet_length;
 #endif
-			if (empty_handshake) {
-				if (!errno) {
-					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
-						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
-					else
-						conn->err_code = CO_ER_SSL_EMPTY;
+				if (empty_handshake) {
+					if (!errno) {
+						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+						else
+							conn->err_code = CO_ER_SSL_EMPTY;
+					}
+					else {
+						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+						else
+							conn->err_code = CO_ER_SSL_ABORT;
+					}
 				}
 				else {
 					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 					else
-						conn->err_code = CO_ER_SSL_ABORT;
+						conn->err_code = CO_ER_SSL_HANDSHAKE;
 				}
-			}
-			else {
-				if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
-					conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
-				else
-					conn->err_code = CO_ER_SSL_HANDSHAKE;
+#endif
 			}
 			goto out_error;
 		}
@@ -5855,7 +5867,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 /* parse the "generate-certificates" bind keyword */
 static int bind_parse_generate_certs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	conf->generate_certs = 1;
 #else
 	memprintf(err, "%sthis version of openssl cannot generate SSL certificates.\n",
@@ -6664,8 +6676,6 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 	return 0;
 }
 
-#endif
-
 /* sets cli.i0 to non-zero if only file lists should be dumped */
 static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *private)
 {
@@ -6690,7 +6700,6 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
 	return 0;
 }
-
 
 static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *private)
 {
@@ -6725,6 +6734,7 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 	return 1;
 
 }
+#endif
 
 static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *private)
 {
@@ -6769,11 +6779,10 @@ static struct cli_kw_list cli_kws = {{ },{
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	{ { "show", "tls-keys", NULL }, "show tls-keys [id|*]: show tls keys references or dump tls ticket keys when id specified", cli_parse_show_tlskeys, NULL },
 	{ { "set", "ssl", "tls-keys", NULL }, NULL, cli_parse_set_tlskeys, NULL },
-	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
 #endif
+	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
-
 
 
 /* Note: must not be declared <const> as its list will be overwritten.
@@ -7060,7 +7069,7 @@ static void __ssl_sock_init(void)
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	lru64_destroy(ssl_ctx_lru_tree);
 #endif
 

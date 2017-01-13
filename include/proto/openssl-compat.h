@@ -104,10 +104,12 @@ static inline int SSL_SESSION_set1_id(SSL_SESSION *s, const unsigned char *sid, 
 	return 1;
 }
 
+#if (!defined OPENSSL_NO_OCSP)
 static inline const OCSP_CERTID *OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP *single)
 {
 	return single->certId;
 }
+#endif
 
 static inline pem_password_cb *SSL_CTX_get_default_passwd_cb(SSL_CTX *ctx)
 {
@@ -145,6 +147,15 @@ static inline X509_ALGOR *X509_get0_tbs_sigalg(const X509 *x)
 #define __OPENSSL_110_CONST__ const
 #else
 #define __OPENSSL_110_CONST__
+#endif
+
+#ifdef OPENSSL_IS_BORINGSSL
+#define SSL_NO_GENERATE_CERTIFICATES
+
+static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
+{
+	return EVP_PKEY_type(pkey->type);
+}
 #endif
 
 #endif /* _PROTO_OPENSSL_COMPAT_H */
