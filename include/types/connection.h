@@ -303,6 +303,10 @@ struct connection {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	OSSL_ASYNC_FD async_fd;
+#endif
 };
 
 /* proxy protocol v2 definitions */

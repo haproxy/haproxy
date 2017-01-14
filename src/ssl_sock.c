@@ -54,6 +54,10 @@
 #endif
 #include <openssl/engine.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#include <openssl/async.h>
+#endif
+
 #include <import/lru.h>
 #include <import/xxhash.h>
 
@@ -156,6 +160,7 @@ static struct xprt_ops ssl_sock;
 static struct {
 	char *crt_base;             /* base directory path for certificates */
 	char *ca_base;              /* base directory path for CAs and CRLs */
+	int  async;                 /* whether we use ssl async mode */
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
@@ -350,6 +355,93 @@ fail_init:
 fail_get:
 	return err_code;
 }
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+void ssl_async_fd_handler(int fd)
+{
+	struct connection *conn = fdtab[fd].owner;
+	int conn_fd = conn->t.sock.fd;
+
+	/* fd is the async_fd, we must stop
+	 * to poll this fd until it is requested
+	 */
+        fd_cant_recv(fd);
+
+	/* crypto engine is available, let's notify the associated
+	 * connection that it can pursue its processing.
+	 */
+	conn_fd_handler(conn_fd);
+}
+
+void ssl_async_fd_free(int fd)
+{
+	SSL *ssl = fdtab[fd].owner;
+
+	fd_remove(fd);
+	SSL_free(ssl);
+	sslconns--;
+	jobs--;
+}
+
+/*
+ * openssl async fd handler
+ */
+void ssl_async_process_fds(struct connection *conn)
+{
+	OSSL_ASYNC_FD add_fd;
+	OSSL_ASYNC_FD del_fd;
+	size_t num_add_fds = 0;
+	size_t num_del_fds = 0;
+	SSL *ssl = conn->xprt_ctx;
+
+	SSL_get_changed_async_fds(ssl, NULL, &num_add_fds, NULL,
+			&num_del_fds);
+
+	if (num_add_fds == 0 && num_del_fds == 0) {
+		/* We must re-enable the poll on async_fd
+		   because openssl returns a WANT_ASYNC.
+		   We must also prevent the conn_handler
+		   to be called until a read event was
+		   polled on async fd */
+		if (conn->async_fd != -1) {
+			fd_want_recv(conn->async_fd);
+			__conn_sock_stop_both(conn);
+		}
+		return;
+	}
+
+	/* we don't support more than 1 async fd */
+	if (num_add_fds > 1 || num_del_fds > 1)
+		return;
+
+	SSL_get_changed_async_fds(ssl, &add_fd, &num_add_fds, &del_fd,
+			&num_del_fds);
+
+	if (num_del_fds) {
+		/* In practive, we never face this case
+		(using openssl 1.1.0e), the same async fd
+		is always kept until SSL_free */
+		if (conn->async_fd == del_fd) {
+			fd_remove(del_fd);
+			conn->async_fd = -1;
+		}
+	}
+
+	if (num_add_fds) {
+		conn->async_fd = add_fd;
+		fdtab[add_fd].owner = conn;
+		fdtab[add_fd].iocb = ssl_async_fd_handler;
+		fd_insert(add_fd);
+		/* We must enable the poll of async_fd
+		   because openssl returns a WANT_ASYNC.
+		   We must also prevent the conn_handler
+		   to be called until a read event was
+		   polled on async fd */
+		fd_want_recv(add_fd);
+		__conn_sock_stop_both(conn);
+	}
+}
+#endif
 
 /*
  *  This function returns the number of seconds  elapsed
@@ -3404,6 +3496,11 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	if (bind_conf->ssl_options & BC_SSL_O_PREF_CLIE_CIPH)
 		options &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
 	SSL_CTX_set_options(ctx, options);
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	if (global_ssl.async)
+		mode |= SSL_MODE_ASYNC;
+#endif
 	SSL_CTX_set_mode(ctx, mode);
 	if (global_ssl.life_time)
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
@@ -3849,6 +3946,11 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
 		options |= SSL_OP_NO_TICKET;
 	SSL_CTX_set_options(ctx, options);
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	if (global_ssl.async)
+		mode |= SSL_MODE_ASYNC;
+#endif
 	SSL_CTX_set_mode(ctx, mode);
 	srv->ssl_ctx.ctx = ctx;
 
@@ -4198,6 +4300,11 @@ static int ssl_sock_init(struct connection *conn)
 		return -1;
 	}
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	/* Init async_fd to -1 (no async fd available yet) */
+	conn->async_fd = -1;
+#endif
+
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (objt_server(conn->target)) {
@@ -4337,6 +4444,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		if (ret <= 0) {
 			/* handshake may have not been completed, let's find why */
 			ret = SSL_get_error(conn->xprt_ctx, ret);
+
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* SSL handshake needs to write, L4 connection may not be ready */
 				__conn_sock_stop_recv(conn);
@@ -4360,6 +4468,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				fd_cant_recv(conn->t.sock.fd);
 				return 0;
 			}
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+			else if (ret == SSL_ERROR_WANT_ASYNC) {
+				ssl_async_process_fds(conn);
+				return 0;
+			}
+#endif
 			else if (ret == SSL_ERROR_SYSCALL) {
 				/* if errno is null, then connection was successfully established */
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
@@ -4438,6 +4552,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			fd_cant_recv(conn->t.sock.fd);
 			return 0;
 		}
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+		else if (ret == SSL_ERROR_WANT_ASYNC) {
+			ssl_async_process_fds(conn);
+			return 0;
+		}
+#endif
 		else if (ret == SSL_ERROR_SYSCALL) {
 			/* if errno is null, then connection was successfully established */
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
@@ -4624,6 +4744,12 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				fd_cant_recv(conn->t.sock.fd);
 				break;
 			}
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+			else if (ret == SSL_ERROR_WANT_ASYNC) {
+				ssl_async_process_fds(conn);
+				break;
+			}
+#endif
 			/* otherwise it's a real error */
 			goto out_error;
 		}
@@ -4708,6 +4834,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		}
 		else {
 			ret = SSL_get_error(conn->xprt_ctx, ret);
+
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				if (SSL_renegotiate_pending(conn->xprt_ctx)) {
 					/* handshake is running, and it may need to re-enable write */
@@ -4725,6 +4852,12 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 				__conn_sock_want_recv(conn);
 				break;
 			}
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+			else if (ret == SSL_ERROR_WANT_ASYNC) {
+				ssl_async_process_fds(conn);
+				break;
+			}
+#endif
 			goto out_error;
 		}
 	}
@@ -4742,6 +4875,31 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 static void ssl_sock_close(struct connection *conn) {
 
 	if (conn->xprt_ctx) {
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+		if (conn->async_fd != -1) {
+			/* the async fd is created and owned by the SSL engine, which is
+			 * responsible for fd closure. Here we are done with the async fd
+			 * thus disable the polling on it, as well as clean up fdtab entry.
+			 */
+			if (SSL_waiting_for_async(conn->xprt_ctx)) {
+				/* If we still waiting for the engine
+				 * on an async job, we must delay
+				 * the SSL_free until the job is finished
+				 * on the engine side. So we must
+				 * wait for a read event on the
+				 * file descriptor */
+				fdtab[conn->async_fd].owner = conn->xprt_ctx;
+				fdtab[conn->async_fd].iocb = ssl_async_fd_free;
+				fd_want_recv(conn->async_fd);
+				conn->xprt_ctx = NULL;
+				conn->async_fd = -1;
+				jobs++;
+				return;
+			}
+			fd_remove(conn->async_fd);
+			conn->async_fd = -1;
+		}
+#endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		sslconns--;
@@ -6978,6 +7136,32 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* parse the "ssl-mode-async" keyword in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ssl_async(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	global_ssl.async = 1;
+	return 0;
+#else
+	memprintf(err, "'%s': openssl library does not support async mode", args[0]);
+	return -1;
+#endif
+}
+
+static int ssl_check_async_engine_count(void) {
+	int err_code = 0;
+
+	if (global_ssl.async && openssl_engines_initialized!=1) {
+		Alert("ssl-mode-async only supports one engine\n");
+		err_code = ERR_ABORT;
+	}
+	return err_code;
+}
+
 /* parse the "ssl-engine" keyword in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -7628,6 +7812,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "ssl-dh-param-file", ssl_parse_global_dh_param_file },
 #endif
+	{ CFG_GLOBAL, "ssl-mode-async",  ssl_parse_global_ssl_async },
 	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
 #ifndef OPENSSL_NO_DH
@@ -7703,6 +7888,7 @@ static void __ssl_sock_init(void)
 	cfg_register_keywords(&cfg_kws);
 	cli_register_kw(&cli_kws);
 	ENGINE_load_builtin_engines();
+	hap_register_post_check(ssl_check_async_engine_count);
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	hap_register_post_check(tlskeys_finalize_config);
 #endif

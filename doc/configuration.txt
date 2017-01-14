@@ -591,6 +591,7 @@ The following keywords are supported in the "global" section :
    - server-state-base
    - server-state-file
    - ssl-engine
+   - ssl-mode-async
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
@@ -1273,6 +1274,10 @@ ssl-engine <name> [algo <comma-seperated list of algorithms>]
   CIPHERS, DIGESTS, PKEY, PKEY_CRYPTO, PKEY_ASN1. This is the same format that
   openssl configuration file uses:
   https://www.openssl.org/docs/man1.0.2/apps/config.html
+
+ssl-mode-async
+  Adds SSL_MODE_ASYNC mode to the SSL context. This enables asynchronous TLS
+  I/O operations if an asynchronous capable SSL engine is used.
 
 tune.buffers.limit <number>
   Sets a hard limit on the number of buffers which may be allocated per process.

@@ -502,6 +502,10 @@ static inline void conn_init(struct connection *conn)
 	conn->target = NULL;
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	conn->async_fd = -1;
+#endif
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The
