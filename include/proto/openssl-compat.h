@@ -161,4 +161,14 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 }
 #endif
 
+/* ERR_remove_state() was deprecated in 1.0.0 in favor of
+ * ERR_remove_thread_state(), which was in turn deprecated in
+ * 1.1.0 and does nothing anymore. Let's simply silently kill
+ * it.
+ */
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#undef  ERR_remove_state
+#define ERR_remove_state(x)
+#endif
+
 #endif /* _PROTO_OPENSSL_COMPAT_H */
