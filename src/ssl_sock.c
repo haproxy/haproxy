@@ -3057,10 +3057,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			      curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
-#ifndef OPENSSL_IS_BORINGSSL
 		else
 			SSL_CTX_set_ecdh_auto(ctx, 1);
-#endif
 	}
 #endif
 #if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
