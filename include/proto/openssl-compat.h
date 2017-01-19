@@ -56,16 +56,7 @@ static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void 
 
 
 #if (OPENSSL_VERSION_NUMBER < 0x1000000fL)
-/*
- * Functions introduced in OpenSSL 1.0.1
- */
-static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned char *sid_ctx, unsigned int sid_ctx_len)
-{
-	s->sid_ctx_length = sid_ctx_len;
-	memcpy(s->sid_ctx, sid_ctx, sid_ctx_len);
-	return 1;
-}
-
+/* Functions introduced in OpenSSL 1.0.0 */
 static inline int EVP_PKEY_base_id(const EVP_PKEY *pkey)
 {
 	return EVP_PKEY_type(pkey->type);
@@ -84,6 +75,18 @@ static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned ch
 #define X509_get_X509_PUBKEY(x) ((x)->cert_info->key
 #endif
 
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x1000100fL)
+/*
+ * Functions introduced in OpenSSL 1.0.1
+ */
+static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned char *sid_ctx, unsigned int sid_ctx_len)
+{
+	s->sid_ctx_length = sid_ctx_len;
+	memcpy(s->sid_ctx, sid_ctx, sid_ctx_len);
+	return 1;
+}
 #endif
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
