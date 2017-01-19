@@ -171,4 +171,15 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define ERR_remove_state(x)
 #endif
 
+
+/* RAND_pseudo_bytes() is deprecated in 1.1.0 in favor of RAND_bytes(). Note
+ * that the return codes differ, but it happens that the only use case (ticket
+ * key update) was already wrong, considering a non-cryptographic random as a
+ * failure.
+ */
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#undef  RAND_pseudo_bytes
+#define RAND_pseudo_bytes(x,y) RAND_bytes(x,y)
+#endif
+
 #endif /* _PROTO_OPENSSL_COMPAT_H */
