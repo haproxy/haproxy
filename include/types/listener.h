@@ -132,7 +132,6 @@ struct ssl_bind_conf {
 	char *ciphers;             /* cipher suite to use if non-null */
 	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
-	int ssl_options;           /* ssl options */
 #endif
 };
 
@@ -145,6 +144,7 @@ struct bind_conf {
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
 	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
+	int ssl_options;           /* ssl options */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 	struct tls_keys_ref *keys_ref; /* TLS ticket keys reference */

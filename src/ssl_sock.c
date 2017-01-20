@@ -120,7 +120,7 @@
 #define HASH_FUNCT EVP_sha256
 #endif /* OPENSSL_NO_SHA256 */
 
-static SSL_CTX *ssl_sock_new_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf);
+static SSL_CTX *ssl_sock_new_ctx(struct bind_conf *bind_conf);
 
 /* server and bind verify method, it uses a global value as default */
 enum {
@@ -2536,7 +2536,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 		if (cur_ctx == NULL) {
 			/* need to create SSL_CTX */
-			cur_ctx = ssl_sock_new_ctx(bind_conf, ssl_conf);
+			cur_ctx = ssl_sock_new_ctx(bind_conf);
 			if (cur_ctx == NULL) {
 				memprintf(err, "%sunable to allocate SSL context.\n",
 				          err && *err ? *err : "");
@@ -2762,7 +2762,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	int ret;
 	SSL_CTX *ctx;
 
-	ctx = ssl_sock_new_ctx(bind_conf, ssl_conf);
+	ctx = ssl_sock_new_ctx(bind_conf);
 	if (!ctx) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -3178,7 +3178,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 
 /* create an SSL_CTX according method wanted */
 static SSL_CTX *
-ssl_sock_new_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf)
+ssl_sock_new_ctx(struct bind_conf *bind_conf)
 {
 	SSL_CTX *ctx = NULL;
 	long ssloptions =
@@ -3194,7 +3194,7 @@ ssl_sock_new_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf)
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
-	int conf_ssl_options = bind_conf->ssl_conf.ssl_options | (ssl_conf ? ssl_conf->ssl_options : 0);
+	int conf_ssl_options = bind_conf->ssl_options;
 
 #if SSL_OP_NO_TLSv1_2
 	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12)
@@ -6105,7 +6105,7 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 }
 
 /* parse the "force-sslv3" bind keyword */
-static int ssl_bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #ifndef OPENSSL_NO_SSL3
 	conf->ssl_options |= BC_SSL_O_USE_SSLV3;
@@ -6116,24 +6116,16 @@ static int ssl_bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
-static int bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_force_sslv3(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "force-tlsv10" bind keyword */
-static int ssl_bind_parse_force_tlsv10(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_force_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_USE_TLSV10;
 	return 0;
 }
-static int bind_parse_force_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_force_tlsv10(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "force-tlsv11" bind keyword */
-static int ssl_bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #if SSL_OP_NO_TLSv1_1
 	conf->ssl_options |= BC_SSL_O_USE_TLSV11;
@@ -6144,13 +6136,9 @@ static int ssl_bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *p
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
-static int bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_force_tlsv11(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "force-tlsv12" bind keyword */
-static int ssl_bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #if SSL_OP_NO_TLSv1_2
 	conf->ssl_options |= BC_SSL_O_USE_TLSV12;
@@ -6161,64 +6149,40 @@ static int ssl_bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *p
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
-static int bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_force_tlsv12(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "no-tls-tickets" bind keyword */
-static int ssl_bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_TLS_TICKETS;
 	return 0;
 }
-static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_no_tls_tickets(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "no-sslv3" bind keyword */
-static int ssl_bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_SSLV3;
 	return 0;
 }
-static int bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_no_sslv3(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "no-tlsv10" bind keyword */
-static int ssl_bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_TLSV10;
 	return 0;
 }
-static int bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_no_tlsv10(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "no-tlsv11" bind keyword */
-static int ssl_bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_TLSV11;
 	return 0;
 }
-static int bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_no_tlsv11(args, cur_arg, px, &conf->ssl_conf, err);
-}
 
 /* parse the "no-tlsv12" bind keyword */
-static int ssl_bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_TLSV12;
 	return 0;
-}
-static int bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	return ssl_bind_parse_no_tlsv12(args, cur_arg, px, &conf->ssl_conf, err);
 }
 
 /* parse the "npn" bind keyword */
@@ -6341,7 +6305,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
-	conf->ssl_conf.ssl_options |= global_ssl.listen_default_ssloptions;
+	conf->ssl_options |= global_ssl.listen_default_ssloptions;
 
 	return 0;
 }
@@ -7386,15 +7350,6 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificat revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
-	{ "force-sslv3",           ssl_bind_parse_force_sslv3,      0 }, /* force SSLv3 */
-	{ "force-tlsv10",          ssl_bind_parse_force_tlsv10,     0 }, /* force TLSv10 */
-	{ "force-tlsv11",          ssl_bind_parse_force_tlsv11,     0 }, /* force TLSv11 */
-	{ "force-tlsv12",          ssl_bind_parse_force_tlsv12,     0 }, /* force TLSv12 */
-	{ "no-sslv3",              ssl_bind_parse_no_sslv3,         0 }, /* disable SSLv3 */
-	{ "no-tlsv10",             ssl_bind_parse_no_tlsv10,        0 }, /* disable TLSv10 */
-	{ "no-tlsv11",             ssl_bind_parse_no_tlsv11,        0 }, /* disable TLSv11 */
-	{ "no-tlsv12",             ssl_bind_parse_no_tlsv12,        0 }, /* disable TLSv12 */
-	{ "no-tls-tickets",        ssl_bind_parse_no_tls_tickets,   0 }, /* disable session resumption tickets */
 	{ "npn",                   ssl_bind_parse_npn,              1 }, /* set NPN supported protocols */
 	{ "verify",                ssl_bind_parse_verify,           1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },

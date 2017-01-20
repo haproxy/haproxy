@@ -10269,7 +10269,7 @@ crt-list <file>
         <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
 
   sslbindconf support "npn", "alpn", "verify", "ca_file", "crl_file", "ecdhe",
-  "curves", "ciphers" configuration and ssl options (see "ssl-default-bind-options").
+  "curves", "ciphers" configuration.
   It override the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
