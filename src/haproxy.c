@@ -109,6 +109,7 @@
 #include <proto/task.h>
 #include <proto/dns.h>
 #include <proto/vars.h>
+#include <proto/ssl_sock.h>
 
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
@@ -2161,6 +2162,9 @@ int main(int argc, char **argv)
 				for (proc = 0; proc < global.nbproc; proc++)
 					while (waitpid(-1, NULL, 0) == -1 && errno == EINTR);
 			}
+#ifndef OPENSSL_NO_DH
+			ssl_free_dh();
+#endif
 			exit(0); /* parent must leave */
 		}
 

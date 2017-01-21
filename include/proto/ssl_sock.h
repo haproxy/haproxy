@@ -68,7 +68,9 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id);
 #endif
 #ifndef OPENSSL_NO_DH
 int ssl_sock_load_global_dh_param_from_file(const char *filename);
+void ssl_free_dh(void);
 #endif
+void ssl_free_engines(void);
 
 SSL_CTX *ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key);
 SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);

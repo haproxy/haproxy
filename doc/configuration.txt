@@ -590,6 +590,7 @@ The following keywords are supported in the "global" section :
    - spread-checks
    - server-state-base
    - server-state-file
+   - ssl-engine
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
@@ -1257,6 +1258,21 @@ spread-checks <0..50, in percent>
   becomes possible to add some randomness in the check interval between 0
   and +/- 50%. A value between 2 and 5 seems to show good results. The
   default value remains at 0.
+
+ssl-engine <name> [algo <comma-seperated list of algorithms>]
+  Sets the OpenSSL engine to <name>. List of valid values for <name> may be
+  obtained using the command "openssl engine".  This statement may be used
+  multiple times, it will simply enable multiple crypto engines. Referencing an
+  unsupported engine will prevent haproxy from starting. Note that many engines
+  will lead to lower HTTPS performance than pure software with recent
+  processors. The optional command "algo" sets the default algorithms an ENGINE
+  will supply using the OPENSSL function ENGINE_set_default_string(). A value
+  of "ALL" uses the engine for all cryptographic operations.  If no list of
+  algo is specified then the value of "ALL" is used.  A comma-seperated list
+  of different algorithms may be specified, including: RSA, DSA, DH, EC, RAND,
+  CIPHERS, DIGESTS, PKEY, PKEY_CRYPTO, PKEY_ASN1. This is the same format that
+  openssl configuration file uses:
+  https://www.openssl.org/docs/man1.0.2/apps/config.html
 
 tune.buffers.limit <number>
   Sets a hard limit on the number of buffers which may be allocated per process.

@@ -52,6 +52,7 @@
 #ifndef OPENSSL_NO_DH
 #include <openssl/dh.h>
 #endif
+#include <openssl/engine.h>
 
 #include <import/lru.h>
 #include <import/xxhash.h>
@@ -207,6 +208,13 @@ static int ssl_capture_ptr_index = -1;
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
 
+static unsigned int openssl_engines_initialized;
+struct list openssl_engines = LIST_HEAD_INIT(openssl_engines);
+struct ssl_engine_list {
+	struct list list;
+	ENGINE *e;
+};
+
 #ifndef OPENSSL_NO_DH
 static int ssl_dh_ptr_index = -1;
 static DH *global_dh = NULL;
@@ -301,6 +309,47 @@ struct ocsp_cbk_arg {
 		struct certificate_ocsp *m_ocsp[SSL_SOCK_NUM_KEYTYPES];
 	};
 };
+
+static int ssl_init_single_engine(const char *engine_id, const char *def_algorithms)
+{
+	int err_code = ERR_ABORT;
+	ENGINE *engine;
+	struct ssl_engine_list *el;
+
+	/* grab the structural reference to the engine */
+	engine = ENGINE_by_id(engine_id);
+	if (engine  == NULL) {
+		Alert("ssl-engine %s: failed to get structural reference\n", engine_id);
+		goto fail_get;
+	}
+
+	if (!ENGINE_init(engine)) {
+		/* the engine couldn't initialise, release it */
+		Alert("ssl-engine %s: failed to initialize\n", engine_id);
+		goto fail_init;
+	}
+
+	if (ENGINE_set_default_string(engine, def_algorithms) == 0) {
+		Alert("ssl-engine %s: failed on ENGINE_set_default_string\n", engine_id);
+		goto fail_set_method;
+	}
+
+	el = calloc(1, sizeof(*el));
+	el->e = engine;
+	LIST_ADD(&openssl_engines, &el->list);
+	return 0;
+
+fail_set_method:
+	/* release the functional reference from ENGINE_init() */
+	ENGINE_finish(engine);
+
+fail_init:
+	/* release the structural reference from ENGINE_by_id() */
+	ENGINE_free(engine);
+
+fail_get:
+	return err_code;
+}
 
 /*
  *  This function returns the number of seconds  elapsed
@@ -6929,6 +6978,48 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* parse the "ssl-engine" keyword in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ssl_engine(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	char *algo;
+	int ret = -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a valid engine name as an argument.", args[0]);
+		return ret;
+	}
+
+	if (*(args[2]) == 0) {
+		/* if no list of algorithms is given, it defaults to ALL */
+		algo = strdup("ALL");
+		goto add_engine;
+	}
+
+	/* otherwise the expected format is ssl-engine <engine_name> algo <list of algo> */
+	if (strcmp(args[2], "algo") != 0) {
+		memprintf(err, "global statement '%s' expects to have algo keyword.", args[0]);
+		return ret;
+	}
+
+	if (*(args[3]) == 0) {
+		memprintf(err, "global statement '%s' expects algorithm names as an argument.", args[0]);
+		return ret;
+	}
+	algo = strdup(args[3]);
+
+add_engine:
+	if (ssl_init_single_engine(args[1], algo)==0) {
+		openssl_engines_initialized++;
+		ret = 0;
+	}
+	free(algo);
+	return ret;
+}
+
 /* parse the "ssl-default-bind-ciphers" / "ssl-default-server-ciphers" keywords
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -7537,6 +7628,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "ssl-dh-param-file", ssl_parse_global_dh_param_file },
 #endif
+	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
@@ -7610,6 +7702,7 @@ static void __ssl_sock_init(void)
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
 	cli_register_kw(&cli_kws);
+	ENGINE_load_builtin_engines();
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	hap_register_post_check(tlskeys_finalize_config);
 #endif
@@ -7671,39 +7764,51 @@ static void __ssl_sock_init(void)
 
 #ifndef OPENSSL_NO_DH
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+	hap_register_post_deinit(ssl_free_dh);
 #endif
+	hap_register_post_deinit(ssl_free_engines);
 
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
 }
+
+void ssl_free_engines(void) {
+	struct ssl_engine_list *wl, *wlb;
+	/* free up engine list */
+	list_for_each_entry_safe(wl, wlb, &openssl_engines, list) {
+		ENGINE_finish(wl->e);
+		ENGINE_free(wl->e);
+		LIST_DEL(&wl->list);
+		free(wl);
+	}
+}
+
+#ifndef OPENSSL_NO_DH
+void ssl_free_dh(void) {
+	if (local_dh_1024) {
+		DH_free(local_dh_1024);
+		local_dh_1024 = NULL;
+	}
+	if (local_dh_2048) {
+		DH_free(local_dh_2048);
+		local_dh_2048 = NULL;
+	}
+	if (local_dh_4096) {
+		DH_free(local_dh_4096);
+		local_dh_4096 = NULL;
+	}
+	if (global_dh) {
+		DH_free(global_dh);
+		global_dh = NULL;
+	}
+}
+#endif
 
 __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	lru64_destroy(ssl_ctx_lru_tree);
-#endif
-
-#ifndef OPENSSL_NO_DH
-        if (local_dh_1024) {
-                DH_free(local_dh_1024);
-                local_dh_1024 = NULL;
-        }
-
-        if (local_dh_2048) {
-                DH_free(local_dh_2048);
-                local_dh_2048 = NULL;
-        }
-
-        if (local_dh_4096) {
-                DH_free(local_dh_4096);
-                local_dh_4096 = NULL;
-        }
-
-	if (global_dh) {
-		DH_free(global_dh);
-		global_dh = NULL;
-	}
 #endif
 
         ERR_remove_state(0);
