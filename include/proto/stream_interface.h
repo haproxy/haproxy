@@ -484,13 +484,17 @@ static inline void si_chk_snd(struct stream_interface *si)
 static inline int si_connect(struct stream_interface *si, struct connection *conn)
 {
 	int ret = SF_ERR_NONE;
+	int conn_flags = 0;
 
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SF_ERR_INTERNAL;
 
+	if (!channel_is_empty(si_oc(si)))
+		conn_flags |= CONNECT_HAS_DATA;
+	if (si->conn_retries == si_strm(si)->be->conn_retries)
+		conn_flags |= CONNECT_CAN_USE_TFO;
 	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
-		ret = conn->ctrl->connect(conn, channel_is_empty(si_oc(si)) ?
-		                          CONNECT_HAS_DATA : 0);
+		ret = conn->ctrl->connect(conn, conn_flags);
 		if (ret != SF_ERR_NONE)
 			return ret;
 

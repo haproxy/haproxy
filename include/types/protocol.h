@@ -88,6 +88,7 @@ struct protocol {
 #define CONNECT_HAS_DATA                        0x00000001 /* There's data available to be sent */
 #define CONNECT_DELACK_SMART_CONNECT            0x00000002 /* Use a delayed ACK if the backend has tcp-smart-connect */
 #define CONNECT_DELACK_ALWAYS                   0x00000004 /* Use a delayed ACK */
+#define CONNECT_CAN_USE_TFO                     0x00000008 /* We can use TFO for this connection */
 #endif /* _TYPES_PROTOCOL_H */
 
 /*

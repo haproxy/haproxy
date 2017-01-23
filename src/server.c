@@ -889,6 +889,13 @@ static int srv_parse_track(char **args, int *cur_arg,
 }
 
 
+/* parse the "tfo" server keyword */
+static int srv_parse_tfo(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->flags |= SRV_F_FASTOPEN;
+	return 0;
+}
+
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
@@ -1277,6 +1284,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "source",              srv_parse_source,             -1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
+	{ "tfo",                 srv_parse_tfo,                 0,  0 }, /* enable TCP Fast Open of server */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ NULL, NULL, 0 },
 }};

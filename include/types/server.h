@@ -143,6 +143,7 @@ enum srv_initaddr {
 #define SRV_F_CHECKPORT    0x0040        /* this server has a check port configured */
 #define SRV_F_AGENTADDR    0x0080        /* this server has a agent addr configured */
 #define SRV_F_COOKIESET    0x0100        /* this server has a cookie configured, so don't generate dynamic cookies */
+#define SRV_F_FASTOPEN     0x0100        /* Use TCP Fast Open to connect to server */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */

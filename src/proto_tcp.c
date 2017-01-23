@@ -293,6 +293,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	struct server *srv;
 	struct proxy *be;
 	struct conn_src *src;
+	int use_fastopen = 0;
 
 	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
@@ -304,6 +305,14 @@ int tcp_connect_server(struct connection *conn, int flags)
 	case OBJ_TYPE_SERVER:
 		srv = objt_server(conn->target);
 		be = srv->proxy;
+		/* Make sure we check that we have data before activating
+		 * TFO, or we could trigger a kernel issue whereby after
+		 * a successful connect() == 0, any subsequent connect()
+		 * will return EINPROGRESS instead of EISCONN.
+		 */
+		use_fastopen = (srv->flags & SRV_F_FASTOPEN) &&
+		               ((flags & (CONNECT_CAN_USE_TFO | CONNECT_HAS_DATA)) ==
+				(CONNECT_CAN_USE_TFO | CONNECT_HAS_DATA));
 		break;
 	default:
 		conn->flags |= CO_FL_ERROR;
@@ -493,6 +502,12 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (srv && srv->tcp_ut)
 		setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &srv->tcp_ut, sizeof(srv->tcp_ut));
 #endif
+
+	if (use_fastopen) {
+#if defined(TCP_FASTOPEN_CONNECT)
+                setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN_CONNECT, &one, sizeof(one));
+#endif
+	}
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 

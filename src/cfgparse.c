@@ -3121,6 +3121,14 @@ out_uri_auth_compat:
 					cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
 			}
 
+			if ((newsrv->flags & SRV_F_FASTOPEN) &&
+			    ((curproxy->retry_type & (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) !=
+			     (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)))
+				ha_warning("parsing [%s:%d] : %s '%s': server '%s' has tfo activated, the backend should be configured with at least 'conn-failure', 'empty-response' and 'response-timeout' or we wouldn't be able to retry the connection on failure.\n",
+				    newsrv->conf.file, newsrv->conf.line,
+				    proxy_type_str(curproxy), curproxy->id,
+				    newsrv->id);
+
 			/* set the check type on the server */
 			newsrv->check.type = curproxy->options2 & PR_O2_CHK_ANY;
 

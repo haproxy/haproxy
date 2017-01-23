@@ -128,6 +128,10 @@
 #ifndef TCP_FASTOPEN
 #define TCP_FASTOPEN 23
 #endif
+
+#ifndef TCP_FASTOPEN_CONNECT
+#define TCP_FASTOPEN_CONNECT 30
+#endif
 #endif
 
 /* FreeBSD doesn't define SOL_IP and prefers IPPROTO_IP */

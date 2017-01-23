@@ -12506,6 +12506,14 @@ tcp-ut <delay>
   argument is a delay expressed in milliseconds by default. This only works for
   regular TCP connections, and is ignored for other protocols.
 
+tfo
+  This option enables using TCP fast open when connecting to servers, on
+  systems that support it (currently only the Linux kernel >= 4.11).
+  See the "tfo" bind option for more information about TCP fast open.
+  Please note that when using tfo, you should also use the "conn-failure",
+  "empty-response" and "response-timeout" keywords for "retry-on", or haproxy
+  won't be able to retry the connection on failure.
+
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by tracking
   another one. It is possible to track a server which itself tracks another
