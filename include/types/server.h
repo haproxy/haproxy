@@ -108,7 +108,7 @@ enum srv_initaddr {
 #define SRV_STATE_FILE_NB_FIELDS_VERSION_1 18
 #define SRV_STATE_LINE_MAXLEN 512
 
-/* server flags */
+/* server flags -- 32 bits */
 #define SRV_F_BACKUP       0x0001        /* this server is a backup server */
 #define SRV_F_MAPPORTS     0x0002        /* this server uses mapped ports */
 #define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
@@ -177,13 +177,13 @@ struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state state, prev_state;       /* server state among SRV_ST_* */
 	enum srv_admin admin, prev_admin;       /* server maintenance status : SRV_ADMF_* */
-	unsigned char flags;                    /* server flags (SRV_F_*) */
+	unsigned char pp_opts;                  /* proxy protocol options (SRV_PP_*) */
+	unsigned int flags;                     /* server flags (SRV_F_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */
 	char *rdr_pfx;				/* the redirection prefix */
-	int pp_opts;				/* proxy protocol options (SRV_PP_*) */
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	int served;				/* # of active sessions currently being served (ie not pending) */
