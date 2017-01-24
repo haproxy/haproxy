@@ -73,7 +73,7 @@ request of each connection and all subsequent requests will not have it. One
 solution could be to improve the patch to make it support keep-alive and parse
 all forwarded data, whether they're announced with a Content-Length or with a
 Transfer-Encoding, taking care of special methods such as HEAD which announce
-data without transfering them, etc... In fact, it would require implementing a
+data without transferring them, etc... In fact, it would require implementing a
 full HTTP stack in Stunnel. It would then become a lot more complex, a lot less
 reliable and would not anymore be the "dumb proxy" that fits every purposes.
 
@@ -378,7 +378,7 @@ matching the values internally used by the system. It may be one of :
   - other values are unspecified and must not be emitted in version 2 of this
     protocol and must be rejected as invalid by receivers.
 
-The transport protocol is specified in the lowest 4 bits of the the 14th byte :
+The transport protocol is specified in the lowest 4 bits of the 14th byte :
 
   - 0x0 : UNSPEC : the connection is forwarded for an unknown, unspecified
     or unsupported protocol. The sender should use this family when sending
@@ -432,7 +432,7 @@ Only the UNSPEC protocol byte (\x00) is mandatory. A receiver is not required
 to implement other ones, provided that it automatically falls back to the
 UNSPEC mode for the valid combinations above that it does not support.
 
-The 15th and 16th bytes is the address length in bytes in network endien order.
+The 15th and 16th bytes is the address length in bytes in network endian order.
 It is used so that the receiver knows how many address bytes to skip even when
 it does not implement the presented protocol. Thus the length of the protocol
 header in bytes is always exactly 16 + this value. When a sender presents a
@@ -670,7 +670,7 @@ default route.
 
 The protocol also eases IPv4 and IPv6 integration : if only the first layer
 (FW1 and PX1) is IPv6-capable, it is still possible to present the original
-client's IPv6 address to the target server eventhough the whole chain is only
+client's IPv6 address to the target server even though the whole chain is only
 connected via IPv4.
 
 
@@ -741,7 +741,7 @@ number of known sources should be safe.
 
 The version 2 protocol signature has been sent to a wide variety of protocols
 and implementations including old ones. The following protocol and products
-have been tested to ensure the best possible behaviour when the signature was
+have been tested to ensure the best possible behavior when the signature was
 presented, even with minimal implementations :
 
   - HTTP :
@@ -784,7 +784,7 @@ It is possible that the protocol may slightly evolve to present other
 information such as the incoming network interface, or the origin addresses in
 case of network address translation happening before the first proxy, but this
 is not identified as a requirement right now. Some deep thinking has been spent
-on this and it appears that trying to add a few more information open a pandora
+on this and it appears that trying to add a few more information open a Pandora
 box with many information from MAC addresses to SSL client certificates, which
 would make the protocol much more complex. So at this point it is not planned.
 Suggestions on improvements are welcome.
