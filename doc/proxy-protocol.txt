@@ -1,4 +1,4 @@
-2015/08/24                                                        Willy Tarreau
+2017/01/30                                                        Willy Tarreau
                                                            HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
@@ -23,6 +23,8 @@ Revision history
    2014/06/14 - fix v2 header check in example code, and update Forwarded spec
    2014/07/12 - update list of implementations (add Squid)
    2015/05/02 - update list of implementations and format of the TLV add-ons
+   2017/01/30 - added the checksum TLV and reserved TLV type ranges, clarified
+                wording
 
 
 1. Background
@@ -428,9 +430,10 @@ In practice, the following protocol bytes are expected :
     AF_UNIX protocol family. Address length is 2*108 = 216 bytes.
 
 
-Only the UNSPEC protocol byte (\x00) is mandatory. A receiver is not required
-to implement other ones, provided that it automatically falls back to the
-UNSPEC mode for the valid combinations above that it does not support.
+Only the UNSPEC protocol byte (\x00) is mandatory to implement on the receiver.
+A receiver is not required to implement other ones, provided that it
+automatically falls back to the UNSPEC mode for the valid combinations above
+that it does not support.
 
 The 15th and 16th bytes is the address length in bytes in network endian order.
 It is used so that the receiver knows how many address bytes to skip even when
@@ -523,17 +526,53 @@ bytes specified by the length.
             uint8_t value[0];
         };
 
+A receiver may choose to skip over and ignore the TLVs he is not interested in
+or he does not understand. Senders can generate the TLVs only for
+the information they choose to publish.
+
 The following types have already been registered for the <type> field :
 
         #define PP2_TYPE_ALPN           0x01
         #define PP2_TYPE_AUTHORITY      0x02
+        #define PP2_TYPE_CHECKSUM       0x03
         #define PP2_TYPE_SSL            0x20
         #define PP2_SUBTYPE_SSL_VERSION 0x21
         #define PP2_SUBTYPE_SSL_CN      0x22
         #define PP2_TYPE_NETNS          0x30
 
 
-2.2.1. The PP2_TYPE_SSL type and subtypes
+2.2.1. The PP2_TYPE_CHECKSUM type
+
+The value of the type PP2_TYPE_CHECKSUM is a 32-bit number storing the CRC32c
+checksum of the PROXY protocol header.
+
+When the checksum is supported by the sender after constructing the header
+the sender MUST:
+
+ - initialize the checksum field to '0's.
+
+ - calculate the CRC32c checksum of the PROXY header as described in RFC4960,
+   Appendix B [8].
+
+ - put the resultant value into the checksum field, and leave the rest of
+   the bits unchanged.
+
+If the checksum is provided as part of the PROXY header and the checksum
+functionality is supported by the receiver, the receiver MUST:
+
+ - store the received CRC32c checksum value aside.
+
+ - replace the 32 bits of the checksum field in the received PROXY header with
+   all '0's and calculate a CRC32c checksum value of the whole PROXY header.
+
+ - verify that the calculated CRC32c checksum is the same as the received
+   CRC32c checksum. If it is not, the receiver MUST treat the TCP connection
+   providing the header as invalid.
+
+The default procedure for handling an invalid TCP connection is to abort it.
+
+
+2.2.2. The PP2_TYPE_SSL type and subtypes
 
 For the type PP2_TYPE_SSL, the value is itselv a defined like this :
 
@@ -571,10 +610,34 @@ In all cases, the string representation (in UTF8) of the Common Name field
 using the TLV format and the type PP2_SUBTYPE_SSL_CN.
 
 
-2.2.2. The PP2_TYPE_NETNS type
+2.2.3. The PP2_TYPE_NETNS type
 
 The type PP2_TYPE_NETNS defines the value as the string representation of the
 namespace's name.
+
+
+2.2.4. Reserved type ranges
+
+The following range of 16 type values is reserved for application-specific
+data and will be never used by the PROXY Protocol. If you need more values
+consider extending the range with a type field in your TLVs.
+
+        #define PP2_TYPE_MIN_CUSTOM    0xE0
+        #define PP2_TYPE_MAX_CUSTOM    0xEF
+
+This range of 8 values is reserved for temporary experimental use by
+application developers and protocol designers. The values from the range will
+never be used by the PROXY protocol and should not be used by production
+functionality.
+
+        #define PP2_TYPE_MIN_EXPERIMENT 0xF0
+        #define PP2_TYPE_MAX_EXPERIMENT 0xF7
+
+The following range of 8 values is reserved for future use, potentially to
+extend the protocol with multibyte type values.
+
+        #define PP2_TYPE_MIN_FUTURE    0xF8
+        #define PP2_TYPE_MAX_FUTURE    0xFF
 
 
 3. Implementations
@@ -803,6 +866,7 @@ The following links were referenced in the document.
 [5] https://github.com/bumptech/stud/pull/81
 [6] https://www.varnish-cache.org/docs/trunk/phk/ssl_again.html
 [7] http://wiki.squid-cache.org/Squid-3.5
+[8] https://tools.ietf.org/html/rfc4960#appendix-B
 
 
 9. Sample code
