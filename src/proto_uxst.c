@@ -495,11 +495,11 @@ int uxst_connect_server(struct connection *conn, int data, int delack)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
 	if (connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) == -1) {
-		if (errno == EALREADY || errno == EISCONN) {
-			conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		}
-		else if (errno == EINPROGRESS) {
+		if (errno == EINPROGRESS || errno == EALREADY) {
 			conn->flags |= CO_FL_WAIT_L4_CONN;
+		}
+		else if (errno == EISCONN) {
+			conn->flags &= ~CO_FL_WAIT_L4_CONN;
 		}
 		else if (errno == EAGAIN || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
 			char *msg;
@@ -533,13 +533,9 @@ int uxst_connect_server(struct connection *conn, int data, int delack)
 	}
 	else {
 		/* connect() already succeeded, which is quite usual for unix
-		 * sockets. Let's avoid a second connect() probe to complete it,
-		 * but we need to ensure we'll wake up if there's no more handshake
-		 * pending (eg: for health checks).
+		 * sockets. Let's avoid a second connect() probe to complete it.
 		 */
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		if (!(conn->flags & CO_FL_HANDSHAKE))
-			data = 1;
 	}
 
 	conn->flags |= CO_FL_ADDR_TO_SET;
@@ -550,13 +546,22 @@ int uxst_connect_server(struct connection *conn, int data, int delack)
 
 	conn_ctrl_init(conn);       /* registers the FD */
 	fdtab[fd].linger_risk = 0;  /* no need to disable lingering */
-	if (conn->flags & CO_FL_HANDSHAKE)
-		conn_sock_want_send(conn);  /* for connect status or proxy protocol */
 
 	if (conn_xprt_init(conn) < 0) {
 		conn_force_close(conn);
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_RESOURCE;
+	}
+
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN)) {
+		conn_sock_want_send(conn);  /* for connect status, proxy protocol or SSL */
+	}
+	else {
+		/* If there's no more handshake, we need to notify the data
+		 * layer when the connection is already OK otherwise we'll have
+		 * no other opportunity to do it later (eg: health checks).
+		 */
+		data = 1;
 	}
 
 	if (data)
