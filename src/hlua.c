@@ -7258,6 +7258,10 @@ void hlua_init(void)
 	/* register pattern types. */
 	for (i=0; i<PAT_MATCH_NUM; i++)
 		hlua_class_const_int(gL.T, pat_match_names[i], i);
+	for (i=0; i<PAT_MATCH_NUM; i++) {
+		snprintf(trash.str, trash.size, "_%s", pat_match_names[i]);
+		hlua_class_const_int(gL.T, trash.str, i);
+	}
 
 	/* register constructor. */
 	hlua_class_function(gL.T, "new", hlua_map_new);
