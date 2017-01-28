@@ -4024,6 +4024,12 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	struct http_msg *res = &txn->rsp;
 	const char *msg_fmt;
 	const char *location;
+	struct chunk *chunk;
+	int ret = 0;
+
+	chunk = alloc_trash_chunk();
+	if (!chunk)
+		goto leave;
 
 	/* build redirect message */
 	switch(rule->code) {
@@ -4045,10 +4051,10 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		break;
 	}
 
-	if (unlikely(!chunk_strcpy(&trash, msg_fmt)))
-		return 0;
+	if (unlikely(!chunk_strcpy(chunk, msg_fmt)))
+		goto leave;
 
-	location = trash.str + trash.len;
+	location = chunk->str + chunk->len;
 
 	switch(rule->type) {
 	case REDIRECT_TYPE_SCHEME: {
@@ -4087,40 +4093,40 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
 			/* check if we can add scheme + "://" + host + path */
-			if (trash.len + rule->rdr_len + 3 + hostlen + pathlen > trash.size - 4)
-				return 0;
+			if (chunk->len + rule->rdr_len + 3 + hostlen + pathlen > chunk->size - 4)
+				goto leave;
 
 			/* add scheme */
-			memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-			trash.len += rule->rdr_len;
+			memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
+			chunk->len += rule->rdr_len;
 		}
 		else {
 			/* add scheme with executing log format */
-			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
+			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
 
 			/* check if we can add scheme + "://" + host + path */
-			if (trash.len + 3 + hostlen + pathlen > trash.size - 4)
-				return 0;
+			if (chunk->len + 3 + hostlen + pathlen > chunk->size - 4)
+				goto leave;
 		}
 		/* add "://" */
-		memcpy(trash.str + trash.len, "://", 3);
-		trash.len += 3;
+		memcpy(chunk->str + chunk->len, "://", 3);
+		chunk->len += 3;
 
 		/* add host */
-		memcpy(trash.str + trash.len, host, hostlen);
-		trash.len += hostlen;
+		memcpy(chunk->str + chunk->len, host, hostlen);
+		chunk->len += hostlen;
 
 		/* add path */
-		memcpy(trash.str + trash.len, path, pathlen);
-		trash.len += pathlen;
+		memcpy(chunk->str + chunk->len, path, pathlen);
+		chunk->len += pathlen;
 
 		/* append a slash at the end of the location if needed and missing */
-		if (trash.len && trash.str[trash.len - 1] != '/' &&
+		if (chunk->len && chunk->str[chunk->len - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (trash.len > trash.size - 5)
-				return 0;
-			trash.str[trash.len] = '/';
-			trash.len++;
+			if (chunk->len > chunk->size - 5)
+				goto leave;
+			chunk->str[chunk->len] = '/';
+			chunk->len++;
 		}
 
 		break;
@@ -4149,38 +4155,38 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		}
 
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			if (trash.len + rule->rdr_len + pathlen > trash.size - 4)
-				return 0;
+			if (chunk->len + rule->rdr_len + pathlen > chunk->size - 4)
+				goto leave;
 
 			/* add prefix. Note that if prefix == "/", we don't want to
 			 * add anything, otherwise it makes it hard for the user to
 			 * configure a self-redirection.
 			 */
 			if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
-				memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-				trash.len += rule->rdr_len;
+				memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
+				chunk->len += rule->rdr_len;
 			}
 		}
 		else {
 			/* add prefix with executing log format */
-			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
+			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
 
 			/* Check length */
-			if (trash.len + pathlen > trash.size - 4)
-				return 0;
+			if (chunk->len + pathlen > chunk->size - 4)
+				goto leave;
 		}
 
 		/* add path */
-		memcpy(trash.str + trash.len, path, pathlen);
-		trash.len += pathlen;
+		memcpy(chunk->str + chunk->len, path, pathlen);
+		chunk->len += pathlen;
 
 		/* append a slash at the end of the location if needed and missing */
-		if (trash.len && trash.str[trash.len - 1] != '/' &&
+		if (chunk->len && chunk->str[chunk->len - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (trash.len > trash.size - 5)
-				return 0;
-			trash.str[trash.len] = '/';
-			trash.len++;
+			if (chunk->len > chunk->size - 5)
+				goto leave;
+			chunk->str[chunk->len] = '/';
+			chunk->len++;
 		}
 
 		break;
@@ -4188,29 +4194,29 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	case REDIRECT_TYPE_LOCATION:
 	default:
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			if (trash.len + rule->rdr_len > trash.size - 4)
-				return 0;
+			if (chunk->len + rule->rdr_len > chunk->size - 4)
+				goto leave;
 
 			/* add location */
-			memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-			trash.len += rule->rdr_len;
+			memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
+			chunk->len += rule->rdr_len;
 		}
 		else {
 			/* add location with executing log format */
-			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
+			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
 
 			/* Check left length */
-			if (trash.len > trash.size - 4)
-				return 0;
+			if (chunk->len > chunk->size - 4)
+				goto leave;
 		}
 		break;
 	}
 
 	if (rule->cookie_len) {
-		memcpy(trash.str + trash.len, "\r\nSet-Cookie: ", 14);
-		trash.len += 14;
-		memcpy(trash.str + trash.len, rule->cookie_str, rule->cookie_len);
-		trash.len += rule->cookie_len;
+		memcpy(chunk->str + chunk->len, "\r\nSet-Cookie: ", 14);
+		chunk->len += 14;
+		memcpy(chunk->str + chunk->len, rule->cookie_str, rule->cookie_len);
+		chunk->len += rule->cookie_len;
 	}
 
 	/* add end of headers and the keep-alive/close status.
@@ -4230,17 +4236,17 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		/* keep-alive possible */
 		if (!(req->flags & HTTP_MSGF_VER_11)) {
 			if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-				memcpy(trash.str + trash.len, "\r\nProxy-Connection: keep-alive", 30);
-				trash.len += 30;
+				memcpy(chunk->str + chunk->len, "\r\nProxy-Connection: keep-alive", 30);
+				chunk->len += 30;
 			} else {
-				memcpy(trash.str + trash.len, "\r\nConnection: keep-alive", 24);
-				trash.len += 24;
+				memcpy(chunk->str + chunk->len, "\r\nConnection: keep-alive", 24);
+				chunk->len += 24;
 			}
 		}
-		memcpy(trash.str + trash.len, "\r\n\r\n", 4);
-		trash.len += 4;
-		FLT_STRM_CB(s, flt_http_reply(s, txn->status, &trash));
-		bo_inject(res->chn, trash.str, trash.len);
+		memcpy(chunk->str + chunk->len, "\r\n\r\n", 4);
+		chunk->len += 4;
+		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
+		bo_inject(res->chn, chunk->str, chunk->len);
 		/* "eat" the request */
 		bi_fast_delete(req->chn->buf, req->sov);
 		req->next -= req->sov;
@@ -4255,13 +4261,13 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	} else {
 		/* keep-alive not possible */
 		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-			memcpy(trash.str + trash.len, "\r\nProxy-Connection: close\r\n\r\n", 29);
-			trash.len += 29;
+			memcpy(chunk->str + chunk->len, "\r\nProxy-Connection: close\r\n\r\n", 29);
+			chunk->len += 29;
 		} else {
-			memcpy(trash.str + trash.len, "\r\nConnection: close\r\n\r\n", 23);
-			trash.len += 23;
+			memcpy(chunk->str + chunk->len, "\r\nConnection: close\r\n\r\n", 23);
+			chunk->len += 23;
 		}
-		http_reply_and_close(s, txn->status, &trash);
+		http_reply_and_close(s, txn->status, chunk);
 		req->chn->analysers &= AN_REQ_FLT_END;
 	}
 
@@ -4270,7 +4276,10 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	return 1;
+	ret = 1;
+ leave:
+	free_trash_chunk(chunk);
+	return ret;
 }
 
 /* This stream analyser runs all HTTP request processing which is common to
