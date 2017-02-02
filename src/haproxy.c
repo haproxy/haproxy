@@ -1950,6 +1950,10 @@ int main(int argc, char **argv)
 		fork_poller();
 	}
 
+	/* initialize structures for name resolution */
+	if (!dns_init_resolvers(1))
+		exit(1);
+
 	protocol_enable_all();
 	/*
 	 * That's it : the central polling loop. Run until we stop.
