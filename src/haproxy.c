@@ -1176,7 +1176,7 @@ static void init(int argc, char **argv)
 		exit(1);
 
 	/* initialize structures for name resolution */
-	if (!dns_init_resolvers())
+	if (!dns_init_resolvers(0))
 		exit(1);
 
 	free(err_msg);
