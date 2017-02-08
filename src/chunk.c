@@ -29,6 +29,9 @@ static int trash_size;
 static char *trash_buf1;
 static char *trash_buf2;
 
+/* the trash pool for reentrant allocations */
+struct pool_head *pool2_trash = NULL;
+
 /*
 * Returns a pre-allocated and initialized trash chunk that can be used for any
 * type of conversion. Two chunks and their respective buffers are alternatively
@@ -63,7 +66,8 @@ int alloc_trash_buffers(int bufsize)
 	trash_size = bufsize;
 	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
 	trash_buf2 = (char *)my_realloc2(trash_buf2, bufsize);
-	return trash_buf1 && trash_buf2;
+	pool2_trash = create_pool("trash", sizeof(struct chunk) + bufsize, MEM_F_EXACT);
+	return trash_buf1 && trash_buf2 && pool2_trash;
 }
 
 /*
@@ -75,6 +79,25 @@ void free_trash_buffers(void)
 	free(trash_buf1);
 	trash_buf2 = NULL;
 	trash_buf1 = NULL;
+}
+
+/*
+ * Allocate a trash chunk from the reentrant pool. The buffer starts at the
+ * end of the chunk. This chunk must be freed using free_trash_chunk(). This
+ * call may fail and the caller is responsible for checking that the returned
+ * pointer is not NULL.
+ */
+struct chunk *alloc_trash_chunk(void)
+{
+	struct chunk *chunk;
+
+	chunk = pool_alloc2(pool2_trash);
+	if (chunk) {
+		char *buf = (char *)chunk + sizeof(struct chunk);
+		*buf = 0;
+		chunk_init(chunk, buf, pool2_trash->size - sizeof(struct chunk));
+	}
+	return chunk;
 }
 
 /*

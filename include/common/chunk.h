@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include <common/config.h>
+#include <common/memory.h>
 
 
 /* describes a chunk of string */
@@ -34,6 +35,8 @@ struct chunk {
 	int size;	/* total size of the buffer, 0 if the *str is read-only */
 	int len;	/* current size of the string from first to last char. <0 = uninit. */
 };
+
+struct pool_head *pool2_trash;
 
 /* function prototypes */
 
@@ -50,6 +53,16 @@ int chunk_strcasecmp(const struct chunk *chk, const char *str);
 int alloc_trash_buffers(int bufsize);
 void free_trash_buffers(void);
 struct chunk *get_trash_chunk(void);
+struct chunk *alloc_trash_chunk(void);
+
+/*
+ * free a trash chunk allocated by alloc_trash_chunk(). NOP on NULL.
+ */
+static inline void free_trash_chunk(struct chunk *chunk)
+{
+	pool_free2(pool2_trash, chunk);
+}
+
 
 static inline void chunk_reset(struct chunk *chk)
 {
