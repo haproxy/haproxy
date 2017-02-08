@@ -3823,7 +3823,7 @@ resume_execution:
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
 			                          &rule->arg.hdr_add.re, rule->action))
-				return HTTP_RULE_RES_STOP; /* note: we should report an error here */
+				return HTTP_RULE_RES_BADREQ;
 			break;
 
 		case ACT_HTTP_DEL_HDR:
