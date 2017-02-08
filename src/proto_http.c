@@ -6829,7 +6829,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	}
 
  skip_header_mangling:
-	if ((msg->flags & HTTP_MSGF_XFER_LEN) || HAS_FILTERS(s) ||
+	if ((msg->flags & HTTP_MSGF_XFER_LEN) || HAS_DATA_FILTERS(s, rep) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
 		rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 		rep->analysers |= AN_RES_HTTP_XFER_BODY;
@@ -6980,8 +6980,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * keep-alive is set on the client side or if there are filters
 	 * registered on the stream, we don't want to forward a close
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) || !msg->body_len ||
-	    HAS_FILTERS(s) ||
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || !(msg->flags & HTTP_MSGF_XFER_LEN) ||
+	    HAS_DATA_FILTERS(s, res) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		channel_dont_close(res);
@@ -7073,11 +7073,10 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 		goto missing_data_or_waiting;
 	}
 
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !(chn->flags & CF_SHUTR) &&
-	    HAS_DATA_FILTERS(s, chn)) {
-		/* The server still sending data that should be filtered */
+	/* The server still sending data that should be filtered */
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !(chn->flags & CF_SHUTR))
 		goto missing_data_or_waiting;
-	}
+
 	msg->msg_state = HTTP_MSG_ENDING;
 
   ending:
