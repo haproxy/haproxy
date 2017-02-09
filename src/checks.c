@@ -3398,7 +3398,7 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 	len = vsnprintf(buf, sizeof(buf), format, argp);
 	va_end(argp);
 
-	if (len < 0) {
+	if (len < 0 || len >= sizeof(buf)) {
 		Alert("Email alert [%s] could not format message\n", p->id);
 		return;
 	}
