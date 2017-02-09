@@ -100,6 +100,7 @@ enum spoe_frame_error {
 	SPOE_FRM_ERR_BAD_FRAME_SIZE,
 	SPOE_FRM_ERR_FRAG_NOT_SUPPORTED,
 	SPOE_FRM_ERR_INTERLACED_FRAMES,
+	SPOE_FRM_ERR_FRAMEID_NOTFOUND,
 	SPOE_FRM_ERR_RES,
 	SPOE_FRM_ERR_UNKNOWN = 99,
 	SPOE_FRM_ERRS,
@@ -273,6 +274,7 @@ static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
 	[SPOE_FRM_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
 	[SPOE_FRM_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
 	[SPOE_FRM_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
+	[SPOE_FRM_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
 	[SPOE_FRM_ERR_RES]                = "resource allocation error",
 	[SPOE_FRM_ERR_UNKNOWN]            = "an unknown error occurred",
 };
@@ -1672,7 +1674,7 @@ read_frame_cb(evutil_socket_t fd, short events, void *arg)
 				    spoe_frm_err_reasons[client->status_code]);
 				goto disconnect;
 			}
-			if (n == 0) {
+			else if (n == 0) {
 				LOG(client->worker, "Ignore invalid/unknown/aborted frame");
 				goto ignore_frame;
 			}

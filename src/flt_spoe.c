@@ -142,6 +142,7 @@ enum spoe_context_error {
 	SPOE_CTX_ERR_TOUT,
 	SPOE_CTX_ERR_RES,
 	SPOE_CTX_ERR_TOO_BIG,
+	SPOE_CTX_ERR_FRAG_FRAME_ABRT,
 	SPOE_CTX_ERR_UNKNOWN = 255,
 	SPOE_CTX_ERRS,
 };
@@ -160,6 +161,7 @@ enum spoe_frame_error {
 	SPOE_FRM_ERR_BAD_FRAME_SIZE,
 	SPOE_FRM_ERR_FRAG_NOT_SUPPORTED,
 	SPOE_FRM_ERR_INTERLACED_FRAMES,
+	SPOE_FRM_ERR_FRAMEID_NOTFOUND,
 	SPOE_FRM_ERR_RES,
 	SPOE_FRM_ERR_UNKNOWN = 99,
 	SPOE_FRM_ERRS,
@@ -420,6 +422,7 @@ static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
 	[SPOE_FRM_ERR_BAD_FRAME_SIZE]     = "max-frame-size too big or too small",
 	[SPOE_FRM_ERR_FRAG_NOT_SUPPORTED] = "fragmentation not supported",
 	[SPOE_FRM_ERR_INTERLACED_FRAMES]  = "invalid interlaced frames",
+	[SPOE_FRM_ERR_FRAMEID_NOTFOUND]   = "frame-id not found",
 	[SPOE_FRM_ERR_RES]                = "resource allocation error",
 	[SPOE_FRM_ERR_UNKNOWN]            = "an unknown error occurred",
 };
@@ -1577,6 +1580,24 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		}
 	}
 
+	if (SPOE_APPCTX(appctx)->frag_ctx.ctx &&
+	    SPOE_APPCTX(appctx)->frag_ctx.cursid == (unsigned int)stream_id &&
+	    SPOE_APPCTX(appctx)->frag_ctx.curfid == (unsigned int)frame_id) {
+
+		/* ABRT bit is set for an unfinished fragmented frame */
+		if (flags & SPOE_FRM_FL_ABRT) {
+			*ctx = SPOE_APPCTX(appctx)->frag_ctx.ctx;
+			(*ctx)->frag_ctx.spoe_appctx = NULL;
+			(*ctx)->state = SPOE_CTX_ST_ERROR;
+			(*ctx)->status_code = SPOE_CTX_ERR_FRAG_FRAME_ABRT;
+			/* Ignore the payload */
+			goto end;
+		}
+		/* TODO: Handle more flags for fragmented frames: RESUME, FINISH... */
+		/*       For now, we ignore the ack */
+		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
+		return 0;
+	}
 
 	/* No Stream found, ignore the frame */
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p"
@@ -1586,7 +1607,7 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		    __FUNCTION__, appctx,
 		    (unsigned int)stream_id, (unsigned int)frame_id);
 
-	/* FIXME: Define a proper error for this case (SPOE_FRM_ERR_FRAMEID_NOTFOUND ?) */
+	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAMEID_NOTFOUND;
 	return 0;
 
   found:
@@ -1608,6 +1629,7 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 
 	(*ctx)->state = SPOE_CTX_ST_DONE;
 
+  end:
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: appctx=%p"
 		    " - ACK frame received"
 		    " - ctx=%p - stream-id=%u - frame-id=%u - flags=0x%08x\n",
@@ -2144,7 +2166,17 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 		default:
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
-			appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
+
+			if (appctx->st0 == SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY &&
+			    ctx == SPOE_APPCTX(appctx)->frag_ctx.ctx) {
+				appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
+				SPOE_APPCTX(appctx)->frag_ctx.ctx    = NULL;
+				SPOE_APPCTX(appctx)->frag_ctx.cursid = 0;
+				SPOE_APPCTX(appctx)->frag_ctx.curfid = 0;
+			}
+			else if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK)
+				appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
+
 			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 			break;
 	}
