@@ -4177,7 +4177,7 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 		return;
 	if (!clean)
 		/* don't sent notify on SSL_shutdown */
-		SSL_CTX_set_quiet_shutdown(conn->xprt_ctx, 1);
+		SSL_set_quiet_shutdown(conn->xprt_ctx, 1);
 	/* no handshake was in progress, try a clean ssl shutdown */
 	if (SSL_shutdown(conn->xprt_ctx) <= 0) {
 		/* Clear openssl global errors stack */
