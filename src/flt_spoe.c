@@ -12,7 +12,6 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include <common/buffer.h>
 #include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
@@ -21,11 +20,8 @@
 #include <common/time.h>
 
 #include <types/arg.h>
-#include <types/filters.h>
 #include <types/global.h>
-#include <types/proxy.h>
-#include <types/sample.h>
-#include <types/stream.h>
+#include <types/spoe.h>
 
 #include <proto/arg.h>
 #include <proto/backend.h>
@@ -59,267 +55,6 @@
 /* Reserved for the metadata and the frame type.
  * So <MAX_FRAME_SIZE> - <FRAME_HDR_SIZE> is the maximum payload size */
 #define FRAME_HDR_SIZE     32
-
-/* Flags set on the SPOE agent */
-#define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
-
-/* Flags set on the SPOE context */
-#define SPOE_CTX_FL_CLI_CONNECTED 0x00000001 /* Set after that on-client-session event was processed */
-#define SPOE_CTX_FL_SRV_CONNECTED 0x00000002 /* Set after that on-server-session event was processed */
-#define SPOE_CTX_FL_REQ_PROCESS   0x00000004 /* Set when SPOE is processing the request */
-#define SPOE_CTX_FL_RSP_PROCESS   0x00000008 /* Set when SPOE is processing the response */
-#define SPOE_CTX_FL_FRAGMENTED    0x00000010 /* Set when a fragmented frame is processing */
-
-#define SPOE_CTX_FL_PROCESS (SPOE_CTX_FL_REQ_PROCESS|SPOE_CTX_FL_RSP_PROCESS)
-
-/* Flags set on the SPOE applet */
-#define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
-#define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronus frames is supported */
-#define SPOE_APPCTX_FL_FRAGMENTATION 0x00000004 /* Set if fragmentation is supported */
-#define SPOE_APPCTX_FL_PERSIST       0x00000008 /* Set if the applet is persistent */
-
-#define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
-#define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
-
-/* Flags set on the SPOE frame */
-#define SPOE_FRM_FL_FIN         0x00000001
-#define SPOE_FRM_FL_ABRT        0x00000002
-
-/* All possible states for a SPOE context */
-enum spoe_ctx_state {
-	SPOE_CTX_ST_NONE = 0,
-	SPOE_CTX_ST_READY,
-	SPOE_CTX_ST_ENCODING_MSGS,
-	SPOE_CTX_ST_SENDING_MSGS,
-	SPOE_CTX_ST_WAITING_ACK,
-	SPOE_CTX_ST_DONE,
-	SPOE_CTX_ST_ERROR,
-};
-
-/* All possible states for a SPOE applet */
-enum spoe_appctx_state {
-	SPOE_APPCTX_ST_CONNECT = 0,
-	SPOE_APPCTX_ST_CONNECTING,
-	SPOE_APPCTX_ST_IDLE,
-	SPOE_APPCTX_ST_PROCESSING,
-	SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY,
-	SPOE_APPCTX_ST_WAITING_SYNC_ACK,
-	SPOE_APPCTX_ST_DISCONNECT,
-	SPOE_APPCTX_ST_DISCONNECTING,
-	SPOE_APPCTX_ST_EXIT,
-	SPOE_APPCTX_ST_END,
-};
-
-/* All supported SPOE actions */
-enum spoe_action_type {
-	SPOE_ACT_T_SET_VAR = 1,
-	SPOE_ACT_T_UNSET_VAR,
-	SPOE_ACT_TYPES,
-};
-
-/* All supported SPOE events */
-enum spoe_event {
-	SPOE_EV_NONE = 0,
-
-	/* Request events */
-	SPOE_EV_ON_CLIENT_SESS = 1,
-	SPOE_EV_ON_TCP_REQ_FE,
-	SPOE_EV_ON_TCP_REQ_BE,
-	SPOE_EV_ON_HTTP_REQ_FE,
-	SPOE_EV_ON_HTTP_REQ_BE,
-
-	/* Response events */
-	SPOE_EV_ON_SERVER_SESS,
-	SPOE_EV_ON_TCP_RSP,
-	SPOE_EV_ON_HTTP_RSP,
-
-	SPOE_EV_EVENTS
-};
-
-/* Errors triggered by streams */
-enum spoe_context_error {
-	SPOE_CTX_ERR_NONE = 0,
-	SPOE_CTX_ERR_TOUT,
-	SPOE_CTX_ERR_RES,
-	SPOE_CTX_ERR_TOO_BIG,
-	SPOE_CTX_ERR_FRAG_FRAME_ABRT,
-	SPOE_CTX_ERR_UNKNOWN = 255,
-	SPOE_CTX_ERRS,
-};
-
-/* Errors triggerd by SPOE applet */
-enum spoe_frame_error {
-	SPOE_FRM_ERR_NONE = 0,
-	SPOE_FRM_ERR_IO,
-	SPOE_FRM_ERR_TOUT,
-	SPOE_FRM_ERR_TOO_BIG,
-	SPOE_FRM_ERR_INVALID,
-	SPOE_FRM_ERR_NO_VSN,
-	SPOE_FRM_ERR_NO_FRAME_SIZE,
-	SPOE_FRM_ERR_NO_CAP,
-	SPOE_FRM_ERR_BAD_VSN,
-	SPOE_FRM_ERR_BAD_FRAME_SIZE,
-	SPOE_FRM_ERR_FRAG_NOT_SUPPORTED,
-	SPOE_FRM_ERR_INTERLACED_FRAMES,
-	SPOE_FRM_ERR_FRAMEID_NOTFOUND,
-	SPOE_FRM_ERR_RES,
-	SPOE_FRM_ERR_UNKNOWN = 99,
-	SPOE_FRM_ERRS,
-};
-
-/* Scopes used for variables set by agents. It is a way to be agnotic to vars
- * scope. */
-enum spoe_vars_scope {
-	SPOE_SCOPE_PROC = 0, /* <=> SCOPE_PROC  */
-	SPOE_SCOPE_SESS,     /* <=> SCOPE_SESS */
-	SPOE_SCOPE_TXN,      /* <=> SCOPE_TXN  */
-	SPOE_SCOPE_REQ,      /* <=> SCOPE_REQ  */
-	SPOE_SCOPE_RES,      /* <=> SCOPE_RES  */
-};
-
-
-/* Describe an argument that will be linked to a message. It is a sample fetch,
- * with an optional name. */
-struct spoe_arg {
-	char               *name;     /* Name of the argument, may be NULL */
-	unsigned int        name_len; /* The name length, 0 if NULL */
-	struct sample_expr *expr;     /* Sample expression */
-	struct list         list;     /* Used to chain SPOE args */
-};
-
-/* Used during the config parsing only because, when a SPOE agent section is
- * parsed, messages can be undefined. */
-struct spoe_msg_placeholder {
-	char       *id;    /* SPOE message placeholder id */
-	struct list list;  /* Use to chain SPOE message placeholders */
-};
-
-/* Describe a message that will be sent in a NOTIFY frame. A message has a name,
- * an argument list (see above) and it is linked to a specific event. */
-struct spoe_message {
-	char              *id;      /* SPOE message id */
-	unsigned int       id_len;  /* The message id length */
-	struct spoe_agent *agent;   /* SPOE agent owning this SPOE message */
-        struct {
-                char      *file;    /* file where the SPOE message appears */
-                int        line;    /* line where the SPOE message appears */
-        } conf;                     /* config information */
-	unsigned int       nargs;   /* # of arguments */
-	struct list        args;    /* Arguments added when the SPOE messages is sent */
-	struct list        list;    /* Used to chain SPOE messages */
-
-	enum spoe_event    event;   /* SPOE_EV_* */
-};
-
-/* Describe a SPOE agent. */
-struct spoe_agent {
-	char                 *id;             /* SPOE agent id (name) */
-        struct {
-                char         *file;           /* file where the SPOE agent appears */
-                int           line;           /* line where the SPOE agent appears */
-        } conf;                               /* config information */
-	union {
-		struct proxy *be;             /* Backend used by this agent */
-		char         *name;           /* Backend name used during conf parsing */
-	} b;
-	struct {
-		unsigned int  hello;          /* Max time to receive AGENT-HELLO frame (in SPOE applet) */
-		unsigned int  idle;           /* Max Idle timeout  (in SPOE applet) */
-		unsigned int  processing;     /* Max time to process an event (in the main stream) */
-	} timeout;
-
-	/* Config info */
-	char                 *engine_id;      /* engine-id string */
-	char                 *var_pfx;        /* Prefix used for vars set by the agent */
-	char                 *var_on_error;   /* Variable to set when an error occurred, in the TXN scope */
-	unsigned int          flags;          /* SPOE_FL_* */
-	unsigned int          cps_max;        /* Maximum # of connections per second */
-	unsigned int          eps_max;        /* Maximum # of errors per second */
-	unsigned int          max_frame_size; /* Maximum frame size for this agent, before any negotiation */
-	unsigned int          min_applets;    /* Minimum # applets alive at a time */
-	unsigned int          max_fpa;        /* Maximum # of frames handled per applet at once */
-
-	struct list messages[SPOE_EV_EVENTS]; /* List of SPOE messages that will be sent
-					       * for each supported events */
-
-	/* running info */
-	unsigned int          frame_size;     /* current maximum frame size, only used to encode messages */
-	unsigned int          applets_act;    /* # of applets alive at a time */
-	unsigned int          applets_idle;   /* # of applets in the state SPOE_APPCTX_ST_IDLE */
-	unsigned int          sending_rate;   /* the global sending rate */
-
-	struct freq_ctr       conn_per_sec;   /* connections per second */
-	struct freq_ctr       err_per_sec;    /* connetion errors per second */
-
-	struct list           applets;        /* List of available SPOE applets */
-	struct list           sending_queue;  /* Queue of streams waiting to send data */
-	struct list           waiting_queue;  /* Queue of streams waiting for a ack, in async mode */
-
-};
-
-/* SPOE filter configuration */
-struct spoe_config {
-	struct proxy      *proxy;       /* Proxy owning the filter */
-	struct spoe_agent *agent;       /* Agent used by this filter */
-	struct proxy       agent_fe;    /* Agent frontend */
-};
-
-/* SPOE context attached to a stream. It is the main structure that handles the
- * processing offload */
-struct spoe_context {
-	struct filter      *filter;       /* The SPOE filter */
-	struct stream      *strm;         /* The stream that should be offloaded */
-
-	struct list        *messages;     /* List of messages that will be sent during the stream processing */
-	struct buffer      *buffer;       /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;  /* position in the list of ressources waiting for a buffer */
-	struct list         list;
-
-	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
-	unsigned int        flags;        /* SPOE_CTX_FL_* */
-	unsigned int        status_code;  /* SPOE_CTX_ERR_* */
-
-	unsigned int        stream_id;    /* stream_id and frame_id are used */
-	unsigned int        frame_id;     /* to map NOTIFY and ACK frames */
-	unsigned int        process_exp;  /* expiration date to process an event */
-
-	struct {
-		struct spoe_appctx  *spoe_appctx; /* SPOE appctx sending the fragmented frame */
-		struct spoe_message *curmsg;      /* SPOE message from which to resume encoding */
-		struct spoe_arg     *curarg;      /* SPOE arg in <curmsg> from which to resume encoding */
-		unsigned int         curoff;      /* offset in <curarg> from which to resume encoding */
-		unsigned int         flags;       /* SPOE_FRM_FL_* */
-	} frag_ctx; /* Info about fragmented frames, valid on if SPOE_CTX_FL_FRAGMENTED is set */
-};
-
-/* SPOE context inside a appctx */
-struct spoe_appctx {
-	struct appctx      *owner;          /* the owner */
-	struct task        *task;           /* task to handle applet timeouts */
-	struct spoe_agent  *agent;          /* agent on which the applet is attached */
-
-	unsigned int        version;        /* the negotiated version */
-	unsigned int        max_frame_size; /* the negotiated max-frame-size value */
-	unsigned int        flags;          /* SPOE_APPCTX_FL_* */
-
-	unsigned int        status_code;    /* SPOE_FRM_ERR_* */
-#if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
-	char               *reason;         /* Error message, used for debugging only */
-	int                 rlen;           /* reason length */
-#endif
-
-	struct buffer      *buffer;         /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;    /* position in the list of ressources waiting for a buffer */
-	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
-	struct list         list;           /* next spoe appctx for the same agent */
-
-	struct {
-		struct spoe_context *ctx;    /* SPOE context owning the fragmented frame */
-		unsigned int         cursid; /* stream-id of the fragmented frame. used if the processing is aborted */
-		unsigned int         curfid; /* frame-id of the fragmented frame. used if the processing is aborted */
-	} frag_ctx; /* Info about fragmented frames, unused for unfragmented frames */
-};
-
 
 /* Helper to get SPOE ctx inside an appctx */
 #define SPOE_APPCTX(appctx) ((struct spoe_appctx *)((appctx)->ctx.spoe.ptr))
@@ -367,7 +102,6 @@ spoe_release_msg_placeholder(struct spoe_msg_placeholder *mp)
 	free(mp->id);
 	free(mp);
 }
-
 
 static void
 spoe_release_message(struct spoe_message *msg)
@@ -522,42 +256,6 @@ min_applets_act(struct spoe_agent *agent)
 /********************************************************************
  * Functions that encode/decode SPOE frames
  ********************************************************************/
-/* Frame Types sent by HAProxy and by agents */
-enum spoe_frame_type {
-	/* Frames sent by HAProxy */
-	SPOE_FRM_T_HAPROXY_HELLO = 1,
-	SPOE_FRM_T_HAPROXY_DISCON,
-	SPOE_FRM_T_HAPROXY_NOTIFY,
-
-	/* Frames sent by the agents */
-	SPOE_FRM_T_AGENT_HELLO = 101,
-	SPOE_FRM_T_AGENT_DISCON,
-	SPOE_FRM_T_AGENT_ACK
-};
-
-/* All supported data types */
-enum spoe_data_type {
-	SPOE_DATA_T_NULL = 0,
-	SPOE_DATA_T_BOOL,
-	SPOE_DATA_T_INT32,
-	SPOE_DATA_T_UINT32,
-	SPOE_DATA_T_INT64,
-	SPOE_DATA_T_UINT64,
-	SPOE_DATA_T_IPV4,
-	SPOE_DATA_T_IPV6,
-	SPOE_DATA_T_STR,
-	SPOE_DATA_T_BIN,
-	SPOE_DATA_TYPES
-};
-
-/* Masks to get data type or flags value */
-#define SPOE_DATA_T_MASK  0x0F
-#define SPOE_DATA_FL_MASK 0xF0
-
-/* Flags to set Boolean values */
-#define SPOE_DATA_FL_FALSE 0x00
-#define SPOE_DATA_FL_TRUE  0x10
-
 /* Helper to get static string length, excluding the terminating null byte */
 #define SLEN(str) (sizeof(str)-1)
 

@@ -7,7 +7,7 @@ LD = $(CC)
 
 CFLAGS  = -g -O2 -Wall -Werror -pthread
 LDFLAGS = -lpthread  -levent -levent_pthreads
-INCS += -I../../include
+INCS += -I../../include -I../../ebtree
 LIBS =
 
 OBJS = spoa.o
