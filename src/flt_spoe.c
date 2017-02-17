@@ -495,26 +495,16 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 	p   = frame;
 	end = frame+size;
 
-	/* <ctx> is null when the stream has aborted the processing of a
-	 * fragmented frame. In this case, we must notify the corresponding
-	 * agent using ids stored in <frag_ctx>. */
-	if (ctx == NULL) {
-		flags    |= SPOE_FRM_FL_ABRT;
-		stream_id = SPOE_APPCTX(appctx)->frag_ctx.cursid;
-		frame_id  = SPOE_APPCTX(appctx)->frag_ctx.curfid;
-	}
-	else {
-		stream_id = ctx->stream_id;
-		frame_id  = ctx->frame_id;
+	stream_id = ctx->stream_id;
+	frame_id  = ctx->frame_id;
 
-		if (ctx->flags & SPOE_CTX_FL_FRAGMENTED) {
-			/* The fragmentation is not supported by the applet */
-			if (!(SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_FRAGMENTATION)) {
-				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAG_NOT_SUPPORTED;
-				return -1;
-			}
-			flags = ctx->frag_ctx.flags;
+	if (ctx->flags & SPOE_CTX_FL_FRAGMENTED) {
+		/* The fragmentation is not supported by the applet */
+		if (!(SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_FRAGMENTATION)) {
+			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAG_NOT_SUPPORTED;
+			return -1;
 		}
+		flags = ctx->frag_ctx.flags;
 	}
 
 	/* Set Frame type */
@@ -531,12 +521,72 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 		goto too_big;
 
 	/* Copy encoded messages, if possible */
-	sz = SPOE_APPCTX(appctx)->buffer->i;
+	sz = ctx->buffer->i;
 	if (p + sz >= end)
 		goto too_big;
-	memcpy(p, SPOE_APPCTX(appctx)->buffer->p, sz);
+	memcpy(p, ctx->buffer->p, sz);
 	p += sz;
 
+	return (p - frame);
+
+  too_big:
+	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
+	return 0;
+}
+
+/* Encode next part of a fragmented frame sent by HAProxy to an agent. It
+ * returns the number of encoded bytes in the frame on success, 0 if an encoding
+ * error occurred and -1 if a fatal error occurred. */
+static int
+spoe_prepare_hafrag_frame(struct appctx *appctx, struct spoe_context *ctx,
+			  char *frame, size_t size)
+{
+	char        *p, *end;
+	unsigned int stream_id, frame_id;
+	unsigned int flags;
+	size_t       sz;
+
+	p   = frame;
+	end = frame+size;
+
+	/* <ctx> is null when the stream has aborted the processing of a
+	 * fragmented frame. In this case, we must notify the corresponding
+	 * agent using ids stored in <frag_ctx>. */
+	if (ctx == NULL) {
+		flags     = (SPOE_FRM_FL_FIN|SPOE_FRM_FL_ABRT);
+		stream_id = SPOE_APPCTX(appctx)->frag_ctx.cursid;
+		frame_id  = SPOE_APPCTX(appctx)->frag_ctx.curfid;
+	}
+	else {
+		flags     = ctx->frag_ctx.flags;
+		stream_id = ctx->stream_id;
+		frame_id  = ctx->frame_id;
+	}
+
+	/* Set Frame type */
+	*p++ = SPOE_FRM_T_UNSET;
+
+	/* Set flags */
+	memcpy(p, (char *)&flags, 4);
+	p += 4;
+
+	/* Set stream-id and frame-id */
+	if (spoe_encode_varint(stream_id, &p, end) == -1)
+		goto too_big;
+	if (spoe_encode_varint(frame_id, &p, end) == -1)
+		goto too_big;
+
+	if (ctx == NULL)
+		goto end;
+
+	/* Copy encoded messages, if possible */
+	sz = ctx->buffer->i;
+	if (p + sz >= end)
+		goto too_big;
+	memcpy(p, ctx->buffer->p, sz);
+	p += sz;
+
+  end:
 	return (p - frame);
 
   too_big:
@@ -1150,12 +1200,13 @@ spoe_release_appctx(struct appctx *appctx)
 		if (appctx->st0 == SPOE_APPCTX_ST_IDLE)
 			agent->applets_idle--;
 
-		si_shutw(si);
-		si_shutr(si);
-		si_ic(si)->flags |= CF_READ_NULL;
 		appctx->st0 = SPOE_APPCTX_ST_END;
 		if (spoe_appctx->status_code == SPOE_FRM_ERR_NONE)
 			spoe_appctx->status_code = SPOE_FRM_ERR_IO;
+
+		si_shutw(si);
+		si_shutr(si);
+		si_ic(si)->flags |= CF_READ_NULL;
 	}
 
 	/* Destroy the task attached to this applet */
@@ -1351,19 +1402,36 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 	return 0;
 }
 
+
 static int
-spoe_handle_sending_frame_appctx(struct appctx *appctx, struct spoe_context *ctx,
-				 int *skip)
+spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 {
-	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
+	struct spoe_agent   *agent = SPOE_APPCTX(appctx)->agent;
+	struct spoe_context *ctx = NULL;
 	char *frame, *buf;
 	int   ret;
 
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
 	buf = trash.str; frame = buf+4;
-	ret = spoe_prepare_hanotify_frame(appctx, ctx, frame,
-					  SPOE_APPCTX(appctx)->max_frame_size);
+
+	if (appctx->st0 == SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY) {
+		ctx = SPOE_APPCTX(appctx)->frag_ctx.ctx;
+		ret = spoe_prepare_hafrag_frame(appctx, ctx, frame,
+						SPOE_APPCTX(appctx)->max_frame_size);
+	}
+	else if (LIST_ISEMPTY(&agent->sending_queue)) {
+		*skip = 1;
+		ret   = 1;
+		goto end;
+	}
+	else {
+		ctx = LIST_NEXT(&agent->sending_queue, typeof(ctx), list);
+		ret = spoe_prepare_hanotify_frame(appctx, ctx, frame,
+						  SPOE_APPCTX(appctx)->max_frame_size);
+
+	}
+
 	if (ret > 1)
 		ret = spoe_send_frame(appctx, buf, ret);
 
@@ -1376,6 +1444,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, struct spoe_context *ctx
 			if (ctx == NULL)
 				goto abort_frag_frame;
 
+			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
 			ctx->state = SPOE_CTX_ST_ERROR;
@@ -1391,6 +1460,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, struct spoe_context *ctx
 			if (ctx == NULL)
 				goto abort_frag_frame;
 
+			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
 			if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) ||
@@ -1506,7 +1576,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 {
 	struct stream_interface *si    = appctx->owner;
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
-	struct spoe_context     *ctx = NULL;
 	unsigned int  fpa = 0;
 	int           ret, skip_sending = 0, skip_receiving = 0;
 
@@ -1531,39 +1600,21 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		    skip_sending, skip_receiving,
 		    spoe_appctx_state_str[appctx->st0]);
 
-	if (fpa > agent->max_fpa || (skip_sending && skip_receiving))
+	if (fpa > agent->max_fpa)
 		goto stop;
-	else if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK) {
+	else if (skip_sending || appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK) {
 		if (skip_receiving)
 			goto stop;
 		goto recv_frame;
 	}
-	else if (skip_sending)
-		goto recv_frame;
-	else if (appctx->st0 == SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY) {
-		ctx = SPOE_APPCTX(appctx)->frag_ctx.ctx;
-		goto send_frame;
-	}
-	else if (LIST_ISEMPTY(&agent->sending_queue)) {
-		skip_sending = 1;
-		goto recv_frame;
-	}
-	ctx = LIST_NEXT(&agent->sending_queue, typeof(ctx), list);
 
-  send_frame:
-	/* Transfer the buffer ownership to the SPOE appctx */
-	if (ctx) {
-		SPOE_APPCTX(appctx)->buffer = ctx->buffer;
-		ctx->buffer = &buf_empty;
-	}
-	ret = spoe_handle_sending_frame_appctx(appctx, ctx, &skip_sending);
+	/* send_frame */
+	ret = spoe_handle_sending_frame_appctx(appctx, &skip_sending);
 	switch (ret) {
 		case -1: /* error */
 			goto next;
 
 		case 0: /* ignore */
-			spoe_release_buffer(&SPOE_APPCTX(appctx)->buffer,
-					    &SPOE_APPCTX(appctx)->buffer_wait);
 			agent->sending_rate++;
 			fpa++;
 			break;
@@ -1572,8 +1623,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 			break;
 
 		default:
-			spoe_release_buffer(&SPOE_APPCTX(appctx)->buffer,
-					    &SPOE_APPCTX(appctx)->buffer_wait);
 			agent->sending_rate++;
 			fpa++;
 			break;
@@ -2571,7 +2620,7 @@ static void
 spoe_reset_context(struct spoe_context *ctx)
 {
 	ctx->state  = SPOE_CTX_ST_READY;
-	ctx->flags &= ~SPOE_CTX_FL_PROCESS;
+	ctx->flags &= ~(SPOE_CTX_FL_PROCESS|SPOE_CTX_FL_FRAGMENTED);
 }
 
 

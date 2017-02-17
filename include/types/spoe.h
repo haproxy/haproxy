@@ -294,6 +294,8 @@ struct spoe_appctx {
 
 /* Frame Types sent by HAProxy and by agents */
 enum spoe_frame_type {
+	SPOE_FRM_T_UNSET = 0,
+
 	/* Frames sent by HAProxy */
 	SPOE_FRM_T_HAPROXY_HELLO = 1,
 	SPOE_FRM_T_HAPROXY_DISCON,
