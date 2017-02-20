@@ -10239,7 +10239,8 @@ crt <cert>
   to use both RSA and ECDSA cipher suites. Users connecting with an SNI of
   "rsa.example.com" will only be able to use RSA cipher suites, and users
   connecting with "ecdsa.example.com" will only be able to use ECDSA cipher
-  suites.
+  suites. With BoringSSL multi-cert is natively supported, no need to bundle
+  certificates. ECDSA certificate will be preferred if client support it.
 
   If a directory name is given as the <cert> argument, haproxy will
   automatically search and load bundled files in that directory.
@@ -10276,13 +10277,15 @@ crt-list <file>
 
   Multi-cert bundling (see "crt") is supported with crt-list, as long as only
   the base name is given in the crt-list. SNI filter will do the same work on
-  all bundled certificates.
+  all bundled certificates. With BoringSSL multi-cert is natively supported,
+  avoid multi-cert bundling. RSA and ECDSA certificates can be declared in a
+  row, and set different ssl and filter parameter.
 
   crt-list file example:
         cert1.pem
-        cert2.pem [npn h2,http/1.1]
+        cert2.pem [alpn h2,http/1.1]
         certW.pem                   *.domain.tld !secure.domain.tld
-        certS.pem [ecdhe secp521r1 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
+        certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It

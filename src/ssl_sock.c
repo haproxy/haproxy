@@ -1435,6 +1435,199 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 }
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
+#ifdef OPENSSL_IS_BORINGSSL
+
+static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
+{
+	(void)al; /* shut gcc stupid warning */
+	(void)priv;
+
+	if (!SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name))
+		return SSL_TLSEXT_ERR_NOACK;
+	return SSL_TLSEXT_ERR_OK;
+}
+
+static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
+{
+	struct connection *conn;
+	struct bind_conf *s;
+	const uint8_t *extension_data;
+	size_t extension_len;
+	CBS extension, cipher_suites, server_name_list, host_name, sig_algs;
+	const SSL_CIPHER *cipher;
+	uint16_t cipher_suite;
+	uint8_t name_type, hash, sign;
+	int has_rsa = 0, has_ecdsa = 0, has_ecdsa_sig = 0;
+
+	char *wildp = NULL;
+	const uint8_t *servername;
+	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
+	int i;
+
+	conn = SSL_get_app_data(ctx->ssl);
+	s = objt_listener(conn->target)->bind_conf;
+
+	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_server_name,
+						 &extension_data, &extension_len)) {
+		CBS_init(&extension, extension_data, extension_len);
+
+		if (!CBS_get_u16_length_prefixed(&extension, &server_name_list)
+		    || !CBS_get_u8(&server_name_list, &name_type)
+		    /* Although the server_name extension was intended to be extensible to
+		     * new name types and multiple names, OpenSSL 1.0.x had a bug which meant
+		     * different name types will cause an error. Further, RFC 4366 originally
+		     * defined syntax inextensibly. RFC 6066 corrected this mistake, but
+		     * adding new name types is no longer feasible.
+		     *
+		     * Act as if the extensibility does not exist to simplify parsing. */
+		    || !CBS_get_u16_length_prefixed(&server_name_list, &host_name)
+		    || CBS_len(&server_name_list) != 0
+		    || CBS_len(&extension) != 0
+		    || name_type != TLSEXT_NAMETYPE_host_name
+		    || CBS_len(&host_name) == 0
+		    || CBS_len(&host_name) > TLSEXT_MAXLEN_host_name
+		    || CBS_contains_zero_byte(&host_name)) {
+			goto abort;
+		}
+	} else {
+		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
+		if (!s->strict_sni)
+			return 1;
+		goto abort;
+	}
+
+	/* extract/check clientHello informations */
+	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
+		CBS_init(&extension, extension_data, extension_len);
+
+		if (!CBS_get_u16_length_prefixed(&extension, &sig_algs)
+		    || CBS_len(&sig_algs) == 0
+		    || CBS_len(&extension) != 0) {
+			goto abort;
+		}
+		if (CBS_len(&sig_algs) % 2 != 0) {
+			goto abort;
+		}
+		while (CBS_len(&sig_algs) != 0) {
+			if (!CBS_get_u8(&sig_algs, &hash)
+			    || !CBS_get_u8(&sig_algs, &sign)) {
+				goto abort;
+			}
+			switch (sign) {
+			case TLSEXT_signature_rsa:
+				has_rsa = 1;
+				break;
+			case TLSEXT_signature_ecdsa:
+				has_ecdsa_sig = 1;
+				break;
+			default:
+				continue;
+			}
+			if (has_ecdsa_sig && has_rsa)
+				break;
+		}
+	} else {
+		/* without TLSEXT_TYPE_signature_algorithms extension (< TLS 1.2) */
+		has_rsa = 1;
+	}
+	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
+		CBS_init(&cipher_suites, ctx->cipher_suites, ctx->cipher_suites_len);
+
+		while (CBS_len(&cipher_suites) != 0) {
+			if (!CBS_get_u16(&cipher_suites, &cipher_suite)) {
+				goto abort;
+			}
+			cipher = SSL_get_cipher_by_value(cipher_suite);
+			if (cipher && SSL_CIPHER_is_ECDSA(cipher)) {
+				has_ecdsa = 1;
+				break;
+			}
+		}
+	}
+
+	servername = CBS_data(&host_name);
+	for (i = 0; i < trash.size && i < CBS_len(&host_name); i++) {
+		trash.str[i] = tolower(servername[i]);
+		if (!wildp && (trash.str[i] == '.'))
+			wildp = &trash.str[i];
+	}
+	trash.str[i] = 0;
+
+	/* lookup in full qualified names */
+	node = ebst_lookup(&s->sni_ctx, trash.str);
+
+	/* lookup a not neg filter */
+	for (n = node; n; n = ebmb_next_dup(n)) {
+		if (!container_of(n, struct sni_ctx, name)->neg) {
+			switch(container_of(n, struct sni_ctx, name)->key_sig) {
+			case TLSEXT_signature_ecdsa:
+				if (has_ecdsa) {
+					node_ecdsa = n;
+					goto find_one;
+				}
+				break;
+			case TLSEXT_signature_rsa:
+				if (has_rsa && !node_rsa) {
+					node_rsa = n;
+					if (!has_ecdsa)
+						goto find_one;
+				}
+				break;
+			default: /* TLSEXT_signature_anonymous */
+				if (!node_anonymous)
+					node_anonymous = n;
+				break;
+			}
+		}
+	}
+	if (wildp) {
+		/* lookup in wildcards names */
+		node = ebst_lookup(&s->sni_w_ctx, wildp);
+		for (n = node; n; n = ebmb_next_dup(n)) {
+			if (!container_of(n, struct sni_ctx, name)->neg) {
+				switch(container_of(n, struct sni_ctx, name)->key_sig) {
+				case TLSEXT_signature_ecdsa:
+					if (has_ecdsa) {
+						node_ecdsa = n;
+						goto find_one;
+					}
+					break;
+				case TLSEXT_signature_rsa:
+					if (has_rsa && !node_rsa) {
+						node_rsa = n;
+						if (!has_ecdsa)
+							goto find_one;
+					}
+					break;
+				default: /* TLSEXT_signature_anonymous */
+					if (!node_anonymous)
+						node_anonymous = n;
+					break;
+				}
+			}
+		}
+	}
+ find_one:
+	/* select by key_signature priority order */
+	node = node_ecdsa ? node_ecdsa : (node_rsa ? node_rsa : node_anonymous);
+
+	if (node) {
+		/* switch ctx */
+		SSL_set_SSL_CTX(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
+		return 1;
+	}
+	if (!s->strict_sni)
+		/* no certificate match, is the default_ctx */
+		/* the client will alert (was SSL_TLSEXT_ERR_ALERT_WARNING, ignored by Boring) */
+		return 1;
+ abort:
+	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
+	conn->err_code = CO_ER_SSL_HANDSHAKE;
+	return -1;
+}
+
+#else /* OPENSSL_IS_BORINGSSL */
+
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
  * will keep being used.
@@ -1514,6 +1707,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	SSL_set_SSL_CTX(ssl, container_of(node, struct sni_ctx, name)->ctx);
 	return SSL_TLSEXT_ERR_OK;
 }
+#endif /* (!) OPENSSL_IS_BORINGSSL */
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
 
 #ifndef OPENSSL_NO_DH
@@ -1784,8 +1978,8 @@ end:
 }
 #endif
 
-static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s,
-				 struct ssl_bind_conf *conf, char *name, int order)
+static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_bind_conf *conf,
+				 uint8_t key_sig, char *name, int order)
 {
 	struct sni_ctx *sc;
 	int wild = 0, neg = 0;
@@ -1818,7 +2012,8 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s,
 			node = ebst_lookup(&s->sni_ctx, trash.str);
 		for (; node; node = ebmb_next_dup(node)) {
 			sc = ebmb_entry(node, struct sni_ctx, name);
-			if (sc->ctx == ctx && sc->conf == conf && sc->neg == neg)
+			if (sc->ctx == ctx && sc->conf == conf &&
+			    sc->key_sig == key_sig && sc->neg == neg)
 				return order;
 		}
 
@@ -1828,6 +2023,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s,
 		memcpy(sc->name.key, trash.str, len + 1);
 		sc->ctx = ctx;
 		sc->conf = conf;
+		sc->key_sig = key_sig;
 		sc->order = order++;
 		sc->neg = neg;
 		if (wild)
@@ -2257,7 +2453,8 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 		}
 
 		/* Update SNI Tree */
-		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, bind_conf, ssl_conf, str, key_combos[i-1].order);
+		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, bind_conf, ssl_conf,
+							      TLSEXT_signature_anonymous, str, key_combos[i-1].order);
 		node = ebmb_next(node);
 	}
 
@@ -2317,6 +2514,8 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	char *str;
 	pem_password_cb *passwd_cb;
 	void *passwd_cb_userdata;
+	EVP_PKEY *pkey;
+	uint8_t key_sig = TLSEXT_signature_anonymous;
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
@@ -2337,9 +2536,22 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	if (x == NULL)
 		goto end;
 
+	pkey = X509_get_pubkey(x);
+	if (pkey) {
+		switch(EVP_PKEY_base_id(pkey)) {
+		case EVP_PKEY_RSA:
+			key_sig = TLSEXT_signature_rsa;
+			break;
+		case EVP_PKEY_EC:
+			key_sig = TLSEXT_signature_ecdsa;
+			break;
+		}
+		EVP_PKEY_free(pkey);
+	}
+
 	if (fcount) {
 		while (fcount--)
-			order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, sni_filter[fcount], order);
+			order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, sni_filter[fcount], order);
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -2349,7 +2561,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, str, order);
+						order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, str, order);
 						OPENSSL_free(str);
 					}
 				}
@@ -2365,7 +2577,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-				order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, str, order);
+				order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, str, order);
 				OPENSSL_free(str);
 			}
 		}
@@ -3046,8 +3258,13 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#ifdef OPENSSL_IS_BORINGSSL
+	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
+	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
+#else
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
+#endif
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
