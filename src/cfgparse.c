@@ -4921,7 +4921,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_SPOP_CHK;
 
-			if (prepare_spoe_healthcheck_request(&curproxy->check_req, &curproxy->check_len)) {
+			if (spoe_prepare_healthcheck_request(&curproxy->check_req, &curproxy->check_len)) {
 				Alert("parsing [%s:%d] : failed to prepare SPOP healthcheck request.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

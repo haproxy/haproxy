@@ -1328,7 +1328,7 @@ static void event_srv_chk_r(struct connection *conn)
 		if (!done && check->bi->i < (4+framesz))
 		    goto wait_more_data;
 
-		if (!handle_spoe_healthcheck_response(check->bi->data+4, framesz, err, HCHK_DESC_LEN-1))
+		if (!spoe_handle_healthcheck_response(check->bi->data+4, framesz, err, HCHK_DESC_LEN-1))
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
 		else
 			set_server_check_status(check, HCHK_STATUS_L7STS, err);

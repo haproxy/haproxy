@@ -52,8 +52,8 @@ void send_email_alert(struct server *s, int priority, const char *format, ...)
 int srv_check_healthcheck_port(struct check *chk);
 
 /* Declared here, but the definitions are in flt_spoe.c */
-int prepare_spoe_healthcheck_request(char **req, int *len);
-int handle_spoe_healthcheck_response(char *frame, size_t size, char *err, int errlen);
+int spoe_prepare_healthcheck_request(char **req, int *len);
+int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);
 
 #endif /* _PROTO_CHECKS_H */
 
