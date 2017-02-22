@@ -3642,22 +3642,24 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 
 	/* Get path and qs */
 	path = http_get_path(txn);
-	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-	p = path;
-	while (p < end && *p != '?')
-		p++;
+	if (path) {
+		end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		p = path;
+		while (p < end && *p != '?')
+			p++;
 
-	/* Stores the request path. */
-	lua_pushstring(L, "path");
-	lua_pushlstring(L, path, p - path);
-	lua_settable(L, -3);
+		/* Stores the request path. */
+		lua_pushstring(L, "path");
+		lua_pushlstring(L, path, p - path);
+		lua_settable(L, -3);
 
-	/* Stores the query string. */
-	lua_pushstring(L, "qs");
-	if (*p == '?')
-		p++;
-	lua_pushlstring(L, p, end - p);
-	lua_settable(L, -3);
+		/* Stores the query string. */
+		lua_pushstring(L, "qs");
+		if (*p == '?')
+			p++;
+		lua_pushlstring(L, p, end - p);
+		lua_settable(L, -3);
+	}
 
 	/* Stores the request path. */
 	lua_pushstring(L, "length");
