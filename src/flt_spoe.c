@@ -2980,10 +2980,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		if (*args[2]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
 			goto out;
 		}
 
@@ -3045,12 +3043,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (*args[2]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		}
 		free(curagent->b.name);
 		curagent->b.name = strdup(args[1]);
 	}
@@ -3089,6 +3083,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (alertif_too_many_args(2, file, linenum, args, &err_code))
+			goto out;
 		if (!strcmp(args[1], "hello"))
 			tv = &curagent->timeout.hello;
 		else if (!strcmp(args[1], "idle"))
@@ -3111,13 +3107,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		if (res) {
 			Alert("parsing [%s:%d] : unexpected character '%c' in 'timeout %s'.\n",
 			      file, linenum, *res, args[1]);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-		if (*args[3]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[3]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 		*tv = MS_TO_TICKS(timeout);
@@ -3131,12 +3121,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                 }
 
 		if (!strcmp(args[1], "pipelining")) {
-			if (*args[2]) {
-				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-				      file, linenum, args[2]);
-				err_code |= ERR_ALERT | ERR_ABORT;
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
-			}
 			if (kwm == 1)
 				curagent->flags &= ~SPOE_FL_PIPELINING;
 			else
@@ -3144,12 +3130,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		else if (!strcmp(args[1], "async")) {
-			if (*args[2]) {
-				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-				      file, linenum, args[2]);
-				err_code |= ERR_ALERT | ERR_ABORT;
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
-			}
 			if (kwm == 1)
 				curagent->flags &= ~SPOE_FL_ASYNC;
 			else
@@ -3175,6 +3157,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
+				goto out;
 			tmp = args[2];
 			while (*tmp) {
 				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
@@ -3188,12 +3172,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			curagent->var_pfx = strdup(args[2]);
 		}
 		else if (!strcmp(args[1], "continue-on-error")) {
-			if (*args[2]) {
-				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-				      file, linenum, args[2]);
-				err_code |= ERR_ALERT | ERR_ABORT;
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
-			}
 			curagent->flags |= SPOE_FL_CONT_ON_ERR;
 		}
 		else if (!strcmp(args[1], "set-on-error")) {
@@ -3206,6 +3186,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
+				goto out;
 			tmp = args[2];
 			while (*tmp) {
 				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
@@ -3232,12 +3214,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
-		if (*args[2]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		}
 		curagent->cps_max = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxerrrate")) {
@@ -3247,12 +3225,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
-		if (*args[2]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		}
 		curagent->eps_max = atol(args[1]);
 	}
 	else if (*args[0]) {
@@ -3286,10 +3260,8 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		if (*args[2]) {
-			Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
-			      file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
 			goto out;
 		}
 
@@ -3372,9 +3344,12 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "event")) {
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : missing event name.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
 		if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_CLIENT_SESS]))
 			curmsg->event = SPOE_EV_ON_CLIENT_SESS;
 		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_SERVER_SESS]))
@@ -3396,7 +3371,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		else {
 			Alert("parsing [%s:%d] : unkown event '%s'.\n",
 			      file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_ABORT;
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
