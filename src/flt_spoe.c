@@ -3117,6 +3117,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
+
+		/* Following options does not support negation */
+		if (kwm == 1) {
+			Alert("parsing [%s:%d]: negation is not supported for option '%s'.\n",
+			      file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (!strcmp(args[1], "var-prefix")) {
 			char *tmp;
 
