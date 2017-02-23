@@ -34,6 +34,8 @@
 
 /* Flags set on the SPOE agent */
 #define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
+#define SPOE_FL_PIPELINING        0x00000002 /* Set when SPOE agent supports pipelining (set by default) */
+#define SPOE_FL_ASYNC             0x00000004 /* Set when SPOE agent supports async (set by default) */
 
 /* Flags set on the SPOE context */
 #define SPOE_CTX_FL_CLI_CONNECTED 0x00000001 /* Set after that on-client-session event was processed */

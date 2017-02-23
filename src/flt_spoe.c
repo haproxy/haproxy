@@ -285,9 +285,6 @@ static struct spoe_version supported_versions[] = {
 /* Comma-separated list of supported versions */
 #define SUPPORTED_VERSIONS_VAL  "1.0"
 
-/* Comma-separated list of supported capabilities (none for now) */
-#define CAPABILITIES_VAL "pipelining,async"
-
 /* Convert a string to a SPOE version value. The string must follow the format
  * "MAJOR.MINOR". It will be concerted into the integer (1000 * MAJOR + MINOR).
  * If an error occurred, -1 is returned. */
@@ -353,6 +350,7 @@ spoe_str_to_vsn(const char *str, size_t len)
 static int
 spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 {
+	struct chunk      *chk;
 	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
 	char              *p, *end;
 	unsigned int       flags = SPOE_FRM_FL_FIN;
@@ -399,8 +397,17 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		goto too_big;
 
 	*p++ = SPOE_DATA_T_STR;
-	sz = SLEN(CAPABILITIES_VAL);
-	if (spoe_encode_buffer(CAPABILITIES_VAL, sz, &p, end) == -1)
+	chk = get_trash_chunk();
+	if (agent != NULL && (agent->flags & SPOE_FL_PIPELINING)) {
+		memcpy(chk->str, "pipelining", 10);
+		chk->len += 10;
+	}
+	if (agent != NULL && (agent->flags & SPOE_FL_ASYNC)) {
+		if (chk->len) chk->str[chk->len++] = ',';
+		memcpy(chk->str+chk->len, "async", 5);
+		chk->len += 5;
+	}
+	if (spoe_encode_buffer(chk->str, chk->len, &p, end) == -1)
 		goto too_big;
 
 	/* (optionnal) "engine-id" K/V item, if present */
@@ -600,9 +607,10 @@ spoe_prepare_hafrag_frame(struct appctx *appctx, struct spoe_context *ctx,
 static int
 spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 {
-	char        *p, *end;
-	int          vsn, max_frame_size;
-	unsigned int flags;
+	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
+	char              *p, *end;
+	int                vsn, max_frame_size;
+	unsigned int       flags;
 
 	p   = frame;
 	end = frame + size;
@@ -766,6 +774,10 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NO_FRAME_SIZE;
 		return -1;
 	}
+	if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING))
+		flags &= ~SPOE_APPCTX_FL_PIPELINING;
+	if ((flags & SPOE_APPCTX_FL_ASYNC) && !(agent->flags & SPOE_FL_ASYNC))
+		flags &= ~SPOE_APPCTX_FL_ASYNC;
 
 	SPOE_APPCTX(appctx)->version        = (unsigned int)vsn;
 	SPOE_APPCTX(appctx)->max_frame_size = (unsigned int)max_frame_size;
@@ -3007,7 +3019,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->engine_id      = NULL;
 		curagent->var_pfx        = NULL;
 		curagent->var_on_error   = NULL;
-		curagent->flags          = 0;
+		curagent->flags          = (SPOE_FL_PIPELINING | SPOE_FL_ASYNC);
 		curagent->cps_max        = 0;
 		curagent->eps_max        = 0;
 		curagent->max_frame_size = MAX_FRAME_SIZE;
@@ -3117,6 +3129,33 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
+
+		if (!strcmp(args[1], "pipelining")) {
+			if (*args[2]) {
+				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
+				      file, linenum, args[2]);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			if (kwm == 1)
+				curagent->flags &= ~SPOE_FL_PIPELINING;
+			else
+				curagent->flags |= SPOE_FL_PIPELINING;
+			goto out;
+		}
+		else if (!strcmp(args[1], "async")) {
+			if (*args[2]) {
+				Alert("parsing [%s:%d] : cannot handle unexpected argument '%s'.\n",
+				      file, linenum, args[2]);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			if (kwm == 1)
+				curagent->flags &= ~SPOE_FL_ASYNC;
+			else
+				curagent->flags |= SPOE_FL_ASYNC;
+			goto out;
+		}
 
 		/* Following options does not support negation */
 		if (kwm == 1) {
