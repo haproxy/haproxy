@@ -2947,8 +2947,9 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 				arg->name_len = delim - args[cur_arg];
 				delim++;
 			}
-
-			arg->expr = sample_parse_expr(&delim, &idx, file, linenum, &errmsg, &curproxy->conf.args);
+			arg->expr = sample_parse_expr((char*[]){delim, NULL},
+						      &idx, file, linenum, &errmsg,
+						      &curproxy->conf.args);
 			if (arg->expr == NULL) {
 				Alert("parsing [%s:%d] : '%s': %s.\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
