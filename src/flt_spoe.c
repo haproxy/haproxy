@@ -235,6 +235,9 @@ struct spoe_context {
 	unsigned int        process_exp;  /* expiration date to process an event */
 };
 
+/* SPOE filter id. Used to identify SPOE filters */
+const char *spoe_filter_id = "SPOE filter";
+
 /* Set if the handle on SIGUSR1 is registered */
 static int sighandler_registered = 0;
 
@@ -2282,9 +2285,15 @@ sig_stop_spoe(struct sig_handler *sh)
 		struct flt_conf *fconf;
 
 		list_for_each_entry(fconf, &p->filter_configs, list) {
-			struct spoe_config *conf  = fconf->conf;
-			struct spoe_agent  *agent = conf->agent;
+			struct spoe_config *conf;
+			struct spoe_agent  *agent;
 			struct appctx      *appctx;
+
+			if (fconf->id != spoe_filter_id)
+				continue;
+
+			conf  = fconf->conf;
+			agent = conf->agent;
 
 			list_for_each_entry(appctx, &agent->cache, ctx.spoe.list) {
 				si_applet_want_get(appctx->owner);
@@ -3159,6 +3168,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 
 	*cur_arg    = pos;
+	fconf->id   = spoe_filter_id;
 	fconf->ops  = &spoe_ops;
 	fconf->conf = conf;
 	return 0;
