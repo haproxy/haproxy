@@ -407,6 +407,11 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		memcpy(chk->str+chk->len, "async", 5);
 		chk->len += 5;
 	}
+	if (agent != NULL && (agent->flags & SPOE_FL_RCV_FRAGMENTATION)) {
+		if (chk->len) chk->str[chk->len++] = ',';
+		memcpy(chk->str+chk->len, "fragmentation", 13);
+		chk->len += 5;
+	}
 	if (spoe_encode_buffer(chk->str, chk->len, &p, end) == -1)
 		goto too_big;
 
@@ -2170,9 +2175,10 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	return 1;
 
   too_big:
-	// FIXME: if fragmentation not supported =>
-	//  ctx->status_code = SPOE_CTX_ERR_TOO_BIG;
-	//  return -1;
+	if (!(agent->flags & SPOE_FL_SND_FRAGMENTATION)) {
+		ctx->status_code = SPOE_CTX_ERR_TOO_BIG;
+		return -1;
+	}
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 		    " - encode fragmented messages - spoe_appctx=%p"
@@ -3017,7 +3023,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->engine_id      = NULL;
 		curagent->var_pfx        = NULL;
 		curagent->var_on_error   = NULL;
-		curagent->flags          = (SPOE_FL_PIPELINING | SPOE_FL_ASYNC);
+		curagent->flags          = (SPOE_FL_PIPELINING | SPOE_FL_ASYNC | SPOE_FL_SND_FRAGMENTATION);
 		curagent->cps_max        = 0;
 		curagent->eps_max        = 0;
 		curagent->max_frame_size = MAX_FRAME_SIZE;
@@ -3136,6 +3142,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curagent->flags &= ~SPOE_FL_ASYNC;
 			else
 				curagent->flags |= SPOE_FL_ASYNC;
+			goto out;
+		}
+		else if (!strcmp(args[1], "send-frag-payload")) {
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+				goto out;
+			if (kwm == 1)
+				curagent->flags &= ~SPOE_FL_SND_FRAGMENTATION;
+			else
+				curagent->flags |= SPOE_FL_SND_FRAGMENTATION;
 			goto out;
 		}
 
