@@ -36,7 +36,7 @@
 #include <common/mini-clist.h>
 #include <common/chunk.h>
 
-#include <types/spoe.h>
+#include <proto/spoe.h>
 
 #define DEFAULT_PORT       12345
 #define CONNECTION_BACKLOG 10
@@ -152,23 +152,6 @@ struct worker {
 };
 
 
-union spoe_value {
-	bool            boolean; /* use for boolean */
-	int32_t         sint32;  /* used for signed 32bits integers */
-	uint32_t        uint32;  /* used for signed 32bits integers */
-	int32_t         sint64;  /* used for signed 64bits integers */
-	uint32_t        uint64;  /* used for signed 64bits integers */
-	struct in_addr  ipv4;    /* used for ipv4 addresses */
-	struct in6_addr ipv6;    /* used for ipv6 addresses */
-	struct chunk    buffer;  /* used for char strings or buffers */
-};
-
-/* Used to store sample constant */
-struct spoe_data {
-	enum spoe_data_type type;  /* SPOE_DATA_T_* */
-	union spoe_value    u;     /* spoe data value */
-};
-
 /* Globals */
 static struct worker *workers          = NULL;
 static struct worker  null_worker      = { .id = 0 };
@@ -242,243 +225,20 @@ check_ipv6_reputation(struct spoe_frame *frame, struct in6_addr *ipv6)
 }
 
 
-/* Encode a variable-length integer. This function never fails and returns the
- * number of written bytes. */
-static int
-encode_spoe_varint(uint64_t i, char *buf)
-{
-	int idx;
-
-	if (i < 240) {
-		buf[0] = (unsigned char)i;
-		return 1;
-	}
-
-	buf[0] = (unsigned char)i | 240;
-	i = (i - 240) >> 4;
-	for (idx = 1; i >= 128; ++idx) {
-		buf[idx] = (unsigned char)i | 128;
-		i = (i - 128) >> 7;
-	}
-	buf[idx++] = (unsigned char)i;
-	return idx;
-}
-
-/* Decode a varable-length integer. If the decoding fails, -1 is returned. This
- * happens when the buffer's end in reached. On success, the number of read
- * bytes is returned. */
-static int
-decode_spoe_varint(char *buf, char *end, uint64_t *i)
-{
-	unsigned char *msg = (unsigned char *)buf;
-	int            idx = 0;
-
-	if (msg > (unsigned char *)end)
-		return -1;
-
-	if (msg[0] < 240) {
-		*i = msg[0];
-		return 1;
-	}
-	*i = msg[0];
-	do {
-		++idx;
-		if (msg+idx > (unsigned char *)end)
-			return -1;
-		*i += (uint64_t)msg[idx] <<  (4 + 7 * (idx-1));
-	} while (msg[idx] >= 128);
-	return (idx + 1);
-}
-
-/* Encode a string. The string will be prefix by its length, encoded as a
- * variable-length integer. This function never fails and returns the number of
- * written bytes. */
-static int
-encode_spoe_string(const char *str, size_t len, char *dst)
-{
-	int idx = 0;
-
-	if (!len) {
-		dst[0] = 0;
-		return 1;
-	}
-
-	idx += encode_spoe_varint(len, dst);
-	memcpy(dst+idx, str, len);
-	return (idx + len);
-}
-
-/* Decode a string. Its length is decoded first as a variable-length integer. If
- * it succeeds, and if the string length is valid, the begin of the string is
- * saved in <*str>, its length is saved in <*len> and the total numbre of bytes
- * read is returned. If an error occurred, -1 is returned and <*str> remains
- * NULL. */
-static int
-decode_spoe_string(char *buf, char *end, char **str, uint64_t *len)
-{
-	int r, idx = 0;
-
-	*str = NULL;
-	*len = 0;
-
-	if ((r = decode_spoe_varint(buf, end, len)) == -1)
-		goto error;
-	idx += r;
-	if (buf + idx + *len > end)
-		goto error;
-
-	*str = buf+idx;
-	return (idx + *len);
-
-  error:
-	return -1;
-}
-
-/* Skip a typed data. If an error occurred, -1 is returned, otherwise the number
- * of bytes read is returned. A types data is composed of a type (1 byte) and
- * corresponding data:
- *  - boolean: non additional data (0 bytes)
- *  - integers: a variable-length integer (see decode_spoe_varint)
- *  - ipv4: 4 bytes
- *  - ipv6: 16 bytes
- *  - binary and string: a buffer prefixed by its size, a variable-length
- *    integer (see decode_spoe_string) */
-static int
-skip_spoe_data(char *frame, char *end)
-{
-	uint64_t sz = 0;
-	int      r, idx = 0;
-
-	if (frame > end)
-		return -1;
-
-	switch (frame[idx++] & SPOE_DATA_T_MASK) {
-		case SPOE_DATA_T_BOOL:
-			idx++;
-			break;
-		case SPOE_DATA_T_INT32:
-		case SPOE_DATA_T_INT64:
-		case SPOE_DATA_T_UINT32:
-		case SPOE_DATA_T_UINT64:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			idx += r;
-			break;
-		case SPOE_DATA_T_IPV4:
-			idx += 4;
-			break;
-		case SPOE_DATA_T_IPV6:
-			idx += 16;
-			break;
-		case SPOE_DATA_T_STR:
-		case SPOE_DATA_T_BIN:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			idx += r + sz;
-			break;
-	}
-
-	if (frame+idx > end)
-		return -1;
-	return idx;
-}
-
-/* Decode a typed data. If an error occurred, -1 is returned, otherwise the
- * number of read bytes is returned. See skip_spoe_data for details. */
-static int
-decode_spoe_data(char *frame, char *end, struct spoe_data *data)
-{
-	uint64_t sz  = 0;
-	int      type, r, idx = 0;
-
-	if (frame > end)
-		return -1;
-
-	type = frame[idx++];
-	data->type = (type & SPOE_DATA_T_MASK);
-	switch (data->type) {
-		case SPOE_DATA_T_BOOL:
-			data->u.boolean = ((type & SPOE_DATA_FL_TRUE) == SPOE_DATA_FL_TRUE);
-			break;
-		case SPOE_DATA_T_INT32:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			data->u.sint32 = sz;
-			idx += r;
-			break;
-		case SPOE_DATA_T_INT64:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			data->u.uint32 = sz;
-			idx += r;
-			break;
-		case SPOE_DATA_T_UINT32:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			data->u.sint64 = sz;
-			idx += r;
-			break;
-		case SPOE_DATA_T_UINT64:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			data->u.uint64 = sz;
-			idx += r;
-			break;
-		case SPOE_DATA_T_IPV4:
-			if (frame+idx+4 > end)
-				return -1;
-			memcpy(&data->u.ipv4, frame+idx, 4);
-			idx += 4;
-			break;
-		case SPOE_DATA_T_IPV6:
-			if (frame+idx+16 > end)
-				return -1;
-			memcpy(&data->u.ipv6, frame+idx, 16);
-			idx += 16;
-			break;
-		case SPOE_DATA_T_STR:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			idx += r;
-			if (frame+idx+sz > end)
-				return -1;
-			data->u.buffer.str = frame+idx;
-			data->u.buffer.len = sz;
-			idx += sz;
-			break;
-		case SPOE_DATA_T_BIN:
-			if ((r = decode_spoe_varint(frame+idx, end, &sz)) == -1)
-				return -1;
-			idx += r;
-			if (frame+idx+sz > end)
-				return -1;
-			data->u.buffer.str = frame+idx;
-			data->u.buffer.len = sz;
-			idx += sz;
-			break;
-		default:
-			break;
-	}
-
-	if (frame+idx > end)
-		return -1;
-	return idx;
-}
-
-
 /* Check the protocol version. It returns -1 if an error occurred, the number of
  * read bytes otherwise. */
 static int
-check_proto_version(struct spoe_frame *frame, int idx)
+check_proto_version(struct spoe_frame *frame, char **buf, char *end)
 {
-	char      *str;
+	char      *str, *p = *buf;
 	uint64_t   sz;
+	int        ret;
 
 	/* Get the list of all supported versions by HAProxy */
-	if ((frame->buf[idx++] & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
+	if ((*p++ & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
 		return -1;
-	idx += decode_spoe_string(frame->buf+idx, frame->buf+frame->len, &str, &sz);
-	if (str == NULL)
+	ret = spoe_decode_buffer(&p, end, &str, &sz);
+	if (ret == -1 || !str)
 		return -1;
 
 	DEBUG(frame->worker, "<%lu> Supported versions : %.*s",
@@ -486,27 +246,29 @@ check_proto_version(struct spoe_frame *frame, int idx)
 
 	/* TODO: Find the right verion in supported ones */
 
-	return idx;
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check max frame size value. It returns -1 if an error occurred, the number of
  * read bytes otherwise. */
 static int
-check_max_frame_size(struct spoe_frame *frame, int idx)
+check_max_frame_size(struct spoe_frame *frame, char **buf, char *end)
 {
+	char    *p = *buf;
 	uint64_t sz;
-	int      type, i;
+	int      type, ret;
 
 	/* Get the max-frame-size value of HAProxy */
-	type =  frame->buf[idx++];
+	type =  *p++;
 	if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT32  &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT64  &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64)
 		return -1;
-	if ((i = decode_spoe_varint(frame->buf+idx, frame->buf+frame->len, &sz)) == -1)
+	if (spoe_decode_varint(&p, end, &sz) == -1)
 		return -1;
-	idx += i;
 
 	/* Keep the lower value */
 	if (sz < frame->client->max_frame_size)
@@ -515,75 +277,80 @@ check_max_frame_size(struct spoe_frame *frame, int idx)
 	DEBUG(frame->worker, "<%lu> HAProxy maximum frame size : %u",
 	      frame->client->id, (unsigned int)sz);
 
-	return idx;
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check healthcheck value. It returns -1 if an error occurred, the number of
  * read bytes otherwise. */
 static int
-check_healthcheck(struct spoe_frame *frame, int idx)
+check_healthcheck(struct spoe_frame *frame, char **buf, char *end)
 {
-	int type;
+	char *p = *buf;
+	int   type, ret;
 
 	/* Get the "healthcheck" value */
-	type = frame->buf[idx++];
+	type = *p++;
 	if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_BOOL)
 		return -1;
 	frame->hcheck = ((type & SPOE_DATA_FL_TRUE) == SPOE_DATA_FL_TRUE);
 
 	DEBUG(frame->worker, "<%lu> HELLO healthcheck : %s",
 	      frame->client->id, (frame->hcheck ? "true" : "false"));
-	return idx;
+
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check capabilities value. It returns -1 if an error occurred, the number of
  * read bytes otherwise. */
 static int
-check_capabilities(struct spoe_frame *frame, int idx)
+check_capabilities(struct spoe_frame *frame, char **buf, char *end)
 {
 	struct client *client = frame->client;
-	char          *str;
+	char          *str, *p = *buf;
 	uint64_t       sz;
-	int            i;
+	int            ret;
 
-	if ((frame->buf[idx++] & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
+	if ((*p++ & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
 		return -1;
-	idx += decode_spoe_string(frame->buf+idx, frame->buf+frame->len, &str, &sz);
+	if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
+		return -1;
 	if (str == NULL) /* this is not an error */
-		return idx;
+		goto end;
 
 	DEBUG(frame->worker, "<%lu> HAProxy capabilities : %.*s",
 	      client->id, (int)sz, str);
 
-	i = 0;
-	while (i < sz) {
+	while (sz) {
 		char *delim;
 
 		/* Skip leading spaces */
-		for (; isspace(str[i]) && i < sz; i++);
+		for (; isspace(*str) && sz; sz--);
 
-		if (sz - i >= 10 && !strncmp(str + i, "pipelining", 10)) {
-			i += 10;
-			if (sz == i || isspace(str[i]) || str[i] == ',') {
+		if (sz >= 10 && !strncmp(str, "pipelining", 10)) {
+			str += 10; sz -= 10;
+			if (!sz || isspace(*str) || *str == ',') {
 				DEBUG(frame->worker,
 				      "<%lu> HAProxy supports frame pipelining",
 				      client->id);
 				client->pipelining = true;
 			}
-
 		}
-		else if (sz - i >= 5 && !strncmp(str + i, "async", 5)) {
-			i += 5;
-			if (sz == i || isspace(str[i]) || str[i] == ',') {
+		else if (sz >= 5 && !strncmp(str, "async", 5)) {
+			str += 5; sz -= 5;
+			if (!sz || isspace(*str) || *str == ',') {
 				DEBUG(frame->worker,
 				      "<%lu> HAProxy supports asynchronous frame",
 				      client->id);
 				client->async = true;
 			}
 		}
-		else if (sz - i >= 13 && !strncmp(str + i, "fragmentation", 13)) {
-			i += 5;
-			if (sz == i || isspace(str[i]) || str[i] == ',') {
+		else if (sz >= 13 && !strncmp(str, "fragmentation", 13)) {
+			str += 13; sz -= 13;
+			if (!sz || isspace(*str) || *str == ',') {
 				DEBUG(frame->worker,
 				      "<%lu> HAProxy supports fragmented frame",
 				      client->id);
@@ -591,86 +358,100 @@ check_capabilities(struct spoe_frame *frame, int idx)
 			}
 		}
 
-		if (sz == i || (delim = memchr(str + i, ',', sz-i)) == NULL)
+		if (!sz || (delim = memchr(str, ',', sz)) == NULL)
 			break;
-		i = (delim - str) + 1;
+		delim++;
+		sz -= (delim - str);
+		str = delim;
 	}
-
-	return idx;
+  end:
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check engine-id value. It returns -1 if an error occurred, the number of
  * read bytes otherwise. */
 static int
-check_engine_id(struct spoe_frame *frame, int idx)
+check_engine_id(struct spoe_frame *frame, char **buf, char *end)
 {
 	struct client *client = frame->client;
-	char          *str;
+	char          *str, *p = *buf;
 	uint64_t       sz;
+	int            ret;
 
-	if ((frame->buf[idx++] & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
+	if ((*p++ & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
 		return -1;
 
-	idx += decode_spoe_string(frame->buf+idx, frame->buf+frame->len, &str, &sz);
+	if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
+		return -1;
 	if (str == NULL) /* this is not an error */
-		return idx;
+		goto end;
 
 	if (client->engine != NULL)
-		return idx;
+		goto end;
 
 	DEBUG(frame->worker, "<%lu> HAProxy engine id : %.*s",
 	      client->id, (int)sz, str);
 
 	client->engine_id = strndup(str, (int)sz);
-	return idx;
+  end:
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check disconnect status code. It returns -1 if an error occurred, the number
  * of read bytes otherwise. */
 static int
-check_discon_status_code(struct spoe_frame *frame, int idx)
+check_discon_status_code(struct spoe_frame *frame, char **buf, char *end)
 {
+	char    *p = *buf;
 	uint64_t sz;
-	int      type, i;
+	int      type, ret;
 
 	/* Get the "status-code" value */
-	type =  frame->buf[idx++];
+	type =  *p++;
 	if ((type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT32 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_INT64 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64)
 		return -1;
-	if ((i = decode_spoe_varint(frame->buf+idx, frame->buf+frame->len, &sz)) == -1)
+	if (spoe_decode_varint(&p, end, &sz) == -1)
 		return -1;
-	idx += i;
 
 	frame->client->status_code = (unsigned int)sz;
 
 	DEBUG(frame->worker, "<%lu> Disconnect status code : %u",
 	      frame->client->id, frame->client->status_code);
 
-	return idx;
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Check the disconnect message. It returns -1 if an error occurred, the number
  * of read bytes otherwise. */
 static int
-check_discon_message(struct spoe_frame *frame, int idx)
+check_discon_message(struct spoe_frame *frame, char **buf, char *end)
 {
-	char    *str;
+	char    *str, *p = *buf;
 	uint64_t sz;
+	int      ret;
 
 	/* Get the "message" value */
-	if ((frame->buf[idx++] & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
+	if ((*p++ & SPOE_DATA_T_MASK) != SPOE_DATA_T_STR)
 		return -1;
-	idx += decode_spoe_string(frame->buf+idx, frame->buf+frame->len, &str, &sz);
-	if (str == NULL)
+	ret = spoe_decode_buffer(&p, end, &str, &sz);
+	if (ret == -1 || !str)
 		return -1;
 
 	DEBUG(frame->worker, "<%lu> Disconnect message : %.*s",
 	      frame->client->id, (int)sz, str);
 
-	return idx;
+	ret  = (p - *buf);
+	*buf = p;
+	return ret;
 }
 
 /* Decode a HELLO frame received from HAProxy. It returns -1 if an error
@@ -680,19 +461,20 @@ static int
 handle_hahello(struct spoe_frame *frame)
 {
 	struct client *client = frame->client;
-	char          *buf = frame->buf;
-	char          *end = frame->buf + frame->len;
-	int            i, idx = 0;
+	char          *p, *end;
+
+	p = frame->buf;
+	end = frame->buf + frame->len;
 
 	/* Check frame type: we really want a HELLO frame */
-	if (buf[idx++] != SPOE_FRM_T_HAPROXY_HELLO)
+	if (*p++ != SPOE_FRM_T_HAPROXY_HELLO)
 		goto error;
 
 	DEBUG(frame->worker, "<%lu> Decode HAProxy HELLO frame", client->id);
 
 	/* Retrieve flags */
-	memcpy((char *)&(frame->flags), buf+idx, 4);
-	idx += 4;
+	memcpy((char *)&(frame->flags), p, 4);
+	p += 4;
 
 	/* Fragmentation is not supported for HELLO frame */
 	if (!(frame->flags & SPOE_FRM_FL_FIN)) {
@@ -701,74 +483,68 @@ handle_hahello(struct spoe_frame *frame)
 	}
 
 	/* stream-id and frame-id must be cleared */
-	if (buf[idx] != 0 || buf[idx+1] != 0) {
+	if (*p != 0 || *(p+1) != 0) {
 		client->status_code = SPOE_FRM_ERR_INVALID;
 		goto error;
 	}
-	idx += 2;
+	p += 2;
 
 	/* Loop on K/V items */
-	while (buf+idx < end) {
+	while (p < end) {
 		char     *str;
 		uint64_t  sz;
 
 		/* Decode the item name */
-		idx += decode_spoe_string(buf+idx, end, &str, &sz);
-		if (str == NULL) {
+		spoe_decode_buffer(&p, end, &str, &sz);
+		if (!str) {
 			client->status_code = SPOE_FRM_ERR_INVALID;
 			goto error;
 		}
 
 		/* Check "supported-versions" K/V item */
 		if (!memcmp(str, "supported-versions", sz)) {
-			if ((i = check_proto_version(frame, idx)) == -1) {
+			if (check_proto_version(frame, &p, end)  == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		/* Check "max-frame-size" K/V item */
 		else if (!memcmp(str, "max-frame-size", sz)) {
-			if ((i = check_max_frame_size(frame, idx)) == -1) {
+			if (check_max_frame_size(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		/* Check "healthcheck" K/V item */
 		else if (!memcmp(str, "healthcheck", sz)) {
-			if ((i = check_healthcheck(frame, idx)) == -1) {
+			if (check_healthcheck(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		/* Check "capabilities" K/V item */
 		else if (!memcmp(str, "capabilities", sz)) {
-			if ((i = check_capabilities(frame, idx)) == -1) {
+			if (check_capabilities(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		/* Check "engine-id" K/V item */
 		else if (!memcmp(str, "engine-id", sz)) {
-			if ((i = check_engine_id(frame, idx)) == -1) {
+			if (check_engine_id(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		else {
 			DEBUG(frame->worker, "<%lu> Skip K/V item : key=%.*s",
 			      client->id, (int)sz, str);
 
 			/* Silently ignore unknown item */
-			if ((i = skip_spoe_data(buf+idx, end)) == -1) {
+			if (spoe_skip_data(&p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx += i;
 		}
 	}
 
@@ -780,8 +556,7 @@ handle_hahello(struct spoe_frame *frame)
 	if (client->async == true)
 		use_spoe_engine(client);
 
-	return idx;
-
+	return (p - frame->buf);
   error:
 	return -1;
 }
@@ -793,19 +568,20 @@ static int
 handle_hadiscon(struct spoe_frame *frame)
 {
 	struct client *client = frame->client;
-	char          *buf    = frame->buf;
-	char          *end    = frame->buf + frame->len;
-	int            i, idx = 0;
+	char          *p, *end;
+
+	p = frame->buf;
+	end = frame->buf + frame->len;
 
 	/* Check frame type: we really want a DISCONNECT frame */
-	if (buf[idx++] != SPOE_FRM_T_HAPROXY_DISCON)
+	if (*p++ != SPOE_FRM_T_HAPROXY_DISCON)
 		goto error;
 
 	DEBUG(frame->worker, "<%lu> Decode HAProxy DISCONNECT frame", client->id);
 
 	/* Retrieve flags */
-	memcpy((char *)&(frame->flags), buf+idx, 4);
-	idx += 4;
+	memcpy((char *)&(frame->flags), p, 4);
+	p += 4;
 
 	/* Fragmentation is not supported for DISCONNECT frame */
 	if (!(frame->flags & SPOE_FRM_FL_FIN)) {
@@ -814,57 +590,53 @@ handle_hadiscon(struct spoe_frame *frame)
 	}
 
 	/* stream-id and frame-id must be cleared */
-	if (buf[idx] != 0 || buf[idx+1] != 0) {
+	if (*p != 0 || *(p+1) != 0) {
 		client->status_code = SPOE_FRM_ERR_INVALID;
 		goto error;
 	}
-	idx += 2;
+	p += 2;
 
 	client->status_code = SPOE_FRM_ERR_NONE;
 
 	/* Loop on K/V items */
-	while (buf+idx < end) {
+	while (p < end) {
 		char     *str;
 		uint64_t  sz;
 
 		/* Decode item key */
-		idx += decode_spoe_string(buf+idx, end, &str, &sz);
-		if (str == NULL) {
+		spoe_decode_buffer(&p, end, &str, &sz);
+		if (!str) {
 			client->status_code = SPOE_FRM_ERR_INVALID;
 			goto error;
 		}
 
 		/* Check "status-code" K/V item */
 		if (!memcmp(str, "status-code", sz)) {
-			if ((i = check_discon_status_code(frame, idx)) == -1) {
+			if (check_discon_status_code(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		/* Check "message" K/V item */
 		else if (!memcmp(str, "message", sz)) {
-			if ((i = check_discon_message(frame, idx)) == -1) {
+			if (check_discon_message(frame, &p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx = i;
 		}
 		else {
 			DEBUG(frame->worker, "<%lu> Skip K/V item : key=%.*s",
 			      client->id, (int)sz, str);
 
 			/* Silently ignore unknown item */
-			if ((i = skip_spoe_data(buf+idx, end)) == -1) {
+			if (spoe_skip_data(&p, end) == -1) {
 				client->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			idx += i;
 		}
 	}
 
-	return idx;
-
+	return (p - frame->buf);
   error:
 	return -1;
 }
@@ -876,20 +648,21 @@ static int
 handle_hanotify(struct spoe_frame *frame)
 {
 	struct client *client = frame->client;
-	char          *buf    = frame->buf;
-	char          *end    = frame->buf + frame->len;
+	char          *p, *end;
 	uint64_t       stream_id, frame_id;
-	int            i, idx = 0;
+
+	p = frame->buf;
+	end = frame->buf + frame->len;
 
 	/* Check frame type */
-	if (buf[idx++] != SPOE_FRM_T_HAPROXY_NOTIFY)
+	if (*p++ != SPOE_FRM_T_HAPROXY_NOTIFY)
 		goto ignore;
 
 	DEBUG(frame->worker, "<%lu> Decode HAProxy NOTIFY frame", client->id);
 
 	/* Retrieve flags */
-	memcpy((char *)&(frame->flags), buf+idx, 4);
-	idx += 4;
+	memcpy((char *)&(frame->flags), p, 4);
+	p += 4;
 
 	/* Fragmentation is not supported for DISCONNECT frame */
 	if (!(frame->flags & SPOE_FRM_FL_FIN) && fragmentation == false) {
@@ -897,15 +670,11 @@ handle_hanotify(struct spoe_frame *frame)
 		goto error;
 	}
 
-	/* Read the stream-id */
-	if ((i = decode_spoe_varint(buf+idx, end, &stream_id)) == -1)
+	/* Read the stream-id and frame-id */
+	if (spoe_decode_varint(&p, end, &stream_id) == -1)
 		goto ignore;
-	idx += i;
-
-	/* Read the frame-id */
-	if ((i = decode_spoe_varint(buf+idx, end, &frame_id)) == -1)
+	if (spoe_decode_varint(&p, end, &frame_id) == -1)
 		goto ignore;
-	idx += i;
 
 	if (frame->fragmented == true) {
 		if (frame->stream_id != (unsigned int)stream_id ||
@@ -917,17 +686,17 @@ handle_hanotify(struct spoe_frame *frame)
 		if (frame->flags & SPOE_FRM_FL_ABRT) {
 			DEBUG(frame->worker, "<%lu> STREAM-ID=%u - FRAME-ID=%u"
 			      " - Abort processing of a fragmented frame"
-			      " - frag_len=%u - len=%u - offset=%u",
+			      " - frag_len=%u - len=%u - offset=%ld",
 			      client->id, frame->stream_id, frame->frame_id,
-			      frame->frag_len, frame->len, idx);
+			      frame->frag_len, frame->len, p - frame->buf);
 			goto ignore;
 		}
 		DEBUG(frame->worker, "<%lu> STREAM-ID=%u - FRAME-ID=%u"
 		      " - %s fragment of a fragmented frame received"
-		      " - frag_len=%u - len=%u - offset=%u",
+		      " - frag_len=%u - len=%u - offset=%ld",
 		      client->id, frame->stream_id, frame->frame_id,
 		      (frame->flags & SPOE_FRM_FL_FIN) ? "last" : "next",
-		      frame->frag_len, frame->len, idx);
+		      frame->frag_len, frame->len, p - frame->buf);
 	}
 	else {
 		frame->stream_id = (unsigned int)stream_id;
@@ -935,16 +704,16 @@ handle_hanotify(struct spoe_frame *frame)
 
 		DEBUG(frame->worker, "<%lu> STREAM-ID=%u - FRAME-ID=%u"
 		      " - %s frame received"
-		      " - frag_len=%u - len=%u - offset=%u",
+		      " - frag_len=%u - len=%u - offset=%ld",
 		      client->id, frame->stream_id, frame->frame_id,
 		      (frame->flags & SPOE_FRM_FL_FIN) ? "unfragmented" : "fragmented",
-		      frame->frag_len, frame->len, idx);
+		      frame->frag_len, frame->len, p - frame->buf);
 
 		frame->fragmented = !(frame->flags & SPOE_FRM_FL_FIN);
 	}
 
-	frame->offset = idx;
-	return idx;
+	frame->offset = (p - frame->buf);
+	return frame->offset;
 
   ignore:
 	return 0;
@@ -959,43 +728,46 @@ static int
 prepare_agenthello(struct spoe_frame *frame)
 {
 	struct client *client = frame->client;
-	char          *buf    = frame->buf;
+	char          *p, *end;
 	char           capabilities[64];
-	int            n, idx = 0;
+	int            n;
 	unsigned int   flags  = SPOE_FRM_FL_FIN;
 
 	DEBUG(frame->worker, "<%lu> Encode Agent HELLO frame", client->id);
 	frame->type = SPOA_FRM_T_AGENT;
 
+	p   = frame->buf;
+	end = frame->buf+max_frame_size;
+
 	/* Frame Type */
-	buf[idx++] = SPOE_FRM_T_AGENT_HELLO;
+	*p++ = SPOE_FRM_T_AGENT_HELLO;
 
 	/* Set flags */
-	memcpy(buf+idx, (char *)&flags, 4);
-	idx += 4;
+	memcpy(p, (char *)&flags, 4);
+	p += 4;
 
 	/* No stream-id and frame-id for HELLO frames */
-	buf[idx++] = 0;
-	buf[idx++] = 0;
+	*p++ = 0;
+	*p++ = 0;
 
 	/* "version" K/V item */
-	idx += encode_spoe_string("version", 7, buf+idx);
-	buf[idx++] = SPOE_DATA_T_STR;
-	idx += encode_spoe_string(SPOP_VERSION, SLEN(SPOP_VERSION), buf+idx);
+	spoe_encode_buffer("version", 7, &p, end);
+	*p++ = SPOE_DATA_T_STR;
+	spoe_encode_buffer(SPOP_VERSION, SLEN(SPOP_VERSION), &p, end);
 	DEBUG(frame->worker, "<%lu> Agent version : %s",
 	      client->id, SPOP_VERSION);
 
 
 	/* "max-frame-size" K/V item */
-	idx += encode_spoe_string("max-frame-size", 14, buf+idx);
-	buf[idx++] = SPOE_DATA_T_UINT32;
-	idx += encode_spoe_varint(client->max_frame_size, buf+idx);
+	spoe_encode_buffer("max-frame-size", 14, &p ,end);
+	*p++ = SPOE_DATA_T_UINT32;
+	spoe_encode_varint(client->max_frame_size, &p, end);
 	DEBUG(frame->worker, "<%lu> Agent maximum frame size : %u",
 	      client->id, client->max_frame_size);
 
 	/* "capabilities" K/V item */
-	idx += encode_spoe_string("capabilities", 12, buf+idx);
-	buf[idx++] = SPOE_DATA_T_STR;
+	spoe_encode_buffer("capabilities", 12, &p, end);
+	*p++ = SPOE_DATA_T_STR;
 
 	memset(capabilities, 0, sizeof(capabilities));
 	n = 0;
@@ -1006,34 +778,24 @@ prepare_agenthello(struct spoe_frame *frame)
 		n += 13;
 	}
 	/*     2. Pipelining capability ? */
-	if (client->pipelining == true && n != 0) {
-		memcpy(capabilities + n, ", pipelining", 12);
-		n += 12;
-	}
-	else if (client->pipelining == true) {
-		memcpy(capabilities, "pipelining", 10);
+	if (client->pipelining == true) {
+		if (n) capabilities[n++] = ',';
+		memcpy(capabilities + n, "pipelining", 10);
 		n += 10;
 	}
 	/*     3. Async capability ? */
-	if (client->async == true && n != 0) {
-		memcpy(capabilities + n, ", async", 7);
-		n += 7;
-	}
-	else if (client->async == true) {
-		memcpy(capabilities, "async", 5);
+	if (client->async == true) {
+		if (n) capabilities[n++] = ',';
+		memcpy(capabilities + n, "async", 5);
 		n += 5;
 	}
-	/*     4. Encode capabilities string */
-	if (n != 0)
-		idx += encode_spoe_string(capabilities, n, buf+idx);
-	else
-		idx += encode_spoe_string(NULL, 0, buf+idx);
+	spoe_encode_buffer(capabilities, n, &p, end);
 
 	DEBUG(frame->worker, "<%lu> Agent capabilities : %.*s",
 	      client->id, n, capabilities);
 
-	frame->len = idx;
-	return idx;
+	frame->len = (p - frame->buf);
+	return frame->len;
 }
 
 /* Encode a DISCONNECT frame to send it to HAProxy. It returns the number of
@@ -1042,13 +804,16 @@ static int
 prepare_agentdicon(struct spoe_frame *frame)
 {
 	struct client *client = frame->client;
-	char           *buf   = frame->buf;
+	char           *p, *end;
 	const char     *reason;
-	int             rlen, idx = 0;
+	int             rlen;
 	unsigned int    flags  = SPOE_FRM_FL_FIN;
 
 	DEBUG(frame->worker, "<%lu> Encode Agent DISCONNECT frame", client->id);
 	frame->type = SPOA_FRM_T_AGENT;
+
+	p   = frame->buf;
+	end = frame->buf+max_frame_size;
 
 	if (client->status_code >= SPOE_FRM_ERRS)
 		client->status_code = SPOE_FRM_ERR_UNKNOWN;
@@ -1056,34 +821,34 @@ prepare_agentdicon(struct spoe_frame *frame)
 	rlen   = strlen(reason);
 
 	/* Frame type */
-	buf[idx++] = SPOE_FRM_T_AGENT_DISCON;
+	*p++ = SPOE_FRM_T_AGENT_DISCON;
 
 	/* Set flags */
-	memcpy(buf+idx, (char *)&flags, 4);
-	idx += 4;
+	memcpy(p, (char *)&flags, 4);
+	p += 4;
 
 	/* No stream-id and frame-id for DISCONNECT frames */
-	buf[idx++] = 0;
-	buf[idx++] = 0;
+	*p++ = 0;
+	*p++ = 0;
 
 	/* There are 2 mandatory items: "status-code" and "message" */
 
 	/* "status-code" K/V item */
-	idx += encode_spoe_string("status-code", 11, buf+idx);
-	buf[idx++] = SPOE_DATA_T_UINT32;
-	idx += encode_spoe_varint(client->status_code, buf+idx);
+	spoe_encode_buffer("status-code", 11, &p, end);
+	*p++ = SPOE_DATA_T_UINT32;
+	spoe_encode_varint(client->status_code, &p, end);
 	DEBUG(frame->worker, "<%lu> Disconnect status code : %u",
 	      client->id, client->status_code);
 
 	/* "message" K/V item */
-	idx += encode_spoe_string("message", 7, buf+idx);
-	buf[idx++] = SPOE_DATA_T_STR;
-	idx += encode_spoe_string(reason, rlen, buf+idx);
+	spoe_encode_buffer("message", 7, &p, end);
+	*p++ = SPOE_DATA_T_STR;
+	spoe_encode_buffer(reason, rlen, &p, end);
 	DEBUG(frame->worker, "<%lu> Disconnect message : %s",
 	      client->id, reason);
 
-	frame->len = idx;
-	return idx;
+	frame->len = (p - frame->buf);
+	return frame->len;
 }
 
 /* Encode a ACK frame to send it to HAProxy. It returns the number of written
@@ -1091,8 +856,7 @@ prepare_agentdicon(struct spoe_frame *frame)
 static int
 prepare_agentack(struct spoe_frame *frame)
 {
-	char        *buf = frame->buf;
-	int          idx = 0;
+	char        *p, *end;
 	unsigned int flags  = SPOE_FRM_FL_FIN;
 
 	/* Be careful here, in async mode, frame->client can be NULL */
@@ -1100,22 +864,25 @@ prepare_agentack(struct spoe_frame *frame)
 	DEBUG(frame->worker, "Encode Agent ACK frame");
 	frame->type = SPOA_FRM_T_AGENT;
 
+	p   = frame->buf;
+	end = frame->buf+max_frame_size;
+
 	/* Frame type */
-	buf[idx++] = SPOE_FRM_T_AGENT_ACK;
+	*p++ = SPOE_FRM_T_AGENT_ACK;
 
 	/* Set flags */
-	memcpy(buf+idx, (char *)&flags, 4);
-	idx += 4;
+	memcpy(p, (char *)&flags, 4);
+	p += 4;
 
 	/* Set stream-id and frame-id for ACK frames */
-	idx += encode_spoe_varint(frame->stream_id, buf+idx);
-	idx += encode_spoe_varint(frame->frame_id, buf+idx);
+	spoe_encode_varint(frame->stream_id, &p, end);
+	spoe_encode_varint(frame->frame_id, &p, end);
 
 	DEBUG(frame->worker, "STREAM-ID=%u - FRAME-ID=%u",
 	      frame->stream_id, frame->frame_id);
 
-	frame->len = idx;
-	return idx;
+	frame->len = (p - frame->buf);
+	return frame->len;
 }
 
 static int
@@ -1445,62 +1212,59 @@ static void
 process_frame_cb(evutil_socket_t fd, short events, void *arg)
 {
 	struct spoe_frame *frame  = arg;
-	char              *buf    = frame->buf;
-	char              *end    = frame->buf + frame->len;
-	int                idx    = frame->offset;
+	char              *p, *end;
+	int                ret;
 
 	DEBUG(frame->worker,
 	      "Process frame messages : STREAM-ID=%u - FRAME-ID=%u - length=%u bytes",
 	      frame->stream_id, frame->frame_id, frame->len - frame->offset);
 
+	p   = frame->buf + frame->offset;
+	end = frame->buf + frame->len;
+
 	/* Loop on messages */
-	while (buf+idx < end) {
+	while (p < end) {
 		char    *str;
 		uint64_t sz;
-		int      nbargs, i;
+		int      nbargs;
 
 		/* Decode the message name */
-		idx += decode_spoe_string(buf+idx, end, &str, &sz);
-		if (str == NULL)
+		spoe_decode_buffer(&p, end, &str, &sz);
+		if (!str)
 			goto stop_processing;
 
 		DEBUG(frame->worker, "Process SPOE Message '%.*s'", (int)sz, str);
 
-		nbargs = buf[idx++]; /* Get the number of arguments */
-		frame->offset = idx;    /* Save index to handle errors and skip args */
+		nbargs = *p++;                     /* Get the number of arguments */
+		frame->offset = (p - frame->buf);  /* Save index to handle errors and skip args */
 		if (!memcmp(str, "check-client-ip", sz)) {
-			struct spoe_data data;
+			struct sample smp;
 
-			memset(&data, 0, sizeof(data));
+			memset(&smp, 0, sizeof(smp));
 
 			if (nbargs != 1)
 				goto skip_message;
 
-			if ((i = decode_spoe_string(buf+idx, end, &str, &sz)) == -1)
+			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				goto stop_processing;
-			idx += i;
-
-			if ((i = decode_spoe_data(buf+idx, end, &data)) == -1)
+			if (spoe_decode_data(&p, end, &smp) == -1)
 				goto skip_message;
-			idx += i;
 
-			if ((data.type & SPOE_DATA_T_MASK) == SPOE_DATA_T_IPV4)
-				check_ipv4_reputation(frame, &data.u.ipv4);
-			else if ((data.type & SPOE_DATA_T_MASK) == SPOE_DATA_T_IPV6)
-				check_ipv6_reputation(frame, &data.u.ipv6);
+			if (smp.data.type == SMP_T_IPV4)
+				check_ipv4_reputation(frame, &smp.data.u.ipv4);
+			if (smp.data.type == SMP_T_IPV6)
+				check_ipv6_reputation(frame, &smp.data.u.ipv6);
 		}
 		else {
 		  skip_message:
-			idx = frame->offset; /* Restore index */
+			p = frame->buf + frame->offset; /* Restore index */
 
 			while (nbargs-- > 0) {
 				/* Silently ignore argument: its name and its value */
-				if ((i = decode_spoe_string(buf+idx, end, &str, &sz)) == -1)
+				if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 					goto stop_processing;
-				idx += i;
-				if ((i = skip_spoe_data(buf+idx, end)) == -1)
+				if (spoe_skip_data(&p, end) == -1)
 					goto stop_processing;
-				idx += i;
 			}
 		}
 	}
@@ -1511,19 +1275,21 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 	frame->offset = 0;
 	frame->len    = 0;
 	frame->flags  = 0;
-	idx = prepare_agentack(frame);
+
+	ret = prepare_agentack(frame);
+	p = frame->buf + ret;
 
 	if (frame->ip_score != -1) {
 		DEBUG(frame->worker, "Add action : set variable ip_scode=%u",
 		      frame->ip_score);
 
-		buf[idx++] = SPOE_ACT_T_SET_VAR;                      /* Action type */
-		buf[idx++] = 3;                                       /* Number of args */
-		buf[idx++] = SPOE_SCOPE_SESS;                         /* Arg 1: the scope */
-		idx += encode_spoe_string("ip_score", 8, buf+idx);    /* Arg 2: variable name */
-		buf[idx++] = SPOE_DATA_T_UINT32;
-		idx += encode_spoe_varint(frame->ip_score, buf+idx); /* Arg 3: variable value */
-		frame->len = idx;
+		*p++ = SPOE_ACT_T_SET_VAR;                     /* Action type */
+		*p++ = 3;                                      /* Number of args */
+		*p++ = SPOE_SCOPE_SESS;                        /* Arg 1: the scope */
+		spoe_encode_buffer("ip_score", 8, &p, end);    /* Arg 2: variable name */
+		*p++ = SPOE_DATA_T_UINT32;
+		spoe_encode_varint(frame->ip_score, &p, end); /* Arg 3: variable value */
+		frame->len = (p - frame->buf);
 	}
 	write_frame(NULL, frame);
 }
