@@ -148,6 +148,7 @@ static struct {
 	unsigned int max_record; /* SSL max record size */
 	unsigned int default_dh_param; /* SSL maximum DH parameter size */
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
+	int capture_cipherlist; /* Size of the cipherlist buffer. */
 } global_ssl = {
 #ifdef LISTEN_DEFAULT_CIPHERS
 	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
@@ -163,8 +164,31 @@ static struct {
 #endif
 	.default_dh_param = SSL_DEFAULT_DH_PARAM,
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
+	.capture_cipherlist = 0,
 };
 
+/* This memory pool is used for capturing clienthello parameters.
+ * The message callback is only available after openssl 0.9.7,
+ * so the memory pool is useless before this version.
+ */
+struct ssl_capture {
+	struct connection *conn;
+	unsigned long long int xxh64;
+	unsigned char ciphersuite_len;
+	char ciphersuite[0];
+};
+struct pool_head *pool2_ssl_capture = NULL;
+
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+/* This fu**ing funtion is announced in some OpenSSL manual pages,
+ * but doesn't exists in the OpenSSL library !
+ * eg. https://www.openssl.org/docs/man1.0.1/ssl/SSL_get_msg_callback_arg.html
+ */
+static void *SSL_get_msg_callback_arg(SSL *ssl)
+{
+	return ssl->msg_callback_arg;
+}
+#endif
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
@@ -1137,9 +1161,111 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	return 0;
 }
 
+static inline
+void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
+                                const void *buf, size_t len,
+                                struct ssl_capture *capture)
+{
+	unsigned char *msg;
+	unsigned char *end;
+	unsigned int rec_len;
+
+	/* This function is called for "from client" and "to server"
+	 * connections. The combination of write_p == 0 and content_type == 22
+	 * is only avalaible during "from client" connection.
+	 */
+
+	/* "write_p" is set to 0 is the bytes are received messages,
+	 * otherwise it is set to 1.
+	 */
+	if (write_p != 0)
+		return;
+
+	/* content_type contains the type of message received or sent
+	 * according with the SSL/TLS protocol spec. This message is
+	 * encoded with one byte. The value 256 (two bytes) is used
+	 * for designing the SSL/TLS record layer. According with the
+	 * rfc6101, the expected message (other than 256) are:
+	 *  - change_cipher_spec(20)
+	 *  - alert(21)
+	 *  - handshake(22)
+	 *  - application_data(23)
+	 *  - (255)
+	 * We are interessed by the handshake and specially the client
+	 * hello.
+	 */
+	if (content_type != 22)
+		return;
+
+	/* The message length is at least 4 bytes, containing the
+	 * message type and the message length.
+	 */
+	if (len < 4)
+		return;
+
+	/* First byte of the handshake message id the type of
+	 * message. The konwn types are:
+	 *  - hello_request(0)
+	 *  - client_hello(1)
+	 *  - server_hello(2)
+	 *  - certificate(11)
+	 *  - server_key_exchange (12)
+	 *  - certificate_request(13)
+	 *  - server_hello_done(14)
+	 * We are interested by the client hello.
+	 */
+	msg = (unsigned char *)buf;
+	if (msg[0] != 1)
+		return;
+
+	/* Next three bytes are the length of the message. The total length
+	 * must be this decoded length + 4. If the length given as argument
+	 * is not the same, we abort the protocol dissector.
+	 */
+	rec_len = (msg[1] << 16) + (msg[2] << 8) + msg[3];
+	if (len < rec_len + 4)
+		return;
+	msg += 4;
+	end = msg + rec_len;
+	if (end < msg)
+		return;
+
+	/* Expect 2 bytes for protocol version (1 byte for major and 1 byte
+	 * for minor, the random, composed by 4 bytes for the unix time and
+	 * 28 bytes for unix payload, and them 1 byte for the session id. So
+	 * we jump 1 + 1 + 4 + 28 + 1 bytes.
+	 */
+	msg += 1 + 1 + 4 + 28 + 1;
+	if (msg > end)
+		return;
+
+	/* Next two bytes are the ciphersuite length. */
+	if (msg + 2 > end)
+		return;
+	rec_len = (msg[0] << 8) + msg[1];
+	msg += 2;
+	if (msg + rec_len > end || msg + rec_len < msg)
+		return;
+
+	/* Compute the xxh64 of the ciphersuite. */
+	capture->xxh64 = XXH64(msg, rec_len, 0);
+
+	/* Capture the ciphersuite. */
+	capture->ciphersuite_len = rec_len;
+	if (capture->ciphersuite_len > global_ssl.capture_cipherlist)
+		capture->ciphersuite_len = global_ssl.capture_cipherlist;
+	memcpy(capture->ciphersuite, msg, capture->ciphersuite_len);
+}
+
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
+	/* If the SSL connection doesn't had sufficient memory while
+	 * the structure was initialized, arg is NULL.
+	 */
+	if (global_ssl.capture_cipherlist && arg)
+		ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, arg);
+
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
@@ -3832,6 +3958,8 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
  */
 static int ssl_sock_init(struct connection *conn)
 {
+	struct ssl_capture *capture;
+
 	/* already initialized */
 	if (conn->xprt_ctx)
 		return 0;
@@ -3938,6 +4066,20 @@ static int ssl_sock_init(struct connection *conn)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
+
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+		/* Set capture struct as opaque argument for the msg callback. */
+		if (global_ssl.capture_cipherlist > 0) {
+			capture = pool_alloc_dirty(pool2_ssl_capture);
+			if (capture) {
+				capture->conn = conn;
+				capture->ciphersuite_len = 0;
+				SSL_set_msg_callback_arg(conn->xprt_ctx, capture);
+			}
+		} else {
+			SSL_set_msg_callback_arg(conn->xprt_ctx, NULL);
+		}
+#endif
 
 		SSL_set_accept_state(conn->xprt_ctx);
 
@@ -4386,8 +4528,13 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 }
 
 static void ssl_sock_close(struct connection *conn) {
+	struct ssl_capture *capture;
 
 	if (conn->xprt_ctx) {
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+		capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
+		pool_free2(pool2_ssl_capture, capture);
+#endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		sslconns--;
@@ -5495,6 +5642,111 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 	return 1;
 #else
 	return 0;
+#endif
+}
+
+static int
+smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+	struct connection *conn;
+	struct ssl_capture *capture;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+
+	capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
+	if (!capture)
+		return 0;
+
+	smp->flags = SMP_F_CONST;
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.str = capture->ciphersuite;
+	smp->data.u.str.len = capture->ciphersuite_len;
+	return 1;
+
+#else
+	return 0;
+#endif
+}
+
+static int
+smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct chunk *data;
+
+	if (!smp_fetch_ssl_fc_cl_bin(args, smp, kw, private))
+		return 0;
+
+	data = get_trash_chunk();
+	dump_binary(data, smp->data.u.str.str, smp->data.u.str.len);
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str = *data;
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+	struct connection *conn;
+	struct ssl_capture *capture;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+
+	capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
+	if (!capture)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = capture->xxh64;
+	return 1;
+
+#else
+	return 0;
+#endif
+}
+
+static int
+smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(OPENSSL_NO_SSL_TRACE)
+	struct chunk *data;
+	SSL_CIPHER cipher;
+	int i;
+	const char *str;
+	unsigned char *bin;
+
+	if (!smp_fetch_ssl_fc_cl_bin(args, smp, kw, private))
+		return 0;
+
+	/* The cipher algorith must not be SSL_SSLV2, because this
+	 * SSL version seems to not have the same cipher encoding,
+	 * and it is not supported by OpenSSL. Unfortunately, the
+	 * #define SSL_SSLV2, SSL_SSLV3 and others are not available
+	 * with standard defines. We just set the variable to 0,
+	 * ensure that the match with SSL_SSLV2 fails.
+	 */
+	cipher.algorithm_ssl = 0;
+
+	data = get_trash_chunk();
+	for (i = 0; i + 1 < smp->data.u.str.len; i += 2) {
+		bin = (unsigned char *)smp->data.u.str.str + i;
+		cipher.id = (unsigned int)(bin[0] << 8) | bin[1];
+		str = SSL_CIPHER_standard_name(&cipher);
+		if (!str || strcmp(str, "UNKNOWN") == 0)
+			chunk_appendf(data, "%sUNKNOWN(%04x)", i == 0 ? "" : ",", (unsigned int)cipher.id);
+		else
+			chunk_appendf(data, "%s%s", i == 0 ? "" : ",", str);
+	}
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *data;
+	return 1;
+#else
+	return smp_fetch_ssl_fc_cl_xxh64(args, smp, kw, private);
 #endif
 }
 
@@ -6654,6 +6906,8 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		target = &global_ssl.ctx_cache;
 	else if (strcmp(args[0], "maxsslconn") == 0)
 		target = &global.maxsslconn;
+	else if (strcmp(args[0], "tune.ssl.capture-cipherlist-size") == 0)
+		target = &global_ssl.capture_cipherlist;
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
 		return -1;
@@ -6673,6 +6927,34 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		return -1;
 	}
 	return 0;
+}
+
+static int ssl_parse_global_capture_cipherlist(char **args, int section_type, struct proxy *curpx,
+                                               struct proxy *defpx, const char *file, int line,
+                                               char **err)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+	int ret;
+
+	ret = ssl_parse_global_int(args, section_type, curpx, defpx, file, line, err);
+	if (ret != 0)
+		return ret;
+
+	if (pool2_ssl_capture) {
+		memprintf(err, "'%s' is already configured.", args[0]);
+		return -1;
+	}
+
+	pool2_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_cipherlist, MEM_F_SHARED);
+	if (!pool2_ssl_capture) {
+		memprintf(err, "Out of memory error.");
+		return -1;
+	}
+	return 0;
+#else
+	memprintf(err, "'%s' requires OpenSSL 0.9.7 or above.", args[0]);
+	return -1;
+#endif
 }
 
 /* parse "ssl.force-private-cache".
@@ -7074,6 +7356,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_xxh",  smp_fetch_ssl_fc_cl_xxh64,    0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
@@ -7194,6 +7480,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
+	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
 	{ 0, NULL, NULL },

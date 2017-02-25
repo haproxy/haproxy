@@ -618,6 +618,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.maxrecord
    - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
+   - tune.ssl.capture-cipherlist-size
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -1501,6 +1502,11 @@ tune.ssl.ssl-ctx-cache-size <number>
   entries. This is a LRU cache. Because generating a SSL certificate
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
+
+tune.ssl.capture-cipherlist-size <number>
+  Sets the maximum size of the buffer used for capturing client-hello cipher
+  list. If the value is 0 (default value) the capture is disabled, otherwise
+  a buffer is allocated for each SSL/TLS connection.
 
 tune.vars.global-max-size <size>
 tune.vars.proc-max-size <size>
@@ -13870,6 +13876,32 @@ ssl_fc_alpn : string
 ssl_fc_cipher : string
   Returns the name of the used cipher when the incoming connection was made
   over an SSL/TLS transport layer.
+
+ssl_fc_cipherlist_bin : binary
+  Returns the binary form of the client hello cipher list. The maximum returned
+  value length is according with the value of
+  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is available
+  only with OpenSSL > 0.9.7
+
+ssl_fc_cipherlist_hex : string
+  Returns the binary form of the client hello cipher list encoded as
+  hexadecimal. The maximum returned value length is according with the value of
+  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is available
+  only with OpenSSL > 0.9.7
+
+ssl_fc_cipherlist_str : string
+  Returns the decoded text form of the client hello cipher list. The maximum
+  number of ciphers returned is according with the value of
+  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is only
+  avaible with OpenSSL > 1.0.2 compiled with the option enable-ssl-trace.
+  If the function is not enabled, this sample-fetch returns the hash
+  like "ssl_fc_cipherlist_xxh".
+
+ssl_fc_cipherlist_xxh : integer
+  Returns a xxh64 of the cipher list. This hash can be return only is the value
+  "tune.ssl.capture-cipherlist-size" is set greater than 0, however the hash
+  take in account all the data of the cipher list. Note that this sample-fetch is
+  avalaible only with OpenSSL > 0.9.7
 
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over
