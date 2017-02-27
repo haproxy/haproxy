@@ -3244,6 +3244,24 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		curagent->eps_max = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "max-frame-size")) {
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+                              file, linenum, args[0]);
+                        err_code |= ERR_ALERT | ERR_FATAL;
+                        goto out;
+                }
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		curagent->max_frame_size = atol(args[1]);
+		if (curagent->max_frame_size < MIN_FRAME_SIZE ||
+		    curagent->max_frame_size > MAX_FRAME_SIZE) {
+			Alert("parsing [%s:%d] : '%s' expects a positive integer argument in the range [%d, %d].\n",
+			      file, linenum, args[0], MIN_FRAME_SIZE, MAX_FRAME_SIZE);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (*args[0]) {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in spoe-agent section.\n",
 		      file, linenum, args[0]);
