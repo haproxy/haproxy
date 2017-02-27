@@ -1,7 +1,7 @@
                 -----------------------------------------------
                    Stream Processing Offload Engine (SPOE)
-                                  Version 1.0
-                          ( Last update: 2016-11-07 )
+                                  Version 1.1
+                          ( Last update: 2017-02-27 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -31,7 +31,7 @@ SUMMARY
   3.2.9.          Frame: AGENT-DISCONNECT
   3.3.        Events & messages
   3.4.        Actions
-  3.5.        Error & timeouts
+  3.5.        Errors & timeouts
 
 
 0. Terms
@@ -41,7 +41,7 @@ SUMMARY
 
     A SPOE is a filter talking to servers managed ba a SPOA to offload the
     stream processing. An engine is attached to a proxy. A proxy can have
-    several engine. Each engine is linked to an agent and only one.
+    several engines. Each engine is linked to an agent and only one.
 
 * SPOA : Stream Processing Offload Agent.
 
@@ -114,7 +114,7 @@ If you specify an engine name on the SPOE filter line, then you need to define
 scope in the SPOE configuration with the same name. You can have several SPOE
 scope in the same file. In each scope, you must define one and only one
 "spoe-agent" section to configure the SPOA linked to your SPOE and several
-"spoe-message" sections to describe messages sent to servers mananger by your
+"spoe-message" sections to describe messages sent to servers mananged by your
 SPOA.
 
 A SPOE scope starts with this kind of line :
@@ -158,7 +158,11 @@ spoe-agent <name>
   following keywords are supported :
     - maxconnrate
     - maxerrrate
+    - max-frame-size
     - messages
+    - [no] option async
+    - [no] option pipelining
+    - [no] option send-frag-payload
     - option continue-on-error
     - option set-on-error
     - option var-prefix
@@ -178,6 +182,12 @@ maxerrrate <number>
   its processing if the maximum is reached.
 
 
+max-frame-size <number>
+  Set the maximum allowed size for frames exchanged between HAProxy and SPOA.
+  It must be in the range [256, tune.bufsize-4] (4 bytes are reserved for the
+  frame length). By default, it is set to (tune.bufsize-4).
+
+
 messages <msg-name> ...
   Declare the list of SPOE messages that an agent will handle.
 
@@ -191,6 +201,12 @@ messages <msg-name> ...
   See also: "spoe-message" section.
 
 
+option async
+no option async
+  Enable or disable the support of asynchronus exchanges between HAProxy and
+  SPOA. By default, this option is enabled.
+
+
 option continue-on-error
   Do not stop the events processing when an error occurred on a stream.
 
@@ -202,6 +218,18 @@ option continue-on-error
 
   When set, this option bypass this behaviour and only the current event will
   be ignored.
+
+
+option pipelining
+no option pipelining
+  Enable or disable the support of pipelined exchanges between HAProxy and
+  SPOA. By default, this option is enabled.
+
+
+option send-frag-payload
+no option send-frag-payload
+  Enable or disable the sending of fragmented payload to SPOA. By default, this
+  option is enabled.
 
 
 option set-on-error <var name>
@@ -225,6 +253,11 @@ option set-on-error <var name>
     * 1       a timeout occurred during the event processing.
 
     * 2       an error was triggered during the ressources allocation.
+
+    * 3       the frame payload exceeds the frame size and it cannot be
+              fragmented.
+
+    * 4       the fragmentation of a payload is aborted.
 
     * 255     an unknown error occurred during the event processing.
 
@@ -483,15 +516,23 @@ actions.
     KV-NAME          : <STRING>
     KV-VALUE         : <TYPED-DATA>
 
-    FLAGS :   0     1-31
-            +---+-----------+
-            | F|            |
-            | I|  RESERVED  |
-            | N|            |
-            +--+------------+
+    FLAGS :   0   1      2-31
+            +---+---+----------+
+            |   | A |          |
+            | F | B |          |
+            | I | O | RESERVED |
+            | N | R |          |
+            |   | T |          |
+            +---+---+----------+
 
     FIN: Indicates that this is the final payload fragment. The first fragment
          may also be the final fragment.
+
+    ABORT: Indicates that the processing of the current frame must be
+           cancelled. This bit should be set on frames with a fragmented
+           payload. It can be ignore for frames with an unfragemnted
+           payload. When it is set, the FIN bit must also be set.
+
 
 Frames cannot exceed a maximum size negociated between HAProxy and agents
 during the HELLO handshake. Most of time, payload will be small enough to send
@@ -504,14 +545,14 @@ HAProxy or the opposite). The following rules apply to fragmentation:
 
   * A fragemented payload consists of several frames with the FIN bit clear and
     terminated by a single frame with the FIN bit set. All these frames must
-    share the same STREAM-ID and FRAME-ID. And, of course, the FRAME-TYPE must
-    be the same.
+    share the same STREAM-ID and FRAME-ID. The first frame must set the right
+    FRAME-TYPE (e.g, NOTIFY). The following frames must have an unset type (0).
 
 Beside the support of fragmented payload by a peer, some payload must not be
 fragmented. See below for details.
 
-IMPORTANT : The maximum size supported by peers for a frame must be greater or
-equal to 256 bytes.
+IMPORTANT : The maximum size supported by peers for a frame must be greater
+than or equal to 256 bytes.
 
 3.2.1. Frame capabilities
 --------------------------
@@ -545,6 +586,9 @@ Here are types of frame supported by SPOE. Frames sent by HAProxy come first,
 then frames sent by agents :
 
     TYPE                       |  ID | DESCRIPTION
+  -----------------------------+-----+-------------------------------------
+     UNSET                     |  0  | Used for all frames but the first when a
+                               |     | payload is fragmented.
   -----------------------------+-----+-------------------------------------
      HAPROXY-HELLO             |  1  |  Sent by HAProxy when it opens a
                                |     |  connection on an agent.
@@ -619,7 +663,7 @@ Unknown frames may be silently skipped.
        | <-------------------------- |
        |                             |
 
-  * Notify / Ack exchange:
+  * Notify / Ack exchange (unfragmented payload):
 
     HAPROXY                       AGENT SRV
        |          NOTIFY             |
@@ -627,6 +671,37 @@ Unknown frames may be silently skipped.
        |                             |
        |           ACK               |
        | <-------------------------- |
+       |                             |
+
+  * Notify / Ack exchange (fragmented payload):
+
+    HAPROXY                       AGENT SRV
+       |      NOTIFY (frag 1)        |
+       | --------------------------> |
+       |                             |
+       |       UNSET (frag 2)        |
+       | --------------------------> |
+       |            ...              |
+       |       UNSET (frag N)        |
+       | --------------------------> |
+       |                             |
+       |           ACK               |
+       | <-------------------------- |
+       |                             |
+
+  * Aborted fragmentation of a NOTIFY frame:
+
+    HAPROXY                       AGENT SRV
+       |            ...              |
+       |       UNSET (frag X)        |
+       | --------------------------> |
+       |                             |
+       |         ACK/ABORT           |
+       | <-------------------------- |
+       |                             |
+       |       UNSET (frag X+1)      |
+       | -----------X                |
+       |                             |
        |                             |
 
   * Connection closed by haproxy:
@@ -890,7 +965,7 @@ NOTE: Name of the variables will be automatically prefixed by HAProxy to avoid
       name clashes with other variables used in HAProxy. Moreover, unknown
       variable will be silently ignored.
 
-3.5. Error & timeouts
+3.5. Errors & timeouts
 ----------------------
 
 Here is the list of all known errors:
@@ -907,6 +982,10 @@ Here is the list of all known errors:
      7            | capabilities value not found
      8            | unsupported version
      9            | max-frame-size too big or too small
+     10           | payload fragmentation is not supported
+     11           | invalid interlaced frames
+     12           | frame-id not found (it does not match any referenced frame)
+     13           | resource allocation error
      99           | an unknown error occurrde
   ----------------+--------------------------------------------------------
 
