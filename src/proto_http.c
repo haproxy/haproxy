@@ -4032,7 +4032,6 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	struct http_msg *req = &txn->req;
 	struct http_msg *res = &txn->rsp;
 	const char *msg_fmt;
-	const char *location;
 	struct chunk *chunk;
 	int ret = 0;
 
@@ -4062,8 +4061,6 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 
 	if (unlikely(!chunk_strcpy(chunk, msg_fmt)))
 		goto leave;
-
-	location = chunk->str + chunk->len;
 
 	switch(rule->type) {
 	case REDIRECT_TYPE_SCHEME: {
@@ -4228,17 +4225,12 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		chunk->len += rule->cookie_len;
 	}
 
-	/* add end of headers and the keep-alive/close status.
-	 * We may choose to set keep-alive if the Location begins
-	 * with a slash, because the client will come back to the
-	 * same server.
-	 */
+	/* add end of headers and the keep-alive/close status. */
 	txn->status = rule->code;
 	/* let's log the request time */
 	s->logs.tv_request = now;
 
-	if (*location == '/' &&
-	    (req->flags & HTTP_MSGF_XFER_LEN) &&
+	if ((req->flags & HTTP_MSGF_XFER_LEN) &&
 	    ((!(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len) || (req->msg_state == HTTP_MSG_DONE)) &&
 	    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 	     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
