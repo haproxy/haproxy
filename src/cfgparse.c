@@ -3776,6 +3776,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, file, linenum);
 		}
+		else if (*args[2]) {
+			Alert("parsing [%s:%d] : unexpected keyword '%s' after switching rule, only 'if' and 'unless' are allowed.\n",
+			      file, linenum, args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
