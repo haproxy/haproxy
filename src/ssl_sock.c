@@ -1435,6 +1435,13 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 }
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
+static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
+{
+	SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ctx), ssl_sock_bind_verifycbk);
+	SSL_set_client_CA_list(ssl, SSL_dup_CA_list(SSL_CTX_get_client_CA_list(ctx)));
+	SSL_set_SSL_CTX(ssl, ctx);
+}
+
 #ifdef OPENSSL_IS_BORINGSSL
 
 static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
@@ -1613,7 +1620,7 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 
 	if (node) {
 		/* switch ctx */
-		SSL_set_SSL_CTX(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
+		ssl_sock_switchctx_set(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
 		return 1;
 	}
 	if (!s->strict_sni)
@@ -1704,7 +1711,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	}
 
 	/* switch ctx */
-	SSL_set_SSL_CTX(ssl, container_of(node, struct sni_ctx, name)->ctx);
+	ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif /* (!) OPENSSL_IS_BORINGSSL */
