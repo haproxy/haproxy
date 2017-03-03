@@ -176,6 +176,7 @@ static DH *global_dh = NULL;
 static DH *local_dh_1024 = NULL;
 static DH *local_dh_2048 = NULL;
 static DH *local_dh_4096 = NULL;
+static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
 #endif /* OPENSSL_NO_DH */
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -1215,7 +1216,6 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 #ifndef SSL_NO_GENERATE_CERTIFICATES
-static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen);
 
 /* Create a X509 certificate with the specified servername and serial. This
  * function returns a SSL_CTX object or NULL if an error occurs. */
@@ -1332,7 +1332,9 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 
 	if (newcrt) X509_free(newcrt);
 
+#ifndef OPENSSL_NO_DH
 	SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh);
+#endif
 #if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
 	{
 		const char *ecdhe = (bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
@@ -3107,17 +3109,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
 	int verify = SSL_VERIFY_NONE;
-	STACK_OF(SSL_CIPHER) * ciphers = NULL;
-	const SSL_CIPHER * cipher = NULL;
-	char cipher_description[128];
-	/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
-	   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
-	   which is not ephemeral DH. */
-	const char dhe_description[] = " Kx=DH ";
-	const char dhe_export_description[] = " Kx=DH(";
-	int idx = 0;
-	int dhe_found = 0;
-	SSL *ssl = NULL;
 	struct ssl_bind_conf *ssl_conf_cur;
 	const char *conf_ciphers;
 	const char *conf_curves = NULL;
@@ -3192,6 +3183,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		cfgerr++;
 	}
 
+#ifndef OPENSSL_NO_DH
 	/* If tune.ssl.default-dh-param has not been set,
 	   neither has ssl-default-dh-file and no static DH
 	   params were in the certificate file. */
@@ -3199,6 +3191,17 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	    global_dh == NULL &&
 	    (ssl_dh_ptr_index == -1 ||
 	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
+		STACK_OF(SSL_CIPHER) * ciphers = NULL;
+		const SSL_CIPHER * cipher = NULL;
+		char cipher_description[128];
+		/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
+		   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
+		   which is not ephemeral DH. */
+		const char dhe_description[] = " Kx=DH ";
+		const char dhe_export_description[] = " Kx=DH(";
+		int idx = 0;
+		int dhe_found = 0;
+		SSL *ssl = NULL;
 
 		ssl = SSL_new(ctx);
 
@@ -3228,7 +3231,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		global_ssl.default_dh_param = 1024;
 	}
 
-#ifndef OPENSSL_NO_DH
 	if (global_ssl.default_dh_param >= 1024) {
 		if (local_dh_1024 == NULL) {
 			local_dh_1024 = ssl_get_dh_1024();
