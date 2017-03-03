@@ -120,6 +120,8 @@
 #define HASH_FUNCT EVP_sha256
 #endif /* OPENSSL_NO_SHA256 */
 
+static SSL_CTX *ssl_sock_new_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf);
+
 /* server and bind verify method, it uses a global value as default */
 enum {
 	SSL_SOCK_VERIFY_DEFAULT  = 0,
@@ -2406,7 +2408,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 		if (cur_ctx == NULL) {
 			/* need to create SSL_CTX */
-			cur_ctx = SSL_CTX_new(SSLv23_server_method());
+			cur_ctx = ssl_sock_new_ctx(bind_conf, ssl_conf);
 			if (cur_ctx == NULL) {
 				memprintf(err, "%sunable to allocate SSL context.\n",
 				          err && *err ? *err : "");
@@ -2632,7 +2634,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	int ret;
 	SSL_CTX *ctx;
 
-	ctx = SSL_CTX_new(SSLv23_server_method());
+	ctx = ssl_sock_new_ctx(bind_conf, ssl_conf);
 	if (!ctx) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -3045,11 +3047,12 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #define SSL_MODE_SMALL_BUFFERS 0
 #endif
 
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx)
+
+/* create an SSL_CTX according method wanted */
+static SSL_CTX *
+ssl_sock_new_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf)
 {
-	struct proxy *curproxy = bind_conf->frontend;
-	int cfgerr = 0;
-	int verify = SSL_VERIFY_NONE;
+	SSL_CTX *ctx = NULL;
 	long ssloptions =
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
@@ -3063,6 +3066,47 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
+	int conf_ssl_options = bind_conf->ssl_conf.ssl_options | (ssl_conf ? ssl_conf->ssl_options : 0);
+
+#if SSL_OP_NO_TLSv1_2
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12)
+		ctx = SSL_CTX_new(TLSv1_2_server_method());
+#endif
+#if SSL_OP_NO_TLSv1_1
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV11)
+		ctx = SSL_CTX_new(TLSv1_1_server_method());
+#endif
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV10)
+		ctx = SSL_CTX_new(TLSv1_server_method());
+#ifndef OPENSSL_NO_SSL3
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_SSLV3)
+		ctx = SSL_CTX_new(SSLv3_server_method());
+#endif
+	if (!ctx) {
+		ctx = SSL_CTX_new(SSLv23_server_method());
+		if (conf_ssl_options & BC_SSL_O_NO_SSLV3)
+			ssloptions |= SSL_OP_NO_SSLv3;
+		if (conf_ssl_options & BC_SSL_O_NO_TLSV10)
+			ssloptions |= SSL_OP_NO_TLSv1;
+		if (conf_ssl_options & BC_SSL_O_NO_TLSV11)
+			ssloptions |= SSL_OP_NO_TLSv1_1;
+		if (conf_ssl_options & BC_SSL_O_NO_TLSV12)
+			ssloptions |= SSL_OP_NO_TLSv1_2;
+	}
+	if (conf_ssl_options & BC_SSL_O_NO_TLS_TICKETS)
+		ssloptions |= SSL_OP_NO_TICKET;
+	SSL_CTX_set_options(ctx, ssloptions);
+	SSL_CTX_set_mode(ctx, sslmode);
+	if (global_ssl.life_time)
+		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
+	return ctx;
+}
+
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx)
+{
+	struct proxy *curproxy = bind_conf->frontend;
+	int cfgerr = 0;
+	int verify = SSL_VERIFY_NONE;
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
 	const SSL_CIPHER * cipher = NULL;
 	char cipher_description[128];
@@ -3075,7 +3119,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	int dhe_found = 0;
 	SSL *ssl = NULL;
 	struct ssl_bind_conf *ssl_conf_cur;
-	int conf_ssl_options = bind_conf->ssl_conf.ssl_options | (ssl_conf ? ssl_conf->ssl_options : 0);
 	const char *conf_ciphers;
 	const char *conf_curves = NULL;
 
@@ -3084,39 +3127,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		Alert("OpenSSL random data generator initialization failed.\n");
 		cfgerr++;
 	}
-
-	if (conf_ssl_options & BC_SSL_O_NO_SSLV3)
-		ssloptions |= SSL_OP_NO_SSLv3;
-	if (conf_ssl_options & BC_SSL_O_NO_TLSV10)
-		ssloptions |= SSL_OP_NO_TLSv1;
-	if (conf_ssl_options & BC_SSL_O_NO_TLSV11)
-		ssloptions |= SSL_OP_NO_TLSv1_1;
-	if (conf_ssl_options & BC_SSL_O_NO_TLSV12)
-		ssloptions |= SSL_OP_NO_TLSv1_2;
-	if (conf_ssl_options & BC_SSL_O_NO_TLS_TICKETS)
-		ssloptions |= SSL_OP_NO_TICKET;
-#ifndef OPENSSL_IS_BORINGSSL
-	if (conf_ssl_options & BC_SSL_O_USE_SSLV3) {
-#ifndef OPENSSL_NO_SSL3
-		SSL_CTX_set_ssl_version(ctx, SSLv3_server_method());
-#else
-		Alert("SSLv3 support requested but unavailable.\n");
-		cfgerr++;
-#endif
-	}
-	if (conf_ssl_options & BC_SSL_O_USE_TLSV10)
-		SSL_CTX_set_ssl_version(ctx, TLSv1_server_method());
-#if SSL_OP_NO_TLSv1_1
-	if (conf_ssl_options & BC_SSL_O_USE_TLSV11)
-		SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method());
-#endif
-#if SSL_OP_NO_TLSv1_2
-	if (conf_ssl_options & BC_SSL_O_USE_TLSV12)
-		SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method());
-#endif
-#endif
-	SSL_CTX_set_options(ctx, ssloptions);
-	SSL_CTX_set_mode(ctx, sslmode);
 	switch ((ssl_conf && ssl_conf->verify) ? ssl_conf->verify : bind_conf->ssl_conf.verify) {
 		case SSL_SOCK_VERIFY_NONE:
 			verify = SSL_VERIFY_NONE;
@@ -3172,9 +3182,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		}
 	}
 #endif
-
-	if (global_ssl.life_time)
-		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
 
 	shared_context_set_cache(ctx);
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
@@ -3447,6 +3454,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
 	int verify = SSL_VERIFY_NONE;
+	SSL_CTX *ctx = NULL;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -3464,14 +3472,44 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->check.use_ssl)
 		srv->check.xprt = &ssl_sock;
 
-	srv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
-	if (!srv->ssl_ctx.ctx) {
+#if SSL_OP_NO_TLSv1_2
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
+		ctx = SSL_CTX_new(TLSv1_2_client_method());
+#endif
+#if SSL_OP_NO_TLSv1_1
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
+		ctx = SSL_CTX_new(TLSv1_1_client_method());
+#endif
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
+		ctx = SSL_CTX_new(TLSv1_client_method());
+#ifndef OPENSSL_NO_SSL3
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
+		ctx = SSL_CTX_new(SSLv3_client_method());
+#endif
+	if (!ctx) {
+		ctx = SSL_CTX_new(SSLv23_client_method());
+		if (srv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
+			options |= SSL_OP_NO_SSLv3;
+		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
+			options |= SSL_OP_NO_TLSv1;
+		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
+			options |= SSL_OP_NO_TLSv1_1;
+		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
+			options |= SSL_OP_NO_TLSv1_2;
+	}
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
+		options |= SSL_OP_NO_TICKET;
+	if (!ctx) {
 		Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
 		      proxy_type_str(curproxy), curproxy->id,
 		      srv->id);
 		cfgerr++;
 		return cfgerr;
 	}
+	SSL_CTX_set_options(ctx, options);
+	SSL_CTX_set_mode(ctx, mode);
+	srv->ssl_ctx.ctx = ctx;
+
 	if (srv->ssl_ctx.client_crt) {
 		if (SSL_CTX_use_PrivateKey_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt, SSL_FILETYPE_PEM) <= 0) {
 			Alert("config : %s '%s', server '%s': unable to load SSL private key from PEM file '%s'.\n",
@@ -3493,42 +3531,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		}
 	}
 
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
-		options |= SSL_OP_NO_SSLv3;
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
-		options |= SSL_OP_NO_TLSv1;
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
-		options |= SSL_OP_NO_TLSv1_1;
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
-		options |= SSL_OP_NO_TLSv1_2;
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
-		options |= SSL_OP_NO_TICKET;
-#ifndef OPENSSL_IS_BORINGSSL
-	if (srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3) {
-#ifndef OPENSSL_NO_SSL3
-		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, SSLv3_client_method());
-#else
-		Alert("SSLv3 support requested but unavailable.\n");
-		cfgerr++;
-#endif
-	}
-	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
-		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_client_method());
-#if SSL_OP_NO_TLSv1_1
-	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
-		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_1_client_method());
-#endif
-#if SSL_OP_NO_TLSv1_2
-	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
-		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_2_client_method());
-#endif
-#endif
-	SSL_CTX_set_options(srv->ssl_ctx.ctx, options);
-	SSL_CTX_set_mode(srv->ssl_ctx.ctx, mode);
-
 	if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
 		verify = SSL_VERIFY_PEER;
-
 	switch (srv->ssl_ctx.verify) {
 		case SSL_SOCK_VERIFY_NONE:
 			verify = SSL_VERIFY_NONE;
@@ -3577,9 +3581,6 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		}
 #endif
 	}
-
-	if (global_ssl.life_time)
-		SSL_CTX_set_timeout(srv->ssl_ctx.ctx, global_ssl.life_time);
 
 	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
 	if (srv->ssl_ctx.ciphers &&
@@ -5852,8 +5853,14 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 /* parse the "force-sslv3" bind keyword */
 static int ssl_bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
+#ifndef OPENSSL_NO_SSL3
 	conf->ssl_options |= BC_SSL_O_USE_SSLV3;
 	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol SSLv3", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
 }
 static int bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -6293,8 +6300,14 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 /* parse the "force-sslv3" server keyword */
 static int srv_parse_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+#ifndef OPENSSL_NO_SSL3
 	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_SSLV3;
 	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol SSLv3", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
 }
 
 /* parse the "force-tlsv10" server keyword */
