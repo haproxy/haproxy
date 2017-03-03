@@ -1625,7 +1625,6 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	}
 	if (!s->strict_sni)
 		/* no certificate match, is the default_ctx */
-		/* the client will alert (was SSL_TLSEXT_ERR_ALERT_WARNING, ignored by Boring) */
 		return 1;
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
@@ -1707,7 +1706,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #endif
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
-			SSL_TLSEXT_ERR_ALERT_WARNING);
+			SSL_TLSEXT_ERR_OK);
 	}
 
 	/* switch ctx */
