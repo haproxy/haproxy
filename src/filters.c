@@ -1069,7 +1069,7 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 			http_reply_and_close(s, s->txn->status, NULL);
 		else {
 			s->txn->status = 400;
-			http_reply_and_close(s, 400, http_error_message(s, HTTP_ERR_400));
+			http_reply_and_close(s, 400, http_error_message(s));
 		}
 	}
 
