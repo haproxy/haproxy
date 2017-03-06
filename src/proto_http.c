@@ -4410,8 +4410,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (txn->flags & TX_CLDENY)
 			goto deny;
 
-		if (txn->flags & TX_CLTARPIT)
+		if (txn->flags & TX_CLTARPIT) {
+			deny_status = HTTP_ERR_500;
 			goto tarpit;
+		}
 	}
 
 	/* add request headers from the rule sets in the same order */
@@ -4499,6 +4501,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 */
 	if (s->be->cookie_name || sess->fe->capture_name)
 		manage_client_side_cookies(s, req);
+
+	txn->status = http_err_codes[deny_status];
 
 	req->analysers &= AN_REQ_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
@@ -4929,7 +4933,6 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	txn->status = 500;
 	if (!(req->flags & CF_READ_ERROR))
 		http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -9075,15 +9078,21 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		goto out_err;
 	}
 
-	rule->deny_status = HTTP_ERR_403;
 	if (!strcmp(args[0], "allow")) {
 		rule->action = ACT_ACTION_ALLOW;
 		cur_arg = 1;
-	} else if (!strcmp(args[0], "deny") || !strcmp(args[0], "block")) {
+	} else if (!strcmp(args[0], "deny") || !strcmp(args[0], "block") || !strcmp(args[0], "tarpit")) {
 		int code;
 		int hc;
 
-		rule->action = ACT_ACTION_DENY;
+		if (!strcmp(args[0], "tarpit")) {
+		    rule->action = ACT_HTTP_REQ_TARPIT;
+		    rule->deny_status = HTTP_ERR_500;
+		}
+		else {
+			rule->action = ACT_ACTION_DENY;
+			rule->deny_status = HTTP_ERR_403;
+		}
 		cur_arg = 1;
                 if (strcmp(args[cur_arg], "deny_status") == 0) {
                         cur_arg++;
@@ -9103,13 +9112,10 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
                         }
 
                         if (hc >= HTTP_ERR_SIZE) {
-                                Warning("parsing [%s:%d] : status code %d not handled, using default code 403.\n",
-                                        file, linenum, code);
+                                Warning("parsing [%s:%d] : status code %d not handled, using default code %d.\n",
+                                        file, linenum, code, http_err_codes[rule->deny_status]);
                         }
                 }
-	} else if (!strcmp(args[0], "tarpit")) {
-		rule->action = ACT_HTTP_REQ_TARPIT;
-		cur_arg = 1;
 	} else if (!strcmp(args[0], "auth")) {
 		rule->action = ACT_HTTP_REQ_AUTH;
 		cur_arg = 1;

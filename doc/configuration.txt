@@ -3652,8 +3652,8 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
-              deny [deny_status <status>] |
+http-request { allow | auth [realm <realm>] | redirect <rule> |
+              tarpit [deny_status <status>] | deny [deny_status <status>] |
               add-header <name> <fmt> | set-header <name> <fmt> |
               capture <sample> [ len <length> | id <id> ] |
               del-header <name> | set-nice <nice> | set-log-level <level> |
@@ -3697,7 +3697,8 @@ http-request { allow | tarpit | auth [realm <realm>] | redirect <rule> |
     - "tarpit" : this stops the evaluation of the rules and immediately blocks
       the request without responding for a delay specified by "timeout tarpit"
       or "timeout connect" if the former is not set. After that delay, if the
-      client is still connected, an HTTP error 500 is returned so that the
+      client is still connected, an HTTP error 500 (or optionally the status
+      code specified as an argument to "deny_status") is returned so that the
       client does not suspect it has been tarpitted. Logs will report the flags
       "PT". The goal of the tarpit rule is to slow down robots during an attack
       when they're limited on the number of concurrent requests. It can be very
