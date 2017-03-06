@@ -120,8 +120,6 @@
 #define HASH_FUNCT EVP_sha256
 #endif /* OPENSSL_NO_SHA256 */
 
-static SSL_CTX *ssl_sock_new_ctx(struct bind_conf *bind_conf);
-
 /* server and bind verify method, it uses a global value as default */
 enum {
 	SSL_SOCK_VERIFY_DEFAULT  = 0,
@@ -1628,8 +1626,10 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 		}
 	} else {
 		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
-		if (!s->strict_sni)
+		if (!s->strict_sni) {
+			ssl_sock_switchctx_set(ctx->ssl, s->default_ctx);
 			return 1;
+		}
 		goto abort;
 	}
 
@@ -1753,9 +1753,11 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 		ssl_sock_switchctx_set(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
 		return 1;
 	}
-	if (!s->strict_sni)
+	if (!s->strict_sni) {
 		/* no certificate match, is the default_ctx */
+		ssl_sock_switchctx_set(ctx->ssl, s->default_ctx);
 		return 1;
+	}
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	conn->err_code = CO_ER_SSL_HANDSHAKE;
@@ -1797,9 +1799,10 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			}
 		}
 #endif
-		return (s->strict_sni ?
-			SSL_TLSEXT_ERR_ALERT_FATAL :
-			SSL_TLSEXT_ERR_NOACK);
+		if (s->strict_sni)
+			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		return SSL_TLSEXT_ERR_NOACK;
 	}
 
 	for (i = 0; i < trash.size; i++) {
@@ -1834,9 +1837,10 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
-		return (s->strict_sni ?
-			SSL_TLSEXT_ERR_ALERT_FATAL :
-			SSL_TLSEXT_ERR_OK);
+		if (s->strict_sni)
+			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		return SSL_TLSEXT_ERR_OK;
 	}
 
 	/* switch ctx */
@@ -2536,7 +2540,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 		if (cur_ctx == NULL) {
 			/* need to create SSL_CTX */
-			cur_ctx = ssl_sock_new_ctx(bind_conf);
+			cur_ctx = SSL_CTX_new(SSLv23_server_method());
 			if (cur_ctx == NULL) {
 				memprintf(err, "%sunable to allocate SSL context.\n",
 				          err && *err ? *err : "");
@@ -2762,7 +2766,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	int ret;
 	SSL_CTX *ctx;
 
-	ctx = ssl_sock_new_ctx(bind_conf);
+	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -3176,9 +3180,9 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #endif
 
 
-/* create an SSL_CTX according method wanted */
+/* Create an initial CTX used to start the SSL connection before switchctx */
 static SSL_CTX *
-ssl_sock_new_ctx(struct bind_conf *bind_conf)
+ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 {
 	SSL_CTX *ctx = NULL;
 	long ssloptions =
@@ -3227,6 +3231,16 @@ ssl_sock_new_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_mode(ctx, sslmode);
 	if (global_ssl.life_time)
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#ifdef OPENSSL_IS_BORINGSSL
+	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
+	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
+#else
+	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
+	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
+#endif
+#endif
 	return ctx;
 }
 
@@ -3239,11 +3253,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	const char *conf_ciphers;
 	const char *conf_curves = NULL;
 
-	/* Make sure openssl opens /dev/urandom before the chroot */
-	if (!ssl_initialize_random()) {
-		Alert("OpenSSL random data generator initialization failed.\n");
-		cfgerr++;
-	}
 	switch ((ssl_conf && ssl_conf->verify) ? ssl_conf->verify : bind_conf->ssl_conf.verify) {
 		case SSL_SOCK_VERIFY_NONE:
 			verify = SSL_VERIFY_NONE;
@@ -3396,16 +3405,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		ssl_conf_cur = &bind_conf->ssl_conf;
 	if (ssl_conf_cur)
 		SSL_CTX_set_alpn_select_cb(ctx, ssl_sock_advertise_alpn_protos, ssl_conf_cur);
-#endif
-
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-#ifdef OPENSSL_IS_BORINGSSL
-	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
-	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#else
-	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
-	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
-#endif
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
@@ -3738,6 +3737,19 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_frontend = 1;
 
+	/* Make sure openssl opens /dev/urandom before the chroot */
+	if (!ssl_initialize_random()) {
+		Alert("OpenSSL random data generator initialization failed.\n");
+		err++;
+	}
+	/* Create initial_ctx used to start the ssl connection before do switchctx */
+	if (!bind_conf->initial_ctx) {
+		bind_conf->initial_ctx = ssl_sock_initial_ctx(bind_conf);
+		/* It should not be necessary to call this function, but it's
+		   necessary first to check and move all initialisation related
+		   to initial_ctx in ssl_sock_initial_ctx. */
+		err += ssl_sock_prepare_ctx(bind_conf, NULL, bind_conf->initial_ctx);
+	}
 	if (bind_conf->default_ctx)
 		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx);
 
@@ -3852,7 +3864,8 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		free(sni);
 		node = back;
 	}
-
+	SSL_CTX_free(bind_conf->initial_ctx);
+	bind_conf->initial_ctx = NULL;
 	bind_conf->default_ctx = NULL;
 	bind_conf->default_ssl_conf = NULL;
 }
@@ -4033,7 +4046,7 @@ static int ssl_sock_init(struct connection *conn)
 
 	retry_accept:
 		/* Alloc a new SSL session ctx */
-		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->default_ctx);
+		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->initial_ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
 				pool_gc2();
