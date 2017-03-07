@@ -13880,14 +13880,12 @@ ssl_fc_cipher : string
 ssl_fc_cipherlist_bin : binary
   Returns the binary form of the client hello cipher list. The maximum returned
   value length is according with the value of
-  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is available
-  only with OpenSSL > 0.9.7
+  "tune.ssl.capture-cipherlist-size".
 
 ssl_fc_cipherlist_hex : string
   Returns the binary form of the client hello cipher list encoded as
   hexadecimal. The maximum returned value length is according with the value of
-  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is available
-  only with OpenSSL > 0.9.7
+  "tune.ssl.capture-cipherlist-size".
 
 ssl_fc_cipherlist_str : string
   Returns the decoded text form of the client hello cipher list. The maximum
@@ -13900,8 +13898,7 @@ ssl_fc_cipherlist_str : string
 ssl_fc_cipherlist_xxh : integer
   Returns a xxh64 of the cipher list. This hash can be return only is the value
   "tune.ssl.capture-cipherlist-size" is set greater than 0, however the hash
-  take in account all the data of the cipher list. Note that this sample-fetch is
-  avalaible only with OpenSSL > 0.9.7
+  take in account all the data of the cipher list.
 
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over

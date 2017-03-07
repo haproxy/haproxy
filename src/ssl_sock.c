@@ -165,10 +165,7 @@ static struct {
 	.capture_cipherlist = 0,
 };
 
-/* This memory pool is used for capturing clienthello parameters.
- * The message callback is only available after openssl 0.9.7,
- * so the memory pool is useless before this version.
- */
+/* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
 	struct connection *conn;
 	unsigned long long int xxh64;
@@ -176,17 +173,7 @@ struct ssl_capture {
 	char ciphersuite[0];
 };
 struct pool_head *pool2_ssl_capture = NULL;
-
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
-/* This fu**ing funtion is announced in some OpenSSL manual pages,
- * but doesn't exists in the OpenSSL library !
- * eg. https://www.openssl.org/docs/man1.0.1/ssl/SSL_get_msg_callback_arg.html
- */
-static void *SSL_get_msg_callback_arg(SSL *ssl)
-{
-	return ssl->msg_callback_arg;
-}
-#endif
+static int ssl_capture_ptr_index = -1;
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
@@ -1258,11 +1245,11 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
-	/* If the SSL connection doesn't had sufficient memory while
-	 * the structure was initialized, arg is NULL.
-	 */
-	if (global_ssl.capture_cipherlist && arg)
-		ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, arg);
+	if (global_ssl.capture_cipherlist) {
+			struct ssl_capture *capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+			if (capture)
+				ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, capture);
+	}
 
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
@@ -3971,8 +3958,6 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
  */
 static int ssl_sock_init(struct connection *conn)
 {
-	struct ssl_capture *capture;
-
 	/* already initialized */
 	if (conn->xprt_ctx)
 		return 0;
@@ -4080,19 +4065,15 @@ static int ssl_sock_init(struct connection *conn)
 			return -1;
 		}
 
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
 		/* Set capture struct as opaque argument for the msg callback. */
 		if (global_ssl.capture_cipherlist > 0) {
-			capture = pool_alloc_dirty(pool2_ssl_capture);
+			struct ssl_capture *capture = pool_alloc_dirty(pool2_ssl_capture);
 			if (capture) {
 				capture->conn = conn;
 				capture->ciphersuite_len = 0;
-				SSL_set_msg_callback_arg(conn->xprt_ctx, capture);
+				SSL_set_ex_data(conn->xprt_ctx, ssl_capture_ptr_index, capture);
 			}
-		} else {
-			SSL_set_msg_callback_arg(conn->xprt_ctx, NULL);
 		}
-#endif
 
 		SSL_set_accept_state(conn->xprt_ctx);
 
@@ -4541,13 +4522,8 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 }
 
 static void ssl_sock_close(struct connection *conn) {
-	struct ssl_capture *capture;
 
 	if (conn->xprt_ctx) {
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
-		capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
-		pool_free2(pool2_ssl_capture, capture);
-#endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		sslconns--;
@@ -5661,7 +5637,6 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 static int
 smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
 	struct connection *conn;
 	struct ssl_capture *capture;
 
@@ -5669,7 +5644,7 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
+	capture = SSL_get_ex_data(conn->xprt_ctx, ssl_capture_ptr_index);
 	if (!capture)
 		return 0;
 
@@ -5678,10 +5653,6 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 	smp->data.u.str.str = capture->ciphersuite;
 	smp->data.u.str.len = capture->ciphersuite_len;
 	return 1;
-
-#else
-	return 0;
-#endif
 }
 
 static int
@@ -5702,7 +5673,6 @@ smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
 	struct connection *conn;
 	struct ssl_capture *capture;
 
@@ -5710,17 +5680,13 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	capture = SSL_get_msg_callback_arg(conn->xprt_ctx);
+	capture = SSL_get_ex_data(conn->xprt_ctx, ssl_capture_ptr_index);
 	if (!capture)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = capture->xxh64;
 	return 1;
-
-#else
-	return 0;
-#endif
 }
 
 static int
@@ -6910,7 +6876,6 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
                                                struct proxy *defpx, const char *file, int line,
                                                char **err)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
 	int ret;
 
 	ret = ssl_parse_global_int(args, section_type, curpx, defpx, file, line, err);
@@ -6928,10 +6893,6 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 		return -1;
 	}
 	return 0;
-#else
-	memprintf(err, "'%s' requires OpenSSL 0.9.7 or above.", args[0]);
-	return -1;
-#endif
 }
 
 /* parse "ssl.force-private-cache".
@@ -7482,6 +7443,10 @@ static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
 }
 
 #endif
+static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	pool_free2(pool2_ssl_capture, ptr);
+}
 
 __attribute__((constructor))
 static void __ssl_sock_init(void)
@@ -7502,6 +7467,7 @@ static void __ssl_sock_init(void)
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
+	ssl_capture_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
 	sample_register_fetches(&sample_fetch_keywords);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
