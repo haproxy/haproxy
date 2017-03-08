@@ -167,7 +167,6 @@ static struct {
 
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
-	struct connection *conn;
 	unsigned long long int xxh64;
 	unsigned char ciphersuite_len;
 	char ciphersuite[0];
@@ -1148,12 +1147,12 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 static inline
 void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
-                                const void *buf, size_t len,
-                                struct ssl_capture *capture)
+                                const void *buf, size_t len, SSL *ssl)
 {
+	struct ssl_capture *capture;
 	unsigned char *msg;
 	unsigned char *end;
-	unsigned int rec_len;
+	size_t rec_len;
 
 	/* This function is called for "from client" and "to server"
 	 * connections. The combination of write_p == 0 and content_type == 22
@@ -1232,25 +1231,23 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 	if (msg + rec_len > end || msg + rec_len < msg)
 		return;
 
+	capture = pool_alloc_dirty(pool2_ssl_capture);
+	if (!capture)
+		return;
 	/* Compute the xxh64 of the ciphersuite. */
 	capture->xxh64 = XXH64(msg, rec_len, 0);
 
 	/* Capture the ciphersuite. */
-	capture->ciphersuite_len = rec_len;
-	if (capture->ciphersuite_len > global_ssl.capture_cipherlist)
-		capture->ciphersuite_len = global_ssl.capture_cipherlist;
+	capture->ciphersuite_len = (global_ssl.capture_cipherlist < rec_len) ?
+		global_ssl.capture_cipherlist : rec_len;
 	memcpy(capture->ciphersuite, msg, capture->ciphersuite_len);
+
+	SSL_set_ex_data(ssl, ssl_capture_ptr_index, capture);
 }
 
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
-	if (global_ssl.capture_cipherlist) {
-			struct ssl_capture *capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
-			if (capture)
-				ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, capture);
-	}
-
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
@@ -1289,6 +1286,8 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 		return;
 	}
 #endif
+	if (global_ssl.capture_cipherlist > 0)
+		ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, ssl);
 }
 
 #ifdef OPENSSL_NPN_NEGOTIATED
@@ -4063,16 +4062,6 @@ static int ssl_sock_init(struct connection *conn)
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
-		}
-
-		/* Set capture struct as opaque argument for the msg callback. */
-		if (global_ssl.capture_cipherlist > 0) {
-			struct ssl_capture *capture = pool_alloc_dirty(pool2_ssl_capture);
-			if (capture) {
-				capture->conn = conn;
-				capture->ciphersuite_len = 0;
-				SSL_set_ex_data(conn->xprt_ctx, ssl_capture_ptr_index, capture);
-			}
 		}
 
 		SSL_set_accept_state(conn->xprt_ctx);
