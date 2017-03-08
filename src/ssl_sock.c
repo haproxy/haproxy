@@ -478,6 +478,8 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 
 	ret = 0;
 out:
+	ERR_clear_error();
+
 	if (bs)
 		 OCSP_BASICRESP_free(bs);
 
