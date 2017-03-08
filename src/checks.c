@@ -1349,14 +1349,15 @@ static void event_srv_chk_r(struct connection *conn)
 	*check->bi->data = '\0';
 	check->bi->i = 0;
 
-	/* Close the connection... We absolutely want to perform a hard close
-	 * and reset the connection if some data are pending, otherwise we end
-	 * up with many TIME_WAITs and eat all the source port range quickly.
-	 * To avoid sending RSTs all the time, we first try to drain pending
-	 * data.
+	/* Close the connection... We still attempt to nicely close if,
+	 * for instance, SSL needs to send a "close notify." Later, we perform
+	 * a hard close and reset the connection if some data are pending,
+	 * otherwise we end up with many TIME_WAITs and eat all the source port
+	 * range quickly.  To avoid sending RSTs all the time, we first try to
+	 * drain pending data.
 	 */
 	__conn_data_stop_both(conn);
-	conn_data_shutw_hard(conn);
+	conn_data_shutw(conn);
 
 	/* OK, let's not stay here forever */
 	if (check->result == CHK_RES_FAILED)
