@@ -1020,7 +1020,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_ALERT | ERR_FATAL;
 
-		if (!*args[2]) {
+		if (!defsrv && !*args[2]) {
 			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
