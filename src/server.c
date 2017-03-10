@@ -277,12 +277,54 @@ static int srv_parse_no_check_send_proxy(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Disable server PROXY protocol flags. */
+static int inline srv_disable_pp_flags(struct server *srv, unsigned int flags)
+{
+	srv->pp_opts &= ~flags;
+	return 0;
+}
+
+/* Parse the "no-send-proxy" server keyword */
+static int srv_parse_no_send_proxy(char **args, int *cur_arg,
+                                   struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	return srv_disable_pp_flags(newsrv, SRV_PP_V1);
+}
+
+/* Parse the "no-send-proxy-v2" server keyword */
+static int srv_parse_no_send_proxy_v2(char **args, int *cur_arg,
+                                      struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	return srv_disable_pp_flags(newsrv, SRV_PP_V2);
+}
+
 /* Parse the "non-stick" server keyword */
 static int srv_parse_non_stick(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	newsrv->flags |= SRV_F_NON_STICK;
 	return 0;
+}
+
+/* Enable server PROXY protocol flags. */
+static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
+{
+	srv->pp_opts |= flags;
+	return 0;
+}
+
+/* Parse the "send-proxy" server keyword */
+static int srv_parse_send_proxy(char **args, int *cur_arg,
+                                struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	return srv_enable_pp_flags(newsrv, SRV_PP_V1);
+}
+
+/* Parse the "send-proxy-v2" server keyword */
+static int srv_parse_send_proxy_v2(char **args, int *cur_arg,
+                                   struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	return srv_enable_pp_flags(newsrv, SRV_PP_V2);
 }
 
 /* Parse the "stick" server keyword */
@@ -907,7 +949,11 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
+	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
+	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
+	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
+	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
 	{ NULL, NULL, 0 },
 }};
@@ -1196,6 +1242,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
+			newsrv->pp_opts		= curproxy->defsrv.pp_opts;
 			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
@@ -1559,14 +1606,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->check.port = atol(args[cur_arg + 1]);
 				newsrv->flags |= SRV_F_CHECKPORT;
 				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
-				newsrv->pp_opts |= SRV_PP_V1;
-				cur_arg ++;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy-v2")) {
-				newsrv->pp_opts |= SRV_PP_V2;
-				cur_arg ++;
 			}
 			else if (!strcmp(args[cur_arg], "weight")) {
 				int w;
