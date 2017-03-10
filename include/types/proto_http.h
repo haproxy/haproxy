@@ -68,7 +68,12 @@
 #define TX_CACHE_COOK	0x00002000	/* a cookie in the response is cacheable */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
-/* Unused: 0x4000, 0x8000, 0x10000, 0x20000, 0x80000 */
+/* Unused: 0x4000, 0x8000 */
+
+#define TX_WAIT_CLEANUP	0x0010000	/* this transaction is waiting for a clean up */
+
+/* Unused: 0x20000, 0x80000 */
+
 
 /* indicate how we *want* the connection to behave, regardless of what is in
  * the headers. We have 4 possible values right now :

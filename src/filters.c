@@ -693,6 +693,9 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	/* If this function is called, this means there is at least one filter,
 	 * so we do not need to check the filter list's emptiness. */
 
+	/* Set flag on channel to tell that the channel is filtered */
+	chn->flags |= CF_FLT_ANALYZE;
+
 	RESUME_FILTER_LOOP(s, chn) {
 		if (!(chn->flags & CF_ISRESP)) {
 			if (an_bit == AN_REQ_FLT_START_BE &&
@@ -819,6 +822,11 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
+	/* Check if all filters attached on the stream have finished their
+	 * processing on this channel. */
+	if (!(chn->flags & CF_FLT_ANALYZE))
+		goto sync;
+
 	RESUME_FILTER_LOOP(s, chn) {
 		FLT_NXT(filter, chn) = 0;
 		FLT_FWD(filter, chn) = 0;
@@ -831,27 +839,31 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		}
 	} RESUME_FILTER_END;
 
-end:
-	ret = handle_analyzer_result(s, chn, an_bit, ret);
+ end:
+	/* We don't remove yet this analyzer because we need to synchronize the
+	 * both channels. So here, we just remove the flag CF_FLT_ANALYZE. */
+	ret = handle_analyzer_result(s, chn, 0, ret);
+	if (ret)
+		chn->flags &= ~CF_FLT_ANALYZE;
 
-	/* Check if 'channel_end_analyze' callback has been called for the
-	 * request and the response. */
-	if (!(s->req.analysers & AN_REQ_FLT_END) && !(s->res.analysers & AN_RES_FLT_END)) {
-		/* When we are waiting for a new request, so we must reset
-		 * stream analyzers. The input must not be closed the request
-		 * channel, else it is useless to wait. */
-		if (s->txn && (s->txn->flags & TX_WAIT_NEXT_RQ) && !channel_input_closed(&s->req)) {
-			s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
-			s->res.analysers = 0;
+ sync:
+	/* Now we can check if filters have finished their work on the both
+	 * channels */
+	if (!(s->req.flags & CF_FLT_ANALYZE) && !(s->res.flags & CF_FLT_ANALYZE)) {
+		/* Sync channels by removing this analyzer for the both channels */
+		s->req.analysers &= ~AN_REQ_FLT_END;
+		s->res.analysers &= ~AN_RES_FLT_END;
 
-			/* Remove backend filters from the list */
-			flt_stream_release(s, 1);
-		}
+		/* Clean up the HTTP transaction if needed */
+		if (s->txn && (s->txn->flags & TX_WAIT_CLEANUP))
+			http_end_txn_clean_session(s);
 
+		/* Remove backend filters from the list */
+		flt_stream_release(s, 1);
 	}
-	else if (ret) {
-		/* Analyzer ends only for one channel. So wake up the stream to
-		 * be sure to process it for the other side as soon as
+	else {
+		/* This analyzer ends only for one channel. So wake up the
+		 * stream to be sure to process it for the other side as soon as
 		 * possible. */
 		task_wakeup(s->task, TASK_WOKEN_MSG);
 	}

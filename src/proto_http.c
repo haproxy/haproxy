@@ -5339,15 +5339,8 @@ void http_end_txn_clean_session(struct stream *s)
 		else
 			si_idle_conn(&s->si[1], &srv->idle_conns);
 	}
-
-	if (HAS_FILTERS(s)) {
-		s->req.analysers &= AN_REQ_FLT_END;
-		s->res.analysers &= AN_RES_FLT_END;
-	}
-	else {
-		s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
-		s->res.analysers = 0;
-	}
+	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
+	s->res.analysers = 0;
 }
 
 
@@ -5703,8 +5696,12 @@ int http_resync_states(struct stream *s)
 			s->req.flags |= CF_WAKE_WRITE;
 		else if (channel_congested(&s->res))
 			s->res.flags |= CF_WAKE_WRITE;
-		else
-			http_end_txn_clean_session(s);
+		else {
+			s->req.analysers = AN_REQ_FLT_END;
+			s->res.analysers = AN_RES_FLT_END;
+			txn->flags |= TX_WAIT_CLEANUP;
+			return 1;
+		}
 	}
 
 	return txn->req.msg_state != old_req_state ||
