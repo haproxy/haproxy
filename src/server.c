@@ -886,10 +886,10 @@ void srv_compute_all_admin_states(struct proxy *px)
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
-	{ "backup",       srv_parse_backup,       0,  1 }, /* Flag as backup server */
+	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
-	{ "id",           srv_parse_id,           1,  0 }, /* set id# of server */
-	{ "no-backup",    srv_parse_no_backup,    0,  1 }, /* Flag as non-backup server */
+	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
+	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
 	{ NULL, NULL, 0 },
 }};
