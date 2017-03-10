@@ -277,6 +277,22 @@ static int srv_parse_no_check_send_proxy(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "non-stick" server keyword */
+static int srv_parse_non_stick(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->flags |= SRV_F_NON_STICK;
+	return 0;
+}
+
+/* Parse the "stick" server keyword */
+static int srv_parse_stick(char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->flags &= ~SRV_F_NON_STICK;
+	return 0;
+}
+
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
@@ -891,6 +907,8 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
+	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
+	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
 	{ NULL, NULL, 0 },
 }};
 
@@ -1541,10 +1559,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->check.port = atol(args[cur_arg + 1]);
 				newsrv->flags |= SRV_F_CHECKPORT;
 				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "non-stick")) {
-				newsrv->flags |= SRV_F_NON_STICK;
-				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
 				newsrv->pp_opts |= SRV_PP_V1;
