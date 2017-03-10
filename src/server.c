@@ -213,6 +213,14 @@ void srv_dump_kws(char **out)
 	}
 }
 
+/* Parse the "backup" server keyword */
+static int srv_parse_backup(char **args, int *cur_arg,
+                            struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->flags |= SRV_F_BACKUP;
+	return 0;
+}
+
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
@@ -242,6 +250,14 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 
 	eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 	newsrv->flags |= SRV_F_FORCED_ID;
+	return 0;
+}
+
+/* Parse the "no-backup" server keyword */
+static int srv_parse_no_backup(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->flags &= ~SRV_F_BACKUP;
 	return 0;
 }
 
@@ -854,7 +870,9 @@ void srv_compute_all_admin_states(struct proxy *px)
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
+	{ "backup",       srv_parse_backup,       0,  1 }, /* Flag as backup server */
 	{ "id",           srv_parse_id,           1,  0 }, /* set id# of server */
+	{ "no-backup",    srv_parse_no_backup,    0,  1 }, /* Flag as non-backup server */
 	{ NULL, NULL, 0 },
 }};
 
@@ -1145,6 +1163,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
+			/* Note: 'flags' field has potentially been already initialized. */
+			newsrv->flags       |= curproxy->defsrv.flags;
 			if (newsrv->check.port)
 				newsrv->flags |= SRV_F_CHECKPORT;
 			newsrv->check.inter	= curproxy->defsrv.check.inter;
@@ -1502,10 +1522,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->check.port = atol(args[cur_arg + 1]);
 				newsrv->flags |= SRV_F_CHECKPORT;
 				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "backup")) {
-				newsrv->flags |= SRV_F_BACKUP;
-				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "non-stick")) {
 				newsrv->flags |= SRV_F_NON_STICK;
