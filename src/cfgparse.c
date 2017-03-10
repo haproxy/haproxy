@@ -8500,6 +8500,36 @@ out_uri_auth_compat:
 				curproxy->uri_auth = NULL;
 			}
 
+			if (curproxy->capture_name) {
+				Warning("config : 'capture' statement ignored for %s '%s' as it requires HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
+			if (!LIST_ISEMPTY(&curproxy->http_req_rules)) {
+				Warning("config : 'http-request' rules ignored for %s '%s' as they require HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
+			if (!LIST_ISEMPTY(&curproxy->http_res_rules)) {
+				Warning("config : 'http-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
+			if (!LIST_ISEMPTY(&curproxy->block_rules)) {
+				Warning("config : 'block' rules ignored for %s '%s' as they require HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
+			if (!LIST_ISEMPTY(&curproxy->redirect_rules)) {
+				Warning("config : 'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
 			if (curproxy->options & (PR_O_FWDFOR | PR_O_FF_ALWAYS)) {
 				Warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 					"forwardfor", proxy_type_str(curproxy), curproxy->id);
