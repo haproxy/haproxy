@@ -221,6 +221,14 @@ static int srv_parse_backup(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "check-send-proxy" server keyword */
+static int srv_parse_check_send_proxy(char **args, int *cur_arg,
+                                      struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->check.send_proxy = 1;
+	return 0;
+}
+
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
@@ -258,6 +266,14 @@ static int srv_parse_no_backup(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	newsrv->flags &= ~SRV_F_BACKUP;
+	return 0;
+}
+
+/* Parse the "no-check-send-proxy" server keyword */
+static int srv_parse_no_check_send_proxy(char **args, int *cur_arg,
+                                         struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->check.send_proxy = 0;
 	return 0;
 }
 
@@ -871,8 +887,10 @@ void srv_compute_all_admin_states(struct proxy *px)
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "backup",       srv_parse_backup,       0,  1 }, /* Flag as backup server */
+	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
 	{ "id",           srv_parse_id,           1,  0 }, /* set id# of server */
 	{ "no-backup",    srv_parse_no_backup,    0,  1 }, /* Flag as non-backup server */
+	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
 	{ NULL, NULL, 0 },
 }};
 
@@ -1191,6 +1209,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						= curproxy->defsrv.iweight;
 
 			newsrv->check.status	= HCHK_STATUS_INI;
+			newsrv->check.send_proxy = curproxy->defsrv.check.send_proxy;
 			newsrv->check.rise	= curproxy->defsrv.check.rise;
 			newsrv->check.fall	= curproxy->defsrv.check.fall;
 			newsrv->check.health	= newsrv->check.rise;	/* up, but will fall down at first failure */
@@ -1533,10 +1552,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy-v2")) {
 				newsrv->pp_opts |= SRV_PP_V2;
-				cur_arg ++;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "check-send-proxy")) {
-				newsrv->check.send_proxy = 1;
 				cur_arg ++;
 			}
 			else if (!strcmp(args[cur_arg], "weight")) {
