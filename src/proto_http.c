@@ -4279,7 +4279,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		req->next -= req->sov;
 		req->sov = 0;
 		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_REQ_FLT_END);
-		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->req.analysers & AN_RES_FLT_END);
+		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->res.analysers & AN_RES_FLT_END);
 		req->msg_state = HTTP_MSG_CLOSED;
 		res->msg_state = HTTP_MSG_DONE;
 		/* Trim any possible response */
