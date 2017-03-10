@@ -9033,6 +9033,7 @@ void http_reset_txn(struct stream *s)
 	s->res.rex = TICK_ETERNITY;
 	s->res.wex = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
+	s->si[1].hcto = TICK_ETERNITY;
 }
 
 void free_http_res_rules(struct list *r)

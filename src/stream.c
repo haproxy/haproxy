@@ -168,6 +168,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	/* this part should be common with other protocols */
 	si_reset(&s->si[0]);
 	si_set_state(&s->si[0], SI_ST_EST);
+	s->si[0].hcto = sess->fe->timeout.clientfin;
 
 	/* attach the incoming connection to the stream interface now. */
 	if (conn)
@@ -182,6 +183,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	 * callbacks will be initialized before attempting to connect.
 	 */
 	si_reset(&s->si[1]);
+	s->si[1].hcto = TICK_ETERNITY;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
@@ -2056,10 +2058,6 @@ struct task *process_stream(struct task *t)
 		if (req->flags & CF_READ_ERROR)
 			si_b->flags |= SI_FL_NOLINGER;
 		si_shutw(si_b);
-		if (tick_isset(s->be->timeout.serverfin)) {
-			res->rto = s->be->timeout.serverfin;
-			res->rex = tick_add(now_ms, res->rto);
-		}
 	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -2239,10 +2237,6 @@ struct task *process_stream(struct task *t)
 	if (unlikely((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(res))) {
 		si_shutw(si_f);
-		if (tick_isset(sess->fe->timeout.clientfin)) {
-			req->rto = sess->fe->timeout.clientfin;
-			req->rex = tick_add(now_ms, req->rto);
-		}
 	}
 
 	/* shutdown(write) done on the client side, we must stop the server too */
