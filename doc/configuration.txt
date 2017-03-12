@@ -12530,6 +12530,12 @@ mul(<value>)
   This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+nbsrv
+  Takes an input value of type string, interprets it as a backend name and
+  returns the number of usable servers in that backend. Can be used in places
+  where we want to look up a backend from a dynamic name, like a result of a
+  map lookup.
+
 neg
   Takes the input value of type signed integer, computes the opposite value,
   and returns the remainder as an signed integer. 0 is identity. This operator

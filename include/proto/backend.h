@@ -46,6 +46,19 @@ struct server *get_server_sh(struct proxy *px, const char *addr, int len);
 struct server *get_server_uh(struct proxy *px, char *uri, int uri_len);
 int be_lastsession(const struct proxy *be);
 
+/* Returns number of usable servers in backend */
+static inline int be_usable_srv(struct proxy *be)
+{
+        if (be->state == PR_STSTOPPED)
+                return 0;
+        else if (be->srv_act)
+                return be->srv_act;
+        else if (be->lbprm.fbck)
+                return 1;
+        else
+                return be->srv_bck;
+}
+
 /* set the time of last session on the backend */
 static void inline be_set_sess_last(struct proxy *be)
 {

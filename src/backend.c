@@ -1821,6 +1821,24 @@ smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *
 	return 1;
 }
 
+static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *private)
+{
+
+	struct proxy *px;
+
+	if (!smp_make_safe(smp))
+		return 0;
+
+	px = proxy_find_by_name(smp->data.u.str.str, PR_CAP_BE, 0);
+	if (!px)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = be_usable_srv(px);
+
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -1841,6 +1859,12 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */ },
 }};
 
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "nbsrv", sample_conv_nbsrv, 0, NULL, SMP_T_STR, SMP_T_SINT },
+	{ /* END */ },
+}};
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -1854,6 +1878,7 @@ __attribute__((constructor))
 static void __backend_init(void)
 {
 	sample_register_fetches(&smp_kws);
+	sample_register_convs(&sample_conv_kws);
 	acl_register_keywords(&acl_kws);
 }
 
