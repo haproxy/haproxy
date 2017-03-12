@@ -1614,14 +1614,7 @@ smp_fetch_nbsrv(const struct arg *args, struct sample *smp, const char *kw, void
 	smp->data.type = SMP_T_SINT;
 	px = args->data.prx;
 
-	if (px->state == PR_STSTOPPED)
-		smp->data.u.sint = 0;
-	else if (px->srv_act)
-		smp->data.u.sint = px->srv_act;
-	else if (px->lbprm.fbck)
-		smp->data.u.sint = 1;
-	else
-		smp->data.u.sint = px->srv_bck;
+	smp->data.u.sint = be_usable_srv(px);
 
 	return 1;
 }
@@ -1780,12 +1773,7 @@ smp_fetch_avg_queue_size(const struct arg *args, struct sample *smp, const char 
 	smp->data.type = SMP_T_SINT;
 	px = args->data.prx;
 
-	if (px->srv_act)
-		nbsrv = px->srv_act;
-	else if (px->lbprm.fbck)
-		nbsrv = 1;
-	else
-		nbsrv = px->srv_bck;
+	nbsrv = be_usable_srv(px);
 
 	if (nbsrv > 0)
 		smp->data.u.sint = (px->totpend + nbsrv - 1) / nbsrv;
