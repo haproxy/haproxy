@@ -649,10 +649,6 @@ int smp_dup(struct sample *smp)
 {
 	struct chunk *trash;
 
-	/* If the const flag is not set, we don't need to duplicate the
-	 * pattern as it can be modified in place.
-	 */
-
 	switch (smp->data.type) {
 	case SMP_T_BOOL:
 	case SMP_T_SINT:
