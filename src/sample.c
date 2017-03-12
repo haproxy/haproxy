@@ -2511,6 +2511,17 @@ smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void 
 	return 1;
 }
 
+/* returns the hostname */
+static int
+smp_fetch_hostname(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.str = hostname;
+	smp->data.u.str.len = strlen(hostname);
+	return 1;
+}
+
 /* returns the number of processes */
 static int
 smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -2684,6 +2695,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_STR,  SMP_USE_INTRN },
 	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_INTRN },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },

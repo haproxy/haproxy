@@ -13025,6 +13025,9 @@ fe_sess_rate([<frontend>]) : integer
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
 
+hostname : string
+  Returns the system hostname.
+
 int(<integer>) : signed integer
   Returns a signed integer.
 
