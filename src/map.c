@@ -906,7 +906,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
 	{ { "clear", "map", NULL }, "clear map <id> : clear the content of this map", cli_parse_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
-	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, NULL },
+	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "set",   "map", NULL }, "set map        : modify map entry", cli_parse_set_map, NULL },
 	{ { "show",  "map", NULL }, "show map [id]  : report available maps or dump a map's contents", cli_parse_show_map, NULL },
 	{ { NULL }, NULL, NULL, NULL }
