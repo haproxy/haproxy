@@ -524,7 +524,6 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 
 	default:
 		appctx->st2 = STAT_ST_FIN;
-		free(appctx->ctx.map.chunk.str);
 		return 1;
 	}
 }
