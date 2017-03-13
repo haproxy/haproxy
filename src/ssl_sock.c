@@ -6542,6 +6542,52 @@ static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, s
 	return 0;
 }
 
+/* parse the "no-force-sslv3" server keyword */
+static int srv_parse_no_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifndef OPENSSL_NO_SSL3
+	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_SSLV3;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol SSLv3", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "no-force-tlsv10" server keyword */
+static int srv_parse_no_force_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV10;
+	return 0;
+}
+
+/* parse the "no-force-tlsv11" server keyword */
+static int srv_parse_no_force_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#if SSL_OP_NO_TLSv1_1
+	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV11;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "no-force-tlsv12" server keyword */
+static int srv_parse_no_force_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#if SSL_OP_NO_TLSv1_2
+	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV12;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
 /* parse the "no-ssl-reuse" server keyword */
 static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -7375,11 +7421,15 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ciphers",               srv_parse_ciphers,        1, 0 }, /* select the cipher suite */
 	{ "crl-file",              srv_parse_crl_file,       1, 0 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                   srv_parse_crt,            1, 0 }, /* set client certificate */
-	{ "force-sslv3",           srv_parse_force_sslv3,    0, 0 }, /* force SSLv3 */
-	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 0 }, /* force TLSv10 */
-	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 0 }, /* force TLSv11 */
-	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 0 }, /* force TLSv12 */
+	{ "force-sslv3",           srv_parse_force_sslv3,    0, 1 }, /* force SSLv3 */
+	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 1 }, /* force TLSv10 */
+	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 1 }, /* force TLSv11 */
+	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 1 }, /* force TLSv12 */
 	{ "no-check-ssl",          srv_parse_no_check_ssl,   0, 1 }, /* disable SSL for health checks */
+	{ "no-force-sslv3",        srv_parse_no_force_sslv3,  0, 1 }, /* do not force SSLv3 */
+	{ "no-force-tlsv10",       srv_parse_no_force_tlsv10, 0, 1 }, /* do not force TLSv10 */
+	{ "no-force-tlsv11",       srv_parse_no_force_tlsv11, 0, 1 }, /* do not force TLSv11 */
+	{ "no-force-tlsv12",       srv_parse_no_force_tlsv12, 0, 1 }, /* do not force TLSv12 */
 	{ "no-ssl-reuse",          srv_parse_no_ssl_reuse,   0, 0 }, /* disable session reuse */
 	{ "no-sslv3",              srv_parse_no_sslv3,       0, 0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 0 }, /* disable TLSv10 */
