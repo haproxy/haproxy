@@ -6588,6 +6588,15 @@ static int srv_parse_no_force_tlsv12(char **args, int *cur_arg, struct proxy *px
 #endif
 }
 
+/* parse the "no-ssl" server keyword */
+static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->use_ssl = 0;
+	free(newsrv->ssl_ctx.ciphers);
+	newsrv->ssl_ctx.ciphers = NULL;
+	return 0;
+}
+
 /* parse the "no-ssl-reuse" server keyword */
 static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -7472,6 +7481,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-force-tlsv10",       srv_parse_no_force_tlsv10, 0, 1 }, /* do not force TLSv10 */
 	{ "no-force-tlsv11",       srv_parse_no_force_tlsv11, 0, 1 }, /* do not force TLSv11 */
 	{ "no-force-tlsv12",       srv_parse_no_force_tlsv12, 0, 1 }, /* do not force TLSv12 */
+	{ "no-ssl",                srv_parse_no_ssl,          0, 1 }, /* disable SSL processing */
 	{ "no-ssl-reuse",          srv_parse_no_ssl_reuse,    0, 1 }, /* disable session reuse */
 	{ "no-sslv3",              srv_parse_no_sslv3,        0, 1 }, /* disable SSLv3 */
 	{ "no-tlsv10",             srv_parse_no_tlsv10,       0, 1 }, /* disable TLSv10 */
@@ -7481,7 +7491,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "send-proxy-v2-ssl",     srv_parse_send_proxy_ssl,  0, 0 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",  srv_parse_send_proxy_cn,   0, 0 }, /* send PROXY protocol header v2 with CN */
 	{ "sni",                   srv_parse_sni,             1, 0 }, /* send SNI extension */
-	{ "ssl",                   srv_parse_ssl,             0, 0 }, /* enable SSL processing */
+	{ "ssl",                   srv_parse_ssl,             0, 1 }, /* enable SSL processing */
 	{ "ssl-reuse",             srv_parse_ssl_reuse,       0, 1 }, /* enable session reuse */
 	{ "sslv3",                 srv_parse_sslv3,           0, 1 }, /* enable SSLv3 */
 	{ "tlsv10",                srv_parse_tlsv10,          0, 1 }, /* enable TLSv10 */
