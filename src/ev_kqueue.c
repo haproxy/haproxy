@@ -125,7 +125,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fdtab[fd].ev &= FD_POLL_STICKY;
 
 		if (kev[count].filter ==  EVFILT_READ) {
-			fdtab[fd].ev |= FD_POLL_IN;
+			if (kev[count].data)
+				fdtab[fd].ev |= FD_POLL_IN;
 			if (kev[count].flags & EV_EOF)
 				fdtab[fd].ev |= FD_POLL_HUP;
 		}
