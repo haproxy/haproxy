@@ -120,7 +120,11 @@ struct fdinfo {
  *    the term() function.
  *  - clo() should be used to do indicate the poller that fd will be closed.
  *  - poll() calls the poller, expiring at <exp>
+ *  - flags indicate what the poller supports (HAP_POLL_F_*)
  */
+
+#define HAP_POLL_F_RDHUP 0x00000001                          /* the poller notifies of HUP with reads */
+
 struct poller {
 	void   *private;                                     /* any private data for the poller */
 	void REGPRM1   (*clo)(const int fd);                 /* mark <fd> as closed */
@@ -130,6 +134,7 @@ struct poller {
 	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */
 	int  REGPRM1   (*fork)(struct poller *p);            /* post-fork re-opening */
 	const char   *name;                                  /* poller name */
+	unsigned int flags;                                  /* HAP_POLL_F_* */
 	int    pref;                                         /* try pollers with higher preference first */
 };
 

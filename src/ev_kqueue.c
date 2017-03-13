@@ -234,6 +234,7 @@ static void _do_register(void)
 
 	p->name = "kqueue";
 	p->pref = 300;
+	p->flags = 0;
 	p->private = NULL;
 
 	p->clo  = NULL;

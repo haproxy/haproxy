@@ -154,8 +154,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 
 		/* always remap RDHUP to HUP as they're used similarly */
-		if (e & EPOLLRDHUP)
+		if (e & EPOLLRDHUP) {
+			cur_poller.flags |= HAP_POLL_F_RDHUP;
 			n |= FD_POLL_HUP;
+		}
 
 		fdtab[fd].ev |= n;
 		if (n & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
@@ -263,6 +265,7 @@ static void _do_register(void)
 
 	p->name = "epoll";
 	p->pref = 300;
+	p->flags = 0;
 	p->private = NULL;
 
 	p->clo  = __fd_clo;

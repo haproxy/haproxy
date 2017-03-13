@@ -235,6 +235,7 @@ static void _do_register(void)
 
 	p->name = "select";
 	p->pref = 150;
+	p->flags = 0;
 	p->private = NULL;
 
 	p->clo  = __fd_clo;
