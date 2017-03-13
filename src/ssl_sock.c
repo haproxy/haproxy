@@ -6792,6 +6792,7 @@ static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, str
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	free(newsrv->ssl_ctx.verify_host);
 	newsrv->ssl_ctx.verify_host = strdup(args[*cur_arg + 1]);
 
 	return 0;
@@ -7518,7 +7519,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "tlsv12",                  srv_parse_tlsv12,            0, 1 }, /* enable TLSv12 */
 	{ "tls-tickets",             srv_parse_tls_tickets,       0, 1 }, /* enable session resumption tickets */
 	{ "verify",                  srv_parse_verify,            1, 1 }, /* set SSL verify method */
-	{ "verifyhost",              srv_parse_verifyhost,        1, 0 }, /* require that SSL cert verifies for hostname */
+	{ "verifyhost",              srv_parse_verifyhost,        1, 1 }, /* require that SSL cert verifies for hostname */
 	{ NULL, NULL, 0, 0 },
 }};
 

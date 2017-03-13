@@ -1298,6 +1298,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 #if defined(USE_OPENSSL)
 			/* SSL config. */
 			newsrv->ssl_ctx.verify = curproxy->defsrv.ssl_ctx.verify;
+			if (curproxy->defsrv.ssl_ctx.verify_host != NULL)
+				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
 #endif
 
 			cur_arg = 3;
