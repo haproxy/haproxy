@@ -1295,6 +1295,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->dns_opts.pref_net_nb = curproxy->defsrv.dns_opts.pref_net_nb;
 			newsrv->init_addr_methods = curproxy->defsrv.init_addr_methods;
 			newsrv->init_addr         = curproxy->defsrv.init_addr;
+#if defined(USE_OPENSSL)
+			/* SSL config. */
+			newsrv->ssl_ctx.verify = curproxy->defsrv.ssl_ctx.verify;
+#endif
 
 			cur_arg = 3;
 		} else {

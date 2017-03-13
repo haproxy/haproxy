@@ -7517,7 +7517,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "tlsv11",                  srv_parse_tlsv11,            0, 1 }, /* enable TLSv11 */
 	{ "tlsv12",                  srv_parse_tlsv12,            0, 1 }, /* enable TLSv12 */
 	{ "tls-tickets",             srv_parse_tls_tickets,       0, 1 }, /* enable session resumption tickets */
-	{ "verify",                  srv_parse_verify,            1, 0 }, /* set SSL verify method */
+	{ "verify",                  srv_parse_verify,            1, 1 }, /* set SSL verify method */
 	{ "verifyhost",              srv_parse_verifyhost,        1, 0 }, /* require that SSL cert verifies for hostname */
 	{ NULL, NULL, 0, 0 },
 }};
