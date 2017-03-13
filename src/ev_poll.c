@@ -10,8 +10,10 @@
  *
  */
 
+#define _GNU_SOURCE  // for POLLRDHUP on Linux
+
 #include <unistd.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
@@ -24,6 +26,11 @@
 
 #include <proto/fd.h>
 
+
+#ifndef POLLRDHUP
+/* POLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
+#define POLLRDHUP 0
+#endif
 
 static unsigned int *fd_evts[2];
 
@@ -102,7 +109,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			sw = (wn >> count) & 1;
 			if ((sr|sw)) {
 				poll_events[nbfd].fd = fd;
-				poll_events[nbfd].events = (sr ? POLLIN : 0) | (sw ? POLLOUT : 0);
+				poll_events[nbfd].events = (sr ? (POLLIN | POLLRDHUP) : 0) | (sw ? POLLOUT : 0);
 				nbfd++;
 			}
 		}		  
@@ -128,7 +135,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
 	  
-		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP )))
+		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP | POLLRDHUP )))
 			continue;
 
 		/* ok, we found one active fd */
@@ -151,6 +158,12 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				((e & POLLOUT) ? FD_POLL_OUT : 0) |
 				((e & POLLERR) ? FD_POLL_ERR : 0) |
 				((e & POLLHUP) ? FD_POLL_HUP : 0);
+		}
+
+		/* always remap RDHUP to HUP as they're used similarly */
+		if (e & POLLRDHUP) {
+			cur_poller.flags |= HAP_POLL_F_RDHUP;
+			fdtab[fd].ev |= FD_POLL_HUP;
 		}
 
 		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
