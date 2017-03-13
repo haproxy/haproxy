@@ -296,13 +296,21 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			if (ret < try) {
 				/* unfortunately, on level-triggered events, POLL_HUP
 				 * is generally delivered AFTER the system buffer is
-				 * empty, so this one might never match.
+				 * empty, unless the poller supports POLL_RDHUP. If
+				 * we know this is the case, we don't try to read more
+				 * as we know there's no more available. Similarly, if
+				 * there's no problem with lingering we don't even try
+				 * to read an unlikely close from the client since we'll
+				 * close first anyway.
 				 */
 				if (fdtab[conn->t.sock.fd].ev & FD_POLL_HUP)
 					goto read0;
 
-				fd_done_recv(conn->t.sock.fd);
-				break;
+				if ((!fdtab[conn->t.sock.fd].linger_risk) ||
+				    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
+					fd_done_recv(conn->t.sock.fd);
+					break;
+				}
 			}
 			count -= ret;
 		}
