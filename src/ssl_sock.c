@@ -6532,6 +6532,16 @@ static int srv_parse_force_tlsv12(char **args, int *cur_arg, struct proxy *px, s
 #endif
 }
 
+/* parse the "no-check-ssl" server keyword */
+static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->check.use_ssl = 0;
+	free(newsrv->ssl_ctx.ciphers);
+	newsrv->ssl_ctx.ciphers = NULL;
+	newsrv->ssl_ctx.options &= ~global_ssl.connect_default_ssloptions;
+	return 0;
+}
+
 /* parse the "no-ssl-reuse" server keyword */
 static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -7361,7 +7371,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ca-file",               srv_parse_ca_file,        1, 0 }, /* set CAfile to process verify server cert */
-	{ "check-ssl",             srv_parse_check_ssl,      0, 0 }, /* enable SSL for health checks */
+	{ "check-ssl",             srv_parse_check_ssl,      0, 1 }, /* enable SSL for health checks */
 	{ "ciphers",               srv_parse_ciphers,        1, 0 }, /* select the cipher suite */
 	{ "crl-file",              srv_parse_crl_file,       1, 0 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                   srv_parse_crt,            1, 0 }, /* set client certificate */
@@ -7369,6 +7379,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 0 }, /* force TLSv10 */
 	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 0 }, /* force TLSv11 */
 	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 0 }, /* force TLSv12 */
+	{ "no-check-ssl",          srv_parse_no_check_ssl,   0, 1 }, /* disable SSL for health checks */
 	{ "no-ssl-reuse",          srv_parse_no_ssl_reuse,   0, 0 }, /* disable session reuse */
 	{ "no-sslv3",              srv_parse_no_sslv3,       0, 0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 0 }, /* disable TLSv10 */
