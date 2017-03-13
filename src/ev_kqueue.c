@@ -126,9 +126,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		if (kev[count].filter ==  EVFILT_READ) {
 			fdtab[fd].ev |= FD_POLL_IN;
+			if (kev[count].flags & EV_EOF)
+				fdtab[fd].ev |= FD_POLL_HUP;
 		}
 		else if (kev[count].filter ==  EVFILT_WRITE) {
 			fdtab[fd].ev |= FD_POLL_OUT;
+			if (kev[count].flags & EV_EOF)
+				fdtab[fd].ev |= FD_POLL_ERR;
 		}
 
 		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
@@ -232,7 +236,7 @@ static void _do_register(void)
 
 	p->name = "kqueue";
 	p->pref = 300;
-	p->flags = 0;
+	p->flags = HAP_POLL_F_RDHUP;
 	p->private = NULL;
 
 	p->clo  = NULL;
