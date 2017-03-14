@@ -14,6 +14,8 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <import/xxhash.h>
+
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>
@@ -75,6 +77,73 @@ int srv_getinter(const struct check *check)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
+}
+
+void srv_set_dyncookie(struct server *s)
+{
+	struct proxy *p = s->proxy;
+	struct server *tmpserv;
+	char *tmpbuf;
+	unsigned long long hash_value;
+	size_t key_len = strlen(p->dyncookie_key);
+	size_t buffer_len;
+	int addr_len;
+	int port;
+
+	if ((s->flags & SRV_F_COOKIESET) ||
+	    !(s->proxy->ck_opts & PR_CK_DYNAMIC) ||
+	    s->proxy->dyncookie_key == NULL)
+		return;
+
+	if (s->addr.ss_family != AF_INET &&
+	    s->addr.ss_family != AF_INET6)
+		return;
+	/*
+	 * Buffer to calculate the cookie value.
+	 * The buffer contains the secret key + the server IP address
+	 * + the TCP port.
+	 */
+	addr_len = (s->addr.ss_family == AF_INET) ? 4 : 16;
+	/*
+	 * The TCP port should use only 2 bytes, but is stored in
+	 * an unsigned int in struct server, so let's use 4, to be
+	 * on the safe side.
+	 */
+	buffer_len = key_len + addr_len + 4;
+	tmpbuf = trash.str;
+	memcpy(tmpbuf, p->dyncookie_key, key_len);
+	memcpy(&(tmpbuf[key_len]),
+	    s->addr.ss_family == AF_INET ?
+	    (void *)&((struct sockaddr_in *)&s->addr)->sin_addr.s_addr :
+	    (void *)&(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr),
+	    addr_len);
+	/*
+	 * Make sure it's the same across all the load balancers,
+	 * no matter their endianness.
+	 */
+	port = htonl(s->svc_port);
+	memcpy(&tmpbuf[key_len + addr_len], &port, 4);
+	hash_value = XXH64(tmpbuf, buffer_len, 0);
+	memprintf(&s->cookie, "%016llx", hash_value);
+	if (!s->cookie)
+		return;
+	s->cklen = 16;
+	/*
+	 * Check that we did not get a hash collision.
+	 * Unlikely, but it can happen.
+	 */
+	for (p = proxy; p != NULL; p = p->next)
+		for (tmpserv = proxy->srv; tmpserv != NULL;
+		    tmpserv = tmpserv->next) {
+			if (tmpserv == s)
+				continue;
+			if (tmpserv->cookie &&
+			    strcmp(tmpserv->cookie, s->cookie) == 0) {
+				Warning("We generated two equal cookies for two different servers.\n"
+				    "Please change the secret key for '%s'.\n",
+				    s->proxy->id);
+			}
+		}
 }
 
 /*
@@ -1175,6 +1244,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
 				newsrv->cookie = strdup(args[cur_arg + 1]);
 				newsrv->cklen = strlen(args[cur_arg + 1]);
+				newsrv->flags |= SRV_F_COOKIESET;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "init-addr")) {
@@ -2730,6 +2800,7 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 		memcpy(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, ip, 16);
 		break;
 	};
+	srv_set_dyncookie(s);
 
 	return 0;
 }
@@ -2758,6 +2829,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 	char current_addr[INET6_ADDRSTRLEN];
 	uint16_t current_port, new_port;
 	struct chunk *msg;
+	int changed = 0;
 
 	msg = get_trash_chunk();
 	chunk_reset(msg);
@@ -2792,6 +2864,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 			goto port;
 		}
 		ipcpy(&sa, &s->addr);
+		changed = 1;
 
 		/* we also need to update check's ADDR only if it uses the server's one */
 		if ((s->check.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_CHECKADDR)) {
@@ -2859,6 +2932,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 		if (port_change_required) {
 			/* apply new port */
 			s->svc_port = new_port;
+			changed = 1;
 
 			/* prepare message */
 			chunk_appendf(msg, "port changed from '");
@@ -2893,6 +2967,8 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 	}
 
 out:
+	if (changed)
+		srv_set_dyncookie(s);
 	if (updater)
 		chunk_appendf(msg, " by '%s'", updater);
 	chunk_appendf(msg, "\n");
@@ -3279,7 +3355,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			if (!srv->lastaddr)
 				continue;
 			if (srv_apply_lastaddr(srv, &err_code) == 0)
-				return return_code;
+				goto out;
 			return_code |= err_code;
 			break;
 
@@ -3287,7 +3363,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			if (!srv->hostname)
 				continue;
 			if (srv_set_addr_via_libc(srv, &err_code) == 0)
-				return return_code;
+				goto out;
 			return_code |= err_code;
 			break;
 
@@ -3305,7 +3381,7 @@ static int srv_iterate_initaddr(struct server *srv)
 				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
 					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 			}
-			return return_code;
+			goto out;
 
 		default: /* unhandled method */
 			break;
@@ -3322,6 +3398,9 @@ static int srv_iterate_initaddr(struct server *srv)
 	}
 
 	return_code |= ERR_ALERT | ERR_FATAL;
+	return return_code;
+out:
+	srv_set_dyncookie(srv);
 	return return_code;
 }
 

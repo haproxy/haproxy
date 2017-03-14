@@ -204,6 +204,11 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
  */
 void srv_clr_admin_flag(struct server *s, enum srv_admin mode);
 
+/* Calculates the dynamic persitent cookie for a server, if a secret key has
+ * been provided.
+ */
+void srv_set_dyncookie(struct server *s);
+
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers.
  */

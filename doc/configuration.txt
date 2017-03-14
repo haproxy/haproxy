@@ -2771,6 +2771,7 @@ contimeout <timeout> (deprecated)
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ postonly ] [ preserve ] [ httponly ] [ secure ]
               [ domain <domain> ]* [ maxidle <idle> ] [ maxlife <life> ]
+              [ dynamic ]
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -2922,6 +2923,13 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               is stronger than the maxidle method in that it forces a
               redispatch after some absolute delay.
 
+    dynamic   Activate dynamic cookies. When used, a session cookie is
+              dynamically created for each server, based on the IP and port
+              of the server, and a secret key, specified in the
+              "dynamic-cookie-key" backend directive.
+              The cookie will be regenerated each time the IP address change,
+              and is only generated for IPv4/IPv6.
+
   There can be only one persistence cookie per HTTP backend, and it can be
   declared in a defaults section. The value of the cookie will be the value
   indicated after the "cookie" keyword in a "server" statement. If no cookie
@@ -3041,6 +3049,19 @@ dispatch <address>:<port>
 
   See also : "server"
 
+
+dynamic-cookie-key <string>
+  Set the dynamic cookie secret key for a backend.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : The secret key to be used.
+
+  When dynamic cookies are enabled (see the "dynamic" directive for cookie),
+  a dynamic cookie is created for each server (unless one is explicitely
+  specified on the "server" line), using a hash of the IP address of the
+  server, the TCP port, and the secret key.
+  That way, we can ensure session persistence accross multiple load-balancers,
+  even if servers are dynamically added or removed.
 
 enabled
   Enable a proxy, frontend or backend.

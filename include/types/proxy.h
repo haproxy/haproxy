@@ -189,6 +189,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_CK_PSV       0x00000040      /* cookie ... preserve */
 #define PR_CK_HTTPONLY  0x00000080      /* emit the "HttpOnly" attribute */
 #define PR_CK_SECURE    0x00000100      /* emit the "Secure" attribute */
+#define PR_CK_DYNAMIC   0x00000200	/* create dynamic cookies for each server */
 
 /* bits for sticking rules */
 #define STK_IS_MATCH	0x00000001	/* match on request fetch */
@@ -282,6 +283,7 @@ struct proxy {
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
+	char *dyncookie_key;			/* Secret key used to generate dynamic persistent cookies */
 	unsigned int cookie_maxidle;		/* max idle time for this cookie */
 	unsigned int cookie_maxlife;		/* max life time for this cookie */
 	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */

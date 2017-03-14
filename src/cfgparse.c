@@ -2632,6 +2632,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (defproxy.cookie_name)
 				curproxy->cookie_name = strdup(defproxy.cookie_name);
 			curproxy->cookie_len = defproxy.cookie_len;
+
+			if (defproxy.dyncookie_key)
+				curproxy->dyncookie_key = strdup(defproxy.dyncookie_key);
 			if (defproxy.cookie_domain)
 				curproxy->cookie_domain = strdup(defproxy.cookie_domain);
 
@@ -2793,6 +2796,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.check_path);
 		free(defproxy.cookie_name);
 		free(defproxy.rdp_cookie_name);
+		free(defproxy.dyncookie_key);
 		free(defproxy.cookie_domain);
 		free(defproxy.url_param_name);
 		free(defproxy.hh_name);
@@ -3159,6 +3163,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "dynamic-cookie-key")) { /* Dynamic cookies secret key */
+
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects <secret_key> as argument.\n",
+					file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		free(curproxy->dyncookie_key);
+		curproxy->dyncookie_key = strdup(args[1]);
+	}
 	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
 		int cur_arg;
 
@@ -3292,8 +3310,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->cookie_maxlife = maxlife;
 				cur_arg++;
 			}
+			else if (!strcmp(args[cur_arg], "dynamic")) { /* Dynamic persitent cookies secret key */
+
+				if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[cur_arg], NULL))
+					err_code |= ERR_WARN;
+				curproxy->ck_opts |= PR_CK_DYNAMIC;
+			}
+
 			else {
-				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache', 'postonly', 'domain', 'maxidle, and 'maxlife' options.\n",
+				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache', 'postonly', 'domain', 'maxidle', 'dynamic' and 'maxlife' options.\n",
 				      file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -8442,6 +8467,21 @@ out_uri_auth_compat:
 			newsrv = newsrv->next;
 		}
 
+		/*
+		 * Try to generate dynamic cookies for servers now.
+		 * It couldn't be done earlier, since at the time we parsed
+		 * the server line, we may not have known yet that we
+		 * should use dynamic cookies, or the secret key may not
+		 * have been provided yet.
+		 */
+		if (curproxy->ck_opts & PR_CK_DYNAMIC) {
+			newsrv = curproxy->srv;
+			while (newsrv != NULL) {
+				srv_set_dyncookie(newsrv);
+				newsrv = newsrv->next;
+			}
+
+		}
 		/* We have to initialize the server lookup mechanism depending
 		 * on what LB algorithm was choosen.
 		 */
