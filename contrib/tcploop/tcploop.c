@@ -108,6 +108,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
 	    "  J            : Jump back to oldest post-fork/post-accept action\n"
+	    "  K            : kill the connection and go on with next operation\n"
 	    "  G            : disable lingering\n"
 	    "  T            : set TCP_NODELAY\n"
 	    "  Q            : disable TCP Quick-ack\n"
