@@ -132,6 +132,13 @@ void conn_fd_handler(int fd)
 	}
 
  leave:
+	/* Verify if the connection just established. The CO_FL_CONNECTED flag
+	 * being included in CO_FL_CONN_STATE, its change will be noticed by
+	 * the next block and be used to wake up the data layer.
+	 */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
+
 	/* The wake callback may be used to process a critical error and abort the
 	 * connection. If so, we don't want to go further as the connection will
 	 * have been released and the FD destroyed.
@@ -140,10 +147,6 @@ void conn_fd_handler(int fd)
 	    ((conn->flags ^ flags) & CO_FL_CONN_STATE) &&
 	    conn->data->wake(conn) < 0)
 		return;
-
-	/* Last check, verify if the connection just established */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
 
 	/* remove the events before leaving */
 	fdtab[fd].ev &= FD_POLL_STICKY;
