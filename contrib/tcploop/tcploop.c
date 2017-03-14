@@ -444,6 +444,7 @@ int tcp_recv(int sock, const char *arg)
 {
 	int count = -1; // stop at first read
 	int ret;
+	int max;
 
 	if (arg[1]) {
 		count = atoi(arg + 1);
@@ -454,7 +455,10 @@ int tcp_recv(int sock, const char *arg)
 	}
 
 	while (1) {
-		ret = recv(sock, NULL, (count > 0) ? count : INT_MAX, MSG_NOSIGNAL | MSG_TRUNC);
+		max = (count > 0) ? count : INT_MAX;
+		if (max > sizeof(trash))
+			max = sizeof(trash);
+		ret = recv(sock, trash, max, MSG_NOSIGNAL | MSG_TRUNC);
 		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
