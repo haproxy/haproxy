@@ -8396,11 +8396,12 @@ out_uri_auth_compat:
 
 				for (loop = srv->track; loop && loop != newsrv; loop = loop->track);
 
-				if (loop) {
+				if (newsrv == srv || loop) {
 					Alert("config : %s '%s', server '%s': unable to track %s/%s as it "
 					      "belongs to a tracking chain looping back to %s/%s.\n",
 					      proxy_type_str(curproxy), curproxy->id,
-					      newsrv->id, px->id, srv->id, px->id, loop->id);
+					      newsrv->id, px->id, srv->id, px->id,
+					      newsrv == srv ? srv->id : loop->id);
 					cfgerr++;
 					goto next_srv;
 				}
