@@ -171,10 +171,10 @@ void dolog(const char *format, ...)
 				tv.tv_sec = 0;
 				tv.tv_usec = 0;
 			}
-			fprintf(stderr, "[%d.%06d] ", tv.tv_sec, tv.tv_usec);
+			fprintf(stderr, "[%d.%06d] ", (int)tv.tv_sec, (int)tv.tv_usec);
 			break;
 		default: // [sec.usec] absolute
-			fprintf(stderr, "[%d.%06d] ", date.tv_sec, date.tv_usec);
+			fprintf(stderr, "[%d.%06d] ", (int)date.tv_sec, (int)date.tv_usec);
 			break;
 		}
 	}
