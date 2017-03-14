@@ -46,6 +46,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
+#include <proto/server.h>
 #include <proto/signal.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -1244,6 +1245,30 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
 	return px;
 }
 
+/* Expects to find a backend named <arg> and returns it, otherwise displays various
+ * adequate error messages and returns NULL. This function is designed to be used by
+ * functions requiring a frontend on the CLI.
+ */
+struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
+{
+	struct proxy *px;
+
+	if (!*arg) {
+		appctx->ctx.cli.msg = "A backend name is expected.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return NULL;
+	}
+
+	px = proxy_be_by_name(arg);
+	if (!px) {
+		appctx->ctx.cli.msg = "No such backend.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return NULL;
+	}
+	return px;
+}
+
+
 /* parse a "show servers" CLI line, returns 0 if it wants to start the dump or
  * 1 if it stops immediately. If an argument is specified, it will set the proxy
  * pointer into cli.p0 and its ID into cli.i0.
@@ -1413,6 +1438,87 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	return 1;
 }
 
+/* Parses the "enable dynamic-cookies backend" directive, it always returns 1 */
+static int cli_parse_enable_dyncookie_backend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct server *s;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_backend(appctx, args[3]);
+	if (!px)
+		return 1;
+
+	px->ck_opts |= PR_CK_DYNAMIC;
+
+	for (s = px->srv; s != NULL; s = s->next)
+		srv_set_dyncookie(s);
+
+	return 1;
+}
+
+/* Parses the "disable dynamic-cookies backend" directive, it always returns 1 */
+static int cli_parse_disable_dyncookie_backend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct server *s;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_backend(appctx, args[3]);
+	if (!px)
+		return 1;
+
+	px->ck_opts &= ~PR_CK_DYNAMIC;
+
+	for (s = px->srv; s != NULL; s = s->next) {
+		if (!(s->flags & SRV_F_COOKIESET)) {
+			free(s->cookie);
+			s->cookie = NULL;
+		}
+	}
+
+	return 1;
+}
+
+/* Parses the "set dynamic-cookie-key backend" directive, it always returns 1 */
+static int cli_parse_set_dyncookie_key_backend(char **args, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct server *s;
+	char *newkey;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_backend(appctx, args[3]);
+	if (!px)
+		return 1;
+
+	if (!*args[4]) {
+		appctx->ctx.cli.msg = "String value expected.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return 1;
+	}
+
+	newkey = strdup(args[4]);
+	if (!newkey) {
+		appctx->ctx.cli.msg = "Failed to allocate memory.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return 1;
+	}
+	free(px->dyncookie_key);
+	px->dyncookie_key = newkey;
+
+	for (s = px->srv; s != NULL; s = s->next)
+		srv_set_dyncookie(s);
+
+	return 1;
+}
+
 /* Parses the "set maxconn frontend" directive, it always returns 1 */
 static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, void *private)
 {
@@ -1554,6 +1660,9 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", NULL, cli_io_handler_show_backend },
 	{ { "shutdown", "frontend",  NULL }, "shutdown frontend : stop a specific frontend", cli_parse_shutdown_frontend, NULL, NULL },
+	{ { "set", "dynamic-cookie-key", "backend", NULL }, "set dynamic-cookie-key backend : change a backend secret key for dynamic cookies", cli_parse_set_dyncookie_key_backend, NULL },
+	{ { "enable", "dynamic-cookie", "backend", NULL }, "enable dynamic-cookie backend : enable dynamic cookies on a specific backend", cli_parse_enable_dyncookie_backend, NULL },
+	{ { "disable", "dynamic-cookie", "backend", NULL }, "disable dynamic-cookie backend : disable dynamic cookies on a specific backend", cli_parse_disable_dyncookie_backend, NULL },
 	{{},}
 }};
 
