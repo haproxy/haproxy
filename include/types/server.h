@@ -240,6 +240,7 @@ struct server {
 	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
 	int tcp_ut;                             /* for TCP, user timeout */
 
+	int do_check;                           /* temporary variable used during parsing to denote if health checks must be enabled */
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
 

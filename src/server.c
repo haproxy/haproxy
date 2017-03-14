@@ -221,6 +221,14 @@ static int srv_parse_backup(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "check" server keyword */
+static int srv_parse_check(char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->do_check = 1;
+	return 0;
+}
+
 /* Parse the "check-send-proxy" server keyword */
 static int srv_parse_check_send_proxy(char **args, int *cur_arg,
                                       struct proxy *curproxy, struct server *newsrv, char **err)
@@ -266,6 +274,16 @@ static int srv_parse_no_backup(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	newsrv->flags &= ~SRV_F_BACKUP;
+	return 0;
+}
+
+/* Parse the "no-check" server keyword */
+static int srv_parse_no_check(char **args, int *cur_arg,
+                              struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	free_check(&newsrv->check);
+	newsrv->check.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED;
+	newsrv->do_check = 0;
 	return 0;
 }
 
@@ -945,9 +963,11 @@ void srv_compute_all_admin_states(struct proxy *px)
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
+	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
+	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
@@ -1110,7 +1130,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 	if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
-		int do_agent = 0, do_check = 0, defsrv = (*args[0] == 'd');
+		int do_agent = 0, defsrv = (*args[0] == 'd');
 
 		if (!defsrv && curproxy == defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -1160,7 +1180,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			LIST_INIT(&newsrv->priv_conns);
 			LIST_INIT(&newsrv->idle_conns);
 			LIST_INIT(&newsrv->safe_conns);
-			do_check = 0;
 			do_agent = 0;
 			newsrv->flags = 0;
 			newsrv->admin = 0;
@@ -1248,6 +1267,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->check.port	= curproxy->defsrv.check.port;
 			/* Note: 'flags' field has potentially been already initialized. */
 			newsrv->flags       |= curproxy->defsrv.flags;
+			newsrv->do_check    = curproxy->defsrv.do_check;
 			if (newsrv->check.port)
 				newsrv->flags |= SRV_F_CHECKPORT;
 			newsrv->check.inter	= curproxy->defsrv.check.inter;
@@ -1662,11 +1682,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!defsrv && !strcmp(args[cur_arg], "check")) {
-				global.maxsock++;
-				do_check = 1;
-				cur_arg += 1;
-			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
 				newsrv->admin |= SRV_ADMF_CMAINT;
 				newsrv->admin |= SRV_ADMF_FMAINT;
@@ -2029,7 +2044,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 		}
 
-		if (do_check) {
+		/* This check is done only for 'server' instances. */
+		if (!defsrv && newsrv->do_check) {
 			const char *ret;
 
 			if (newsrv->trackit) {
@@ -2094,6 +2110,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->resolution->opts = &newsrv->dns_opts;
 
 			newsrv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+			global.maxsock++;
 		}
 
 		if (do_agent) {
