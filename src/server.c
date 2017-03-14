@@ -353,6 +353,24 @@ static int srv_parse_stick(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "track" server keyword */
+static int srv_parse_track(char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'track' expects [<proxy>/]<server> as argument.\n");
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->trackit);
+	newsrv->trackit = strdup(arg);
+
+	return 0;
+}
+
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
@@ -975,6 +993,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
+	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ NULL, NULL, 0 },
 }};
 
@@ -1288,6 +1307,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->onerror		= curproxy->defsrv.onerror;
 			newsrv->onmarkeddown    = curproxy->defsrv.onmarkeddown;
 			newsrv->onmarkedup      = curproxy->defsrv.onmarkedup;
+			if (curproxy->defsrv.trackit != NULL)
+				newsrv->trackit = strdup(curproxy->defsrv.trackit);
 			newsrv->consecutive_errors_limit
 						= curproxy->defsrv.consecutive_errors_limit;
 			newsrv->uweight = newsrv->iweight
@@ -1667,19 +1688,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 				newsrv->slowstart = (val + 999) / 1000;
-				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "track")) {
-
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: 'track' expects [<proxy>/]<server> as argument.\n",
-						file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->trackit = strdup(args[cur_arg + 1]);
-
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
