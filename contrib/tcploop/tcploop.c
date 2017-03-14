@@ -424,7 +424,7 @@ int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
 		goto fail;
 
-	if (connect(sock, (const struct sockaddr *)sa, sizeof(*sa)) < 0) {
+	if (connect(sock, (const struct sockaddr *)sa, sizeof(struct sockaddr_in)) < 0) {
 		if (errno != EINPROGRESS)
 			goto fail;
 	}
