@@ -331,6 +331,25 @@ static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
 	return 0;
 }
 
+/* Parse the "redir" server keyword */
+static int srv_parse_redir(char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <prefix> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->rdr_pfx);
+	newsrv->rdr_pfx = strdup(arg);
+	newsrv->rdr_len = strlen(arg);
+
+	return 0;
+}
+
 /* Parse the "send-proxy" server keyword */
 static int srv_parse_send_proxy(char **args, int *cur_arg,
                                 struct proxy *curproxy, struct server *newsrv, char **err)
@@ -990,6 +1009,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
+	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
@@ -1281,6 +1301,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			newsrv->pp_opts		= curproxy->defsrv.pp_opts;
+			if (curproxy->defsrv.rdr_pfx != NULL) {
+				newsrv->rdr_pfx = strdup(curproxy->defsrv.rdr_pfx);
+				newsrv->rdr_len = curproxy->defsrv.rdr_len;
+			}
 			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
@@ -1452,11 +1476,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						goto out;
 					}
 				}
-				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "redir")) {
-				newsrv->rdr_pfx = strdup(args[cur_arg + 1]);
-				newsrv->rdr_len = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "resolvers")) {
