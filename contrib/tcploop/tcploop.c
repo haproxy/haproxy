@@ -50,6 +50,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef SOL_TCP
+#define SOL_TCP IPPROTO_TCP
+#endif
+
+#ifndef MSG_MORE
+#define MSG_MORE 0
+#endif
 
 struct err_msg {
 	int size;
@@ -309,8 +316,12 @@ int tcp_set_nolinger(int sock, const char *arg)
 
 int tcp_set_noquickack(int sock, const char *arg)
 {
+#ifdef TCP_QUICKACK
 	/* warning: do not use during connect if nothing is to be sent! */
 	return setsockopt(sock, SOL_TCP, TCP_QUICKACK, &zero, sizeof(zero));
+#else
+	return 0;
+#endif
 }
 
 /* Try to listen to address <sa>. Return the fd or -1 in case of error */
