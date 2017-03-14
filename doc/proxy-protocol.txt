@@ -1,4 +1,4 @@
-2017/01/30                                                        Willy Tarreau
+2017/03/10                                                        Willy Tarreau
                                                            HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
@@ -23,8 +23,10 @@ Revision history
    2014/06/14 - fix v2 header check in example code, and update Forwarded spec
    2014/07/12 - update list of implementations (add Squid)
    2015/05/02 - update list of implementations and format of the TLV add-ons
-   2017/01/30 - added the checksum TLV and reserved TLV type ranges, clarified
-                wording
+   2017/03/10 - added the checksum and more SSL-related TLV types, reserved TLV
+                type ranges, added TLV documentation, clarified string
+                encoding. With contributions from Andriy Palamarchuk
+                (Amazon.com).
 
 
 1. Background
@@ -192,9 +194,9 @@ address.
 2.1. Human-readable header format (Version 1)
 
 This is the format specified in version 1 of the protocol. It consists in one
-line of ASCII text matching exactly the following block, sent immediately and
-at once upon the connection establishment and prepended before any data flowing
-from the sender to the receiver :
+line of US-ASCII text matching exactly the following block, sent immediately
+and at once upon the connection establishment and prepended before any data
+flowing from the sender to the receiver :
 
   - a string identifying the protocol : "PROXY" ( \x50 \x52 \x4F \x58 \x59 )
     Seeing this string indicates that this is version 1 of the protocol.
@@ -500,7 +502,7 @@ protocol. Identifying the protocol version is easy :
            \x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x02
 
     - otherwise, if the incoming byte count is 8 or above, and the 5 first
-      characters match the ASCII representation of "PROXY" then the protocol
+      characters match the US-ASCII representation of "PROXY" then the protocol
       must be parsed as version 1 :
 
            \x50\x52\x4F\x58\x59
@@ -534,16 +536,36 @@ The following types have already been registered for the <type> field :
 
         #define PP2_TYPE_ALPN           0x01
         #define PP2_TYPE_AUTHORITY      0x02
-        #define PP2_TYPE_CHECKSUM       0x03
+        #define PP2_TYPE_CRC32C         0x03
         #define PP2_TYPE_SSL            0x20
         #define PP2_SUBTYPE_SSL_VERSION 0x21
         #define PP2_SUBTYPE_SSL_CN      0x22
+        #define PP2_SUBTYPE_SSL_CIPHER  0x23
+        #define PP2_SUBTYPE_SSL_SIG_ALG 0x24
+        #define PP2_SUBTYPE_SSL_KEY_ALG 0x25
         #define PP2_TYPE_NETNS          0x30
 
 
-2.2.1. The PP2_TYPE_CHECKSUM type
+2.2.1 PP2_TYPE_ALPN
 
-The value of the type PP2_TYPE_CHECKSUM is a 32-bit number storing the CRC32c
+Application-Layer Protocol Negotiation (ALPN). It is a byte sequence defining
+the upper layer protocol in use over the connection. The most common use case
+will be to pass the exact copy of the ALPN extension of the Transport Layer
+Security (TLS) protocol as defined by RFC7301 [9].
+
+
+2.2.2 PP2_TYPE_AUTHORITY
+
+Contains the host name value passed by the client, as an UTF8-encoded string.
+In case of TLS being used on the client connection, this is the exact copy of
+the "server_name" extension as defined by RFC3546 [10], section 3.1, often
+referred to as "SNI". There are probably other situations where an authority
+can be mentionned on a connection without TLS being involved at all.
+
+
+2.2.3. PP2_TYPE_CRC32C
+
+The value of the type PP2_TYPE_CRC32C is a 32-bit number storing the CRC32c
 checksum of the PROXY protocol header.
 
 When the checksum is supported by the sender after constructing the header
@@ -572,9 +594,9 @@ functionality is supported by the receiver, the receiver MUST:
 The default procedure for handling an invalid TCP connection is to abort it.
 
 
-2.2.2. The PP2_TYPE_SSL type and subtypes
+2.2.4. The PP2_TYPE_SSL type and subtypes
 
-For the type PP2_TYPE_SSL, the value is itselv a defined like this :
+For the type PP2_TYPE_SSL, the value is itself a defined like this :
 
         struct pp2_tlv_ssl {
                 uint8_t  client;
@@ -598,25 +620,39 @@ find multiple TLV values after this field. The total length of the pp2_tlv_ssl
 TLV will reflect this.
 
 The PP2_CLIENT_SSL flag indicates that the client connected over SSL/TLS. When
-this field is present, the string representation of the TLS version is appended
-at the end of the field in the TLV format using the type PP2_SUBTYPE_SSL_VERSION.
+this field is present, the US-ASCII string representation of the TLS version is
+appended at the end of the field in the TLV format using the type
+PP2_SUBTYPE_SSL_VERSION.
 
 PP2_CLIENT_CERT_CONN indicates that the client provided a certificate over the
 current connection. PP2_CLIENT_CERT_SESS indicates that the client provided a
 certificate at least once over the TLS session this connection belongs to.
 
+The second level TLV PP2_SUBTYPE_SSL_CIPHER provides the US-ASCII string name
+of the used cipher, for example "ECDHE-RSA-AES128-GCM-SHA256".
+
+The second level TLV PP2_SUBTYPE_SSL_SIG_ALG provides the US-ASCII string name
+of the algorithm used to sign the certificate presented by the frontend when
+the incoming connection was made over an SSL/TLS transport layer, for example
+"SHA256".
+
+The second level TLV PP2_SUBTYPE_SSL_KEY_ALG provides the US-ASCII string name
+of the algorithm used to generate the key of the certificate presented by the
+frontend when the incoming connection was made over an SSL/TLS transport layer,
+for example "RSA2048".
+
 In all cases, the string representation (in UTF8) of the Common Name field
-(OID: 2.5.4.3) of the client certificate's DistinguishedName, is appended
-using the TLV format and the type PP2_SUBTYPE_SSL_CN.
+(OID: 2.5.4.3) of the client certificate's Distinguished Name, is appended
+using the TLV format and the type PP2_SUBTYPE_SSL_CN. E.g. "example.com".
 
 
-2.2.3. The PP2_TYPE_NETNS type
+2.2.5. The PP2_TYPE_NETNS type
 
-The type PP2_TYPE_NETNS defines the value as the string representation of the
-namespace's name.
+The type PP2_TYPE_NETNS defines the value as the US-ASCII string representation
+of the namespace's name.
 
 
-2.2.4. Reserved type ranges
+2.2.6. Reserved type ranges
 
 The following range of 16 type values is reserved for application-specific
 data and will be never used by the PROXY Protocol. If you need more values
@@ -867,7 +903,8 @@ The following links were referenced in the document.
 [6] https://www.varnish-cache.org/docs/trunk/phk/ssl_again.html
 [7] http://wiki.squid-cache.org/Squid-3.5
 [8] https://tools.ietf.org/html/rfc4960#appendix-B
-
+[9] https://tools.ietf.org/rfc/rfc7301.txt
+[10] https://www.ietf.org/rfc/rfc3546.txt
 
 9. Sample code
 
