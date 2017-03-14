@@ -1037,22 +1037,20 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 
 /* This function handles a server error at the stream interface level. The
  * stream interface is assumed to be already in a closed state. An optional
- * message is copied into the input buffer, and an HTTP status code stored.
+ * message is copied into the input buffer.
  * The error flags are set to the values in arguments. Any pending request
  * in this buffer will be lost.
  */
 static void http_server_error(struct stream *s, struct stream_interface *si,
-			      int err, int finst, int status, const struct chunk *msg)
+			      int err, int finst, const struct chunk *msg)
 {
-	FLT_STRM_CB(s, flt_http_reply(s, status, msg));
+	FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
 	channel_auto_read(si_oc(si));
 	channel_abort(si_oc(si));
 	channel_auto_close(si_oc(si));
 	channel_erase(si_oc(si));
 	channel_auto_close(si_ic(si));
 	channel_auto_read(si_ic(si));
-	if (status > 0)
-		s->txn->status = status;
 	if (msg)
 		bo_inject(si_ic(si), msg->str, msg->len);
 	if (!(s->flags & SF_ERR_MASK))
@@ -1258,7 +1256,8 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	si->state    = SI_ST_CLO;
 
 	/* send the message */
-	http_server_error(s, si, SF_ERR_LOCAL, SF_FINST_C, 302, &trash);
+	txn->status = 302;
+	http_server_error(s, si, SF_ERR_LOCAL, SF_FINST_C, &trash);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	srv_inc_sess_ctr(srv);
@@ -1285,33 +1284,33 @@ void http_return_srv_error(struct stream *s, struct stream_interface *si)
 
 	if (err_type & SI_ET_QUEUE_ABRT)
 		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_Q,
-				  503, http_error_message(s));
+				  http_error_message(s));
 	else if (err_type & SI_ET_CONN_ABRT)
 		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_C,
-				  503, (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	else if (err_type & SI_ET_QUEUE_TO)
 		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_Q,
-				  503, http_error_message(s));
+				  http_error_message(s));
 	else if (err_type & SI_ET_QUEUE_ERR)
 		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_Q,
-				  503, http_error_message(s));
+				  http_error_message(s));
 	else if (err_type & SI_ET_CONN_TO)
 		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_C,
-				  503, (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	else if (err_type & SI_ET_CONN_ERR)
 		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_C,
-				  503, (s->flags & SF_SRV_REUSED) ? NULL :
+				  (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s));
 	else if (err_type & SI_ET_CONN_RES)
 		http_server_error(s, si, SF_ERR_RESOURCE, SF_FINST_C,
-				  503, (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	else { /* SI_ET_CONN_OTHER and others */
 		s->txn->status = 500;
 		http_server_error(s, si, SF_ERR_INTERNAL, SF_FINST_C,
-				  500, http_error_message(s));
+				  http_error_message(s));
 	}
 }
 
