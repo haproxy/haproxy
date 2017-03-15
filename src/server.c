@@ -13,6 +13,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <netinet/tcp.h>
 
 #include <import/xxhash.h>
 
@@ -1433,6 +1434,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
 			if (curproxy->defsrv.ssl_ctx.ciphers != NULL)
 				newsrv->ssl_ctx.ciphers = strdup(curproxy->defsrv.ssl_ctx.ciphers);
+#endif
+
+#ifdef TCP_USER_TIMEOUT
+			newsrv->tcp_ut = curproxy->defsrv.tcp_ut;
 #endif
 
 			cur_arg = 3;

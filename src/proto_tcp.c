@@ -1833,7 +1833,7 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 
 static struct srv_kw_list srv_kws = { "TCP", { }, {
 #ifdef TCP_USER_TIMEOUT
-	{ "tcp-ut",        srv_parse_tcp_ut,        1,  0 }, /* set TCP user timeout on server */
+	{ "tcp-ut",        srv_parse_tcp_ut,        1,  1 }, /* set TCP user timeout on server */
 #endif
 	{ NULL, NULL, 0 },
 }};
