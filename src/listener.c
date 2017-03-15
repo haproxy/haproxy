@@ -128,6 +128,11 @@ int pause_listener(struct listener *l)
  */
 int resume_listener(struct listener *l)
 {
+	if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
+	    l->bind_conf->bind_proc &&
+	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
+		return 1;
+
 	if (l->state == LI_ASSIGNED) {
 		char msg[100];
 		int err;
@@ -144,11 +149,6 @@ int resume_listener(struct listener *l)
 
 	if (l->state < LI_PAUSED)
 		return 0;
-
-	if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
-	    l->bind_conf->bind_proc &&
-	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
-		return 1;
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
 	    l->state == LI_PAUSED &&
