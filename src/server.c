@@ -237,6 +237,25 @@ static int srv_parse_check_send_proxy(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "cookie" server keyword */
+static int srv_parse_cookie(char **args, int *cur_arg,
+                            struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->cookie);
+	newsrv->cookie = strdup(arg);
+	newsrv->cklen = strlen(arg);
+	newsrv->flags |= SRV_F_COOKIESET;
+	return 0;
+}
+
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
@@ -1036,6 +1055,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
 	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
+	{ "cookie",              srv_parse_cookie,              1,  1 }, /* Assign a cookie to the server */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
@@ -1340,6 +1360,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->rdr_pfx = strdup(curproxy->defsrv.rdr_pfx);
 				newsrv->rdr_len = curproxy->defsrv.rdr_len;
 			}
+			if (curproxy->defsrv.cookie != NULL) {
+				newsrv->cookie = strdup(curproxy->defsrv.cookie);
+				newsrv->cklen = curproxy->defsrv.cklen;
+			}
 			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
@@ -1457,12 +1481,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->agent.send_string_len = strlen(args[cur_arg + 1]);
 				newsrv->agent.send_string = calloc(1, newsrv->agent.send_string_len + 1);
 				memcpy(newsrv->agent.send_string, args[cur_arg + 1], newsrv->agent.send_string_len);
-				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
-				newsrv->cookie = strdup(args[cur_arg + 1]);
-				newsrv->cklen = strlen(args[cur_arg + 1]);
-				newsrv->flags |= SRV_F_COOKIESET;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "init-addr")) {
