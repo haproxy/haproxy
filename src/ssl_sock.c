@@ -7487,7 +7487,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ca-file",                 srv_parse_ca_file,           1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-ssl",               srv_parse_check_ssl,         0, 1 }, /* enable SSL for health checks */
-	{ "ciphers",                 srv_parse_ciphers,           1, 0 }, /* select the cipher suite */
+	{ "ciphers",                 srv_parse_ciphers,           1, 1 }, /* select the cipher suite */
 	{ "crl-file",                srv_parse_crl_file,          1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,               1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_force_sslv3,       0, 1 }, /* force SSLv3 */

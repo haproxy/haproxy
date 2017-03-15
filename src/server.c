@@ -1431,6 +1431,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->ssl_ctx.verify = curproxy->defsrv.ssl_ctx.verify;
 			if (curproxy->defsrv.ssl_ctx.verify_host != NULL)
 				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
+			if (curproxy->defsrv.ssl_ctx.ciphers != NULL)
+				newsrv->ssl_ctx.ciphers = strdup(curproxy->defsrv.ssl_ctx.ciphers);
 #endif
 
 			cur_arg = 3;
