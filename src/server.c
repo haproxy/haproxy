@@ -331,6 +331,40 @@ static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
 	return 0;
 }
 
+/* Parse the "observe" server keyword */
+static int srv_parse_observe(char **args, int *cur_arg,
+                             struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <mode> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!strcmp(arg, "none")) {
+		newsrv->observe = HANA_OBS_NONE;
+	}
+	else if (!strcmp(arg, "layer4")) {
+		newsrv->observe = HANA_OBS_LAYER4;
+	}
+	else if (!strcmp(arg, "layer7")) {
+		if (curproxy->mode != PR_MODE_HTTP) {
+			memprintf(err, "'%s' can only be used in http proxies.\n", arg);
+			return ERR_ALERT;
+		}
+		newsrv->observe = HANA_OBS_LAYER7;
+	}
+	else {
+		memprintf(err, "'%s' expects one of 'none', 'layer4', 'layer7' "
+		               "but got '%s'\n", args[*cur_arg], arg);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "redir" server keyword */
 static int srv_parse_redir(char **args, int *cur_arg,
                            struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1009,6 +1043,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
+	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
@@ -1328,6 +1363,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->minconn		= curproxy->defsrv.minconn;
 			newsrv->maxconn		= curproxy->defsrv.maxconn;
 			newsrv->slowstart	= curproxy->defsrv.slowstart;
+			newsrv->observe         = curproxy->defsrv.observe;
 			newsrv->onerror		= curproxy->defsrv.onerror;
 			newsrv->onmarkeddown    = curproxy->defsrv.onmarkeddown;
 			newsrv->onmarkedup      = curproxy->defsrv.onmarkedup;
@@ -1722,29 +1758,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;
 				cur_arg += 1;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
-				if (!strcmp(args[cur_arg + 1], "none"))
-					newsrv->observe = HANA_OBS_NONE;
-				else if (!strcmp(args[cur_arg + 1], "layer4"))
-					newsrv->observe = HANA_OBS_LAYER4;
-				else if (!strcmp(args[cur_arg + 1], "layer7")) {
-					if (curproxy->mode != PR_MODE_HTTP) {
-						Alert("parsing [%s:%d]: '%s' can only be used in http proxies.\n",
-							file, linenum, args[cur_arg + 1]);
-						err_code |= ERR_ALERT;
-					}
-					newsrv->observe = HANA_OBS_LAYER7;
-				}
-				else {
-					Alert("parsing [%s:%d]: '%s' expects one of 'none', "
-						"'layer4', 'layer7' but got '%s'\n",
-						file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "on-error")) {
 				if (!strcmp(args[cur_arg + 1], "fastinter"))
