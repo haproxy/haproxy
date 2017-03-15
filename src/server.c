@@ -85,7 +85,7 @@ void srv_set_dyncookie(struct server *s)
 	struct server *tmpserv;
 	char *tmpbuf;
 	unsigned long long hash_value;
-	size_t key_len = strlen(p->dyncookie_key);
+	size_t key_len;
 	size_t buffer_len;
 	int addr_len;
 	int port;
@@ -94,6 +94,7 @@ void srv_set_dyncookie(struct server *s)
 	    !(s->proxy->ck_opts & PR_CK_DYNAMIC) ||
 	    s->proxy->dyncookie_key == NULL)
 		return;
+	key_len = strlen(p->dyncookie_key);
 
 	if (s->addr.ss_family != AF_INET &&
 	    s->addr.ss_family != AF_INET6)
