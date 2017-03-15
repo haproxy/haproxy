@@ -3310,7 +3310,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->cookie_maxlife = maxlife;
 				cur_arg++;
 			}
-			else if (!strcmp(args[cur_arg], "dynamic")) { /* Dynamic persitent cookies secret key */
+			else if (!strcmp(args[cur_arg], "dynamic")) { /* Dynamic persistent cookies secret key */
 
 				if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[cur_arg], NULL))
 					err_code |= ERR_WARN;
