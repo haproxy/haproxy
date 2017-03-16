@@ -838,7 +838,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	if (!buf_size || buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
+	if (buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
