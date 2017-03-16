@@ -289,6 +289,48 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 	return 0;
 }
 
+/* Parse the "namespace" server keyword */
+static int srv_parse_namespace(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+#ifdef CONFIG_HAP_NS
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' : expects <name> as argument", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!strcmp(arg, "*")) {
+		/* Use the namespace associated with the connection (if present). */
+		newsrv->flags |= SRV_F_USE_NS_FROM_PP;
+		return 0;
+	}
+
+	/*
+	 * As this parser may be called several times for the same 'default-server'
+	 * object, or for a new 'server' instance deriving from a 'default-server'
+	 * one with SRV_F_USE_NS_FROM_PP flag enabled, let's reset it.
+	 */
+	newsrv->flags &= ~SRV_F_USE_NS_FROM_PP;
+
+	newsrv->netns = netns_store_lookup(arg, strlen(arg));
+	if (!newsrv->netns)
+		newsrv->netns = netns_store_insert(arg);
+
+	if (!newsrv->netns) {
+		memprintf(err, "Cannot open namespace '%s'", arg);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+#else
+	memprintf(err, "'%s': '%s' option not implemented", args[0], args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
 /* Parse the "no-backup" server keyword */
 static int srv_parse_no_backup(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1058,6 +1100,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
 	{ "cookie",              srv_parse_cookie,              1,  1 }, /* Assign a cookie to the server */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
+	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
@@ -2024,31 +2067,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "namespace")) {
-#ifdef CONFIG_HAP_NS
-				char *arg = args[cur_arg + 1];
-				if (!strcmp(arg, "*")) {
-					newsrv->flags |= SRV_F_USE_NS_FROM_PP;
-				} else {
-					newsrv->netns = netns_store_lookup(arg, strlen(arg));
-
-					if (newsrv->netns == NULL)
-						newsrv->netns = netns_store_insert(arg);
-
-					if (newsrv->netns == NULL) {
-						Alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-#else
-				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-				cur_arg += 2;
 			}
 			else {
 				static int srv_dumped;
