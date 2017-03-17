@@ -460,6 +460,180 @@ static int srv_parse_send_proxy_v2(char **args, int *cur_arg,
 	return srv_enable_pp_flags(newsrv, SRV_PP_V2);
 }
 
+
+/* Parse the "source" server keyword */
+static int srv_parse_source(char **args, int *cur_arg,
+                            struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *errmsg;
+	int port_low, port_high;
+	struct sockaddr_storage *sk;
+	struct protocol *proto;
+
+	errmsg = NULL;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' expects <addr>[:<port>[-<port>]], and optionally '%s' <addr>, "
+		               "and '%s' <name> as argument.\n", args[*cur_arg], "usesrc", "interface");
+		goto err;
+	}
+
+	/* 'sk' is statically allocated (no need to be freed). */
+	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, 1);
+	if (!sk) {
+		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
+		goto err;
+	}
+
+	proto = protocol_by_family(sk->ss_family);
+	if (!proto || !proto->connect) {
+		Alert("'%s %s' : connect() not supported for this address family.\n",
+		      args[*cur_arg], args[*cur_arg + 1]);
+		goto err;
+	}
+
+	newsrv->conn_src.opts |= CO_SRC_BIND;
+	newsrv->conn_src.source_addr = *sk;
+
+	if (port_low != port_high) {
+		int i;
+
+		if (!port_low || !port_high) {
+			Alert("'%s' does not support port offsets (found '%s').\n",
+			      args[*cur_arg], args[*cur_arg + 1]);
+			goto err;
+		}
+
+		if (port_low  <= 0 || port_low  > 65535 ||
+			port_high <= 0 || port_high > 65535 ||
+			port_low > port_high) {
+			Alert("'%s': invalid source port range %d-%d.\n", args[*cur_arg], port_low, port_high);
+			goto err;
+		}
+		newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
+		for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
+			newsrv->conn_src.sport_range->ports[i] = port_low + i;
+	}
+
+	*cur_arg += 2;
+	while (*(args[*cur_arg])) {
+		if (!strcmp(args[*cur_arg], "usesrc")) {  /* address to use outside */
+#if defined(CONFIG_HAP_TRANSPARENT)
+			if (!*args[*cur_arg + 1]) {
+				Alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', "
+				      "or 'hdr_ip(name,#)' as argument.\n");
+				goto err;
+			}
+			if (!strcmp(args[*cur_arg + 1], "client")) {
+				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				newsrv->conn_src.opts |= CO_SRC_TPROXY_CLI;
+			}
+			else if (!strcmp(args[*cur_arg + 1], "clientip")) {
+				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				newsrv->conn_src.opts |= CO_SRC_TPROXY_CIP;
+			}
+			else if (!strncmp(args[*cur_arg + 1], "hdr_ip(", 7)) {
+				char *name, *end;
+
+				name = args[*cur_arg + 1] + 7;
+				while (isspace(*name))
+					name++;
+
+				end = name;
+				while (*end && !isspace(*end) && *end != ',' && *end != ')')
+					end++;
+
+				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				newsrv->conn_src.opts |= CO_SRC_TPROXY_DYN;
+				free(newsrv->conn_src.bind_hdr_name);
+				newsrv->conn_src.bind_hdr_name = calloc(1, end - name + 1);
+				newsrv->conn_src.bind_hdr_len = end - name;
+				memcpy(newsrv->conn_src.bind_hdr_name, name, end - name);
+				newsrv->conn_src.bind_hdr_name[end - name] = '\0';
+				newsrv->conn_src.bind_hdr_occ = -1;
+
+				/* now look for an occurrence number */
+				while (isspace(*end))
+					end++;
+				if (*end == ',') {
+					end++;
+					name = end;
+					if (*end == '-')
+						end++;
+					while (isdigit((int)*end))
+						end++;
+					newsrv->conn_src.bind_hdr_occ = strl2ic(name, end - name);
+				}
+
+				if (newsrv->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
+					Alert("usesrc hdr_ip(name,num) does not support negative"
+					      " occurrences values smaller than %d.\n", MAX_HDR_HISTORY);
+					goto err;
+				}
+			}
+			else {
+				struct sockaddr_storage *sk;
+				int port1, port2;
+
+				/* 'sk' is statically allocated (no need to be freed). */
+				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
+				if (!sk) {
+					Alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
+					goto err;
+				}
+
+				proto = protocol_by_family(sk->ss_family);
+				if (!proto || !proto->connect) {
+					Alert("'%s %s' : connect() not supported for this address family.\n",
+					      args[*cur_arg], args[*cur_arg + 1]);
+					goto err;
+				}
+
+				if (port1 != port2) {
+					Alert("'%s' : port ranges and offsets are not allowed in '%s'\n",
+					      args[*cur_arg], args[*cur_arg + 1]);
+					goto err;
+				}
+				newsrv->conn_src.tproxy_addr = *sk;
+				newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
+			}
+			global.last_checks |= LSTCHK_NETADM;
+			*cur_arg += 2;
+			continue;
+#else	/* no TPROXY support */
+			Alert("'usesrc' not allowed here because support for TPROXY was not compiled in.\n");
+			goto err;
+#endif /* defined(CONFIG_HAP_TRANSPARENT) */
+		} /* "usesrc" */
+
+		if (!strcmp(args[*cur_arg], "interface")) { /* specifically bind to this interface */
+#ifdef SO_BINDTODEVICE
+			if (!*args[*cur_arg + 1]) {
+				Alert("'%s' : missing interface name.\n", args[0]);
+				goto err;
+			}
+			free(newsrv->conn_src.iface_name);
+			newsrv->conn_src.iface_name = strdup(args[*cur_arg + 1]);
+			newsrv->conn_src.iface_len  = strlen(newsrv->conn_src.iface_name);
+			global.last_checks |= LSTCHK_NETADM;
+#else
+			Alert("'%s' : '%s' option not implemented.\n", args[0], args[*cur_arg]);
+			goto err;
+#endif
+			*cur_arg += 2;
+			continue;
+		}
+		/* this keyword in not an option of "source" */
+		break;
+	} /* while */
+
+	return 0;
+
+ err:
+	free(errmsg);
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "stick" server keyword */
 static int srv_parse_stick(char **args, int *cur_arg,
                            struct proxy *curproxy, struct server *newsrv, char **err)
@@ -485,6 +659,7 @@ static int srv_parse_track(char **args, int *cur_arg,
 
 	return 0;
 }
+
 
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
@@ -1111,6 +1286,12 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
+	/*
+	 * Note: the following 'skip' field value is 0.
+	 * Here this does not mean that "source" setting does not need any argument.
+	 * This means that the number of argument is variable.
+	 */
+	{ "source",              srv_parse_source,              0,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ NULL, NULL, 0 },
@@ -1398,6 +1579,36 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			/*
+			 * In this section we copy default-server connection source settings to
+			 * the new server object connection source
+			 * (newsrv->conn_src <- curproxy->defsrv.conn_src).
+			 */
+			newsrv->conn_src.opts = curproxy->defsrv.conn_src.opts;
+			newsrv->conn_src.source_addr = curproxy->defsrv.conn_src.source_addr;
+			if (curproxy->defsrv.conn_src.sport_range != NULL) {
+				int i, def_sport_range_sz;
+				struct server *default_srv;
+
+				default_srv = &curproxy->defsrv;
+				def_sport_range_sz = default_srv->conn_src.sport_range->size;
+				if (def_sport_range_sz > 0) {
+					newsrv->conn_src.sport_range = port_range_alloc_range(def_sport_range_sz);
+					if (newsrv->conn_src.sport_range) {
+						for (i = 0; i < def_sport_range_sz; i++)
+							newsrv->conn_src.sport_range->ports[i] = default_srv->conn_src.sport_range->ports[i];
+					}
+				}
+			}
+			if (curproxy->defsrv.conn_src.bind_hdr_name != NULL) {
+				newsrv->conn_src.bind_hdr_name = strdup(curproxy->defsrv.conn_src.bind_hdr_name);
+				newsrv->conn_src.bind_hdr_len = strlen(curproxy->defsrv.conn_src.bind_hdr_name);
+			}
+			newsrv->conn_src.bind_hdr_occ = curproxy->defsrv.conn_src.bind_hdr_occ;
+			newsrv->conn_src.tproxy_addr = curproxy->defsrv.conn_src.tproxy_addr;
+			if (curproxy->defsrv.conn_src.iface_name != NULL)
+				newsrv->conn_src.iface_name = strdup(curproxy->defsrv.conn_src.iface_name);
 
 			newsrv->pp_opts		= curproxy->defsrv.pp_opts;
 			if (curproxy->defsrv.rdr_pfx != NULL) {
@@ -1887,180 +2098,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
-				int port_low, port_high;
-				struct sockaddr_storage *sk;
-				struct protocol *proto;
-
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]], and optionally '%s' <addr>, and '%s' <name> as argument.\n",
-					      file, linenum, "source", "usesrc", "interface");
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->conn_src.opts |= CO_SRC_BIND;
-				sk = str2sa_range(args[cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, 1);
-				if (!sk) {
-					Alert("parsing [%s:%d] : '%s %s' : %s\n",
-					      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				proto = protocol_by_family(sk->ss_family);
-				if (!proto || !proto->connect) {
-					Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-					      file, linenum, args[cur_arg], args[cur_arg+1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->conn_src.source_addr = *sk;
-
-				if (port_low != port_high) {
-					int i;
-
-					if (!port_low || !port_high) {
-						Alert("parsing [%s:%d] : %s does not support port offsets (found '%s').\n",
-						      file, linenum, args[cur_arg], args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					if (port_low  <= 0 || port_low > 65535 ||
-					    port_high <= 0 || port_high > 65535 ||
-					    port_low > port_high) {
-						Alert("parsing [%s:%d] : invalid source port range %d-%d.\n",
-						      file, linenum, port_low, port_high);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
-					for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
-						newsrv->conn_src.sport_range->ports[i] = port_low + i;
-				}
-
-				cur_arg += 2;
-				while (*(args[cur_arg])) {
-					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
-#if defined(CONFIG_HAP_TRANSPARENT)
-						if (!*args[cur_arg + 1]) {
-							Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', 'clientip', or 'hdr_ip(name,#)' as argument.\n",
-							      file, linenum, "usesrc");
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						if (!strcmp(args[cur_arg + 1], "client")) {
-							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-							newsrv->conn_src.opts |= CO_SRC_TPROXY_CLI;
-						} else if (!strcmp(args[cur_arg + 1], "clientip")) {
-							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-							newsrv->conn_src.opts |= CO_SRC_TPROXY_CIP;
-						} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
-							char *name, *end;
-
-							name = args[cur_arg+1] + 7;
-							while (isspace(*name))
-								name++;
-
-							end = name;
-							while (*end && !isspace(*end) && *end != ',' && *end != ')')
-								end++;
-
-							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-							newsrv->conn_src.opts |= CO_SRC_TPROXY_DYN;
-							newsrv->conn_src.bind_hdr_name = calloc(1, end - name + 1);
-							newsrv->conn_src.bind_hdr_len = end - name;
-							memcpy(newsrv->conn_src.bind_hdr_name, name, end - name);
-							newsrv->conn_src.bind_hdr_name[end-name] = '\0';
-							newsrv->conn_src.bind_hdr_occ = -1;
-
-							/* now look for an occurrence number */
-							while (isspace(*end))
-								end++;
-							if (*end == ',') {
-								end++;
-								name = end;
-								if (*end == '-')
-									end++;
-								while (isdigit((int)*end))
-									end++;
-								newsrv->conn_src.bind_hdr_occ = strl2ic(name, end-name);
-							}
-
-							if (newsrv->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
-								Alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
-								      " occurrences values smaller than %d.\n",
-								      file, linenum, MAX_HDR_HISTORY);
-								err_code |= ERR_ALERT | ERR_FATAL;
-								goto out;
-							}
-						} else {
-							struct sockaddr_storage *sk;
-							int port1, port2;
-
-							sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
-							if (!sk) {
-								Alert("parsing [%s:%d] : '%s %s' : %s\n",
-								      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
-								err_code |= ERR_ALERT | ERR_FATAL;
-								goto out;
-							}
-
-							proto = protocol_by_family(sk->ss_family);
-							if (!proto || !proto->connect) {
-								Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-								      file, linenum, args[cur_arg], args[cur_arg+1]);
-								err_code |= ERR_ALERT | ERR_FATAL;
-								goto out;
-							}
-
-							if (port1 != port2) {
-								Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
-								      file, linenum, args[cur_arg], args[cur_arg + 1]);
-								err_code |= ERR_ALERT | ERR_FATAL;
-								goto out;
-							}
-							newsrv->conn_src.tproxy_addr = *sk;
-							newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
-						}
-						global.last_checks |= LSTCHK_NETADM;
-						cur_arg += 2;
-						continue;
-#else	/* no TPROXY support */
-						Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
-						      file, linenum, "usesrc");
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-#endif /* defined(CONFIG_HAP_TRANSPARENT) */
-					} /* "usesrc" */
-
-					if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
-#ifdef SO_BINDTODEVICE
-						if (!*args[cur_arg + 1]) {
-							Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
-							      file, linenum, args[0]);
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						free(newsrv->conn_src.iface_name);
-						newsrv->conn_src.iface_name = strdup(args[cur_arg + 1]);
-						newsrv->conn_src.iface_len  = strlen(newsrv->conn_src.iface_name);
-						global.last_checks |= LSTCHK_NETADM;
-#else
-						Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-						      file, linenum, args[0], args[cur_arg]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-#endif
-						cur_arg += 2;
-						continue;
-					}
-					/* this keyword in not an option of "source" */
-					break;
-				} /* while */
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
 				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
