@@ -253,15 +253,12 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		t->process = session_expire_embryonic;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
-		cli_conn->flags |= CO_FL_INIT_DATA | CO_FL_WAKE_DATA;
+		cli_conn->flags |= CO_FL_INIT_DATA;
 		return 1;
 	}
 
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
-
-	/* we want the connection handler to notify the stream interface about updates. */
-	cli_conn->flags |= CO_FL_WAKE_DATA;
 
 	/* if logs require transport layer information, note it on the connection */
 	if (sess->fe->to_log & LW_XPRT)
@@ -430,9 +427,6 @@ static int conn_complete_session(struct connection *conn)
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
-
-	/* we want the connection handler to notify the stream interface about updates. */
-	conn->flags |= CO_FL_WAKE_DATA;
 
 	/* if logs require transport layer information, note it on the connection */
 	if (sess->fe->to_log & LW_XPRT)

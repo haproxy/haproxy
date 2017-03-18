@@ -356,9 +356,6 @@ static inline int si_connect(struct stream_interface *si)
 		if (ret != SF_ERR_NONE)
 			return ret;
 
-		/* we need to be notified about connection establishment */
-		conn->flags |= CO_FL_WAKE_DATA;
-
 		/* we're in the process of establishing a connection */
 		si->state = SI_ST_CON;
 	}

@@ -88,7 +88,7 @@ enum {
 
 	/* flags indicating what event type the data layer is interested in */
 	CO_FL_INIT_DATA     = 0x00004000,  /* initialize the data layer before using it */
-	CO_FL_WAKE_DATA     = 0x00008000,  /* wake-up data layer upon activity at the transport layer */
+	/* unused : 0x00008000 */
 
 	/* flags used to remember what shutdown have been performed/reported */
 	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */

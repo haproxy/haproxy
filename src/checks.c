@@ -1559,7 +1559,6 @@ static int connect_conn_chk(struct task *t)
 	ret = SF_ERR_INTERNAL;
 	if (proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
-	conn->flags |= CO_FL_WAKE_DATA;
 	if (s->check.send_proxy) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
@@ -2753,7 +2752,6 @@ static void tcpcheck_main(struct connection *conn)
 				ret = proto->connect(conn,
 						     1 /* I/O polling is always needed */,
 						     (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : 2);
-			conn->flags |= CO_FL_WAKE_DATA;
 			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
 				conn->flags |= CO_FL_SEND_PROXY;
