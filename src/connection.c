@@ -152,8 +152,7 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((conn->flags & CO_FL_WAKE_DATA) &&
-	    (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
+	if ((((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED)) &&
 	    conn->data->wake(conn) < 0)
