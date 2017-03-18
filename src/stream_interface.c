@@ -563,7 +563,8 @@ static int si_conn_wake_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		si->flags |= SI_FL_ERR;
 
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED)))) {
+	if ((si->state < SI_ST_EST) &&
+	    (conn->flags & (CO_FL_CONNECTED | CO_FL_HANDSHAKE)) == CO_FL_CONNECTED) {
 		si->exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
 	}
