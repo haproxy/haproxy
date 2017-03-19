@@ -96,14 +96,14 @@ enum {
 	CO_FL_SOCK_RD_SH    = 0x00040000,  /* SOCK layer was notified about shutr/read0 */
 	CO_FL_SOCK_WR_SH    = 0x00080000,  /* SOCK layer asked for shutw */
 
-	/* flags used to report connection status and errors */
+	/* flags used to report connection errors or other closing conditions */
 	CO_FL_ERROR         = 0x00100000,  /* a fatal error was reported     */
-	CO_FL_CONNECTED     = 0x00200000,  /* the connection is now established */
+	CO_FL_NOTIFY_DATA   = 0x001F0000,  /* any shut/error flags above needs to be reported */
+
+	/* flags used to report connection status updates */
+	CO_FL_CONNECTED     = 0x00200000,  /* L4+L6 now ready ; extra handshakes may or may not exist */
 	CO_FL_WAIT_L4_CONN  = 0x00400000,  /* waiting for L4 to be connected */
 	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */
-
-	/* synthesis of the flags above */
-	CO_FL_CONN_STATE    = 0x00FF0000,  /* all shut/connected flags */
 
 	/*** All the flags below are used for connection handshakes. Any new
 	 * handshake should be added after this point, and CO_FL_HANDSHAKE
