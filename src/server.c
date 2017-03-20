@@ -36,6 +36,7 @@
 #include <proto/port_range.h>
 #include <proto/protocol.h>
 #include <proto/queue.h>
+#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -1438,6 +1439,53 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 	return NULL;
 }
 
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err)
+{
+	int idx;
+	struct sample_expr *expr;
+	const char *args[] = {
+		newsrv->sni_expr,
+		NULL,
+	};
+
+	idx = 0;
+	proxy->conf.args.ctx = ARGC_SRV;
+
+	expr = sample_parse_expr((char **)args, &idx, px->conf.file, px->conf.line,
+	                         err, &proxy->conf.args);
+	if (!expr) {
+		memprintf(err, "error detected while parsing sni expression : %s", *err);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
+		memprintf(err, "error detected while parsing sni expression : "
+		          " fetch method '%s' extracts information from '%s', "
+		          "none of which is available here.\n",
+		          args[0], sample_src_names(expr->fetch->use));
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	px->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
+	release_sample_expr(newsrv->ssl_ctx.sni);
+	newsrv->ssl_ctx.sni = expr;
+
+	return 0;
+}
+#endif
+
+static void display_parser_err(const char *file, int linenum, char **args, int cur_arg, char **err)
+{
+	if (err && *err) {
+		indent_msg(err, 2);
+		Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], *err);
+	}
+	else
+		Alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
+		      file, linenum, args[0], args[1], args[cur_arg]);
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;
@@ -1688,6 +1736,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
 			if (curproxy->defsrv.ssl_ctx.ciphers != NULL)
 				newsrv->ssl_ctx.ciphers = strdup(curproxy->defsrv.ssl_ctx.ciphers);
+			if (curproxy->defsrv.sni_expr != NULL)
+				newsrv->sni_expr = strdup(curproxy->defsrv.sni_expr);
 #endif
 
 #ifdef TCP_USER_TIMEOUT
@@ -2135,13 +2185,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					err_code |= code;
 
 					if (code) {
-						if (err && *err) {
-							indent_msg(&err, 2);
-							Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
-						}
-						else
-							Alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
-							      file, linenum, args[0], args[1], args[cur_arg]);
+						display_parser_err(file, linenum, args, cur_arg, &err);
 						if (code & ERR_FATAL) {
 							free(err);
 							cur_arg += 1 + kw->skip;
@@ -2270,6 +2314,23 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			srv_lb_commit_status(newsrv);
 		}
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		if (!defsrv && newsrv->sni_expr) {
+			int code;
+			char *err;
+
+			err = NULL;
+
+			code = server_parse_sni_expr(newsrv, curproxy, &err);
+			err_code |= code;
+			if (code) {
+				display_parser_err(file, linenum, args, cur_arg, &err);
+				free(err);
+				if (code & ERR_FATAL)
+					goto out;
+			}
+		}
+#endif
 	}
 	free(fqdn);
 	return 0;

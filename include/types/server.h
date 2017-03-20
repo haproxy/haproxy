@@ -254,6 +254,7 @@ struct server {
 
 	int use_ssl;				/* ssl enabled  */
 #ifdef USE_OPENSSL
+	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;

@@ -6679,32 +6679,17 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 	memprintf(err, "'%s' : the current SSL library doesn't support the SNI TLS extension", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
-	int idx;
-	struct sample_expr *expr;
+	char *arg;
 
-	if (!*args[*cur_arg + 1]) {
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
 		memprintf(err, "'%s' : missing sni expression", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	idx = (*cur_arg) + 1;
-	proxy->conf.args.ctx = ARGC_SRV;
+	free(newsrv->sni_expr);
+	newsrv->sni_expr = strdup(arg);
 
-	expr = sample_parse_expr((char **)args, &idx, px->conf.file, px->conf.line, err, &proxy->conf.args);
-	if (!expr) {
-		memprintf(err, "error detected while parsing sni expression : %s", *err);
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
-		memprintf(err, "error detected while parsing sni expression : "
-		          " fetch method '%s' extracts information from '%s', none of which is available here.\n",
-		          args[idx-1], sample_src_names(expr->fetch->use));
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-	px->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
-	newsrv->ssl_ctx.sni = expr;
 	return 0;
 #endif
 }
@@ -7510,7 +7495,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,    0, 1 }, /* disable session resumption tickets */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,    0, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,     0, 1 }, /* send PROXY protocol header v2 with CN */
-	{ "sni",                     srv_parse_sni,               1, 0 }, /* send SNI extension */
+	{ "sni",                     srv_parse_sni,               1, 1 }, /* send SNI extension */
 	{ "ssl",                     srv_parse_ssl,               0, 1 }, /* enable SSL processing */
 	{ "ssl-reuse",               srv_parse_ssl_reuse,         0, 1 }, /* enable session reuse */
 	{ "sslv3",                   srv_parse_sslv3,             0, 1 }, /* enable SSLv3 */
