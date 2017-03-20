@@ -215,6 +215,53 @@ void srv_dump_kws(char **out)
 	}
 }
 
+/* Parse the "addr" server keyword */
+static int srv_parse_addr(char **args, int *cur_arg,
+                          struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *errmsg, *arg;
+	struct sockaddr_storage *sk;
+	int port1, port2;
+	struct protocol *proto;
+
+	errmsg = NULL;
+	arg = args[*cur_arg + 1];
+
+	if (!*arg) {
+		memprintf(err, "'%s' expects <ipv4|ipv6> as argument.\n", args[*cur_arg]);
+		goto err;
+	}
+
+	sk = str2sa_range(arg, NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
+	if (!sk) {
+		memprintf(err, "'%s' : %s", args[*cur_arg], errmsg);
+		goto err;
+	}
+
+	proto = protocol_by_family(sk->ss_family);
+	if (!proto || !proto->connect) {
+		memprintf(err, "'%s %s' : connect() not supported for this address family.\n",
+		          args[*cur_arg], arg);
+		goto err;
+	}
+
+	if (port1 != port2) {
+		memprintf(err, "'%s' : port ranges and offsets are not allowed in '%s'\n",
+		          args[*cur_arg], arg);
+		goto err;
+	}
+
+	newsrv->check.addr = newsrv->agent.addr = *sk;
+	newsrv->flags |= SRV_F_CHECKADDR;
+	newsrv->flags |= SRV_F_AGENTADDR;
+
+	return 0;
+
+ err:
+	free(errmsg);
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "backup" server keyword */
 static int srv_parse_backup(char **args, int *cur_arg,
                             struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1271,6 +1318,7 @@ void srv_compute_all_admin_states(struct proxy *px)
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
+	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
 	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
@@ -1668,6 +1716,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->cklen = curproxy->defsrv.cklen;
 			}
 			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
+			newsrv->check.addr = newsrv->agent.addr = curproxy->defsrv.check.addr;
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
 			/* Note: 'flags' field has potentially been already initialized. */
@@ -2004,39 +2053,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 				newsrv->check.downinter = val;
-				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
-				struct sockaddr_storage *sk;
-				int port1, port2;
-				struct protocol *proto;
-
-				sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
-				if (!sk) {
-					Alert("parsing [%s:%d] : '%s' : %s\n",
-					      file, linenum, args[cur_arg], errmsg);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				proto = protocol_by_family(sk->ss_family);
-				if (!proto || !proto->connect) {
-					Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-					      file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (port1 != port2) {
-					Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
-					      file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->check.addr = newsrv->agent.addr = *sk;
-				newsrv->flags |= SRV_F_CHECKADDR;
-				newsrv->flags |= SRV_F_AGENTADDR;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {
