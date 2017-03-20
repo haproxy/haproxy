@@ -182,10 +182,4 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define RAND_pseudo_bytes(x,y) RAND_bytes(x,y)
 #endif
 
-/* This function does nothing in 1.1.0 and doesn't exist in boringssl */
-#if defined(OPENSSL_IS_BORINGSSL) || (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
-#undef  SSL_CTX_set_ecdh_auto
-#define SSL_CTX_set_ecdh_auto(ctx, onoff)
-#endif
-
 #endif /* _PROTO_OPENSSL_COMPAT_H */
