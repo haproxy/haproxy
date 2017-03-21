@@ -10656,6 +10656,9 @@ address if they are used:
   server <name> <address>[:port] [settings ...]
   default-server [settings ...]
 
+Note that all these settings are supported both by "server" and "default-server"
+keywords, except "id" which is only supported by "server".
+
 The currently supported settings are the following ones.
 
 addr <ipv4|ipv6>
@@ -10665,8 +10668,6 @@ addr <ipv4|ipv6>
   complex tests which are more suitable to health-checks than the application.
   This parameter is ignored if the "check" parameter is not set. See also the
   "port" parameter.
-
-  Supported in default-server: No
 
 agent-check
   Enable an auxiliary agent check which is run independently of a regular
@@ -10727,9 +10728,7 @@ agent-check
   force an agent's result in order to work around a bogus agent if needed.
 
   Requires the "agent-port" parameter to be set. See also the "agent-inter"
-  parameter.
-
-  Supported in default-server: No
+  and "no-agent-check" parameters.
 
 agent-send <string>
   If this option is specified, haproxy will send the given string (verbatim)
@@ -10754,8 +10753,6 @@ agent-inter <delay>
 
   See also the "agent-check" and "agent-port" parameters.
 
-  Supported in default-server: Yes
-
 agent-addr <addr>
   The "agent-addr" parameter sets address for agent check.
 
@@ -10769,24 +10766,18 @@ agent-port <port>
 
   See also the "agent-check" and "agent-inter" parameters.
 
-  Supported in default-server: Yes
-
 backup
   When "backup" is present on a server line, the server is only used in load
   balancing when all other non-backup servers are unavailable. Requests coming
   with a persistence cookie referencing the server will always be served
   though. By default, only the first operational backup server is used, unless
-  the "allbackups" option is set in the backend. See also the "allbackups"
-  option.
-
-  Supported in default-server: No
+  the "allbackups" option is set in the backend. See also the "no-backup" and
+  "allbackups" options.
 
 ca-file <cafile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load CA certificates used to verify
   server's certificate.
-
-  Supported in default-server: No
 
 check
   This option enables health checks on the server. By default, a server is
@@ -10799,9 +10790,8 @@ check
   address, and the interval and timers using the "inter", "rise" and "fall"
   parameters. The request method is define in the backend using the "httpchk",
   "smtpchk", "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please
-  refer to those options and parameters for more information.
-
-  Supported in default-server: No
+  refer to those options and parameters for more information. See also
+  "no-check" option.
 
 check-send-proxy
   This option forces emission of a PROXY protocol line with outgoing health
@@ -10812,8 +10802,6 @@ check-send-proxy
   "check-send-proxy" option needs to be used to force the use of the
   protocol. See also the "send-proxy" option for more information.
 
-  Supported in default-server: No
-
 check-ssl
   This option forces encryption of all health checks over SSL, regardless of
   whether the server uses SSL or not for the normal traffic. This is generally
@@ -10823,9 +10811,8 @@ check-ssl
   check becomes an SSL connect, which replaces the old ssl-hello-chk. The most
   common use is to send HTTPS checks by combining "httpchk" with SSL checks.
   All SSL settings are common to health checks and traffic (eg: ciphers).
-  See the "ssl" option for more information.
-
-  Supported in default-server: No
+  See the "ssl" option for more information and "no-check-ssl" to disable
+  this option.
 
 ciphers <ciphers>
   This option sets the string describing the list of cipher algorithms that is
@@ -10837,8 +10824,6 @@ ciphers <ciphers>
   Some algorithms such as RC4-SHA1 are reasonably cheap. If no security at all
   is needed and just connectivity, using DES can be appropriate.
 
-  Supported in default-server: No
-
 cookie <value>
   The "cookie" parameter sets the cookie value assigned to the server to
   <value>. This value will be checked in incoming requests, and the first
@@ -10848,14 +10833,10 @@ cookie <value>
   the same cookie value, and it is in fact somewhat common between normal and
   backup servers. See also the "cookie" keyword in backend section.
 
-  Supported in default-server: No
-
 crl-file <crlfile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load certificate revocation list used
   to verify server's certificate.
-
-  Supported in default-server: No
 
 crt <cert>
   This setting is only available when support for OpenSSL was built in.
@@ -10864,23 +10845,25 @@ crt <cert>
   files into one. This certificate will be sent if the server send a client
   certificate request.
 
-  Supported in default-server: No
-
 disabled
   The "disabled" keyword starts the server in the "disabled" state. That means
   that it is marked down in maintenance mode, and no connection other than the
   ones allowed by persist mode will reach it. It is very well suited to setup
   new servers, because normal traffic will never reach them, while it is still
   possible to test the service by making use of the force-persist mechanism.
+  See also "enabled" setting.
 
-  Supported in default-server: No
+enabled
+  This option may be used as 'server' setting to reset any 'disabled'
+  setting which would have been inherited from 'default-server' directive as
+  default value.
+  It may also be used as 'default-server' setting to reset any previous
+  'default-server' 'disabled' setting.
 
 error-limit <count>
   If health observing is enabled, the "error-limit" parameter specifies the
   number of consecutive errors that triggers event selected by the "on-error"
   option. By default it is set to 10 consecutive errors.
-
-  Supported in default-server: Yes
 
   See also the "check", "error-limit" and "on-error".
 
@@ -10889,43 +10872,31 @@ fall <count>
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
   unspecified. See also the "check", "inter" and "rise" parameters.
 
-  Supported in default-server: Yes
-
 force-sslv3
   This option enforces use of SSLv3 only when SSL is used to communicate with
   the server. SSLv3 is generally less expensive than the TLS counterparts for
   high connection rates. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "no-force-sslv3", "no-tlsv*", "no-sslv3".
 
 force-tlsv10
   This option enforces use of TLSv1.0 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "no-force-tlsv10", "no-tlsv*", "no-sslv3".
 
 force-tlsv11
   This option enforces use of TLSv1.1 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "no-force-tlsv11", "no-tlsv*", "no-sslv3".
 
 force-tlsv12
   This option enforces use of TLSv1.2 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "no-force-tlsv12", "no-tlsv*", "no-sslv3".
 
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
-
-  Supported in default-server: No
 
 init-addr {last | libc | none | <ip>},[...]*
   Indicate in what order the server's address should be resolved upon startup
@@ -10953,8 +10924,6 @@ init-addr {last | libc | none | <ip>},[...]*
       defaults
           # never fail on address resolution
           default-server init-addr last,libc,none
-
-  Supported in default-server: Yes
 
 inter <delay>
 fastinter <delay>
@@ -10986,8 +10955,6 @@ downinter <delay>
   global "spread-checks" keyword. This makes sense for instance when a lot
   of backends use the same servers.
 
-  Supported in default-server: Yes
-
 maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent
   connections that will be sent to this server. If the number of incoming
@@ -10998,8 +10965,6 @@ maxconn <maxconn>
   which means unlimited. See also the "minconn" and "maxqueue" parameters, and
   the backend's "fullconn" keyword.
 
-  Supported in default-server: Yes
-
 maxqueue <maxqueue>
   The "maxqueue" parameter specifies the maximal number of connections which
   will wait in the queue for this server. If this limit is reached, next
@@ -11008,8 +10973,6 @@ maxqueue <maxqueue>
   quickly re-log in when the server they try to connect to is dying. The
   default value is "0" which means the queue is unlimited. See also the
   "maxconn" and "minconn" parameters.
-
-  Supported in default-server: Yes
 
 minconn <minconn>
   When the "minconn" parameter is set, the maxconn limit becomes a dynamic
@@ -11021,13 +10984,102 @@ minconn <minconn>
   overloading the server during exceptional loads. See also the "maxconn"
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
 
-  Supported in default-server: Yes
-
 namespace <name>
   On Linux, it is possible to specify which network namespace a socket will
   belong to. This directive makes it possible to explicitly bind a server to
   a namespace different from the default one. Please refer to your operating
   system's documentation to find more details about network namespaces.
+
+no-agent-check
+  This option may be used as "server" setting to reset any "agent-check"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "agent-check" setting.
+
+no-backup
+  This option may be used as "server" setting to reset any "backup"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "backup" setting.
+
+no-check
+  This option may be used as "server" setting to reset any "check"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "check" setting.
+
+no-check-ssl
+  This option may be used as "server" setting to reset any "check-ssl"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "check-ssl" setting.
+
+no-force-sslv3
+  This option may be used as "server" setting to reset any "force-sslv3"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "force-sslv3" setting.
+
+no-force-tlsv10
+  This option may be used as "server" setting to reset any "force-tlsv10"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "force-tlsv10" setting.
+
+no-force-tlsv11
+  This option may be used as "server" setting to reset any "force-tlsv11"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "force-tlsv11" setting.
+
+no-force-tlsv12
+  This option may be used as "server" setting to reset any "force-tlsv12"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "force-tlsv12" setting.
+
+no-send-proxy
+  This option may be used as "server" setting to reset any "send-proxy"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "send-proxy" setting.
+
+no-send-proxy-v2
+  This option may be used as "server" setting to reset any "send-proxy-v2"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "send-proxy-v2" setting.
+
+no-send-proxy-v2-ssl
+  This option may be used as "server" setting to reset any "send-proxy-v2-ssl"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "send-proxy-v2-ssl" setting.
+
+no-send-proxy-v2-ssl-cn
+  This option may be used as "server" setting to reset any "send-proxy-v2-ssl-cn"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "send-proxy-v2-ssl-cn" setting.
+
+no-ssl
+  This option may be used as "server" setting to reset any "ssl"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "ssl" setting.
 
 no-ssl-reuse
   This option disables SSL session reuse when SSL is used to communicate with
@@ -11035,14 +11087,10 @@ no-ssl-reuse
   new connection. It's probably only useful for benchmarking, troubleshooting,
   and for paranoid users.
 
-  Supported in default-server: No
-
 no-sslv3
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. See also "force-sslv3", "force-tlsv*".
-
-  Supported in default-server: No
 
 no-tls-tickets
   This setting is only available when support for OpenSSL was built in. It
@@ -11050,8 +11098,7 @@ no-tls-tickets
   extension) and force to use stateful session resumption. Stateless
   session resumption is more expensive in CPU usage for servers. This option
   is also available on global statement "ssl-default-server-options".
-
-  Supported in default-server: No
+  See also "tls-tickets".
 
 no-tlsv10
   This option disables support for TLSv1.0 when SSL is used to communicate with
@@ -11059,9 +11106,7 @@ no-tlsv10
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
-
-  Supported in default-server: No
+  See also "tlsv10", "force-sslv3", "force-tlsv*".
 
 no-tlsv11
   This option disables support for TLSv1.1 when SSL is used to communicate with
@@ -11069,9 +11114,7 @@ no-tlsv11
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
-
-  Supported in default-server: No
+  See also "tlsv11", "force-sslv3", "force-tlsv*".
 
 no-tlsv12
   This option disables support for TLSv1.2 when SSL is used to communicate with
@@ -11079,16 +11122,19 @@ no-tlsv12
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
+  See also "tlsv12", "force-sslv3", "force-tlsv*".
 
-  Supported in default-server: No
+no-verifyhost
+  This option may be used as "server" setting to reset any "verifyhost"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "verifyhost" setting.
 
 non-stick
   Never add connections allocated to this sever to a stick-table.
   This may be used in conjunction with backup to ensure that
   stick-table persistence is disabled for backup servers.
-
-  Supported in default-server: No
 
 observe <mode>
   This option enables health adjusting based on observing communication with
@@ -11098,8 +11144,6 @@ observe <mode>
   significant. In layer7, which is only allowed for http proxies, responses
   received from server are verified, like valid/wrong http code, unparsable
   headers, a timeout, etc. Valid status codes include 100 to 499, 501 and 505.
-
-  Supported in default-server: No
 
   See also the "check", "on-error" and "error-limit".
 
@@ -11111,8 +11155,6 @@ on-error <mode>
   - sudden-death: simulate a pre-fatal failed health check, one more failed
     check will mark a server down, forces fastinter
   - mark-down: mark the server immediately down and force fastinter
-
-  Supported in default-server: Yes
 
   See also the "check", "observe" and "error-limit".
 
@@ -11130,8 +11172,6 @@ on-marked-down <action>
 
   Actions are disabled by default
 
-  Supported in default-server: Yes
-
 on-marked-up <action>
   Modify what occurs when a server is marked up.
   Currently one action is available:
@@ -11146,8 +11186,6 @@ on-marked-up <action>
 
   Actions are disabled by default
 
-  Supported in default-server: Yes
-
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port
@@ -11155,8 +11193,6 @@ port <port>
   to health-checks than the application. It is common to run a simple script in
   inetd for instance. This parameter is ignored if the "check" parameter is not
   set. See also the "addr" parameter.
-
-  Supported in default-server: Yes
 
 redir <prefix>
   The "redir" parameter enables the redirection mode for all GET and HEAD
@@ -11176,14 +11212,10 @@ redir <prefix>
 
   Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
 
-  Supported in default-server: No
-
 rise <count>
   The "rise" parameter states that a server will be considered as operational
   after <count> consecutive successful health checks. This value defaults to 2
   if unspecified. See also the "check", "inter" and "fall" parameters.
-
-  Supported in default-server: Yes
 
 resolve-prefer <family>
   When DNS resolution is enabled for a server and multiple IP addresses from
@@ -11192,8 +11224,6 @@ resolve-prefer <family>
   Available families: "ipv4" and "ipv6"
 
   Default value: ipv6
-
-  Supported in default-server: Yes
 
   Example:
 
@@ -11207,8 +11237,6 @@ resolve-net <network>[,<network[,...]]
   this patch permitsto prefers a local datacenter. If none address matchs the
   configured network, another address is selected.
 
-  Supported in default-server: Yes
-
   Example:
 
     server s1 app1.domain.com:80 resolvers mydns resolve-net 10.0.0.0/8
@@ -11220,8 +11248,6 @@ resolvers <id>
   enabled on the server. Actually, health checks triggers the DNS resolution.
   You must precise one 'resolvers' parameter on each server line where DNS
   resolution is required.
-
-  Supported in default-server: No
 
   Example:
 
@@ -11244,10 +11270,8 @@ send-proxy
   protocol is automatically used when this option is set, unless there is an
   explicit "port" or "addr" directive, in which case an explicit
   "check-send-proxy" directive would also be needed to use the PROXY protocol.
-  See also the "accept-proxy" and "accept-netscaler-cip" option of the "bind"
-  keyword.
-
-  Supported in default-server: No
+  See also the "no-send-proxy" option of this section and "accept-proxy" and
+  "accept-netscaler-cip" option of the "bind" keyword.
 
 send-proxy-v2
   The "send-proxy-v2" parameter enforces use of the PROXY protocol version 2
@@ -11255,10 +11279,9 @@ send-proxy-v2
   the other end about the layer 3/4 addresses of the incoming connection, so
   that it can know the client's address or the public address it accessed to,
   whatever the upper layer protocol. This setting must not be used if the
-  server isn't aware of this version of the protocol. See also the "send-proxy"
-  option of the "bind" keyword.
-
-  Supported in default-server: No
+  server isn't aware of this version of the protocol. See also the
+  "no-send-proxy-v2" option of this section and send-proxy" option of the
+  "bind" keyword.
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
@@ -11268,9 +11291,8 @@ send-proxy-v2-ssl
   whatever the upper layer protocol. In addition, the SSL information extension
   of the PROXY protocol is added to the PROXY protocol header. This setting
   must not be used if the server isn't aware of this version of the protocol.
-  See also the "send-proxy-v2" option of the "bind" keyword.
-
-  Supported in default-server: No
+  See also the "no-send-proxy-v2-ssl" option of this section and the
+  "send-proxy-v2" option of the "bind" keyword.
 
 send-proxy-v2-ssl-cn
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
@@ -11281,9 +11303,8 @@ send-proxy-v2-ssl-cn
   of the PROXY protocol, along along with the Common Name from the subject of
   the client certificate (if any), is added to the PROXY protocol header. This
   setting must not be used if the server isn't aware of this version of the
-  protocol. See also the "send-proxy-v2" option of the "bind" keyword.
-
-  Supported in default-server: No
+  protocol. See also the "no-send-proxy-v2-ssl-cn" option of this section and the
+  "send-proxy-v2" option of the "bind" keyword.
 
 slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
@@ -11305,16 +11326,12 @@ slowstart <start_time_in_ms>
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
 
-  Supported in default-server: Yes
-
 sni <expression>
   The "sni" parameter evaluates the sample fetch expression, converts it to a
   string and uses the result as the host name sent in the SNI TLS extension to
   the server. A typical use case is to send the SNI received from the client in
   a bridged HTTPS scenario, using the "ssl_fc_sni" sample fetch for the
   expression, though alternatives such as req.hdr(host) can also make sense.
-
-  Supported in default-server: no
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
@@ -11335,8 +11352,6 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   Since Linux 4.2/libc 2.23 IP_BIND_ADDRESS_NO_PORT is set for connections
   specifying the source address without port(s).
 
-  Supported in default-server: No
-
 ssl
   This option enables SSL ciphering on outgoing connections to the server. It
   is critical to verify server certificates using "verify" when using SSL to
@@ -11344,9 +11359,29 @@ ssl
   the-middle attacks rendering SSL useless. When this option is used, health
   checks are automatically sent in SSL too unless there is a "port" or an
   "addr" directive indicating the check should be sent to a different location.
-  See the "check-ssl" option to force SSL health checks.
+  See the "no-ssl" to disable "ssl" option and "check-ssl" option to force
+  SSL health checks.
 
-  Supported in default-server: No
+sslv3
+  This option may be used as "server" setting to reset any "no-sslv3"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-sslv3" setting.
+
+ssl-reuse
+  This option may be used as "server" setting to reset any "no-ssl-reuse"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-ssl-reuse" setting.
+
+stick
+  This option may be used as "server" setting to reset any "non-stick"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "non-stick" setting.
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all outgoing connections to this server. This
@@ -11370,7 +11405,33 @@ track [<proxy>/]<server>
   enabled. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
-  Supported in default-server: No
+tlsv10
+  This option may be used as "server" setting to reset any "no-tlsv10"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-tlsv10" setting.
+
+tlsv11
+  This option may be used as "server" setting to reset any "no-tlsv11"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-tlsv11" setting.
+
+tlsv12
+  This option may be used as "server" setting to reset any "no-tlsv12"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-tlsv12" setting.
+
+tls-tickets
+  This option may be used as "server" setting to reset any "no-tls-tickets"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-tlsv-tickets" setting.
 
 verify [none|required]
   This setting is only available when support for OpenSSL was built in. If set
@@ -11382,8 +11443,6 @@ verify [none|required]
   using SSL to connect to servers, otherwise the communication is prone to
   trivial man-in-the-middle attacks rendering SSL totally useless.
 
-  Supported in default-server: No
-
 verifyhost <hostname>
   This setting is only available when support for OpenSSL was built in, and
   only takes effect if 'verify required' is also specified. When set, the
@@ -11391,8 +11450,7 @@ verifyhost <hostname>
   provided by the server are checked. If none of the hostnames in the
   certificate match the specified hostname, the handshake is aborted. The
   hostnames in the server-provided certificate may include wildcards.
-
-  Supported in default-server: No
+  See also "no-verifyhost" option.
 
 weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
@@ -11404,8 +11462,6 @@ weight <weight>
   according to server's capacity, it is recommended to start with values which
   can both grow and shrink, for instance between 10 and 100 to leave enough
   room above and below for later adjustments.
-
-  Supported in default-server: Yes
 
 
 5.3. Server IP address resolution using DNS
