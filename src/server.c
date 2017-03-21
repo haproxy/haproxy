@@ -305,6 +305,28 @@ static int srv_parse_cookie(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "disabled" server keyword */
+static int srv_parse_disabled(char **args, int *cur_arg,
+                              struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
+	newsrv->state = SRV_ST_STOPPED;
+	newsrv->check.state |= CHK_ST_PAUSED;
+	newsrv->check.health = 0;
+	return 0;
+}
+
+/* Parse the "enabled" server keyword */
+static int srv_parse_enabled(char **args, int *cur_arg,
+                             struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->admin &= ~SRV_ADMF_CMAINT & ~SRV_ADMF_FMAINT;
+	newsrv->state = SRV_ST_RUNNING;
+	newsrv->check.state &= ~CHK_ST_PAUSED;
+	newsrv->check.health = newsrv->check.rise;
+	return 0;
+}
+
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
@@ -1323,6 +1345,8 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
 	{ "cookie",              srv_parse_cookie,              1,  1 }, /* Assign a cookie to the server */
+	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
+	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
@@ -1755,6 +1779,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->check.rise	= curproxy->defsrv.check.rise;
 			newsrv->check.fall	= curproxy->defsrv.check.fall;
 			newsrv->check.health	= newsrv->check.rise;	/* up, but will fall down at first failure */
+			/* Here we check if 'disabled' is the default server state */
+			if (curproxy->defsrv.admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
+				newsrv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
+				newsrv->state = SRV_ST_STOPPED;
+				newsrv->check.state |= CHK_ST_PAUSED;
+				newsrv->check.health = 0;
+			}
 			newsrv->check.server	= newsrv;
 			newsrv->check.tcpcheck_rules	= &curproxy->tcpcheck_rules;
 
@@ -2095,14 +2126,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
-				newsrv->admin |= SRV_ADMF_CMAINT;
-				newsrv->admin |= SRV_ADMF_FMAINT;
-				newsrv->state = SRV_ST_STOPPED;
-				newsrv->check.state |= CHK_ST_PAUSED;
-				newsrv->check.health = 0;
-				cur_arg += 1;
 			}
 			else if (!strcmp(args[cur_arg], "on-error")) {
 				if (!strcmp(args[cur_arg + 1], "fastinter"))
