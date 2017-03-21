@@ -467,7 +467,7 @@ for every keyword. Supported units are :
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
 
 
-2.4. Examples
+2.5. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
