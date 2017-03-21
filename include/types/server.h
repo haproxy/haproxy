@@ -241,6 +241,7 @@ struct server {
 	int tcp_ut;                             /* for TCP, user timeout */
 
 	int do_check;                           /* temporary variable used during parsing to denote if health checks must be enabled */
+	int do_agent;                           /* temporary variable used during parsing to denote if an auxiliary agent check must be enabled */
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
 

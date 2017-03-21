@@ -262,6 +262,14 @@ static int srv_parse_addr(char **args, int *cur_arg,
 	return ERR_ALERT | ERR_FATAL;
 }
 
+/* Parse the "agent-check" server keyword */
+static int srv_parse_agent_check(char **args, int *cur_arg,
+                                 struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->do_agent = 1;
+	return 0;
+}
+
 /* Parse the "backup" server keyword */
 static int srv_parse_backup(char **args, int *cur_arg,
                             struct proxy *curproxy, struct server *newsrv, char **err)
@@ -399,6 +407,18 @@ static int srv_parse_namespace(char **args, int *cur_arg,
 	memprintf(err, "'%s': '%s' option not implemented", args[0], args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
+}
+
+/* Parse the "no-agent-check" server keyword */
+static int srv_parse_no_agent_check(char **args, int *cur_arg,
+                                     struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	free_check(&newsrv->agent);
+	newsrv->agent.inter = 0;
+	newsrv->agent.port = 0;
+	newsrv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
+	newsrv->do_agent = 0;
+	return 0;
 }
 
 /* Parse the "no-backup" server keyword */
@@ -1341,6 +1361,7 @@ void srv_compute_all_admin_states(struct proxy *px)
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
+	{ "agent-check",         srv_parse_agent_check,         0,  1 }, /* Enable an auxiliary agent check */
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
 	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
@@ -1349,6 +1370,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
+	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
@@ -1569,7 +1591,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 	if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
-		int do_agent = 0, defsrv = (*args[0] == 'd');
+		int defsrv = (*args[0] == 'd');
 
 		if (!defsrv && curproxy == defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -1619,7 +1641,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			LIST_INIT(&newsrv->priv_conns);
 			LIST_INIT(&newsrv->idle_conns);
 			LIST_INIT(&newsrv->safe_conns);
-			do_agent = 0;
 			newsrv->flags = 0;
 			newsrv->admin = 0;
 			newsrv->state = SRV_ST_RUNNING; /* early server setup */
@@ -1746,6 +1767,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			/* Note: 'flags' field has potentially been already initialized. */
 			newsrv->flags       |= curproxy->defsrv.flags;
 			newsrv->do_check    = curproxy->defsrv.do_check;
+			newsrv->do_agent    = curproxy->defsrv.do_agent;
 			if (newsrv->check.port)
 				newsrv->flags |= SRV_F_CHECKPORT;
 			newsrv->check.inter	= curproxy->defsrv.check.inter;
@@ -1832,11 +1854,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "agent-check")) {
-				global.maxsock++;
-				do_agent = 1;
-				cur_arg += 1;
-			} else if (!strcmp(args[cur_arg], "agent-inter")) {
+			if (!strcmp(args[cur_arg], "agent-inter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
 					Alert("parsing [%s:%d] : unexpected character '%c' in 'agent-inter' argument of server %s.\n",
@@ -2322,7 +2340,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			global.maxsock++;
 		}
 
-		if (do_agent) {
+		if (!defsrv && newsrv->do_agent) {
 			const char *ret;
 
 			if (!newsrv->agent.port) {
@@ -2343,6 +2361,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
+			global.maxsock++;
 		}
 
 		if (!defsrv) {

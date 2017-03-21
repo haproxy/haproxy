@@ -3082,8 +3082,11 @@ const char *init_check(struct check *check, int type)
 void free_check(struct check *check)
 {
 	free(check->bi);
+	check->bi = NULL;
 	free(check->bo);
+	check->bo = NULL;
 	free(check->conn);
+	check->conn = NULL;
 }
 
 void email_alert_free(struct email_alert *alert)
