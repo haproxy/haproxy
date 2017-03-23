@@ -23,9 +23,9 @@ Revision history
    2014/06/14 - fix v2 header check in example code, and update Forwarded spec
    2014/07/12 - update list of implementations (add Squid)
    2015/05/02 - update list of implementations and format of the TLV add-ons
-   2017/03/10 - added the checksum and more SSL-related TLV types, reserved TLV
-                type ranges, added TLV documentation, clarified string
-                encoding. With contributions from Andriy Palamarchuk
+   2017/03/10 - added the checksum, noop and more SSL-related TLV types,
+                reserved TLV type ranges, added TLV documentation, clarified
+                string encoding. With contributions from Andriy Palamarchuk
                 (Amazon.com).
 
 
@@ -537,6 +537,7 @@ The following types have already been registered for the <type> field :
         #define PP2_TYPE_ALPN           0x01
         #define PP2_TYPE_AUTHORITY      0x02
         #define PP2_TYPE_CRC32C         0x03
+        #define PP2_TYPE_NOOP           0x04
         #define PP2_TYPE_SSL            0x20
         #define PP2_SUBTYPE_SSL_VERSION 0x21
         #define PP2_SUBTYPE_SSL_CN      0x22
@@ -594,7 +595,14 @@ functionality is supported by the receiver, the receiver MUST:
 The default procedure for handling an invalid TCP connection is to abort it.
 
 
-2.2.4. The PP2_TYPE_SSL type and subtypes
+2.2.4. PP2_TYPE_NOOP
+
+The TLV of this type should be ignored when parsed. The value is zero or more
+bytes. Can be used for data padding or alignment. Note that it can be used
+to align only by 3 or more bytes because a TLV can not be smaller than that.
+
+
+2.2.5. The PP2_TYPE_SSL type and subtypes
 
 For the type PP2_TYPE_SSL, the value is itself a defined like this :
 
@@ -646,13 +654,13 @@ In all cases, the string representation (in UTF8) of the Common Name field
 using the TLV format and the type PP2_SUBTYPE_SSL_CN. E.g. "example.com".
 
 
-2.2.5. The PP2_TYPE_NETNS type
+2.2.6. The PP2_TYPE_NETNS type
 
 The type PP2_TYPE_NETNS defines the value as the US-ASCII string representation
 of the namespace's name.
 
 
-2.2.6. Reserved type ranges
+2.2.7. Reserved type ranges
 
 The following range of 16 type values is reserved for application-specific
 data and will be never used by the PROXY Protocol. If you need more values
