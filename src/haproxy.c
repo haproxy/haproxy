@@ -117,6 +117,7 @@ int  relative_pid = 1;		/* process id starting at 1 */
 
 /* global options */
 struct global global = {
+	.hard_stop_after = TICK_ETERNITY,
 	.nbproc = 1,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
@@ -157,6 +158,7 @@ struct global global = {
 /*********************************************************************/
 
 int stopping;	/* non zero means stopping in progress */
+int killed;	/* non zero means a hard-stop is triggered */
 int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) */
 
 /* Here we store informations about the pids of the processes we may pause
@@ -593,6 +595,7 @@ static void init(int argc, char **argv)
 	 */
     
 	totalconn = actconn = maxfd = listeners = stopping = 0;
+	killed = 0;
     
 
 #ifdef HAPROXY_MEMMAX
@@ -1225,7 +1228,7 @@ static void deinit_stick_rules(struct list *rules)
 	}
 }
 
-static void deinit(void)
+void deinit(void)
 {
 	struct proxy *p = proxy, *p0;
 	struct cap_hdr *h,*h_next;

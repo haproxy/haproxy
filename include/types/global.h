@@ -80,6 +80,7 @@ struct global {
 	int gid;
 	int external_check;
 	int nbproc;
+	unsigned int hard_stop_after;	/* maximum time allowed to perform a soft-stop */
 	int maxconn, hardmaxconn;
 	int maxsslconn;
 	int ssl_session_max_cost;   /* how many bytes an SSL session may cost */
@@ -170,6 +171,7 @@ extern const int zero;
 extern const int one;
 extern const struct linger nolinger;
 extern int stopping;	/* non zero means stopping in progress */
+extern int killed;	/* non zero means a hard-stop is triggered */
 extern char hostname[MAX_HOSTNAME_LEN];
 extern char localpeer[MAX_HOSTNAME_LEN];
 extern struct list global_listener_queue; /* list of the temporarily limited listeners */
@@ -194,6 +196,7 @@ static inline int already_warned(unsigned int warning)
 	return 0;
 }
 
+void deinit(void);
 void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
 void hap_register_post_deinit(void (*fct)());

@@ -536,6 +536,7 @@ The following keywords are supported in the "global" section :
    - external-check
    - gid
    - group
+   - hard-stop-after
    - log
    - log-tag
    - log-send-hostname
@@ -702,6 +703,22 @@ gid <number>
   Note that if haproxy is started from a user having supplementary groups, it
   will only be able to drop these groups if started with superuser privileges.
   See also "group" and "uid".
+
+hard-stop-after <time>
+  Defines the maximum time allowed to perform a clean soft-stop.
+
+  Arguments :
+    <time>  is the maximum time (by default in milliseconds) for which the
+            instance will remain alive when a soft-stop is received via the
+            SIGUSR1 signal.
+
+  This may be used to ensure that the instance will quit even if connections
+  remain opened during a soft-stop (for example with long timeouts for a proxy
+  in tcp mode). It applies both in TCP and HTTP mode.
+
+  Example:
+    global
+      hard-stop-after 30s
 
 group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.

@@ -914,6 +914,58 @@ struct task *manage_proxy(struct task *t)
 }
 
 
+static int proxy_parse_hard_stop_after(char **args, int section_type, struct proxy *curpx,
+                                struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	const char *res;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects <time> as argument.\n", args[0]);
+		return -1;
+	}
+	res = parse_time_err(args[1], &global.hard_stop_after, TIME_UNIT_MS);
+	if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+struct task *hard_stop(struct task *t)
+{
+	struct proxy *p;
+	struct stream *s;
+
+	if (killed) {
+		Warning("Some tasks resisted to hard-stop, exiting now.\n");
+		send_log(NULL, LOG_WARNING, "Some tasks resisted to hard-stop, exiting now.\n");
+		/* Do some cleanup and explicitely quit */
+		deinit();
+		exit(0);
+	}
+
+	Warning("soft-stop running for too long, performing a hard-stop.\n");
+	send_log(NULL, LOG_WARNING, "soft-stop running for too long, performing a hard-stop.\n");
+	p = proxy;
+	while (p) {
+		if ((p->cap & PR_CAP_FE) && (p->feconn > 0)) {
+			Warning("Proxy %s hard-stopped (%d remaining conns will be closed).\n",
+				p->id, p->feconn);
+			send_log(p, LOG_WARNING, "Proxy %s hard-stopped (%d remaining conns will be closed).\n",
+				p->id, p->feconn);
+		}
+		p = p->next;
+	}
+	list_for_each_entry(s, &streams, list) {
+		stream_shutdown(s, SF_ERR_KILLED);
+	}
+
+	killed = 1;
+	t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
+	return t;
+}
+
 /*
  * this function disables health-check servers so that the process will quickly be ignored
  * by load balancers. Note that if a proxy was already in the PAUSED state, then its grace
@@ -923,8 +975,19 @@ void soft_stop(void)
 {
 	struct proxy *p;
 	struct peers *prs;
+	struct task *task;
 
 	stopping = 1;
+	if (tick_isset(global.hard_stop_after)) {
+		task = task_new();
+		if (task) {
+			task->process = hard_stop;
+			task_schedule(task, tick_add(now_ms, global.hard_stop_after));
+		}
+		else {
+			Alert("out of memory trying to allocate the hard-stop task.\n");
+		}
+	}
 	p = proxy;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
@@ -1215,6 +1278,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "hard-stop-after", proxy_parse_hard_stop_after },
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "contimeout", proxy_parse_timeout },
