@@ -7538,7 +7538,7 @@ static void __ssl_sock_init(void)
 	ptr = NULL;
 	memprintf(&ptr, "Built with OpenSSL version : "
 #ifdef OPENSSL_IS_BORINGSSL
-		"BoringSSL\n");
+		"BoringSSL");
 #else /* OPENSSL_IS_BORINGSSL */
 	        OPENSSL_VERSION_TEXT
 		"\nRunning on OpenSSL version : %s%s",
@@ -7564,6 +7564,24 @@ static void __ssl_sock_init(void)
 #else
 		"no (version might be too old, 0.9.8f min needed)"
 #endif
+#endif
+	       "", ptr);
+
+	memprintf(&ptr, "%s\nOpenSSL library supports : "
+#if SSL_OP_NO_SSLv3
+		  "SSLv3 "
+#endif
+#if SSL_OP_NO_TLSv1
+		  "TLSv1.0 "
+#endif
+#if SSL_OP_NO_TLSv1_1
+		  "TLSv1.1 "
+#endif
+#if SSL_OP_NO_TLSv1_2
+		  "TLSv1.2 "
+#endif
+#if SSL_OP_NO_TLSv1_3
+		  "TLSv1.3"
 #endif
 	       "", ptr);
 
