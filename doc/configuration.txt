@@ -10069,7 +10069,7 @@ use-server <server> unless <condition>
      use-server mail if { req_ssl_sni -i mail.example.com }
      server     mail 192.168.0.1:587 weight 0
      use-server imap if { req_ssl_sni -i imap.example.com }
-     server     mail 192.168.0.1:993 weight 0
+     server     imap 192.168.0.1:993 weight 0
      # all the rest is forwarded to this server
      server  default 192.168.0.2:443 check
 
