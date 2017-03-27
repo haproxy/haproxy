@@ -169,7 +169,7 @@ fi
 
 (echo "---"
  echo "Complete changelog :"
- git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^"
+ git shortlog "v$OLD".."v$NEW^"
  echo "---"
 ) >> "$OUTPUT"
 
