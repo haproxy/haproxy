@@ -47,6 +47,9 @@
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 
+const char *server_propagate_weight_change_request(struct server *sv,
+	const char *weight_str);
+
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
@@ -1445,6 +1448,8 @@ const char *server_parse_weight_change_request(struct server *sv,
 	struct proxy *px;
 	long int w;
 	char *end;
+	const char *msg;
+	int relative = 0;
 
 	px = sv->proxy;
 
@@ -1466,6 +1471,8 @@ const char *server_parse_weight_change_request(struct server *sv,
 		w = sv->iweight * w / 100;
 		if (w > 256)
 			w = 256;
+
+		relative = 1;
 	}
 	else if (w < 0 || w > 256)
 		return "Absolute weight can only be between 0 and 256 inclusive.\n";
@@ -1477,6 +1484,28 @@ const char *server_parse_weight_change_request(struct server *sv,
 
 	sv->uweight = w;
 	server_recalc_eweight(sv);
+
+	if (relative) {
+		msg = server_propagate_weight_change_request(sv, weight_str);
+		if (msg != NULL) {
+			return msg;
+		}
+	}
+
+	return NULL;
+}
+
+const char *server_propagate_weight_change_request(struct server *sv,
+	const char *weight_str)
+{
+	struct server *tracker;
+	const char *msg;
+
+	for (tracker = sv->trackers; tracker; tracker = tracker->tracknext) {
+		msg = server_parse_weight_change_request(tracker, weight_str);
+		if (msg)
+			return msg;
+	}
 
 	return NULL;
 }

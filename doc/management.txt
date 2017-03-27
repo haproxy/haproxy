@@ -1694,6 +1694,10 @@ set weight <backend>/<server> <weight>[%]
   "admin". Both the backend and the server may be specified either by their
   name or by their numeric ID, prefixed with a sharp ('#').
 
+  Note:
+    Relative weight changes are propagated to all tracking servers. Each
+    tracking server will have its weight recalculated separately.
+
 show cli sockets
   List CLI sockets. The output format is composed of 3 fields separated by
   spaces. The first field is the socket address, it can be a unix socket, a
