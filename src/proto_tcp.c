@@ -1698,7 +1698,6 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 			l->interface = strdup(args[cur_arg + 1]);
 	}
 
-	global.last_checks |= LSTCHK_NETADM;
 	return 0;
 }
 #endif
