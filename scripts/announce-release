@@ -79,7 +79,7 @@ if [ -z "$NEW" ]; then
 fi
 
 if ! git show-ref --tags "v$NEW" >/dev/null; then
-	die "git tag v$NEW already exist, did you create the release ?"
+	die "git tag v$NEW doesn't exist, did you create the release ?"
 fi
 
 if [ -z "$OLD" ]; then
