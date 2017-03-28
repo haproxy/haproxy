@@ -57,7 +57,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 void buffer_slow_realign(struct buffer *buf);
-void buffer_bounce_realign(struct buffer *buf);
 
 /*****************************************************************/
 /* These functions are used to compute various buffer area sizes */

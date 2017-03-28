@@ -176,69 +176,6 @@ void buffer_slow_realign(struct buffer *buf)
 	buf->p = buf->data;
 }
 
-
-/* Realigns a possibly non-contiguous buffer by bouncing bytes from source to
- * destination. It does not use any intermediate buffer and does the move in
- * place, though it will be slower than a simple memmove() on contiguous data,
- * so it's desirable to use it only on non-contiguous buffers. No pointers are
- * changed, the caller is responsible for that.
- */
-void buffer_bounce_realign(struct buffer *buf)
-{
-	int advance, to_move;
-	char *from, *to;
-
-	from = bo_ptr(buf);
-	advance = buf->data + buf->size - from;
-	if (!advance)
-		return;
-
-	to_move = buffer_len(buf);
-	while (to_move) {
-		char last, save;
-
-		last = *from;
-		to = from + advance;
-		if (to >= buf->data + buf->size)
-			to -= buf->size;
-
-		while (1) {
-			save = *to;
-			*to  = last;
-			last = save;
-			to_move--;
-			if (!to_move)
-				break;
-
-			/* check if we went back home after rotating a number of bytes */
-			if (to == from)
-				break;
-
-			/* if we ended up in the empty area, let's walk to next place. The
-			 * empty area is either between buf->r and from or before from or
-			 * after buf->r.
-			 */
-			if (from > bi_end(buf)) {
-				if (to >= bi_end(buf) && to < from)
-					break;
-			} else if (from < bi_end(buf)) {
-				if (to < from || to >= bi_end(buf))
-					break;
-			}
-
-			/* we have overwritten a byte of the original set, let's move it */
-			to += advance;
-			if (to >= buf->data + buf->size)
-				to -= buf->size;
-		}
-
-		from++;
-		if (from >= buf->data + buf->size)
-			from -= buf->size;
-	}
-}
-
-
 /*
  * Dumps part or all of a buffer.
  */
