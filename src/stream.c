@@ -1834,18 +1834,6 @@ struct task *process_stream(struct task *t)
 		 s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = res->flags;
 
-		if ((res->flags & CF_MASK_ANALYSER) &&
-		    (res->analysers & AN_REQ_ALL)) {
-			/* Due to HTTP pipelining, the HTTP request analyser might be waiting
-			 * for some free space in the response buffer, so we might need to call
-			 * it when something changes in the response buffer, but still we pass
-			 * it the request buffer. Note that the SI state might very well still
-			 * be zero due to us returning a flow of redirects!
-			 */
-			res->analysers &= ~AN_REQ_ALL;
-			req->flags |= CF_WAKE_ONCE;
-		}
-
 		if (si_b->state >= SI_ST_EST) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;

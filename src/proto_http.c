@@ -2649,29 +2649,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				buffer_slow_realign(req->buf);
 		}
 
-		/* Note that we have the same problem with the response ; we
-		 * may want to send a redirect, error or anything which requires
-		 * some spare space. So we'll ensure that we have at least
-		 * maxrewrite bytes available in the response buffer before
-		 * processing that one. This will only affect pipelined
-		 * keep-alive requests.
-		 */
-		if ((txn->flags & TX_NOT_FIRST) &&
-		    unlikely(!channel_is_rewritable(&s->res) ||
-			     bi_end(s->res.buf) < b_ptr(s->res.buf, txn->rsp.next) ||
-			     bi_end(s->res.buf) > s->res.buf->data + s->res.buf->size - global.tune.maxrewrite)) {
-			if (s->res.buf->o) {
-				if (s->res.flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
-					goto failed_keep_alive;
-				/* don't let a connection request be initiated */
-				channel_dont_connect(req);
-				s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-				s->res.flags |= CF_WAKE_WRITE;
-				s->res.analysers |= an_bit; /* wake us up once it changes */
-				return 0;
-			}
-		}
-
 		if (likely(msg->next < req->buf->i)) /* some unparsed data are available */
 			http_msg_analyzer(msg, &txn->hdr_idx);
 	}
@@ -5301,20 +5278,6 @@ void http_end_txn_clean_session(struct stream *s)
 		s->res.flags |= CF_NEVER_WAIT;
 	}
 
-	/* if the request buffer is not empty, it means we're
-	 * about to process another request, so send pending
-	 * data with MSG_MORE to merge TCP packets when possible.
-	 * Just don't do this if the buffer is close to be full,
-	 * because the request will wait for it to flush a little
-	 * bit before proceeding.
-	 */
-	if (s->req.buf->i) {
-		if (s->res.buf->o &&
-		    !buffer_full(s->res.buf, global.tune.maxrewrite) &&
-		    bi_end(s->res.buf) <= s->res.buf->data + s->res.buf->size - global.tune.maxrewrite)
-			s->res.flags |= CF_EXPECT_MORE;
-	}
-
 	/* we're removing the analysers, we MUST re-enable events detection.
 	 * We don't enable close on the response channel since it's either
 	 * already closed, or in keep-alive with an idle connection handler.
@@ -5688,13 +5651,13 @@ int http_resync_states(struct stream *s)
 		 * possibly killing the server connection and reinitialize
 		 * a fresh-new transaction, but only once we're sure there's
 		 * enough room in the request and response buffer to process
-		 * another request. The request buffer must not hold any
-		 * pending output data and the request buffer must not have
-		 * output data occupying the reserve.
+		 * another request. They must not hold any pending output data
+		 * and the response buffer must realigned
+		 * (realign is done is http_end_txn_clean_session).
 		 */
 		if (s->req.buf->o)
 			s->req.flags |= CF_WAKE_WRITE;
-		else if (channel_congested(&s->res))
+		else if (s->res.buf->o)
 			s->res.flags |= CF_WAKE_WRITE;
 		else {
 			s->req.analysers = AN_REQ_FLT_END;
@@ -9020,6 +8983,9 @@ void http_reset_txn(struct stream *s)
 	 */
 	if (unlikely(s->res.buf->i))
 		s->res.buf->i = 0;
+
+	/* Now we can realign the response buffer */
+	buffer_realign(s->res.buf);
 
 	s->req.rto = strm_fe(s)->timeout.client;
 	s->req.wto = TICK_ETERNITY;
