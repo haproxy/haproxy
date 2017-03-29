@@ -1832,7 +1832,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (curproxy->defsrv.ssl_ctx.crl_file != NULL)
 				newsrv->ssl_ctx.crl_file = strdup(curproxy->defsrv.ssl_ctx.crl_file);
 			if (curproxy->defsrv.ssl_ctx.client_crt != NULL)
-				newsrv->ssl_ctx.client_crt = strdup(curproxy->defsrv.ssl_ctx.crl_file);
+				newsrv->ssl_ctx.client_crt = strdup(curproxy->defsrv.ssl_ctx.client_crt);
 			newsrv->ssl_ctx.verify = curproxy->defsrv.ssl_ctx.verify;
 			if (curproxy->defsrv.ssl_ctx.verify_host != NULL)
 				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
