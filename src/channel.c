@@ -91,8 +91,8 @@ int bo_inject(struct channel *chn, const char *msg, int len)
 		return -2;
 	}
 
-	max = buffer_realign(chn->buf);
-
+	buffer_realign(chn->buf);
+	max = bo_contig_space(chn->buf);
 	if (len > max)
 		return max;
 
@@ -166,7 +166,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = buffer_contig_space(chn->buf);
+	max = bi_contig_space(chn->buf);
 	memcpy(bi_end(chn->buf), blk, MIN(len, max));
 	if (len > max)
 		memcpy(chn->buf->data, blk + max, len - max);

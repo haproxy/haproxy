@@ -156,6 +156,41 @@ static inline int bo_contig_data(const struct buffer *b)
 	return b->o;
 }
 
+/* Return the amount of bytes that can be written into the input area at once
+ * including reserved space which may be overwritten (this is the caller
+ * responsibility to know if the reserved space is protected or not).
+*/
+static inline int bi_contig_space(const struct buffer *b)
+{
+	const char *left, *right;
+
+	left  = bi_end(b);
+	right = bo_ptr(b);
+
+	if (left >= right)
+		right = b->data + b->size;
+
+	return (right - left);
+}
+
+/* Return the amount of bytes that can be written into the output area at once
+ * including reserved space which may be overwritten (this is the caller
+ * responsibility to know if the reserved space is protected or not). Input data
+ * are assumed to not exist.
+*/
+static inline int bo_contig_space(const struct buffer *b)
+{
+	const char *left, *right;
+
+	left  = bo_end(b);
+	right = bo_ptr(b);
+
+	if (left >= right)
+		right = b->data + b->size;
+
+	return (right - left);
+}
+
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
 {
@@ -226,21 +261,6 @@ static inline int buffer_contig_area(const struct buffer *buf, const char *start
 	return count;
 }
 
-/* Return the amount of bytes that can be written into the buffer at once,
- * including reserved space which may be overwritten.
- */
-static inline int buffer_contig_space(const struct buffer *buf)
-{
-	const char *left, *right;
-
-	if (buf->data + buf->o <= buf->p)
-		right = buf->data + buf->size;
-	else
-		right = buf->p + buf->size - buf->o;
-
-	left = buffer_wrap_add(buf, buf->p + buf->i);
-	return right - left;
-}
 
 /* Returns the amount of byte that can be written starting from <p> into the
  * input buffer at once, including reserved space which may be overwritten.
@@ -340,17 +360,13 @@ static inline void bi_fast_delete(struct buffer *buf, int n)
 	buf->p += n;
 }
 
-/*
- * Tries to realign the given buffer, and returns how many bytes can be written
- * there at once without overwriting anything.
- */
-static inline int buffer_realign(struct buffer *buf)
+/* Tries to realign the given buffer. */
+static inline void buffer_realign(struct buffer *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
 		buf->p = buf->data;
 	}
-	return buffer_contig_space(buf);
 }
 
 /* Schedule all remaining buffer data to be sent. ->o is not touched if it
@@ -402,7 +418,7 @@ static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 	if (!len)
 		return 0;
 
-	half = buffer_contig_space(b);
+	half = bo_contig_space(b);
 	if (half > len)
 		half = len;
 
