@@ -249,18 +249,6 @@ static inline int buffer_total_space(const struct buffer *buf)
 	return buf->size - buffer_len(buf);
 }
 
-/* Returns the number of contiguous bytes between <start> and <start>+<count>,
- * and enforces a limit on buf->data + buf->size. <start> must be within the
- * buffer.
- */
-static inline int buffer_contig_area(const struct buffer *buf, const char *start, int count)
-{
-	if (count > buf->data - start + buf->size)
-		count = buf->data - start + buf->size;
-	return count;
-}
-
-
 /* Returns the amount of byte that can be written starting from <p> into the
  * input buffer at once, including reserved space which may be overwritten.
  * This is used by Lua to insert data in the input side just before the other
@@ -319,21 +307,6 @@ static inline int buffer_count(const struct buffer *buf, const char *from, const
 static inline int buffer_pending(const struct buffer *buf)
 {
 	return buf->i;
-}
-
-/* Returns the size of the working area which the caller knows ends at <end>.
- * If <end> equals buf->r (modulo size), then it means that the free area which
- * follows is part of the working area. Otherwise, the working area stops at
- * <end>. It always starts at buf->p. The work area includes the
- * reserved area.
- */
-static inline int buffer_work_area(const struct buffer *buf, const char *end)
-{
-	end = buffer_pointer(buf, end);
-	if (end == buffer_wrap_add(buf, buf->p + buf->i))
-		/* pointer exactly at end, lets push forwards */
-		end = buffer_wrap_sub(buf, buf->p - buf->o);
-	return buffer_count(buf, buf->p, end);
 }
 
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
