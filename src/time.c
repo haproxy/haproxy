@@ -16,7 +16,6 @@
 #include <common/standard.h>
 #include <common/time.h>
 
-unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
 unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */
 unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 unsigned int   samp_time;       /* total elapsed time over current sample */
@@ -165,6 +164,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 {
 	static struct timeval tv_offset; /* warning: signed offset! */
 	struct timeval adjusted, deadline;
+	unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
 
 	gettimeofday(&date, NULL);
 	if (unlikely(max_wait < 0)) {
