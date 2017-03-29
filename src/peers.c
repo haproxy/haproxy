@@ -174,6 +174,12 @@ enum {
 struct peers *peers = NULL;
 static void peer_session_forceshutdown(struct appctx *appctx);
 
+/* This function encode an uint64 to 'dynamic' length format.
+   The encoded value is written at address *str, and the
+   caller must assure that size after *str is large enought.
+   At return, the *str is set at the next Byte after then
+   encoded integer. The function returns then length of the
+   encoded integer in Bytes */
 int intencode(uint64_t i, char **str) {
 	int idx = 0;
 	unsigned char *msg;
@@ -205,36 +211,35 @@ int intencode(uint64_t i, char **str) {
    *str point on the beginning of the integer to decode
    at the end of decoding *str point on the end of the
    encoded integer or to null if end is reached */
-uint64_t intdecode(char **str, char *end) {
-	uint64_t i;
-	int idx = 0;
+uint64_t intdecode(char **str, char *end)
+{
 	unsigned char *msg;
+	uint64_t i;
+	int shift;
 
 	if (!*str)
 		return 0;
 
 	msg = (unsigned char *)*str;
-	if (msg >= (unsigned char *)end) {
-		*str = NULL;
-		return 0;
-	}
+	if (msg >= (unsigned char *)end)
+		goto fail;
 
-	if (msg[idx] < 240) {
-		*str = (char *)&msg[idx+1];
-		return msg[idx];
+	i = *(msg++);
+	if (i >= 240) {
+		shift = 4;
+		do {
+			if (msg >= (unsigned char *)end)
+				goto fail;
+			i += (uint64_t)*msg << shift;
+			shift += 7;
+		} while (*(msg++) >= 128);
 	}
-	i = msg[idx];
-	do {
-		idx++;
-		if (msg >= (unsigned char *)end) {
-			*str = NULL;
-			return 0;
-		}
-		i += (uint64_t)msg[idx] <<  (4 + 7*(idx-1));
-	}
-	while (msg[idx] >= 128);
-	*str = (char *)&msg[idx+1];
-	return i;
+        *str = (char *)msg;
+        return i;
+
+  fail:
+        *str = NULL;
+        return 0;
 }
 
 /* Set the stick-table UPDATE message type byte at <msg_type> address,
