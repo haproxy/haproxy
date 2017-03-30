@@ -13383,6 +13383,7 @@ sc2_clr_gpc0([<table>]) : integer
   typically used as a second ACL in an expression in order to mark a connection
   when a first ACL was verified :
 
+  Example:
         # block if 5 consecutive requests continue to come faster than 10 sess
         # per second, and reset the counter as soon as the traffic slows down.
         acl abuse sc0_http_req_rate gt 10
@@ -13483,6 +13484,7 @@ sc2_inc_gpc0([<table>]) : integer
   return 1. This is typically used as a second ACL in an expression in order
   to mark a connection when a first ACL was verified :
 
+  Example:
         acl abuse sc0_http_req_rate gt 10
         acl kill  sc0_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
@@ -13585,6 +13587,7 @@ src_clr_gpc0([<table>]) : integer
   second ACL in an expression in order to mark a connection when a first ACL
   was verified :
 
+  Example:
         # block if 5 consecutive requests continue to come faster than 10 sess
         # per second, and reset the counter as soon as the traffic slows down.
         acl abuse src_http_req_rate gt 10
@@ -13667,6 +13670,7 @@ src_inc_gpc0([<table>]) : integer
   This is typically used as a second ACL in an expression in order to mark a
   connection when a first ACL was verified :
 
+  Example:
         acl abuse src_http_req_rate gt 10
         acl kill  src_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
@@ -13870,6 +13874,7 @@ ssl_c_sha1 : binary
   Note that the output is binary, so if you want to pass that signature to the
   server, you need to encode it in hex or base64, such as in the example below:
 
+  Example:
      http-request set-header X-SSL-Client-SHA1 %[ssl_c_sha1,hex]
 
 ssl_c_sig_alg : string
@@ -14833,7 +14838,7 @@ url_param([<name>[,<delim>]]) : string
       # match http://example.com/foo;JSESSIONID=some_id
       stick on urlp(JSESSIONID,;)
 
-urlp_val([<name>[,<delim>])] : integer
+urlp_val([<name>[,<delim>]]) : integer
   See "urlp" above. This one extracts the URL parameter <name> in the request
   and converts it to an integer value. This can be used for session stickiness
   based on a user ID for example, or with ACLs to match a page number or price.
