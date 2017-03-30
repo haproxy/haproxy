@@ -10949,22 +10949,30 @@ force-sslv3
   This option enforces use of SSLv3 only when SSL is used to communicate with
   the server. SSLv3 is generally less expensive than the TLS counterparts for
   high connection rates. This option is also available on global statement
-  "ssl-default-server-options". See also "no-force-sslv3", "no-tlsv*", "no-sslv3".
+  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
 
 force-tlsv10
   This option enforces use of TLSv1.0 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-force-tlsv10", "no-tlsv*", "no-sslv3".
+  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
 
 force-tlsv11
   This option enforces use of TLSv1.1 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-force-tlsv11", "no-tlsv*", "no-sslv3".
+  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
 
 force-tlsv12
   This option enforces use of TLSv1.2 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-force-tlsv12", "no-tlsv*", "no-sslv3".
+  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
 
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
@@ -11091,34 +11099,6 @@ no-check-ssl
   It may also be used as "default-server" setting to reset any previous
   "default-server" "check-ssl" setting.
 
-no-force-sslv3
-  This option may be used as "server" setting to reset any "force-sslv3"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "force-sslv3" setting.
-
-no-force-tlsv10
-  This option may be used as "server" setting to reset any "force-tlsv10"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "force-tlsv10" setting.
-
-no-force-tlsv11
-  This option may be used as "server" setting to reset any "force-tlsv11"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "force-tlsv11" setting.
-
-no-force-tlsv12
-  This option may be used as "server" setting to reset any "force-tlsv12"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "force-tlsv12" setting.
-
 no-send-proxy
   This option may be used as "server" setting to reset any "send-proxy"
   setting which would have been inherited from "default-server" directive as
@@ -11165,6 +11145,8 @@ no-sslv3
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. See also "force-sslv3", "force-tlsv*".
 
+  Supported in default-server: No
+
 no-tls-tickets
   This setting is only available when support for OpenSSL was built in. It
   disables the stateless session resumption (RFC 5077 TLS Ticket
@@ -11181,6 +11163,8 @@ no-tlsv10
   option is also available on global statement "ssl-default-server-options".
   See also "tlsv10", "force-sslv3", "force-tlsv*".
 
+  Supported in default-server: No
+
 no-tlsv11
   This option disables support for TLSv1.1 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
@@ -11189,6 +11173,8 @@ no-tlsv11
   option is also available on global statement "ssl-default-server-options".
   See also "tlsv11", "force-sslv3", "force-tlsv*".
 
+  Supported in default-server: No
+
 no-tlsv12
   This option disables support for TLSv1.2 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
@@ -11196,6 +11182,8 @@ no-tlsv12
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
   See also "tlsv12", "force-sslv3", "force-tlsv*".
+
+  Supported in default-server: No
 
 no-verifyhost
   This option may be used as "server" setting to reset any "verifyhost"
@@ -11435,13 +11423,6 @@ ssl
   See the "no-ssl" to disable "ssl" option and "check-ssl" option to force
   SSL health checks.
 
-sslv3
-  This option may be used as "server" setting to reset any "no-sslv3"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "no-sslv3" setting.
-
 ssl-reuse
   This option may be used as "server" setting to reset any "no-ssl-reuse"
   setting which would have been inherited from "default-server" directive as
@@ -11477,27 +11458,6 @@ track [<proxy>/]<server>
   server, provided that at the end of the chain, a server has health checks
   enabled. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
-
-tlsv10
-  This option may be used as "server" setting to reset any "no-tlsv10"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "no-tlsv10" setting.
-
-tlsv11
-  This option may be used as "server" setting to reset any "no-tlsv11"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "no-tlsv11" setting.
-
-tlsv12
-  This option may be used as "server" setting to reset any "no-tlsv12"
-  setting which would have been inherited from "default-server" directive as
-  default value.
-  It may also be used as "default-server" setting to reset any previous
-  "default-server" "no-tlsv12" setting.
 
 tls-tickets
   This option may be used as "server" setting to reset any "no-tls-tickets"

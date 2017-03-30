@@ -6597,52 +6597,6 @@ static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, s
 	return 0;
 }
 
-/* parse the "no-force-sslv3" server keyword */
-static int srv_parse_no_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#ifndef OPENSSL_NO_SSL3
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_SSLV3;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol SSLv3", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
-/* parse the "no-force-tlsv10" server keyword */
-static int srv_parse_no_force_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV10;
-	return 0;
-}
-
-/* parse the "no-force-tlsv11" server keyword */
-static int srv_parse_no_force_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#if SSL_OP_NO_TLSv1_1
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV11;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
-/* parse the "no-force-tlsv12" server keyword */
-static int srv_parse_no_force_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#if SSL_OP_NO_TLSv1_2
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_USE_TLSV12;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
 /* parse the "no-send-proxy-v2-ssl" server keyword */
 static int srv_parse_no_send_proxy_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -6762,34 +6716,6 @@ static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_REUSE;
-	return 0;
-}
-
-/* parse the "sslv3" server keyword */
-static int srv_parse_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_SSLV3;
-	return 0;
-}
-
-/* parse the "tlsv10" server keyword */
-static int srv_parse_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_TLSV10;
-	return 0;
-}
-
-/* parse the "tlsv11" server keyword */
-static int srv_parse_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_TLSV11;
-	return 0;
-}
-
-/* parse the "tlsv12" server keyword */
-static int srv_parse_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_TLSV12;
 	return 0;
 }
 
@@ -7538,28 +7464,20 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv11",            srv_parse_force_tlsv11,      0, 1 }, /* force TLSv11 */
 	{ "force-tlsv12",            srv_parse_force_tlsv12,      0, 1 }, /* force TLSv12 */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,      0, 1 }, /* disable SSL for health checks */
-	{ "no-force-sslv3",          srv_parse_no_force_sslv3,    0, 1 }, /* do not force SSLv3 */
-	{ "no-force-tlsv10",         srv_parse_no_force_tlsv10,   0, 1 }, /* do not force TLSv10 */
-	{ "no-force-tlsv11",         srv_parse_no_force_tlsv11,   0, 1 }, /* do not force TLSv11 */
-	{ "no-force-tlsv12",         srv_parse_no_force_tlsv12,   0, 1 }, /* do not force TLSv12 */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl, 0, 1 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,  0, 1 }, /* do not send PROXY protocol header v2 with CN */
 	{ "no-ssl",                  srv_parse_no_ssl,            0, 1 }, /* disable SSL processing */
 	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,      0, 1 }, /* disable session reuse */
-	{ "no-sslv3",                srv_parse_no_sslv3,          0, 1 }, /* disable SSLv3 */
-	{ "no-tlsv10",               srv_parse_no_tlsv10,         0, 1 }, /* disable TLSv10 */
-	{ "no-tlsv11",               srv_parse_no_tlsv11,         0, 1 }, /* disable TLSv11 */
-	{ "no-tlsv12",               srv_parse_no_tlsv12,         0, 1 }, /* disable TLSv12 */
+	{ "no-sslv3",                srv_parse_no_sslv3,          0, 0 }, /* disable SSLv3 */
+	{ "no-tlsv10",               srv_parse_no_tlsv10,         0, 0 }, /* disable TLSv10 */
+	{ "no-tlsv11",               srv_parse_no_tlsv11,         0, 0 }, /* disable TLSv11 */
+	{ "no-tlsv12",               srv_parse_no_tlsv12,         0, 0 }, /* disable TLSv12 */
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,    0, 1 }, /* disable session resumption tickets */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,    0, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,     0, 1 }, /* send PROXY protocol header v2 with CN */
 	{ "sni",                     srv_parse_sni,               1, 1 }, /* send SNI extension */
 	{ "ssl",                     srv_parse_ssl,               0, 1 }, /* enable SSL processing */
 	{ "ssl-reuse",               srv_parse_ssl_reuse,         0, 1 }, /* enable session reuse */
-	{ "sslv3",                   srv_parse_sslv3,             0, 1 }, /* enable SSLv3 */
-	{ "tlsv10",                  srv_parse_tlsv10,            0, 1 }, /* enable TLSv10 */
-	{ "tlsv11",                  srv_parse_tlsv11,            0, 1 }, /* enable TLSv11 */
-	{ "tlsv12",                  srv_parse_tlsv12,            0, 1 }, /* enable TLSv12 */
 	{ "tls-tickets",             srv_parse_tls_tickets,       0, 1 }, /* enable session resumption tickets */
 	{ "verify",                  srv_parse_verify,            1, 1 }, /* set SSL verify method */
 	{ "verifyhost",              srv_parse_verifyhost,        1, 1 }, /* require that SSL cert verifies for hostname */
