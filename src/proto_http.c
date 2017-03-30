@@ -5593,6 +5593,13 @@ int http_resync_states(struct stream *s)
 			break;
 	}
 
+	DPRINTF(stderr,"[%u] %s: stream=%p old=%d,%d cur=%d,%d\n",
+		now_ms, __FUNCTION__,
+		s,
+		old_req_state, old_res_state,
+		txn->req.msg_state, txn->rsp.msg_state);
+
+
 	/* OK, both state machines agree on a compatible state.
 	 * There are a few cases we're interested in :
 	 *  - HTTP_MSG_TUNNEL on either means we have to disable both analysers
@@ -5678,6 +5685,15 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->req;
 	int ret;
+
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->buf->i,
+		req->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -6864,6 +6880,15 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->rsp;
 	int ret;
+
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		res,
+		res->rex, res->wex,
+		res->flags,
+		res->buf->i,
+		res->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
