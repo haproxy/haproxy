@@ -3271,27 +3271,53 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
 	struct tls_version_filter *conf_ssl_methods = &bind_conf->ssl_methods;
-	int i, min, max;
+	int i, min, max, hole;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 
-	/* set options per default */
-	/* XXX need check hole */
-	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
-		if (conf_ssl_methods->flags & methodVersions[i].flag)
-			options |= methodVersions[i].option;
+	/* Real min and max should be determinate with configuration and openssl's capabilities */
+	if (conf_ssl_methods->min)
+		conf_ssl_methods->flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
+	if (conf_ssl_methods->max)
+		conf_ssl_methods->flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
-	/* XXX min and max can be CONF_TLSV_NONE or unavailable in openssl.
-	   Real min and max should be determinate with conf + openssl's capabilities
-	 */
-	min = conf_ssl_methods->min;
-	max = conf_ssl_methods->max;
+	/* Find min, max and holds */
+	min = max = CONF_TLSV_NONE;
+	hole = 0;
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		/*  version is in openssl && version not disable in configuration */
+		if (methodVersions[i].option && !(conf_ssl_methods->flags & methodVersions[i].flag)) {
+			if (min) {
+				if (hole) {
+					Warning("Proxy '%s': SSL/TLS versions range not contiguous for bind '%s' at [%s:%d]. "
+						"Hole find for %s. Use only 'min-tlsvX' and 'max-tlsvY' to fix.\n",
+						bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line,
+						methodVersions[hole].name);
+					hole = 0;
+				}
+				max = i;
+			}
+			else {
+				min = max = i;
+			}
+		}
+		else {
+			if (min)
+				hole = i;
+			/* set SSL_NO_VERSION per default */
+			options |= methodVersions[i].option;
+		}
+	if (!min)
+		Warning("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].set_version(ctx, 1 /* server */);
 #else   /* openssl >= 1.1.0 */
+	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
         methodVersions[min].set_version(ctx, 0);
         methodVersions[max].set_version(ctx, 1);
 #endif
@@ -3657,7 +3683,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	int verify = SSL_VERIFY_NONE;
 	SSL_CTX *ctx = NULL;
 	struct tls_version_filter *conf_ssl_methods = &srv->ssl_ctx.methods;
-	int i, min, max;
+	int i, min, max, hole;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -3684,23 +3710,49 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		return cfgerr;
 	}
 
-	/* set options per default */
-	/* XXX need check hole */
-	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
-		if (conf_ssl_methods->flags & methodVersions[i].flag)
-			options |= methodVersions[i].option;
+	/* Real min and max should be determinate with configuration and openssl's capabilities */
+	if (conf_ssl_methods->min)
+		conf_ssl_methods->flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
+	if (conf_ssl_methods->max)
+		conf_ssl_methods->flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
-	/* XXX min and max can be CONF_TLSV_NONE or unavailable in openssl.
-	   Real min and max should be determinate with conf + openssl's capabilities
-	 */
-	min = conf_ssl_methods->min;
-	max = conf_ssl_methods->max;
+	/* find min, max and holds */
+	min = max = CONF_TLSV_NONE;
+	hole = 0;
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		/*  version is in openssl && version not disable in configuration */
+		if (methodVersions[i].option && !(conf_ssl_methods->flags & methodVersions[i].flag)) {
+			if (min) {
+				if (hole) {
+					Warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
+						"Hole find for %s. Use only 'min-tlsvX' and 'max-tlsvY' to fix.\n",
+						proxy_type_str(curproxy), curproxy->id, srv->id,
+						methodVersions[hole].name);
+					hole = 0;
+				}
+				max = i;
+			}
+			else {
+				min = max = i;
+			}
+		}
+		else {
+			if (min)
+				hole = i;
+			/* set SSL_NO_VERSION per default */
+			options |= methodVersions[i].option;
+		}
+	if (!min)
+		Warning("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
+			proxy_type_str(curproxy), curproxy->id, srv->id);
+
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].set_version(ctx, 0 /* client */);
 #else   /* openssl >= 1.1.0 */
+	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
         methodVersions[min].set_version(ctx, 0);
         methodVersions[max].set_version(ctx, 1);
 #endif
