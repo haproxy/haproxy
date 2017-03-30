@@ -10434,6 +10434,11 @@ force-tlsv12
   this listener. This option is also available on global statement
   "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
 
+force-tlsv13
+  This option enforces use of TLSv1.3 only on SSL connections instantiated from
+  this listener. This option is also available on global statement
+  "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
+
 generate-certificates
   This setting is only available when support for OpenSSL was built in. It
   enables the dynamic SSL certificates generation. A CA certificate and its
@@ -10579,6 +10584,14 @@ no-tlsv11
 no-tlsv12
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv1.2 on any sockets instantiated from the listener
+  when SSL is supported. Note that SSLv2 is forced disabled in the code and
+  cannot be enabled using any configuration option. This option is also
+  available on global statement "ssl-default-bind-options". See also
+  "force-tlsv*", and "force-sslv3".
+
+no-tlsv13
+  This setting is only available when support for OpenSSL was built in. It
+  disables support for TLSv1.3 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. This option is also
   available on global statement "ssl-default-bind-options". See also
@@ -10974,6 +10987,13 @@ force-tlsv12
 
   Supported in default-server: No
 
+force-tlsv13
+  This option enforces use of TLSv1.3 only when SSL is used to communicate with
+  the server. This option is also available on global statement
+  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
+
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
   the proxy. An unused ID will automatically be assigned if unset. The first
@@ -11161,7 +11181,7 @@ no-tlsv10
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "tlsv10", "force-sslv3", "force-tlsv*".
+  See also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 
@@ -11171,7 +11191,7 @@ no-tlsv11
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "tlsv11", "force-sslv3", "force-tlsv*".
+  See also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 
@@ -11181,7 +11201,17 @@ no-tlsv12
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "tlsv12", "force-sslv3", "force-tlsv*".
+  See also "force-sslv3", "force-tlsv*".
+
+  Supported in default-server: No
+
+no-tlsv13
+  This option disables support for TLSv1.3 when SSL is used to communicate with
+  the server. Note that SSLv2 is disabled in the code and cannot be enabled
+  using any configuration option. TLSv1 is more expensive than SSLv3 so it
+  often makes sense to disable it when communicating with local servers. This
+  option is also available on global statement "ssl-default-server-options".
+  See also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 

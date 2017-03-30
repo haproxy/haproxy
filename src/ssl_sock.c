@@ -126,6 +126,7 @@
 #define MC_SSL_O_NO_TLSV10      0x0002	/* disable TLSv10 */
 #define MC_SSL_O_NO_TLSV11      0x0004	/* disable TLSv11 */
 #define MC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
+#define MC_SSL_O_NO_TLSV13      0x0010	/* disable TLSv13 */
 
 /* ssl_methods versions */
 enum {
@@ -135,7 +136,8 @@ enum {
 	CONF_TLSV10    = 2,
 	CONF_TLSV11    = 3,
 	CONF_TLSV12    = 4,
-	CONF_TLSV_MAX  = 4,
+	CONF_TLSV13    = 5,
+	CONF_TLSV_MAX  = 5,
 };
 
 /* server and bind verify method, it uses a global value as default */
@@ -3181,6 +3183,9 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
 #define SSL_OP_NO_TLSv1_2 0
 #endif
+#ifndef SSL_OP_NO_TLSv1_3                               /* dev */
+#define SSL_OP_NO_TLSv1_3 0
+#endif
 #ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
 #define SSL_OP_SINGLE_DH_USE 0
 #endif
@@ -3218,6 +3223,9 @@ static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_server) {
 		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
 #endif
 }
+static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_server) {
+	/* TLS 1.2 is the last supported version in this context. */
+}
 #else /* openssl >= 1.1.0 */
 static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_max) {
 	is_max ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
@@ -3235,6 +3243,12 @@ static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_max) {
 	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 }
+static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_max) {
+#if SSL_OP_NO_TLSv1_3
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+#endif
+}
 #endif
 static void ssl_set_None_func(SSL_CTX *ctx, int i) {
 }
@@ -3250,6 +3264,7 @@ static struct {
 	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
 	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
 	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
+	{SSL_OP_NO_TLSv1_3, MC_SSL_O_NO_TLSV13, ssl_set_TLSv13_func, "TLSv1.3"}, /* CONF_TLSV13 */
 };
 
 /* Create an initial CTX used to start the SSL connection before switchctx */
@@ -6229,6 +6244,8 @@ static int parse_tls_method_options(char *arg, struct tls_version_filter *method
 		v = CONF_TLSV11;
 	else if (!strcmp(p, "tlsv12"))
 		v = CONF_TLSV12;
+	else if (!strcmp(p, "tlsv13"))
+		v = CONF_TLSV13;
 	else
 		return 1;
 	if (!strncmp(arg, "no-", 3))
@@ -7375,11 +7392,13 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "force-tlsv10",          bind_parse_tls_method_options, 0 }, /* force TLSv10 */
 	{ "force-tlsv11",          bind_parse_tls_method_options, 0 }, /* force TLSv11 */
 	{ "force-tlsv12",          bind_parse_tls_method_options, 0 }, /* force TLSv12 */
+	{ "force-tlsv13",          bind_parse_tls_method_options, 0 }, /* force TLSv13 */
 	{ "generate-certificates", bind_parse_generate_certs,     0 }, /* enable the server certificates generation */
 	{ "no-sslv3",              bind_parse_tls_method_options, 0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             bind_parse_tls_method_options, 0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             bind_parse_tls_method_options, 0 }, /* disable TLSv11 */
 	{ "no-tlsv12",             bind_parse_tls_method_options, 0 }, /* disable TLSv12 */
+	{ "no-tlsv13",             bind_parse_tls_method_options, 0 }, /* disable TLSv13 */
 	{ "no-tls-tickets",        bind_parse_no_tls_tickets,     0 }, /* disable session resumption tickets */
 	{ "ssl",                   bind_parse_ssl,                0 }, /* enable SSL processing */
 	{ "strict-sni",            bind_parse_strict_sni,         0 }, /* refuse negotiation if sni doesn't match a certificate */
@@ -7407,6 +7426,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv10",            srv_parse_tls_method_options,0, 1 }, /* force TLSv10 */
 	{ "force-tlsv11",            srv_parse_tls_method_options,0, 1 }, /* force TLSv11 */
 	{ "force-tlsv12",            srv_parse_tls_method_options,0, 1 }, /* force TLSv12 */
+	{ "force-tlsv13",            srv_parse_tls_method_options,0, 1 }, /* force TLSv13 */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,      0, 1 }, /* disable SSL for health checks */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl, 0, 1 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,  0, 1 }, /* do not send PROXY protocol header v2 with CN */
@@ -7416,6 +7436,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tlsv10",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv10 */
 	{ "no-tlsv11",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv11 */
 	{ "no-tlsv12",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv12 */
+	{ "no-tlsv13",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv13 */
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,    0, 1 }, /* disable session resumption tickets */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,    0, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,     0, 1 }, /* send PROXY protocol header v2 with CN */
