@@ -85,8 +85,6 @@ extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
-extern struct eb32_node *last_timer;   /* optimization: last queued timer */
-extern struct eb32_node *rq_next;    /* optimization: next task except if delete/insert */
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -104,6 +102,13 @@ static inline int task_in_wq(struct task *t)
 struct task *__task_wakeup(struct task *t);
 static inline struct task *task_wakeup(struct task *t, unsigned int f)
 {
+	/* If task is running, we postpone the call
+	 * and backup the state.
+	 */
+	if (unlikely(t->state & TASK_RUNNING)) {
+		t->pending_state |= f;
+		return t;
+	}
 	if (likely(!task_in_rq(t)))
 		__task_wakeup(t);
 	t->state |= f;
@@ -119,8 +124,6 @@ static inline struct task *task_wakeup(struct task *t, unsigned int f)
 static inline struct task *__task_unlink_wq(struct task *t)
 {
 	eb32_delete(&t->wq);
-	if (last_timer == &t->wq)
-		last_timer = NULL;
 	return t;
 }
 
@@ -153,8 +156,6 @@ static inline struct task *__task_unlink_rq(struct task *t)
 static inline struct task *task_unlink_rq(struct task *t)
 {
 	if (likely(task_in_rq(t))) {
-		if (&t->rq == rq_next)
-			rq_next = eb32_next(rq_next);
 		__task_unlink_rq(t);
 	}
 	return t;
@@ -180,7 +181,7 @@ static inline struct task *task_init(struct task *t)
 {
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
-	t->state = TASK_SLEEPING;
+	t->pending_state = t->state = TASK_SLEEPING;
 	t->nice = 0;
 	t->calls = 0;
 	return t;

@@ -54,6 +54,7 @@
 struct task {
 	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	unsigned short state;		/* task state : bit field of TASK_* */
+	unsigned short pending_state;	/* pending states for running talk */
 	short nice;			/* the task's current nice value from -1024 to +1024 */
 	unsigned int calls;		/* number of times ->process() was called */
 	struct task * (*process)(struct task *t);  /* the function which processes the task */
