@@ -27,6 +27,7 @@
 
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>
+#include <types/ssl_sock.h>
 #endif
 
 #include <common/config.h>
@@ -101,18 +102,7 @@ enum li_state {
  */
 
 #ifdef USE_OPENSSL
-/* bind_conf ssl options */
 #define BC_SSL_O_NONE           0x0000
-#define BC_SSL_O_NO_SSLV3       0x0001	/* disable SSLv3 */
-#define BC_SSL_O_NO_TLSV10      0x0002	/* disable TLSv10 */
-#define BC_SSL_O_NO_TLSV11      0x0004	/* disable TLSv11 */
-#define BC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
-/* 0x000F reserved for 'no' protocol version options */
-#define BC_SSL_O_USE_SSLV3      0x0010	/* force SSLv3 */
-#define BC_SSL_O_USE_TLSV10     0x0020	/* force TLSv10 */
-#define BC_SSL_O_USE_TLSV11     0x0040	/* force TLSv11 */
-#define BC_SSL_O_USE_TLSV12     0x0080	/* force TLSv12 */
-/* 0x00F0 reserved for 'force' protocol version options */
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
 #define BC_SSL_O_PREF_CLIE_CIPH 0x0200  /* prefer client ciphers */
 #endif
@@ -148,6 +138,7 @@ struct bind_conf {
 	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	int ssl_options;           /* ssl options */
+	struct tls_version_filter ssl_methods; /* ssl methods */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 	struct tls_keys_ref *keys_ref; /* TLS ticket keys reference */

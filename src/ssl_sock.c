@@ -120,6 +120,24 @@
 #define HASH_FUNCT EVP_sha256
 #endif /* OPENSSL_NO_SHA256 */
 
+/* ssl_methods flags for ssl options */
+#define MC_SSL_O_ALL            0x0000
+#define MC_SSL_O_NO_SSLV3       0x0001	/* disable SSLv3 */
+#define MC_SSL_O_NO_TLSV10      0x0002	/* disable TLSv10 */
+#define MC_SSL_O_NO_TLSV11      0x0004	/* disable TLSv11 */
+#define MC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
+
+/* ssl_methods versions */
+enum {
+	CONF_TLSV_NONE = 0,
+	CONF_TLSV_MIN  = 1,
+	CONF_SSLV3     = 1,
+	CONF_TLSV10    = 2,
+	CONF_TLSV11    = 3,
+	CONF_TLSV12    = 4,
+	CONF_TLSV_MAX  = 4,
+};
+
 /* server and bind verify method, it uses a global value as default */
 enum {
 	SSL_SOCK_VERIFY_DEFAULT  = 0,
@@ -140,6 +158,8 @@ static struct {
 	char *connect_default_ciphers;
 	int listen_default_ssloptions;
 	int connect_default_ssloptions;
+	struct tls_version_filter listen_default_sslmethods;
+	struct tls_version_filter connect_default_sslmethods;
 
 	int private_cache; /* Force to use a private session cache even if nbproc > 1 */
 	unsigned int life_time;   /* SSL session lifetime in seconds */
@@ -156,6 +176,13 @@ static struct {
 #endif
 	.listen_default_ssloptions = BC_SSL_O_NONE,
 	.connect_default_ssloptions = SRV_SSL_O_NONE,
+
+	.listen_default_sslmethods.flags = MC_SSL_O_ALL,
+	.listen_default_sslmethods.min = CONF_TLSV_NONE,
+	.listen_default_sslmethods.max = CONF_TLSV_NONE,
+	.connect_default_sslmethods.flags = MC_SSL_O_ALL,
+	.connect_default_sslmethods.min = CONF_TLSV_NONE,
+	.connect_default_sslmethods.max = CONF_TLSV_NONE,
 
 #ifdef DEFAULT_SSL_MAX_RECORD
 	.max_record = DEFAULT_SSL_MAX_RECORD,
@@ -3167,13 +3194,70 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #define SSL_MODE_SMALL_BUFFERS 0
 #endif
 
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_server)
+{
+#if SSL_OP_NO_SSLv3
+	is_server ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
+		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
+#endif
+}
+static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_server) {
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_client_method());
+}
+static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_server) {
+#if SSL_OP_NO_TLSv1_1
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_1_client_method());
+#endif
+}
+static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_server) {
+#if SSL_OP_NO_TLSv1_2
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
+#endif
+}
+#else /* openssl >= 1.1.0 */
+static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
+}
+static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+}
+static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
+}
+static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+}
+#endif
+static void ssl_set_None_func(SSL_CTX *ctx, int i) {
+}
+
+static struct {
+	int      option;
+	uint16_t flag;
+	void   (*set_version)(SSL_CTX *, int);
+	const char *name;
+} methodVersions[] = {
+	{0, 0, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
+	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
+	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
+	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
+	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
+};
 
 /* Create an initial CTX used to start the SSL connection before switchctx */
 static SSL_CTX *
 ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 {
 	SSL_CTX *ctx = NULL;
-	long ssloptions =
+	long options =
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
 		SSL_OP_NO_COMPRESSION |
@@ -3181,67 +3265,43 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_OP_SINGLE_ECDH_USE |
 		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
 		SSL_OP_CIPHER_SERVER_PREFERENCE;
-	long sslmode =
+	long mode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
-	int conf_ssl_options = bind_conf->ssl_options;
+	struct tls_version_filter *conf_ssl_methods = &bind_conf->ssl_methods;
+	int i, min, max;
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL || defined OPENSSL_IS_BORINGSSL)
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12) {
-		ctx = SSL_CTX_new(TLS_server_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
-	}
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV11) {
-		ctx = SSL_CTX_new(TLS_server_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION);
-	}
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV10) {
-		ctx = SSL_CTX_new(TLS_server_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION);
-	}
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_SSLV3) {
-		ctx = SSL_CTX_new(TLS_server_method());
-		SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION);
-	}
-#else
-#if SSL_OP_NO_TLSv1_2
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12)
-		ctx = SSL_CTX_new(TLSv1_2_server_method());
+	ctx = SSL_CTX_new(SSLv23_server_method());
+
+	/* set options per default */
+	/* XXX need check hole */
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		if (conf_ssl_methods->flags & methodVersions[i].flag)
+			options |= methodVersions[i].option;
+
+	/* XXX min and max can be CONF_TLSV_NONE or unavailable in openssl.
+	   Real min and max should be determinate with conf + openssl's capabilities
+	 */
+	min = conf_ssl_methods->min;
+	max = conf_ssl_methods->max;
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+	/* Keep force-xxx implementation as it is in older haproxy. It's a
+	   precautionary measure to avoid any suprise with older openssl version. */
+	if (min == max)
+		methodVersions[min].set_version(ctx, 1 /* server */);
+#else   /* openssl >= 1.1.0 */
+        methodVersions[min].set_version(ctx, 0);
+        methodVersions[max].set_version(ctx, 1);
 #endif
-#if SSL_OP_NO_TLSv1_1
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV11)
-		ctx = SSL_CTX_new(TLSv1_1_server_method());
-#endif
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV10)
-		ctx = SSL_CTX_new(TLSv1_server_method());
-#ifndef OPENSSL_NO_SSL3
-	if (!ctx && conf_ssl_options & BC_SSL_O_USE_SSLV3)
-		ctx = SSL_CTX_new(SSLv3_server_method());
-#endif
-#endif
-	if (!ctx) {
-		ctx = SSL_CTX_new(SSLv23_server_method());
-		if (conf_ssl_options & BC_SSL_O_NO_SSLV3)
-			ssloptions |= SSL_OP_NO_SSLv3;
-		if (conf_ssl_options & BC_SSL_O_NO_TLSV10)
-			ssloptions |= SSL_OP_NO_TLSv1;
-		if (conf_ssl_options & BC_SSL_O_NO_TLSV11)
-			ssloptions |= SSL_OP_NO_TLSv1_1;
-		if (conf_ssl_options & BC_SSL_O_NO_TLSV12)
-			ssloptions |= SSL_OP_NO_TLSv1_2;
-	}
-	if (conf_ssl_options & BC_SSL_O_NO_TLS_TICKETS)
-		ssloptions |= SSL_OP_NO_TICKET;
-	if (conf_ssl_options & BC_SSL_O_PREF_CLIE_CIPH)
-		ssloptions &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
-	SSL_CTX_set_options(ctx, ssloptions);
-	SSL_CTX_set_mode(ctx, sslmode);
+
+	if (bind_conf->ssl_options & BC_SSL_O_NO_TLS_TICKETS)
+		options |= SSL_OP_NO_TICKET;
+	if (bind_conf->ssl_options & BC_SSL_O_PREF_CLIE_CIPH)
+		options &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
+	SSL_CTX_set_options(ctx, options);
+	SSL_CTX_set_mode(ctx, mode);
 	if (global_ssl.life_time)
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
 
@@ -3596,6 +3656,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		SSL_MODE_SMALL_BUFFERS;
 	int verify = SSL_VERIFY_NONE;
 	SSL_CTX *ctx = NULL;
+	struct tls_version_filter *conf_ssl_methods = &srv->ssl_ctx.methods;
+	int i, min, max;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -3613,56 +3675,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->check.use_ssl)
 		srv->check.xprt = &ssl_sock;
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL || defined OPENSSL_IS_BORINGSSL)
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12) {
-		ctx = SSL_CTX_new(TLS_client_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
-	}
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11) {
-		ctx = SSL_CTX_new(TLS_client_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION);
-	}
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10) {
-		ctx = SSL_CTX_new(TLS_client_method());
-		SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION);
-	}
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3) {
-		ctx = SSL_CTX_new(TLS_client_method());
-		SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
-		SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION);
-	}
-#else
-#if SSL_OP_NO_TLSv1_2
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
-		ctx = SSL_CTX_new(TLSv1_2_client_method());
-#endif
-#if SSL_OP_NO_TLSv1_1
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
-		ctx = SSL_CTX_new(TLSv1_1_client_method());
-#endif
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
-		ctx = SSL_CTX_new(TLSv1_client_method());
-#ifndef OPENSSL_NO_SSL3
-	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
-		ctx = SSL_CTX_new(SSLv3_client_method());
-#endif
-#endif
-	if (!ctx) {
-		ctx = SSL_CTX_new(SSLv23_client_method());
-		if (srv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
-			options |= SSL_OP_NO_SSLv3;
-		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
-			options |= SSL_OP_NO_TLSv1;
-		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
-			options |= SSL_OP_NO_TLSv1_1;
-		if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
-			options |= SSL_OP_NO_TLSv1_2;
-	}
-	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
-		options |= SSL_OP_NO_TICKET;
+	ctx = SSL_CTX_new(SSLv23_client_method());
 	if (!ctx) {
 		Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
 		      proxy_type_str(curproxy), curproxy->id,
@@ -3670,6 +3683,30 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr++;
 		return cfgerr;
 	}
+
+	/* set options per default */
+	/* XXX need check hole */
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		if (conf_ssl_methods->flags & methodVersions[i].flag)
+			options |= methodVersions[i].option;
+
+	/* XXX min and max can be CONF_TLSV_NONE or unavailable in openssl.
+	   Real min and max should be determinate with conf + openssl's capabilities
+	 */
+	min = conf_ssl_methods->min;
+	max = conf_ssl_methods->max;
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+	/* Keep force-xxx implementation as it is in older haproxy. It's a
+	   precautionary measure to avoid any suprise with older openssl version. */
+	if (min == max)
+		methodVersions[min].set_version(ctx, 0 /* client */);
+#else   /* openssl >= 1.1.0 */
+        methodVersions[min].set_version(ctx, 0);
+        methodVersions[max].set_version(ctx, 1);
+#endif
+
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
+		options |= SSL_OP_NO_TICKET;
 	SSL_CTX_set_options(ctx, options);
 	SSL_CTX_set_mode(ctx, mode);
 	srv->ssl_ctx.ctx = ctx;
@@ -6123,84 +6160,58 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	return 0;
 }
 
-/* parse the "force-sslv3" bind keyword */
-static int bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse tls_method_options */
+static int parse_tls_method_options(char *arg, struct tls_version_filter *methods)
 {
-#ifndef OPENSSL_NO_SSL3
-	conf->ssl_options |= BC_SSL_O_USE_SSLV3;
+	char *p;
+	int v;
+	p = strchr(arg, '-');
+	if (!p)
+		return 1;
+	p++;
+	if (!strcmp(p, "sslv3"))
+		v = CONF_SSLV3;
+	else if (!strcmp(p, "tlsv10"))
+		v = CONF_TLSV10;
+	else if (!strcmp(p, "tlsv11"))
+		v = CONF_TLSV11;
+	else if (!strcmp(p, "tlsv12"))
+		v = CONF_TLSV12;
+	else
+		return 1;
+	if (!strncmp(arg, "no-", 3))
+		methods->flags |= methodVersions[v].flag;
+	else if (!strncmp(arg, "force-", 6))
+		methods->min = methods->max = v;
+	else
+		return 1;
 	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol SSLv3", args[cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
 }
 
-/* parse the "force-tlsv10" bind keyword */
-static int bind_parse_force_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+static int bind_parse_tls_method_options(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->ssl_options |= BC_SSL_O_USE_TLSV10;
+	if (parse_tls_method_options(args[cur_arg], &conf->ssl_methods)) {
+		if (err)
+			memprintf(err, "'%s' : option not implemented", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 }
 
-/* parse the "force-tlsv11" bind keyword */
-static int bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+static int srv_parse_tls_method_options(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
-#if SSL_OP_NO_TLSv1_1
-	conf->ssl_options |= BC_SSL_O_USE_TLSV11;
+	if (parse_tls_method_options(args[*cur_arg], &newsrv->ssl_ctx.methods)) {
+		if (err)
+			memprintf(err, "'%s' : option not implemented", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
-/* parse the "force-tlsv12" bind keyword */
-static int bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-#if SSL_OP_NO_TLSv1_2
-	conf->ssl_options |= BC_SSL_O_USE_TLSV12;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
 }
 
 /* parse the "no-tls-tickets" bind keyword */
 static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	conf->ssl_options |= BC_SSL_O_NO_TLS_TICKETS;
-	return 0;
-}
-
-/* parse the "no-sslv3" bind keyword */
-static int bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	conf->ssl_options |= BC_SSL_O_NO_SSLV3;
-	return 0;
-}
-
-/* parse the "no-tlsv10" bind keyword */
-static int bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	conf->ssl_options |= BC_SSL_O_NO_TLSV10;
-	return 0;
-}
-
-/* parse the "no-tlsv11" bind keyword */
-static int bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	conf->ssl_options |= BC_SSL_O_NO_TLSV11;
-	return 0;
-}
-
-/* parse the "no-tlsv12" bind keyword */
-static int bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	conf->ssl_options |= BC_SSL_O_NO_TLSV12;
 	return 0;
 }
 
@@ -6325,6 +6336,11 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
 	conf->ssl_options |= global_ssl.listen_default_ssloptions;
+	conf->ssl_methods.flags |= global_ssl.listen_default_sslmethods.flags;
+	if (!conf->ssl_methods.min)
+		conf->ssl_methods.min = global_ssl.listen_default_sslmethods.min;
+	if (!conf->ssl_methods.max)
+		conf->ssl_methods.max = global_ssl.listen_default_sslmethods.max;
 
 	return 0;
 }
@@ -6485,6 +6501,12 @@ static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, stru
 	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
 	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
+	newsrv->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
+	if (!newsrv->ssl_ctx.methods.min)
+		newsrv->ssl_ctx.methods.min = global_ssl.connect_default_sslmethods.min;
+	if (!newsrv->ssl_ctx.methods.max)
+		newsrv->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
+
 	return 0;
 }
 
@@ -6541,52 +6563,6 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 	return 0;
 }
 
-/* parse the "force-sslv3" server keyword */
-static int srv_parse_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#ifndef OPENSSL_NO_SSL3
-	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_SSLV3;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol SSLv3", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
-/* parse the "force-tlsv10" server keyword */
-static int srv_parse_force_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV10;
-	return 0;
-}
-
-/* parse the "force-tlsv11" server keyword */
-static int srv_parse_force_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#if SSL_OP_NO_TLSv1_1
-	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV11;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
-/* parse the "force-tlsv12" server keyword */
-static int srv_parse_force_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-#if SSL_OP_NO_TLSv1_2
-	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV12;
-	return 0;
-#else
-	if (err)
-		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[*cur_arg]);
-	return ERR_ALERT | ERR_FATAL;
-#endif
-}
-
 /* parse the "no-check-ssl" server keyword */
 static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -6627,34 +6603,6 @@ static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct 
 static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_REUSE;
-	return 0;
-}
-
-/* parse the "no-sslv3" server keyword */
-static int srv_parse_no_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_SSLV3;
-	return 0;
-}
-
-/* parse the "no-tlsv10" server keyword */
-static int srv_parse_no_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV10;
-	return 0;
-}
-
-/* parse the "no-tlsv11" server keyword */
-static int srv_parse_no_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV11;
-	return 0;
-}
-
-/* parse the "no-tlsv12" server keyword */
-static int srv_parse_no_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
-{
-	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV12;
 	return 0;
 }
 
@@ -6775,39 +6723,11 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 		return -1;
 	}
 	while (*(args[i])) {
-		if (!strcmp(args[i], "no-sslv3"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_SSLV3;
-		else if (!strcmp(args[i], "no-tlsv10"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV10;
-		else if (!strcmp(args[i], "no-tlsv11"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV11;
-		else if (!strcmp(args[i], "no-tlsv12"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLSV12;
-		else if (!strcmp(args[i], "force-sslv3"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_SSLV3;
-		else if (!strcmp(args[i], "force-tlsv10"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV10;
-		else if (!strcmp(args[i], "force-tlsv11")) {
-#if SSL_OP_NO_TLSv1_1
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV11;
-#else
-			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
-			return -1;
-#endif
-		}
-		else if (!strcmp(args[i], "force-tlsv12")) {
-#if SSL_OP_NO_TLSv1_2
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_USE_TLSV12;
-#else
-			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
-			return -1;
-#endif
-		}
-		else if (!strcmp(args[i], "no-tls-tickets"))
+		if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
 		else if (!strcmp(args[i], "prefer-client-ciphers"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
-		else {
+		else if (parse_tls_method_options(args[i], &global_ssl.listen_default_sslmethods)) {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
 		}
@@ -6827,37 +6747,9 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 		return -1;
 	}
 	while (*(args[i])) {
-		if (!strcmp(args[i], "no-sslv3"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_SSLV3;
-		else if (!strcmp(args[i], "no-tlsv10"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV10;
-		else if (!strcmp(args[i], "no-tlsv11"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV11;
-		else if (!strcmp(args[i], "no-tlsv12"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV12;
-		else if (!strcmp(args[i], "force-sslv3"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_SSLV3;
-		else if (!strcmp(args[i], "force-tlsv10"))
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV10;
-		else if (!strcmp(args[i], "force-tlsv11")) {
-#if SSL_OP_NO_TLSv1_1
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV11;
-#else
-			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
-			return -1;
-#endif
-		}
-		else if (!strcmp(args[i], "force-tlsv12")) {
-#if SSL_OP_NO_TLSv1_2
-			global_ssl.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV12;
-#else
-			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
-			return -1;
-#endif
-		}
-		else if (!strcmp(args[i], "no-tls-tickets"))
+		if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
-		else {
+		else if (parse_tls_method_options(args[i], &global_ssl.connect_default_sslmethods)) {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
 		}
@@ -7415,34 +7307,34 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 };
 
 static struct bind_kw_list bind_kws = { "SSL", { }, {
-	{ "alpn",                  bind_parse_alpn,            1 }, /* set ALPN supported protocols */
-	{ "ca-file",               bind_parse_ca_file,         1 }, /* set CAfile to process verify on client cert */
-	{ "ca-ignore-err",         bind_parse_ignore_err,      1 }, /* set error IDs to ignore on verify depth > 0 */
-	{ "ca-sign-file",          bind_parse_ca_sign_file,    1 }, /* set CAFile used to generate and sign server certs */
-	{ "ca-sign-pass",          bind_parse_ca_sign_pass,    1 }, /* set CAKey passphrase */
-	{ "ciphers",               bind_parse_ciphers,         1 }, /* set SSL cipher suite */
-	{ "crl-file",              bind_parse_crl_file,        1 }, /* set certificat revocation list file use on client cert verify */
-	{ "crt",                   bind_parse_crt,             1 }, /* load SSL certificates from this location */
-	{ "crt-ignore-err",        bind_parse_ignore_err,      1 }, /* set error IDs to ingore on verify depth == 0 */
-	{ "crt-list",              bind_parse_crt_list,        1 }, /* load a list of crt from this location */
-	{ "curves",                bind_parse_curves,          1 }, /* set SSL curve suite */
-	{ "ecdhe",                 bind_parse_ecdhe,           1 }, /* defines named curve for elliptic curve Diffie-Hellman */
-	{ "force-sslv3",           bind_parse_force_sslv3,     0 }, /* force SSLv3 */
-	{ "force-tlsv10",          bind_parse_force_tlsv10,    0 }, /* force TLSv10 */
-	{ "force-tlsv11",          bind_parse_force_tlsv11,    0 }, /* force TLSv11 */
-	{ "force-tlsv12",          bind_parse_force_tlsv12,    0 }, /* force TLSv12 */
-	{ "generate-certificates", bind_parse_generate_certs,  0 }, /* enable the server certificates generation */
-	{ "no-sslv3",              bind_parse_no_sslv3,        0 }, /* disable SSLv3 */
-	{ "no-tlsv10",             bind_parse_no_tlsv10,       0 }, /* disable TLSv10 */
-	{ "no-tlsv11",             bind_parse_no_tlsv11,       0 }, /* disable TLSv11 */
-	{ "no-tlsv12",             bind_parse_no_tlsv12,       0 }, /* disable TLSv12 */
-	{ "no-tls-tickets",        bind_parse_no_tls_tickets,  0 }, /* disable session resumption tickets */
-	{ "ssl",                   bind_parse_ssl,             0 }, /* enable SSL processing */
-	{ "strict-sni",            bind_parse_strict_sni,      0 }, /* refuse negotiation if sni doesn't match a certificate */
-	{ "tls-ticket-keys",       bind_parse_tls_ticket_keys, 1 }, /* set file to load TLS ticket keys from */
-	{ "verify",                bind_parse_verify,          1 }, /* set SSL verify method */
-	{ "npn",                   bind_parse_npn,             1 }, /* set NPN supported protocols */
-	{ "prefer-client-ciphers", bind_parse_pcc,             0 }, /* prefer client ciphers */
+	{ "alpn",                  bind_parse_alpn,               1 }, /* set ALPN supported protocols */
+	{ "ca-file",               bind_parse_ca_file,            1 }, /* set CAfile to process verify on client cert */
+	{ "ca-ignore-err",         bind_parse_ignore_err,         1 }, /* set error IDs to ignore on verify depth > 0 */
+	{ "ca-sign-file",          bind_parse_ca_sign_file,       1 }, /* set CAFile used to generate and sign server certs */
+	{ "ca-sign-pass",          bind_parse_ca_sign_pass,       1 }, /* set CAKey passphrase */
+	{ "ciphers",               bind_parse_ciphers,            1 }, /* set SSL cipher suite */
+	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificat revocation list file use on client cert verify */
+	{ "crt",                   bind_parse_crt,                1 }, /* load SSL certificates from this location */
+	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ingore on verify depth == 0 */
+	{ "crt-list",              bind_parse_crt_list,           1 }, /* load a list of crt from this location */
+	{ "curves",                bind_parse_curves,             1 }, /* set SSL curve suite */
+	{ "ecdhe",                 bind_parse_ecdhe,              1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "force-sslv3",           bind_parse_tls_method_options, 0 }, /* force SSLv3 */
+	{ "force-tlsv10",          bind_parse_tls_method_options, 0 }, /* force TLSv10 */
+	{ "force-tlsv11",          bind_parse_tls_method_options, 0 }, /* force TLSv11 */
+	{ "force-tlsv12",          bind_parse_tls_method_options, 0 }, /* force TLSv12 */
+	{ "generate-certificates", bind_parse_generate_certs,     0 }, /* enable the server certificates generation */
+	{ "no-sslv3",              bind_parse_tls_method_options, 0 }, /* disable SSLv3 */
+	{ "no-tlsv10",             bind_parse_tls_method_options, 0 }, /* disable TLSv10 */
+	{ "no-tlsv11",             bind_parse_tls_method_options, 0 }, /* disable TLSv11 */
+	{ "no-tlsv12",             bind_parse_tls_method_options, 0 }, /* disable TLSv12 */
+	{ "no-tls-tickets",        bind_parse_no_tls_tickets,     0 }, /* disable session resumption tickets */
+	{ "ssl",                   bind_parse_ssl,                0 }, /* enable SSL processing */
+	{ "strict-sni",            bind_parse_strict_sni,         0 }, /* refuse negotiation if sni doesn't match a certificate */
+	{ "tls-ticket-keys",       bind_parse_tls_ticket_keys,    1 }, /* set file to load TLS ticket keys from */
+	{ "verify",                bind_parse_verify,             1 }, /* set SSL verify method */
+	{ "npn",                   bind_parse_npn,                1 }, /* set NPN supported protocols */
+	{ "prefer-client-ciphers", bind_parse_pcc,                0 }, /* prefer client ciphers */
 	{ NULL, NULL, 0 },
 }};
 
@@ -7459,19 +7351,19 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ciphers",                 srv_parse_ciphers,           1, 1 }, /* select the cipher suite */
 	{ "crl-file",                srv_parse_crl_file,          1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,               1, 1 }, /* set client certificate */
-	{ "force-sslv3",             srv_parse_force_sslv3,       0, 1 }, /* force SSLv3 */
-	{ "force-tlsv10",            srv_parse_force_tlsv10,      0, 1 }, /* force TLSv10 */
-	{ "force-tlsv11",            srv_parse_force_tlsv11,      0, 1 }, /* force TLSv11 */
-	{ "force-tlsv12",            srv_parse_force_tlsv12,      0, 1 }, /* force TLSv12 */
+	{ "force-sslv3",             srv_parse_tls_method_options,0, 1 }, /* force SSLv3 */
+	{ "force-tlsv10",            srv_parse_tls_method_options,0, 1 }, /* force TLSv10 */
+	{ "force-tlsv11",            srv_parse_tls_method_options,0, 1 }, /* force TLSv11 */
+	{ "force-tlsv12",            srv_parse_tls_method_options,0, 1 }, /* force TLSv12 */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,      0, 1 }, /* disable SSL for health checks */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl, 0, 1 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,  0, 1 }, /* do not send PROXY protocol header v2 with CN */
 	{ "no-ssl",                  srv_parse_no_ssl,            0, 1 }, /* disable SSL processing */
 	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,      0, 1 }, /* disable session reuse */
-	{ "no-sslv3",                srv_parse_no_sslv3,          0, 0 }, /* disable SSLv3 */
-	{ "no-tlsv10",               srv_parse_no_tlsv10,         0, 0 }, /* disable TLSv10 */
-	{ "no-tlsv11",               srv_parse_no_tlsv11,         0, 0 }, /* disable TLSv11 */
-	{ "no-tlsv12",               srv_parse_no_tlsv12,         0, 0 }, /* disable TLSv12 */
+	{ "no-sslv3",                srv_parse_tls_method_options,0, 0 }, /* disable SSLv3 */
+	{ "no-tlsv10",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv10 */
+	{ "no-tlsv11",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv11 */
+	{ "no-tlsv12",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv12 */
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,    0, 1 }, /* disable session resumption tickets */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,    0, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,     0, 1 }, /* send PROXY protocol header v2 with CN */

@@ -22,7 +22,6 @@
 #ifndef _TYPES_SSL_SOCK_H
 #define _TYPES_SSL_SOCK_H
 
-#include <types/listener.h>
 #include <openssl/ssl.h>
 #include <ebmbtree.h>
 
@@ -33,6 +32,12 @@ struct sni_ctx {
 	uint8_t key_sig;          /* TLSEXT_signature_[rsa,ecdsa,...] */
 	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
 	struct ebmb_node name;    /* node holding the servername value */
+};
+
+struct tls_version_filter {
+	uint16_t flags;     /* ssl options */
+	uint8_t  min;      /* min TLS version */
+	uint8_t  max;      /* max TLS version */
 };
 
 extern struct list tlskeys_reference;
