@@ -3099,7 +3099,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* set TE_CHNK and XFER_LEN only if "chunked" is seen last */
 	while (http_find_header2("Transfer-Encoding", 17, req->buf->p, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen == 7 && strncasecmp(ctx.line + ctx.val, "chunked", 7) == 0)
-			msg->flags |= (HTTP_MSGF_TE_CHNK | HTTP_MSGF_XFER_LEN);
+			msg->flags |= HTTP_MSGF_TE_CHNK;
 		else if (msg->flags & HTTP_MSGF_TE_CHNK) {
 			/* chunked not last, return badreq */
 			goto return_bad_req;
@@ -3135,7 +3135,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			goto return_bad_req; /* already specified, was different */
 		}
 
-		msg->flags |= HTTP_MSGF_CNT_LEN | HTTP_MSGF_XFER_LEN;
+		msg->flags |= HTTP_MSGF_CNT_LEN;
 		msg->body_len = msg->chunk_len = cl;
 	}
 
@@ -4233,8 +4233,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	/* let's log the request time */
 	s->logs.tv_request = now;
 
-	if ((req->flags & HTTP_MSGF_XFER_LEN) &&
-	    ((!(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len) || (req->msg_state == HTTP_MSG_DONE)) &&
+	if (((!(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len) || (req->msg_state == HTTP_MSG_DONE)) &&
 	    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 	     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 		/* keep-alive possible */
@@ -4824,22 +4823,20 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
-	if (msg->flags & HTTP_MSGF_XFER_LEN) {
-		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
-		req->analysers |= AN_REQ_HTTP_XFER_BODY;
+	req->analysers &= ~AN_REQ_FLT_XFER_DATA;
+	req->analysers |= AN_REQ_HTTP_XFER_BODY;
 #ifdef TCP_QUICKACK
-		/* We expect some data from the client. Unless we know for sure
-		 * we already have a full request, we have to re-enable quick-ack
-		 * in case we previously disabled it, otherwise we might cause
-		 * the client to delay further data.
-		 */
-		if ((sess->listener->options & LI_O_NOQUICKACK) &&
-		    cli_conn && conn_ctrl_ready(cli_conn) &&
-		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
-		     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
-			setsockopt(cli_conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+	/* We expect some data from the client. Unless we know for sure
+	 * we already have a full request, we have to re-enable quick-ack
+	 * in case we previously disabled it, otherwise we might cause
+	 * the client to delay further data.
+	 */
+	if ((sess->listener->options & LI_O_NOQUICKACK) &&
+	    cli_conn && conn_ctrl_ready(cli_conn) &&
+	    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
+	     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
+		setsockopt(cli_conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
-	}
 
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
@@ -4847,12 +4844,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 ************************************************************/
 	req->analyse_exp = TICK_ETERNITY;
 	req->analysers &= ~an_bit;
-
-	/* if the server closes the connection, we want to immediately react
-	 * and close the socket to save packets and syscalls.
-	 */
-	if (!(req->analysers & AN_REQ_HTTP_XFER_BODY))
-		s->si[1].flags |= SI_FL_NOHALF;
 
 	s->logs.tv_request = now;
 	/* OK let's go on with the BODY now */
