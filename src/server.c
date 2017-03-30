@@ -1575,6 +1575,193 @@ static void display_parser_err(const char *file, int linenum, char **args, int c
 		      file, linenum, args[0], args[1], args[cur_arg]);
 }
 
+static void srv_conn_src_sport_range_cpy(struct server *srv,
+                                            struct server *src)
+{
+	int range_sz;
+
+	range_sz = src->conn_src.sport_range->size;
+	if (range_sz > 0) {
+		srv->conn_src.sport_range = port_range_alloc_range(range_sz);
+		if (srv->conn_src.sport_range != NULL) {
+			int i;
+
+			for (i = 0; i < range_sz; i++) {
+				srv->conn_src.sport_range->ports[i] =
+					src->conn_src.sport_range->ports[i];
+			}
+		}
+	}
+}
+
+/*
+ * Copy <src> server connection source settings to <srv> server everything needed.
+ */
+static void srv_conn_src_cpy(struct server *srv, struct server *src)
+{
+	srv->conn_src.opts = src->conn_src.opts;
+	srv->conn_src.source_addr = src->conn_src.source_addr;
+
+	/* Source port range copy. */
+	if (src->conn_src.sport_range != NULL)
+		srv_conn_src_sport_range_cpy(srv, src);
+
+#ifdef CONFIG_HAP_TRANSPARENT
+	if (src->conn_src.bind_hdr_name != NULL) {
+		srv->conn_src.bind_hdr_name = strdup(src->conn_src.bind_hdr_name);
+		srv->conn_src.bind_hdr_len = strlen(src->conn_src.bind_hdr_name);
+	}
+	srv->conn_src.bind_hdr_occ = src->conn_src.bind_hdr_occ;
+	srv->conn_src.tproxy_addr  = src->conn_src.tproxy_addr;
+#endif
+	if (src->conn_src.iface_name != NULL)
+		srv->conn_src.iface_name = strdup(src->conn_src.iface_name);
+}
+
+/*
+ * Copy <src> server SSL settings to <srv> server allocating
+ * everything needed.
+ */
+#if defined(USE_OPENSSL)
+static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
+{
+	if (src->ssl_ctx.ca_file != NULL)
+		srv->ssl_ctx.ca_file = strdup(src->ssl_ctx.ca_file);
+	if (src->ssl_ctx.crl_file != NULL)
+		srv->ssl_ctx.crl_file = strdup(src->ssl_ctx.crl_file);
+	if (src->ssl_ctx.client_crt != NULL)
+		srv->ssl_ctx.client_crt = strdup(src->ssl_ctx.client_crt);
+
+	srv->ssl_ctx.verify = src->ssl_ctx.verify;
+
+	if (src->ssl_ctx.verify_host != NULL)
+		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);
+	if (src->ssl_ctx.ciphers != NULL)
+		srv->ssl_ctx.ciphers = strdup(src->ssl_ctx.ciphers);
+	if (src->sni_expr != NULL)
+		srv->sni_expr = strdup(src->sni_expr);
+}
+#endif
+
+/*
+ * Copy <src> server settings to <srv> server allocating
+ * everything needed.
+ */
+static void srv_settings_cpy(struct server *srv, struct server *src)
+{
+	/* Connection source settings copy */
+	srv_conn_src_cpy(srv, src);
+
+	srv->pp_opts = src->pp_opts;
+	if (src->rdr_pfx != NULL) {
+		srv->rdr_pfx = strdup(src->rdr_pfx);
+		srv->rdr_len = src->rdr_len;
+	}
+	if (src->cookie != NULL) {
+		srv->cookie = strdup(src->cookie);
+		srv->cklen  = src->cklen;
+	}
+	srv->use_ssl                  = src->use_ssl;
+	srv->check.addr = srv->agent.addr = src->check.addr;
+	srv->check.use_ssl            = src->check.use_ssl;
+	srv->check.port               = src->check.port;
+	/* Note: 'flags' field has potentially been already initialized. */
+	srv->flags                   |= src->flags;
+	srv->do_check                 = src->do_check;
+	srv->do_agent                 = src->do_agent;
+	if (srv->check.port)
+		srv->flags |= SRV_F_CHECKPORT;
+	srv->check.inter              = src->check.inter;
+	srv->check.fastinter          = src->check.fastinter;
+	srv->check.downinter          = src->check.downinter;
+	srv->agent.use_ssl            = src->agent.use_ssl;
+	srv->agent.port               = src->agent.port;
+	if (src->agent.send_string != NULL)
+		srv->agent.send_string = strdup(src->agent.send_string);
+	srv->agent.send_string_len    = src->agent.send_string_len;
+	srv->agent.inter              = src->agent.inter;
+	srv->agent.fastinter          = src->agent.fastinter;
+	srv->agent.downinter          = src->agent.downinter;
+	srv->maxqueue                 = src->maxqueue;
+	srv->minconn                  = src->minconn;
+	srv->maxconn                  = src->maxconn;
+	srv->slowstart                = src->slowstart;
+	srv->observe                  = src->observe;
+	srv->onerror                  = src->onerror;
+	srv->onmarkeddown             = src->onmarkeddown;
+	srv->onmarkedup               = src->onmarkedup;
+	if (src->trackit != NULL)
+		srv->trackit = strdup(src->trackit);
+	srv->consecutive_errors_limit = src->consecutive_errors_limit;
+	srv->uweight = srv->iweight   = src->iweight;
+
+	srv->check.send_proxy         = src->check.send_proxy;
+	/* health: up, but will fall down at first failure */
+	srv->check.rise = srv->check.health = src->check.rise;
+	srv->check.fall               = src->check.fall;
+
+	/* Here we check if 'disabled' is the default server state */
+	if (src->admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
+		srv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
+		srv->state        = SRV_ST_STOPPED;
+		srv->check.state |= CHK_ST_PAUSED;
+		srv->check.health = 0;
+	}
+
+	/* health: up but will fall down at first failure */
+	srv->agent.rise	= srv->agent.health = src->agent.rise;
+	srv->agent.fall	              = src->agent.fall;
+
+	if (src->resolvers_id != NULL)
+		srv->resolvers_id = strdup(src->resolvers_id);
+	srv->dns_opts.family_prio = src->dns_opts.family_prio;
+	if (srv->dns_opts.family_prio == AF_UNSPEC)
+		srv->dns_opts.family_prio = AF_INET6;
+	memcpy(srv->dns_opts.pref_net,
+	       src->dns_opts.pref_net,
+	       sizeof srv->dns_opts.pref_net);
+	srv->dns_opts.pref_net_nb     = src->dns_opts.pref_net_nb;
+
+	srv->init_addr_methods        = src->init_addr_methods;
+	srv->init_addr                = src->init_addr;
+#if defined(USE_OPENSSL)
+	srv_ssl_settings_cpy(srv, src);
+#endif
+#ifdef TCP_USER_TIMEOUT
+	srv->tcp_ut = src->tcp_ut;
+#endif
+}
+
+static struct server *new_server(struct proxy *proxy)
+{
+	struct server *srv;
+
+	srv = calloc(1, sizeof *srv);
+	if (!srv)
+		return NULL;
+
+	srv->obj_type = OBJ_TYPE_SERVER;
+	srv->proxy = proxy;
+	LIST_INIT(&srv->actconns);
+	LIST_INIT(&srv->pendconns);
+	LIST_INIT(&srv->priv_conns);
+	LIST_INIT(&srv->idle_conns);
+	LIST_INIT(&srv->safe_conns);
+
+	srv->state = SRV_ST_RUNNING; /* early server setup */
+	srv->last_change = now.tv_sec;
+
+	srv->check.status = HCHK_STATUS_INI;
+	srv->check.server = srv;
+	srv->check.tcpcheck_rules = &proxy->tcpcheck_rules;
+
+	srv->agent.status = HCHK_STATUS_INI;
+	srv->agent.server = srv;
+	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
+
+	return srv;
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;
@@ -1617,7 +1804,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			struct protocol *proto;
 			struct dns_resolution *curr_resolution;
 
-			if ((newsrv = calloc(1, sizeof(*newsrv))) == NULL) {
+			newsrv = new_server(curproxy);
+			if (!newsrv) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
@@ -1626,20 +1814,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			/* the servers are linked backwards first */
 			newsrv->next = curproxy->srv;
 			curproxy->srv = newsrv;
-			newsrv->proxy = curproxy;
 			newsrv->conf.file = strdup(file);
 			newsrv->conf.line = linenum;
-
-			newsrv->obj_type = OBJ_TYPE_SERVER;
-			LIST_INIT(&newsrv->actconns);
-			LIST_INIT(&newsrv->pendconns);
-			LIST_INIT(&newsrv->priv_conns);
-			LIST_INIT(&newsrv->idle_conns);
-			LIST_INIT(&newsrv->safe_conns);
-			newsrv->flags = 0;
-			newsrv->admin = 0;
-			newsrv->state = SRV_ST_RUNNING; /* early server setup */
-			newsrv->last_change = now.tv_sec;
 			newsrv->id = strdup(args[1]);
 
 			/* several ways to check the port component :
@@ -1707,7 +1883,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
  skip_name_resolution:
 			newsrv->addr = *sk;
 			newsrv->svc_port = port;
-			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = xprt_get(XPRT_RAW);
 
 			if (!newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -1716,135 +1891,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
-			/*
-			 * In this section we copy default-server connection source settings to
-			 * the new server object connection source
-			 * (newsrv->conn_src <- curproxy->defsrv.conn_src).
-			 */
-			newsrv->conn_src.opts = curproxy->defsrv.conn_src.opts;
-			newsrv->conn_src.source_addr = curproxy->defsrv.conn_src.source_addr;
-			if (curproxy->defsrv.conn_src.sport_range != NULL) {
-				int i, def_sport_range_sz;
-				struct server *default_srv;
-
-				default_srv = &curproxy->defsrv;
-				def_sport_range_sz = default_srv->conn_src.sport_range->size;
-				if (def_sport_range_sz > 0) {
-					newsrv->conn_src.sport_range = port_range_alloc_range(def_sport_range_sz);
-					if (newsrv->conn_src.sport_range) {
-						for (i = 0; i < def_sport_range_sz; i++)
-							newsrv->conn_src.sport_range->ports[i] = default_srv->conn_src.sport_range->ports[i];
-					}
-				}
-			}
-#ifdef CONFIG_HAP_TRANSPARENT
-			if (curproxy->defsrv.conn_src.bind_hdr_name != NULL) {
-				newsrv->conn_src.bind_hdr_name = strdup(curproxy->defsrv.conn_src.bind_hdr_name);
-				newsrv->conn_src.bind_hdr_len = strlen(curproxy->defsrv.conn_src.bind_hdr_name);
-			}
-			newsrv->conn_src.bind_hdr_occ = curproxy->defsrv.conn_src.bind_hdr_occ;
-			newsrv->conn_src.tproxy_addr = curproxy->defsrv.conn_src.tproxy_addr;
-#endif
-			if (curproxy->defsrv.conn_src.iface_name != NULL)
-				newsrv->conn_src.iface_name = strdup(curproxy->defsrv.conn_src.iface_name);
-
-			newsrv->pp_opts		= curproxy->defsrv.pp_opts;
-			if (curproxy->defsrv.rdr_pfx != NULL) {
-				newsrv->rdr_pfx = strdup(curproxy->defsrv.rdr_pfx);
-				newsrv->rdr_len = curproxy->defsrv.rdr_len;
-			}
-			if (curproxy->defsrv.cookie != NULL) {
-				newsrv->cookie = strdup(curproxy->defsrv.cookie);
-				newsrv->cklen = curproxy->defsrv.cklen;
-			}
-			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
-			newsrv->check.addr = newsrv->agent.addr = curproxy->defsrv.check.addr;
-			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
-			newsrv->check.port	= curproxy->defsrv.check.port;
-			/* Note: 'flags' field has potentially been already initialized. */
-			newsrv->flags       |= curproxy->defsrv.flags;
-			newsrv->do_check    = curproxy->defsrv.do_check;
-			newsrv->do_agent    = curproxy->defsrv.do_agent;
-			if (newsrv->check.port)
-				newsrv->flags |= SRV_F_CHECKPORT;
-			newsrv->check.inter	= curproxy->defsrv.check.inter;
-			newsrv->check.fastinter	= curproxy->defsrv.check.fastinter;
-			newsrv->check.downinter	= curproxy->defsrv.check.downinter;
-			newsrv->agent.use_ssl	= curproxy->defsrv.agent.use_ssl;
-			newsrv->agent.port	= curproxy->defsrv.agent.port;
-			if (curproxy->defsrv.agent.send_string != NULL)
-				newsrv->agent.send_string = strdup(curproxy->defsrv.agent.send_string);
-			newsrv->agent.send_string_len = curproxy->defsrv.agent.send_string_len;
-			newsrv->agent.inter	= curproxy->defsrv.agent.inter;
-			newsrv->agent.fastinter	= curproxy->defsrv.agent.fastinter;
-			newsrv->agent.downinter	= curproxy->defsrv.agent.downinter;
-			newsrv->maxqueue	= curproxy->defsrv.maxqueue;
-			newsrv->minconn		= curproxy->defsrv.minconn;
-			newsrv->maxconn		= curproxy->defsrv.maxconn;
-			newsrv->slowstart	= curproxy->defsrv.slowstart;
-			newsrv->observe         = curproxy->defsrv.observe;
-			newsrv->onerror		= curproxy->defsrv.onerror;
-			newsrv->onmarkeddown    = curproxy->defsrv.onmarkeddown;
-			newsrv->onmarkedup      = curproxy->defsrv.onmarkedup;
-			if (curproxy->defsrv.trackit != NULL)
-				newsrv->trackit = strdup(curproxy->defsrv.trackit);
-			newsrv->consecutive_errors_limit
-						= curproxy->defsrv.consecutive_errors_limit;
-			newsrv->uweight = newsrv->iweight
-						= curproxy->defsrv.iweight;
-
-			newsrv->check.status	= HCHK_STATUS_INI;
-			newsrv->check.send_proxy = curproxy->defsrv.check.send_proxy;
-			newsrv->check.rise	= curproxy->defsrv.check.rise;
-			newsrv->check.fall	= curproxy->defsrv.check.fall;
-			newsrv->check.health	= newsrv->check.rise;	/* up, but will fall down at first failure */
-			/* Here we check if 'disabled' is the default server state */
-			if (curproxy->defsrv.admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
-				newsrv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
-				newsrv->state = SRV_ST_STOPPED;
-				newsrv->check.state |= CHK_ST_PAUSED;
-				newsrv->check.health = 0;
-			}
-			newsrv->check.server	= newsrv;
-			newsrv->check.tcpcheck_rules	= &curproxy->tcpcheck_rules;
-
-			newsrv->agent.status	= HCHK_STATUS_INI;
-			newsrv->agent.rise	= curproxy->defsrv.agent.rise;
-			newsrv->agent.fall	= curproxy->defsrv.agent.fall;
-			newsrv->agent.health	= newsrv->agent.rise;	/* up, but will fall down at first failure */
-			newsrv->agent.server	= newsrv;
-			if (curproxy->defsrv.resolvers_id != NULL)
-				newsrv->resolvers_id = strdup(curproxy->defsrv.resolvers_id);
-			newsrv->dns_opts.family_prio = curproxy->defsrv.dns_opts.family_prio;
-			if (newsrv->dns_opts.family_prio == AF_UNSPEC)
-				newsrv->dns_opts.family_prio = AF_INET6;
-			memcpy(newsrv->dns_opts.pref_net,
-			       curproxy->defsrv.dns_opts.pref_net,
-			       sizeof(newsrv->dns_opts.pref_net));
-			newsrv->dns_opts.pref_net_nb = curproxy->defsrv.dns_opts.pref_net_nb;
-			newsrv->init_addr_methods = curproxy->defsrv.init_addr_methods;
-			newsrv->init_addr         = curproxy->defsrv.init_addr;
-#if defined(USE_OPENSSL)
-			/* SSL config. */
-			if (curproxy->defsrv.ssl_ctx.ca_file != NULL)
-				newsrv->ssl_ctx.ca_file = strdup(curproxy->defsrv.ssl_ctx.ca_file);
-			if (curproxy->defsrv.ssl_ctx.crl_file != NULL)
-				newsrv->ssl_ctx.crl_file = strdup(curproxy->defsrv.ssl_ctx.crl_file);
-			if (curproxy->defsrv.ssl_ctx.client_crt != NULL)
-				newsrv->ssl_ctx.client_crt = strdup(curproxy->defsrv.ssl_ctx.client_crt);
-			newsrv->ssl_ctx.verify = curproxy->defsrv.ssl_ctx.verify;
-			if (curproxy->defsrv.ssl_ctx.verify_host != NULL)
-				newsrv->ssl_ctx.verify_host = strdup(curproxy->defsrv.ssl_ctx.verify_host);
-			if (curproxy->defsrv.ssl_ctx.ciphers != NULL)
-				newsrv->ssl_ctx.ciphers = strdup(curproxy->defsrv.ssl_ctx.ciphers);
-			if (curproxy->defsrv.sni_expr != NULL)
-				newsrv->sni_expr = strdup(curproxy->defsrv.sni_expr);
-#endif
-
-#ifdef TCP_USER_TIMEOUT
-			newsrv->tcp_ut = curproxy->defsrv.tcp_ut;
-#endif
-
+			/* Copy default server settings to new server settings. */
+			srv_settings_cpy(newsrv, &curproxy->defsrv);
 			cur_arg = 3;
 		} else {
 			newsrv = &curproxy->defsrv;
