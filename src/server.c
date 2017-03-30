@@ -1529,20 +1529,26 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 }
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err)
+static struct sample_expr *srv_sni_sample_parse_expr(struct server *srv, struct proxy *px,
+                                                     const char *file, int linenum, char **err)
 {
 	int idx;
-	struct sample_expr *expr;
 	const char *args[] = {
-		newsrv->sni_expr,
+		srv->sni_expr,
 		NULL,
 	};
 
 	idx = 0;
 	px->conf.args.ctx = ARGC_SRV;
 
-	expr = sample_parse_expr((char **)args, &idx, px->conf.file, px->conf.line,
-	                         err, &px->conf.args);
+	return sample_parse_expr((char **)args, &idx, file, linenum, err, &px->conf.args);
+}
+
+static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err)
+{
+	struct sample_expr *expr;
+
+	expr = srv_sni_sample_parse_expr(newsrv, px, px->conf.file, px->conf.line, err);
 	if (!expr) {
 		memprintf(err, "error detected while parsing sni expression : %s", *err);
 		return ERR_ALERT | ERR_FATAL;
@@ -1552,7 +1558,7 @@ static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char *
 		memprintf(err, "error detected while parsing sni expression : "
 		          " fetch method '%s' extracts information from '%s', "
 		          "none of which is available here.\n",
-		          args[0], sample_src_names(expr->fetch->use));
+		          newsrv->sni_expr, sample_src_names(expr->fetch->use));
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1760,6 +1766,207 @@ static struct server *new_server(struct proxy *proxy)
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
 	return srv;
+}
+
+/*
+ * Validate <srv> server health-check settings.
+ * Returns 0 if everything is OK, -1 if not.
+ */
+static int server_healthcheck_validate(const char *file, int linenum, struct server *srv)
+{
+	struct tcpcheck_rule *r = NULL;
+	struct list *l;
+
+	/*
+	 * We need at least a service port, a check port or the first tcp-check rule must
+	 * be a 'connect' one when checking an IPv4/IPv6 server.
+	 */
+	if ((srv_check_healthcheck_port(&srv->check) != 0) ||
+	    (!is_inet_addr(&srv->check.addr) && (is_addr(&srv->check.addr) || !is_inet_addr(&srv->addr))))
+		return 0;
+
+	r = (struct tcpcheck_rule *)srv->proxy->tcpcheck_rules.n;
+	if (!r) {
+		Alert("parsing [%s:%d] : server %s has neither service port nor check port. "
+			  "Check has been disabled.\n",
+			  file, linenum, srv->id);
+		return -1;
+	}
+
+	/* search the first action (connect / send / expect) in the list */
+	l = &srv->proxy->tcpcheck_rules;
+	list_for_each_entry(r, l, list) {
+		if (r->action != TCPCHK_ACT_COMMENT)
+			break;
+	}
+
+	if ((r->action != TCPCHK_ACT_CONNECT) || !r->port) {
+		Alert("parsing [%s:%d] : server %s has neither service port nor check port "
+			  "nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
+			  file, linenum, srv->id);
+		return -1;
+	}
+
+	/* scan the tcp-check ruleset to ensure a port has been configured */
+	l = &srv->proxy->tcpcheck_rules;
+	list_for_each_entry(r, l, list) {
+		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
+			Alert("parsing [%s:%d] : server %s has neither service port nor check port, "
+				  "and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
+				  file, linenum, srv->id);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Initialize <srv> health-check structure.
+ * Returns the error string in case of memory allocation failure, NULL if not.
+ */
+static const char *do_health_check_init(struct server *srv, int check_type, int state)
+{
+	const char *ret;
+
+	if (!srv->do_check)
+		return NULL;
+
+	ret = init_check(&srv->check, check_type);
+	if (ret)
+		return ret;
+
+	if (srv->resolution)
+		srv->resolution->opts = &srv->dns_opts;
+
+	srv->check.state |= state;
+	global.maxsock++;
+
+	return NULL;
+}
+
+static int server_health_check_init(const char *file, int linenum,
+                                    struct server *srv, struct proxy *curproxy)
+{
+	const char *ret;
+
+	if (!srv->do_check)
+		return 0;
+
+	if (srv->trackit) {
+		Alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
+			file, linenum);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (server_healthcheck_validate(file, linenum, srv) < 0)
+		return ERR_ALERT | ERR_ABORT;
+
+	/* note: check type will be set during the config review phase */
+	ret = do_health_check_init(srv, 0, CHK_ST_CONFIGURED | CHK_ST_ENABLED);
+	if (ret) {
+		Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+		return ERR_ALERT | ERR_ABORT;
+	}
+
+	return 0;
+}
+
+/*
+ * Initialize <srv> agent check structure.
+ * Returns the error string in case of memory allocation failure, NULL if not.
+ */
+static const char *do_server_agent_check_init(struct server *srv, int state)
+{
+	const char *ret;
+
+	if (!srv->do_agent)
+		return NULL;
+
+	ret = init_check(&srv->agent, PR_O2_LB_AGENT_CHK);
+	if (ret)
+		return ret;
+
+	if (!srv->agent.inter)
+		srv->agent.inter = srv->check.inter;
+
+	srv->agent.state |= state;
+	global.maxsock++;
+
+	return NULL;
+}
+
+static int server_agent_check_init(const char *file, int linenum,
+                                   struct server *srv, struct proxy *curproxy)
+{
+	const char *ret;
+
+	if (!srv->do_agent)
+		return 0;
+
+	if (!srv->agent.port) {
+		Alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
+			  file, linenum, srv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ret = do_server_agent_check_init(srv, CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT);
+	if (ret) {
+		Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+		return ERR_ALERT | ERR_ABORT;
+	}
+
+	return 0;
+}
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+static int server_sni_expr_init(const char *file, int linenum, char **args, int cur_arg,
+                                struct server *srv, struct proxy *proxy)
+{
+	int ret;
+	char *err = NULL;
+
+	if (!srv->sni_expr)
+		return 0;
+
+	ret = server_parse_sni_expr(srv, proxy, &err);
+	if (!ret)
+	    return 0;
+
+	display_parser_err(file, linenum, args, cur_arg, &err);
+	free(err);
+
+	return ret;
+}
+#endif
+
+/*
+ * Server initializations finalization.
+ * Initialize health check, agent check and SNI expression if enabled.
+ * Must not be called for a default server instance.
+ */
+static int server_finalize_init(const char *file, int linenum, char **args, int cur_arg,
+                                struct server *srv, struct proxy *px)
+{
+	int ret;
+
+	if ((ret = server_health_check_init(file, linenum, srv, px)) != 0 ||
+	    (ret = server_agent_check_init(file, linenum, srv, px)) != 0) {
+		return ret;
+	}
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	if ((ret = server_sni_expr_init(file, linenum, args, cur_arg, srv, px)) != 0)
+		return ret;
+#endif
+
+	if (srv->flags & SRV_F_BACKUP)
+		px->srv_bck++;
+	else
+		px->srv_act++;
+	srv_lb_commit_status(srv);
+
+	return 0;
 }
 
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
@@ -2323,124 +2530,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 		}
 
-		/* This check is done only for 'server' instances. */
-		if (!defsrv && newsrv->do_check) {
-			const char *ret;
-
-			if (newsrv->trackit) {
-				Alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
-					file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			/*
-			 * We need at least a service port, a check port or the first tcp-check rule must
-			 * be a 'connect' one when checking an IPv4/IPv6 server.
-			 */
-			if ((srv_check_healthcheck_port(&newsrv->check) == 0) &&
-			    (is_inet_addr(&newsrv->check.addr) ||
-			     (!is_addr(&newsrv->check.addr) && is_inet_addr(&newsrv->addr)))) {
-				struct tcpcheck_rule *r = NULL;
-				struct list *l;
-
-				r = (struct tcpcheck_rule *)newsrv->proxy->tcpcheck_rules.n;
-				if (!r) {
-					Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
-					      file, linenum, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				/* search the first action (connect / send / expect) in the list */
-				l = &newsrv->proxy->tcpcheck_rules;
-				list_for_each_entry(r, l, list) {
-					if (r->action != TCPCHK_ACT_COMMENT)
-						break;
-				}
-				if ((r->action != TCPCHK_ACT_CONNECT) || !r->port) {
-					Alert("parsing [%s:%d] : server %s has neither service port nor check port nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
-					      file, linenum, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else {
-					/* scan the tcp-check ruleset to ensure a port has been configured */
-					l = &newsrv->proxy->tcpcheck_rules;
-					list_for_each_entry(r, l, list) {
-						if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
-							Alert("parsing [%s:%d] : server %s has neither service port nor check port, and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
-							      file, linenum, newsrv->id);
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-					}
-				}
-			}
-
-			/* note: check type will be set during the config review phase */
-			ret = init_check(&newsrv->check, 0);
-			if (ret) {
-				Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-
-			if (newsrv->resolution)
-				newsrv->resolution->opts = &newsrv->dns_opts;
-
-			newsrv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
-			global.maxsock++;
-		}
-
-		if (!defsrv && newsrv->do_agent) {
-			const char *ret;
-
-			if (!newsrv->agent.port) {
-				Alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
-				      file, linenum, newsrv->id);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (!newsrv->agent.inter)
-				newsrv->agent.inter = newsrv->check.inter;
-
-			ret = init_check(&newsrv->agent, PR_O2_LB_AGENT_CHK);
-			if (ret) {
-				Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-
-			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
-			global.maxsock++;
-		}
-
-		if (!defsrv) {
-			if (newsrv->flags & SRV_F_BACKUP)
-				curproxy->srv_bck++;
-			else
-				curproxy->srv_act++;
-
-			srv_lb_commit_status(newsrv);
-		}
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		if (!defsrv && newsrv->sni_expr) {
-			int code;
-			char *err;
-
-			err = NULL;
-
-			code = server_parse_sni_expr(newsrv, curproxy, &err);
-			err_code |= code;
-			if (code) {
-				display_parser_err(file, linenum, args, cur_arg, &err);
-				free(err);
-				if (code & ERR_FATAL)
-					goto out;
-			}
-		}
-#endif
+		if (!defsrv)
+			err_code |= server_finalize_init(file, linenum, args, cur_arg, newsrv, curproxy);
+		if (err_code & ERR_FATAL)
+			goto out;
 	}
 	free(fqdn);
 	return 0;
