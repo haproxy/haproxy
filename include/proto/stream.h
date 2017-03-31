@@ -286,7 +286,7 @@ static void inline stream_init_srv_conn(struct stream *sess)
  * it returns 0. */
 static int inline stream_res_wakeup(struct stream *s)
 {
-	if (s->task->state & TASK_RUNNING || task_in_rq(s->task))
+	if (s->task->state & TASK_RUNNING)
 		return 0;
 	task_wakeup(s->task, TASK_WOKEN_RES);
 	return 1;
