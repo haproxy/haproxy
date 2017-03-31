@@ -4609,6 +4609,21 @@ stats_error_parsing:
 				if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
 					goto out;
 			}
+			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+				char *oldlogformat = "log-format";
+				char *clflogformat = "";
+
+				if (curproxy->conf.logformat_string == default_http_log_format)
+					oldlogformat = "option httplog";
+				else if (curproxy->conf.logformat_string == default_tcp_log_format)
+					oldlogformat = "option tcplog";
+				else if (curproxy->conf.logformat_string == clf_http_log_format)
+					oldlogformat = "option httplog clf";
+				if (logformat == clf_http_log_format)
+					clflogformat = " clf";
+				Warning("parsing [%s:%d]: 'option httplog%s' overrides previous '%s' in 'defaults' section.\n",
+				        file, linenum, clflogformat, oldlogformat);
+			}
 			if (curproxy->conf.logformat_string != default_http_log_format &&
 			    curproxy->conf.logformat_string != default_tcp_log_format &&
 			    curproxy->conf.logformat_string != clf_http_log_format)
@@ -4620,6 +4635,18 @@ stats_error_parsing:
 			curproxy->conf.lfs_line = curproxy->conf.args.line;
 		}
 		else if (!strcmp(args[1], "tcplog")) {
+			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+				char *oldlogformat = "log-format";
+
+				if (curproxy->conf.logformat_string == default_http_log_format)
+					oldlogformat = "option httplog";
+				else if (curproxy->conf.logformat_string == default_tcp_log_format)
+					oldlogformat = "option tcplog";
+				else if (curproxy->conf.logformat_string == clf_http_log_format)
+					oldlogformat = "option httplog clf";
+				Warning("parsing [%s:%d]: 'option tcplog' overrides previous '%s' in 'defaults' section.\n",
+				        file, linenum, oldlogformat);
+			}
 			/* generate a detailed TCP log */
 			if (curproxy->conf.logformat_string != default_http_log_format &&
 			    curproxy->conf.logformat_string != default_tcp_log_format &&
@@ -5863,7 +5890,18 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+			char *oldlogformat = "log-format";
 
+			if (curproxy->conf.logformat_string == default_http_log_format)
+				oldlogformat = "option httplog";
+			else if (curproxy->conf.logformat_string == default_tcp_log_format)
+				oldlogformat = "option tcplog";
+			else if (curproxy->conf.logformat_string == clf_http_log_format)
+				oldlogformat = "option httplog clf";
+			Warning("parsing [%s:%d]: 'log-format' overrides previous '%s' in 'defaults' section.\n",
+			        file, linenum, oldlogformat);
+		}
 		if (curproxy->conf.logformat_string != default_http_log_format &&
 		    curproxy->conf.logformat_string != default_tcp_log_format &&
 		    curproxy->conf.logformat_string != clf_http_log_format)
