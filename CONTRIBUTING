@@ -71,8 +71,10 @@ normally not a problem to comply.
 
 If your work is very confidential and you can't publicly discuss it, you can
 also mail willy@haproxy.org directly about it, but your mail may be waiting
-several days in the queue before you get a response. Retransmit if you don't
-get a response by one week.
+several days in the queue before you get a response, if you get a response at
+all. Retransmit if you don't get a response by one week. Please note that
+direct sent e-mails to this address for non-confidential subjects may simply
+be forwarded to the list or be deleted without notification.
 
 If you'd like a feature to be added but you think you don't have the skills to
 implement it yourself, you should follow these steps :
@@ -96,7 +98,9 @@ People contributing patches must apply the following rules. That may sound heavy
 at the beginning but it's common sense more than anything else and contributors
 do not think about them anymore after a few patches.
 
-1) Before modifying some code, you have read the LICENSE file ("main license")
+1) Comply with the license
+
+   Before modifying some code, you have read the LICENSE file ("main license")
    coming with the sources, and all the files this file references. Certain
    files may be covered by different licenses, in which case it will be
    indicated in the files themselves. In any case, you agree to respect these
@@ -107,7 +111,9 @@ do not think about them anymore after a few patches.
    maintainers are free to reject contributions proposing license changes they
    feel are not appropriate or could cause future trouble.
 
-2) Your work may only be based on the latest development version. No development
+2) Develop on development branch, not stable ones
+
+   Your work may only be based on the latest development version. No development
    is made on a stable branch. If your work needs to be applied to a stable
    branch, it will first be applied to the development branch and only then will
    be backported to the stable branch. You are responsible for ensuring that
@@ -119,7 +125,9 @@ do not think about them anymore after a few patches.
    re-adapt their code, because they did probably not expect to have to spend
    more time discovering your changes and rebasing their work.
 
-3) You have read and understood "doc/codingstyle.txt", and you're actively
+3) Read and respect the coding style
+
+   You have read and understood "doc/coding-style.txt", and you're actively
    determined to respect it and to enforce it on your coworkers if you're going
    to submit a team's work. We don't care what text editor you use, whether it's
    an hex editor, cat, vi, emacs, Notepad, Word, or even Eclipse. The editor is
@@ -133,7 +141,9 @@ do not think about them anymore after a few patches.
    noting that poor quality code is painful to read and may result in nobody
    willing to waste their time even reviewing your work.
 
-4) The time it takes for you to polish your code is always much smaller than the
+4) Present clean work
+
+   The time it takes for you to polish your code is always much smaller than the
    time it takes others to do it for you, because they always have to wonder if
    what they see is intended (meaning they didn't understand something) or if it
    is a mistake that needs to be fixed. And since there are less reviewers than
@@ -145,7 +155,9 @@ do not think about them anymore after a few patches.
    in the company's name but they will find it by themselves, it's obvious it
    comes from us" ? No. When in doubt, simply ask for help on the mailing list.
 
-5) There are four levels of importance of quality in the project :
+5) Documentation is very important
+
+   There are four levels of importance of quality in the project :
 
    - The most important one, and by far, is the quality of the user-facing
      documentation. This is the first contact for most users and it immediately
@@ -208,7 +220,9 @@ do not think about them anymore after a few patches.
      helps developers guess the degree of validity and/or compare them with the
      date of certain commits touching the same area.
 
-6) All text files and commit messages are written using the US-ASCII charset.
+6) US-ASCII only!
+
+   All text files and commit messages are written using the US-ASCII charset.
    Please be careful that your contributions do not contain any character not
    printable using this charset, as they will render differently in different
    editors and/or terminals. Avoid latin1 and more importantly UTF-8 which some
@@ -219,7 +233,9 @@ do not think about them anymore after a few patches.
    merge. Anyway if you have an e-mail address, you probably have a valid
    US-ASCII representation for it as well.
 
-7) Be careful about comments when you move code around. It's not acceptable that
+7) Comments
+
+   Be careful about comments when you move code around. It's not acceptable that
    a block of code is moved to another place leaving irrelevant comments at the
    old place, just like it's not acceptable that a function is duplicated without
    the comments being adjusted. The example below started to become quite common
@@ -250,7 +266,9 @@ do not think about them anymore after a few patches.
     -         return 0;
     -
 
-8) Limit the length of your identifiers in the code. When your identifiers start
+8) Short, readable identifiers
+
+   Limit the length of your identifiers in the code. When your identifiers start
    to sound like sentences, it's very hard for the reader to keep on track with
    what operation they are observing. Also long names force expressions to fit
    on several lines which also cause some difficulties to the reader. See the
@@ -284,16 +302,22 @@ do not think about them anymore after a few patches.
    are used in a complex context where it is important to differenciate between
    their multiple variants.
 
-9) Your patches should be sent in "diff -up" format, which is also the format
-   used by Git. This means the "unified" diff format must be used exclusively,
-   and with the function name printed in the diff header of each block. That
-   significantly helps during reviews. Keep in mind that most reviews are done
-   on the patch and not on the code after applying the patch. Your diff must
-   keep some context (3 lines above and 3 lines below) so that there's no doubt
-   where the code has to be applied. Don't change code outside of the context of
-   your patch (eg: take care of not adding/removing empty lines once you remove
+9) Unified diff only
+
+   The best way to build your patches is to use "git format-patch". This means
+   that you have committed your patch to a local branch, with an appropriate
+   subject line and a useful commit message explaining what the patch attempts
+   to do. It is not strictly required to use git, but what is strictly required
+   is to have all these elements in the same mail, easily distinguishible, and
+   a patch in "diff -up" format (which is also the format used by Git). This
+   means the "unified" diff format must be used exclusively, and with the
+   function name printed in the diff header of each block. That significantly
+   helps during reviews. Keep in mind that most reviews are done on the patch
+   and not on the code after applying the patch. Your diff must keep some
+   context (3 lines above and 3 lines below) so that there's no doubt where the
+   code has to be applied. Don't change code outside of the context of your
+   patch (eg: take care of not adding/removing empty lines once you remove
    your debugging code). If you are using Git (which is strongly recommended),
-   please produce your patches using "git format-patch" and not "git diff", and
    always use "git show" after doing a commit to ensure it looks good, and
    enable syntax coloring that will automatically report in red the trailing
    spaces or tabs that your patch added to the code and that must absolutely be
@@ -301,82 +325,151 @@ do not think about them anymore after a few patches.
    mangle the context in an invisible way. Such patches with trailing spaces at
    end of lines will be rejected.
 
-10) Please cut your work in series of patches that can be independently reviewed
-    and merged. Each patch must do something on its own that you can explain to
-    someone without being ashamed of what you did. For example, you must not say
-    "This is the patch that implements SSL, it was tricky". There's clearly
-    something wrong there, your patch will be huge, will definitely break things
-    and nobody will be able to figure what exactly introduced the bug. However
-    it's much better to say "I needed to add some fields in the session to store
-    the SSL context so this patch does this and doesn't touch anything else, so
-    it's safe". Also when dealing with series, you will sometimes fix a bug that
-    one of your patches introduced. Please do merge these fixes (eg: using git
-    rebase -i and squash or fixup), as it is not acceptable to see patches which
-    introduce known bugs even if they're fixed later. Another benefit of cleanly
-    splitting patches is that if some of your patches need to be reworked after
-    a review, the other ones can still be merged so that you don't need to care
-    about them anymore. When sending multiple patches for review, prefer to send
-    one e-mail per patch than all patches in a single e-mail. The reason is that
-    not everyone is skilled in all areas nor has the time to review everything
-    at once. With one patch per e-mail, it's easy to comment on a single patch
-    without giving an opinion on the other ones, especially if a long thread
-    starts about one specific patch on the mailing list. "git send-email" does
-    that for you though it requires a few trials before getting it right.
+10) One patch per feature
 
-11) Please properly format your commit messages. While it's not strictly
-    required to use Git, it is strongly recommended because it helps you do the
-    cleanest job with the least effort. Patches always have the format of an
-    e-mail made of a subject, a description and the actual patch. If you're
-    sending a patch as an e-mail formatted this way, it can quickly be applied
-    with limited effort so that's acceptable. But in any case, it is important
-    that there is a clean description of what the patch does, the motivation for
-    what it does, why it's the best way to do it, its impacts, and what it does
-    not yet cover. Also, in HAProxy, like many projects which take a great care
-    of maintaining stable branches, patches are reviewed later so that some of
-    them can be backported to stable releases. While reviewing hundreds of
-    patches can seem cumbersome, with a proper formatting of the subject line it
-    actually becomes very easy. For example, here's how one can find patches
-    that need to be reviewed for backports (bugs and doc) between since commit
-    ID 827752e :
+   Please cut your work in series of patches that can be independently reviewed
+   and merged. Each patch must do something on its own that you can explain to
+   someone without being ashamed of what you did. For example, you must not say
+   "This is the patch that implements SSL, it was tricky". There's clearly
+   something wrong there, your patch will be huge, will definitely break things
+   and nobody will be able to figure what exactly introduced the bug. However
+   it's much better to say "I needed to add some fields in the session to store
+   the SSL context so this patch does this and doesn't touch anything else, so
+   it's safe". Also when dealing with series, you will sometimes fix a bug that
+   one of your patches introduced. Please do merge these fixes (eg: using git
+   rebase -i and squash or fixup), as it is not acceptable to see patches which
+   introduce known bugs even if they're fixed later. Another benefit of cleanly
+   splitting patches is that if some of your patches need to be reworked after
+   a review, the other ones can still be merged so that you don't need to care
+   about them anymore. When sending multiple patches for review, prefer to send
+   one e-mail per patch than all patches in a single e-mail. The reason is that
+   not everyone is skilled in all areas nor has the time to review everything
+   at once. With one patch per e-mail, it's easy to comment on a single patch
+   without giving an opinion on the other ones, especially if a long thread
+   starts about one specific patch on the mailing list. "git send-email" does
+   that for you though it requires a few trials before getting it right.
 
-        $ git log --oneline 827752e.. | grep 'BUG\|DOC'
-        0d79cf6 DOC: fix function name
-        bc96534 DOC: ssl: missing LF
-        10ec214 BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segf
-        bdc97a8 BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2
-        ba56d9c DOC: mention support for RFC 5077 TLS Ticket extension in start
-        f1650a8 DOC: clarify some points about SSL and the proxy protocol
-        b157d73 BUG/MAJOR: peers: fix current table pointer not re-initialized
-        e1ab808 BUG/MEDIUM: peers: fix wrong message id on stick table updates
-        cc79b00 BUG/MINOR: ssl: TLS Ticket Key rotation broken via socket comma
-        d8e42b6 DOC: add new file intro.txt
-        c7d7607 BUG/MEDIUM: lua: bad error processing
-        386a127 DOC: match several lua configuration option names to those impl
-        0f4eadd BUG/MEDIUM: counters: ensure that src_{inc,clr}_gpc0 creates a
+   If you can, please always put all the bug fixes at the beginning of the
+   series. This often makes it easier to backport them because they will not
+   depend on context that your other patches changed.
 
-    It is made possible by the fact that subject lines are properly formatted and
-    always respect the same principle : one part indicating the nature and
-    severity of the patch, another one to indicate which subsystem is affected,
-    and the last one is a succinct description of the change, with the important
-    part at the beginning so that it's obvious what it does even when lines are
-    truncated like above. The whole stable maintenance process relies on this.
-    For this reason, it is mandatory to respect some easy rules regarding the
-    way the subject is built. Please see the section below for more information
-    regarding this formatting.
+11) Real commit messages please!
 
-12) When submitting changes, please always CC the mailing list address so that
-    everyone gets a chance to spot any issue in your code. It will also serve
-    as an advertisement for your work, you'll get more testers quicker and
-    you'll feel better knowing that people really use your work. It is also
-    important to CC any author mentioned in the file you change, or a subsystem
-    maintainers whose address is mentioned in a MAINTAINERS file. Not everyone
-    reads the list on a daily basis so it's very easy to miss some changes.
-    Don't consider it as a failure when a reviewer tells you you have to modify
-    your patch, actually it's a success because now you know what is missing for
-    your work to get accepted.  That's why you should not hesitate to CC enough
-    people. Don't copy people who have no deal with your work area just because
-    you found their address on the list. That's the best way to appear careless
-    about their time and make them reject your changes in the future.
+   Please properly format your commit messages. To get an idea, just run
+   "git log" on the file you've just modified. Patches always have the format
+   of an e-mail made of a subject, a description and the actual patch. If you
+   are sending a patch as an e-mail formatted this way, it can quickly be
+   applied with limited effort so that's acceptable :
+
+     - A subject line (may wrap to the next line, but please read below)
+     - an empty line (subject delimiter)
+     - a non-empty description (the body of the e-mail)
+     - the patch itself
+
+   The subject describes the "What" of the change ; the description explains
+   the "why", the "how" and sometimes "what next". For example a commit message
+   looking like this will be rejected :
+
+     | From: Mr Foobar <foobar@example.com>
+     | Subject: BUG: fix typo in ssl_sock
+     |
+
+   This one as well (too long subject, not the right place for the details) :
+
+     | From: Mr Foobar <foobar@example.com>
+     | Subject: BUG/MEDIUM: ssl: use an error flag to prevent ssl_read() from
+     |    returning 0 when dealing with large buffers because that can cause
+     |    an infinite loop
+     |
+
+   This one ought to be used instead :
+
+     | From: Mr Foobar <foobar@example.com>
+     | Subject: BUG/MEDIUM: ssl: fix risk of infinite loop in ssl_sock
+     |
+     | ssl_read() must not return 0 on error or the caller may loop forever.
+     | Instead we add a flag to the connection to notify about the error and
+     | check it at all call places. This situation can only happen with large
+     | buffers so a workaround is to limit buffer sizes. Another option would
+     | have been to return -1 but it required to use signed ints everywhere
+     | and would have made the patch larger and riskier. This fix should be
+     | backported to versions 1.2 and upper.
+
+   It is important to understand that for any reader to guess the text above
+   when it's absent, it will take a huge amount of time. If you made the
+   analysis leading to your patch, you must explain it, including the ideas
+   you dropped if you had a good reason for this.
+
+   While it's not strictly required to use Git, it is strongly recommended
+   because it helps you do the cleanest job with the least effort. But if you
+   are comfortable with writing clean e-mails and inserting your patches, you
+   don't need to use Git.
+
+   But in any case, it is important that there is a clean description of what
+   the patch does, the motivation for what it does, why it's the best way to do
+   it, its impacts, and what it does not yet cover. Also, in HAProxy, like many
+   projects which take a great care of maintaining stable branches, patches are
+   reviewed later so that some of them can be backported to stable releases.
+
+   While reviewing hundreds of patches can seem cumbersome, with a proper
+   formatting of the subject line it actually becomes very easy. For example,
+   here's how one can find patches that need to be reviewed for backports (bugs
+   and doc) between since commit ID 827752e :
+
+       $ git log --oneline 827752e.. | grep 'BUG\|DOC'
+       0d79cf6 DOC: fix function name
+       bc96534 DOC: ssl: missing LF
+       10ec214 BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segf
+       bdc97a8 BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2
+       ba56d9c DOC: mention support for RFC 5077 TLS Ticket extension in start
+       f1650a8 DOC: clarify some points about SSL and the proxy protocol
+       b157d73 BUG/MAJOR: peers: fix current table pointer not re-initialized
+       e1ab808 BUG/MEDIUM: peers: fix wrong message id on stick table updates
+       cc79b00 BUG/MINOR: ssl: TLS Ticket Key rotation broken via socket comma
+       d8e42b6 DOC: add new file intro.txt
+       c7d7607 BUG/MEDIUM: lua: bad error processing
+       386a127 DOC: match several lua configuration option names to those impl
+       0f4eadd BUG/MEDIUM: counters: ensure that src_{inc,clr}_gpc0 creates a
+
+   It is made possible by the fact that subject lines are properly formatted and
+   always respect the same principle : one part indicating the nature and
+   severity of the patch, another one to indicate which subsystem is affected,
+   and the last one is a succinct description of the change, with the important
+   part at the beginning so that it's obvious what it does even when lines are
+   truncated like above. The whole stable maintenance process relies on this.
+   For this reason, it is mandatory to respect some easy rules regarding the
+   way the subject is built. Please see the section below for more information
+   regarding this formatting.
+
+   As a rule of thumb, your patch must never be made only of a subject line,
+   it *must* contain a description. Even one or two lines, or indicating
+   whether a backport is desired or not. It turns out that single-line commits
+   are so rare in the Git world that they require special manual (hence
+   painful) handling when they are backported, and at least for this reason
+   it's important to keep this in mind.
+
+12) Discuss on the mailing list
+
+   When submitting changes, please always CC the mailing list address so that
+   everyone gets a chance to spot any issue in your code. It will also serve
+   as an advertisement for your work, you'll get more testers quicker and
+   you'll feel better knowing that people really use your work. It's often
+   convenient to prepend "[PATCH]" in front of your mail's subject to mention
+   that this e-mail contains a patch (or a series of patches), because it will
+   easily catch reviewer's attention. It's automatically done by tools such as
+   "git format-patch" and "git send-email". If you don't want your patch to be
+   merged yet and prefer to show it for discussion, better tag it as "[RFC]"
+   (stands for "Request For Comments") and it will be reviewed but not merged
+   without your approval. It is also important to CC any author mentioned in
+   the file you change, or a subsystem maintainers whose address is mentioned
+   in a MAINTAINERS file. Not everyone reads the list on a daily basis so it's
+   very easy to miss some changes. Don't consider it as a failure when a
+   reviewer tells you you have to modify your patch, actually it's a success
+   because now you know what is missing for your work to get accepted.  That's
+   why you should not hesitate to CC enough people. Don't copy people who have
+   no deal with your work area just because you found their address on the
+   list. That's the best way to appear careless about their time and make them
+   reject your changes in the future.
 
 
 Patch classifying rules
@@ -449,11 +542,11 @@ patch types include :
   - LICENSE  licensing updates (may impact distro packagers).
 
 
-When the patch cannot be categorized, it's best not to put any type tag. This is
-commonly the case for new features, which development versions are mostly made
-of.
+When the patch cannot be categorized, it's best not to put any type tag, and to
+only use a risk or complexity information only as below. This is commonly the
+case for new features, which development versions are mostly made of.
 
-Additionally, the importance of the patch or severity of the bug it fixes must
+The importance, complexity of the patch, or severity of the bug it fixes must
 be indicated when relevant. A single upper-case word is preferred, among :
 
   - MINOR    minor change, very low risk of impact. It is often the case for
@@ -519,6 +612,8 @@ part is being touched. The following tags are suggested but not limitative :
 
   - acl       the ACL processing core or some ACLs from other areas
 
+  - filters   everything related to the filters core
+
   - peers     the peer synchronization engine
 
   - lua       the Lua scripting engine
@@ -532,6 +627,8 @@ part is being touched. The following tags are suggested but not limitative :
   - session   session processing and flags (very sensible, be careful)
 
   - server    server connection management, queueing
+
+  - spoe      SPOE code
 
   - ssl       the SSL/TLS interface
 
@@ -556,9 +653,9 @@ indicated, as well as the touched area when relevant as well in the patch
 subject. Normally, we would have the 3 most often. The two first criteria should
 be present before a first colon (':'). If both are present, then they should be
 delimited with a slash ('/'). The 3rd criterion (area) should appear next, also
-followed by a colon. Thus, all of the following messages are valid :
+followed by a colon. Thus, all of the following subject lines are valid :
 
-Examples of messages :
+Examples of subject lines :
   - DOC: document options forwardfor to logasap
   - DOC/MAJOR: reorganize the whole document and change indenting
   - BUG: stats: connection reset counters must be plain ascii, not HTML
