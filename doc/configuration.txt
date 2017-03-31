@@ -880,7 +880,7 @@ ssl-default-bind-options [<option>]...
 
   Example:
         global
-           ssl-default-bind-options no-sslv3 no-tls-tickets
+           ssl-default-bind-options ssl-min-ver TLSv1.0 no-tls-tickets
 
 ssl-default-server-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It
@@ -10417,27 +10417,27 @@ force-sslv3
   This option enforces use of SSLv3 only on SSL connections instantiated from
   this listener. SSLv3 is generally less expensive than the TLS counterparts
   for high connection rates. This option is also available on global statement
-  "ssl-default-bind-options". See also "no-tlsv*" and "no-sslv3".
+  "ssl-default-bind-options". See also "ssl-min-ver" and "ssl-max-ver".
 
 force-tlsv10
   This option enforces use of TLSv1.0 only on SSL connections instantiated from
   this listener. This option is also available on global statement
-  "ssl-default-bind-options". See also "no-tlsv*" and "no-sslv3".
+  "ssl-default-bind-options". See also "ssl-min-ver" and "ssl-max-ver".
 
 force-tlsv11
   This option enforces use of TLSv1.1 only on SSL connections instantiated from
   this listener. This option is also available on global statement
-  "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
+  "ssl-default-bind-options". See also "ssl-min-ver" and "ssl-max-ver".
 
 force-tlsv12
   This option enforces use of TLSv1.2 only on SSL connections instantiated from
   this listener. This option is also available on global statement
-  "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
+  "ssl-default-bind-options". See also "ssl-min-ver" and "ssl-max-ver".
 
 force-tlsv13
   This option enforces use of TLSv1.3 only on SSL connections instantiated from
   this listener. This option is also available on global statement
-  "ssl-default-bind-options". See also "no-tlsv*", and "no-sslv3".
+  "ssl-default-bind-options". See also "ssl-min-ver" and "ssl-max-ver".
 
 generate-certificates
   This setting is only available when support for OpenSSL was built in. It
@@ -10555,8 +10555,8 @@ no-sslv3
   disables support for SSLv3 on any sockets instantiated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option. This option is also available on
-  global statement "ssl-default-bind-options". See also "force-tls*",
-  and "force-sslv3".
+  global statement "ssl-default-bind-options". Use "ssl-min-ver" and
+  "ssl-max-ver" instead.
 
 no-tls-tickets
   This setting is only available when support for OpenSSL was built in. It
@@ -10570,32 +10570,32 @@ no-tlsv10
   disables support for TLSv1.0 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. This option is also
-  available on global statement "ssl-default-bind-options". See also
-  "force-tlsv*", and "force-sslv3".
+  available on global statement "ssl-default-bind-options". Use "ssl-min-ver"
+  and "ssl-max-ver" instead.
 
 no-tlsv11
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv1.1 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. This option is also
-  available on global statement "ssl-default-bind-options". See also
-  "force-tlsv*", and "force-sslv3".
+  available on global statement "ssl-default-bind-options". Use "ssl-min-ver"
+  and "ssl-max-ver" instead.
 
 no-tlsv12
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv1.2 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. This option is also
-  available on global statement "ssl-default-bind-options". See also
-  "force-tlsv*", and "force-sslv3".
+  available on global statement "ssl-default-bind-options". Use "ssl-min-ver"
+  and "ssl-max-ver" instead.
 
 no-tlsv13
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv1.3 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. This option is also
-  available on global statement "ssl-default-bind-options". See also
-  "force-tlsv*", and "force-sslv3".
+  available on global statement "ssl-default-bind-options". Use "ssl-min-ver"
+  and "ssl-max-ver" instead.
 
 npn <protocols>
   This enables the NPN TLS extension and advertises the specified protocol list
@@ -10632,6 +10632,16 @@ ssl
   certificate is necessary (see "crt" above). All contents in the buffers will
   appear in clear text, so that ACLs and HTTP processing will only have access
   to deciphered contents.
+
+ssl-max-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  This option enforces use of <version> or lower on SSL connections instantiated
+  from this listener. This option is also available on global statement
+  "ssl-default-bind-options". See also "ssl-min-ver".
+
+ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  This option enforces use of <version> or upper on SSL connections instantiated
+  from this listener. This option is also available on global statement
+  "ssl-default-bind-options". See also "ssl-max-ver".
 
 strict-sni
   This setting is only available when support for OpenSSL was built in. The
@@ -10962,37 +10972,27 @@ force-sslv3
   This option enforces use of SSLv3 only when SSL is used to communicate with
   the server. SSLv3 is generally less expensive than the TLS counterparts for
   high connection rates. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv10
   This option enforces use of TLSv1.0 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv11
   This option enforces use of TLSv1.1 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv12
   This option enforces use of TLSv1.2 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 force-tlsv13
   This option enforces use of TLSv1.3 only when SSL is used to communicate with
   the server. This option is also available on global statement
-  "ssl-default-server-options". See also "no-tlsv*", "no-sslv3".
-
-  Supported in default-server: No
+  "ssl-default-server-options". See also "ssl-min-ver" and ssl-max-ver".
 
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
@@ -11163,7 +11163,7 @@ no-ssl-reuse
 no-sslv3
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
-  using any configuration option. See also "force-sslv3", "force-tlsv*".
+  using any configuration option. Use "ssl-min-ver" and "ssl-max-ver" instead.
 
   Supported in default-server: No
 
@@ -11181,7 +11181,7 @@ no-tlsv10
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
+  Use "ssl-min-ver" and "ssl-max-ver" instead.
 
   Supported in default-server: No
 
@@ -11191,7 +11191,7 @@ no-tlsv11
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
+  Use "ssl-min-ver" and "ssl-max-ver" instead.
 
   Supported in default-server: No
 
@@ -11201,7 +11201,7 @@ no-tlsv12
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
+  Use "ssl-min-ver" and "ssl-max-ver" instead.
 
   Supported in default-server: No
 
@@ -11211,7 +11211,7 @@ no-tlsv13
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers. This
   option is also available on global statement "ssl-default-server-options".
-  See also "force-sslv3", "force-tlsv*".
+  Use "ssl-min-ver" and "ssl-max-ver" instead.
 
   Supported in default-server: No
 
@@ -11452,6 +11452,16 @@ ssl
   "addr" directive indicating the check should be sent to a different location.
   See the "no-ssl" to disable "ssl" option and "check-ssl" option to force
   SSL health checks.
+
+ssl-max-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  This option enforces use of <version> or lower when SSL is used to communicate
+  with the server. This option is also available on global statement
+  "ssl-default-server-options". See also "ssl-min-ver".
+
+ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
+  This option enforces use of <version> or upper when SSL is used to communicate
+  with the server. This option is also available on global statement
+  "ssl-default-server-options". See also "ssl-max-ver".
 
 ssl-reuse
   This option may be used as "server" setting to reset any "no-ssl-reuse"

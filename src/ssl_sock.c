@@ -3305,7 +3305,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 			if (min) {
 				if (hole) {
 					Warning("Proxy '%s': SSL/TLS versions range not contiguous for bind '%s' at [%s:%d]. "
-						"Hole find for %s. Use only 'min-tlsvX' and 'max-tlsvY' to fix.\n",
+						"Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
 						bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line,
 						methodVersions[hole].name);
 					hole = 0;
@@ -3740,7 +3740,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			if (min) {
 				if (hole) {
 					Warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
-						"Hole find for %s. Use only 'min-tlsvX' and 'max-tlsvY' to fix.\n",
+						"Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
 						proxy_type_str(curproxy), curproxy->id, srv->id,
 						methodVersions[hole].name);
 					hole = 0;
@@ -6227,14 +6227,14 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	return 0;
 }
 
-/* parse tls_method_options */
-static int parse_tls_method_options(char *arg, struct tls_version_filter *methods)
+/* parse tls_method_options "no-xxx" and "force-xxx" */
+static int parse_tls_method_options(char *arg, struct tls_version_filter *methods, char **err)
 {
+	uint16_t v;
 	char *p;
-	int v;
 	p = strchr(arg, '-');
 	if (!p)
-		return 1;
+		goto fail;
 	p++;
 	if (!strcmp(p, "sslv3"))
 		v = CONF_SSLV3;
@@ -6247,19 +6247,53 @@ static int parse_tls_method_options(char *arg, struct tls_version_filter *method
 	else if (!strcmp(p, "tlsv13"))
 		v = CONF_TLSV13;
 	else
-		return 1;
+		goto fail;
 	if (!strncmp(arg, "no-", 3))
 		methods->flags |= methodVersions[v].flag;
 	else if (!strncmp(arg, "force-", 6))
 		methods->min = methods->max = v;
 	else
-		return 1;
+		goto fail;
 	return 0;
+ fail:
+	if (err)
+		memprintf(err, "'%s' : option not implemented", arg);
+	return ERR_ALERT | ERR_FATAL;
 }
 
 static int bind_parse_tls_method_options(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	if (parse_tls_method_options(args[cur_arg], &conf->ssl_methods)) {
+	return parse_tls_method_options(args[cur_arg], &conf->ssl_methods, err);
+}
+
+static int srv_parse_tls_method_options(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	return parse_tls_method_options(args[*cur_arg], &newsrv->ssl_ctx.methods, err);
+}
+
+/* parse tls_method min/max: "ssl-min-ver" and "ssl-max-ver" */
+static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_filter *methods, char **err)
+{
+	uint16_t i, v = 0;
+	char *argv = args[cur_arg + 1];
+	if (!*argv) {
+		if (err)
+			memprintf(err, "'%s' : missing the ssl/tls version", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		if (!strcmp(argv, methodVersions[i].name))
+			v = i;
+	if (!v) {
+		if (err)
+			memprintf(err, "'%s' : unknown ssl/tls version", args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (!strcmp("ssl-min-ver", args[cur_arg]))
+		methods->min = v;
+	else if (!strcmp("ssl-max-ver", args[cur_arg]))
+		methods->max = v;
+	else {
 		if (err)
 			memprintf(err, "'%s' : option not implemented", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -6267,14 +6301,14 @@ static int bind_parse_tls_method_options(char **args, int cur_arg, struct proxy 
 	return 0;
 }
 
-static int srv_parse_tls_method_options(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+static int bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	if (parse_tls_method_options(args[*cur_arg], &newsrv->ssl_ctx.methods)) {
-		if (err)
-			memprintf(err, "'%s' : option not implemented", args[*cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
-	return 0;
+	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
+}
+
+static int srv_parse_tls_method_minmax(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	return parse_tls_method_minmax(args, *cur_arg, &newsrv->ssl_ctx.methods, err);
 }
 
 /* parse the "no-tls-tickets" bind keyword */
@@ -6796,7 +6830,15 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
 		else if (!strcmp(args[i], "prefer-client-ciphers"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
-		else if (parse_tls_method_options(args[i], &global_ssl.listen_default_sslmethods)) {
+		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
+			if (!parse_tls_method_minmax(args, i, &global_ssl.listen_default_sslmethods, err))
+				i++;
+			else {
+				memprintf(err, "%s on global statement '%s'.", *err, args[0]);
+				return -1;
+			}
+		}
+		else if (parse_tls_method_options(args[i], &global_ssl.listen_default_sslmethods, err)) {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
 		}
@@ -6818,7 +6860,15 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 	while (*(args[i])) {
 		if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
-		else if (parse_tls_method_options(args[i], &global_ssl.connect_default_sslmethods)) {
+		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
+			if (!parse_tls_method_minmax(args, i, &global_ssl.connect_default_sslmethods, err))
+				i++;
+			else {
+				memprintf(err, "%s on global statement '%s'.", *err, args[0]);
+				return -1;
+			}
+		}
+		else if (parse_tls_method_options(args[i], &global_ssl.connect_default_sslmethods, err)) {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
 		}
@@ -7401,6 +7451,8 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "no-tlsv13",             bind_parse_tls_method_options, 0 }, /* disable TLSv13 */
 	{ "no-tls-tickets",        bind_parse_no_tls_tickets,     0 }, /* disable session resumption tickets */
 	{ "ssl",                   bind_parse_ssl,                0 }, /* enable SSL processing */
+	{ "ssl-min-ver",           bind_parse_tls_method_minmax,  1 }, /* minimum version */
+	{ "ssl-max-ver",           bind_parse_tls_method_minmax,  1 }, /* maximum version */
 	{ "strict-sni",            bind_parse_strict_sni,         0 }, /* refuse negotiation if sni doesn't match a certificate */
 	{ "tls-ticket-keys",       bind_parse_tls_ticket_keys,    1 }, /* set file to load TLS ticket keys from */
 	{ "verify",                bind_parse_verify,             1 }, /* set SSL verify method */
@@ -7417,35 +7469,37 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
-	{ "ca-file",                 srv_parse_ca_file,           1, 1 }, /* set CAfile to process verify server cert */
-	{ "check-ssl",               srv_parse_check_ssl,         0, 1 }, /* enable SSL for health checks */
-	{ "ciphers",                 srv_parse_ciphers,           1, 1 }, /* select the cipher suite */
-	{ "crl-file",                srv_parse_crl_file,          1, 1 }, /* set certificate revocation list file use on server cert verify */
-	{ "crt",                     srv_parse_crt,               1, 1 }, /* set client certificate */
-	{ "force-sslv3",             srv_parse_tls_method_options,0, 1 }, /* force SSLv3 */
-	{ "force-tlsv10",            srv_parse_tls_method_options,0, 1 }, /* force TLSv10 */
-	{ "force-tlsv11",            srv_parse_tls_method_options,0, 1 }, /* force TLSv11 */
-	{ "force-tlsv12",            srv_parse_tls_method_options,0, 1 }, /* force TLSv12 */
-	{ "force-tlsv13",            srv_parse_tls_method_options,0, 1 }, /* force TLSv13 */
-	{ "no-check-ssl",            srv_parse_no_check_ssl,      0, 1 }, /* disable SSL for health checks */
-	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl, 0, 1 }, /* do not send PROXY protocol header v2 with SSL info */
-	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,  0, 1 }, /* do not send PROXY protocol header v2 with CN */
-	{ "no-ssl",                  srv_parse_no_ssl,            0, 1 }, /* disable SSL processing */
-	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,      0, 1 }, /* disable session reuse */
-	{ "no-sslv3",                srv_parse_tls_method_options,0, 0 }, /* disable SSLv3 */
-	{ "no-tlsv10",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv10 */
-	{ "no-tlsv11",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv11 */
-	{ "no-tlsv12",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv12 */
-	{ "no-tlsv13",               srv_parse_tls_method_options,0, 0 }, /* disable TLSv13 */
-	{ "no-tls-tickets",          srv_parse_no_tls_tickets,    0, 1 }, /* disable session resumption tickets */
-	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,    0, 1 }, /* send PROXY protocol header v2 with SSL info */
-	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,     0, 1 }, /* send PROXY protocol header v2 with CN */
-	{ "sni",                     srv_parse_sni,               1, 1 }, /* send SNI extension */
-	{ "ssl",                     srv_parse_ssl,               0, 1 }, /* enable SSL processing */
-	{ "ssl-reuse",               srv_parse_ssl_reuse,         0, 1 }, /* enable session reuse */
-	{ "tls-tickets",             srv_parse_tls_tickets,       0, 1 }, /* enable session resumption tickets */
-	{ "verify",                  srv_parse_verify,            1, 1 }, /* set SSL verify method */
-	{ "verifyhost",              srv_parse_verifyhost,        1, 1 }, /* require that SSL cert verifies for hostname */
+	{ "ca-file",                 srv_parse_ca_file,            1, 1 }, /* set CAfile to process verify server cert */
+	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
+	{ "ciphers",                 srv_parse_ciphers,            1, 1 }, /* select the cipher suite */
+	{ "crl-file",                srv_parse_crl_file,           1, 1 }, /* set certificate revocation list file use on server cert verify */
+	{ "crt",                     srv_parse_crt,                1, 1 }, /* set client certificate */
+	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1 }, /* force SSLv3 */
+	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1 }, /* force TLSv10 */
+	{ "force-tlsv11",            srv_parse_tls_method_options, 0, 1 }, /* force TLSv11 */
+	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1 }, /* force TLSv12 */
+	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1 }, /* force TLSv13 */
+	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1 }, /* disable SSL for health checks */
+	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1 }, /* do not send PROXY protocol header v2 with SSL info */
+	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,   0, 1 }, /* do not send PROXY protocol header v2 with CN */
+	{ "no-ssl",                  srv_parse_no_ssl,             0, 1 }, /* disable SSL processing */
+	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,       0, 1 }, /* disable session reuse */
+	{ "no-sslv3",                srv_parse_tls_method_options, 0, 0 }, /* disable SSLv3 */
+	{ "no-tlsv10",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv10 */
+	{ "no-tlsv11",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv11 */
+	{ "no-tlsv12",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv12 */
+	{ "no-tlsv13",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv13 */
+	{ "no-tls-tickets",          srv_parse_no_tls_tickets,     0, 1 }, /* disable session resumption tickets */
+	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1 }, /* send PROXY protocol header v2 with SSL info */
+	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1 }, /* send PROXY protocol header v2 with CN */
+	{ "sni",                     srv_parse_sni,                1, 1 }, /* send SNI extension */
+	{ "ssl",                     srv_parse_ssl,                0, 1 }, /* enable SSL processing */
+	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1 }, /* minimum version */
+	{ "ssl-max-ver",             srv_parse_tls_method_minmax,  1, 1 }, /* maximum version */
+	{ "ssl-reuse",               srv_parse_ssl_reuse,          0, 1 }, /* enable session reuse */
+	{ "tls-tickets",             srv_parse_tls_tickets,        0, 1 }, /* enable session resumption tickets */
+	{ "verify",                  srv_parse_verify,             1, 1 }, /* set SSL verify method */
+	{ "verifyhost",              srv_parse_verifyhost,         1, 1 }, /* require that SSL cert verifies for hostname */
 	{ NULL, NULL, 0, 0 },
 }};
 
