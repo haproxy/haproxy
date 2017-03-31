@@ -4784,6 +4784,9 @@ log-format <string>
   the same log format. Please see section 8.2.4 which covers the log format
   string in depth.
 
+  "log-format" directive overrides previous "option tcplog", "log-format" and
+  "option httplog" directives.
+
 log-format-sd <string>
   Specifies the RFC5424 structured-data log format string
   May be used in sections:    defaults | frontend | listen | backend
@@ -5835,6 +5838,8 @@ option httplog [ clf ]
   Specifying only "option httplog" will automatically clear the 'clf' mode
   if it was set by default.
 
+  "option httplog" overrides any previous "log-format" directive.
+
   See also :  section 8 about logging.
 
 
@@ -6692,6 +6697,8 @@ option tcplog
   proxies, it's better to use "option httplog" which is even more complete.
 
   This option may be set either in the frontend or the backend.
+
+  "option tcplog" overrides any previous "log-format" directive.
 
   See also :  "option httplog", and section 8 about logging.
 
