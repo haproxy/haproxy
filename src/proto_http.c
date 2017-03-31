@@ -5803,7 +5803,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  missing_data_or_waiting:
 	/* stop waiting for data if the input is closed before the end */
-	if (req->flags & CF_SHUTR) {
+	if (msg->msg_state < HTTP_MSG_ENDING && req->flags & CF_SHUTR) {
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_CLICL;
 		if (!(s->flags & SF_FINST_MASK)) {
@@ -6962,7 +6962,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * so we don't want to count this as a server abort. Otherwise it's a
 	 * server abort.
 	 */
-	if (res->flags & CF_SHUTR) {
+	if (msg->msg_state < HTTP_MSG_ENDING && res->flags & CF_SHUTR) {
 		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto aborted_xfer;
 		/* If we have some pending data, we continue the processing */
