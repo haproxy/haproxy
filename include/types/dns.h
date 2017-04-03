@@ -35,6 +35,9 @@
 /* DNS minimun record size: 1 char + 1 NULL + type + class */
 #define DNS_MIN_RECORD_SIZE	( 1 + 1 + 2 + 2 )
 
+/* DNS smallest fqdn 'a.gl' size */
+# define DNS_SMALLEST_FQDN_SIZE	4
+
 /* maximum number of query records in a DNS response
  * For now, we allow only one */
 #define DNS_MAX_QUERY_RECORDS 1
