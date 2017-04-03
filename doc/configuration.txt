@@ -3637,7 +3637,7 @@ http-check expect [!] <match> <pattern>
          http-check expect ! rstatus ^5
 
          # check that we have a correct hexadecimal tag before /html
-         http-check expect rstring <!--tag:[0-9a-f]*</html>
+         http-check expect rstring <!--tag:[0-9a-f]*--></html>
 
   See also : "option httpchk", "http-check disable-on-404"
 
@@ -4593,6 +4593,11 @@ ignore-persist { if | unless } <condition>
 
   The persistence is ignored when an "if" condition is met, or unless an
   "unless" condition is met.
+
+  Example:
+      acl url_static  path_beg         /static /images /img /css
+      acl url_static  path_end         .gif .png .jpg .css .js
+      ignore-persist  if url_static
 
   See also : "force-persist", "cookie", and section 7 about ACL usage.
 
@@ -6285,7 +6290,7 @@ option redis-check
   Example :
         option redis-check
 
-  See also : "option httpchk"
+  See also : "option httpchk", "option tcp-check", "tcp-check expect"
 
 
 option smtpchk
@@ -9212,9 +9217,11 @@ tcp-request content <action> [{if | unless} <condition>]
         tcp-request content reject
 
   Example:
-        # Track the last IP from X-Forwarded-For
+        # Track the last IP(stick-table type string) from X-Forwarded-For
         tcp-request inspect-delay 10s
         tcp-request content track-sc0 hdr(x-forwarded-for,-1)
+        # Or track the last IP(stick-table type ip|ipv6) from X-Forwarded-For
+        tcp-request content track-sc0 req.hdr_ip(x-forwarded-for,-1)
 
   Example:
         # track request counts per "base" (concatenation of Host+URL)
@@ -9222,7 +9229,7 @@ tcp-request content <action> [{if | unless} <condition>]
         tcp-request content track-sc0 base table req-rate
 
   Example: track per-frontend and per-backend counters, block abusers at the
-           frontend when the backend detects abuse.
+           frontend when the backend detects abuse(and marks gpc0).
 
         frontend http
             # Use General Purpose Couter 0 in SC0 as a global abuse counter
@@ -9238,7 +9245,7 @@ tcp-request content <action> [{if | unless} <condition>]
             # by SC1), block it globally in the frontend.
             stick-table type ip size 1m expire 5m store http_req_rate(10s)
             acl click_too_fast sc1_http_req_rate gt 10
-            acl mark_as_abuser sc0_inc_gpc0 gt 0
+            acl mark_as_abuser sc0_inc_gpc0(http) gt 0
             tcp-request content track-sc1 src
             tcp-request content reject if click_too_fast mark_as_abuser
 
@@ -9838,9 +9845,10 @@ timeout tarpit <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  When a connection is tarpitted using "reqtarpit", it is maintained open with
-  no activity for a certain amount of time, then closed. "timeout tarpit"
-  defines how long it will be maintained open.
+  When a connection is tarpitted using "http-request tarpit" or
+  "reqtarpit", it is maintained open with no activity for a certain
+  amount of time, then closed. "timeout tarpit" defines how long it will
+  be maintained open.
 
   The value is specified in milliseconds by default, but can be in any other
   unit if the number is suffixed by the unit, as specified at the top of this
