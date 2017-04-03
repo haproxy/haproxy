@@ -1,5 +1,5 @@
                    -----------------------------------------
-                          Filters Guide - version 1.7
+                          Filters Guide - version 1.8
                           ( Last update: 2016-11-10 )
                    ------------------------------------------
                           Author : Christopher Faulet
