@@ -2510,7 +2510,9 @@ block { if | unless } <condition> (deprecated)
         acl invalid_src  src          0.0.0.0/7 224.0.0.0/3
         acl invalid_src  src_port     0:1023
         acl local_dst    hdr(host) -i localhost
-        block if invalid_src || local_dst
+        # block is deprecated. Use http-request deny instead:
+        #block if invalid_src || local_dst
+        http-request deny if invalid_src || local_dst
 
   See section 7 about ACL usage.
 
@@ -12187,9 +12189,9 @@ requests with a content-length greater than 0, and finally every request which
 is not either GET/HEAD/POST/OPTIONS !
 
    acl missing_cl hdr_cnt(Content-length) eq 0
-   block if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
-   block if METH_GET HTTP_CONTENT
-   block unless METH_GET or METH_POST or METH_OPTIONS
+   http-request deny if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
+   http-request deny if METH_GET HTTP_CONTENT
+   http-request deny unless METH_GET or METH_POST or METH_OPTIONS
 
 To select a different backend for requests to static contents on the "www" site
 and to every request on the "img", "video", "download" and "ftp" hosts :
@@ -12212,11 +12214,11 @@ the braces must be seen as independent words). Example :
    The following rule :
 
        acl missing_cl hdr_cnt(Content-length) eq 0
-       block if METH_POST missing_cl
+       http-request deny if METH_POST missing_cl
 
    Can also be written that way :
 
-       block if METH_POST { hdr_cnt(Content-length) eq 0 }
+       http-request deny if METH_POST { hdr_cnt(Content-length) eq 0 }
 
 It is generally not recommended to use this construct because it's a lot easier
 to leave errors in the configuration when written that way. However, for very
@@ -12234,7 +12236,8 @@ good use is the following :
 
         monitor fail if { nbsrv(dynamic) lt 2 } || { nbsrv(static) lt 2 }
 
-See section 4.2 for detailed help on the "block" and "use_backend" keywords.
+See section 4.2 for detailed help on the "http-request deny" and "use_backend"
+keywords.
 
 
 7.3. Fetching samples
