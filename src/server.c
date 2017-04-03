@@ -13,7 +13,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <netinet/tcp.h>
 
 #include <import/xxhash.h>
 
@@ -43,6 +42,7 @@
 #include <proto/stats.h>
 #include <proto/task.h>
 #include <proto/dns.h>
+#include <netinet/tcp.h>
 
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
