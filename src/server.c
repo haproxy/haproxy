@@ -135,18 +135,17 @@ void srv_set_dyncookie(struct server *s)
 	 * Check that we did not get a hash collision.
 	 * Unlikely, but it can happen.
 	 */
-	for (p = proxy; p != NULL; p = p->next)
-		for (tmpserv = proxy->srv; tmpserv != NULL;
-		    tmpserv = tmpserv->next) {
-			if (tmpserv == s)
-				continue;
-			if (tmpserv->cookie &&
-			    strcmp(tmpserv->cookie, s->cookie) == 0) {
-				Warning("We generated two equal cookies for two different servers.\n"
-				    "Please change the secret key for '%s'.\n",
-				    s->proxy->id);
-			}
+	for (tmpserv = p->srv; tmpserv != NULL;
+	    tmpserv = tmpserv->next) {
+		if (tmpserv == s)
+			continue;
+		if (tmpserv->cookie &&
+		    strcmp(tmpserv->cookie, s->cookie) == 0) {
+			Warning("We generated two equal cookies for two different servers.\n"
+			    "Please change the secret key for '%s'.\n",
+			    s->proxy->id);
 		}
+	}
 }
 
 /*
