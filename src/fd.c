@@ -175,7 +175,7 @@ int fd_nbupdt = 0;             // number of updates in the list
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
  */
-void fd_delete(int fd)
+static void fd_dodelete(int fd, int do_close)
 {
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
@@ -190,12 +190,29 @@ void fd_delete(int fd)
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
-	close(fd);
+	if (do_close)
+		close(fd);
 	fdtab[fd].owner = NULL;
 	fdtab[fd].new = 0;
 
 	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
 		maxfd--;
+}
+
+/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+ * The file descriptor is also closed.
+ */
+void fd_delete(int fd)
+{
+	fd_dodelete(fd, 1);
+}
+
+/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+ * The file descriptor is kept open.
+ */
+void fd_remove(int fd)
+{
+	fd_dodelete(fd, 0);
 }
 
 /* Scan and process the cached events. This should be called right after

@@ -1063,10 +1063,11 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 		struct listener *l;
 
 		list_for_each_entry(l, &px->conf.listeners, by_fe) {
-			/* Only transfer IPv4/IPv6 sockets */
-			if (l->proto->sock_family == AF_INET ||
+			/* Only transfer IPv4/IPv6/UNIX sockets */
+			if (l->state >= LI_ZOMBIE &&
+			    (l->proto->sock_family == AF_INET ||
 			    l->proto->sock_family == AF_INET6 ||
-			    l->proto->sock_family == AF_UNIX)
+			    l->proto->sock_family == AF_UNIX))
 				tot_fd_nb++;
 		}
 		px = px->next;
@@ -1117,7 +1118,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 		list_for_each_entry(l, &px->conf.listeners, by_fe) {
 			int ret;
 			/* Only transfer IPv4/IPv6 sockets */
-			if (l->state >= LI_LISTEN &&
+			if (l->state >= LI_ZOMBIE &&
 			    (l->proto->sock_family == AF_INET ||
 			    l->proto->sock_family == AF_INET6 ||
 			    l->proto->sock_family == AF_UNIX)) {

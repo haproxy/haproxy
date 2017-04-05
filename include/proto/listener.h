@@ -88,6 +88,11 @@ void dequeue_all_listeners(struct list *list);
  */
 int unbind_listener(struct listener *listener);
 
+/* This function pretends the listener is dead, but keeps the FD opened, so
+ * that we can provide it, for conf reloading.
+ */
+int unbind_listener_no_close(struct listener *listener);
+
 /* This function closes all listening sockets bound to the protocol <proto>,
  * and the listeners end in LI_ASSIGNED state if they were higher. It does not
  * detach them from the protocol. It always returns ERR_NONE.

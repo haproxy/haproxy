@@ -41,6 +41,11 @@ extern int fd_nbupdt;               // number of updates in the list
  */
 void fd_delete(int fd);
 
+/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+ * The file descriptor is kept open.
+ */
+void fd_remove(int fd);
+
 /* disable the specified poller */
 void disable_poller(const char *poller_name);
 

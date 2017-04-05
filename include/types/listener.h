@@ -47,6 +47,7 @@ enum li_state {
 	LI_INIT,        /* all parameters filled in, but not assigned yet */
 	LI_ASSIGNED,    /* assigned to the protocol, but not listening yet */
 	LI_PAUSED,      /* listener was paused, it's bound but not listening  */
+	LI_ZOMBIE,	/* The listener doesn't belong to the process, but is kept opened */
 	LI_LISTEN,      /* started, listening but not enabled */
 	LI_READY,       /* started, listening and enabled */
 	LI_FULL,        /* reached its connection limit */

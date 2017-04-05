@@ -991,6 +991,19 @@ void soft_stop(void)
 	p = proxy;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
+		/* Zombie proxy, let's close the file descriptors */
+		if (p->state == PR_STSTOPPED &&
+		    !LIST_ISEMPTY(&p->conf.listeners) &&
+		    LIST_ELEM(p->conf.listeners.n,
+		    struct listener *, by_fe)->state >= LI_ZOMBIE) {
+			struct listener *l;
+			list_for_each_entry(l, &p->conf.listeners, by_fe) {
+				if (l->state >= LI_ZOMBIE)
+					close(l->fd);
+				l->state = LI_INIT;
+			}
+		}
+
 		if (p->state != PR_STSTOPPED) {
 			Warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
@@ -1051,6 +1064,45 @@ int pause_proxy(struct proxy *p)
 	return 1;
 }
 
+/* This function makes the proxy unusable, but keeps the listening sockets
+ * opened, so that if any process requests them, we are able to serve them.
+ * This should only be called early, before we started accepting requests.
+ */
+void zombify_proxy(struct proxy *p)
+{
+	struct listener *l;
+	struct listener *first_to_listen = NULL;
+
+	list_for_each_entry(l, &p->conf.listeners, by_fe) {
+		enum li_state oldstate = l->state;
+
+		unbind_listener_no_close(l);
+		if (l->state >= LI_ASSIGNED) {
+			delete_listener(l);
+			listeners--;
+			jobs--;
+		}
+		/*
+		 * Pretend we're still up and running so that the fd
+		 * will be sent if asked.
+		 */
+		l->state = LI_ZOMBIE;
+		if (!first_to_listen && oldstate >= LI_LISTEN)
+			first_to_listen = l;
+	}
+	/* Quick hack : at stop time, to know we have to close the sockets
+	 * despite the proxy being marked as stopped, make the first listener
+	 * of the listener list an active one, so that we don't have to
+	 * parse the whole list to be sure.
+	 */
+	if (first_to_listen && LIST_ELEM(p->conf.listeners.n,
+	    struct listener *, by_fe) != first_to_listen) {
+		LIST_DEL(&l->by_fe);
+		LIST_ADD(&p->conf.listeners, &l->by_fe);
+	}
+
+	p->state = PR_STSTOPPED;
+}
 
 /*
  * This function completely stops a proxy and releases its listeners. It has

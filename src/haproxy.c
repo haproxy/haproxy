@@ -857,6 +857,7 @@ static void init(int argc, char **argv)
 #if defined(SO_REUSEPORT)
 	global.tune.options |= GTUNE_USE_REUSEPORT;
 #endif
+	global.tune.options |= GTUNE_SOCKET_TRANSFER;
 
 	pid = getpid();
 	progname = *argv;
@@ -1668,6 +1669,15 @@ void deinit(void)
 		}/* end while(s) */
 
 		list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
+			/*
+			 * Zombie proxy, the listener just pretend to be up
+			 * because they still hold an opened fd.
+			 * Close it and give the listener its real state.
+			 */
+			if (p->state == PR_STSTOPPED && l->state >= LI_ZOMBIE) {
+				close(l->fd);
+				l->state = LI_INIT;
+			}
 			unbind_listener(l);
 			delete_listener(l);
 			LIST_DEL(&l->by_fe);
@@ -2148,8 +2158,12 @@ int main(int argc, char **argv)
 		px = proxy;
 		while (px != NULL) {
 			if (px->bind_proc && px->state != PR_STSTOPPED) {
-				if (!(px->bind_proc & (1UL << proc)))
-					stop_proxy(px);
+				if (!(px->bind_proc & (1UL << proc))) {
+					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
+						zombify_proxy(px);
+					else
+						stop_proxy(px);
+				}
 			}
 			px = px->next;
 		}

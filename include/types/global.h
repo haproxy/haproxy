@@ -62,6 +62,8 @@
 #define GTUNE_USE_REUSEPORT      (1<<6)
 #define GTUNE_RESOLVE_DONTFAIL   (1<<7)
 
+#define GTUNE_SOCKET_TRANSFER	 (1<<8)
+
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
 #define ACCESS_LVL_USER     1

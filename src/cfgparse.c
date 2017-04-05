@@ -659,6 +659,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		global.tune.options &= ~GTUNE_USE_REUSEPORT;
 	}
+	else if (!strcmp(args[0], "no-unused-socket")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		global.tune.options &= ~GTUNE_SOCKET_TRANSFER;
+	}
 	else if (!strcmp(args[0], "quiet")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;

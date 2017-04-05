@@ -59,7 +59,12 @@ void enable_listener(struct listener *listener)
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
-			unbind_listener(listener);
+			if (!(global.tune.options & GTUNE_SOCKET_TRANSFER))
+				unbind_listener(listener);
+			else {
+				unbind_listener_no_close(listener);
+				listener->state = LI_LISTEN;
+			}
 		}
 		else if (listener->nbconn < listener->maxconn) {
 			fd_want_recv(listener->fd);
@@ -95,7 +100,7 @@ void disable_listener(struct listener *listener)
  */
 int pause_listener(struct listener *l)
 {
-	if (l->state <= LI_PAUSED)
+	if (l->state <= LI_ZOMBIE)
 		return 1;
 
 	if (l->proto->pause) {
@@ -149,7 +154,7 @@ int resume_listener(struct listener *l)
 			return 0;
 	}
 
-	if (l->state < LI_PAUSED)
+	if (l->state < LI_PAUSED || l->state == LI_ZOMBIE)
 		return 0;
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
@@ -242,12 +247,7 @@ void dequeue_all_listeners(struct list *list)
 	}
 }
 
-/* This function closes the listening socket for the specified listener,
- * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
- * to be used as a generic function for standard protocols.
- */
-int unbind_listener(struct listener *listener)
+static int do_unbind_listener(struct listener *listener, int do_close)
 {
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->fd);
@@ -256,11 +256,33 @@ int unbind_listener(struct listener *listener)
 		LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
-		fd_delete(listener->fd);
-		listener->fd = -1;
+		if (do_close) {
+			fd_delete(listener->fd);
+			listener->fd = -1;
+		}
+		else
+			fd_remove(listener->fd);
 		listener->state = LI_ASSIGNED;
 	}
 	return ERR_NONE;
+}
+
+/* This function closes the listening socket for the specified listener,
+ * provided that it's already in a listening state. The listener enters the
+ * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
+ * to be used as a generic function for standard protocols.
+ */
+int unbind_listener(struct listener *listener)
+{
+	return do_unbind_listener(listener, 1);
+}
+
+/* This function pretends the listener is dead, but keeps the FD opened, so
+ * that we can provide it, for conf reloading.
+ */
+int unbind_listener_no_close(struct listener *listener)
+{
+	return do_unbind_listener(listener, 0);
 }
 
 /* This function closes all listening sockets bound to the protocol <proto>,
