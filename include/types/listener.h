@@ -246,6 +246,16 @@ struct bind_kw_list {
 };
 
 
+struct xfer_sock_list {
+	int fd;
+	char *iface;
+	char *namespace;
+	int options; /* socket options LI_O_* */
+	struct xfer_sock_list *prev;
+	struct xfer_sock_list *next;
+	struct sockaddr_storage addr;
+};
+
 #endif /* _TYPES_LISTENER_H */
 
 /*

@@ -39,6 +39,7 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -109,7 +110,6 @@
 #include <proto/dns.h>
 #include <proto/vars.h>
 
-
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
@@ -168,6 +168,9 @@ int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) *
 #define MAX_START_RETRIES	200
 static int *oldpids = NULL;
 static int oldpids_sig; /* use USR1 or TERM */
+
+/* Path to the unix socket we use to retrieve listener sockets from the old process */
+static const char *old_unixsocket;
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 struct chunk trash = { };
@@ -372,6 +375,7 @@ static void usage(char *name)
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
+		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"\n",
 		name, DEFAULT_MAXCONN, cfg_maxpconn);
 	exit(1);
@@ -561,6 +565,214 @@ next_dir_entry:
 	free(err);
 }
 
+static int get_old_sockets(const char *unixsocket)
+{
+	char *cmsgbuf = NULL, *tmpbuf = NULL;
+	int *tmpfd = NULL;
+	struct sockaddr_un addr;
+	struct cmsghdr *cmsg;
+	struct msghdr msghdr;
+	struct iovec iov;
+	struct xfer_sock_list *xfer_sock = NULL;
+	int sock = -1;
+	int ret = -1;
+	int ret2 = -1;
+	int fd_nb;
+	int got_fd = 0;
+	int i = 0;
+	size_t maxoff = 0, curoff = 0;
+
+	memset(&msghdr, 0, sizeof(msghdr));
+	cmsgbuf = malloc(CMSG_SPACE(sizeof(int)) * MAX_SEND_FD);
+	if (!cmsgbuf) {
+		Warning("Failed to allocate memory to send sockets\n");
+		goto out;
+	}
+	sock = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (sock < 0) {
+		Warning("Failed to connect to the old process socket '%s'\n",
+		    unixsocket);
+		goto out;
+	}
+	strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path));
+	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
+	addr.sun_family = PF_UNIX;
+	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+	if (ret < 0) {
+		Warning("Failed to connect to the old process socket '%s'\n",
+		    unixsocket);
+		goto out;
+	}
+	iov.iov_base = &fd_nb;
+	iov.iov_len = sizeof(fd_nb);
+	msghdr.msg_iov = &iov;
+	msghdr.msg_iovlen = 1;
+	send(sock, "_getsocks\n", strlen("_getsocks\n"), 0);
+	/* First, get the number of file descriptors to be received */
+	if (recvmsg(sock, &msghdr, MSG_WAITALL) != sizeof(fd_nb)) {
+		Warning("Failed to get the number of sockets to be transferred !\n");
+		goto out;
+	}
+	if (fd_nb == 0) {
+		ret = 0;
+		goto out;
+	}
+	tmpbuf = malloc(fd_nb * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int)));
+	if (tmpbuf == NULL) {
+		Warning("Failed to allocate memory while receiving sockets\n");
+		goto out;
+	}
+	tmpfd = malloc(fd_nb * sizeof(int));
+	if (tmpfd == NULL) {
+		Warning("Failed to allocate memory while receiving sockets\n");
+		goto out;
+	}
+	msghdr.msg_control = cmsgbuf;
+	msghdr.msg_controllen = CMSG_SPACE(sizeof(int)) * MAX_SEND_FD;
+	iov.iov_len = MAX_SEND_FD * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int));
+	do {
+		int ret3;
+
+		iov.iov_base = tmpbuf + curoff;
+		ret = recvmsg(sock, &msghdr, 0);
+		if (ret == -1 && errno == EINTR)
+			continue;
+		if (ret <= 0)
+			break;
+		/* Send an ack to let the sender know we got the sockets
+		 * and it can send some more
+		 */
+		do {
+			ret3 = send(sock, &got_fd, sizeof(got_fd), 0);
+		} while (ret3 == -1 && errno == EINTR);
+		for (cmsg = CMSG_FIRSTHDR(&msghdr); cmsg != NULL;
+		    cmsg = CMSG_NXTHDR(&msghdr, cmsg)) {
+			if (cmsg->cmsg_level == SOL_SOCKET &&
+			    cmsg->cmsg_type == SCM_RIGHTS) {
+				size_t totlen = cmsg->cmsg_len -
+				    CMSG_LEN(0);
+				if (totlen / sizeof(int) + got_fd > fd_nb) {
+					Warning("Got to many sockets !\n");
+					goto out;
+				}
+				/*
+				 * Be paranoid and use memcpy() to avoid any
+				 * potential alignement issue.
+				 */
+				memcpy(&tmpfd[got_fd], CMSG_DATA(cmsg), totlen);
+				got_fd += totlen / sizeof(int);
+			}
+		}
+		curoff += ret;
+	} while (got_fd < fd_nb);
+
+	if (got_fd != fd_nb) {
+		Warning("We didn't get the expected number of sockets (expecting %d got %d)\n",
+		    fd_nb, got_fd);
+		goto out;
+	}
+	maxoff = curoff;
+	curoff = 0;
+	for (i = 0; i < got_fd; i++) {
+		int fd = tmpfd[i];
+		socklen_t socklen;
+		int len;
+
+		xfer_sock = calloc(1, sizeof(*xfer_sock));
+		if (!xfer_sock) {
+			Warning("Failed to allocate memory in get_old_sockets() !\n");
+			break;
+		}
+		xfer_sock->fd = -1;
+
+		socklen = sizeof(xfer_sock->addr);
+		if (getsockname(fd, (struct sockaddr *)&xfer_sock->addr, &socklen) != 0) {
+			Warning("Failed to get socket address\n");
+			free(xfer_sock);
+			continue;
+		}
+		if (curoff >= maxoff) {
+			Warning("Inconsistency while transferring sockets\n");
+			goto out;
+		}
+		len = tmpbuf[curoff++];
+		if (len > 0) {
+			/* We have a namespace */
+			if (curoff + len > maxoff) {
+				Warning("Inconsistency while transferring sockets\n");
+				goto out;
+			}
+			xfer_sock->namespace = malloc(len + 1);
+			if (!xfer_sock->namespace) {
+				Warning("Failed to allocate memory while transferring sockets\n");
+				goto out;
+			}
+			memcpy(xfer_sock->namespace, &tmpbuf[curoff], len);
+			xfer_sock->namespace[len] = 0;
+			curoff += len;
+		}
+		if (curoff >= maxoff) {
+			Warning("Inconsistency while transferring sockets\n");
+			goto out;
+		}
+		len = tmpbuf[curoff++];
+		if (len > 0) {
+			/* We have an interface */
+			if (curoff + len > maxoff) {
+				Warning("Inconsistency while transferring sockets\n");
+				goto out;
+			}
+			xfer_sock->iface = malloc(len + 1);
+			if (!xfer_sock->iface) {
+				Warning("Failed to allocate memory while transferring sockets\n");
+				goto out;
+			}
+			memcpy(xfer_sock->iface, &tmpbuf[curoff], len);
+			xfer_sock->namespace[len] = 0;
+			curoff += len;
+		}
+		if (curoff + sizeof(int) > maxoff) {
+			Warning("Inconsistency while transferring sockets\n");
+			goto out;
+		}
+		memcpy(&xfer_sock->options, &tmpbuf[curoff],
+		    sizeof(xfer_sock->options));
+		curoff += sizeof(xfer_sock->options);
+
+		xfer_sock->fd = fd;
+		if (xfer_sock_list)
+			xfer_sock_list->prev = xfer_sock;
+		xfer_sock->next = xfer_sock_list;
+		xfer_sock->prev = NULL;
+		xfer_sock_list = xfer_sock;
+		xfer_sock = NULL;
+	}
+
+	ret2 = 0;
+out:
+	/* If we failed midway make sure to close the remaining
+	 * file descriptors
+	 */
+	if (tmpfd != NULL && i < got_fd) {
+		for (; i < got_fd; i++) {
+			close(tmpfd[i]);
+		}
+	}
+	free(tmpbuf);
+	free(tmpfd);
+	free(cmsgbuf);
+	if (sock != -1)
+		close(sock);
+	if (xfer_sock) {
+		free(xfer_sock->namespace);
+		free(xfer_sock->iface);
+		if (xfer_sock->fd != -1)
+			close(xfer_sock->fd);
+		free(xfer_sock);
+	}
+	return (ret2);
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -713,6 +925,15 @@ static void init(int argc, char **argv)
 			}
 			else if (*flag == 'q')
 				arg_mode |= MODE_QUIET;
+			else if (*flag == 'x') {
+				if (argv[1][0] == '-') {
+					Alert("Unix socket path expected with the -x flag\n");
+					exit(1);
+				}
+				old_unixsocket = argv[1];
+				argv++;
+				argc--;
+			}
 			else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
 				/* list of pids to finish ('f') or terminate ('t') */
 
@@ -720,7 +941,6 @@ static void init(int argc, char **argv)
 					oldpids_sig = SIGUSR1; /* finish then exit */
 				else
 					oldpids_sig = SIGTERM; /* terminate immediately */
-
 				while (argc > 1 && argv[1][0] != '-') {
 					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
 					if (!oldpids) {
@@ -1688,6 +1908,12 @@ int main(int argc, char **argv)
 #endif
 	}
 
+	if (old_unixsocket) {
+		if (get_old_sockets(old_unixsocket) != 0) {
+			Alert("Failed to get the sockets from the old process!\n");
+			exit(1);
+		}
+	}
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids
 	 * if we cannot grab at least one port.
@@ -1747,6 +1973,17 @@ int main(int argc, char **argv)
 		exit(1);
 	} else if (err & ERR_WARN) {
 		Alert("[%s.main()] %s.\n", argv[0], errmsg);
+	}
+	/* Ok, all listener should now be bound, close any leftover sockets
+	 * the previous process gave us, we don't need them anymore
+	 */
+	while (xfer_sock_list != NULL) {
+		struct xfer_sock_list *tmpxfer = xfer_sock_list->next;
+		close(xfer_sock_list->fd);
+		free(xfer_sock_list->iface);
+		free(xfer_sock_list->namespace);
+		free(xfer_sock_list);
+		xfer_sock_list = tmpxfer;
 	}
 
 	/* prepare pause/play signals */

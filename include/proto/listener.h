@@ -144,6 +144,7 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 	return bind_conf;
 }
 
+extern struct xfer_sock_list *xfer_sock_list;
 #endif /* _PROTO_LISTENER_H */
 
 /*
