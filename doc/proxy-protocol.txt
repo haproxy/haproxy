@@ -724,6 +724,9 @@ Squid added support for versions 1 and 2 of the protocol in version 3.5 [7].
 
 Jetty 9.3.0 supports protocol version 1.
 
+lighttpd added support for versions 1 and 2 of the protocol for incoming
+connections in version 1.4.46 [11].
+
 The protocol is simple enough that it is expected that other implementations
 will appear, especially in environments such as SMTP, IMAP, FTP, RDP where the
 client's address is an important piece of information for the server and some
@@ -913,6 +916,7 @@ The following links were referenced in the document.
 [8] https://tools.ietf.org/html/rfc4960#appendix-B
 [9] https://tools.ietf.org/rfc/rfc7301.txt
 [10] https://www.ietf.org/rfc/rfc3546.txt
+[11] https://redmine.lighttpd.net/issues/2804
 
 9. Sample code
 
