@@ -110,6 +110,12 @@ static struct protocol proto_tcpv6 = {
 	.nb_listeners = 0,
 };
 
+/* Default TCP parameters, got by opening a temporary TCP socket. */
+#ifdef TCP_MAXSEG
+static int default_tcp_maxseg = -1;
+static int default_tcp6_maxseg = -1;
+#endif
+
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
  *  - 0 : ignore remote address (may even be a NULL pointer)
@@ -731,6 +737,83 @@ int tcp_connect_probe(struct connection *conn)
 	return 0;
 }
 
+/* XXX: Should probably be elsewhere */
+static int compare_sockaddr(struct sockaddr_storage *a, struct sockaddr_storage *b)
+{
+	if (a->ss_family != b->ss_family) {
+		return (-1);
+	}
+	switch (a->ss_family) {
+	case AF_INET:
+		{
+			struct sockaddr_in *a4 = (void *)a, *b4 = (void *)b;
+			if (a4->sin_port != b4->sin_port)
+				return (-1);
+			return (memcmp(&a4->sin_addr, &b4->sin_addr,
+			    sizeof(a4->sin_addr)));
+		}
+	case AF_INET6:
+		{
+			struct sockaddr_in6 *a6 = (void *)a, *b6 = (void *)b;
+			if (a6->sin6_port != b6->sin6_port)
+				return (-1);
+			return (memcmp(&a6->sin6_addr, &b6->sin6_addr,
+			    sizeof(a6->sin6_addr)));
+		}
+	default:
+		return (-1);
+	}
+
+}
+
+#define LI_MANDATORY_FLAGS	(LI_O_FOREIGN | LI_O_V6ONLY | LI_O_V4V6)
+/* When binding the listeners, check if a socket has been sent to us by the
+ * previous process that we could reuse, instead of creating a new one.
+ */
+static int tcp_find_compatible_fd(struct listener *l)
+{
+	struct xfer_sock_list *xfer_sock = xfer_sock_list;
+	int ret = -1;
+
+	while (xfer_sock) {
+		if (!compare_sockaddr(&xfer_sock->addr, &l->addr)) {
+			if ((l->interface == NULL && xfer_sock->iface == NULL) ||
+			    (l->interface != NULL && xfer_sock->iface != NULL &&
+			     !strcmp(l->interface, xfer_sock->iface))) {
+				if ((l->options & LI_MANDATORY_FLAGS) ==
+				    (xfer_sock->options & LI_MANDATORY_FLAGS)) {
+					if ((xfer_sock->namespace == NULL &&
+					    l->netns == NULL)
+#ifdef CONFIG_HAP_NS
+					    || (xfer_sock->namespace != NULL &&
+					    l->netns != NULL &&
+					    !strcmp(xfer_sock->namespace,
+					    l->netns->node.key))
+#endif
+					   ) {
+						break;
+					}
+
+				}
+			}
+		}
+		xfer_sock = xfer_sock->next;
+	}
+	if (xfer_sock != NULL) {
+		ret = xfer_sock->fd;
+		if (xfer_sock == xfer_sock_list)
+			xfer_sock_list = xfer_sock->next;
+		if (xfer_sock->prev)
+			xfer_sock->prev->next = xfer_sock->next;
+		if (xfer_sock->next)
+			xfer_sock->next->prev = xfer_sock->prev;
+		free(xfer_sock->iface);
+		free(xfer_sock->namespace);
+		free(xfer_sock);
+	}
+	return ret;
+}
+#undef L1_MANDATORY_FLAGS
 
 /* This function tries to bind a TCPv4/v6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
@@ -752,6 +835,36 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	int ext, ready;
 	socklen_t ready_len;
 	const char *msg = NULL;
+#ifdef TCP_MAXSEG
+
+	/* Create a temporary TCP socket to get default parameters we can't
+	 * guess.
+	 * */
+	ready_len = sizeof(default_tcp_maxseg);
+	if (default_tcp_maxseg == -1) {
+		default_tcp_maxseg = -2;
+		fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (fd < 0)
+			Warning("Failed to create a temporary socket!\n");
+		else {
+			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp_maxseg,
+			    &ready_len) == -1)
+				Warning("Failed to get the default value of TCP_MAXSEG\n");
+		}
+		close(fd);
+	}
+	if (default_tcp6_maxseg == -1) {
+		default_tcp6_maxseg = -2;
+		fd = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+		if (fd >= 0) {
+			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp6_maxseg,
+			    &ready_len) == -1)
+				Warning("Failed ot get the default value of TCP_MAXSEG for IPv6\n");
+			close(fd);
+		}
+	}
+#endif
+
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -761,6 +874,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		return ERR_NONE; /* already bound */
 
 	err = ERR_NONE;
+
+	if (listener->fd == -1)
+		listener->fd = tcp_find_compatible_fd(listener);
 
 	/* if the listener already has an fd assigned, then we were offered the
 	 * fd by an external process (most likely the parent), and we don't want
@@ -800,6 +916,17 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	if (listener->options & LI_O_NOLINGER)
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
+	else {
+		struct linger tmplinger;
+		socklen_t len = sizeof(tmplinger);
+		if (getsockopt(fd, SOL_SOCKET, SO_LINGER, &tmplinger, &len) == 0 &&
+		    (tmplinger.l_onoff == 1 || tmplinger.l_linger == 0)) {
+			tmplinger.l_onoff = 0;
+			tmplinger.l_linger = 0;
+			setsockopt(fd, SOL_SOCKET, SO_LINGER, &tmplinger,
+			    sizeof(tmplinger));
+		}
+	}
 
 #ifdef SO_REUSEPORT
 	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
@@ -869,6 +996,23 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			msg = "cannot set MSS";
 			err |= ERR_WARN;
 		}
+	} else if (ext) {
+		int tmpmaxseg = -1;
+		int defaultmss;
+		socklen_t len = sizeof(tmpmaxseg);
+
+		if (listener->addr.ss_family == AF_INET)
+			defaultmss = default_tcp_maxseg;
+		else
+			defaultmss = default_tcp6_maxseg;
+
+		getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &tmpmaxseg, &len);
+		if (tmpmaxseg != defaultmss && setsockopt(fd, IPPROTO_TCP,
+						TCP_MAXSEG, &defaultmss,
+						sizeof(defaultmss)) == -1) {
+			msg = "cannot set MSS";
+			err |= ERR_WARN;
+		}
 	}
 #endif
 #if defined(TCP_USER_TIMEOUT)
@@ -878,7 +1022,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			msg = "cannot set TCP User Timeout";
 			err |= ERR_WARN;
 		}
-	}
+	} else
+		setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &zero,
+		    sizeof(zero));
 #endif
 #if defined(TCP_DEFER_ACCEPT)
 	if (listener->options & LI_O_DEF_ACCEPT) {
@@ -888,7 +1034,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			msg = "cannot enable DEFER_ACCEPT";
 			err |= ERR_WARN;
 		}
-	}
+	} else
+		setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &zero,
+		    sizeof(zero));
 #endif
 #if defined(TCP_FASTOPEN)
 	if (listener->options & LI_O_TCP_FO) {
@@ -897,6 +1045,21 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
 			msg = "cannot enable TCP_FASTOPEN";
 			err |= ERR_WARN;
+		}
+	} else {
+		socklen_t len;
+		int qlen;
+		len = sizeof(qlen);
+		/* Only disable fast open if it was enabled, we don't want
+		 * the kernel to create a fast open queue if there's none.
+		 */
+		if (getsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, &len) == 0 &&
+		    qlen != 0) {
+			if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &zero,
+			    sizeof(zero)) == -1) {
+				msg = "cannot disable TCP_FASTOPEN";
+				err |= ERR_WARN;
+			}
 		}
 	}
 #endif
@@ -928,6 +1091,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #if defined(TCP_QUICKACK)
 	if (listener->options & LI_O_NOQUICKACK)
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
+	else
+		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 
 	/* the socket is ready */
