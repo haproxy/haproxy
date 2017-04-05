@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
+haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [\-x <unix_socket>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -154,6 +154,12 @@ Send TERMINATE signal to the pids in pidlist after startup. The processes
 which receive this signal will terminate immediately, closing all active
 sessions. This option must be specified last, followed by any number of
 PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGTERM\fP are sent.
+
+.TP
+\f8\-x <unix_socket>\fP
+Attempt to connect to the unix socket, and retrieve all the listening sockets
+from the old process. Those sockets will then be used if possible instead of
+binding new ones.
 
 .SH LOGGING
 Since HAProxy can run inside a chroot, it cannot reliably access /dev/log.

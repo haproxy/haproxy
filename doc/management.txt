@@ -277,6 +277,11 @@ list of options is :
   -vv : display the version, build options, libraries versions and usable
     pollers. This output is systematically requested when filing a bug report.
 
+  -x <unix_socket> : connect to the specified socket and try to retrieve any
+    listening sockets from the old process, and use them instead of trying to
+    bind new ones. This is useful to avoid missing any new connection when
+    reloading the configuration on Linux.
+
 A safe way to start HAProxy from an init file consists in forcing the daemon
 mode, storing existing pids to a pid file and using this pid file to notify
 older processes to finish before leaving :
