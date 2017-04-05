@@ -970,7 +970,7 @@ side is even simpler and can easily be deduced from this sample code.
 
       if (ret >= 16 && memcmp(&hdr.v2, v2sig, 12) == 0 &&
           (hdr.v2.ver_cmd & 0xF0) == 0x20) {
-          size = 16 + hdr.v2.len;
+          size = 16 + ntohs(hdr.v2.len);
           if (ret < size)
               return -1; /* truncated or too large header */
 
