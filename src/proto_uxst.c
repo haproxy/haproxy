@@ -150,6 +150,54 @@ static void destroy_uxst_socket(const char *path)
  ********************************/
 
 
+static int uxst_find_compatible_fd(struct listener *l)
+{
+	struct xfer_sock_list *xfer_sock = xfer_sock_list;
+	int ret = -1;
+
+	while (xfer_sock) {
+		struct sockaddr_un *un1 = (void *)&l->addr;
+		struct sockaddr_un *un2 = (void *)&xfer_sock->addr;
+
+		/*
+		 * The bound socket's path as returned by getsockaddr
+		 * will be the temporary name <sockname>.XXXXX.tmp,
+		 * so we can't just compare the two names
+		 */
+		if (xfer_sock->addr.ss_family == AF_UNIX &&
+		    strncmp(un1->sun_path, un2->sun_path,
+		    strlen(un1->sun_path)) == 0) {
+			char *after_sockname = un2->sun_path +
+			    strlen(un1->sun_path);
+			/* Make a reasonnable effort to check that
+			 * it is indeed a haproxy-generated temporary
+			 * name, it's not perfect, but probably good enough.
+			 */
+			if (after_sockname[0] == '.') {
+				after_sockname++;
+				while (after_sockname[0] >= '0' &&
+				    after_sockname[0] <= '9')
+					after_sockname++;
+				if (!strcmp(after_sockname, ".tmp"))
+					break;
+			}
+		}
+		xfer_sock = xfer_sock->next;
+	}
+	if (xfer_sock != NULL) {
+		ret = xfer_sock->fd;
+		if (xfer_sock == xfer_sock_list)
+			xfer_sock_list = xfer_sock->next;
+		if (xfer_sock->prev)
+			xfer_sock->prev->next = xfer_sock->next;
+		if (xfer_sock->next)
+			xfer_sock->next->prev = xfer_sock->next->prev;
+		free(xfer_sock);
+	}
+	return ret;
+
+}
+
 /* This function creates a UNIX socket associated to the listener. It changes
  * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
  * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL. It
@@ -179,6 +227,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 		
+	if (listener->fd == -1)
+		listener->fd = uxst_find_compatible_fd(listener);
 	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
 
 	/* if the listener already has an fd assigned, then we were offered the

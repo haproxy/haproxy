@@ -24,6 +24,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <net/if.h>
+
 #include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
@@ -1013,6 +1015,184 @@ static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct b
 	return 0;
 }
 
+/* Send all the bound sockets, always returns 1 */
+static int _getsocks(char **args, struct appctx *appctx, void *private)
+{
+	char *cmsgbuf = NULL;
+	unsigned char *tmpbuf = NULL;
+	struct cmsghdr *cmsg;
+	struct stream_interface *si = appctx->owner;
+	struct connection *remote = objt_conn(si_opposite(si)->end);
+	struct msghdr msghdr;
+	struct iovec iov;
+	int *tmpfd;
+	int tot_fd_nb = 0;
+	struct proxy *px;
+	int i = 0;
+	int fd = remote->t.sock.fd;
+	int curoff = 0;
+	int old_fcntl;
+	int ret;
+
+	/* Temporary set the FD in blocking mode, that will make our life easier */
+	old_fcntl = fcntl(fd, F_GETFL);
+	if (old_fcntl < 0) {
+		Warning("Couldn't get the flags for the unix socket\n");
+		goto out;
+	}
+	cmsgbuf = malloc(CMSG_SPACE(sizeof(int) * MAX_SEND_FD));
+	if (!cmsgbuf) {
+		Warning("Failed to allocate memory to send sockets\n");
+		goto out;
+	}
+	if (fcntl(fd, F_SETFL, old_fcntl &~ O_NONBLOCK) == -1) {
+		Warning("Cannot make the unix socket blocking\n");
+		goto out;
+	}
+	iov.iov_base = &tot_fd_nb;
+	iov.iov_len = sizeof(tot_fd_nb);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		goto out;
+	memset(&msghdr, 0, sizeof(msghdr));
+	/*
+	 * First, calculates the total number of FD, so that we can let
+	 * the caller know how much he should expects.
+	 */
+	px = proxy;
+	while (px) {
+		struct listener *l;
+
+		list_for_each_entry(l, &px->conf.listeners, by_fe) {
+			/* Only transfer IPv4/IPv6 sockets */
+			if (l->proto->sock_family == AF_INET ||
+			    l->proto->sock_family == AF_INET6 ||
+			    l->proto->sock_family == AF_UNIX)
+				tot_fd_nb++;
+		}
+		px = px->next;
+	}
+	if (tot_fd_nb == 0)
+		goto out;
+
+	/* First send the total number of file descriptors, so that the
+	 * receiving end knows what to expect.
+	 */
+	msghdr.msg_iov = &iov;
+	msghdr.msg_iovlen = 1;
+	ret = sendmsg(fd, &msghdr, 0);
+	if (ret != sizeof(tot_fd_nb)) {
+		Warning("Failed to send the number of sockets to send\n");
+		goto out;
+	}
+
+	/* Now send the fds */
+	msghdr.msg_control = cmsgbuf;
+	msghdr.msg_controllen = CMSG_SPACE(sizeof(int) * MAX_SEND_FD);
+	cmsg = CMSG_FIRSTHDR(&msghdr);
+	cmsg->cmsg_len = CMSG_LEN(MAX_SEND_FD * sizeof(int));
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	tmpfd = (int *)CMSG_DATA(cmsg);
+
+	px = proxy;
+	/* For each socket, e message is sent, containing the following :
+	 *  Size of the namespace name (or 0 if none), as an unsigned char.
+	 *  The namespace name, if any
+	 *  Size of the interface name (or 0 if none), as an unsigned char
+	 *  The interface name, if any
+	 *  Listener options, as an int.
+	 */
+	/* We will send sockets MAX_SEND_FD per MAX_SEND_FD, allocate a
+	 * buffer big enough to store the socket informations.
+	 */
+	tmpbuf = malloc(MAX_SEND_FD * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int)));
+	if (tmpbuf == NULL) {
+		Warning("Failed to allocate memory to transfer socket informations\n");
+		goto out;
+	}
+	iov.iov_base = tmpbuf;
+	while (px) {
+		struct listener *l;
+
+		list_for_each_entry(l, &px->conf.listeners, by_fe) {
+			int ret;
+			/* Only transfer IPv4/IPv6 sockets */
+			if (l->state >= LI_LISTEN &&
+			    (l->proto->sock_family == AF_INET ||
+			    l->proto->sock_family == AF_INET6 ||
+			    l->proto->sock_family == AF_UNIX)) {
+				memcpy(&tmpfd[i % MAX_SEND_FD], &l->fd, sizeof(l->fd));
+				if (!l->netns)
+					tmpbuf[curoff++] = 0;
+#ifdef CONFIG_HAP_NS
+				else {
+					char *name = l->netns->node.key;
+					unsigned char len = l->netns->name_len;
+					tmpbuf[curoff++] = len;
+					memcpy(tmpbuf + curoff, name, len);
+					curoff += len;
+				}
+#endif
+				if (l->interface) {
+					unsigned char len = strlen(l->interface);
+					tmpbuf[curoff++] = len;
+					memcpy(tmpbuf + curoff, l->interface, len);
+				curoff += len;
+				} else
+					tmpbuf[curoff++] = 0;
+				memcpy(tmpbuf + curoff, &l->options,
+				    sizeof(l->options));
+				curoff += sizeof(l->options);
+
+
+				i++;
+			} else
+				continue;
+			if ((!(i % MAX_SEND_FD))) {
+				iov.iov_len = curoff;
+				if (sendmsg(fd, &msghdr, 0) != curoff) {
+					Warning("Failed to transfer sockets\n");
+					printf("errno %d\n", errno);
+					goto out;
+				}
+				/* Wait for an ack */
+				do {
+					ret = recv(fd, &tot_fd_nb,
+					    sizeof(tot_fd_nb), 0);
+				} while (ret == -1 && errno == EINTR);
+				if (ret <= 0) {
+					Warning("Unexpected error while transferring sockets\n");
+					goto out;
+				}
+				curoff = 0;
+			}
+
+		}
+		px = px->next;
+	}
+	if (i % MAX_SEND_FD) {
+		iov.iov_len = curoff;
+		cmsg->cmsg_len = CMSG_LEN((i % MAX_SEND_FD) * sizeof(int));
+		msghdr.msg_controllen = CMSG_SPACE(sizeof(int) *  (i % MAX_SEND_FD));
+		if (sendmsg(fd, &msghdr, 0) != curoff) {
+			Warning("Failed to transfer sockets\n");
+			goto out;
+		}
+	}
+
+out:
+	if (old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1) {
+		Warning("Cannot make the unix socket non-blocking\n");
+		goto out;
+	}
+	appctx->st0 = CLI_ST_END;
+	free(cmsgbuf);
+	free(tmpbuf);
+	return 1;
+}
+
+
+
 static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CLI>", /* used for logging */
@@ -1027,6 +1207,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL },
+	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
 	{{},}
 }};
 
