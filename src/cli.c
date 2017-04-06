@@ -1025,6 +1025,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	struct connection *remote = objt_conn(si_opposite(si)->end);
 	struct msghdr msghdr;
 	struct iovec iov;
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
 	int *tmpfd;
 	int tot_fd_nb = 0;
 	struct proxy *px;
@@ -1049,6 +1050,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 		Warning("Cannot make the unix socket blocking\n");
 		goto out;
 	}
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv));
 	iov.iov_base = &tot_fd_nb;
 	iov.iov_len = sizeof(tot_fd_nb);
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))

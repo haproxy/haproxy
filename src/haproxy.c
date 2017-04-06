@@ -574,6 +574,7 @@ static int get_old_sockets(const char *unixsocket)
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct xfer_sock_list *xfer_sock = NULL;
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
 	int sock = -1;
 	int ret = -1;
 	int ret2 = -1;
@@ -603,6 +604,7 @@ static int get_old_sockets(const char *unixsocket)
 		    unixsocket);
 		goto out;
 	}
+	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv));
 	iov.iov_base = &fd_nb;
 	iov.iov_len = sizeof(fd_nb);
 	msghdr.msg_iov = &iov;
