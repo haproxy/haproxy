@@ -2509,7 +2509,9 @@ block { if | unless } <condition> (deprecated)
   is blocked. The condition has to reference ACLs (see section 7). This is
   typically used to deny access to certain sensitive resources if some
   conditions are met or not met. There is no fixed limit to the number of
-  "block" statements per instance.
+  "block" statements per instance. To block connections at layer 4 (without
+  sending a 403 error) see "tcp-request connection reject" and
+  "tcp-request content reject" rules.
 
   This form is deprecated, do not use it in any new configuration, use the new
   "http-request deny" instead.
@@ -2522,8 +2524,9 @@ block { if | unless } <condition> (deprecated)
         #block if invalid_src || local_dst
         http-request deny if invalid_src || local_dst
 
-  See section 7 about ACL usage.
-
+  See also : section 7 about ACL usage, "http-request deny",
+            "http-response deny", "tcp-request connection reject" and
+            "tcp-request content reject".
 
 capture cookie <name> len <length>
   Capture and log a cookie in the request and in the response.
@@ -9297,8 +9300,8 @@ tcp-request content <action> [{if | unless} <condition>]
 
   See section 7 about ACL usage.
 
-  See also : "tcp-request connection", "tcp-request session", and
-             "tcp-request inspect-delay"
+  See also : "tcp-request connection", "tcp-request session",
+             "tcp-request inspect-delay", and "http-request".
 
 
 tcp-request inspect-delay <timeout>
