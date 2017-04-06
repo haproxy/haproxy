@@ -1981,7 +1981,7 @@ stick match                               -          -         X         X
 stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick store-response                      -          -         X         X
-stick-table                               -          -         X         X
+stick-table                               -          X         X         X
 tcp-check connect                         -          -         X         X
 tcp-check expect                          -          -         X         X
 tcp-check send                            -          -         X         X
