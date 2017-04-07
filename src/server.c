@@ -1741,12 +1741,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					}
 				}
 			}
+#ifdef CONFIG_HAP_TRANSPARENT
 			if (curproxy->defsrv.conn_src.bind_hdr_name != NULL) {
 				newsrv->conn_src.bind_hdr_name = strdup(curproxy->defsrv.conn_src.bind_hdr_name);
 				newsrv->conn_src.bind_hdr_len = strlen(curproxy->defsrv.conn_src.bind_hdr_name);
 			}
 			newsrv->conn_src.bind_hdr_occ = curproxy->defsrv.conn_src.bind_hdr_occ;
 			newsrv->conn_src.tproxy_addr = curproxy->defsrv.conn_src.tproxy_addr;
+#endif
 			if (curproxy->defsrv.conn_src.iface_name != NULL)
 				newsrv->conn_src.iface_name = strdup(curproxy->defsrv.conn_src.iface_name);
 
