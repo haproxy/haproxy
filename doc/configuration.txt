@@ -14167,6 +14167,19 @@ payload_lv(<offset1>,<length>[,<offset2>]) : binary (deprecated)
   (eg: "stick on", "stick match"), and for "res.payload_lv" when used in the
   context of a response such as in "stick store response".
 
+req.hdrs_bin : binary
+  Returns the current request headers contained in preparsed binary form. This
+  is useful for offloading some processing with SPOE. Each string is described
+  by a length followed by the number of bytes indicated in the length. The
+  length is represented using the variable integer encoding detailed in the
+  SPOE documentation. The end of the list is marked by a couple of empty header
+  names and values (length of 0 for both).
+
+  *(<str:header-name><str:header-value>)<empty string><empty string>
+
+  int:  refer to the SPOE documentation for the encoding
+  str:  <int:length><bytes>
+
 req.len : integer
 req_len : integer (deprecated)
   Returns an integer value corresponding to the number of bytes present in the
