@@ -39,7 +39,7 @@
  *
  * On success, it returns the number of written bytes and <*buf> is moved after
  * the encoded value. Otherwise, it returns -1. */
-int
+static inline int
 spoe_encode_varint(uint64_t i, char **buf, char *end)
 {
 	unsigned char *p = (unsigned char *)*buf;
@@ -76,7 +76,7 @@ spoe_encode_varint(uint64_t i, char **buf, char *end)
  * 'spoe_encode_varint' for details about varint.
  * On success, it returns the number of read bytes and <*buf> is moved after the
  * varint. Otherwise, it returns -1. */
-int
+static inline int
 spoe_decode_varint(char **buf, char *end, uint64_t *i)
 {
 	unsigned char *p = (unsigned char *)*buf;
@@ -109,7 +109,7 @@ spoe_decode_varint(char **buf, char *end, uint64_t *i)
  * error is triggered.
  * On success, it returns <len> and <*buf> is moved after the encoded value. If
  * an error occurred, it returns -1. */
-int
+static inline int
 spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
 {
 	char *p = *buf;
@@ -137,7 +137,7 @@ spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
  * 'spoe_encode_buffer', but if there is not enough space, it does not fail.
  * On success, it returns the number of copied bytes and <*buf> is moved after
  * the encoded value. If an error occured, it returns -1. */
-int
+static inline int
 spoe_encode_frag_buffer(const char *str, size_t len, char **buf, char *end)
 {
 	char *p = *buf;
@@ -166,7 +166,7 @@ spoe_encode_frag_buffer(const char *str, size_t len, char **buf, char *end)
  * points on the first byte of the buffer.
  * On success, it returns the buffer length and <*buf> is moved after the
  * encoded buffer. Otherwise, it returns -1. */
-int
+static inline int
 spoe_decode_buffer(char **buf, char *end, char **str, size_t *len)
 {
 	char    *p = *buf;
@@ -195,7 +195,7 @@ spoe_decode_buffer(char **buf, char *end, char **str, size_t *len)
  * partially encoded. In this case, the offset <*off> is updated to known how
  * many bytes has been encoded. If <*off> is zero at the end, it means that all
  * data has been encoded. */
-int
+static inline int
 spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 {
 	char *p = *buf;
@@ -318,7 +318,7 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
  *  - ipv6: 16 bytes
  *  - binary and string: a buffer prefixed by its size, a variable-length
  *    integer (see spoe_decode_buffer) */
-int
+static inline int
 spoe_skip_data(char **buf, char *end)
 {
 	char    *str, *p = *buf;
@@ -366,7 +366,7 @@ spoe_skip_data(char **buf, char *end)
 /* Decode a typed data and fill <smp>. If an error occurred, -1 is returned,
  * otherwise the number of read bytes is returned and <*buf> is moved after the
  * decoded data. See spoe_skip_data for details. */
-int
+static inline int
 spoe_decode_data(char **buf, char *end, struct sample *smp)
 {
 	char  *str, *p = *buf;
