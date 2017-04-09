@@ -92,11 +92,15 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 	pid = fork();
 	if (!pid) {
 		char **argv;
+		char *stats_socket = NULL;
 		int i;
 		int argno = 0;
 
 		/* 3 for "haproxy -Ds -sf" */
-		argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
+		if (nb_pid > 0)
+			stats_socket = getenv("HAPROXY_STATS_SOCKET");
+		argv = calloc(4 + main_argc + nb_pid + 1 +
+		    (stats_socket != NULL ? 2 : 0), sizeof(char *));
 		if (!argv) {
 			fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: failed to calloc(), please try again later.\n");
 			exit(1);
@@ -121,6 +125,10 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 			argv[argno++] = "-sf";
 			for (i = 0; i < nb_pid; ++i)
 				argv[argno++] = pid_strv[i];
+			if (stats_socket != NULL) {
+				argv[argno++] = "-x";
+				argv[argno++] = stats_socket;
+			}
 		}
 		argv[argno] = NULL;
 
