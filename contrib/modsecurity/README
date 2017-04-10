@@ -1,0 +1,132 @@
+ModSecurity for HAProxy
+-----------------------
+
+This is a third party deamon whoch speaks SPOE. It give requests send by HAProxy
+to ModSecurity and returns the verdict.
+
+  Compilation
+---------------
+
+You must compile ModSecurity in standalone mode. Below an example for
+ModSecurity-2.9.1. Note that ModSecurity depends the Apache APR. I assume that
+the Apache dependencies are installed on the system.
+
+   ./configure \
+      --prefix=$PWD/INSTALL \
+		--disable-apache2-module \
+      --enable-standalone-module \
+      --enable-pcre-study \
+      --without-lua \
+      --enable-pcre-jit
+   make
+	make -C standalone install
+	mkdir -p $PWD/INSTALL/include
+	cp standalone/*.h $PWD/INSTALL/include
+	cp apache2/*.h $PWD/INSTALL/include
+
+Note that this compilation method works, but is a litle bit rustic. I cant
+deal with Lua, I supposed that is a dependecies problem on my computer.
+
+  Start the service
+---------------------
+
+After you have compiled it, to start the service, you just need to use "spoa"
+binary:
+
+    $> ./modsecurity  -h
+    Usage: ./spoa [-h] [-d] [-p <port>] [-n <num-workers>] [-f <config-file>]
+        -h                  Print this message
+        -d                  Enable the debug mode
+        -f <config-file>    Modsecurity configuration file
+        -m <max-frame-size> Specify the maximum frame size (default : 16384)
+        -p <port>           Specify the port to listen on (default: 12345)
+        -n <num-workers>    Specify the number of workers (default: 5)
+        -c <capability>     Enable the support of the specified capability
+        -t <time>           Set a delay to process a message (default: 0)
+                            The value is specified in milliseconds by default,
+                            but can be in any other unit if the number is suffixed
+                            by a unit (us, ms, s)
+
+Note: A worker is a thread.
+
+
+  Configure a SPOE to use the service
+---------------------------------------
+
+All information about SPOE configuration can be found in "doc/SPOE.txt". Here is
+the configuration template to use for your SPOE with ModSecurity module:
+
+   [modsecurity]
+
+   spoe-agent modsecurity-agent
+      messages check-request
+      option var-prefix modsec
+      timeout hello      100ms
+      timeout idle       30s
+      timeout processing 15ms
+      use-backend spoe-modsecurity
+
+   spoe-message check-request
+      args unique-id method path query req.ver req.hdrs_bin req.body_size req.body
+      event on-frontend-http-request
+
+The engine is in the scope "modsecurity". So to enable it, you must set the
+following line in a frontend/listener section:
+
+   frontend my-front
+      ...
+      filter spoe engine modsecurity config spoe-modsecurity.conf
+      ...
+
+
+Because, in SPOE configuration file, we declare to use the backend
+"spoe-modsecurity" to communicate with the service, you must define it in
+HAProxy configuration. For example:
+
+   backend spoe-modsecurity
+      mode tcp
+      balance roundrobin
+      timeout connect 5s
+      timeout server  3m
+      server iprep1 127.0.0.1:12345
+
+The modsecurity action is returned in a variable called txn.modsec.code. It
+contains the HTTP returned code. If the variable contains 0, the request is
+clean.
+
+   tcp-request content reject if { var(txn.modsec.code) -m int gt 0 }
+
+With this rule, all the request not clean are reected.
+
+
+  Known bugs, limitations and TODO list
+-----------------------------------------
+
+Modsecurity bugs:
+-----------------
+
+* When the audit_log is used with the directive "SecAuditLogType Serial", in
+  some systems, the APR mutex initialisation silently fails, this causes a
+  segmentation fault. For my own usage, I have a patched version of modsec where
+  I use another mutex than "APR_LOCK_DEFAULT" like "APR_LOCK_PROC_PTHREAD"
+
+   -    rc = apr_global_mutex_create(&msce->auditlog_lock, NULL, APR_LOCK_DEFAULT, mp);
+   +    rc = apr_global_mutex_create(&msce->auditlog_lock, NULL, APR_LOCK_PROC_PTHREAD, mp);
+
+* Configuration file loaded with wilcard (eg. Include rules/*.conf), are loaded
+  in reverse alphabetical order. You can found a patch below. The ModSecurity
+  team ignored this patch.
+
+  https://github.com/SpiderLabs/ModSecurity/issues/1285
+  http://www.arpalert.org/0001-Fix-bug-when-load-files.patch
+
+  Or insert includes without wildcards.
+
+Todo:
+-----
+
+* Clarify the partial body analysis.
+* The response body is not yet analyzed.
+* ModSecurity can't modify the response body.
+* Implements real log management. Actually, the log are sent on stderr.
+* Implements daemon things (forks, write a pid, etc.).
