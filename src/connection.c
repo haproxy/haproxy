@@ -94,6 +94,16 @@ void conn_fd_handler(int fd)
 	if ((conn->flags & CO_FL_INIT_DATA) && conn->data->init(conn) < 0)
 		return;
 
+	if (conn->xprt && fd_send_ready(fd) &&
+	    ((conn->flags & (CO_FL_DATA_WR_ENA|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_DATA_WR_ENA)) {
+		/* force reporting of activity by clearing the previous flags :
+		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
+		 * both of which will be detected below.
+		 */
+		flags = 0;
+		conn->data->send(conn);
+	}
+
 	/* The data transfer starts here and stops on error and handshakes. Note
 	 * that we must absolutely test conn->xprt at each step in case it suddenly
 	 * changes due to a quick unexpected close().
@@ -106,16 +116,6 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		conn->data->recv(conn);
-	}
-
-	if (conn->xprt && fd_send_ready(fd) &&
-	    ((conn->flags & (CO_FL_DATA_WR_ENA|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_DATA_WR_ENA)) {
-		/* force reporting of activity by clearing the previous flags :
-		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
-		 * both of which will be detected below.
-		 */
-		flags = 0;
-		conn->data->send(conn);
 	}
 
 	/* It may happen during the data phase that a handshake is
