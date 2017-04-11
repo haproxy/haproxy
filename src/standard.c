@@ -3765,8 +3765,8 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
  */
 void debug_hexdump(FILE *out, char *buf, unsigned int baseaddr, int len)
 {
-	unsigned int i, j;
-	int b;
+	unsigned int i;
+	int b, j;
 
 	for (i = 0; i < (len + (baseaddr & 15)); i += 16) {
 		b = i - (baseaddr & 15);
