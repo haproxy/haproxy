@@ -1022,7 +1022,7 @@ int dns_init_resolvers(int close_socket)
 			dgram->data = &resolve_dgram_cb;
 
 			/* create network UDP socket for this nameserver */
-			if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+			if ((fd = socket(curnameserver->addr.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 				Alert("Starting [%s/%s] nameserver: can't create socket.\n", curr_resolvers->id,
 						curnameserver->id);
 				free(dgram);
