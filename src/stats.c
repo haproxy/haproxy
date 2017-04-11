@@ -2530,7 +2530,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 			stats_dump_html_head(uri);
 		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-			stats_dump_json_header(uri);
+			stats_dump_json_header();
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
 			stats_dump_csv_header();
 
