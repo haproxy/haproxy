@@ -105,6 +105,7 @@ struct acl_keyword *find_acl_kw(const char *kw)
 static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
 	struct arg *arg;
+	int unresolved = 0;
 
 	pattern_prune(&expr->pat);
 
@@ -114,11 +115,12 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 		if (arg->type == ARGT_STR || arg->unresolved) {
 			free(arg->data.str.str);
 			arg->data.str.str = NULL;
+			unresolved |= arg->unresolved;
 			arg->unresolved = 0;
 		}
 	}
 
-	if (expr->smp->arg_p != empty_arg_list)
+	if (expr->smp->arg_p != empty_arg_list && !unresolved)
 		free(expr->smp->arg_p);
 	return expr;
 }
