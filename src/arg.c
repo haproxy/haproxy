@@ -72,9 +72,11 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
 	struct arg_list *new;
 
 	new = arg_list_clone(orig);
-	new->arg = arg;
-	new->arg_pos = pos;
-	LIST_ADDQ(&orig->list, &new->list);
+	if (new) {
+		new->arg = arg;
+		new->arg_pos = pos;
+		LIST_ADDQ(&orig->list, &new->list);
+	}
 	return new;
 }
 
