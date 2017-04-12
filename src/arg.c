@@ -104,6 +104,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	char *word = NULL;
 	const char *ptr_err = NULL;
 	int min_arg;
+	struct arg_list *new_al = al;
 
 	*argp = NULL;
 
@@ -165,7 +166,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			 * parsing then resolved later.
 			 */
 			arg->unresolved = 1;
-			arg_list_add(al, arg, pos);
+			new_al = arg_list_add(al, arg, pos);
 
 			/* fall through */
 		case ARGT_STR:
@@ -282,7 +283,12 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 
  err:
 	free(word);
-	free(*argp);
+	if (new_al == al) {
+		/* only free the arg area if we have not queued unresolved args
+		 * still pointing to it.
+		 */
+		free(*argp);
+	}
 	*argp = NULL;
 	if (err_arg)
 		*err_arg = pos;
