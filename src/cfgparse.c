@@ -3154,6 +3154,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			Alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
 			      file, linenum, *err, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
 		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg, &curproxy->conf.args, file, linenum) == NULL) {
