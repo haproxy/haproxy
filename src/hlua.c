@@ -7182,7 +7182,7 @@ void hlua_init(void)
 	gL.Mref = LUA_REFNIL;
 	gL.flags = 0;
 	LIST_INIT(&gL.com);
-	gL.T = luaL_newstate();
+	gL.T = lua_newstate(hlua_alloc, &hlua_global_allocator);
 	hlua_sethlua(&gL);
 	gL.Tref = LUA_REFNIL;
 	gL.task = NULL;
@@ -7191,9 +7191,6 @@ void hlua_init(void)
 	 * the Lua function can fail with an abort. We are in the initialisation
 	 * process of HAProxy, this abort() is tolerated.
 	 */
-
-	/* change the memory allocators to track memory usage */
-	lua_setallocf(gL.T, hlua_alloc, &hlua_global_allocator);
 
 	/* Initialise lua. */
 	luaL_openlibs(gL.T);
