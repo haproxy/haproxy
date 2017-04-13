@@ -11422,10 +11422,6 @@ track [<proxy>/]<server>
   enabled. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
-  Note:
-    Relative weight changes are propagated to all tracking servers. Each
-    tracking server will have its weight recalculated separately.
-
 tlsv10
   This option may be used as "server" setting to reset any "no-tlsv10"
   setting which would have been inherited from "default-server" directive as
