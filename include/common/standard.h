@@ -259,11 +259,18 @@ unsigned int round_2dig(unsigned int i);
 extern const char *invalid_char(const char *name);
 
 /*
- * Checks <domainname> for invalid characters. Valid chars are [A-Za-z0-9_.-].
+ * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_.-].
  * If an invalid character is found, a pointer to it is returned.
  * If everything is fine, NULL is returned.
  */
 extern const char *invalid_domainchar(const char *name);
+
+/*
+ * Checks <name> for invalid characters. Valid chars are [A-Za-z_.-].
+ * If an invalid character is found, a pointer to it is returned.
+ * If everything is fine, NULL is returned.
+ */
+extern const char *invalid_prefix_char(const char *name);
 
 /*
  * converts <str> to a locally allocated struct sockaddr_storage *, and a

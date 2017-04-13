@@ -592,17 +592,18 @@ const char *invalid_char(const char *name)
 }
 
 /*
- * Checks <domainname> for invalid characters. Valid chars are [A-Za-z0-9_.-].
+ * Checks <name> for invalid characters. Valid chars are [_.-] and those
+ * accepted by <f> function.
  * If an invalid character is found, a pointer to it is returned.
  * If everything is fine, NULL is returned.
  */
-const char *invalid_domainchar(const char *name) {
+static inline const char *__invalid_char(const char *name, int (*f)(int)) {
 
 	if (!*name)
 		return name;
 
 	while (*name) {
-		if (!isalnum((int)(unsigned char)*name) && *name != '.' &&
+		if (!f((int)(unsigned char)*name) && *name != '.' &&
 		    *name != '_' && *name != '-')
 			return name;
 
@@ -610,6 +611,24 @@ const char *invalid_domainchar(const char *name) {
 	}
 
 	return NULL;
+}
+
+/*
+ * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_.-].
+ * If an invalid character is found, a pointer to it is returned.
+ * If everything is fine, NULL is returned.
+ */
+const char *invalid_domainchar(const char *name) {
+	return __invalid_char(name, isalnum);
+}
+
+/*
+ * Checks <name> for invalid characters. Valid chars are [A-Za-z_.-].
+ * If an invalid character is found, a pointer to it is returned.
+ * If everything is fine, NULL is returned.
+ */
+const char *invalid_prefix_char(const char *name) {
+	return __invalid_char(name, isalpha);
 }
 
 /*

@@ -274,6 +274,15 @@ struct server {
 		int line;			/* line where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
 	} conf;					/* config information */
+	/* Template information used only for server objects which
+	 * serve as template filled at parsing time and used during
+	 * server allocations from server templates.
+	 */
+	struct {
+		char *prefix;
+		int nb_low;
+		int nb_high;
+	} tmpl_info;
 };
 
 /* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of

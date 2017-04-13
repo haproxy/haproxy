@@ -1969,18 +1969,53 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 	return 0;
 }
 
+/*
+ * Parse as much as possible such a range string argument: low[-high]
+ * Set <nb_low> and <nb_high> values so that they may be reused by this loop
+ * for(int i = nb_low; i <= nb_high; i++)... with nb_low >= 1.
+ * Fails if 'low' < 0 or 'high' is present and not higher than 'low'.
+ * Returns 0 if succeeded, -1 if not.
+ */
+static int srv_tmpl_parse_range(struct server *srv, const char *arg, int *nb_low, int *nb_high)
+{
+	char *nb_high_arg;
+
+	*nb_high = 0;
+	chunk_printf(&trash, "%s", arg);
+	*nb_low = atoi(trash.str);
+
+	if ((nb_high_arg = strchr(trash.str, '-'))) {
+		*nb_high_arg++ = '\0';
+		*nb_high = atoi(nb_high_arg);
+	}
+	else {
+		*nb_high += *nb_low;
+		*nb_low = 1;
+	}
+
+	if (*nb_low < 0 || *nb_high < *nb_low)
+		return -1;
+
+	return 0;
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;
-	const char *err;
+	const char *err = NULL;
 	char *errmsg = NULL;
 	int err_code = 0;
 	unsigned val;
 	char *fqdn = NULL;
 
-	if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
+	if (!strcmp(args[0], "server")         ||
+	    !strcmp(args[0], "default-server") ||
+	    !strcmp(args[0], "server-template")) {
 		int cur_arg;
 		int defsrv = (*args[0] == 'd');
+		int srv = !defsrv && !strcmp(args[0], "server");
+		int srv_tmpl = !defsrv && !srv;
+		int tmpl_range_low = 0, tmpl_range_high = 0;
 
 		if (!defsrv && curproxy == defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -1990,19 +2025,47 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_ALERT | ERR_FATAL;
 
-		if (!defsrv && !*args[2]) {
-			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
-			      file, linenum, args[0]);
+		/* There is no mandatory first arguments for default server. */
+		if (srv) {
+			if (!*args[2]) {
+				/* 'server' line number of argument check. */
+				Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+					  file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			err = invalid_char(args[1]);
+		}
+		else if (srv_tmpl) {
+			if (!*args[3]) {
+				/* 'server-template' line number of argument check. */
+				Alert("parsing [%s:%d] : '%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.\n",
+					  file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			err = invalid_prefix_char(args[1]);
+		}
+
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in %s %s '%s'.\n",
+			      file, linenum, *err, args[0], srv ? "name" : "prefix", args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		err = invalid_char(args[1]);
-		if (err && !defsrv) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
-			      file, linenum, *err, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
+		cur_arg = 2;
+		if (srv_tmpl) {
+			/* Parse server-template <nb | range> arg. */
+			if (srv_tmpl_parse_range(newsrv, args[cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
+				Alert("parsing [%s:%d] : Wrong %s number or range arg '%s'.\n",
+					  file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			cur_arg++;
 		}
 
 		if (!defsrv) {
@@ -2018,12 +2081,24 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
+			if (srv_tmpl) {
+				newsrv->tmpl_info.nb_low = tmpl_range_low;
+				newsrv->tmpl_info.nb_high = tmpl_range_high;
+			}
+
 			/* the servers are linked backwards first */
 			newsrv->next = curproxy->srv;
 			curproxy->srv = newsrv;
 			newsrv->conf.file = strdup(file);
 			newsrv->conf.line = linenum;
-			newsrv->id = strdup(args[1]);
+			/* Note: for a server template, its id is its prefix.
+			 * This is a temporary id which will be used for server allocations to come
+			 * after parsing.
+			 */
+			if (srv)
+				newsrv->id = strdup(args[1]);
+			else
+				newsrv->tmpl_info.prefix = strdup(args[1]);
 
 			/* several ways to check the port component :
 			 *  - IP    => port=+0, relative (IPv4 only)
@@ -2032,7 +2107,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
+			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -2073,7 +2148,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto skip_name_resolution;
 			if ((dns_str_to_dn_label(newsrv->hostname, curr_resolution->hostname_dn, curr_resolution->hostname_dn_len + 1)) == NULL) {
 				Alert("parsing [%s:%d] : Invalid hostname '%s'\n",
-				      file, linenum, args[2]);
+				      file, linenum, args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2093,14 +2168,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			if (!newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
-				      file, linenum, newsrv->addr.ss_family, args[2]);
+				      file, linenum, newsrv->addr.ss_family, args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 
 			/* Copy default server settings to new server settings. */
 			srv_settings_cpy(newsrv, &curproxy->defsrv);
-			cur_arg = 3;
+			cur_arg++;
 		} else {
 			newsrv = &curproxy->defsrv;
 			cur_arg = 1;
