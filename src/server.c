@@ -1650,13 +1650,72 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 #endif
 
 /*
+ * Allocate <srv> server dns resolution.
+ * May be safely called with a default server as <src> argument (without hostname).
+ */
+static void srv_alloc_dns_resolution(struct server *srv, const char *hostname)
+{
+	char *hostname_dn;
+	int hostname_dn_len;
+	struct dns_resolution *dst_dns_rslt;
+
+	if (!hostname)
+		return;
+
+	srv->hostname = strdup(hostname);
+	dst_dns_rslt = calloc(1, sizeof *dst_dns_rslt);
+	hostname_dn_len = dns_str_to_dn_label_len(hostname);
+	hostname_dn = calloc(hostname_dn_len + 1, sizeof(char));
+
+	if (!srv->hostname || !dst_dns_rslt || !hostname_dn)
+		goto err;
+
+	srv->resolution = dst_dns_rslt;
+	srv->resolution->hostname_dn = hostname_dn;
+	srv->resolution->hostname_dn_len = hostname_dn_len;
+
+	if (!dns_str_to_dn_label(srv->hostname,
+	                         srv->resolution->hostname_dn,
+	                         srv->resolution->hostname_dn_len + 1))
+		goto err;
+
+	srv->resolution->requester = srv;
+	srv->resolution->requester_cb = snr_resolution_cb;
+	srv->resolution->requester_error_cb = snr_resolution_error_cb;
+	srv->resolution->status = RSLV_STATUS_NONE;
+	srv->resolution->step = RSLV_STEP_NONE;
+	/* a first resolution has been done by the configuration parser */
+	srv->resolution->last_resolution = 0;
+
+	return;
+
+ err:
+	free(srv->hostname);
+	srv->hostname = NULL;
+	free(hostname_dn);
+	free(dst_dns_rslt);
+}
+
+/*
  * Copy <src> server settings to <srv> server allocating
  * everything needed.
+ * This function is not supposed to be called at any time, but only
+ * during server settings parsing or during server allocations from
+ * a server template, and just after having calloc()'ed a new server.
+ * So, <src> may only be a default server (when parsing server settings)
+ * or a server template (during server allocations from a server template).
+ * <srv_tmpl> distinguishes these two cases (must be 1 if <srv> is a template,
+ * 0 if not).
  */
-static void srv_settings_cpy(struct server *srv, struct server *src)
+static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmpl)
 {
 	/* Connection source settings copy */
 	srv_conn_src_cpy(srv, src);
+
+	if (srv_tmpl) {
+		srv->addr = src->addr;
+		srv->svc_port = src->svc_port;
+	}
 
 	srv->pp_opts = src->pp_opts;
 	if (src->rdr_pfx != NULL) {
@@ -1999,6 +2058,75 @@ static int srv_tmpl_parse_range(struct server *srv, const char *arg, int *nb_low
 	return 0;
 }
 
+static inline void srv_set_id_from_prefix(struct server *srv, const char *prefix, int nb)
+{
+	chunk_printf(&trash, "%s%d", prefix, nb);
+	free(srv->id);
+	srv->id = strdup(trash.str);
+}
+
+/*
+ * Initialize as much as possible servers from <srv> server template.
+ * Note that a server template is a special server with
+ * a few different parameters than a server which has
+ * been parsed mostly the same way as a server.
+ * Returns the number of servers succesfully allocated,
+ * 'srv' template included.
+ */
+static int server_template_init(struct server *srv, struct proxy *px)
+{
+	int i;
+	struct server *newsrv;
+
+	for (i = srv->tmpl_info.nb_low + 1; i <= srv->tmpl_info.nb_high; i++) {
+		int check_init_state;
+		int agent_init_state;
+
+		newsrv = new_server(px);
+		if (!newsrv)
+			goto err;
+
+		srv_settings_cpy(newsrv, srv, 1);
+		srv_alloc_dns_resolution(newsrv, srv->hostname);
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		if (newsrv->sni_expr) {
+			newsrv->ssl_ctx.sni = srv_sni_sample_parse_expr(newsrv, px, NULL, 0, NULL);
+			if (!newsrv->ssl_ctx.sni)
+				goto err;
+		}
+#endif
+		/* Set this new server ID. */
+		srv_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
+
+		/* Initial checks states. */
+		check_init_state = CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+		agent_init_state = CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
+
+		if (do_health_check_init(newsrv, px->options2 & PR_O2_CHK_ANY, check_init_state) ||
+		    do_server_agent_check_init(newsrv, agent_init_state))
+			goto err;
+
+		/* Linked backwards first. This will be restablished after parsing. */
+		newsrv->next = px->srv;
+		px->srv = newsrv;
+	}
+	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+
+	return i - srv->tmpl_info.nb_low;
+
+ err:
+	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+	if (newsrv)  {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		release_sample_expr(newsrv->ssl_ctx.sni);
+#endif
+		free_check(&newsrv->agent);
+		free_check(&newsrv->check);
+	}
+	free(newsrv);
+	return i - srv->tmpl_info.nb_low;
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;
@@ -2174,7 +2302,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			/* Copy default server settings to new server settings. */
-			srv_settings_cpy(newsrv, &curproxy->defsrv);
+			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
 			cur_arg++;
 		} else {
 			newsrv = &curproxy->defsrv;
@@ -2609,6 +2737,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			err_code |= server_finalize_init(file, linenum, args, cur_arg, newsrv, curproxy);
 		if (err_code & ERR_FATAL)
 			goto out;
+		if (srv_tmpl)
+			server_template_init(newsrv, curproxy);
 	}
 	free(fqdn);
 	return 0;
