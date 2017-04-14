@@ -2207,7 +2207,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				cur_arg += 2;
 			}
-			else if (!defsrv && !strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
+			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
 				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
