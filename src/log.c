@@ -575,7 +575,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
 				sp = str - 1; /* send both the '%' and the current char */
-				memprintf(err, "unexpected variable name near '%c' at position %d line : '%s'. Maybe you want to write a simgle '%%', use the syntax '%%%%'",
+				memprintf(err, "unexpected variable name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
 				          *str, (int)(str - backfmt), fmt);
 				return 0;
 
