@@ -1357,6 +1357,7 @@ void srv_compute_all_admin_states(struct proxy *px)
  * Optional keywords are also declared with a NULL ->parse() function so that
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
+ * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
@@ -1380,12 +1381,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
-	/*
-	 * Note: the following 'skip' field value is 0.
-	 * Here this does not mean that "source" setting does not need any argument.
-	 * This means that the number of argument is variable.
-	 */
-	{ "source",              srv_parse_source,              0,  1 }, /* Set the source address to be used to connect to the server */
+	{ "source",              srv_parse_source,             -1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ NULL, NULL, 0 },
@@ -2226,7 +2222,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					if (!kw->parse) {
 						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
-						cur_arg += 1 + kw->skip ;
+						if (kw->skip != -1)
+							cur_arg += 1 + kw->skip ;
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
@@ -2234,7 +2231,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					if (defsrv && !kw->default_ok) {
 						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
-						cur_arg += 1 + kw->skip ;
+						if (kw->skip != -1)
+							cur_arg += 1 + kw->skip ;
 						err_code |= ERR_ALERT;
 						continue;
 					}
@@ -2246,12 +2244,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						display_parser_err(file, linenum, args, cur_arg, &err);
 						if (code & ERR_FATAL) {
 							free(err);
-							cur_arg += 1 + kw->skip;
+							if (kw->skip != -1)
+								cur_arg += 1 + kw->skip;
 							goto out;
 						}
 					}
 					free(err);
-					cur_arg += 1 + kw->skip;
+					if (kw->skip != -1)
+						cur_arg += 1 + kw->skip;
 					continue;
 				}
 
