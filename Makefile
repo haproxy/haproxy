@@ -131,7 +131,10 @@ DEBUG_CFLAGS = -g
 #### Compiler-specific flags that may be used to disable some negative over-
 # optimization or to silence some warnings. -fno-strict-aliasing is needed with
 # gcc >= 4.4.
-SPEC_CFLAGS = -fno-strict-aliasing -Wdeclaration-after-statement
+# We rely on signed integer wraparound on overflow, however clang think it
+# can do whatever it wants since it's an undefined behavior, so use -fwrapv
+# to be sure we get the intended behavior.
+SPEC_CFLAGS = -fno-strict-aliasing -Wdeclaration-after-statement -fwrapv
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
