@@ -115,6 +115,7 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 		if (arg->type == ARGT_STR || arg->unresolved) {
 			free(arg->data.str.str);
 			arg->data.str.str = NULL;
+			arg->data.str.len = 0;
 			unresolved |= arg->unresolved;
 			arg->unresolved = 0;
 		}
