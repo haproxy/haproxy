@@ -10437,6 +10437,31 @@ smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+/* Returns a string block containing all headers including the
+ * empty line wich separes headers from the body. This is useful
+ * form some headers analysis.
+ */
+static int
+smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_msg *msg;
+	struct hdr_idx *idx;
+	struct http_txn *txn;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	txn = smp->strm->txn;
+	idx = &txn->hdr_idx;
+	msg = &txn->req;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.str = msg->chn->buf->p + hdr_idx_first_pos(idx);
+	smp->data.u.str.len = msg->eoh - hdr_idx_first_pos(idx) + 1 +
+	                      (msg->chn->buf->p[msg->eoh] == '\r');
+
+	return 1;
+}
+
 /* Returns the header request in a length/value encoded format.
  * This is useful for exchanges with the SPOE.
  *
@@ -13457,6 +13482,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.body_size",   smp_fetch_body_size,      0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "req.body_param",  smp_fetch_body_param,     ARG1(0,STR),      NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
+	{ "req.hdrs",        smp_fetch_hdrs,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.hdrs_bin",    smp_fetch_hdrs_bin,       0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
 	/* HTTP version on the response path */

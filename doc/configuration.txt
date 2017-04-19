@@ -14167,6 +14167,12 @@ payload_lv(<offset1>,<length>[,<offset2>]) : binary (deprecated)
   (eg: "stick on", "stick match"), and for "res.payload_lv" when used in the
   context of a response such as in "stick store response".
 
+req.hdrs : string
+  Returns the current request headers as string including the last empty line
+  separating headers from the request body. The last empty line can be used to
+  detect a truncated header block. This sample fetch is useful for some SPOE
+  headers analyzers and for advanced logging.
+
 req.hdrs_bin : binary
   Returns the current request headers contained in preparsed binary form. This
   is useful for offloading some processing with SPOE. Each string is described
