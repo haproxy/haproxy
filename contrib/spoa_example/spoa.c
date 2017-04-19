@@ -267,7 +267,7 @@ check_max_frame_size(struct spoe_frame *frame, char **buf, char *end)
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64)
 		return -1;
-	if (spoe_decode_varint(&p, end, &sz) == -1)
+	if (decode_varint(&p, end, &sz) == -1)
 		return -1;
 
 	/* Keep the lower value */
@@ -453,7 +453,7 @@ check_discon_status_code(struct spoe_frame *frame, char **buf, char *end)
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT32 &&
 	    (type & SPOE_DATA_T_MASK) != SPOE_DATA_T_UINT64)
 		return -1;
-	if (spoe_decode_varint(&p, end, &sz) == -1)
+	if (decode_varint(&p, end, &sz) == -1)
 		return -1;
 
 	frame->client->status_code = (unsigned int)sz;
@@ -709,9 +709,9 @@ handle_hanotify(struct spoe_frame *frame)
 	}
 
 	/* Read the stream-id and frame-id */
-	if (spoe_decode_varint(&p, end, &stream_id) == -1)
+	if (decode_varint(&p, end, &stream_id) == -1)
 		goto ignore;
-	if (spoe_decode_varint(&p, end, &frame_id) == -1)
+	if (decode_varint(&p, end, &frame_id) == -1)
 		goto ignore;
 
 	frame->stream_id = (unsigned int)stream_id;
@@ -765,9 +765,9 @@ handle_hafrag(struct spoe_frame *frame)
 	p+= 4;
 
 	/* Read the stream-id and frame-id */
-	if (spoe_decode_varint(&p, end, &stream_id) == -1)
+	if (decode_varint(&p, end, &stream_id) == -1)
 		goto ignore;
-	if (spoe_decode_varint(&p, end, &frame_id) == -1)
+	if (decode_varint(&p, end, &frame_id) == -1)
 		goto ignore;
 
 	if (frame->fragmented == false                  ||
@@ -842,7 +842,7 @@ prepare_agenthello(struct spoe_frame *frame)
 	/* "max-frame-size" K/V item */
 	spoe_encode_buffer("max-frame-size", 14, &p ,end);
 	*p++ = SPOE_DATA_T_UINT32;
-	spoe_encode_varint(client->max_frame_size, &p, end);
+	encode_varint(client->max_frame_size, &p, end);
 	DEBUG(frame->worker, "<%lu> Agent maximum frame size : %u",
 	      client->id, client->max_frame_size);
 
@@ -917,7 +917,7 @@ prepare_agentdicon(struct spoe_frame *frame)
 	/* "status-code" K/V item */
 	spoe_encode_buffer("status-code", 11, &p, end);
 	*p++ = SPOE_DATA_T_UINT32;
-	spoe_encode_varint(client->status_code, &p, end);
+	encode_varint(client->status_code, &p, end);
 	DEBUG(frame->worker, "<%lu> Disconnect status code : %u",
 	      client->id, client->status_code);
 
@@ -956,8 +956,8 @@ prepare_agentack(struct spoe_frame *frame)
 	p += 4;
 
 	/* Set stream-id and frame-id for ACK frames */
-	spoe_encode_varint(frame->stream_id, &p, end);
-	spoe_encode_varint(frame->frame_id, &p, end);
+	encode_varint(frame->stream_id, &p, end);
+	encode_varint(frame->frame_id, &p, end);
 
 	DEBUG(frame->worker, "STREAM-ID=%u - FRAME-ID=%u",
 	      frame->stream_id, frame->frame_id);
@@ -1369,7 +1369,7 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 		*p++ = SPOE_SCOPE_SESS;                        /* Arg 1: the scope */
 		spoe_encode_buffer("ip_score", 8, &p, end);    /* Arg 2: variable name */
 		*p++ = SPOE_DATA_T_UINT32;
-		spoe_encode_varint(frame->ip_score, &p, end); /* Arg 3: variable value */
+		encode_varint(frame->ip_score, &p, end); /* Arg 3: variable value */
 		frame->len = (p - frame->buf);
 	}
 	write_frame(NULL, frame);

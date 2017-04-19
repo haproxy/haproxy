@@ -388,7 +388,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 		goto too_big;
 
 	*p++ = SPOE_DATA_T_UINT32;
-	if (spoe_encode_varint(SPOE_APPCTX(appctx)->max_frame_size, &p, end) == -1)
+	if (encode_varint(SPOE_APPCTX(appctx)->max_frame_size, &p, end) == -1)
 		goto too_big;
 
 	/* "capabilities" K/V item */
@@ -469,7 +469,7 @@ spoe_prepare_hadiscon_frame(struct appctx *appctx, char *frame, size_t size)
 		goto too_big;
 
 	*p++ = SPOE_DATA_T_UINT32;
-	if (spoe_encode_varint(SPOE_APPCTX(appctx)->status_code, &p, end) == -1)
+	if (encode_varint(SPOE_APPCTX(appctx)->status_code, &p, end) == -1)
 		goto too_big;
 
 	/* "message" K/V item */
@@ -527,9 +527,9 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 	p += 4;
 
 	/* Set stream-id and frame-id */
-	if (spoe_encode_varint(stream_id, &p, end) == -1)
+	if (encode_varint(stream_id, &p, end) == -1)
 		goto too_big;
-	if (spoe_encode_varint(frame_id, &p, end) == -1)
+	if (encode_varint(frame_id, &p, end) == -1)
 		goto too_big;
 
 	/* Copy encoded messages, if possible */
@@ -583,9 +583,9 @@ spoe_prepare_hafrag_frame(struct appctx *appctx, struct spoe_context *ctx,
 	p += 4;
 
 	/* Set stream-id and frame-id */
-	if (spoe_encode_varint(stream_id, &p, end) == -1)
+	if (encode_varint(stream_id, &p, end) == -1)
 		goto too_big;
-	if (spoe_encode_varint(frame_id, &p, end) == -1)
+	if (encode_varint(frame_id, &p, end) == -1)
 		goto too_big;
 
 	if (ctx == NULL)
@@ -706,7 +706,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 				return 0;
 			}
-			if (spoe_decode_varint(&p, end, &sz) == -1) {
+			if (decode_varint(&p, end, &sz) == -1) {
 				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 				return 0;
 			}
@@ -858,7 +858,7 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 				return 0;
 			}
-			if (spoe_decode_varint(&p, end, &sz) == -1) {
+			if (decode_varint(&p, end, &sz) == -1) {
 				SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 				return 0;
 			}
@@ -935,11 +935,11 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 	}
 
 	/* Get the stream-id and the frame-id */
-	if (spoe_decode_varint(&p, end, &stream_id) == -1) {
+	if (decode_varint(&p, end, &stream_id) == -1) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 		return 0;
 	}
-	if (spoe_decode_varint(&p, end, &frame_id) == -1) {
+	if (decode_varint(&p, end, &frame_id) == -1) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_INVALID;
 		return 0;
 	}

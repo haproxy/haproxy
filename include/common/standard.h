@@ -205,6 +205,83 @@ static inline const char *LIM2A(unsigned long n, const char *alt)
 	return ret;
 }
 
+/* Encode the integer <i> into a varint (variable-length integer). The encoded
+ * value is copied in <*buf>. Here is the encoding format:
+ *
+ *        0 <= X < 240        : 1 byte  (7.875 bits)  [ XXXX XXXX ]
+ *      240 <= X < 2288       : 2 bytes (11 bits)     [ 1111 XXXX ] [ 0XXX XXXX ]
+ *     2288 <= X < 264432     : 3 bytes (18 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]   [ 0XXX XXXX ]
+ *   264432 <= X < 33818864   : 4 bytes (25 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*2 [ 0XXX XXXX ]
+ * 33818864 <= X < 4328786160 : 5 bytes (32 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*3 [ 0XXX XXXX ]
+ * ...
+ *
+ * On success, it returns the number of written bytes and <*buf> is moved after
+ * the encoded value. Otherwise, it returns -1. */
+static inline int
+encode_varint(uint64_t i, char **buf, char *end)
+{
+	unsigned char *p = (unsigned char *)*buf;
+	int r;
+
+	if (p >= (unsigned char *)end)
+		return -1;
+
+	if (i < 240) {
+		*p++ = i;
+		*buf = (char *)p;
+		return 1;
+	}
+
+	*p++ = (unsigned char)i | 240;
+	i = (i - 240) >> 4;
+	while (i >= 128) {
+		if (p >= (unsigned char *)end)
+			return -1;
+		*p++ = (unsigned char)i | 128;
+		i = (i - 128) >> 7;
+	}
+
+	if (p >= (unsigned char *)end)
+		return -1;
+	*p++ = (unsigned char)i;
+
+	r    = ((char *)p - *buf);
+	*buf = (char *)p;
+	return r;
+}
+
+/* Decode a varint from <*buf> and save the decoded value in <*i>. See
+ * 'spoe_encode_varint' for details about varint.
+ * On success, it returns the number of read bytes and <*buf> is moved after the
+ * varint. Otherwise, it returns -1. */
+static inline int
+decode_varint(char **buf, char *end, uint64_t *i)
+{
+	unsigned char *p = (unsigned char *)*buf;
+	int r;
+
+	if (p >= (unsigned char *)end)
+		return -1;
+
+	*i = *p++;
+	if (*i < 240) {
+		*buf = (char *)p;
+		return 1;
+	}
+
+	r = 4;
+	do {
+		if (p >= (unsigned char *)end)
+			return -1;
+		*i += (uint64_t)*p << r;
+		r  += 7;
+	} while (*p++ >= 128);
+
+	r    = ((char *)p - *buf);
+	*buf = (char *)p;
+	return r;
+}
+
 /* returns a locally allocated string containing the quoted encoding of the
  * input string. The output may be truncated to QSTR_SIZE chars, but it is
  * guaranteed that the string will always be properly terminated. Quotes are
