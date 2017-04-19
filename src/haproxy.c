@@ -1035,6 +1035,15 @@ static void init(int argc, char **argv)
 			exit(1);
 	}
 
+	/* do not try to resolve arguments nor to spot inconsistencies when
+	 * the configuration contains fatal errors caused by files not found
+	 * or failed memory allocations.
+	 */
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		Alert("Fatal errors found in configuration.\n");
+		exit(1);
+	}
+
 	pattern_finalize_config();
 
 	err_code |= check_config_validity();
