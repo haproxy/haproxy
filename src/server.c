@@ -1539,10 +1539,10 @@ static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char *
 	};
 
 	idx = 0;
-	proxy->conf.args.ctx = ARGC_SRV;
+	px->conf.args.ctx = ARGC_SRV;
 
 	expr = sample_parse_expr((char **)args, &idx, px->conf.file, px->conf.line,
-	                         err, &proxy->conf.args);
+	                         err, &px->conf.args);
 	if (!expr) {
 		memprintf(err, "error detected while parsing sni expression : %s", *err);
 		return ERR_ALERT | ERR_FATAL;
