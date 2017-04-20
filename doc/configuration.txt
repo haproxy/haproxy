@@ -1969,6 +1969,7 @@ rspirep                                   -          X         X         X
 rsprep                                    -          X         X         X
 server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
+server-template                           -          -         X         X
 source                                    X          -         X         X
 srvtimeout                  (deprecated)  X          -         X         X
 stats admin                               -          X         X         X
@@ -7520,6 +7521,44 @@ server-state-file-name [<file>]
 
   See also: "server-state-file-base", "load-server-state-from-file", and
   "show servers state"
+
+server-template <prefix> <num | range> <fqdn>[:<port>] [params*]
+  Set a template to initialize servers with shared parameters.
+  The names of these servers are built from <prefix> and <num | range> parameters.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Arguments:
+    <prefix>  A prefix for the server names to be built.
+
+    <num | range>
+              If <num> is provided, this template initializes <num> servers
+              with 1 up to <num> as server name suffixes. A range of numbers
+              <num_low>-<num_high> may also be used to use <num_low> up to
+              <num_high> as server name suffixes.
+
+    <fqdn>    A FQDN for all the servers this template initializes.
+
+    <port>    Same meaning as "server" <port> argument (see "server" keyword).
+
+    <params*>
+              Remaining server parameters among all those supported by "server"
+              keyword.
+
+  Examples:
+    # Initializes 3 servers with srv1, srv2 and srv3 as names,
+    # google.com as FQDN, and health-check enabled.
+    server-template srv 1-3 google.com:80 check
+
+    # or
+    server-template srv 3 google.com:80 check
+
+    # would be equivalent to:
+    server srv1 google.com:80 check
+    server srv2 google.com:80 check
+    server srv3 google.com:80 check
+
+
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
