@@ -4261,6 +4261,8 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		/* Trim any possible response */
 		res->chn->buf->i = 0;
 		res->next = res->sov = 0;
+		/* If not already done, don't perform any connection establishment */
+		channel_dont_connect(req->chn);
 	} else {
 		/* keep-alive not possible */
 		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
