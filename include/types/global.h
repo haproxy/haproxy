@@ -26,6 +26,8 @@
 
 #include <common/config.h>
 #include <common/standard.h>
+#include <common/hathreads.h>
+
 #include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/proxy.h>
@@ -172,7 +174,7 @@ extern int  relative_pid;       /* process id starting at 1 */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
-extern struct chunk trash;
+extern THREAD_LOCAL struct chunk trash;
 extern int nb_oldpids;          /* contains the number of old pids found */
 extern const int zero;
 extern const int one;
