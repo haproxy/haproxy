@@ -3160,7 +3160,8 @@ errorloc302 <code> <url>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 200, 400, 403, 408, 500, 502, 503, and 504.
+              generating codes 200, 400, 403, 405, 408, 429, 500, 502, 503, and
+              504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
               either a relative URI to an error page hosted on the same site,
@@ -3191,7 +3192,8 @@ errorloc303 <code> <url>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 400, 403, 408, 500, 502, 503, and 504.
+              generating codes 200, 400, 403, 405, 408, 429, 500, 502, 503, and
+              504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
               either a relative URI to an error page hosted on the same site,
