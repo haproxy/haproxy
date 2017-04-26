@@ -306,10 +306,8 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 
 	nsrv = eb32_entry(next, struct tree_occ, node)->server;
 	psrv = eb32_entry(prev, struct tree_occ, node)->server;
-	if (nsrv == psrv)
-		return nsrv;
 
-	/* OK we're located between two distinct servers, let's
+	/* OK we're located between two servers, let's
 	 * compare distances between hash and the two servers
 	 * and select the closest server.
 	 */
