@@ -46,6 +46,7 @@
 
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
+static int srv_set_fqdn(struct server *srv, const char *fqdn);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -1652,16 +1653,18 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 /*
  * Allocate <srv> server dns resolution.
  * May be safely called with a default server as <src> argument (without hostname).
+ * Returns -1 in case of any allocation failure, 0 if not.
  */
-static void srv_alloc_dns_resolution(struct server *srv, const char *hostname)
+static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 {
 	char *hostname_dn;
 	int hostname_dn_len;
 	struct dns_resolution *dst_dns_rslt;
 
 	if (!hostname)
-		return;
+		return 0;
 
+	free(srv->hostname);
 	srv->hostname = strdup(hostname);
 	dst_dns_rslt = calloc(1, sizeof *dst_dns_rslt);
 	hostname_dn_len = dns_str_to_dn_label_len(hostname);
@@ -1687,13 +1690,41 @@ static void srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 	/* a first resolution has been done by the configuration parser */
 	srv->resolution->last_resolution = 0;
 
-	return;
+	if (srv->resolvers_id) {
+		struct dns_resolvers *curr_resolvers;
+		int found = 0;
+
+		list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+			if (!strcmp(curr_resolvers->id, srv->resolvers_id)) {
+				found = 1;
+				break;
+			}
+		}
+		if (!found)
+			goto err;
+		srv->resolution->resolvers = curr_resolvers;
+	}
+	else
+		goto err;
+
+	return 0;
 
  err:
 	free(srv->hostname);
 	srv->hostname = NULL;
 	free(hostname_dn);
 	free(dst_dns_rslt);
+	return -1;
+}
+
+static void srv_free_dns_resolution(struct server *srv)
+{
+	if (!srv->resolution)
+		return;
+
+	free(srv->resolution->hostname_dn);
+	free(srv->resolution);
+	srv->resolution = NULL;
 }
 
 /*
@@ -2888,7 +2919,10 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	int srv_check_state, srv_agent_state;
 	int bk_f_forced_id;
 	int srv_f_forced_id;
+	int fqdn_set_by_cli;
+	const char *fqdn;
 
+	fqdn = NULL;
 	msg = get_trash_chunk();
 	switch (version) {
 		case 1:
@@ -2907,6 +2941,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 * srv_agent_state:      params[10]
 			 * bk_f_forced_id:       params[11]
 			 * srv_f_forced_id:      params[12]
+			 * srv_fqdn:             params[13]
 			 */
 
 			/* validating srv_op_state */
@@ -2925,9 +2960,12 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			p = NULL;
 			errno = 0;
 			srv_admin_state = strtol(params[2], &p, 10);
+			fqdn_set_by_cli = !!(srv_admin_state & SRV_ADMF_HMAINT);
 
-			/* inherited statuses will be recomputed later */
-			srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT;
+			/* inherited statuses will be recomputed later.
+			 * Also disable SRV_ADMF_HMAINT flag (set from stats socket fqdn).
+			 */
+			srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT;
 
 			if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
 			    (srv_admin_state != 0 &&
@@ -3018,6 +3056,14 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			if (p == params[12] || errno == EINVAL || errno == ERANGE || !((srv_f_forced_id == 0) || (srv_f_forced_id == 1)))
 				chunk_appendf(msg, ", invalid srv_f_forced_id value '%s'", params[12]);
 
+			/* validating srv_fqdn */
+			fqdn = params[13];
+			if (fqdn && *fqdn == '-')
+				fqdn = NULL;
+			if (fqdn && (strlen(fqdn) > DNS_MAX_NAME_SIZE || invalid_domainchar(fqdn))) {
+				chunk_appendf(msg, ", invalid srv_fqdn value '%s'", params[13]);
+				fqdn = NULL;
+			}
 
 			/* don't apply anything if one error has been detected */
 			if (msg->len)
@@ -3122,6 +3168,34 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			/* load server IP address */
 			srv->lastaddr = strdup(params[0]);
+
+			if (fqdn && srv->hostname) {
+				if (!strcmp(srv->hostname, fqdn)) {
+					/* Here we reset the 'set from stats socket FQDN' flag
+					 * to support such transitions:
+					 * Let's say initial FQDN value is foo1 (in configuration file).
+					 * - FQDN changed from stats socket, from foo1 to foo2 value,
+					 * - FQDN changed again from file configuration (with the same previous value
+					     set from stats socket, from foo1 to foo2 value),
+					 * - reload for any other reason than a FQDN modification,
+					 * the configuration file FQDN matches the fqdn server state file value.
+					 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
+					 * any futher FQDN modification.
+					 */
+					srv->admin &= ~SRV_ADMF_HMAINT;
+				}
+				else {
+					/* If the FDQN has been changed from stats socket,
+					 * apply fqdn state file value (which is the value set
+					 * from stats socket).
+					 */
+					if (fqdn_set_by_cli) {
+						srv_set_fqdn(srv, fqdn);
+						srv->admin |= SRV_ADMF_HMAINT;
+					}
+				}
+			}
+
 			break;
 		default:
 			chunk_appendf(msg, ", version '%d' not supported", version);
@@ -3152,8 +3226,8 @@ void apply_server_state(void)
 	char *cur, *end;
 	char mybuf[SRV_STATE_LINE_MAXLEN];
 	int mybuflen;
-	char *params[SRV_STATE_FILE_MAX_FIELDS];
-	char *srv_params[SRV_STATE_FILE_MAX_FIELDS];
+	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
+	char *srv_params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	int arg, srv_arg, version, diff;
 	FILE *f;
 	char *filepath;
@@ -3331,12 +3405,18 @@ void apply_server_state(void)
 			while (isspace(*cur))
 				++cur;
 
-			if (cur == end)
+			/* Ignore empty or commented lines */
+			if (cur == end || *cur == '#')
 				continue;
 
-			/* ignore comment line */
-			if (*cur == '#')
+			/* truncated lines */
+			if (mybuf[mybuflen - 1] != '\n') {
+				Warning("server-state file '%s': truncated line\n", filepath);
 				continue;
+			}
+
+			/* Removes trailing '\n' */
+			mybuf[mybuflen - 1] = '\0';
 
 			/* we're now ready to move the line into *srv_params[] */
 			params[0] = cur;
@@ -3364,6 +3444,7 @@ void apply_server_state(void)
 							 * srv_agent_state:      params[14] => srv_params[10]
 							 * bk_f_forced_id:       params[15] => srv_params[11]
 							 * srv_f_forced_id:      params[16] => srv_params[12]
+							 * srv_fqdn:             params[17] => srv_params[13]
 							 */
 							if (arg >= 4) {
 								srv_params[srv_arg] = cur;
@@ -4016,6 +4097,16 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 	return 0;
 }
 
+/* Set the server's FDQN (->hostname) from <hostname>.
+ * Returns -1 if failed, 0 if not.
+ */
+int srv_set_fqdn(struct server *srv, const char *hostname)
+{
+	srv_free_dns_resolution(srv);
+
+	return srv_alloc_dns_resolution(srv, hostname);
+}
+
 /* Sets the server's address (srv->addr) from srv->lastaddr which was filled
  * from the state file. This is suited for initial address configuration.
  * Returns 0 on success otherwise a non-zero error code. In case of error,
@@ -4138,6 +4229,46 @@ int srv_init_addr(void)
 
 	return return_code;
 }
+
+const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater)
+{
+
+	struct chunk *msg;
+
+	msg = get_trash_chunk();
+	chunk_reset(msg);
+
+	if (!strcmp(fqdn, server->hostname)) {
+		chunk_appendf(msg, "no need to change the FDQN");
+		goto out;
+	}
+
+	if (strlen(fqdn) > DNS_MAX_NAME_SIZE || invalid_domainchar(fqdn)) {
+		chunk_appendf(msg, "invalid fqdn '%s'", fqdn);
+		goto out;
+	}
+
+	chunk_appendf(msg, "%s/%s changed its FQDN from %s to %s",
+	              server->proxy->id, server->id, server->hostname, fqdn);
+
+	if (srv_set_fqdn(server, fqdn) < 0) {
+		chunk_reset(msg);
+		chunk_appendf(msg, "could not update %s/%s FQDN",
+		              server->proxy->id, server->id);
+		goto out;
+	}
+
+	/* Flag as FQDN set from stats socket. */
+	server->admin |= SRV_ADMF_HMAINT;
+
+ out:
+	if (updater)
+		chunk_appendf(msg, " by '%s'", updater);
+	chunk_appendf(msg, "\n");
+
+	return msg->str;
+}
+
 
 /* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
  * and returns the pointer to the server. Otherwise, display adequate error messages
@@ -4319,8 +4450,20 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		}
 		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
 	}
+	else if (strcmp(args[3], "fqdn") == 0) {
+		if (!*args[4]) {
+			appctx->ctx.cli.msg = "set server <b>/<s> fqdn requires a FQDN.\n";
+			appctx->st0 = CLI_ST_PRINT;
+			return 1;
+		}
+		warning = update_server_fqdn(sv, args[4], "stats socket command");
+		if (warning) {
+			appctx->ctx.cli.msg = warning;
+			appctx->st0 = CLI_ST_PRINT;
+		}
+	}
 	else {
-		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr' and 'check-port'.\n";
+		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr', 'fqdn' and 'check-port'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 	}
 	return 1;

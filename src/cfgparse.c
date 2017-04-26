@@ -8492,8 +8492,6 @@ out_uri_auth_compat:
 					newsrv->id, newsrv->resolvers_id);
 					cfgerr++;
 				} else {
-					free(newsrv->resolvers_id);
-					newsrv->resolvers_id = NULL;
 					if (newsrv->resolution)
 						newsrv->resolution->resolvers = curr_resolvers;
 				}

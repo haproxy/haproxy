@@ -1650,6 +1650,9 @@ set server <backend>/<server> weight <weight>[%]
   Change a server's weight to the value passed in argument. This is the exact
   equivalent of the "set weight" command below.
 
+set server <backend>/<server> fqdn <FQDN>
+  Change a server's FQDN to the value passed in argument.
+
 set ssl ocsp-response <response>
   This command is used to update an OCSP Response for a certificate (see "crt"
   on "bind" lines). Same controls are performed as during the initial loading of
@@ -1962,6 +1965,9 @@ show servers state [<backend>]
                                     0x20 = SRV_ADMF_RMAINT
                                       The server is in maintenance because of an
                                       IP address resolution failure.
+                                    0x40 = SRV_ADMF_HMAINT
+                                      The server FQDN was set from stats socket.
+
      srv_uweight:                 User visible server's weight.
      srv_iweight:                 Server's initial weight.
      srv_time_since_last_change:  Time since last operational change.
@@ -2003,6 +2009,7 @@ show servers state [<backend>]
                                   configuration.
      srv_f_forced_id:             Flag to know if the server's ID is forced by
                                   configuration.
+     srv_fqdn:                    Server FQDN.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
