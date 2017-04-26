@@ -3310,7 +3310,7 @@ __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 
 	/* Remove previous value. */
 	if (hlua->Mref != -1)
-		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+		luaL_unref(L, LUA_REGISTRYINDEX, hlua->Mref);
 
 	/* Get and store new value. */
 	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
@@ -3773,7 +3773,7 @@ __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 
 	/* Remove previous value. */
 	if (hlua->Mref != -1)
-		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+		luaL_unref(L, LUA_REGISTRYINDEX, hlua->Mref);
 
 	/* Get and store new value. */
 	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
@@ -4860,7 +4860,7 @@ __LJMP static int hlua_set_priv(lua_State *L)
 
 	/* Remove previous value. */
 	if (hlua->Mref != -1)
-		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+		luaL_unref(L, LUA_REGISTRYINDEX, hlua->Mref);
 
 	/* Get and store new value. */
 	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
