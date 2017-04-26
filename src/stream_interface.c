@@ -633,7 +633,7 @@ static void si_conn_send(struct connection *conn)
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
 	 */
-	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_HANDSHAKE))) {
+	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_HANDSHAKE))) {
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
 		 *  - we're about to close after this last send and want to merge

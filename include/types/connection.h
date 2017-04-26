@@ -74,12 +74,12 @@ enum {
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
 	CO_FL_XPRT_READY    = 0x00000200, /* xprt_init() done, xprt_close() needed */
 
-	/* These flags are used by data layers to indicate they had to stop
-	 * sending data because a buffer was empty (WAIT_DATA) or stop receiving
-	 * data because a buffer was full (WAIT_ROOM). The connection handler
-	 * clears them before first calling the I/O and data callbacks.
+	/* unused : 0x00000400 */
+
+	/* This flag is used by data layers to indicate they had to stop
+	 * receiving data because a buffer was full. The connection handler
+	 * clears it before first calling the I/O and data callbacks.
 	 */
-	CO_FL_WAIT_DATA     = 0x00000400,  /* data source is empty */
 	CO_FL_WAIT_ROOM     = 0x00000800,  /* data sink is full */
 
 	/* These flags are used to report whether the from/to addresses are set or not */
