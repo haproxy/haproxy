@@ -1079,9 +1079,10 @@ char *env_expand(char *in);
 #define fddebug(msg...) do { char *_m = NULL; memprintf(&_m, ##msg); if (_m) write(-1, _m, strlen(_m)); free(_m); } while (0)
 
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
- * has address <baseaddr>. The output is emitted to file <out>.
+ * has address <baseaddr>. String <pfx> may be placed as a prefix in front of
+ * each line. It may be NULL if unused. The output is emitted to file <out>.
  */
-void debug_hexdump(FILE *out, const char *buf, unsigned int baseaddr, int len);
+void debug_hexdump(FILE *out, const char *pfx, const char *buf, unsigned int baseaddr, int len);
 
 /* used from everywhere just to drain results we don't want to read and which
  * recent versions of gcc increasingly and annoyingly complain about.

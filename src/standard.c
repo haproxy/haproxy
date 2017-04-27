@@ -3780,16 +3780,18 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 }
 
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
- * has address <baseaddr>. The output is emitted to file <out>.
+ * has address <baseaddr>. String <pfx> may be placed as a prefix in front of
+ * each line. It may be NULL if unused. The output is emitted to file <out>.
  */
-void debug_hexdump(FILE *out, const char *buf, unsigned int baseaddr, int len)
+void debug_hexdump(FILE *out, const char *pfx, const char *buf,
+                   unsigned int baseaddr, int len)
 {
 	unsigned int i;
 	int b, j;
 
 	for (i = 0; i < (len + (baseaddr & 15)); i += 16) {
 		b = i - (baseaddr & 15);
-		fprintf(out, "%08x: ", i + (baseaddr & ~15));
+		fprintf(out, "%s%08x: ", pfx ? pfx : "", i + (baseaddr & ~15));
 		for (j = 0; j < 8; j++) {
 			if (b + j >= 0 && b + j < len)
 				fprintf(out, "%02x ", (unsigned char)buf[b + j]);
