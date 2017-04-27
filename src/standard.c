@@ -3782,7 +3782,7 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
  * has address <baseaddr>. The output is emitted to file <out>.
  */
-void debug_hexdump(FILE *out, char *buf, unsigned int baseaddr, int len)
+void debug_hexdump(FILE *out, const char *buf, unsigned int baseaddr, int len)
 {
 	unsigned int i;
 	int b, j;

@@ -1081,7 +1081,7 @@ char *env_expand(char *in);
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
  * has address <baseaddr>. The output is emitted to file <out>.
  */
-void debug_hexdump(FILE *out, char *buf, unsigned int baseaddr, int len);
+void debug_hexdump(FILE *out, const char *buf, unsigned int baseaddr, int len);
 
 /* used from everywhere just to drain results we don't want to read and which
  * recent versions of gcc increasingly and annoyingly complain about.
