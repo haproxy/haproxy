@@ -7,8 +7,8 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- * Please refer to RFC2068 or RFC2616 for informations about HTTP protocol, and
- * RFC2965 for informations about cookies usage. More generally, the IETF HTTP
+ * Please refer to RFC7230 - RFC7235 informations about HTTP protocol, and
+ * RFC6265 for informations about cookies usage. More generally, the IETF HTTP
  * Working Group's web site should be consulted for protocol related changes :
  *
  *     http://ftp.ics.uci.edu/pub/ietf/http/

@@ -171,7 +171,7 @@ enum ht_state {
 	 */
 	HTTP_MSG_BODY         = 27, // parsing body at end of headers
 	HTTP_MSG_100_SENT     = 28, // parsing body after a 100-Continue was sent
-	HTTP_MSG_CHUNK_SIZE   = 29, // parsing the chunk size (RFC2616 #3.6.1)
+	HTTP_MSG_CHUNK_SIZE   = 29, // parsing the chunk size (RFC7230 #4.1)
 	HTTP_MSG_DATA         = 30, // skipping data chunk / content-length data
 	HTTP_MSG_CHUNK_CRLF   = 31, // skipping CRLF after data chunk
 	HTTP_MSG_TRAILERS     = 32, // trailers (post-data entity headers)
@@ -274,7 +274,7 @@ enum {
 	STAT_STATUS_SIZE
 };
 
-/* This is an HTTP message, as described in RFC2616. It can be either a request
+/* This is an HTTP message, as described in RFC7230. It can be either a request
  * message or a response message.
  *
  * The values there are a little bit obscure, because their meaning can change

@@ -30,7 +30,7 @@
 
 /*
  * some macros used for the request parsing.
- * from RFC2616:
+ * from RFC7230:
  *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
  *   SEP                 = one of the 17 defined separators or SP or HT
  *   LWS                 = CR, LF, SP or HT

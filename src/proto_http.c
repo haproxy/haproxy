@@ -850,8 +850,8 @@ int http_find_next_header(char *sol, struct hdr_idx *idx, struct hdr_ctx *ctx)
 	return 0;
 }
 
-/* Find the end of the header value contained between <s> and <e>. See RFC2616,
- * par 2.2 for more information. Note that it requires a valid header to return
+/* Find the end of the header value contained between <s> and <e>. See RFC7230,
+ * par 3.2 for more information. Note that it requires a valid header to return
  * a valid result. This works for headers defined as comma-separated lists.
  */
 char *find_hdr_value_end(char *s, const char *e)
@@ -1119,7 +1119,7 @@ char *http_get_path(struct http_txn *txn)
 	if (ptr >= end)
 		return NULL;
 
-	/* RFC2616, par. 5.1.2 :
+	/* RFC7230, par. 2.7 :
 	 * Request-URI = "*" | absuri | abspath | authority
 	 */
 

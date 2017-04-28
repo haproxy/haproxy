@@ -268,7 +268,7 @@ about the way they could be written, but it is important not to accuse an
 application of being buggy if it does unusual, valid things.
 
 Important note:
-   As suggested by RFC2616, HAProxy normalizes headers by replacing line breaks
+   As suggested by RFC7231, HAProxy normalizes headers by replacing line breaks
    in the middle of headers by LWS in order to join multi-line headers. This
    is necessary for proper analysis and helps less capable HTTP parsers to work
    correctly and not to be fooled by such complex constructs.
@@ -318,7 +318,7 @@ The status code is always 3-digit. The first digit indicates a general status :
  - 4xx = error caused by the client (eg: 401, 403, 404)
  - 5xx = error caused by the server (eg: 500, 502, 503)
 
-Please refer to RFC2616 for the detailed meaning of all such codes. The
+Please refer to RFC7231 for the detailed meaning of all such codes. The
 "reason" field is just a hint, but is not parsed by clients. Anything can be
 found there, but it's a common practice to respect the well-established
 messages. It can be composed of one or multiple words, such as "OK", "Found",
@@ -2319,7 +2319,7 @@ balance url_param <param> [check_post]
     - Expect: 100-continue is not supported, load balancing will fall back to
       Round Robin.
 
-    - Transfer-Encoding (RFC2616 3.6.1) is only supported in the first chunk.
+    - Transfer-Encoding (RFC7230 3.3.1) is only supported in the first chunk.
       If the entire parameter value is not present in the first chunk, the
       selection of server is undefined (actually, defined by how little
       actually appeared in the first chunk).
@@ -5648,7 +5648,7 @@ no option http-server-close
   latency on the client side (slow network) and the fastest session reuse on
   the server side to save server resources, similarly to "option forceclose".
   It also permits non-keepalive capable servers to be served in keep-alive mode
-  to the clients if they conform to the requirements of RFC2616. Please note
+  to the clients if they conform to the requirements of RFC7230. Please note
   that some servers do not always conform to those requirements when they see
   "Connection: close" in the request. The effect will be that keep-alive will
   never be used. A workaround consists in enabling "option
@@ -5715,7 +5715,7 @@ no option http-use-proxy-header
                                  yes   |    yes   |   yes  |   no
   Arguments : none
 
-  While RFC2616 explicitly states that HTTP/1.1 agents must use the
+  While RFC7230 explicitly states that HTTP/1.1 agents must use the
   Connection header to indicate their wish of persistent or non-persistent
   connections, both browsers and proxies ignore this header for proxied
   connections and make use of the undocumented, non-standard Proxy-Connection
@@ -14598,7 +14598,7 @@ req.hdr([<name>[,<occ>]]) : string
   with -1 being the last one. A typical use is with the X-Forwarded-For header
   once converted to IP, associated with an IP stick-table. The function
   considers any comma as a delimiter for distinct values. If full-line headers
-  are desired instead, use req.fhdr(). Please carefully check RFC2616 to know
+  are desired instead, use req.fhdr(). Please carefully check RFC7231 to know
   how certain headers are supposed to be parsed. Also, some of them are case
   insensitive (eg: Connection).
 

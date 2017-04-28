@@ -136,7 +136,7 @@
 #endif
 
 // cookie delimitor in "prefix" mode. This character is inserted between the
-// persistence cookie and the original value. The '~' is allowed by RFC2965,
+// persistence cookie and the original value. The '~' is allowed by RFC6265,
 // and should not be too common in server names.
 #ifndef COOKIE_DELIM
 #define COOKIE_DELIM    '~'
