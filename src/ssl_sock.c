@@ -3188,6 +3188,28 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_MODE_SMALL_BUFFERS;
 	int conf_ssl_options = bind_conf->ssl_options;
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL || defined OPENSSL_IS_BORINGSSL)
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12) {
+		ctx = SSL_CTX_new(TLS_server_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
+	}
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV11) {
+		ctx = SSL_CTX_new(TLS_server_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION);
+	}
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV10) {
+		ctx = SSL_CTX_new(TLS_server_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION);
+	}
+	if (!ctx && conf_ssl_options & BC_SSL_O_USE_SSLV3) {
+		ctx = SSL_CTX_new(TLS_server_method());
+		SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION);
+	}
+#else
 #if SSL_OP_NO_TLSv1_2
 	if (!ctx && conf_ssl_options & BC_SSL_O_USE_TLSV12)
 		ctx = SSL_CTX_new(TLSv1_2_server_method());
@@ -3201,6 +3223,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 #ifndef OPENSSL_NO_SSL3
 	if (!ctx && conf_ssl_options & BC_SSL_O_USE_SSLV3)
 		ctx = SSL_CTX_new(SSLv3_server_method());
+#endif
 #endif
 	if (!ctx) {
 		ctx = SSL_CTX_new(SSLv23_server_method());
@@ -3588,6 +3611,28 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->check.use_ssl)
 		srv->check.xprt = &ssl_sock;
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL || defined OPENSSL_IS_BORINGSSL)
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12) {
+		ctx = SSL_CTX_new(TLS_client_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
+	}
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11) {
+		ctx = SSL_CTX_new(TLS_client_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION);
+	}
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10) {
+		ctx = SSL_CTX_new(TLS_client_method());
+		SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION);
+	}
+	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3) {
+		ctx = SSL_CTX_new(TLS_client_method());
+		SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
+		SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION);
+	}
+#else
 #if SSL_OP_NO_TLSv1_2
 	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
 		ctx = SSL_CTX_new(TLSv1_2_client_method());
@@ -3601,6 +3646,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 #ifndef OPENSSL_NO_SSL3
 	if (!ctx && srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
 		ctx = SSL_CTX_new(SSLv3_client_method());
+#endif
 #endif
 	if (!ctx) {
 		ctx = SSL_CTX_new(SSLv23_client_method());
