@@ -122,6 +122,8 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "  O            : wait for Output queue to be empty (POLLOUT + TIOCOUTQ)\n"
 	    "  F            : FIN : shutdown(SHUT_WR)\n"
 	    "  N<max>       : fork New process, limited to <max> concurrent (default 1)\n"
+	    "  X[i|o|e]* ** : execvp() next args passing socket as stdin/stdout/stderr.\n"
+	    "                 If i/o/e present, only stdin/out/err are mapped to socket.\n"
 	    "\n"
 	    "It's important to note that a single FD is used at once and that Accept\n"
 	    "replaces the listening FD with the accepted one. Thus always do it after\n"
@@ -138,6 +140,12 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "\n"
 	    "Example TCP client with pauses at each step :\n"
 	    "   tcploop 8001 C T W P100 S10 O P100 R S10 O R G K\n"
+	    "\n"
+	    "Simple chargen server :\n"
+	    "   tcploop 8001 L A Xo cat /dev/zero\n"
+	    "\n"
+	    "Simple telnet server :\n"
+	    "   tcploop 8001 L W N A X /usr/sbin/in.telnetd\n"
 	    "", arg0);
 }
 
@@ -727,6 +735,7 @@ int main(int argc, char **argv)
 	int arg;
 	int ret;
 	int sock;
+	int errfd;
 
 	arg0 = argv[0];
 
@@ -899,6 +908,28 @@ int main(int argc, char **argv)
 			arg = loop_arg - 1;
 			continue;
 
+		case 'X': // execute command. Optionally supports redirecting only i/o/e
+			if (arg + 1 >= argc)
+				die(1, "Fatal: missing argument after %s\n", argv[arg]);
+
+			errfd = dup(2);
+			fcntl(errfd, F_SETFD, fcntl(errfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
+			fcntl(sock,  F_SETFL, fcntl(sock,  F_GETFL, O_NONBLOCK) & ~O_NONBLOCK);
+			if (!argv[arg][1] || strchr(argv[arg], 'i'))
+				dup2(sock, 0);
+			if (!argv[arg][1] || strchr(argv[arg], 'o'))
+				dup2(sock, 1);
+			if (!argv[arg][1] || strchr(argv[arg], 'e'))
+				dup2(sock, 2);
+			argv += arg + 1;
+			if (execvp(argv[0], argv) == -1) {
+				int e = errno;
+
+				dup2(errfd, 2); // restore original stderr
+				close(errfd);
+				die(1, "Fatal: execvp(%s) failed : %s\n", argv[0], strerror(e));
+			}
+			break;
 		default:
 			usage(1, arg0);
 		}
