@@ -118,13 +118,6 @@ void dns_reset_resolution(struct dns_resolution *resolution)
 	resolution->query_id = 0;
 	resolution->qid.key = 0;
 
-	/* default values */
-	if (resolution->opts->family_prio == AF_INET) {
-		resolution->query_type = DNS_RTYPE_A;
-	} else {
-		resolution->query_type = DNS_RTYPE_AAAA;
-	}
-
 	/* the second resolution in the queue becomes the first one */
 	LIST_DEL(&resolution->list);
 }
@@ -217,6 +210,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 			resolution->requester_error_cb(resolution, DNS_RESP_INVALID);
 			continue;
 
+		case DNS_RESP_INTERNAL:
 		case DNS_RESP_ERROR:
 			nameserver->counters.other += 1;
 			resolution->requester_error_cb(resolution, DNS_RESP_ERROR);
@@ -308,11 +302,14 @@ void dns_resolve_send(struct dgram_conn *dgram)
  */
 int dns_send_query(struct dns_resolution *resolution)
 {
-	struct dns_resolvers *resolvers;
+	struct dns_resolvers *resolvers = NULL;
 	struct dns_nameserver *nameserver;
 	int ret, bufsize, fd;
 
-	resolvers = resolution->resolvers;
+	resolvers = ((struct server *)resolution->requester)->resolvers;
+
+	if (!resolvers)
+		return 0;
 
 	bufsize = dns_build_query(resolution->query_id, resolution->query_type, resolution->hostname_dn,
 			resolution->hostname_dn_len, trash.str, trash.size);
@@ -722,8 +719,8 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
  * returns one of the DNS_UPD_* code
  */
 #define DNS_MAX_IP_REC 20
-int dns_get_ip_from_response(struct dns_response_packet *dns_p,
-                             struct dns_resolution *resol, void *currentip,
+int dns_get_ip_from_response(struct dns_response_packet *dns_p, struct dns_resolution *resol,
+                             struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family)
 {
@@ -739,14 +736,15 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	int j;
 	int rec_nb = 0;
 	int score, max_score;
+	struct dns_response_packet *dns_response = dns_p;
 
-	family_priority = resol->opts->family_prio;
+	family_priority = dns_opts->family_prio;
 	*newip = newip4 = newip6 = NULL;
 	currentip_found = 0;
 	*newip_sin_family = AF_UNSPEC;
 
 	/* now parsing response records */
-	list_for_each_entry(record, &dns_response.answer_list, list) {
+	list_for_each_entry(record, &dns_response->answer_list, list) {
 		/* analyzing record content */
 		switch (record->type) {
 			case DNS_RTYPE_A:
@@ -801,20 +799,20 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			score += 8;
 
 		/* Check for prefered network. */
-		for (j = 0; j < resol->opts->pref_net_nb; j++) {
+		for (j = 0; j < dns_opts->pref_net_nb; j++) {
 
 			/* Compare only the same adresses class. */
-			if (resol->opts->pref_net[j].family != rec[i].type)
+			if (dns_opts->pref_net[j].family != rec[i].type)
 				continue;
 
 			if ((rec[i].type == AF_INET &&
 			     in_net_ipv4(rec[i].ip,
-			                 &resol->opts->pref_net[j].mask.in4,
-			                 &resol->opts->pref_net[j].addr.in4)) ||
+			                 &dns_opts->pref_net[j].mask.in4,
+			                 &dns_opts->pref_net[j].addr.in4)) ||
 			    (rec[i].type == AF_INET6 &&
 			     in_net_ipv6(rec[i].ip,
-			                 &resol->opts->pref_net[j].mask.in6,
-			                 &resol->opts->pref_net[j].addr.in6))) {
+			                 &dns_opts->pref_net[j].mask.in6,
+			                 &dns_opts->pref_net[j].addr.in6))) {
 				score += 4;
 				break;
 			}
@@ -1261,6 +1259,7 @@ struct task *dns_process_resolve(struct task *t)
 	struct dns_resolvers *resolvers = t->context;
 	struct dns_resolution *resolution, *res_back;
 	int res_preferred_afinet, res_preferred_afinet6;
+	struct dns_options *dns_opts = NULL;
 
 	/* timeout occurs inevitably for the first element of the FIFO queue */
 	if (LIST_ISEMPTY(&resolvers->curr_resolution)) {
@@ -1290,8 +1289,10 @@ struct task *dns_process_resolve(struct task *t)
 
 		resolution->try -= 1;
 
-		res_preferred_afinet = resolution->opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
-		res_preferred_afinet6 = resolution->opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+		dns_opts = &((struct server *)resolution->requester)->dns_opts;
+
+		res_preferred_afinet = dns_opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
+		res_preferred_afinet6 = dns_opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
 
 		/* let's change the query type if needed */
 		if (res_preferred_afinet6) {

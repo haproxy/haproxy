@@ -8515,7 +8515,7 @@ out_uri_auth_compat:
 					cfgerr++;
 				} else {
 					if (newsrv->resolution)
-						newsrv->resolution->resolvers = curr_resolvers;
+						newsrv->resolvers = curr_resolvers;
 				}
 			}
 			else {

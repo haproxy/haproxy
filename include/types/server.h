@@ -255,7 +255,10 @@ struct server {
 	struct check agent;                     /* agent specific configuration */
 
 	char *resolvers_id;			/* resolvers section used by this server */
+	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used by this server */
 	char *hostname;				/* server hostname */
+	char *hostname_dn;			/* server hostname in Domain Name format */
+	int hostname_dn_len;			/* sting lenght of the server hostname in Domain Name format */
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_resolution *resolution;	/* server name resolution */
 	struct dns_options dns_opts;

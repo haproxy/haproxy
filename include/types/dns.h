@@ -218,7 +218,6 @@ struct dns_options {
  */
 struct dns_resolution {
 	struct list list;		/* resolution list */
-	struct dns_resolvers *resolvers;	/* resolvers section associated to this resolution */
 	void *requester;		/* owner of this name resolution */
 	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *, struct dns_response_packet *);
 					/* requester callback for valid response */
@@ -226,7 +225,6 @@ struct dns_resolution {
 					/* requester callback, for error management */
 	char *hostname_dn;		/* server hostname in domain name label format */
 	int hostname_dn_len;		/* server domain name label len */
-	struct dns_options *opts;       /* IP selection options inherited from the configuration file. */
 	unsigned int last_resolution;	/* time of the lastest valid resolution */
 	unsigned int last_sent_packet;	/* time of the latest DNS packet sent */
 	unsigned int last_status_change;	/* time of the latest DNS resolution status change */
@@ -273,6 +271,7 @@ enum {
 	DNS_RESP_TRUNCATED,		/* DNS response is truncated */
 	DNS_RESP_NO_EXPECTED_RECORD,	/* No expected records were found in the response */
 	DNS_RESP_QUERY_COUNT_ERROR,	/* we did not get the expected number of queries in the response */
+	DNS_RESP_INTERNAL,		/* internal resolver error */
 };
 
 /* return codes after searching an IP in a DNS response buffer, using a family preference */

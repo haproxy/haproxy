@@ -1658,8 +1658,6 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
  */
 static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 {
-	char *hostname_dn;
-	int hostname_dn_len;
 	struct dns_resolution *dst_dns_rslt;
 
 	if (!hostname)
@@ -1669,21 +1667,21 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 	srv->hostname = strdup(hostname);
 	dst_dns_rslt = dns_alloc_resolution();
 
-	hostname_dn_len = dns_str_to_dn_label_len(hostname);
-	hostname_dn = calloc(hostname_dn_len + 1, sizeof(char));
+	srv->hostname_dn_len = dns_str_to_dn_label_len(hostname);
+	srv->hostname_dn = calloc(srv->hostname_dn_len + 1, sizeof(char));
 
-	if (!srv->hostname || !dst_dns_rslt || !hostname_dn)
+	if (!srv->hostname || !dst_dns_rslt || !srv->hostname_dn)
 		goto err;
 
 	srv->resolution = dst_dns_rslt;
-	srv->resolution->hostname_dn = hostname_dn;
-	srv->resolution->hostname_dn_len = hostname_dn_len;
 
 	if (!dns_str_to_dn_label(srv->hostname,
-	                         srv->resolution->hostname_dn,
-	                         srv->resolution->hostname_dn_len + 1))
+				 srv->hostname_dn,
+				 srv->hostname_dn_len + 1))
 		goto err;
 
+	srv->resolution->hostname_dn = srv->hostname_dn;
+	srv->resolution->hostname_dn_len = srv->hostname_dn_len;
 	srv->resolution->requester = srv;
 	srv->resolution->requester_cb = snr_resolution_cb;
 	srv->resolution->requester_error_cb = snr_resolution_error_cb;
@@ -1704,7 +1702,7 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 		}
 		if (!found)
 			goto err;
-		srv->resolution->resolvers = curr_resolvers;
+		srv->resolvers = curr_resolvers;
 	}
 
 	return 0;
@@ -1712,7 +1710,8 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
  err:
 	free(srv->hostname);
 	srv->hostname = NULL;
-	free(hostname_dn);
+	free(srv->hostname_dn);
+	srv->hostname_dn = NULL;
 	dns_free_resolution(dst_dns_rslt);
 	return -1;
 }
@@ -1722,7 +1721,6 @@ static void srv_free_dns_resolution(struct server *srv)
 	if (!srv->resolution)
 		return;
 
-	free(srv->resolution->hostname_dn);
 	dns_free_resolution(srv->resolution);
 	srv->resolution = NULL;
 }
@@ -1925,9 +1923,6 @@ static const char *do_health_check_init(struct server *srv, int check_type, int 
 	ret = init_check(&srv->check, check_type);
 	if (ret)
 		return ret;
-
-	if (srv->resolution)
-		srv->resolution->opts = &srv->dns_opts;
 
 	srv->check.state |= state;
 	global.maxsock++;
@@ -3749,9 +3744,7 @@ out:
 int snr_update_srv_status(struct server *s)
 {
 	struct dns_resolution *resolution = s->resolution;
-	struct dns_resolvers *resolvers;
-
-	resolvers = resolution->resolvers;
+	struct dns_resolvers *resolvers = s->resolvers;
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
@@ -3866,7 +3859,7 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(dns_p, resolution,
+	ret = dns_get_ip_from_response(dns_p, resolution, &s->dns_opts,
 	                               serverip, server_sin_family, &firstip,
 	                               &firstip_sin_family);
 
@@ -3958,7 +3951,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 
 	/* shortcut to the server whose name is being resolved */
 	s = resolution->requester;
-	resolvers = resolution->resolvers;
+	resolvers = s->resolvers;
 
 	/* can be ignored if this is not the last response */
 	if ((error_code != DNS_RESP_TIMEOUT) && (resolution->nb_responses < resolvers->count_nameservers)) {
@@ -3979,8 +3972,8 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 		case DNS_RESP_ERROR:
 		case DNS_RESP_NO_EXPECTED_RECORD:
 		case DNS_RESP_CNAME_ERROR:
-			res_preferred_afinet = resolution->opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
-			res_preferred_afinet6 = resolution->opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+			res_preferred_afinet = s->dns_opts.family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
+			res_preferred_afinet6 = s->dns_opts.family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
 
 			if ((res_preferred_afinet || res_preferred_afinet6)
 				       || (resolution->try > 0)) {
@@ -3995,7 +3988,7 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
 				}
 				else {
 					resolution->try -= 1;
-					if (resolution->opts->family_prio == AF_INET) {
+					if (s->dns_opts.family_prio == AF_INET) {
 						resolution->query_type = DNS_RTYPE_A;
 					} else {
 						resolution->query_type = DNS_RTYPE_AAAA;

@@ -2209,6 +2209,7 @@ static struct task *process_chk(struct task *t)
 	struct check *check = t->context;
 	struct server *s = check->server;
 	struct dns_resolution *resolution = s->resolution;
+	struct dns_resolvers *resolvers = s->resolvers;
 
 	/* trigger name resolution */
 	if ((s->check.state & CHK_ST_ENABLED) && (resolution)) {
@@ -2218,7 +2219,7 @@ static struct task *process_chk(struct task *t)
 			 * if there has not been any name resolution for a longer period than
 			 * hold.valid, let's trigger a new one.
 			 */
-			if (!resolution->last_resolution || tick_is_expired(tick_add(resolution->last_resolution, resolution->resolvers->hold.valid), now_ms)) {
+			if (!resolution->last_resolution || tick_is_expired(tick_add(resolution->last_resolution, resolvers->hold.valid), now_ms)) {
 				trigger_resolution(s);
 			}
 		}
@@ -2242,13 +2243,13 @@ static struct task *process_chk(struct task *t)
  */
 int trigger_resolution(struct server *s)
 {
-	struct dns_resolution *resolution;
-	struct dns_resolvers *resolvers;
+	struct dns_resolution *resolution = NULL;
+	struct dns_resolvers *resolvers = NULL;
 	int query_id;
 	int i;
 
 	resolution = s->resolution;
-	resolvers = resolution->resolvers;
+	resolvers = s->resolvers;
 
 	/*
 	 * check if a resolution has already been started for this server
@@ -2277,8 +2278,7 @@ int trigger_resolution(struct server *s)
 	resolution->query_id = query_id;
 	resolution->qid.key = query_id;
 	resolution->step = RSLV_STEP_RUNNING;
-	resolution->opts = &s->dns_opts;
-	if (resolution->opts->family_prio == AF_INET) {
+	if (s->dns_opts.family_prio == AF_INET) {
 		resolution->query_type = DNS_RTYPE_A;
 	} else {
 		resolution->query_type = DNS_RTYPE_AAAA;

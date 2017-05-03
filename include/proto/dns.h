@@ -33,8 +33,8 @@ struct task *dns_process_resolve(struct task *t);
 int dns_init_resolvers(int close_socket);
 uint16_t dns_rnd16(void);
 int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_response_packet *dns_p);
-int dns_get_ip_from_response(struct dns_response_packet *dns_p,
-                             struct dns_resolution *resol, void *currentip,
+int dns_get_ip_from_response(struct dns_response_packet *dns_p, struct dns_resolution *resol,
+                             struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family);
 void dns_resolve_send(struct dgram_conn *dgram);
