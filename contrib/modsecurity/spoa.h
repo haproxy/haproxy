@@ -20,6 +20,8 @@
 #ifndef __SPOA_H__
 #define __SPOA_H__
 
+#include <sys/queue.h>
+
 #include <event2/util.h>
 #include <event2/event.h>
 #include <event2/event_struct.h>

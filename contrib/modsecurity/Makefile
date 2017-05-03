@@ -26,7 +26,7 @@ LIBXML_INC := /usr/include/libxml2
 endif
 
 CFLAGS  = -g -Wall -pthread
-LDFLAGS = -lpthread  -levent -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
+LDFLAGS += -lpthread  -levent -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
 INCS += -I../../include -I../../ebtree -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC)
 LIBS =
 
