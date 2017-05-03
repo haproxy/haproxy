@@ -1340,6 +1340,33 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 	return 0;
 }
 
+/* This function allocates memory for a DNS resolution structure.
+ * It's up to the caller to set the parameters
+ * Returns a pointer to the structure resolution or NULL if memory could
+ * not be allocated.
+ */
+struct dns_resolution *dns_alloc_resolution(void)
+{
+	struct dns_resolution *resolution = NULL;
+
+	resolution = calloc(1, sizeof(*resolution));
+
+	if (!resolution) {
+		free(resolution);
+		return NULL;
+	}
+
+	return resolution;
+}
+
+/* This function free the memory allocated to a DNS resolution */
+void dns_free_resolution(struct dns_resolution *resolution)
+{
+	free(resolution);
+
+	return;
+}
+
 /* This function dumps counters from all resolvers section and associated name
  * servers. It returns 0 if the output buffer is full and it needs to be called
  * again, otherwise non-zero. It may limit itself to the resolver pointed to by

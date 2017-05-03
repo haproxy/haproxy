@@ -1667,7 +1667,8 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 
 	free(srv->hostname);
 	srv->hostname = strdup(hostname);
-	dst_dns_rslt = calloc(1, sizeof *dst_dns_rslt);
+	dst_dns_rslt = dns_alloc_resolution();
+
 	hostname_dn_len = dns_str_to_dn_label_len(hostname);
 	hostname_dn = calloc(hostname_dn_len + 1, sizeof(char));
 
@@ -1714,7 +1715,7 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 	free(srv->hostname);
 	srv->hostname = NULL;
 	free(hostname_dn);
-	free(dst_dns_rslt);
+	dns_free_resolution(dst_dns_rslt);
 	return -1;
 }
 
@@ -1724,7 +1725,7 @@ static void srv_free_dns_resolution(struct server *srv)
 		return;
 
 	free(srv->resolution->hostname_dn);
-	free(srv->resolution);
+	dns_free_resolution(srv->resolution);
 	srv->resolution = NULL;
 }
 
