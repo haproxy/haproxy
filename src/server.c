@@ -1706,8 +1706,6 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 			goto err;
 		srv->resolution->resolvers = curr_resolvers;
 	}
-	else
-		goto err;
 
 	return 0;
 
@@ -2233,7 +2231,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			struct sockaddr_storage *sk;
 			int port1, port2, port;
 			struct protocol *proto;
-			struct dns_resolution *curr_resolution;
 
 			newsrv = new_server(curproxy);
 			if (!newsrv) {
@@ -2296,34 +2293,15 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			/* save hostname and create associated name resolution */
-			newsrv->hostname = fqdn;
-			if (!fqdn)
-				goto skip_name_resolution;
-
-			fqdn = NULL;
-			if ((curr_resolution = calloc(1, sizeof(*curr_resolution))) == NULL)
-				goto skip_name_resolution;
-
-			curr_resolution->hostname_dn_len = dns_str_to_dn_label_len(newsrv->hostname);
-			if ((curr_resolution->hostname_dn = calloc(curr_resolution->hostname_dn_len + 1, sizeof(char))) == NULL)
-				goto skip_name_resolution;
-			if ((dns_str_to_dn_label(newsrv->hostname, curr_resolution->hostname_dn, curr_resolution->hostname_dn_len + 1)) == NULL) {
-				Alert("parsing [%s:%d] : Invalid hostname '%s'\n",
-				      file, linenum, args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
+			if (fqdn) {
+				if (srv_alloc_dns_resolution(newsrv, fqdn) == -1) {
+					Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
+					      file, linenum, newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 			}
 
-			curr_resolution->requester = newsrv;
-			curr_resolution->requester_cb = snr_resolution_cb;
-			curr_resolution->requester_error_cb = snr_resolution_error_cb;
-			curr_resolution->status = RSLV_STATUS_NONE;
-			curr_resolution->step = RSLV_STEP_NONE;
-			/* a first resolution has been done by the configuration parser */
-			curr_resolution->last_resolution = 0;
-			newsrv->resolution = curr_resolution;
-
- skip_name_resolution:
 			newsrv->addr = *sk;
 			newsrv->svc_port = port;
 
