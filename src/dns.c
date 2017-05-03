@@ -719,10 +719,11 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
  * returns one of the DNS_UPD_* code
  */
 #define DNS_MAX_IP_REC 20
-int dns_get_ip_from_response(struct dns_response_packet *dns_p, struct dns_resolution *resol,
+int dns_get_ip_from_response(struct dns_response_packet *dns_p,
                              struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,
-                             void **newip, short *newip_sin_family)
+                             void **newip, short *newip_sin_family,
+                             void *owner)
 {
 	struct dns_answer_item *record;
 	int family_priority;
@@ -788,8 +789,6 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p, struct dns_resol
 	 */
 	max_score = -1;
 	for (i = 0; i < rec_nb; i++) {
-		struct server *srv, *tmpsrv;
-		struct proxy *be;
 		int record_ip_already_affected = 0;
 
 		score = 0;
@@ -818,36 +817,14 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p, struct dns_resol
 			}
 		}
 
-		/* Check if the IP found in the record is already affected to an other server. */
-		srv = resol->requester;
-		be = srv->proxy;
-		for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
-			/* We want to compare the IP in the record with the IP of the servers in the
-			 * same backend, only if:
-			 *   * DNS resolution is enabled on the server
-			 *   * the hostname used for the resolution by our server is the same than the
-			 *     one used for the server found in the backend
-			 *   * the server found in the backend is not our current server
-			 */
-			if ((tmpsrv->resolution == NULL) ||
-			    (srv->resolution->hostname_dn_len != tmpsrv->resolution->hostname_dn_len) ||
-			    (strcmp(srv->resolution->hostname_dn, tmpsrv->resolution->hostname_dn) != 0) ||
-			    (srv->puid == tmpsrv->puid))
-				continue;
-
-			/* At this point, we have 2 different servers using the same DNS hostname
-			 * for their respective resolution.
-			 */
-			if (rec[i].type == tmpsrv->addr.ss_family &&
-			    ((tmpsrv->addr.ss_family == AF_INET &&
-			      memcmp(rec[i].ip, &((struct sockaddr_in *)&tmpsrv->addr)->sin_addr, 4) == 0) ||
-			     (tmpsrv->addr.ss_family == AF_INET6 &&
-			      memcmp(rec[i].ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
+		/* Check if the IP found in the record is already affected to a member of a group.
+		 * If yes, the score should be incremented by 2.
+		 */
+		if (owner) {
+			if (snr_check_ip_callback(owner, rec[i].ip, &rec[i].type))
 				record_ip_already_affected = 1;
-				break;
-			}
 		}
-		if (!record_ip_already_affected)
+		if (record_ip_already_affected == 0)
 			score += 2;
 
 		/* Check for current ip matching. */

@@ -3859,9 +3859,9 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(dns_p, resolution, &s->dns_opts,
+	ret = dns_get_ip_from_response(dns_p, &s->dns_opts,
 	                               serverip, server_sin_family, &firstip,
-	                               &firstip_sin_family);
+	                               &firstip_sin_family, s);
 
 	switch (ret) {
 		case DNS_UPD_NO:
@@ -4053,6 +4053,51 @@ int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
  leave:
 	snr_update_srv_status(s);
 	return 1;
+}
+
+/*
+ * Function to check if <ip> is already affected to a server in the backend
+ * which owns <srv>.
+ * It returns a pointer to the first server found or NULL if <ip> is not yet
+ * assigned.
+ * NOTE: <ip> and <ip_family> are provided by a 'struct rec' available in dns.c.
+ */
+struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family)
+{
+	struct server *tmpsrv;
+	struct proxy *be;
+
+	if (!srv)
+		return NULL;
+
+	be = srv->proxy;
+	for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
+		/* We want to compare the IP in the record with the IP of the servers in the
+		 * same backend, only if:
+		 *   * DNS resolution is enabled on the server
+		 *   * the hostname used for the resolution by our server is the same than the
+		 *     one used for the server found in the backend
+		 *   * the server found in the backend is not our current server
+		 */
+		if ((tmpsrv->resolution == NULL) ||
+		    (srv->resolution->hostname_dn_len != tmpsrv->resolution->hostname_dn_len) ||
+		    (strcmp(srv->resolution->hostname_dn, tmpsrv->resolution->hostname_dn) != 0) ||
+		    (srv->puid == tmpsrv->puid))
+			continue;
+
+		/* At this point, we have 2 different servers using the same DNS hostname
+		 * for their respective resolution.
+		 */
+		if (*ip_family == tmpsrv->addr.ss_family &&
+		    ((tmpsrv->addr.ss_family == AF_INET &&
+		      memcmp(ip, &((struct sockaddr_in *)&tmpsrv->addr)->sin_addr, 4) == 0) ||
+		     (tmpsrv->addr.ss_family == AF_INET6 &&
+		      memcmp(ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
+			return tmpsrv;
+		}
+	}
+
+	return NULL;
 }
 
 /* Sets the server's address (srv->addr) from srv->hostname using the libc's
