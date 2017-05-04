@@ -467,6 +467,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
 	int len, flags, offset, ret;
 	int dns_query_record_id, dns_answer_record_id;
+	int nb_saved_records;
 	struct dns_query_item *dns_query;
 	struct dns_answer_item *dns_answer_record;
 	struct dns_response_packet *dns_p;
@@ -591,6 +592,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 	/* now parsing response records */
 	LIST_INIT(&dns_p->answer_list);
+	nb_saved_records = 0;
 	for (dns_answer_record_id = 0; dns_answer_record_id < dns_p->header.ancount; dns_answer_record_id++) {
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
@@ -717,6 +719,9 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 		} /* switch (record type) */
 
+		/* increment the counter for number of records saved into our local response */
+		nb_saved_records += 1;
+
 		/* move forward dns_answer_record->data_len for analyzing next record in the response */
 		reader += dns_answer_record->data_len;
 	} /* for i 0 to ancount */
@@ -725,6 +730,9 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	ret = chunk_strncat(dns_response_buffer, "\0", 1);
 	if (ret == 0)
 		return DNS_RESP_INVALID;
+
+	/* save the number of records we really own */
+	dns_p->header.ancount = nb_saved_records;
 
 	return DNS_RESP_VALID;
 }
