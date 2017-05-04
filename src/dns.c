@@ -895,14 +895,14 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			*newip_sin_family = AF_INET;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 		else if (newip6) {
 			*newip = newip6;
 			*newip_sin_family = AF_INET6;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 	}
 	/* case when the caller looks first for an IPv6 address */
@@ -912,14 +912,14 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			*newip_sin_family = AF_INET6;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 		else if (newip4) {
 			*newip = newip4;
 			*newip_sin_family = AF_INET;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 	}
 	/* case when the caller have no preference (we prefer IPv6) */
@@ -929,19 +929,30 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			*newip_sin_family = AF_INET6;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 		else if (newip4) {
 			*newip = newip4;
 			*newip_sin_family = AF_INET;
 			if (currentip_found == 1)
 				return DNS_UPD_NO;
-			return DNS_UPD_SRVIP_NOT_FOUND;
+			goto return_DNS_UPD_SRVIP_NOT_FOUND;
 		}
 	}
 
 	/* no reason why we should change the server's IP address */
 	return DNS_UPD_NO;
+
+ return_DNS_UPD_SRVIP_NOT_FOUND:
+	list_for_each_entry(record, &dns_p->answer_list, list) {
+		/* move the first record to the end of the list, for internal round robin */
+		if (record) {
+			LIST_DEL(&record->list);
+			LIST_ADDQ(&dns_p->answer_list, &record->list);
+			break;
+		}
+	}
+	return DNS_UPD_SRVIP_NOT_FOUND;
 }
 
 /*
