@@ -48,5 +48,7 @@ int dns_check_resolution_queue(struct dns_resolvers *resolvers);
 unsigned short dns_response_get_query_id(unsigned char *resp);
 struct dns_resolution *dns_alloc_resolution(void);
 void dns_free_resolution(struct dns_resolution *resolution);
+struct chunk *dns_cache_key(int query_type, char *hostname_dn, int hostname_dn_len, struct chunk *buf);
+struct lru64 *dns_cache_lookup(int query_type, char *hostname_dn, int hostname_dn_len, int valid_period, void *cache_domain);
 
 #endif // _PROTO_DNS_H

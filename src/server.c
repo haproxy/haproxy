@@ -1682,6 +1682,7 @@ static int srv_alloc_dns_resolution(struct server *srv, const char *hostname)
 
 	srv->resolution->hostname_dn = srv->hostname_dn;
 	srv->resolution->hostname_dn_len = srv->hostname_dn_len;
+	srv->resolution->revision = 1;
 	srv->resolution->requester = srv;
 	srv->resolution->requester_cb = snr_resolution_cb;
 	srv->resolution->requester_error_cb = snr_resolution_error_cb;

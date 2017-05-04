@@ -22,6 +22,9 @@
 #include <common/time.h>
 #include <common/ticks.h>
 
+#include <import/lru.h>
+#include <import/xxhash.h>
+
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/global.h>
@@ -44,6 +47,9 @@ struct list dns_resolvers = LIST_HEAD_INIT(dns_resolvers);
 struct dns_resolution *resolution = NULL;
 
 static int64_t dns_query_id_seed;	/* random seed */
+
+static struct lru64_head *dns_lru_tree;
+static int dns_cache_size = 1024;       /* arbitrary DNS cache size */
 
 /* proto_udp callback functions for a DNS resolution */
 struct dgram_data_cb resolve_dgram_cb = {
@@ -130,6 +136,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	int fd, buflen, ret;
 	unsigned short query_id;
 	struct eb32_node *eb;
+	struct lru64 *lru = NULL;
 
 	fd = dgram->t.sock.fd;
 
@@ -243,6 +250,27 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 			nameserver->counters.other += 1;
 			resolution->requester_error_cb(resolution, DNS_RESP_WRONG_NAME);
 			continue;
+		}
+
+		/* no errors, we can save the response in the cache */
+		if (dns_lru_tree) {
+			unsigned long long seed = 1;
+			struct chunk *buf = get_trash_chunk();
+			struct chunk *tmp = NULL;
+
+			chunk_reset(buf);
+			tmp = dns_cache_key(resolution->query_type, resolution->hostname_dn,
+			                    resolution->hostname_dn_len, buf);
+			if (!tmp) {
+				nameserver->counters.other += 1;
+				resolution->requester_error_cb(resolution, DNS_RESP_ERROR);
+				continue;
+			}
+
+			lru = lru64_get(XXH64(buf->str, buf->len, seed),
+					dns_lru_tree, nameserver->resolvers, 1);
+
+			lru64_commit(lru, resolution, nameserver->resolvers, 1, NULL);
 		}
 
 		nameserver->counters.valid += 1;
@@ -936,6 +964,9 @@ int dns_init_resolvers(int close_socket)
 	struct task *t;
 	int fd;
 
+	/* initialize our DNS resolution cache */
+	dns_lru_tree = lru64_new(dns_cache_size);
+
 	/* give a first random value to our dns query_id seed */
 	dns_query_id_seed = random();
 
@@ -1275,6 +1306,110 @@ struct task *dns_process_resolve(struct task *t)
  out:
 	dns_update_resolvers_timeout(resolvers);
 	return t;
+}
+
+/*
+ * build a dns cache key composed as follow:
+ *   <query type>#<hostname in domain name format>
+ * and store it into <str>.
+ * It's up to the caller to allocate <buf> and to reset it.
+ * The function returns NULL in case of error (IE <buf> too small) or a pointer
+ * to buf if successful
+ */
+struct chunk *
+dns_cache_key(int query_type, char *hostname_dn, int hostname_dn_len, struct chunk *buf)
+{
+	int len, size;
+	char *str;
+
+	str = buf->str;
+	len = buf->len;
+	size = buf->size;
+
+	switch (query_type) {
+		case DNS_RTYPE_A:
+			if (len + 1 > size)
+				return NULL;
+			memcpy(&str[len], "A", 1);
+			len += 1;
+			break;
+		case DNS_RTYPE_AAAA:
+			if (len + 4 > size)
+				return NULL;
+			memcpy(&str[len], "AAAA", 4);
+			len += 4;
+			break;
+		default:
+			return NULL;
+	}
+
+	if (len + 1 > size)
+		return NULL;
+	memcpy(&str[len], "#", 1);
+	len += 1;
+
+	if (len + hostname_dn_len + 1 > size) // +1 for trailing zero
+		return NULL;
+	memcpy(&str[len], hostname_dn, hostname_dn_len);
+	len += hostname_dn_len;
+	str[len] = '\0';
+
+	return buf;
+}
+
+/*
+ * returns a pointer to a cache entry which may still be considered as up to date
+ * by the caller.
+ * returns NULL if no entry can be found or if the data found is outdated.
+ */
+struct lru64 *
+dns_cache_lookup(int query_type, char *hostname_dn, int hostname_dn_len, int valid_period, void *cache_domain) {
+	struct lru64 *elem = NULL;
+	struct dns_resolution *resolution = NULL;
+	struct dns_resolvers *resolvers = NULL;
+	int inter = 0;
+	struct chunk *buf = get_trash_chunk();
+	struct chunk *tmp = NULL;
+
+	if (!dns_lru_tree)
+		return NULL;
+
+	chunk_reset(buf);
+	tmp = dns_cache_key(query_type, hostname_dn, hostname_dn_len, buf);
+	if (tmp == NULL)
+		return NULL;
+
+	elem = lru64_lookup(XXH64(buf->str, buf->len, 1), dns_lru_tree, cache_domain, 1);
+
+	if (!elem || !elem->data)
+		return NULL;
+
+	resolution = elem->data;
+
+	/* since we can change the fqdn of a server at run time, it may happen that
+	 * we got an innacurate elem.
+	 * This is because resolution->hostname_dn points to (owner)->hostname_dn (which
+	 * may be changed at run time)
+	 */
+	if ((hostname_dn_len == resolution->hostname_dn_len) &&
+	    (memcmp(hostname_dn, resolution->hostname_dn, hostname_dn_len) != 0)) {
+		return NULL;
+	}
+
+	resolvers = ((struct server *)resolution->requester)->resolvers;
+
+	if (!resolvers)
+		return NULL;
+
+	if (resolvers->hold.valid < valid_period)
+		inter = resolvers->hold.valid;
+	else
+		inter = valid_period;
+
+	if (!tick_is_expired(tick_add(resolution->last_resolution, inter), now_ms))
+		return elem;
+
+	return NULL;
 }
 
 /* if an arg is found, it sets the resolvers section pointer into cli.p0 */
