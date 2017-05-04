@@ -114,6 +114,7 @@ enum li_state {
 #define BC_SSL_O_USE_TLSV12     0x0080	/* force TLSv12 */
 /* 0x00F0 reserved for 'force' protocol version options */
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
+#define BC_SSL_O_PREF_CLIE_CIPH 0x0200  /* prefer client ciphers */
 #endif
 
 /* ssl "bind" settings */

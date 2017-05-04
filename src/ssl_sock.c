@@ -3238,6 +3238,8 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	}
 	if (conf_ssl_options & BC_SSL_O_NO_TLS_TICKETS)
 		ssloptions |= SSL_OP_NO_TICKET;
+	if (conf_ssl_options & BC_SSL_O_PREF_CLIE_CIPH)
+		ssloptions &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
 	if (global_ssl.life_time)
@@ -6327,6 +6329,13 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
+/* parse the "prefer-client-ciphers" bind keyword */
+static int bind_parse_pcc(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+        conf->ssl_options |= BC_SSL_O_PREF_CLIE_CIPH;
+        return 0;
+}
+
 /* parse the "generate-certificates" bind keyword */
 static int bind_parse_generate_certs(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -6870,6 +6879,8 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 		}
 		else if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
+		else if (!strcmp(args[i], "prefer-client-ciphers"))
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
 		else {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
 			return -1;
@@ -7505,6 +7516,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "tls-ticket-keys",       bind_parse_tls_ticket_keys, 1 }, /* set file to load TLS ticket keys from */
 	{ "verify",                bind_parse_verify,          1 }, /* set SSL verify method */
 	{ "npn",                   bind_parse_npn,             1 }, /* set NPN supported protocols */
+	{ "prefer-client-ciphers", bind_parse_pcc,             0 }, /* prefer client ciphers */
 	{ NULL, NULL, 0 },
 }};
 

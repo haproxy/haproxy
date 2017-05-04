@@ -10592,6 +10592,11 @@ npn <protocols>
   enabled (check with haproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword).
 
+prefer-client-ciphers
+  Use the client's preference when selecting the cipher suite, by default
+  the server's preference is enforced. This option is also available on
+  global statement "ssl-default-bind-options".
+
 process [ all | odd | even | <number 1-64>[-<number 1-64>] ]
   This restricts the list of processes on which this listener is allowed to
   run. It does not enforce any process but eliminates those which do not match.
