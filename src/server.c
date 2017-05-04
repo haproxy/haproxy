@@ -47,6 +47,7 @@
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn);
+static void srv_free_dns_resolution(struct server *srv);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
