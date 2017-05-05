@@ -1464,6 +1464,23 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 }
 #endif
 
+static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct chunk *trash = get_trash_chunk();
+	int bin_len;
+
+	trash->len = 0;
+	bin_len = base64dec(smp->data.u.str.str, smp->data.u.str.len, trash->str, trash->size);
+	if (bin_len < 0)
+		return 0;
+
+	trash->len = bin_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -2714,6 +2731,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "debug",  sample_conv_debug,     0,            NULL, SMP_T_ANY,  SMP_T_ANY  },
 #endif
 
+	{ "b64dec", sample_conv_base642bin,0,            NULL, SMP_T_STR,  SMP_T_BIN  },
 	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },

@@ -12410,6 +12410,10 @@ and(<value>)
   This prefix is followed by a name. The separator is a '.'.  The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+b64dec
+  Converts (decodes) a base64 encoded input string to its binary
+  representation. It performs the inverse operation of base64().
+
 base64
   Converts a binary input sample to a base64 string. It is used to log or
   transfer binary content in a way that can be reliably transferred (eg:
