@@ -3268,7 +3268,7 @@ static struct {
 };
 
 /* Create an initial CTX used to start the SSL connection before switchctx */
-static SSL_CTX *
+static int
 ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 {
 	SSL_CTX *ctx = NULL;
@@ -3287,21 +3287,30 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_MODE_SMALL_BUFFERS;
 	struct tls_version_filter *conf_ssl_methods = &bind_conf->ssl_methods;
 	int i, min, max, hole;
+	int flags = MC_SSL_O_ALL;
+	int cfgerr = 0;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
+	bind_conf->initial_ctx = ctx;
 
-	/* Real min and max should be determinate with configuration and openssl's capabilities */
+	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
+		Warning("Proxy '%s': no-sslv3/no-tlsv1x are ignored for bind '%s' at [%s:%d]. "
+			"Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+	else
+		flags = conf_ssl_methods->flags;
+
 	if (conf_ssl_methods->min)
-		conf_ssl_methods->flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
+		flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
 	if (conf_ssl_methods->max)
-		conf_ssl_methods->flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
+		flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
 	/* Find min, max and holds */
 	min = max = CONF_TLSV_NONE;
 	hole = 0;
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 		/*  version is in openssl && version not disable in configuration */
-		if (methodVersions[i].option && !(conf_ssl_methods->flags & methodVersions[i].flag)) {
+		if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
 			if (min) {
 				if (hole) {
 					Warning("Proxy '%s': SSL/TLS versions range not contiguous for bind '%s' at [%s:%d]. "
@@ -3319,18 +3328,22 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		else {
 			if (min)
 				hole = i;
-			/* set SSL_NO_VERSION per default */
-			options |= methodVersions[i].option;
 		}
-	if (!min)
-		Warning("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+	if (!min) {
+		Alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
 			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		cfgerr += 1;
+	}
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].set_version(ctx, 1 /* server */);
+	else
+		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+			if (flags & methodVersions[i].flag)
+				options |= methodVersions[i].option;
 #else   /* openssl >= 1.1.0 */
 	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
         methodVersions[min].set_version(ctx, 0);
@@ -3355,7 +3368,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
 #endif
-	return ctx;
+	return cfgerr;
 }
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx)
@@ -3699,6 +3712,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	SSL_CTX *ctx = NULL;
 	struct tls_version_filter *conf_ssl_methods = &srv->ssl_ctx.methods;
 	int i, min, max, hole;
+	int flags = MC_SSL_O_ALL;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -3725,18 +3739,25 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		return cfgerr;
 	}
 
+	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
+		Warning("config : %s '%s': no-sslv3/no-tlsv1x are ignored for server '%s'. "
+			"Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+			proxy_type_str(curproxy), curproxy->id, srv->id);
+	else
+		flags = conf_ssl_methods->flags;
+
 	/* Real min and max should be determinate with configuration and openssl's capabilities */
 	if (conf_ssl_methods->min)
-		conf_ssl_methods->flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
+		flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
 	if (conf_ssl_methods->max)
-		conf_ssl_methods->flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
+		flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
 	/* find min, max and holds */
 	min = max = CONF_TLSV_NONE;
 	hole = 0;
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 		/*  version is in openssl && version not disable in configuration */
-		if (methodVersions[i].option && !(conf_ssl_methods->flags & methodVersions[i].flag)) {
+		if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
 			if (min) {
 				if (hole) {
 					Warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
@@ -3754,18 +3775,22 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		else {
 			if (min)
 				hole = i;
-			/* set SSL_NO_VERSION per default */
-			options |= methodVersions[i].option;
 		}
-	if (!min)
-		Warning("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
-			proxy_type_str(curproxy), curproxy->id, srv->id);
+	if (!min) {
+		Alert("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
+		      proxy_type_str(curproxy), curproxy->id, srv->id);
+		cfgerr += 1;
+	}
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].set_version(ctx, 0 /* client */);
+	else
+		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+			if (flags & methodVersions[i].flag)
+				options |= methodVersions[i].option;
 #else   /* openssl >= 1.1.0 */
 	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
         methodVersions[min].set_version(ctx, 0);
@@ -3885,7 +3910,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	}
 	/* Create initial_ctx used to start the ssl connection before do switchctx */
 	if (!bind_conf->initial_ctx) {
-		bind_conf->initial_ctx = ssl_sock_initial_ctx(bind_conf);
+		err += ssl_sock_initial_ctx(bind_conf);
 		/* It should not be necessary to call this function, but it's
 		   necessary first to check and move all initialisation related
 		   to initial_ctx in ssl_sock_initial_ctx. */
