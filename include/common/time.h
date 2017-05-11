@@ -49,18 +49,18 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
-extern unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
-extern unsigned int   ms_left_scaled;   /* milliseconds left for current second (0..2^32-1) */
-extern unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
-extern unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
-extern unsigned int   samp_time;        /* total elapsed time over current sample */
-extern unsigned int   idle_time;        /* total idle time over current sample */
-extern unsigned int   idle_pct;         /* idle to total ratio over last sample (percent) */
-extern struct timeval now;              /* internal date is a monotonic function of real clock */
-extern struct timeval date;             /* the real current date */
+extern THREAD_LOCAL unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
+extern THREAD_LOCAL unsigned int   ms_left_scaled;   /* milliseconds left for current second (0..2^32-1) */
+extern THREAD_LOCAL unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
+extern THREAD_LOCAL unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
+extern THREAD_LOCAL unsigned int   samp_time;        /* total elapsed time over current sample */
+extern THREAD_LOCAL unsigned int   idle_time;        /* total idle time over current sample */
+extern THREAD_LOCAL unsigned int   idle_pct;         /* idle to total ratio over last sample (percent) */
+extern THREAD_LOCAL struct timeval now;              /* internal date is a monotonic function of real clock */
+extern THREAD_LOCAL struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */
-extern struct timeval before_poll;      /* system date before calling poll() */
-extern struct timeval after_poll;       /* system date after leaving poll() */
+extern THREAD_LOCAL struct timeval before_poll;      /* system date before calling poll() */
+extern THREAD_LOCAL struct timeval after_poll;       /* system date after leaving poll() */
 
 
 /**** exported functions *************************************************/

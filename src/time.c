@@ -16,16 +16,16 @@
 #include <common/standard.h>
 #include <common/time.h>
 
-unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */
-unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
-unsigned int   samp_time;       /* total elapsed time over current sample */
-unsigned int   idle_time;       /* total idle time over current sample */
-unsigned int   idle_pct;        /* idle to total ratio over last sample (percent) */
-struct timeval now;             /* internal date is a monotonic function of real clock */
-struct timeval date;            /* the real current date */
+THREAD_LOCAL unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */
+THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
+THREAD_LOCAL unsigned int   samp_time;       /* total elapsed time over current sample */
+THREAD_LOCAL unsigned int   idle_time;       /* total idle time over current sample */
+THREAD_LOCAL unsigned int   idle_pct;        /* idle to total ratio over last sample (percent) */
+THREAD_LOCAL struct timeval now;             /* internal date is a monotonic function of real clock */
+THREAD_LOCAL struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
-struct timeval before_poll;     /* system date before calling poll() */
-struct timeval after_poll;      /* system date after leaving poll() */
+THREAD_LOCAL struct timeval before_poll;     /* system date before calling poll() */
+THREAD_LOCAL struct timeval after_poll;      /* system date after leaving poll() */
 
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
