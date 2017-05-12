@@ -5496,6 +5496,10 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	switch (hlua_ctx_resume(stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
+		/* If the stack is empty, the function fails. */
+		if (lua_gettop(stream->hlua->T) <= 0)
+			return 0;
+
 		/* Convert the returned value in sample. */
 		hlua_lua2smp(stream->hlua->T, -1, smp);
 		lua_pop(stream->hlua->T, 1);
@@ -5617,6 +5621,10 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			stream_int_retnclose(&stream->si[0], &msg);
 			return 0;
 		}
+		/* If the stack is empty, the function fails. */
+		if (lua_gettop(stream->hlua->T) <= 0)
+			return 0;
+
 		/* Convert the returned value in sample. */
 		hlua_lua2smp(stream->hlua->T, -1, smp);
 		lua_pop(stream->hlua->T, 1);
