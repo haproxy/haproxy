@@ -7,7 +7,6 @@
 # the TARGET, others have to be explictly specified :
 #   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
-#   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
 #   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
@@ -236,7 +235,6 @@ ifeq ($(TARGET),haiku)
 else
 ifeq ($(TARGET),linux22)
   # This is for Linux 2.2
-  USE_GETSOCKNAME = implicit
   USE_POLL        = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
@@ -244,7 +242,6 @@ ifeq ($(TARGET),linux22)
 else
 ifeq ($(TARGET),linux24)
   # This is for standard Linux 2.4 with netfilter but without epoll()
-  USE_GETSOCKNAME = implicit
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_TPROXY      = implicit
@@ -253,7 +250,6 @@ ifeq ($(TARGET),linux24)
 else
 ifeq ($(TARGET),linux24e)
   # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
-  USE_GETSOCKNAME = implicit
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
@@ -264,7 +260,6 @@ ifeq ($(TARGET),linux24e)
 else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
-  USE_GETSOCKNAME = implicit
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
@@ -276,7 +271,6 @@ ifeq ($(TARGET),linux26)
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
-  USE_GETSOCKNAME = implicit
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
@@ -541,11 +535,6 @@ endif
 ifneq ($(USE_NETFILTER),)
 OPTIONS_CFLAGS += -DNETFILTER
 BUILD_OPTIONS  += $(call ignore_implicit,USE_NETFILTER)
-endif
-
-ifneq ($(USE_GETSOCKNAME),)
-OPTIONS_CFLAGS += -DUSE_GETSOCKNAME
-BUILD_OPTIONS  += $(call ignore_implicit,USE_GETSOCKNAME)
 endif
 
 ifneq ($(USE_REGPARM),)
