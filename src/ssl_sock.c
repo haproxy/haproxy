@@ -3544,12 +3544,16 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	else
 		flags = conf_ssl_methods->flags;
 
+	min = conf_ssl_methods->min;
+	max = conf_ssl_methods->max;
+	/* start with TLSv10 to remove SSLv3 per default */
+	if (!min && (!max || max >= CONF_TLSV10))
+		min = CONF_TLSV10;
 	/* Real min and max should be determinate with configuration and openssl's capabilities */
-	if (conf_ssl_methods->min)
-		flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
-	if (conf_ssl_methods->max)
-		flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
-
+	if (min)
+		flags |= (methodVersions[min].flag - 1);
+	if (max)
+		flags |= ~((methodVersions[max].flag << 1) - 1);
 	/* find min, max and holes */
 	min = max = CONF_TLSV_NONE;
 	hole = 0;

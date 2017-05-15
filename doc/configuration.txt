@@ -10678,7 +10678,8 @@ ssl
   enables SSL deciphering on connections instantiated from this listener. A
   certificate is necessary (see "crt" above). All contents in the buffers will
   appear in clear text, so that ACLs and HTTP processing will only have access
-  to deciphered contents.
+  to deciphered contents. SSLv3 is disabled per default, use "ssl-min-ver SSLv3"
+  to enable it.
 
 ssl-max-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
   This option enforces use of <version> or lower on SSL connections instantiated
