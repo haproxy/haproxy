@@ -21,6 +21,10 @@
 #include <eb32tree.h>
 
 
+/* dummy streams returned for idle and closed states */
+static const struct h2s *h2_closed_stream;
+static const struct h2s *h2_idle_stream;
+
 /* the h2c connection pool */
 static struct pool_head *pool2_h2c;
 /* the h2s stream pool */
@@ -154,6 +158,22 @@ struct h2_fh {
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
 static int h2_settings_max_concurrent_streams =   100;
+
+/* a dmumy closed stream */
+static const struct h2s *h2_closed_stream = &(const struct h2s){
+	.cs        = NULL,
+	.h2c       = NULL,
+	.st        = H2_SS_CLOSED,
+	.id        = 0,
+};
+
+/* and a dummy idle stream for use with any unannounced stream */
+static const struct h2s *h2_idle_stream = &(const struct h2s){
+	.cs        = NULL,
+	.h2c       = NULL,
+	.st        = H2_SS_IDLE,
+	.id        = 0,
+};
 
 
 /*****************************************************/
@@ -322,9 +342,12 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
 {
 	struct eb32_node *node;
 
+	if (id > h2c->max_id)
+		return (struct h2s *)h2_idle_stream;
+
 	node = eb32_lookup(&h2c->streams_by_id, id);
 	if (!node)
-		return NULL;
+		return (struct h2s *)h2_closed_stream;
 
 	return container_of(node, struct h2s, by_id);
 }
