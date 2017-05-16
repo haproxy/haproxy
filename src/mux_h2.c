@@ -48,6 +48,11 @@ static struct pool_head *pool2_h2s;
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
 #define H2_CF_DEM_BLOCK_ANY     0x000000FC  // aggregate of the demux flags above
 
+/* other flags */
+#define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
+#define H2_CF_GOAWAY_FAILED     0x00000200  // a GOAWAY frame failed to be sent
+
+
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
 	H2_CS_PREFACE,   // init done, waiting for connection preface
@@ -576,9 +581,78 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	return h2s;
 }
 
+/* try to send a GOAWAY frame on the connection to report an error or a graceful
+ * shutdown, with h2c->errcode as the error code. Returns > 0 on success or zero
+ * if nothing was done. It uses h2c->last_sid as the advertised ID, or copies it
+ * from h2c->max_id if it's not set yet (<0). In case of lack of room to write
+ * the message, it subscribes the requester (either <h2s> or <h2c>) to future
+ * notifications. It sets H2_CF_GOAWAY_SENT on success, and H2_CF_GOAWAY_FAILED
+ * on unrecoverable failure. It will not attempt to send one again in this last
+ * case so that it is safe to use h2c_error() to report such errors.
+ */
+static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
+{
+	struct buffer *res;
+	char str[17];
+	int ret;
+
+	if (h2c->flags & H2_CF_GOAWAY_FAILED)
+		return 1; // claim that it worked
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		if (h2s)
+			h2s->flags |= H2_SF_BLK_MBUSY;
+		else
+			h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		if (h2s)
+			h2s->flags |= H2_SF_BLK_MROOM;
+		else
+			h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	/* len: 8, type: 7, flags: none, sid: 0 */
+	memcpy(str, "\x00\x00\x08\x07\x00\x00\x00\x00\x00", 9);
+
+	if (h2c->last_sid < 0)
+		h2c->last_sid = h2c->max_id;
+
+	write_n32(str + 9, h2c->last_sid);
+	write_n32(str + 13, h2c->errcode);
+	ret = bo_istput(res, ist2(str, 17));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			if (h2s)
+				h2s->flags |= H2_SF_BLK_MROOM;
+			else
+				h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			/* we cannot report this error using GOAWAY, so we mark
+			 * it and claim a success.
+			 */
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			h2c->flags |= H2_CF_GOAWAY_FAILED;
+			return 1;
+		}
+	}
+	h2c->flags |= H2_CF_GOAWAY_SENT;
+	return ret;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
+	if (h2c->st0 >= H2_CS_ERROR)
+		return;
 }
 
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
@@ -586,6 +660,18 @@ static void h2_process_demux(struct h2c *h2c)
  */
 static int h2_process_mux(struct h2c *h2c)
 {
+	if (unlikely(h2c->st0 > H2_CS_ERROR)) {
+		if (h2c->st0 == H2_CS_ERROR) {
+			if (h2c->max_id >= 0) {
+				h2c_send_goaway_error(h2c, NULL);
+				if (h2c->flags & H2_CF_MUX_BLOCK_ANY)
+					return 0;
+			}
+
+			h2c->st0 = H2_CS_ERROR2; // sent (or failed hard) !
+		}
+		return 1;
+	}
 	return 1;
 }
 
@@ -635,6 +721,9 @@ static void h2_recv(struct connection *conn)
 	h2_process_demux(h2c);
 
 	/* after streams have been processed, we should have made some room */
+	if (h2c->st0 >= H2_CS_ERROR)
+		buf->i = 0;
+
 	if (buf->i != buf->size)
 		h2c->flags &= ~H2_CF_DEM_DFULL;
 	return;
