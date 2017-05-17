@@ -357,12 +357,15 @@ fail_get:
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-void ssl_async_fd_handler(int fd)
+/*
+ * openssl async fd handler
+ */
+static void ssl_async_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
 	int conn_fd = conn->t.sock.fd;
 
-	/* fd is the async_fd, we must stop
+	/* fd is an async enfine fd, we must stop
 	 * to poll this fd until it is requested
 	 */
         fd_cant_recv(fd);
@@ -373,73 +376,86 @@ void ssl_async_fd_handler(int fd)
 	conn_fd_handler(conn_fd);
 }
 
-void ssl_async_fd_free(int fd)
+/*
+ * openssl async delayed SSL_free handler
+ */
+static void ssl_async_fd_free(int fd)
 {
 	SSL *ssl = fdtab[fd].owner;
+	OSSL_ASYNC_FD all_fd[32];
+	size_t num_all_fds = 0;
+	int i;
 
-	fd_remove(fd);
+	/* We suppose that the async job for a same SSL *
+	 * are serialized. So if we are awake it is
+	 * because the running job has just finished
+	 * and we can remove all async fds safely
+	 */
+	SSL_get_all_async_fds(ssl, NULL, &num_all_fds);
+	if (num_all_fds > 32) {
+		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+		return;
+	}
+
+	SSL_get_all_async_fds(ssl, all_fd, &num_all_fds);
+	for (i=0 ; i < num_all_fds ; i++)
+		fd_remove(all_fd[i]);
+
+	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
 	sslconns--;
 	jobs--;
 }
-
 /*
- * openssl async fd handler
+ * function used to manage a returned SSL_ERROR_WANT_ASYNC
+ * and enable/disable polling for async fds
  */
-void ssl_async_process_fds(struct connection *conn)
+static void inline ssl_async_process_fds(struct connection *conn, SSL *ssl)
 {
-	OSSL_ASYNC_FD add_fd;
-	OSSL_ASYNC_FD del_fd;
+	OSSL_ASYNC_FD add_fd[32], afd;
+	OSSL_ASYNC_FD del_fd[32];
 	size_t num_add_fds = 0;
 	size_t num_del_fds = 0;
-	SSL *ssl = conn->xprt_ctx;
+	int i;
 
 	SSL_get_changed_async_fds(ssl, NULL, &num_add_fds, NULL,
 			&num_del_fds);
-
-	if (num_add_fds == 0 && num_del_fds == 0) {
-		/* We must re-enable the poll on async_fd
-		   because openssl returns a WANT_ASYNC.
-		   We must also prevent the conn_handler
-		   to be called until a read event was
-		   polled on async fd */
-		if (conn->async_fd != -1) {
-			fd_want_recv(conn->async_fd);
-			__conn_sock_stop_both(conn);
-		}
+	if (num_add_fds > 32 || num_del_fds > 32) {
+		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 		return;
 	}
 
-	/* we don't support more than 1 async fd */
-	if (num_add_fds > 1 || num_del_fds > 1)
+	SSL_get_changed_async_fds(ssl, add_fd, &num_add_fds, del_fd, &num_del_fds);
+
+	/* We remove unused fds from the fdtab */
+	for (i=0 ; i < num_del_fds ; i++)
+		fd_remove(del_fd[i]);
+
+	/* We add new fds to the fdtab */
+	for (i=0 ; i < num_add_fds ; i++) {
+		afd = add_fd[i];
+		fdtab[afd].owner = conn;
+		fdtab[afd].iocb = ssl_async_fd_handler;
+		fd_insert(afd);
+	}
+
+	num_add_fds = 0;
+	SSL_get_all_async_fds(ssl, NULL, &num_add_fds);
+	if (num_add_fds > 32) {
+		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 		return;
-
-	SSL_get_changed_async_fds(ssl, &add_fd, &num_add_fds, &del_fd,
-			&num_del_fds);
-
-	if (num_del_fds) {
-		/* In practive, we never face this case
-		(using openssl 1.1.0e), the same async fd
-		is always kept until SSL_free */
-		if (conn->async_fd == del_fd) {
-			fd_remove(del_fd);
-			conn->async_fd = -1;
-		}
 	}
 
-	if (num_add_fds) {
-		conn->async_fd = add_fd;
-		fdtab[add_fd].owner = conn;
-		fdtab[add_fd].iocb = ssl_async_fd_handler;
-		fd_insert(add_fd);
-		/* We must enable the poll of async_fd
-		   because openssl returns a WANT_ASYNC.
-		   We must also prevent the conn_handler
-		   to be called until a read event was
-		   polled on async fd */
-		fd_want_recv(add_fd);
-		__conn_sock_stop_both(conn);
-	}
+	/* We activate the polling for all known async fds */
+	SSL_get_all_async_fds(ssl, add_fd, &num_add_fds);
+	for (i=0 ; i < num_add_fds ; i++)
+		fd_want_recv(add_fd[i]);
+
+	/* We must also prevent the conn_handler
+	 * to be called until a read event was
+	 * polled on an async fd
+	 */
+	__conn_sock_stop_both(conn);
 }
 #endif
 
@@ -4300,11 +4316,6 @@ static int ssl_sock_init(struct connection *conn)
 		return -1;
 	}
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-	/* Init async_fd to -1 (no async fd available yet) */
-	conn->async_fd = -1;
-#endif
-
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (objt_server(conn->target)) {
@@ -4470,7 +4481,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn);
+				ssl_async_process_fds(conn, conn->xprt_ctx);
 				return 0;
 			}
 #endif
@@ -4554,7 +4565,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
-			ssl_async_process_fds(conn);
+			ssl_async_process_fds(conn, conn->xprt_ctx);
 			return 0;
 		}
 #endif
@@ -4746,7 +4757,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn);
+				ssl_async_process_fds(conn, conn->xprt_ctx);
 				break;
 			}
 #endif
@@ -4854,7 +4865,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn);
+				ssl_async_process_fds(conn, conn->xprt_ctx);
 				break;
 			}
 #endif
@@ -4876,28 +4887,44 @@ static void ssl_sock_close(struct connection *conn) {
 
 	if (conn->xprt_ctx) {
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-		if (conn->async_fd != -1) {
-			/* the async fd is created and owned by the SSL engine, which is
-			 * responsible for fd closure. Here we are done with the async fd
-			 * thus disable the polling on it, as well as clean up fdtab entry.
-			 */
-			if (SSL_waiting_for_async(conn->xprt_ctx)) {
-				/* If we still waiting for the engine
-				 * on an async job, we must delay
-				 * the SSL_free until the job is finished
-				 * on the engine side. So we must
-				 * wait for a read event on the
-				 * file descriptor */
-				fdtab[conn->async_fd].owner = conn->xprt_ctx;
-				fdtab[conn->async_fd].iocb = ssl_async_fd_free;
-				fd_want_recv(conn->async_fd);
+		if (global_ssl.async) {
+			OSSL_ASYNC_FD all_fd[32], afd;
+			size_t num_all_fds = 0;
+			int i;
+
+			SSL_get_all_async_fds(conn->xprt_ctx, NULL, &num_all_fds);
+			if (num_all_fds > 32) {
+				send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+				return;
+			}
+
+			SSL_get_all_async_fds(conn->xprt_ctx, all_fd, &num_all_fds);
+
+			/* If an async job is pending, we must try to
+			   to catch the end using polling before calling
+			   SSL_free */
+			if (num_all_fds && SSL_waiting_for_async(conn->xprt_ctx)) {
+				for (i=0 ; i < num_all_fds ; i++) {
+					/* switch on an handler designed to
+					 * handle the SSL_free
+					 */
+					afd = all_fd[i];
+					fdtab[afd].iocb = ssl_async_fd_free;
+					fdtab[afd].owner = conn->xprt_ctx;
+					fd_want_recv(afd);
+				}
 				conn->xprt_ctx = NULL;
-				conn->async_fd = -1;
 				jobs++;
 				return;
 			}
-			fd_remove(conn->async_fd);
-			conn->async_fd = -1;
+			/* Else we can remove the fds from the fdtab
+			 * and call SSL_free.
+			 * note: we do a fd_remove and not a delete
+			 * because the fd is  owned by the engine.
+			 * the engine is responsible to close
+			 */
+			for (i=0 ; i < num_all_fds ; i++)
+				fd_remove(all_fd[i]);
 		}
 #endif
 		SSL_free(conn->xprt_ctx);
@@ -7155,8 +7182,8 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
 static int ssl_check_async_engine_count(void) {
 	int err_code = 0;
 
-	if (global_ssl.async && openssl_engines_initialized!=1) {
-		Alert("ssl-mode-async only supports one engine\n");
+	if (global_ssl.async && (openssl_engines_initialized > 32)) {
+		Alert("ssl-mode-async only supports a maximum of 32 engines.\n");
 		err_code = ERR_ABORT;
 	}
 	return err_code;
