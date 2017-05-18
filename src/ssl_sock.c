@@ -1821,71 +1821,103 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 #endif
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
-static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_server)
+typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
+
+static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
 {
 #if SSL_OP_NO_SSLv3
-	is_server ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
+	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
 		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
 #endif
 }
-static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_server) {
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_server_method())
+static void ctx_set_TLSv10_func(SSL_CTX *ctx, set_context_func c) {
+	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, TLSv1_server_method())
 		: SSL_CTX_set_ssl_version(ctx, TLSv1_client_method());
 }
-static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_server) {
+static void ctx_set_TLSv11_func(SSL_CTX *ctx, set_context_func c) {
 #if SSL_OP_NO_TLSv1_1
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method())
+	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method())
 		: SSL_CTX_set_ssl_version(ctx, TLSv1_1_client_method());
 #endif
 }
-static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_server) {
+static void ctx_set_TLSv12_func(SSL_CTX *ctx, set_context_func c) {
 #if SSL_OP_NO_TLSv1_2
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method())
+	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method())
 		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
 #endif
 }
-static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_server) {
-	/* TLS 1.2 is the last supported version in this context. */
-}
+/* TLS 1.2 is the last supported version in this context. */
+static void ctx_set_TLSv13_func(SSL_CTX *ctx, set_context_func c) {}
+/* Unusable in this context. */
+static void ssl_set_SSLv3_func(SSL *ssl, set_context_func c) {}
+static void ssl_set_TLSv10_func(SSL *ssl, set_context_func c) {}
+static void ssl_set_TLSv11_func(SSL *ssl, set_context_func c) {}
+static void ssl_set_TLSv12_func(SSL *ssl, set_context_func c) {}
+static void ssl_set_TLSv13_func(SSL *ssl, set_context_func c) {}
 #else /* openssl >= 1.1.0 */
-static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
+typedef enum { SET_MIN, SET_MAX } set_context_func;
+
+static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c) {
+	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
 }
-static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION)
+static void ssl_set_SSLv3_func(SSL *ssl, set_context_func c) {
+	c == SET_MAX ? SSL_set_max_proto_version(ssl, SSL3_VERSION)
+		: SSL_set_min_proto_version(ssl, SSL3_VERSION);
+}
+static void ctx_set_TLSv10_func(SSL_CTX *ctx, set_context_func c) {
+	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
 }
-static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION)
+static void ssl_set_TLSv10_func(SSL *ssl, set_context_func c) {
+	c == SET_MAX ? SSL_set_max_proto_version(ssl, TLS1_VERSION)
+		: SSL_set_min_proto_version(ssl, TLS1_VERSION);
+}
+static void ctx_set_TLSv11_func(SSL_CTX *ctx, set_context_func c) {
+	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
 }
-static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
+static void ssl_set_TLSv11_func(SSL *ssl, set_context_func c) {
+	c == SET_MAX ? SSL_set_max_proto_version(ssl, TLS1_1_VERSION)
+		: SSL_set_min_proto_version(ssl, TLS1_1_VERSION);
+}
+static void ctx_set_TLSv12_func(SSL_CTX *ctx, set_context_func c) {
+	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 }
-static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_max) {
+static void ssl_set_TLSv12_func(SSL *ssl, set_context_func c) {
+	c == SET_MAX ? SSL_set_max_proto_version(ssl, TLS1_2_VERSION)
+		: SSL_set_min_proto_version(ssl, TLS1_2_VERSION);
+}
+static void ctx_set_TLSv13_func(SSL_CTX *ctx, set_context_func c) {
 #if SSL_OP_NO_TLSv1_3
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
+	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 #endif
 }
+static void ssl_set_TLSv13_func(SSL *ssl, set_context_func c) {
+#if SSL_OP_NO_TLSv1_3
+	c == SET_MAX ? SSL_set_max_proto_version(ssl, TLS1_3_VERSION)
+		: SSL_set_min_proto_version(ssl, TLS1_3_VERSION);
 #endif
-static void ssl_set_None_func(SSL_CTX *ctx, int i) {
 }
+#endif
+static void ctx_set_None_func(SSL_CTX *ctx, set_context_func c) { }
+static void ssl_set_None_func(SSL *ssl, set_context_func c) { }
 
 static struct {
 	int      option;
 	uint16_t flag;
-	void   (*set_version)(SSL_CTX *, int);
+	void   (*ctx_set_version)(SSL_CTX *, set_context_func);
+	void   (*ssl_set_version)(SSL *, set_context_func);
 	const char *name;
 } methodVersions[] = {
-	{0, 0, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
-	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
-	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
-	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
-	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
-	{SSL_OP_NO_TLSv1_3, MC_SSL_O_NO_TLSV13, ssl_set_TLSv13_func, "TLSv1.3"}, /* CONF_TLSV13 */
+	{0, 0, ctx_set_None_func, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
+	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ctx_set_SSLv3_func, ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
+	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ctx_set_TLSv10_func, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
+	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ctx_set_TLSv11_func, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
+	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ctx_set_TLSv12_func, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
+	{SSL_OP_NO_TLSv1_3, MC_SSL_O_NO_TLSV13, ctx_set_TLSv13_func, ssl_set_TLSv13_func, "TLSv1.3"}, /* CONF_TLSV13 */
 };
 
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
@@ -3505,12 +3537,13 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	else
 		flags = conf_ssl_methods->flags;
 
+	/* Real min and max should be determinate with configuration and openssl's capabilities */
 	if (conf_ssl_methods->min)
 		flags |= (methodVersions[conf_ssl_methods->min].flag - 1);
 	if (conf_ssl_methods->max)
 		flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
-	/* Find min, max and holds */
+	/* find min, max and holes */
 	min = max = CONF_TLSV_NONE;
 	hole = 0;
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
@@ -3544,15 +3577,15 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
-		methodVersions[min].set_version(ctx, 1 /* server */);
+		methodVersions[min].ctx_set_version(ctx, SET_SERVER);
 	else
 		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 			if (flags & methodVersions[i].flag)
 				options |= methodVersions[i].option;
 #else   /* openssl >= 1.1.0 */
 	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
-        methodVersions[min].set_version(ctx, 0);
-        methodVersions[max].set_version(ctx, 1);
+        methodVersions[min].ctx_set_version(ctx, SET_MIN);
+        methodVersions[max].ctx_set_version(ctx, SET_MAX);
 #endif
 
 	if (bind_conf->ssl_options & BC_SSL_O_NO_TLS_TICKETS)
@@ -3962,7 +3995,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (conf_ssl_methods->max)
 		flags |= ~((methodVersions[conf_ssl_methods->max].flag << 1) - 1);
 
-	/* find min, max and holds */
+	/* find min, max and holes */
 	min = max = CONF_TLSV_NONE;
 	hole = 0;
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
@@ -3996,15 +4029,15 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
-		methodVersions[min].set_version(ctx, 0 /* client */);
+		methodVersions[min].ctx_set_version(ctx, SET_CLIENT);
 	else
 		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 			if (flags & methodVersions[i].flag)
 				options |= methodVersions[i].option;
 #else   /* openssl >= 1.1.0 */
 	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
-        methodVersions[min].set_version(ctx, 0);
-        methodVersions[max].set_version(ctx, 1);
+        methodVersions[min].ctx_set_version(ctx, SET_MIN);
+        methodVersions[max].ctx_set_version(ctx, SET_MAX);
 #endif
 
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
