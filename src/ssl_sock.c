@@ -1780,6 +1780,114 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 }
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
+
+#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
+#endif
+
+#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION   /* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
+#define SSL_renegotiate_pending(arg) 0
+#endif
+#ifndef SSL_OP_SINGLE_ECDH_USE                          /* needs OpenSSL >= 0.9.8 */
+#define SSL_OP_SINGLE_ECDH_USE 0
+#endif
+#ifndef SSL_OP_NO_TICKET                                /* needs OpenSSL >= 0.9.8 */
+#define SSL_OP_NO_TICKET 0
+#endif
+#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
+#define SSL_OP_NO_COMPRESSION 0
+#endif
+#ifndef SSL_OP_NO_TLSv1_1                               /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_1 0
+#endif
+#ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_2 0
+#endif
+#ifndef SSL_OP_NO_TLSv1_3                               /* dev */
+#define SSL_OP_NO_TLSv1_3 0
+#endif
+#ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
+#define SSL_OP_SINGLE_DH_USE 0
+#endif
+#ifndef SSL_OP_SINGLE_ECDH_USE                            /* needs OpenSSL >= 1.0.0 */
+#define SSL_OP_SINGLE_ECDH_USE 0
+#endif
+#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
+#define SSL_MODE_RELEASE_BUFFERS 0
+#endif
+#ifndef SSL_MODE_SMALL_BUFFERS                          /* needs small_records.patch */
+#define SSL_MODE_SMALL_BUFFERS 0
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_server)
+{
+#if SSL_OP_NO_SSLv3
+	is_server ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
+		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
+#endif
+}
+static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_server) {
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_client_method());
+}
+static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_server) {
+#if SSL_OP_NO_TLSv1_1
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_1_client_method());
+#endif
+}
+static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_server) {
+#if SSL_OP_NO_TLSv1_2
+	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method())
+		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
+#endif
+}
+static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_server) {
+	/* TLS 1.2 is the last supported version in this context. */
+}
+#else /* openssl >= 1.1.0 */
+static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
+}
+static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+}
+static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
+}
+static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_max) {
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+}
+static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_max) {
+#if SSL_OP_NO_TLSv1_3
+	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
+		: SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+#endif
+}
+#endif
+static void ssl_set_None_func(SSL_CTX *ctx, int i) {
+}
+
+static struct {
+	int      option;
+	uint16_t flag;
+	void   (*set_version)(SSL_CTX *, int);
+	const char *name;
+} methodVersions[] = {
+	{0, 0, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
+	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
+	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
+	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
+	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
+	{SSL_OP_NO_TLSv1_3, MC_SSL_O_NO_TLSV13, ssl_set_TLSv13_func, "TLSv1.3"}, /* CONF_TLSV13 */
+};
+
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 {
 	SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ctx), ssl_sock_bind_verifycbk);
@@ -3363,113 +3471,6 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 	fclose(f);
 	return cfgerr;
 }
-
-#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
-#endif
-
-#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION   /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
-#define SSL_renegotiate_pending(arg) 0
-#endif
-#ifndef SSL_OP_SINGLE_ECDH_USE                          /* needs OpenSSL >= 0.9.8 */
-#define SSL_OP_SINGLE_ECDH_USE 0
-#endif
-#ifndef SSL_OP_NO_TICKET                                /* needs OpenSSL >= 0.9.8 */
-#define SSL_OP_NO_TICKET 0
-#endif
-#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_1                               /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_1 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_2 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_3                               /* dev */
-#define SSL_OP_NO_TLSv1_3 0
-#endif
-#ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
-#define SSL_OP_SINGLE_DH_USE 0
-#endif
-#ifndef SSL_OP_SINGLE_ECDH_USE                            /* needs OpenSSL >= 1.0.0 */
-#define SSL_OP_SINGLE_ECDH_USE 0
-#endif
-#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
-#define SSL_MODE_RELEASE_BUFFERS 0
-#endif
-#ifndef SSL_MODE_SMALL_BUFFERS                          /* needs small_records.patch */
-#define SSL_MODE_SMALL_BUFFERS 0
-#endif
-
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
-static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_server)
-{
-#if SSL_OP_NO_SSLv3
-	is_server ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
-		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
-#endif
-}
-static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_server) {
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_server_method())
-		: SSL_CTX_set_ssl_version(ctx, TLSv1_client_method());
-}
-static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_server) {
-#if SSL_OP_NO_TLSv1_1
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method())
-		: SSL_CTX_set_ssl_version(ctx, TLSv1_1_client_method());
-#endif
-}
-static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_server) {
-#if SSL_OP_NO_TLSv1_2
-	is_server ? SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method())
-		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
-#endif
-}
-static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_server) {
-	/* TLS 1.2 is the last supported version in this context. */
-}
-#else /* openssl >= 1.1.0 */
-static void ssl_set_SSLv3_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
-		: SSL_CTX_set_min_proto_version(ctx, SSL3_VERSION);
-}
-static void ssl_set_TLSv10_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_VERSION)
-		: SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
-}
-static void ssl_set_TLSv11_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_1_VERSION)
-		: SSL_CTX_set_min_proto_version(ctx, TLS1_1_VERSION);
-}
-static void ssl_set_TLSv12_func(SSL_CTX *ctx, int is_max) {
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION)
-		: SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-}
-static void ssl_set_TLSv13_func(SSL_CTX *ctx, int is_max) {
-#if SSL_OP_NO_TLSv1_3
-	is_max ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
-		: SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
-#endif
-}
-#endif
-static void ssl_set_None_func(SSL_CTX *ctx, int i) {
-}
-
-static struct {
-	int      option;
-	uint16_t flag;
-	void   (*set_version)(SSL_CTX *, int);
-	const char *name;
-} methodVersions[] = {
-	{0, 0, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
-	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
-	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
-	{SSL_OP_NO_TLSv1_1, MC_SSL_O_NO_TLSV11, ssl_set_TLSv11_func, "TLSv1.1"}, /* CONF_TLSV11 */
-	{SSL_OP_NO_TLSv1_2, MC_SSL_O_NO_TLSV12, ssl_set_TLSv12_func, "TLSv1.2"}, /* CONF_TLSV12 */
-	{SSL_OP_NO_TLSv1_3, MC_SSL_O_NO_TLSV13, ssl_set_TLSv13_func, "TLSv1.3"}, /* CONF_TLSV13 */
-};
 
 /* Create an initial CTX used to start the SSL connection before switchctx */
 static int
