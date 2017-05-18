@@ -2106,8 +2106,15 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	node = node_ecdsa ? node_ecdsa : (node_rsa ? node_rsa : node_anonymous);
 
 	if (node) {
+		int min, max;
 		/* switch ctx */
 		ssl_sock_switchctx_set(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
+		min = container_of(node, struct sni_ctx, name)->conf->ssl_methods.min;
+		if (min != s->ssl_methods.min)
+			methodVersions[min].ssl_set_version(ctx->ssl, SET_MIN);
+		max = container_of(node, struct sni_ctx, name)->conf->ssl_methods.max;
+		if (max != s->ssl_methods.max)
+			methodVersions[max].ssl_set_version(ctx->ssl, SET_MAX);
 		return 1;
 	}
 	if (!s->strict_sni) {
@@ -3572,6 +3579,9 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr += 1;
 	}
+	/* save real min/max in bind_conf */
+	conf_ssl_methods->min = min;
+	conf_ssl_methods->max = max;
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
@@ -3622,6 +3632,36 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	struct ssl_bind_conf *ssl_conf_cur;
 	const char *conf_ciphers;
 	const char *conf_curves = NULL;
+
+	if (ssl_conf) {
+		struct tls_version_filter *conf_ssl_methods = &ssl_conf->ssl_methods;
+		int i, min, max;
+		int flags = MC_SSL_O_ALL;
+
+		/* Real min and max should be determinate with configuration and openssl's capabilities */
+		min = conf_ssl_methods->min ? conf_ssl_methods->min : bind_conf->ssl_methods.min;
+		max = conf_ssl_methods->max ? conf_ssl_methods->max : bind_conf->ssl_methods.max;
+		if (min)
+			flags |= (methodVersions[min].flag - 1);
+		if (max)
+			flags |= ~((methodVersions[max].flag << 1) - 1);
+		min = max = CONF_TLSV_NONE;
+		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+			if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
+				if (min)
+					max = i;
+				else
+					min = max = i;
+			}
+		/* save real min/max */
+		conf_ssl_methods->min = min;
+		conf_ssl_methods->max = max;
+		if (!min) {
+			Alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+			      bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr += 1;
+		}
+	}
 
 	switch ((ssl_conf && ssl_conf->verify) ? ssl_conf->verify : bind_conf->ssl_conf.verify) {
 		case SSL_SOCK_VERIFY_NONE:
@@ -6641,6 +6681,14 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 	return 0;
 }
 
+static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+{
+#if !defined(OPENSSL_IS_BORINGSSL)
+	Warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
+#endif
+	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
+}
+
 static int bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
@@ -7831,6 +7879,8 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "npn",                   ssl_bind_parse_npn,              1 }, /* set NPN supported protocols */
+	{ "ssl-min-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* minimum version */
+	{ "ssl-max-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* maximum version */
 	{ "verify",                ssl_bind_parse_verify,           1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },
 };

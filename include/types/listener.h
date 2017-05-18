@@ -124,6 +124,7 @@ struct ssl_bind_conf {
 	char *ciphers;             /* cipher suite to use if non-null */
 	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
+	struct tls_version_filter ssl_methods; /* ssl methods */
 #endif
 };
 
