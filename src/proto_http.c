@@ -459,7 +459,7 @@ void init_proto_http()
 
 	/* memory allocations */
 	pool2_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
-	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
+	pool2_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
 
@@ -2959,8 +2959,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		if ((txn->uri = pool_alloc2(pool2_requri)) != NULL) {
 			int urilen = msg->sl.rq.l;
 
-			if (urilen >= REQURI_LEN)
-				urilen = REQURI_LEN - 1;
+			if (urilen >= global.tune.requri_len )
+				urilen = global.tune.requri_len - 1;
 			memcpy(txn->uri, req->buf->p, urilen);
 			txn->uri[urilen] = 0;
 

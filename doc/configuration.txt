@@ -598,6 +598,7 @@ The following keywords are supported in the "global" section :
    - tune.chksize
    - tune.comp.maxlevel
    - tune.http.cookielen
+   - tune.http.logurilen
    - tune.http.maxhdr
    - tune.idletimer
    - tune.lua.forced-yield
@@ -759,7 +760,8 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
            truncate them before sending them. Accepted values are 80 to 65535
            inclusive. The default value of 1024 is generally fine for all
            standard usages. Some specific cases of long captures or
-           JSON-formated logs may require larger values.
+           JSON-formated logs may require larger values. You may also need to
+           increase "tune.http.logurilen" if your request uris are truncated.
 
   <format> is the log format used when generating syslog messages. It may be
            one of the following :
@@ -1352,6 +1354,14 @@ tune.http.cookielen <number>
   per response, so the memory allocated is twice this value per connection.
   When not specified, the limit is set to 63 characters. It is recommended not
   to change this value.
+
+tune.http.logurilen <number>
+  Sets the maximum length of request uri in logs. This prevent to truncate long
+  requests uris with valuable query strings in log lines. This is not related
+  to syslog limits. If you increase this limit, you may also increase the
+  'log ... len yyyy' parameter. Your syslog deamon may also need specific
+  configuration directives too.
+  The default value is 1024.
 
 tune.http.maxhdr <number>
   Sets the maximum number of headers in a request. When a request comes with a

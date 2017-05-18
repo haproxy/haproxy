@@ -897,6 +897,16 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.cookie_len = atol(args[1]) + 1;
 	}
+	else if (!strcmp(args[0], "tune.http.logurilen")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.requri_len = atol(args[1]) + 1;
+	}
 	else if (!strcmp(args[0], "tune.http.maxhdr")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -7369,6 +7379,9 @@ int check_config_validity()
 
 	if (!global.tune.cookie_len)
 		global.tune.cookie_len = CAPTURE_LEN;
+
+	if (!global.tune.requri_len)
+		global.tune.requri_len = REQURI_LEN;
 
 	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
 

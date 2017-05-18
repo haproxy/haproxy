@@ -143,6 +143,7 @@ struct global {
 		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
+		int requri_len;    /* max len of request URI, use REQURI_LEN if zero */
 		int cookie_len;    /* max length of cookie captures */
 		int pattern_cache; /* max number of entries in the pattern cache. */
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */

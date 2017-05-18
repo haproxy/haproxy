@@ -273,7 +273,7 @@
 #define STREAM_MAX_COST (sizeof(struct stream) + \
                           2 * sizeof(struct channel) + \
                           2 * sizeof(struct connection) + \
-                          REQURI_LEN + \
+                          global.tune.requri_len + \
                           2 * global.tune.cookie_len)
 #endif
 
