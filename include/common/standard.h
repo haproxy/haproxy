@@ -371,7 +371,7 @@ struct sockaddr_storage *str2sa_range(const char *str,
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
- * if the conversion succeeds otherwise non-zero.
+ * if the conversion succeeds otherwise zero.
  */
 int str2mask(const char *str, struct in_addr *mask);
 
