@@ -44,11 +44,24 @@ int dns_send_query(struct dns_resolution *resolution);
 void dns_print_current_resolutions(struct dns_resolvers *resolvers);
 void dns_update_resolvers_timeout(struct dns_resolvers *resolvers);
 void dns_reset_resolution(struct dns_resolution *resolution);
+void dns_resolution_free(struct dns_resolvers *resolvers, struct dns_resolution *resolution);
+void dns_rm_requester_from_resolution(struct dns_requester *requester, struct dns_resolution *resolution);
 int dns_check_resolution_queue(struct dns_resolvers *resolvers);
 unsigned short dns_response_get_query_id(unsigned char *resp);
 struct dns_resolution *dns_alloc_resolution(void);
 void dns_free_resolution(struct dns_resolution *resolution);
 struct chunk *dns_cache_key(int query_type, char *hostname_dn, int hostname_dn_len, struct chunk *buf);
 struct lru64 *dns_cache_lookup(int query_type, char *hostname_dn, int hostname_dn_len, int valid_period, void *cache_domain);
+int dns_link_resolution(void *requester, int requester_type, struct dns_resolution *resolution);
+struct dns_resolution *dns_resolution_list_get(struct dns_resolvers *resolvers, char *hostname_dn, int query_type);
+int dns_trigger_resolution(struct dns_resolution *resolution);
+int dns_alloc_resolution_pool(struct dns_resolvers *resolvers);
+
+void dump_dns_config(void);
+
+/*
+ * erases all information of a dns_requester structure
+ */
+#define		dns_clear_requester(requester)	memset(requester, '\0', sizeof(*requester));
 
 #endif // _PROTO_DNS_H

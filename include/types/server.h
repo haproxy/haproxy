@@ -254,6 +254,7 @@ struct server {
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
 
+	struct dns_requester *dns_requester;	/* used to link a server to its DNS resolution */
 	char *resolvers_id;			/* resolvers section used by this server */
 	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used by this server */
 	char *hostname;				/* server hostname */

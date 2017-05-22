@@ -11597,9 +11597,6 @@ resolution at run time.
 Whether run time server name resolution has been enable or not, HAProxy will
 carry on doing the first resolution when parsing the configuration.
 
-Bear in mind that DNS resolution is triggered by health checks. This makes
-health checks mandatory to allow DNS resolution.
-
 
 5.3.1. Global overview
 ----------------------
@@ -11702,6 +11699,11 @@ hold <status> <period>
   Note: since the name resolution is triggered by the health checks, a new
         resolution is triggered after <period> modulo the <inter> parameter of
         the healch check.
+
+resolution_pool_size <nb>
+  Defines the number of resolutions available in the pool for this resolvers.
+  If not defines, it defaults to 64. If your configuration requires more than
+  <nb>, then HAProxy will return an error when parsing the configuration.
 
 resolve_retries <nb>
   Defines the number <nb> of queries to send to resolve a server name before

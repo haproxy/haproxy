@@ -59,6 +59,7 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/compression.h>
+#include <proto/dns.h>
 #include <proto/stats.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>
@@ -2164,8 +2165,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->hold.valid = 10000;
 		curr_resolvers->timeout.retry = 1000;
 		curr_resolvers->resolve_retries = 3;
+		/* default resolution pool size */
+		curr_resolvers->resolution_pool_size = DNS_DEFAULT_RESOLUTION_POOL_SIZE;
 		LIST_INIT(&curr_resolvers->nameserver_list);
-		LIST_INIT(&curr_resolvers->curr_resolution);
+		LIST_INIT(&curr_resolvers->resolution.curr);
+		LIST_INIT(&curr_resolvers->resolution.wait);
+		LIST_INIT(&curr_resolvers->resolution.pool);
 	}
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct sockaddr_storage *sk;
@@ -2276,6 +2281,15 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+	}
+	else if (strcmp(args[0], "resolution_pool_size") == 0) {
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects <nb> as argument.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curr_resolvers->resolution_pool_size = atoi(args[1]);
 	}
 	else if (strcmp(args[0], "resolve_retries") == 0) {
 		if (!*args[1]) {
@@ -7365,6 +7379,7 @@ int check_config_validity()
 	unsigned int next_pxid = 1;
 	struct bind_conf *bind_conf;
 	char *err;
+	struct dns_resolvers *curr_resolvers;
 
 	bind_conf = NULL;
 	/*
@@ -7384,6 +7399,15 @@ int check_config_validity()
 		global.tune.requri_len = REQURI_LEN;
 
 	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
+
+	/* allocate pool of resolution per resolvers */
+	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+		if (dns_alloc_resolution_pool(curr_resolvers) != 0) {
+			/* error message is already displayed by dns_alloc_resolution_pool() */
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+	}
 
 	/* Post initialisation of the users and groups lists. */
 	err_code = userlist_postinit();
@@ -8514,8 +8538,15 @@ out_uri_auth_compat:
 					newsrv->id, newsrv->resolvers_id);
 					cfgerr++;
 				} else {
-					if (newsrv->resolution)
+					if (newsrv->hostname_dn) {
 						newsrv->resolvers = curr_resolvers;
+						if (dns_link_resolution(newsrv, OBJ_TYPE_SERVER, NULL) != 0) {
+							Alert("config : %s '%s', server '%s': unable to set DNS resolution\n",
+							proxy_type_str(curproxy), curproxy->id,
+							newsrv->id);
+							cfgerr++;
+						}
+					}
 				}
 			}
 			else {

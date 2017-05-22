@@ -82,6 +82,9 @@
 /* DNS header size */
 #define DNS_HEADER_SIZE		sizeof(struct dns_header)
 
+/* DNS resolution pool size, per resolvers section */
+#define DNS_DEFAULT_RESOLUTION_POOL_SIZE	64
+
 /* DNS request or response header structure */
 struct dns_header {
 	uint16_t id;
@@ -157,7 +160,12 @@ struct dns_resolvers {
 		int other;              /*   other dns response errors */
 	} hold;
 	struct task *t;			/* timeout management */
-	struct list curr_resolution;	/* current running resolutions */
+	int resolution_pool_size;	/* size of the resolution pool associated to this resolvers section */
+	struct {
+		struct list pool;	/* resolution pool dedicated to this resolvers section */
+		struct list wait;	/* resolutions managed to this resolvers section */
+		struct list curr;	/* current running resolutions */
+	} resolution;
 	struct eb_root query_ids;	/* tree to quickly lookup/retrieve query ids currently in use */
 					/* used by each nameserver, but stored in resolvers since there must */
 					/* be a unique relation between an eb_root and an eb_node (resolution) */
@@ -218,11 +226,15 @@ struct dns_options {
  */
 struct dns_resolution {
 	struct list list;		/* resolution list */
-	void *requester;		/* owner of this name resolution */
+	struct {
+		struct list wait;	/* list of standby requesters for this resolution */
+		struct list curr;	/* list of requesters currently active on this resolution */
+	} requester;
 	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *);
 					/* requester callback for valid response */
 	int (*requester_error_cb)(struct dns_resolution *, int);
 					/* requester callback, for error management */
+	int uuid;			/* unique id (used for debugging purpose) */
 	char *hostname_dn;		/* server hostname in domain name label format */
 	int hostname_dn_len;		/* server domain name label len */
 	unsigned int last_resolution;	/* time of the lastest valid resolution */
@@ -242,6 +254,19 @@ struct dns_resolution {
 	struct dns_query_item response_query_records[DNS_MAX_QUERY_RECORDS];		/* <response> query records */
 	struct dns_answer_item response_answer_records[DNS_MAX_ANSWER_RECORDS];	/* <response> answer records */
 	struct chunk response_buffer;	/* buffer used as a data store for <response> above TODO: optimize the size (might be smaller) */
+};
+
+/*
+ * structure used to describe the owner of a DNS resolution.
+ */
+struct dns_requester {
+	struct list list;		/* requester list */
+	enum obj_type *requester;	/* pointer to the requester */
+	int prefered_query_type;	/* prefered query type */
+	int (*requester_cb)(struct dns_requester *, struct dns_nameserver *);
+					/* requester callback for valid response */
+	int (*requester_error_cb)(struct dns_requester *, int);
+					/* requester callback, for error management */
 };
 
 /* last resolution status code */

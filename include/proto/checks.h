@@ -28,7 +28,6 @@
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 void __health_adjust(struct server *s, short status);
-int trigger_resolution(struct server *s);
 
 extern struct data_cb check_conn_cb;
 
