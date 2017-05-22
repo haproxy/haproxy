@@ -1117,6 +1117,43 @@ out:
 
 #endif
 
+#ifdef OPENSSL_IS_BORINGSSL
+static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_path)
+{
+	char ocsp_path[MAXPATHLEN+1];
+	struct stat st;
+	int fd = -1, r = 0;
+
+	snprintf(ocsp_path, MAXPATHLEN+1, "%s.ocsp", cert_path);
+	if (stat(ocsp_path, &st))
+		return 0;
+
+	fd = open(ocsp_path, O_RDONLY);
+	if (fd == -1) {
+		Warning("Error opening OCSP response file %s.\n", ocsp_path);
+		return -1;
+	}
+
+	trash.len = 0;
+	while (trash.len < trash.size) {
+		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+		if (r < 0) {
+			if (errno == EINTR)
+				continue;
+			Warning("Error reading OCSP response from file %s.\n", ocsp_path);
+			close(fd);
+			return -1;
+		}
+		else if (r == 0) {
+			break;
+		}
+		trash.len += r;
+	}
+	close(fd);
+	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)trash.str, trash.len);
+}
+#endif
+
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 
 #define CT_EXTENSION_TYPE 18
@@ -2743,6 +2780,8 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 						rv = 1;
 						goto end;
 					}
+#elif (defined OPENSSL_IS_BORINGSSL)
+					ssl_sock_set_ocsp_response_from_file(cur_ctx, cur_file);
 #endif
 				}
 			}
@@ -2996,6 +3035,8 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 				  *err ? *err : "", path);
 		return 1;
 	}
+#elif (defined OPENSSL_IS_BORINGSSL)
+	ssl_sock_set_ocsp_response_from_file(ctx, path);
 #endif
 
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)

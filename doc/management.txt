@@ -1658,7 +1658,8 @@ set ssl ocsp-response <response>
   This command is used to update an OCSP Response for a certificate (see "crt"
   on "bind" lines). Same controls are performed as during the initial loading of
   the response. The <response> must be passed as a base64 encoded string of the
-  DER encoded response from the OCSP server.
+  DER encoded response from the OCSP server. This command is not supported with
+  BoringSSL.
 
   Example:
     openssl ocsp -issuer issuer.pem -cert server.pem \
