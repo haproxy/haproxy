@@ -3824,7 +3824,7 @@ int snr_update_srv_status(struct server *s)
  *  0 on error
  *  1 when no error or safe ignore
  */
-int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, struct dns_response_packet *dns_p)
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver)
 {
 	struct server *s;
 	void *serverip, *firstip;
@@ -3859,7 +3859,7 @@ int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(dns_p, &s->dns_opts,
+	ret = dns_get_ip_from_response(&resolution->response, &s->dns_opts,
 	                               serverip, server_sin_family, &firstip,
 	                               &firstip_sin_family, s);
 

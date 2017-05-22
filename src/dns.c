@@ -43,17 +43,6 @@
 struct list dns_resolvers = LIST_HEAD_INIT(dns_resolvers);
 struct dns_resolution *resolution = NULL;
 
-/*
- * pre-allocated memory for maximum record names in a DNS response
- * Each name is DNS_MAX_NAME_SIZE, we add 1 for the NULL character
- *
- * WARNING: this is not thread safe...
- */
-struct dns_response_packet dns_response;
-struct chunk dns_trash = { };
-struct dns_query_item dns_query_records[DNS_MAX_QUERY_RECORDS];
-struct dns_answer_item dns_answer_records[DNS_MAX_ANSWER_RECORDS];
-
 static int64_t dns_query_id_seed;	/* random seed */
 
 /* proto_udp callback functions for a DNS resolution */
@@ -141,7 +130,6 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	int fd, buflen, ret;
 	unsigned short query_id;
 	struct eb32_node *eb;
-	struct dns_response_packet *dns_p = &dns_response;
 
 	fd = dgram->t.sock.fd;
 
@@ -200,7 +188,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		/* number of responses received */
 		resolution->nb_responses += 1;
 
-		ret = dns_validate_dns_response(buf, bufend, dns_p);
+		ret = dns_validate_dns_response(buf, bufend, resolution);
 
 		/* treat only errors */
 		switch (ret) {
@@ -250,7 +238,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		/* Now let's check the query's dname corresponds to the one we sent.
 		 * We can check only the first query of the list. We send one query at a time
 		 * so we get one query in the response */
-		query = LIST_NEXT(&dns_p->query_list, struct dns_query_item *, list);
+		query = LIST_NEXT(&resolution->response.query_list, struct dns_query_item *, list);
 		if (query && memcmp(query->name, resolution->hostname_dn, resolution->hostname_dn_len) != 0) {
 			nameserver->counters.other += 1;
 			resolution->requester_error_cb(resolution, DNS_RESP_WRONG_NAME);
@@ -258,7 +246,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		}
 
 		nameserver->counters.valid += 1;
-		resolution->requester_cb(resolution, nameserver, dns_p);
+		resolution->requester_cb(resolution, nameserver);
 	}
 }
 
@@ -439,13 +427,13 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend, unsigned char *n
  * Function to validate that the buffer DNS response provided in <resp> and
  * finishing before <bufend> is valid from a DNS protocol point of view.
  *
- * The result is stored in the structured pointed by <dns_p>.
- * It's up to the caller to allocate memory for <dns_p>.
+ * The result is stored in <resolution>' response, buf_response, response_query_records
+ * and response_answer_records members.
  *
  * This function returns one of the DNS_RESP_* code to indicate the type of
  * error found.
  */
-int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_response_packet *dns_p)
+int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_resolution *resolution)
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
@@ -453,14 +441,18 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	int dns_query_record_id, dns_answer_record_id;
 	struct dns_query_item *dns_query;
 	struct dns_answer_item *dns_answer_record;
+	struct dns_response_packet *dns_p;
+	struct chunk *dns_response_buffer;
 
 	reader = resp;
 	len = 0;
 	previous_dname = NULL;
 
-	/* initialization of local buffer */
+	/* initialization of response buffer and structure */
+	dns_p = &resolution->response;
+	dns_response_buffer = &resolution->response_buffer;
 	memset(dns_p, '\0', sizeof(struct dns_response_packet));
-	chunk_reset(&dns_trash);
+	chunk_reset(dns_response_buffer);
 
 	/* query id */
 	if (reader + 2 >= bufend)
@@ -540,7 +532,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		 */
 		if (dns_query_record_id > DNS_MAX_QUERY_RECORDS)
 			return DNS_RESP_INVALID;
-		dns_query = &dns_query_records[dns_query_record_id];
+		dns_query = &resolution->response_query_records[dns_query_record_id];
 		LIST_ADDQ(&dns_p->query_list, &dns_query->list);
 
 		/* name is a NULL terminated string in our case, since we have
@@ -579,7 +571,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		 * to the record list */
 		if (dns_answer_record_id > DNS_MAX_ANSWER_RECORDS)
 			return DNS_RESP_INVALID;
-		dns_answer_record = &dns_answer_records[dns_answer_record_id];
+		dns_answer_record = &resolution->response_answer_records[dns_answer_record_id];
 		LIST_ADDQ(&dns_p->answer_list, &dns_answer_record->list);
 
 		offset = 0;
@@ -604,11 +596,11 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 		}
 
-		dns_answer_record->name = chunk_newstr(&dns_trash);
+		dns_answer_record->name = chunk_newstr(dns_response_buffer);
 		if (dns_answer_record->name == NULL)
 			return DNS_RESP_INVALID;
 
-		ret = chunk_strncat(&dns_trash, tmpname, len);
+		ret = chunk_strncat(dns_response_buffer, tmpname, len);
 		if (ret == 0)
 			return DNS_RESP_INVALID;
 
@@ -674,11 +666,11 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 				if (len == 0)
 					return DNS_RESP_INVALID;
 
-				dns_answer_record->target = chunk_newstr(&dns_trash);
+				dns_answer_record->target = chunk_newstr(dns_response_buffer);
 				if (dns_answer_record->target == NULL)
 					return DNS_RESP_INVALID;
 
-				ret = chunk_strncat(&dns_trash, tmpname, len);
+				ret = chunk_strncat(dns_response_buffer, tmpname, len);
 				if (ret == 0)
 					return DNS_RESP_INVALID;
 
@@ -702,7 +694,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	} /* for i 0 to ancount */
 
 	/* let's add a last \0 to close our last string */
-	ret = chunk_strncat(&dns_trash, "\0", 1);
+	ret = chunk_strncat(dns_response_buffer, "\0", 1);
 	if (ret == 0)
 		return DNS_RESP_INVALID;
 
@@ -737,7 +729,6 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	int j;
 	int rec_nb = 0;
 	int score, max_score;
-	struct dns_response_packet *dns_response = dns_p;
 
 	family_priority = dns_opts->family_prio;
 	*newip = newip4 = newip6 = NULL;
@@ -745,7 +736,7 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	*newip_sin_family = AF_UNSPEC;
 
 	/* now parsing response records */
-	list_for_each_entry(record, &dns_response->answer_list, list) {
+	list_for_each_entry(record, &dns_p->answer_list, list) {
 		/* analyzing record content */
 		switch (record->type) {
 			case DNS_RTYPE_A:
@@ -943,18 +934,7 @@ int dns_init_resolvers(int close_socket)
 	struct dns_nameserver *curnameserver;
 	struct dgram_conn *dgram;
 	struct task *t;
-	char *dns_trash_str;
 	int fd;
-
-	dns_trash_str = malloc(global.tune.bufsize);
-	if (dns_trash_str == NULL) {
-		Alert("Starting resolvers: out of memory.\n");
-		return 0;
-	}
-
-	/* allocate memory for the dns_trash buffer used to temporarily store
-	 * the records of the received response */
-	chunk_init(&dns_trash, dns_trash_str, global.tune.bufsize);
 
 	/* give a first random value to our dns query_id seed */
 	dns_query_id_seed = random();
@@ -1326,13 +1306,18 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 struct dns_resolution *dns_alloc_resolution(void)
 {
 	struct dns_resolution *resolution = NULL;
+	char *buffer = NULL;
 
 	resolution = calloc(1, sizeof(*resolution));
+	buffer = calloc(1, global.tune.bufsize);
 
-	if (!resolution) {
+	if (!resolution || !buffer) {
+		free(buffer);
 		free(resolution);
 		return NULL;
 	}
+
+	chunk_init(&resolution->response_buffer, buffer, global.tune.bufsize);
 
 	return resolution;
 }
@@ -1340,6 +1325,7 @@ struct dns_resolution *dns_alloc_resolution(void)
 /* This function free the memory allocated to a DNS resolution */
 void dns_free_resolution(struct dns_resolution *resolution)
 {
+	chunk_destroy(&resolution->response_buffer);
 	free(resolution);
 
 	return;

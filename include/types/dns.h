@@ -219,7 +219,7 @@ struct dns_options {
 struct dns_resolution {
 	struct list list;		/* resolution list */
 	void *requester;		/* owner of this name resolution */
-	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *, struct dns_response_packet *);
+	int (*requester_cb)(struct dns_resolution *, struct dns_nameserver *);
 					/* requester callback for valid response */
 	int (*requester_error_cb)(struct dns_resolution *, int);
 					/* requester callback, for error management */
@@ -237,6 +237,10 @@ struct dns_resolution {
 	int try;			/* current resolution try */
 	int try_cname;			/* number of CNAME requests sent */
 	int nb_responses;		/* count number of responses received */
+	struct dns_response_packet response;	/* structure hosting the DNS response */
+	struct dns_query_item response_query_records[DNS_MAX_QUERY_RECORDS];		/* <response> query records */
+	struct dns_answer_item response_answer_records[DNS_MAX_ANSWER_RECORDS];	/* <response> answer records */
+	struct chunk response_buffer;	/* buffer used as a data store for <response> above TODO: optimize the size (might be smaller) */
 };
 
 /* last resolution status code */

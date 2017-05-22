@@ -53,7 +53,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg);
 
 /* functions related to server name resolution */
 int snr_update_srv_status(struct server *s);
-int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, struct dns_response_packet *dns_p);
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver);
 int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code);
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family);
 
