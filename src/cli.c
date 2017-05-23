@@ -217,7 +217,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 
 		bind_conf = bind_conf_alloc(global.stats_fe, file, line, args[2], xprt_get(XPRT_RAW));
-		bind_conf->level = ACCESS_LVL_OPER; /* default access level */
+		bind_conf->level &= ~ACCESS_LVL_MASK;
+		bind_conf->level |= ACCESS_LVL_OPER; /* default access level */
 
 		if (!str2listener(args[2], global.stats_fe, bind_conf, file, line, err)) {
 			memprintf(err, "parsing [%s:%d] : '%s %s' : %s\n",
@@ -383,7 +384,7 @@ int cli_has_level(struct appctx *appctx, int level)
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
 
-	if (strm_li(s)->bind_conf->level < level) {
+	if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < level) {
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = CLI_ST_PRINT;
 		return 0;
@@ -790,12 +791,12 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						} else
 							continue;
 
-						if (bind_conf->level == ACCESS_LVL_USER)
-							chunk_appendf(&trash, "user ");
-						else if (bind_conf->level == ACCESS_LVL_OPER)
-							chunk_appendf(&trash, "operator ");
-						else if (bind_conf->level == ACCESS_LVL_ADMIN)
+						if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
 							chunk_appendf(&trash, "admin ");
+						else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
+							chunk_appendf(&trash, "operator ");
+						else if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
+							chunk_appendf(&trash, "user ");
 						else
 							chunk_appendf(&trash, "  ");
 
@@ -1000,13 +1001,16 @@ static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct b
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcmp(args[cur_arg+1], "user"))
-		conf->level = ACCESS_LVL_USER;
-	else if (!strcmp(args[cur_arg+1], "operator"))
-		conf->level = ACCESS_LVL_OPER;
-	else if (!strcmp(args[cur_arg+1], "admin"))
-		conf->level = ACCESS_LVL_ADMIN;
-	else {
+	if (!strcmp(args[cur_arg+1], "user")) {
+		conf->level &= ~ACCESS_LVL_MASK;
+		conf->level |= ACCESS_LVL_USER;
+	} else if (!strcmp(args[cur_arg+1], "operator")) {
+		conf->level &= ~ACCESS_LVL_MASK;
+		conf->level |= ACCESS_LVL_OPER;
+	} else if (!strcmp(args[cur_arg+1], "admin")) {
+		conf->level &= ~ACCESS_LVL_MASK;
+		conf->level |= ACCESS_LVL_ADMIN;
+	} else {
 		memprintf(err, "'%s' only supports 'user', 'operator', and 'admin' (got '%s')",
 			  args[cur_arg], args[cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;

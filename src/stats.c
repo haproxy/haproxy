@@ -1957,7 +1957,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 
 	if (uri)
 		flags = uri->flags;
-	else if (strm_li(s)->bind_conf->level >= ACCESS_LVL_OPER)
+	else if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		flags = ST_SHLGNDS | ST_SHNODE | ST_SHDESC;
 	else
 		flags = ST_SHNODE | ST_SHDESC;

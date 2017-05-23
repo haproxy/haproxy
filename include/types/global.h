@@ -69,6 +69,8 @@
 #define ACCESS_LVL_USER     1
 #define ACCESS_LVL_OPER     2
 #define ACCESS_LVL_ADMIN    3
+#define ACCESS_LVL_MASK     0x3
+
 
 /* SSL server verify mode */
 enum {

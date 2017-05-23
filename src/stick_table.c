@@ -2253,7 +2253,7 @@ static int table_dump_head_to_buffer(struct chunk *msg, struct stream_interface 
 
 	/* any other information should be dumped here */
 
-	if (target && strm_li(s)->bind_conf->level < ACCESS_LVL_OPER)
+	if (target && (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
 	if (bi_putchk(si_ic(si), msg) == -1) {
@@ -2667,7 +2667,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 					return 0;
 
 				if (appctx->ctx.table.target &&
-				    strm_li(s)->bind_conf->level >= ACCESS_LVL_OPER) {
+				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
 					eb = ebmb_first(&appctx->ctx.table.proxy->table.keys);
 					if (eb) {
