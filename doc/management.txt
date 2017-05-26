@@ -280,7 +280,8 @@ list of options is :
   -x <unix_socket> : connect to the specified socket and try to retrieve any
     listening sockets from the old process, and use them instead of trying to
     bind new ones. This is useful to avoid missing any new connection when
-    reloading the configuration on Linux.
+    reloading the configuration on Linux. The capability must be enable on the
+    stats socket using "expose-fd listeners" in your configuration.
 
 A safe way to start HAProxy from an init file consists in forcing the daemon
 mode, storing existing pids to a pid file and using this pid file to notify

@@ -993,6 +993,24 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 	return 1;
 }
 
+/* parse the "expose-fd" argument on the bind lines */
+static int bind_parse_expose_fd(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing fd type", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (!strcmp(args[cur_arg+1], "listeners")) {
+		conf->level |= ACCESS_FD_LISTENERS;
+	} else {
+		memprintf(err, "'%s' only supports 'listeners' (got '%s')",
+			  args[cur_arg], args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* parse the "level" argument on the bind lines */
 static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1026,6 +1044,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	unsigned char *tmpbuf = NULL;
 	struct cmsghdr *cmsg;
 	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
 	struct connection *remote = objt_conn(si_opposite(si)->end);
 	struct msghdr msghdr;
 	struct iovec iov;
@@ -1057,7 +1076,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv));
 	iov.iov_base = &tot_fd_nb;
 	iov.iov_len = sizeof(tot_fd_nb);
-	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+	if (!(strm_li(s)->bind_conf->level & ACCESS_FD_LISTENERS))
 		goto out;
 	memset(&msghdr, 0, sizeof(msghdr));
 	/*
@@ -1224,7 +1243,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 static struct bind_kw_list bind_kws = { "STAT", { }, {
-	{ "level",    bind_parse_level,    1 }, /* set the unix socket admin level */
+	{ "level",     bind_parse_level,    1 }, /* set the unix socket admin level */
+	{ "expose-fd", bind_parse_expose_fd, 1 }, /* set the unix socket expose fd rights */
 	{ NULL, NULL, 0 },
 }};
 

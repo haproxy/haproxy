@@ -10413,6 +10413,11 @@ defer-accept
   an established connection while the proxy will only see it in SYN_RECV. This
   option is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
 
+expose-fd listeners
+  This option is only usable with the stats socket. It gives your stats socket
+  the capability to pass listeners FD to another HAProxy process.
+  See alors "-x" in the management guide.
+
 force-sslv3
   This option enforces use of SSLv3 only on SSL connections instantiated from
   this listener. SSLv3 is generally less expensive than the TLS counterparts
