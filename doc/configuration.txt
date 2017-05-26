@@ -587,7 +587,6 @@ The following keywords are supported in the "global" section :
    - nosplice
    - nogetaddrinfo
    - noreuseport
-   - no-unused-socket
    - spread-checks
    - server-state-base
    - server-state-file
@@ -1250,12 +1249,6 @@ nogetaddrinfo
 noreuseport
   Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
   command line argument "-dR".
-
-no-unused-socket
-  By default, each haproxy process keeps all sockets opened, event those that
-  are only used by another processes, so that any process can provide all the
-  sockets, to make reloads seamless. This option disables this, and close all
-  unused sockets, to save some file descriptors.
 
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending agent and health checks to

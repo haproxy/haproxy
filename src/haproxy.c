@@ -859,7 +859,6 @@ static void init(int argc, char **argv)
 #if defined(SO_REUSEPORT)
 	global.tune.options |= GTUNE_USE_REUSEPORT;
 #endif
-	global.tune.options |= GTUNE_SOCKET_TRANSFER;
 
 	pid = getpid();
 	progname = *argv;
@@ -2163,6 +2162,24 @@ int main(int argc, char **argv)
 					while (waitpid(-1, NULL, 0) == -1 && errno == EINTR);
 			}
 			exit(0); /* parent must leave */
+		}
+
+		/* pass through every cli socket, and check if it's bound to
+		 * the current process and if it exposes listeners sockets.
+		 * Caution: the GTUNE_SOCKET_TRANSFER is now set after the fork.
+		 * */
+
+		if (global.stats_fe) {
+			struct bind_conf *bind_conf;
+
+			list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+				if (bind_conf->level & ACCESS_FD_LISTENERS) {
+					if (!bind_conf->bind_proc || bind_conf->bind_proc & (1UL << proc)) {
+						global.tune.options |= GTUNE_SOCKET_TRANSFER;
+						break;
+					}
+				}
+			}
 		}
 
 		/* we might have to unbind some proxies from some processes */
