@@ -1963,8 +1963,9 @@ static struct task *process_peer_sync(struct task * task)
 
 		if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
 			/* Resync not finished*/
-			/* reschedule task to resync timeout, to ended resync if needed */
-			task->expire = tick_first(task->expire, peers->resync_timeout);
+			/* reschedule task to resync timeout if not expired, to ended resync if needed */
+			if (!tick_is_expired(peers->resync_timeout, now_ms))
+				task->expire = tick_first(task->expire, peers->resync_timeout);
 		}
 	} /* !stopping */
 	else {
