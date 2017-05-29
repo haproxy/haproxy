@@ -138,6 +138,10 @@ int  thread_need_sync(void);
 
 enum lock_label {
 	THREAD_SYNC_LOCK = 0,
+	FDTAB_LOCK,
+	FDCACHE_LOCK,
+	FD_LOCK,
+	POLL_LOCK,
 	POOL_LOCK,
 	LOCK_LABELS
 };
@@ -221,7 +225,8 @@ struct ha_rwlock {
 
 static inline void show_lock_stats()
 {
-	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "POOL"};
+	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "FDTAB", "FDCACHE", "FD", "POLL",
+					   "POOL" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {

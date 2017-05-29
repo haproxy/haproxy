@@ -30,7 +30,7 @@
 
 /* private data */
 static int kqueue_fd;
-static struct kevent *kev = NULL;
+static THREAD_LOCAL struct kevent *kev = NULL;
 
 /*
  * kqueue() poller
@@ -46,19 +46,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		fdtab[fd].updated = 0;
-		fdtab[fd].new = 0;
 
 		if (!fdtab[fd].owner)
 			continue;
 
+		SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
+
 		eo = fdtab[fd].state;
 		en = fd_compute_new_polled_status(eo);
+		fdtab[fd].state = en;
+		SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed */
-			fdtab[fd].state = en;
-
 			if ((eo ^ en) & FD_EV_POLLED_R) {
 				/* read poll status changed */
 				if (en & FD_EV_POLLED_R) {
@@ -139,6 +141,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 }
 
+
+static int init_kqueue_per_thread()
+{
+	/* we can have up to two events per fd (*/
+	kev = calloc(1, sizeof(struct kevent) * 2 * global.maxsock);
+	if (kev == NULL)
+		return 0;
+	return 1;
+}
+
+static void deinit_kqueue_per_thread()
+{
+	free(kev);
+}
+
 /*
  * Initialization of the kqueue() poller.
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
@@ -152,11 +169,13 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (kqueue_fd < 0)
 		goto fail_fd;
 
-	/* we can have up to two events per fd (*/
-	kev = calloc(1, sizeof(struct kevent) * 2 * global.maxsock);
-	if (kev == NULL)
+	if (global.nbthread > 1) {
+		hap_register_per_thread_init(init_kqueue_per_thread);
+		hap_register_per_thread_deinit(deinit_kqueue_per_thread);
+	}
+	else if (!init_kqueue_per_thread())
 		goto fail_kev;
-		
+
 	return 1;
 
  fail_kev:

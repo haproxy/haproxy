@@ -28,13 +28,13 @@
 
 
 /* private data */
-static struct epoll_event *epoll_events;
+static THREAD_LOCAL struct epoll_event *epoll_events = NULL;
 static int epoll_fd;
 
 /* This structure may be used for any purpose. Warning! do not use it in
  * recursive functions !
  */
-static struct epoll_event ev;
+static THREAD_LOCAL struct epoll_event ev;
 
 #ifndef EPOLLRDHUP
 /* EPOLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
@@ -49,9 +49,8 @@ static struct epoll_event ev;
  */
 REGPRM1 static void __fd_clo(int fd)
 {
-	if (unlikely(fdtab[fd].cloned)) {
+	if (unlikely(fdtab[fd].cloned))
 		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev);
-	}
 }
 
 /*
@@ -68,18 +67,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find polling changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		fdtab[fd].updated = 0;
-		fdtab[fd].new = 0;
 
 		if (!fdtab[fd].owner)
 			continue;
 
+		SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
+
 		eo = fdtab[fd].state;
 		en = fd_compute_new_polled_status(eo);
+		fdtab[fd].state = en;
+		SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed */
-			fdtab[fd].state = en;
 
 			if ((en & FD_EV_POLLED_RW) == 0) {
 				/* fd removed from poll list */
@@ -103,6 +105,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				ev.events |= EPOLLOUT;
 
 			ev.data.fd = fd;
+
 			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
 	}
@@ -154,12 +157,25 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		/* always remap RDHUP to HUP as they're used similarly */
 		if (e & EPOLLRDHUP) {
-			cur_poller.flags |= HAP_POLL_F_RDHUP;
+			HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
 			n |= FD_POLL_HUP;
 		}
 		fd_update_events(fd, n);
 	}
 	/* the caller will take care of cached events */
+}
+
+static int init_epoll_per_thread()
+{
+	epoll_events = calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
+	if (epoll_events == NULL)
+		return 0;
+	return 1;
+}
+
+static void deinit_epoll_per_thread()
+{
+	free(epoll_events);
 }
 
 /*
@@ -175,10 +191,11 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (epoll_fd < 0)
 		goto fail_fd;
 
-	epoll_events = (struct epoll_event*)
-		calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
-
-	if (epoll_events == NULL)
+	if (global.nbthread > 1) {
+		hap_register_per_thread_init(init_epoll_per_thread);
+		hap_register_per_thread_deinit(deinit_epoll_per_thread);
+	}
+	else if (!init_epoll_per_thread())
 		goto fail_ee;
 
 	return 1;

@@ -23,6 +23,7 @@
 #define _TYPES_FD_H
 
 #include <common/config.h>
+#include <common/hathreads.h>
 #include <types/port_range.h>
 
 /* Direction for each FD event update */
@@ -93,6 +94,9 @@ enum fd_states {
 struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */

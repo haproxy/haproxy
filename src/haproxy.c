@@ -2202,7 +2202,35 @@ void deinit(void)
 	deinit_pollers();
 } /* end deinit() */
 
+void mworker_pipe_handler(int fd)
+{
+	char c;
 
+	while (read(fd, &c, 1) == -1) {
+		if (errno == EINTR)
+			continue;
+		if (errno == EAGAIN) {
+			fd_cant_recv(fd);
+			return;
+		}
+		break;
+	}
+
+	deinit();
+	exit(EXIT_FAILURE);
+	return;
+}
+
+void mworker_pipe_register(int pipefd[2])
+{
+	close(mworker_pipe[1]); /* close the write end of the master pipe in the children */
+
+	fcntl(mworker_pipe[0], F_SETFL, O_NONBLOCK);
+	fdtab[mworker_pipe[0]].owner = mworker_pipe;
+	fdtab[mworker_pipe[0]].iocb = mworker_pipe_handler;
+	fd_insert(mworker_pipe[0]);
+	fd_want_recv(mworker_pipe[0]);
+}
 
 static void sync_poll_loop()
 {
@@ -2278,6 +2306,10 @@ static void *run_thread_poll_loop(void *data)
 		}
 	}
 
+	if (global.mode & MODE_MWORKER)
+		mworker_pipe_register(mworker_pipe);
+
+	protocol_enable_all();
 	THREAD_SYNC_ENABLE();
 	run_poll_loop();
 
@@ -2319,37 +2351,6 @@ static struct task *manage_global_listener_queue(struct task *t)
 	task_queue(t);
 	return t;
 }
-
-void mworker_pipe_handler(int fd)
-{
-	char c;
-
-	while (read(fd, &c, 1) == -1) {
-		if (errno == EINTR)
-			continue;
-		if (errno == EAGAIN) {
-			fd_cant_recv(fd);
-			return;
-		}
-		break;
-	}
-
-	deinit();
-	exit(EXIT_FAILURE);
-	return;
-}
-
-void mworker_pipe_register(int pipefd[2])
-{
-		close(mworker_pipe[1]); /* close the write end of the master pipe in the children */
-
-		fcntl(mworker_pipe[0], F_SETFL, O_NONBLOCK);
-		fdtab[mworker_pipe[0]].owner = mworker_pipe;
-		fdtab[mworker_pipe[0]].iocb = mworker_pipe_handler;
-		fd_insert(mworker_pipe[0]);
-		fd_want_recv(mworker_pipe[0]);
-	}
-
 
 int main(int argc, char **argv)
 {
@@ -2798,11 +2799,6 @@ int main(int argc, char **argv)
 	}
 
 	global.mode &= ~MODE_STARTING;
-
-	if (global.mode & MODE_MWORKER)
-		mworker_pipe_register(mworker_pipe);
-
-	protocol_enable_all();
 	/*
 	 * That's it : the central polling loop. Run until we stop.
 	 */
@@ -2827,6 +2823,12 @@ int main(int argc, char **argv)
 	}
 	else {
 		tid = 0;
+
+		if (global.mode & MODE_MWORKER)
+			mworker_pipe_register(mworker_pipe);
+
+		protocol_enable_all();
+
 		run_poll_loop();
 	}
 

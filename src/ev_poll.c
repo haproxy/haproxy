@@ -35,8 +35,8 @@
 static unsigned int *fd_evts[2];
 
 /* private data */
-static struct pollfd *poll_events = NULL;
-
+static THREAD_LOCAL int nbfd = 0;
+static THREAD_LOCAL struct pollfd *poll_events = NULL;
 
 static inline void hap_fd_set(int fd, unsigned int *evts)
 {
@@ -50,8 +50,10 @@ static inline void hap_fd_clr(int fd, unsigned int *evts)
 
 REGPRM1 static void __fd_clo(int fd)
 {
+	SPIN_LOCK(POLL_LOCK, &poll_lock);
 	hap_fd_clr(fd, fd_evts[DIR_RD]);
 	hap_fd_clr(fd, fd_evts[DIR_WR]);
+	SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 }
 
 /*
@@ -60,7 +62,7 @@ REGPRM1 static void __fd_clo(int fd)
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
 	int status;
-	int fd, nbfd;
+	int fd;
 	int wait_time;
 	int updt_idx, en, eo;
 	int fds, count;
@@ -70,19 +72,22 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		fdtab[fd].updated = 0;
-		fdtab[fd].new = 0;
 
 		if (!fdtab[fd].owner)
 			continue;
 
+		SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
+
 		eo = fdtab[fd].state;
 		en = fd_compute_new_polled_status(eo);
+		fdtab[fd].state = en;
+		SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed, update the lists */
-			fdtab[fd].state = en;
-
+			SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
 				hap_fd_clr(fd, fd_evts[DIR_RD]);
 			else if ((en & ~eo) & FD_EV_POLLED_R)
@@ -92,6 +97,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				hap_fd_clr(fd, fd_evts[DIR_WR]);
 			else if ((en & ~eo) & FD_EV_POLLED_W)
 				hap_fd_set(fd, fd_evts[DIR_WR]);
+			SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
 	fd_nbupdt = 0;
@@ -100,7 +106,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (fds = 0; (fds * 8*sizeof(**fd_evts)) < maxfd; fds++) {
 		rn = fd_evts[DIR_RD][fds];
 		wn = fd_evts[DIR_WR][fds];
-	  
+
 		if (!(rn|wn))
 			continue;
 
@@ -112,9 +118,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				poll_events[nbfd].events = (sr ? (POLLIN | POLLRDHUP) : 0) | (sw ? POLLOUT : 0);
 				nbfd++;
 			}
-		}		  
+		}
 	}
-      
+
 	/* now let's wait for events */
 	if (!exp)
 		wait_time = MAX_DELAY_MS;
@@ -135,7 +141,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		unsigned int n;
 		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
-	  
+
 		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP | POLLRDHUP )))
 			continue;
 
@@ -161,13 +167,26 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		/* always remap RDHUP to HUP as they're used similarly */
 		if (e & POLLRDHUP) {
-			cur_poller.flags |= HAP_POLL_F_RDHUP;
+			HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
 			n |= FD_POLL_HUP;
 		}
-
 		fd_update_events(fd, n);
 	}
 
+}
+
+
+static int init_poll_per_thread()
+{
+	poll_events = calloc(1, sizeof(struct pollfd) * global.maxsock);
+	if (poll_events == NULL)
+		return 0;
+	return 1;
+}
+
+static void deinit_poll_per_thread()
+{
+	free(poll_events);
 }
 
 /*
@@ -183,14 +202,15 @@ REGPRM1 static int _do_init(struct poller *p)
 	p->private = NULL;
 	fd_evts_bytes = (global.maxsock + sizeof(**fd_evts) - 1) / sizeof(**fd_evts) * sizeof(**fd_evts);
 
-	poll_events = calloc(1, sizeof(struct pollfd) * global.maxsock);
-
-	if (poll_events == NULL)
+	if (global.nbthread > 1) {
+		hap_register_per_thread_init(init_poll_per_thread);
+		hap_register_per_thread_deinit(deinit_poll_per_thread);
+	}
+	else if (!init_poll_per_thread())
 		goto fail_pe;
-		
+
 	if ((fd_evts[DIR_RD] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_srevt;
-
 	if ((fd_evts[DIR_WR] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_swevt;
 
