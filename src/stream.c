@@ -239,9 +239,10 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
-	 * priorities to tasks.
+	 * priorities to tasks. Using multi thread we must be sure that
+	 * stream is fully initialized before calling task_wakeup. So
+	 * the caller must handle the task_wakeup
 	 */
-	task_wakeup(t, TASK_WOKEN_INIT);
 	return s;
 
 	/* Error unrolling */

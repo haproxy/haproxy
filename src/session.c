@@ -276,6 +276,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	strm->target         = sess->listener->default_target;
 	strm->req.analysers |= sess->listener->analysers;
 
+	task_wakeup(t, TASK_WOKEN_INIT);
 	return 1;
 
  out_free_task:
@@ -446,6 +447,7 @@ static int conn_complete_session(struct connection *conn)
 	strm->req.analysers |= sess->listener->analysers;
 	conn->flags &= ~CO_FL_INIT_DATA;
 
+	task_wakeup(task, TASK_WOKEN_INIT);
 	return 0;
 
  fail:

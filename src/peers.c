@@ -1835,6 +1835,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	totalconn++;
 
 	peer->appctx = appctx;
+	task_wakeup(t, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */

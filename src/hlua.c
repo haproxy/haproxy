@@ -2353,6 +2353,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	jobs++;
 	totalconn++;
 
+	task_wakeup(task, TASK_WOKEN_INIT);
 	/* Return yield waiting for connection. */
 	return 1;
 

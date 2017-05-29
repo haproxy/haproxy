@@ -1960,6 +1960,8 @@ spoe_create_appctx(struct spoe_config *conf)
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
 	LIST_ADDQ(&conf->agent->applets, &SPOE_APPCTX(appctx)->list);
 	conf->agent->applets_act++;
+
+	task_wakeup(task, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */
