@@ -52,7 +52,9 @@
 #ifndef OPENSSL_NO_DH
 #include <openssl/dh.h>
 #endif
+#ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
+#endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 #include <openssl/async.h>
@@ -213,12 +215,14 @@ static int ssl_capture_ptr_index = -1;
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
 
+#ifndef OPENSSL_NO_ENGINE
 static unsigned int openssl_engines_initialized;
 struct list openssl_engines = LIST_HEAD_INIT(openssl_engines);
 struct ssl_engine_list {
 	struct list list;
 	ENGINE *e;
 };
+#endif
 
 #ifndef OPENSSL_NO_DH
 static int ssl_dh_ptr_index = -1;
@@ -315,6 +319,7 @@ struct ocsp_cbk_arg {
 	};
 };
 
+#ifndef OPENSSL_NO_ENGINE
 static int ssl_init_single_engine(const char *engine_id, const char *def_algorithms)
 {
 	int err_code = ERR_ABORT;
@@ -355,6 +360,7 @@ fail_init:
 fail_get:
 	return err_code;
 }
+#endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 /*
@@ -7220,6 +7226,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
 #endif
 }
 
+#ifndef OPENSSL_NO_ENGINE
 static int ssl_check_async_engine_count(void) {
 	int err_code = 0;
 
@@ -7271,6 +7278,7 @@ add_engine:
 	free(algo);
 	return ret;
 }
+#endif
 
 /* parse the "ssl-default-bind-ciphers" / "ssl-default-server-ciphers" keywords
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
@@ -7881,7 +7889,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-dh-param-file", ssl_parse_global_dh_param_file },
 #endif
 	{ CFG_GLOBAL, "ssl-mode-async",  ssl_parse_global_ssl_async },
+#ifndef OPENSSL_NO_ENGINE
 	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
+#endif
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
@@ -7955,8 +7965,10 @@ static void __ssl_sock_init(void)
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
 	cli_register_kw(&cli_kws);
+#ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
+#endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	hap_register_post_check(tlskeys_finalize_config);
 #endif
@@ -8020,12 +8032,14 @@ static void __ssl_sock_init(void)
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	hap_register_post_deinit(ssl_free_dh);
 #endif
+#ifndef OPENSSL_NO_ENGINE
 	hap_register_post_deinit(ssl_free_engines);
-
+#endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
 }
 
+#ifndef OPENSSL_NO_ENGINE
 void ssl_free_engines(void) {
 	struct ssl_engine_list *wl, *wlb;
 	/* free up engine list */
@@ -8036,6 +8050,7 @@ void ssl_free_engines(void) {
 		free(wl);
 	}
 }
+#endif
 
 #ifndef OPENSSL_NO_DH
 void ssl_free_dh(void) {
