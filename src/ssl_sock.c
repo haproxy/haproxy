@@ -427,7 +427,7 @@ static void ssl_async_fd_free(int fd)
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
 	sslconns--;
-	jobs--;
+	HA_ATOMIC_SUB(&jobs, 1);
 }
 /*
  * function used to manage a returned SSL_ERROR_WANT_ASYNC
@@ -5487,7 +5487,7 @@ static void ssl_sock_close(struct connection *conn) {
 					fd_cant_recv(afd);
 				}
 				conn->xprt_ctx = NULL;
-				jobs++;
+				HA_ATOMIC_ADD(&jobs, 1);
 				return;
 			}
 			/* Else we can remove the fds from the fdtab

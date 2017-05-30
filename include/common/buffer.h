@@ -651,6 +651,7 @@ static inline void b_reset(struct buffer *buf)
 	buf->o = 0;
 	buf->i = 0;
 	buf->p = buf->data;
+
 }
 
 /* Allocates a buffer and replaces *buf with this buffer. If no memory is

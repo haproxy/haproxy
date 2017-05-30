@@ -112,7 +112,7 @@ static void inline proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
 	fe->fe_counters.cum_conn++;
 	if (l->counters)
-		l->counters->cum_conn++;
+		HA_ATOMIC_ADD(&l->counters->cum_conn, 1);
 
 	update_freq_ctr(&fe->fe_conn_per_sec, 1);
 	if (fe->fe_conn_per_sec.curr_ctr > fe->fe_counters.cps_max)
@@ -124,7 +124,7 @@ static void inline proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
 	fe->fe_counters.cum_sess++;
 	if (l->counters)
-		l->counters->cum_sess++;
+		HA_ATOMIC_ADD(&l->counters->cum_sess, 1);
 	update_freq_ctr(&fe->fe_sess_per_sec, 1);
 	if (fe->fe_sess_per_sec.curr_ctr > fe->fe_counters.sps_max)
 		fe->fe_counters.sps_max = fe->fe_sess_per_sec.curr_ctr;

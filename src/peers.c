@@ -24,6 +24,7 @@
 #include <common/config.h>
 #include <common/time.h>
 #include <common/standard.h>
+#include <common/hathreads.h>
 
 #include <types/global.h>
 #include <types/listener.h>
@@ -1974,7 +1975,7 @@ static struct task *process_peer_sync(struct task * task)
 			/* We've just recieved the signal */
 			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 				/* add DO NOT STOP flag if not present */
-				jobs++;
+				HA_ATOMIC_ADD(&jobs, 1);
 				peers->flags |= PEERS_F_DONOTSTOP;
 				ps = peers->local;
 				for (st = ps->tables; st ; st = st->next)
@@ -1994,7 +1995,7 @@ static struct task *process_peer_sync(struct task * task)
 		if (ps->flags & PEER_F_TEACH_COMPLETE) {
 			if (peers->flags & PEERS_F_DONOTSTOP) {
 				/* resync of new process was complete, current process can die now */
-				jobs--;
+				HA_ATOMIC_ADD(&jobs, 1);
 				peers->flags &= ~PEERS_F_DONOTSTOP;
 				for (st = ps->tables; st ; st = st->next)
 					st->table->syncing--;
@@ -2018,7 +2019,7 @@ static struct task *process_peer_sync(struct task * task)
 				/* Other error cases */
 				if (peers->flags & PEERS_F_DONOTSTOP) {
 					/* unable to resync new process, current process can die now */
-					jobs--;
+					HA_ATOMIC_SUB(&jobs, 1);
 					peers->flags &= ~PEERS_F_DONOTSTOP;
 					for (st = ps->tables; st ; st = st->next)
 						st->table->syncing--;

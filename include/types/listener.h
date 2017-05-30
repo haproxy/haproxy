@@ -32,6 +32,8 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <common/hathreads.h>
+
 #include <types/obj_type.h>
 #include <eb32tree.h>
 
@@ -197,6 +199,10 @@ struct listener {
 	int maxseg;			/* for TCP, advertised MSS */
 	int tcp_ut;                     /* for TCP, user timeout */
 	char *interface;		/* interface name or NULL */
+
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 
 	const struct netns_entry *netns; /* network namespace of the listener*/
 

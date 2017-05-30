@@ -169,7 +169,7 @@ resume_execution:
 				s->be->be_counters.denied_req++;
 				sess->fe->fe_counters.denied_req++;
 				if (sess->listener && sess->listener->counters)
-					sess->listener->counters->denied_req++;
+					HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -347,7 +347,7 @@ resume_execution:
 				s->be->be_counters.denied_resp++;
 				sess->fe->fe_counters.denied_resp++;
 				if (sess->listener && sess->listener->counters)
-					sess->listener->counters->denied_resp++;
+					HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -429,7 +429,7 @@ int tcp_exec_l4_rules(struct session *sess)
 			else if (rule->action == ACT_ACTION_DENY) {
 				sess->fe->fe_counters.denied_conn++;
 				if (sess->listener && sess->listener->counters)
-					sess->listener->counters->denied_conn++;
+					HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
 
 				result = 0;
 				break;
@@ -516,7 +516,7 @@ int tcp_exec_l5_rules(struct session *sess)
 			else if (rule->action == ACT_ACTION_DENY) {
 				sess->fe->fe_counters.denied_sess++;
 				if (sess->listener && sess->listener->counters)
-					sess->listener->counters->denied_sess++;
+					HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
 
 				result = 0;
 				break;

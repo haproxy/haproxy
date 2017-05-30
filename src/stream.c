@@ -19,6 +19,7 @@
 #include <common/buffer.h>
 #include <common/debug.h>
 #include <common/memory.h>
+#include <common/hathreads.h>
 
 #include <types/applet.h>
 #include <types/capture.h>
@@ -477,7 +478,7 @@ void stream_process_counters(struct stream *s)
 			objt_server(s->target)->counters.bytes_in += bytes;
 
 		if (sess->listener && sess->listener->counters)
-			sess->listener->counters->bytes_in += bytes;
+			HA_ATOMIC_ADD(&sess->listener->counters->bytes_in, bytes);
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
 			struct stkctr *stkctr = &s->stkctr[i];
@@ -514,7 +515,7 @@ void stream_process_counters(struct stream *s)
 			objt_server(s->target)->counters.bytes_out += bytes;
 
 		if (sess->listener && sess->listener->counters)
-			sess->listener->counters->bytes_out += bytes;
+			HA_ATOMIC_ADD(&sess->listener->counters->bytes_out, bytes);
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
 			struct stkctr *stkctr = &s->stkctr[i];
@@ -986,7 +987,7 @@ static void sess_set_term_flags(struct stream *s)
 
 			strm_fe(s)->fe_counters.failed_req++;
 			if (strm_li(s) && strm_li(s)->counters)
-				strm_li(s)->counters->failed_req++;
+				HA_ATOMIC_ADD(&strm_li(s)->counters->failed_req, 1);
 
 			s->flags |= SF_FINST_R;
 		}

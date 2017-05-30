@@ -57,8 +57,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 			fe->fe_counters.conn_max = fe->feconn;
 		if (li)
 			proxy_inc_fe_conn_ctr(li, fe);
-		totalconn++;
-		jobs++;
+		HA_ATOMIC_ADD(&totalconn, 1);
+		HA_ATOMIC_ADD(&jobs, 1);
 	}
 	return sess;
 }
@@ -69,7 +69,7 @@ void session_free(struct session *sess)
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
-	jobs--;
+	HA_ATOMIC_SUB(&jobs, 1);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
