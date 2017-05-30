@@ -848,7 +848,7 @@ OBJS = src/cfgparse.o src/proto_http.o src/stats.o src/server.o src/stream.o \
        src/haproxy.o src/stream_interface.o src/tcp_rules.o src/proxy.o \
        src/listener.o src/acl.o src/flt_http_comp.o src/filters.o src/dns.o \
        src/cli.o src/flt_trace.o src/connection.o src/session.o src/vars.o \
-       src/hpack-tbl.o src/hpack-huff.o \
+       src/hpack-dec.o src/hpack-tbl.o src/hpack-huff.o \
        src/map.o src/payload.o src/namespace.o src/compression.o \
        src/mailers.o src/auth.o src/proto_udp.o src/memory.o src/freq_ctr.o \
        src/signal.o src/uri_auth.o src/buffer.o src/task.o src/chunk.o \
