@@ -13,12 +13,18 @@
 
 #include <signal.h>
 #include <common/standard.h>
+#include <common/hathreads.h>
+
 #include <types/signal.h>
 #include <types/task.h>
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];
 extern struct pool_head *pool2_sig_handlers;
+
+#ifdef USE_THREAD
+extern HA_SPINLOCK_T signals_lock;
+#endif
 
 void signal_handler(int sig);
 void __signal_process_queue();

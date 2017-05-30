@@ -2819,6 +2819,10 @@ int main(int argc, char **argv)
 		free(tids);
 		free(threads);
 
+#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+		show_lock_stats();
+#endif
+
 #endif /* USE_THREAD */
 	}
 	else {

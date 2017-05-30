@@ -145,6 +145,7 @@ enum lock_label {
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
 	POOL_LOCK,
+	SIGNALS_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -228,7 +229,8 @@ struct ha_rwlock {
 static inline void show_lock_stats()
 {
 	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "FDTAB", "FDCACHE", "FD", "POLL",
-					   "TASK_RQ", "TASK_WQ", "POOL" };
+					   "TASK_RQ", "TASK_WQ", "POOL",
+					   "SIGNALS" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
