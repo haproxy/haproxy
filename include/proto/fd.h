@@ -404,6 +404,7 @@ static inline void fd_insert(int fd)
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].cache = 0;
+	fdtab[fd].process_mask = 0; // unused for now
 	SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 	SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);

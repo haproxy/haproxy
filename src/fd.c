@@ -202,6 +202,7 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].owner = NULL;
 	fdtab[fd].updated = 0;
 	fdtab[fd].new = 0;
+	fdtab[fd].process_mask = 0;
 	if (do_close)
 		close(fd);
 	SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
