@@ -1107,7 +1107,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].iocb = listener->proto->accept;
-	fd_insert(fd);
+	fd_insert(fd, MAX_THREADS_MASK);
 
  tcp_return:
 	if (msg && errlen) {

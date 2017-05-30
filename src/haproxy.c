@@ -2228,7 +2228,7 @@ void mworker_pipe_register(int pipefd[2])
 	fcntl(mworker_pipe[0], F_SETFL, O_NONBLOCK);
 	fdtab[mworker_pipe[0]].owner = mworker_pipe;
 	fdtab[mworker_pipe[0]].iocb = mworker_pipe_handler;
-	fd_insert(mworker_pipe[0]);
+	fd_insert(mworker_pipe[0], MAX_THREADS_MASK);
 	fd_want_recv(mworker_pipe[0]);
 }
 

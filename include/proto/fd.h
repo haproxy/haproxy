@@ -395,7 +395,7 @@ static inline void fd_update_events(int fd, int evts)
 }
 
 /* Prepares <fd> for being polled */
-static inline void fd_insert(int fd)
+static inline void fd_insert(int fd, unsigned long thread_mask)
 {
 	SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fdtab[fd].ev = 0;
@@ -404,7 +404,7 @@ static inline void fd_insert(int fd)
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].cache = 0;
-	fdtab[fd].process_mask = 0; // unused for now
+	fdtab[fd].process_mask = thread_mask;
 	SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 	SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);

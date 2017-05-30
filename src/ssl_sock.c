@@ -459,7 +459,7 @@ static void inline ssl_async_process_fds(struct connection *conn, SSL *ssl)
 		afd = add_fd[i];
 		fdtab[afd].owner = conn;
 		fdtab[afd].iocb = ssl_async_fd_handler;
-		fd_insert(afd);
+		fd_insert(afd, tid_bit);
 	}
 
 	num_add_fds = 0;

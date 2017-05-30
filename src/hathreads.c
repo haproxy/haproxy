@@ -50,7 +50,7 @@ int thread_sync_init(unsigned long mask)
 
 	fdtab[rfd].owner = NULL;
 	fdtab[rfd].iocb = thread_sync_io_handler;
-	fd_insert(rfd);
+	fd_insert(rfd, MAX_THREADS_MASK);
 
 	all_threads_mask = mask;
 	return 0;

@@ -110,7 +110,7 @@ static inline void conn_ctrl_init(struct connection *conn)
 
 		fdtab[fd].owner = conn;
 		fdtab[fd].iocb = conn_fd_handler;
-		fd_insert(fd);
+		fd_insert(fd, tid_bit);
 		/* mark the fd as ready so as not to needlessly poll at the beginning */
 		fd_may_recv(fd);
 		fd_may_send(fd);
