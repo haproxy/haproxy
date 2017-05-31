@@ -454,8 +454,16 @@ static void inline ssl_async_process_fds(struct connection *conn, SSL *ssl)
 
 	/* We activate the polling for all known async fds */
 	SSL_get_all_async_fds(ssl, add_fd, &num_add_fds);
-	for (i=0 ; i < num_add_fds ; i++)
+	for (i=0 ; i < num_add_fds ; i++) {
 		fd_want_recv(add_fd[i]);
+		/* To ensure that the fd cache won't be used
+		 * We'll prefer to catch a real RD event
+		 * because handling an EAGAIN on this fd will
+		 * result in a context switch and also
+		 * some engines uses a fd in blocking mode.
+		 */
+		fd_cant_recv(add_fd[i]);
+	}
 
 	/* We must also prevent the conn_handler
 	 * to be called until a read event was
@@ -5037,6 +5045,10 @@ static void ssl_sock_close(struct connection *conn) {
 					fdtab[afd].iocb = ssl_async_fd_free;
 					fdtab[afd].owner = conn->xprt_ctx;
 					fd_want_recv(afd);
+					/* To ensure that the fd cache won't be used
+					 * and we'll catch a real RD event.
+					 */
+					fd_cant_recv(afd);
 				}
 				conn->xprt_ctx = NULL;
 				jobs++;
