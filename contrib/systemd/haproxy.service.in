@@ -12,6 +12,7 @@ ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
+Type=forking
 
 [Install]
 WantedBy=multi-user.target
