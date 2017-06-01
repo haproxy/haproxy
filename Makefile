@@ -61,8 +61,7 @@
 #          by "haproxy -vv" in CFLAGS.
 #   SILENT_DEFINE may be used to specify other defines which will not be
 #     reported by "haproxy -vv".
-#   EXTRA   is used to force building or not building some extra tools. By
-#           default on Linux 2.6+, it contains "haproxy-systemd-wrapper".
+#   EXTRA   is used to force building or not building some extra tools.
 #   DESTDIR is not set by default and is used for installation only.
 #           It might be useful to set DESTDIR if you want to install haproxy
 #           in a sandbox.
@@ -175,7 +174,7 @@ ADDLIB =
 DEFINE =
 SILENT_DEFINE =
 
-#### extra programs to build (eg: haproxy-systemd-wrapper)
+#### extra programs to build
 # Force this to enable building extra programs or to disable them.
 # It's automatically appended depending on the targets.
 EXTRA =
@@ -266,7 +265,6 @@ ifeq ($(TARGET),linux26)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
-  EXTRA          += haproxy-systemd-wrapper
   USE_DL          = implicit
 else
 ifeq ($(TARGET),linux2628)
@@ -282,7 +280,6 @@ ifeq ($(TARGET),linux2628)
   USE_FUTEX       = implicit
   USE_CPU_AFFINITY= implicit
   ASSUME_SPLICE_WORKS= implicit
-  EXTRA          += haproxy-systemd-wrapper
   USE_DL          = implicit
 else
 ifeq ($(TARGET),solaris)
@@ -835,7 +832,6 @@ ifneq ($(TRACE),)
 OBJS += src/trace.o
 endif
 
-WRAPPER_OBJS = src/haproxy-systemd-wrapper.o
 
 # Not used right now
 LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
@@ -848,9 +844,6 @@ DEP = $(INCLUDES) .build_opts
 .build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 
 haproxy: $(OPTIONS_OBJS) $(EBTREE_OBJS) $(OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
-
-haproxy-systemd-wrapper: $(WRAPPER_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 $(LIB_EBTREE): $(EBTREE_OBJS)
@@ -873,11 +866,6 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
-	       -c -o $@ $<
-
-src/haproxy-systemd-wrapper.o:	src/haproxy-systemd-wrapper.c $(DEP)
-	$(CC) $(COPTS) \
-	      -DSBINDIR='"$(strip $(SBINDIR))"' \
 	       -c -o $@ $<
 
 src/dlmalloc.o: $(DLMALLOC_SRC) $(DEP)
@@ -915,14 +903,12 @@ uninstall:
 	done
 	-rmdir "$(DESTDIR)$(DOCDIR)"
 	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
-	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy-systemd-wrapper
 
 clean:
 	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
 	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
-	rm -f haproxy-systemd-wrapper
 
 tags:
 	find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
