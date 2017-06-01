@@ -671,6 +671,11 @@ static void mworker_wait()
 			/* check if exited child was in the current children list */
 			if (current_child(exitpid)) {
 				Alert("Current worker %d left with exit code %d\n", exitpid, status);
+				if (status != 0 && status != 130 && status != 143
+				    && global.tune.options & GTUNE_EXIT_ONFAILURE) {
+					Alert("exit-on-failure: killing every workers with SIGTERM\n");
+					mworker_kill(SIGTERM);
+				}
 			} else {
 				Warning("Former worker %d left with exit code %d\n", exitpid, status);
 				delete_oldpid(exitpid);
