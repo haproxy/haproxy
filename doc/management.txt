@@ -160,8 +160,6 @@ list of options is :
     configuration. It is recommended to always force it in any init script so
     that a faulty configuration doesn't prevent the system from booting.
 
-  -Ds : work in systemd mode. Only used by the systemd wrapper.
-
   -L <name> : change the local peer name to <name>, which defaults to the local
     hostname. This is used only with peers replication.
 
@@ -170,6 +168,13 @@ list of options is :
 
   -V : enable verbose mode (disables quiet mode). Reverts the effect of "-q" or
     "quiet".
+
+  -W : master-worker mode. It is equivalent to the "master-worker" keyword in
+    the "global" section of the configuration. This mode will launch a "master"
+    which will monitor the "workers". Using this mode, you can reload HAProxy
+    directly by sending a SIGUSR2 signal to the master.  The master-worker mode
+    is compatible either with the foreground or daemon mode.  It is
+    recommended to use this mode with multiprocess and systemd.
 
   -c : only performs a check of the configuration files and exits before trying
     to bind. The exit status is zero if everything is OK, or non-zero if an
@@ -418,6 +423,12 @@ Both of these signals may be sent by the new haproxy process itself during a
 reload or restart, so that they are sent at the latest possible moment and only
 if absolutely required. This is what is performed by the "-st" (hard) and "-sf"
 (graceful) options respectively.
+
+In master-worker mode, it is not needed to start a new haproxy process in
+order to reload the configuration. The master process reacts to the SIGUSR2
+signal by reexecuting itself with the -sf parameter followed by the PIDs of
+the workers. The master will then parse the configuration file and fork new
+workers.
 
 To understand better how these signals are used, it is important to understand
 the whole restart mechanism.

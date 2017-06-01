@@ -803,6 +803,20 @@ lua-load <file>
   This global directive loads and executes a Lua file. This directive can be
   used multiple times.
 
+master-worker [exit-on-failure]
+  Master-worker mode. It is equivalent to the command line "-W" argument.
+  This mode will launch a "master" which will monitor the "workers". Using
+  this mode, you can reload HAProxy directly by sending a SIGUSR2 signal to
+  the master.  The master-worker mode is compatible either with the foreground
+  or daemon mode. It is recommended to use this mode with multiprocess and
+  systemd.
+  The "exit-on-failure" option allows the master to kill every workers and
+  exit when one of the current workers died. It is convenient to combine this
+  option with Restart=on-failure in a systemd unit file in order to relaunch
+  the whole process.
+
+  See alors "-W" in the management guide.
+
 nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"
   mode. By default, only one process is created, which is the recommended mode
@@ -10431,6 +10445,8 @@ defer-accept
 expose-fd listeners
   This option is only usable with the stats socket. It gives your stats socket
   the capability to pass listeners FD to another HAProxy process.
+  During a reload with the master-worker mode, the process is automatically
+  reexecuted adding -x and one of the stats socket with this option.
   See alors "-x" in the management guide.
 
 force-sslv3
