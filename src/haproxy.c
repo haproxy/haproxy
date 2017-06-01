@@ -203,6 +203,8 @@ int *children = NULL; /* store PIDs of children in master workers mode */
 static volatile sig_atomic_t caught_signal = 0;
 static char **next_argv = NULL;
 
+int mworker_pipe[2];
+
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
@@ -2225,6 +2227,37 @@ static struct task *manage_global_listener_queue(struct task *t)
 	return t;
 }
 
+void mworker_pipe_handler(int fd)
+{
+	char c;
+
+	while (read(fd, &c, 1) == -1) {
+		if (errno == EINTR)
+			continue;
+		if (errno == EAGAIN) {
+			fd_cant_recv(fd);
+			return;
+		}
+		break;
+	}
+
+	deinit();
+	exit(EXIT_FAILURE);
+	return;
+}
+
+void mworker_pipe_register(int pipefd[2])
+{
+		close(mworker_pipe[1]); /* close the write end of the master pipe in the children */
+
+		fcntl(mworker_pipe[0], F_SETFL, O_NONBLOCK);
+		fdtab[mworker_pipe[0]].owner = mworker_pipe;
+		fdtab[mworker_pipe[0]].iocb = mworker_pipe_handler;
+		fd_insert(mworker_pipe[0]);
+		fd_want_recv(mworker_pipe[0]);
+	}
+
+
 int main(int argc, char **argv)
 {
 	int err, retry;
@@ -2475,6 +2508,30 @@ int main(int argc, char **argv)
 			if (ret > 0)
 				exit(0);
 		}
+
+		if (global.mode & MODE_MWORKER) {
+			if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
+				char *msg = NULL;
+				/* master pipe to ensure the master is still alive  */
+				ret = pipe(mworker_pipe);
+				if (ret < 0) {
+					Warning("[%s.main()] Cannot create master pipe.\n", argv[0]);
+				} else {
+					memprintf(&msg, "%d", mworker_pipe[0]);
+					setenv("HAPROXY_MWORKER_PIPE_RD", msg, 1);
+					memprintf(&msg, "%d", mworker_pipe[1]);
+					setenv("HAPROXY_MWORKER_PIPE_WR", msg, 1);
+					free(msg);
+				}
+			} else {
+				mworker_pipe[0] = atol(getenv("HAPROXY_MWORKER_PIPE_RD"));
+				mworker_pipe[1] = atol(getenv("HAPROXY_MWORKER_PIPE_WR"));
+				if (mworker_pipe[0] <= 0 || mworker_pipe[1] <= 0) {
+					Warning("[%s.main()] Cannot get master pipe FDs.\n", argv[0]);
+				}
+			}
+		}
+
 		/* the father launches the required number of processes */
 		for (proc = 0; proc < global.nbproc; proc++) {
 			ret = fork();
@@ -2632,6 +2689,9 @@ int main(int argc, char **argv)
 	/* initialize structures for name resolution */
 	if (!dns_init_resolvers(1))
 		exit(1);
+
+	if (global.mode & MODE_MWORKER)
+		mworker_pipe_register(mworker_pipe);
 
 	protocol_enable_all();
 	/*
