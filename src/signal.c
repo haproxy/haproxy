@@ -111,6 +111,10 @@ int signal_init()
 	 * zombie processes to remain in the background during reloads.
 	 */
 	sigemptyset(&blocked_sig);
+	/* Ensure that SIGUSR2 is blocked until the end of configuration
+	 * parsing We don't want the process to be killed by an unregistered
+	 * USR2 signal when the master-worker is reloading */
+	sigaddset(&blocked_sig, SIGUSR2);
 	sigprocmask(SIG_SETMASK, &blocked_sig, NULL);
 
 	sigfillset(&blocked_sig);

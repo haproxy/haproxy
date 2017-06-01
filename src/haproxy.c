@@ -194,6 +194,11 @@ char localpeer[MAX_HOSTNAME_LEN];
  */
 int shut_your_big_mouth_gcc_int = 0;
 
+int *children = NULL; /* store PIDs of children in master workers mode */
+
+static volatile sig_atomic_t caught_signal = 0;
+static char **next_argv = NULL;
+
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
@@ -388,6 +393,232 @@ static void usage(char *name)
 /*********************************************************************/
 /*   more specific functions   ***************************************/
 /*********************************************************************/
+
+/* sends the signal <sig> to all pids found in <oldpids>. Returns the number of
+ * pids the signal was correctly delivered to.
+ */
+static int tell_old_pids(int sig)
+{
+	int p;
+	int ret = 0;
+	for (p = 0; p < nb_oldpids; p++)
+		if (kill(oldpids[p], sig) == 0)
+			ret++;
+	return ret;
+}
+
+/* return 1 if a pid is a current child otherwise 0 */
+
+int current_child(int pid)
+{
+	int i;
+
+	for (i = 0; i < global.nbproc; i++) {
+		if (children[i] == pid)
+			return 1;
+	}
+	return 0;
+}
+
+static void mworker_signalhandler(int signum)
+{
+	caught_signal = signum;
+}
+
+static void mworker_register_signals()
+{
+	struct sigaction sa;
+	/* Here we are not using the haproxy async way
+	for signals because it does not exists in
+	the master */
+	memset(&sa, 0, sizeof(struct sigaction));
+	sa.sa_handler = &mworker_signalhandler;
+	sigaction(SIGHUP, &sa, NULL);
+	sigaction(SIGUSR1, &sa, NULL);
+	sigaction(SIGUSR2, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+}
+
+static void mworker_block_signals()
+{
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGUSR1);
+	sigaddset(&set, SIGUSR2);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+	sigprocmask(SIG_SETMASK, &set, NULL);
+}
+
+static void mworker_unblock_signals()
+{
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGUSR1);
+	sigaddset(&set, SIGUSR2);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+	sigprocmask(SIG_UNBLOCK, &set, NULL);
+}
+
+static void mworker_unregister_signals()
+{
+	signal(SIGINT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+	signal(SIGHUP,  SIG_IGN);
+	signal(SIGUSR1, SIG_IGN);
+	signal(SIGUSR2, SIG_IGN);
+}
+
+/*
+ * Send signal to every known children.
+ */
+
+static void mworker_kill(int sig)
+{
+	int i;
+
+	tell_old_pids(sig);
+	if (children) {
+		for (i = 0; i < global.nbproc; i++)
+			kill(children[i], sig);
+	}
+}
+
+/*
+ * remove a pid forom the olpid array and decrease nb_oldpids
+ * return 1 pid was found otherwise return 0
+ */
+
+int delete_oldpid(int pid)
+{
+	int i;
+
+	for (i = 0; i < nb_oldpids; i++) {
+		if (oldpids[i] == pid) {
+			oldpids[i] = oldpids[nb_oldpids - 1];
+			oldpids[nb_oldpids - 1] = 0;
+			nb_oldpids--;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * When called, this function reexec haproxy with -sf followed by current
+ * children PIDs and possibily old children PIDs if they didn't leave yet.
+ */
+static void mworker_reload()
+{
+	int next_argc = 0;
+	int j;
+	char *msg = NULL;
+
+	mworker_block_signals();
+	mworker_unregister_signals();
+	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
+
+	/* compute length  */
+	while (next_argv[next_argc])
+		next_argc++;
+
+	/* 1 for haproxy -sf */
+	next_argv = realloc(next_argv, (next_argc + 1 + global.nbproc + nb_oldpids + 1) * sizeof(char *));
+	if (next_argv == NULL)
+		goto alloc_error;
+
+
+	/* add -sf <PID>*  to argv */
+	if (children || nb_oldpids > 0)
+		next_argv[next_argc++] = "-sf";
+	if (children) {
+		for (j = 0; j < global.nbproc; next_argc++,j++) {
+			next_argv[next_argc] = memprintf(&msg, "%d", children[j]);
+			if (next_argv[next_argc] == NULL)
+				goto alloc_error;
+			msg = NULL;
+		}
+	}
+	/* copy old process PIDs */
+	for (j = 0; j < nb_oldpids; next_argc++,j++) {
+		next_argv[next_argc] = memprintf(&msg, "%d", oldpids[j]);
+		if (next_argv[next_argc] == NULL)
+			goto alloc_error;
+		msg = NULL;
+	}
+	next_argv[next_argc] = NULL;
+	deinit(); /* we don't want to leak FD there */
+	Warning("Reexecuting Master process\n");
+	execv(next_argv[0], next_argv);
+
+alloc_error:
+	Warning("Cannot allocate memory\n");
+	Warning("Failed to reexecute the master processs [%d]\n", pid);
+	return;
+}
+
+
+/*
+ * Wait for every children to exit
+ */
+
+static void mworker_wait()
+{
+	int exitpid = -1;
+	int status = 0;
+
+	mworker_register_signals();
+	mworker_unblock_signals();
+
+	while (1) {
+
+		while (((exitpid = wait(&status)) == -1) && errno == EINTR) {
+			int sig = caught_signal;
+			if (sig == SIGUSR2 || sig == SIGHUP) {
+				mworker_reload();
+			} else {
+				Warning("Exiting Master process...\n");
+				mworker_kill(sig);
+				mworker_unregister_signals();
+			}
+			caught_signal = 0;
+		}
+
+		if (exitpid == -1 && errno == ECHILD) {
+			Warning("All workers are left. Leaving... (%d)\n", status);
+			exit(status); /* parent must leave using the latest status code known */
+		}
+
+		if (WIFEXITED(status))
+			status = WEXITSTATUS(status);
+		else if (WIFSIGNALED(status))
+			status = 128 + WTERMSIG(status);
+		else if (WIFSTOPPED(status))
+			status = 128 + WSTOPSIG(status);
+		else
+			status = 255;
+
+		if (!children) {
+			Warning("Worker %d left with exit code %d\n", exitpid, status);
+		} else {
+			/* check if exited child was in the current children list */
+			if (current_child(exitpid)) {
+				Alert("Current worker %d left with exit code %d\n", exitpid, status);
+			} else {
+				Warning("Former worker %d left with exit code %d\n", exitpid, status);
+				delete_oldpid(exitpid);
+			}
+		}
+	}
+}
+
+
 
 /*
  * upon SIGUSR1, let's have a soft stop. Note that soft_stop() broadcasts
@@ -778,6 +1009,39 @@ out:
 }
 
 /*
+ * copy and cleanup the current argv
+ * Remove the -sf /-st parameters
+ * Return an allocated copy of argv
+ */
+
+static char **copy_argv(int argc, char **argv)
+{
+	char **newargv;
+	int i, j;
+
+	newargv = calloc(argc + 2, sizeof(char *));
+	if (newargv == NULL) {
+		Warning("Cannot allocate memory\n");
+		return NULL;
+	}
+
+	for (i = 0, j = 0; i < argc; i++, j++) {
+		char *flag = *(argv + i) + 1;
+
+		/* -sf or -st */
+		if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
+			/* list of pids to finish ('f') or terminate ('t') */
+			i++;
+			while (i < argc && argv[i][0] != '-') {
+				i++;
+			}
+		}
+		newargv[j] = argv[i];
+	}
+	return newargv;
+}
+
+/*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
  */
@@ -793,6 +1057,8 @@ static void init(int argc, char **argv)
 	char *change_dir = NULL;
 	struct proxy *px;
 	struct post_check_fct *pcf;
+
+	next_argv = copy_argv(argc, argv);
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 	alloc_trash_buffers(global.tune.bufsize);
@@ -1801,18 +2067,6 @@ void deinit(void)
 	deinit_pollers();
 } /* end deinit() */
 
-/* sends the signal <sig> to all pids found in <oldpids>. Returns the number of
- * pids the signal was correctly delivered to.
- */
-static int tell_old_pids(int sig)
-{
-	int p;
-	int ret = 0;
-	for (p = 0; p < nb_oldpids; p++)
-		if (kill(oldpids[p], sig) == 0)
-			ret++;
-	return ret;
-}
 
 /* Runs the polling loop */
 static void run_poll_loop()
@@ -1888,6 +2142,7 @@ int main(int argc, char **argv)
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
 	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
+	signal_register_fct(SIGUSR2, NULL, 0);
 
 	/* Always catch SIGPIPE even on platforms which define MSG_NOSIGNAL.
 	 * Some recent FreeBSD setups report broken pipes, and MSG_NOSIGNAL
@@ -2100,15 +2355,17 @@ int main(int argc, char **argv)
 		struct proxy *px;
 		struct peers *curpeers;
 		int ret = 0;
-		int *children = calloc(global.nbproc, sizeof(int));
 		int proc;
-		char *wrapper_fd;
 
+		children = calloc(global.nbproc, sizeof(int));
 		/*
 		 * if daemon + mworker: must fork here to let a master
 		 * process live in background before forking children
 		 */
-		if ((global.mode & MODE_MWORKER) && (global.mode & MODE_DAEMON)) {
+
+		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)
+		    && (global.mode & MODE_MWORKER)
+		    && (global.mode & MODE_DAEMON)) {
 			ret = fork();
 			if (ret < 0) {
 				Alert("[%s.main()] Cannot fork.\n", argv[0]);
@@ -2119,7 +2376,6 @@ int main(int argc, char **argv)
 			if (ret > 0)
 				exit(0);
 		}
-
 		/* the father launches the required number of processes */
 		for (proc = 0; proc < global.nbproc; proc++) {
 			ret = fork();
@@ -2155,24 +2411,13 @@ int main(int argc, char **argv)
 			close(pidfd);
 		}
 
-		/* each child must notify the wrapper that it's ready by closing the requested fd */
-		wrapper_fd = getenv("HAPROXY_WRAPPER_FD");
-		if (wrapper_fd) {
-			int pipe_fd = atoi(wrapper_fd);
-
-			if (pipe_fd >= 0)
-				close(pipe_fd);
-		}
-
 		/* We won't ever use this anymore */
-		free(oldpids);        oldpids = NULL;
 		free(global.pidfile); global.pidfile = NULL;
 
 		if (proc == global.nbproc) {
 			if (global.mode & MODE_MWORKER) {
 				protocol_unbind_all();
-				for (proc = 0; proc < global.nbproc; proc++)
-					while (waitpid(-1, NULL, 0) == -1 && errno == EINTR);
+				mworker_wait();
 			}
 #ifndef OPENSSL_NO_DH
 			ssl_free_dh();
@@ -2265,8 +2510,6 @@ int main(int argc, char **argv)
 			curpeers->peers_fe = NULL;
 		}
 
-		free(children);
-		children = NULL;
 		/* if we're NOT in QUIET mode, we should now close the 3 first FDs to ensure
 		 * that we can detach from the TTY. We MUST NOT do it in other cases since
 		 * it would have already be done, and 0-2 would have been affected to listening
