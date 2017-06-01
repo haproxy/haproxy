@@ -173,6 +173,8 @@ static int oldpids_sig; /* use USR1 or TERM */
 /* Path to the unix socket we use to retrieve listener sockets from the old process */
 static const char *old_unixsocket;
 
+static char *cur_unixsocket = NULL;
+
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 struct chunk trash = { };
 
@@ -512,6 +514,42 @@ int delete_oldpid(int pid)
 	return 0;
 }
 
+
+static void get_cur_unixsocket()
+{
+	/* if -x was used, try to update the stat socket if not available anymore */
+	if (global.stats_fe) {
+		struct bind_conf *bind_conf;
+
+		/* pass through all stats socket */
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			struct listener *l;
+
+			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+
+				if (l->addr.ss_family == AF_UNIX &&
+				    (bind_conf->level & ACCESS_FD_LISTENERS)) {
+					const struct sockaddr_un *un;
+
+					un = (struct sockaddr_un *)&l->addr;
+					/* priority to old_unixsocket */
+					if (!cur_unixsocket) {
+						cur_unixsocket = strdup(un->sun_path);
+					} else {
+						if (old_unixsocket && !strcmp(un->sun_path, old_unixsocket)) {
+							free(cur_unixsocket);
+							cur_unixsocket = strdup(old_unixsocket);
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+	if (!cur_unixsocket && old_unixsocket)
+		cur_unixsocket = strdup(old_unixsocket);
+}
+
 /*
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibily old children PIDs if they didn't leave yet.
@@ -530,8 +568,8 @@ static void mworker_reload()
 	while (next_argv[next_argc])
 		next_argc++;
 
-	/* 1 for haproxy -sf */
-	next_argv = realloc(next_argv, (next_argc + 1 + global.nbproc + nb_oldpids + 1) * sizeof(char *));
+	/* 1 for haproxy -sf, 2 for -x /socket */
+	next_argv = realloc(next_argv, (next_argc + 1 + 2 + global.nbproc + nb_oldpids + 1) * sizeof(char *));
 	if (next_argv == NULL)
 		goto alloc_error;
 
@@ -555,6 +593,26 @@ static void mworker_reload()
 		msg = NULL;
 	}
 	next_argv[next_argc] = NULL;
+
+	/* if -x was used, try to update the stat socket if not available anymore */
+	if (cur_unixsocket) {
+
+		if (old_unixsocket) {
+
+			/* look for -x <path> */
+			for (j = 0; next_argv[j]; j++) {
+				if (!strcmp(next_argv[j], "-x"))
+					next_argv[j + 1] = (char *)cur_unixsocket;
+			}
+		} else {
+			/* if -x is not specified but we know the socket, add -x with it */
+			next_argv[next_argc++] = "-x";
+			next_argv[next_argc++] = (char *)cur_unixsocket;
+			next_argv[next_argc++] = NULL;
+
+		}
+	}
+
 	deinit(); /* we don't want to leak FD there */
 	Warning("Reexecuting Master process\n");
 	execv(next_argv[0], next_argv);
@@ -2216,11 +2274,16 @@ int main(int argc, char **argv)
 	}
 
 	if (old_unixsocket) {
-		if (get_old_sockets(old_unixsocket) != 0) {
-			Alert("Failed to get the sockets from the old process!\n");
-			exit(1);
+		if (strcmp("/dev/null", old_unixsocket) != 0) {
+			if (get_old_sockets(old_unixsocket) != 0) {
+				Alert("Failed to get the sockets from the old process!\n");
+				if (!(global.mode & MODE_MWORKER))
+					exit(1);
+			}
 		}
 	}
+	get_cur_unixsocket();
+
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids
 	 * if we cannot grab at least one port.
