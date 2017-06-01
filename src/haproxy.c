@@ -181,6 +181,8 @@ struct chunk trash = { };
  */
 char *swap_buffer = NULL;
 
+int atexit_flag = 0;
+
 int nb_oldpids = 0;
 const int zero = 0;
 const int one = 1;
@@ -592,6 +594,7 @@ static void mworker_wait()
 
 		if (exitpid == -1 && errno == ECHILD) {
 			Warning("All workers are left. Leaving... (%d)\n", status);
+			atexit_flag = 0;
 			exit(status); /* parent must leave using the latest status code known */
 		}
 
@@ -618,6 +621,22 @@ static void mworker_wait()
 	}
 }
 
+
+/*
+ * Reexec the process in failure mode, instead of exiting
+ */
+void reexec_on_failure()
+{
+	if (!atexit_flag)
+		return;
+
+	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
+
+	Warning("Reexecuting Master process in waitpid mode\n");
+	mworker_reload();
+
+	Warning("Failed to reexecute the master processs\n");
+}
 
 
 /*
@@ -1269,6 +1288,18 @@ static void init(int argc, char **argv)
 	global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
 		(arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
+
+	/* Master workers wait mode */
+	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_WAIT_ONLY") != NULL)) {
+
+		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
+		mworker_wait();
+	}
+
+	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
+		atexit_flag = 1;
+		atexit(reexec_on_failure);
+	}
 
 	if (change_dir && chdir(change_dir) < 0) {
 		Alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
@@ -2422,8 +2453,12 @@ int main(int argc, char **argv)
 #ifndef OPENSSL_NO_DH
 			ssl_free_dh();
 #endif
-			exit(0); /* parent must leave */
+			/* should never get there */
+			exit(EXIT_FAILURE);
 		}
+
+		/* child must never use the atexit function */
+		atexit_flag = 0;
 
 		/* Must chroot and setgid/setuid in the children */
 		/* chroot if needed */
