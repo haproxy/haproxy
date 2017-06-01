@@ -348,6 +348,7 @@ static void usage(char *name)
 		"        -dM[<byte>] poisons memory with <byte> (defaults to 0x50)\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
+		"        -W master-worker mode.\n"
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
 		"        -n sets the maximum total # of connections (%d)\n"
@@ -921,11 +922,10 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c')
 				arg_mode |= MODE_CHECK;
-			else if (*flag == 'D') {
+			else if (*flag == 'D')
 				arg_mode |= MODE_DAEMON;
-				if (flag[1] == 's')  /* -Ds */
-					arg_mode |= MODE_SYSTEMD;
-			}
+			else if (*flag == 'W')
+				arg_mode |= MODE_MWORKER;
 			else if (*flag == 'q')
 				arg_mode |= MODE_QUIET;
 			else if (*flag == 'x') {
@@ -1001,7 +1001,7 @@ static void init(int argc, char **argv)
 	}
 
 	global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
-		(arg_mode & (MODE_DAEMON | MODE_SYSTEMD | MODE_FOREGROUND | MODE_VERBOSE
+		(arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
 	if (change_dir && chdir(change_dir) < 0) {
@@ -1330,24 +1330,24 @@ static void init(int argc, char **argv)
 
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
-		global.mode &= ~(MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET);
+		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
 		global.mode |= (arg_mode & (MODE_DEBUG | MODE_FOREGROUND));
 	}
 
-	if (arg_mode & (MODE_DAEMON | MODE_SYSTEMD)) {
+	if (arg_mode & MODE_DAEMON) {
 		/* command line daemon mode inhibits foreground and debug modes mode */
 		global.mode &= ~(MODE_DEBUG | MODE_FOREGROUND);
-		global.mode |= (arg_mode & (MODE_DAEMON | MODE_SYSTEMD));
+		global.mode |= arg_mode & MODE_DAEMON;
 	}
 
 	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
 
-	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET))) {
-		Warning("<debug> mode incompatible with <quiet>, <daemon> and <systemd>. Keeping <debug> only.\n");
-		global.mode &= ~(MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET);
+	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
+		Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
+		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
 	}
 
-	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_SYSTEMD))) {
+	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_MWORKER))) {
 		if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
 			Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
 		global.nbproc = 1;
@@ -2020,7 +2020,7 @@ int main(int argc, char **argv)
 	}
 
 	/* open log & pid files before the chroot */
-	if (global.mode & (MODE_DAEMON | MODE_SYSTEMD) && global.pidfile != NULL) {
+	if (global.mode & MODE_DAEMON && global.pidfile != NULL) {
 		unlink(global.pidfile);
 		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (pidfd < 0) {
@@ -2047,14 +2047,17 @@ int main(int argc, char **argv)
 			" might not work well.\n"
 			"", argv[0]);
 
-	/* chroot if needed */
-	if (global.chroot != NULL) {
-		if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-			Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
-			if (nb_oldpids)
-				tell_old_pids(SIGTTIN);
-			protocol_unbind_all();
-			exit(1);
+	if ((global.mode & (MODE_MWORKER|MODE_DAEMON)) == 0) {
+
+		/* chroot if needed */
+		if (global.chroot != NULL) {
+			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
+				Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
+				if (nb_oldpids)
+					tell_old_pids(SIGTTIN);
+				protocol_unbind_all();
+				exit(1);
+			}
 		}
 	}
 
@@ -2065,25 +2068,26 @@ int main(int argc, char **argv)
 	 * be able to restart the old pids.
 	 */
 
-	/* setgid / setuid */
-	if (global.gid) {
-		if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
-			Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
-				" without 'uid'/'user' is generally useless.\n", argv[0]);
+	if ((global.mode & (MODE_MWORKER|MODE_DAEMON)) == 0) {
+		/* setgid / setuid */
+		if (global.gid) {
+			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
+				Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+					" without 'uid'/'user' is generally useless.\n", argv[0]);
 
-		if (setgid(global.gid) == -1) {
-			Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+			if (setgid(global.gid) == -1) {
+				Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+				protocol_unbind_all();
+				exit(1);
+			}
+		}
+
+		if (global.uid && setuid(global.uid) == -1) {
+			Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
 			protocol_unbind_all();
 			exit(1);
 		}
 	}
-
-	if (global.uid && setuid(global.uid) == -1) {
-		Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
-		protocol_unbind_all();
-		exit(1);
-	}
-
 	/* check ulimits */
 	limit.rlim_cur = limit.rlim_max = 0;
 	getrlimit(RLIMIT_NOFILE, &limit);
@@ -2092,13 +2096,29 @@ int main(int argc, char **argv)
 			argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
 	}
 
-	if (global.mode & (MODE_DAEMON | MODE_SYSTEMD)) {
+	if (global.mode & (MODE_DAEMON | MODE_MWORKER)) {
 		struct proxy *px;
 		struct peers *curpeers;
 		int ret = 0;
 		int *children = calloc(global.nbproc, sizeof(int));
 		int proc;
 		char *wrapper_fd;
+
+		/*
+		 * if daemon + mworker: must fork here to let a master
+		 * process live in background before forking children
+		 */
+		if ((global.mode & MODE_MWORKER) && (global.mode & MODE_DAEMON)) {
+			ret = fork();
+			if (ret < 0) {
+				Alert("[%s.main()] Cannot fork.\n", argv[0]);
+				protocol_unbind_all();
+				exit(1); /* there has been an error */
+			}
+			/* parent leave to daemonize */
+			if (ret > 0)
+				exit(0);
+		}
 
 		/* the father launches the required number of processes */
 		for (proc = 0; proc < global.nbproc; proc++) {
@@ -2146,19 +2166,11 @@ int main(int argc, char **argv)
 
 		/* We won't ever use this anymore */
 		free(oldpids);        oldpids = NULL;
-		free(global.chroot);  global.chroot = NULL;
 		free(global.pidfile); global.pidfile = NULL;
 
 		if (proc == global.nbproc) {
-			if (global.mode & MODE_SYSTEMD) {
-				int i;
-
+			if (global.mode & MODE_MWORKER) {
 				protocol_unbind_all();
-				for (i = 1; i < argc; i++) {
-					memset(argv[i], '\0', strlen(argv[i]));
-				}
-				/* it's OK because "-Ds -f x" is the shortest form going here */
-				memcpy(argv[0] + strlen(argv[0]), "-master", 8);
 				for (proc = 0; proc < global.nbproc; proc++)
 					while (waitpid(-1, NULL, 0) == -1 && errno == EINTR);
 			}
@@ -2166,6 +2178,40 @@ int main(int argc, char **argv)
 			ssl_free_dh();
 #endif
 			exit(0); /* parent must leave */
+		}
+
+		/* Must chroot and setgid/setuid in the children */
+		/* chroot if needed */
+		if (global.chroot != NULL) {
+			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
+				Alert("[%s.main()] Cannot chroot1(%s).\n", argv[0], global.chroot);
+				if (nb_oldpids)
+					tell_old_pids(SIGTTIN);
+				protocol_unbind_all();
+				exit(1);
+			}
+		}
+
+		free(global.chroot);
+		global.chroot = NULL;
+
+		/* setgid / setuid */
+		if (global.gid) {
+			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
+				Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+					" without 'uid'/'user' is generally useless.\n", argv[0]);
+
+			if (setgid(global.gid) == -1) {
+				Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+				protocol_unbind_all();
+				exit(1);
+			}
+		}
+
+		if (global.uid && setuid(global.uid) == -1) {
+			Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
+			protocol_unbind_all();
+			exit(1);
 		}
 
 		/* pass through every cli socket, and check if it's bound to

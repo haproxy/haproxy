@@ -624,6 +624,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		global.mode |= MODE_DAEMON;
 	}
+	else if (!strcmp(args[0], "master-worker")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		global.mode |= MODE_MWORKER;
+	}
 	else if (!strcmp(args[0], "debug")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;

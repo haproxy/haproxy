@@ -53,7 +53,7 @@ struct xfer_sock_list *xfer_sock_list = NULL;
 void enable_listener(struct listener *listener)
 {
 	if (listener->state == LI_LISTEN) {
-		if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
+		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    listener->bind_conf->bind_proc &&
 		    !(listener->bind_conf->bind_proc & (1UL << (relative_pid - 1)))) {
 			/* we don't want to enable this listener and don't
@@ -135,7 +135,7 @@ int pause_listener(struct listener *l)
  */
 int resume_listener(struct listener *l)
 {
-	if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
+	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 	    l->bind_conf->bind_proc &&
 	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
 		return 1;
