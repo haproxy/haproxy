@@ -190,10 +190,11 @@ static void fd_dodelete(int fd, int do_close)
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
+	fdtab[fd].owner = NULL;
+	fdtab[fd].updated = 0;
+	fdtab[fd].new = 0;
 	if (do_close)
 		close(fd);
-	fdtab[fd].owner = NULL;
-	fdtab[fd].new = 0;
 
 	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
 		maxfd--;
