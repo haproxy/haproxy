@@ -122,7 +122,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		unsigned int n = 0;
 		fd = kev[count].ident;
 
-		if (!fdtab[fd].owner)
+		if (!fdtab[fd].owner || !(fdtab[fd].process_mask & tid_bit))
 			continue;
 
 		if (kev[count].filter ==  EVFILT_READ) {
