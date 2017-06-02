@@ -1,6 +1,109 @@
 ChangeLog :
 ===========
 
+2017/06/02 : 1.8-dev2
+    - CLEANUP: server: moving netinet/tcp.h inclusion
+    - DOC: changed "block"(deprecated) examples to http-request deny
+    - DOC: add few comments to examples.
+    - DOC: update sample code for PROXY protocol
+    - DOC: mention lighttpd 1.4.46 implements PROXY
+    - MINOR server: Restrict dynamic cookie check to the same proxy.
+    - DOC: stick-table is available in frontend sections
+    - BUG/MINOR: server : no transparent proxy for DragonflyBSD
+    - BUILD/MINOR: stats: remove unexpected argument to stats_dump_json_header()
+    - BUILD/MINOR: tools: fix build warning in debug_hexdump()
+    - BUG/MINOR: dns: Wrong address family used when creating IPv6 sockets.
+    - BUG/MINOR: config: missing goto out after parsing an incorrect ACL character
+    - BUG/MINOR: arg: don't try to add an argument on failed memory allocation
+    - MEDIUM: server: Inherit CLI weight changes and agent-check weight responses
+    - BUG/MEDIUM: arg: ensure that we properly unlink unresolved arguments on error
+    - BUG/MEDIUM: acl: don't free unresolved args in prune_acl_expr()
+    - BUG/MEDIUM: servers: unbreak server weight propagation
+    - MINOR: lua: ensure the memory allocator is used all the time
+    - MINOR: cli: Add a command to send listening sockets.
+    - MINOR: global: Add an option to get the old listening sockets.
+    - MINOR: tcp: When binding socket, attempt to reuse one from the old proc.
+    - MINOR: doc: document the -x flag
+    - MINOR: proxy: Don't close FDs if not our proxy.
+    - MINOR: socket transfer: Set a timeout on the socket.
+    - MINOR: systemd wrapper: add support for passing the -x option.
+    - BUG/MINOR: server: Fix a wrong error message during 'usesrc' keyword parsing.
+    - BUG/MAJOR: Broken parsing for valid keywords provided after 'source' setting.
+    - CLEANUP: logs: typo: simgle => single
+    - BUG/MEDIUM: acl: proprely release unused args in prune_acl_expr()
+    - MEDIUM: config: don't check config validity when there are fatal errors
+    - BUG/MAJOR: Use -fwrapv.
+    - BUG/MINOR: server: don't use "proxy" when px is really meant.
+    - BUG/MEDIUM: http: Drop the connection establishment when a redirect is performed
+    - BUG/MINOR: server: missing default server 'resolvers' setting duplication.
+    - MINOR: server: Extract the code responsible of copying default-server settings.
+    - MINOR: server: Extract the code which finalizes server initializations after 'server' lines parsing.
+    - MINOR: server: Add 'server-template' new keyword supported in backend sections.
+    - MINOR: server: Add server_template_init() function to initialize servers from a templates.
+    - DOC: Add documentation for new "server-template" keyword.
+    - DOC: add layer 4 links/cross reference to "block" keyword.
+    - DOC: errloc/errorloc302/errorloc303 missing status codes.
+    - BUG/MEDIUM: lua: memory leak
+    - CLEANUP: lua: remove test
+    - BUG/MINOR: hash-balance-factor isn't effective in certain circumstances
+    - BUG/MINOR: change header-declared function to static inline
+    - REORG: spoe: move spoe_encode_varint / spoe_decode_varint from spoe to common
+    - MINOR: Add binary encoding request header sample fetch
+    - MINOR: proto-http: Add sample fetch wich returns all HTTP headers
+    - MINOR: Add ModSecurity wrapper as contrib
+    - BUG/MINOR: ssl: fix warnings about methods for opensslv1.1.
+    - DOC: update RFC references
+    - CONTRIB: tcploop: add action "X" to execute a command
+    - MINOR: server: cli: Add server FQDNs to server-state file and stats socket.
+    - BUG/MINOR: contrib/mod_security: fix build on FreeBSD
+    - BUG/MINOR: checks: don't send proxy protocol with agent checks
+    - MINOR: ssl: add prefer-client-ciphers
+    - MEDIUM: ssl: revert ssl/tls version settings relative to default-server.
+    - MEDIUM: ssl: ssl_methods implementation is reworked and factored for min/max tlsxx
+    - MEDIUM: ssl: calculate the real min/max TLS version and find holes
+    - MINOR: ssl: support TLSv1.3 for bind and server
+    - MINOR: ssl: show methods supported by openssl
+    - MEDIUM: ssl: add ssl-min-ver and ssl-max-ver parameters for bind and server
+    - MEDIUM: ssl: ssl-min-ver and ssl-max-ver compatibility.
+    - CLEANUP: retire obsoleted USE_GETSOCKNAME build option
+    - BUG/MAJOR: dns: Broken kqueue events handling (BSD systems).
+    - MINOR: sample: Add b64dec sample converter
+    - BUG/MEDIUM: lua: segfault if a converter or a sample doesn't return anything
+    - MINOR: cli: add ACCESS_LVL_MASK to store the access level
+    - MINOR: cli: add 'expose-fd listeners' to pass listeners FDs
+    - MEDIUM: proxy: zombify proxies only when the expose-fd socket is bound
+    - MEDIUM: ssl: add basic support for OpenSSL crypto engine
+    - MAJOR: ssl: add openssl async mode support
+    - MEDIUM: ssl: handle multiple async engines
+    - MINOR: boringssl: basic support for OCSP Stapling
+    - MEDIUM: mworker: replace systemd mode by master worker mode
+    - MEDIUM: mworker: handle reload and signals
+    - MEDIUM: mworker: wait mode on reload failure
+    - MEDIUM: mworker: try to guess the next stats socket to use with -x
+    - MEDIUM: mworker: exit-on-failure option
+    - MEDIUM: mworker: workers exit when the master leaves
+    - DOC: add documentation for the master-worker mode
+    - MEDIUM: systemd: Type=forking in unit file
+    - MAJOR: systemd-wrapper: get rid of the wrapper
+    - MINOR: log: Add logurilen tunable.
+    - CLEANUP: server.c: missing prototype of srv_free_dns_resolution
+    - MINOR: dns: smallest DNS fqdn size
+    - MINOR: dns: functions to manage memory for a DNS resolution structure
+    - MINOR: dns: parse_server() now uses srv_alloc_dns_resolution()
+    - REORG: dns: dns_option structure, storage of hostname_dn
+    - MINOR: dns: new snr_check_ip_callback function
+    - MAJOR: dns: save a copy of the DNS response in struct resolution
+    - MINOR: dns: implement a LRU cache for DNS resolutions
+    - MINOR: dns: make 'ancount' field to match the number of saved records
+    - MINOR: dns: introduce roundrobin into the internal cache (WIP)
+    - MAJOR/REORG: dns: DNS resolution task and requester queues
+    - BUILD: ssl: fix build with OPENSSL_NO_ENGINE
+    - MINOR: Add Mod Defender integration as contrib
+    - CLEANUP: str2mask return code comment: non-zero -> zero.
+    - MINOR: tools: make debug_hexdump() use a const char for the string
+    - MINOR: tools: make debug_hexdump() take a string prefix
+    - CLEANUP: connection: remove unused CO_FL_WAIT_DATA
+
 2017/04/03 : 1.8-dev1
     - BUG/MEDIUM: proxy: return "none" and "unknown" for unknown LB algos
     - BUG/MINOR: stats: make field_str() return an empty string on NULL
