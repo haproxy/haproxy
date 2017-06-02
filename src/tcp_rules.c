@@ -166,8 +166,8 @@ resume_execution:
 				channel_abort(&s->res);
 				req->analysers = 0;
 
-				s->be->be_counters.denied_req++;
-				sess->fe->fe_counters.denied_req++;
+				HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 				if (sess->listener && sess->listener->counters)
 					HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 
@@ -344,8 +344,8 @@ resume_execution:
 				channel_abort(&s->req);
 				rep->analysers = 0;
 
-				s->be->be_counters.denied_resp++;
-				sess->fe->fe_counters.denied_resp++;
+				HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 				if (sess->listener && sess->listener->counters)
 					HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
@@ -427,7 +427,7 @@ int tcp_exec_l4_rules(struct session *sess)
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				sess->fe->fe_counters.denied_conn++;
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_conn, 1);
 				if (sess->listener && sess->listener->counters)
 					HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
 
@@ -514,7 +514,7 @@ int tcp_exec_l5_rules(struct session *sess)
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				sess->fe->fe_counters.denied_sess++;
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_sess, 1);
 				if (sess->listener && sess->listener->counters)
 					HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
 

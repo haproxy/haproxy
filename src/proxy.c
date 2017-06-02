@@ -761,6 +761,8 @@ void init_new_proxy(struct proxy *p)
 
 	/* initial uuid is unassigned (-1) */
 	p->uuid = -1;
+
+	SPIN_INIT(&p->lock);
 }
 
 /*
@@ -1253,9 +1255,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		return 0;
 
 	s->be = be;
-	be->beconn++;
-	if (be->beconn > be->be_counters.conn_max)
-		be->be_counters.conn_max = be->beconn;
+	HA_ATOMIC_UPDATE_MAX(&be->be_counters.conn_max,
+			     HA_ATOMIC_ADD(&be->beconn, 1));
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the stream from the new backend */

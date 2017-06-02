@@ -123,7 +123,7 @@ static struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *p
 	strm->target = &srv->obj_type;
 	stream_add_srv_conn(strm, srv);
 	srv->served++;
-	srv->proxy->served++;
+	HA_ATOMIC_ADD(&srv->proxy->served, 1);
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv);
 
@@ -182,8 +182,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 		LIST_ADDQ(&strm->be->pendconns, &p->list);
 		strm->be->nbpend++;
 		strm->logs.prx_queue_size += strm->be->nbpend;
-		if (strm->be->nbpend > strm->be->be_counters.nbpend_max)
-			strm->be->be_counters.nbpend_max = strm->be->nbpend;
+		HA_ATOMIC_UPDATE_MAX(&strm->be->be_counters.nbpend_max, strm->be->nbpend);
 	}
 	strm->be->totpend++;
 	return p;

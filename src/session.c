@@ -52,9 +52,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
-		fe->feconn++;
-		if (fe->feconn > fe->fe_counters.conn_max)
-			fe->fe_counters.conn_max = fe->feconn;
+		HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.conn_max,
+				     HA_ATOMIC_ADD(&fe->feconn, 1));
 		if (li)
 			proxy_inc_fe_conn_ctr(li, fe);
 		HA_ATOMIC_ADD(&totalconn, 1);
@@ -65,7 +64,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 
 void session_free(struct session *sess)
 {
-	sess->fe->feconn--;
+	HA_ATOMIC_SUB(&sess->fe->feconn, 1);
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);

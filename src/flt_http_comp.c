@@ -332,9 +332,9 @@ comp_http_end(struct stream *s, struct filter *filter,
 		goto end;
 
 	if (strm_fe(s)->mode == PR_MODE_HTTP)
-		strm_fe(s)->fe_counters.p.http.comp_rsp++;
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.p.http.comp_rsp, 1);
 	if ((s->flags & SF_BE_ASSIGNED) && (s->be->mode == PR_MODE_HTTP))
-		s->be->be_counters.p.http.comp_rsp++;
+		HA_ATOMIC_ADD(&s->be->be_counters.p.http.comp_rsp, 1);
  end:
 	return 1;
 }
@@ -754,11 +754,11 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	/* update input rate */
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_in, st->consumed);
-		strm_fe(s)->fe_counters.comp_in += st->consumed;
-		s->be->be_counters.comp_in      += st->consumed;
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_in, st->consumed);
+		HA_ATOMIC_ADD(&s->be->be_counters.comp_in,      st->consumed);
 	} else {
-		strm_fe(s)->fe_counters.comp_byp += st->consumed;
-		s->be->be_counters.comp_byp      += st->consumed;
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_byp, st->consumed);
+		HA_ATOMIC_ADD(&s->be->be_counters.comp_byp,      st->consumed);
 	}
 
 	/* copy the remaining data in the tmp buffer. */
@@ -780,8 +780,8 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_out, to_forward);
-		strm_fe(s)->fe_counters.comp_out += to_forward;
-		s->be->be_counters.comp_out += to_forward;
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_out, to_forward);
+		HA_ATOMIC_ADD(&s->be->be_counters.comp_out,      to_forward);
 	}
 
 	return to_forward;

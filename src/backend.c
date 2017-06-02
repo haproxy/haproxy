@@ -701,7 +701,7 @@ int assign_server(struct stream *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
-			s->be->be_counters.cum_lbconn++;
+			HA_ATOMIC_ADD(&s->be->be_counters.cum_lbconn, 1);
 			srv->counters.cum_lbconn++;
 		}
 		s->target = &srv->obj_type;
@@ -880,10 +880,10 @@ int assign_server_and_queue(struct stream *s)
 				}
 				s->flags |= SF_REDISP;
 				prev_srv->counters.redispatches++;
-				s->be->be_counters.redispatches++;
+				HA_ATOMIC_ADD(&s->be->be_counters.redispatches, 1);
 			} else {
 				prev_srv->counters.retries++;
-				s->be->be_counters.retries++;
+				HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
 			}
 		}
 	}
@@ -1279,7 +1279,7 @@ int srv_redispatch_connect(struct stream *s)
 		}
 
 		srv->counters.failed_conns++;
-		s->be->be_counters.failed_conns++;
+		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		return 1;
 
 	case SRV_STATUS_NOSRV:
@@ -1288,7 +1288,7 @@ int srv_redispatch_connect(struct stream *s)
 			s->si[1].err_type = SI_ET_CONN_ERR;
 		}
 
-		s->be->be_counters.failed_conns++;
+		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		return 1;
 
 	case SRV_STATUS_QUEUED:
@@ -1309,7 +1309,7 @@ int srv_redispatch_connect(struct stream *s)
 			srv_set_sess_last(srv);
 		if (srv)
 			srv->counters.failed_conns++;
-		s->be->be_counters.failed_conns++;
+		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 
 		/* release other streams waiting for this server */
 		if (may_dequeue_tasks(srv, s->be))
@@ -1328,7 +1328,7 @@ int srv_redispatch_connect(struct stream *s)
 void set_backend_down(struct proxy *be)
 {
 	be->last_change = now.tv_sec;
-	be->down_trans++;
+	HA_ATOMIC_ADD(&be->down_trans, 1);
 
 	if (!(global.mode & MODE_STARTING)) {
 		Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);

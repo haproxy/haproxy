@@ -2384,7 +2384,7 @@ void strm_log(struct stream *s)
 
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
-		sess->fe->log_count++;
+		HA_ATOMIC_ADD(&sess->fe->log_count, 1);
 		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}

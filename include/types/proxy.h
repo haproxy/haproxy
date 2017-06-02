@@ -32,6 +32,8 @@
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/tools.h>
+#include <common/hathreads.h>
+
 #include <eb32tree.h>
 #include <ebistree.h>
 
@@ -439,6 +441,10 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 };
 
 struct switching_rule {

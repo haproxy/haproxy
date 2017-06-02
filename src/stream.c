@@ -470,9 +470,8 @@ void stream_process_counters(struct stream *s)
 	bytes = s->req.total - s->logs.bytes_in;
 	s->logs.bytes_in = s->req.total;
 	if (bytes) {
-		sess->fe->fe_counters.bytes_in += bytes;
-
-		s->be->be_counters.bytes_in += bytes;
+		HA_ATOMIC_ADD(&sess->fe->fe_counters.bytes_in, bytes);
+		HA_ATOMIC_ADD(&s->be->be_counters.bytes_in,    bytes);
 
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.bytes_in += bytes;
@@ -507,9 +506,8 @@ void stream_process_counters(struct stream *s)
 	bytes = s->res.total - s->logs.bytes_out;
 	s->logs.bytes_out = s->res.total;
 	if (bytes) {
-		sess->fe->fe_counters.bytes_out += bytes;
-
-		s->be->be_counters.bytes_out += bytes;
+		HA_ATOMIC_ADD(&sess->fe->fe_counters.bytes_out, bytes);
+		HA_ATOMIC_ADD(&s->be->be_counters.bytes_out,    bytes);
 
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.bytes_out += bytes;
@@ -666,7 +664,7 @@ static int sess_update_st_cer(struct stream *s)
 
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.failed_conns++;
-		s->be->be_counters.failed_conns++;
+		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -714,7 +712,7 @@ static int sess_update_st_cer(struct stream *s)
 	} else {
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.retries++;
-		s->be->be_counters.retries++;
+		HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
 		si->state = SI_ST_ASS;
 	}
 
@@ -863,7 +861,7 @@ static void sess_update_stream_int(struct stream *s)
 				srv_set_sess_last(srv);
 			if (srv)
 				srv->counters.failed_conns++;
-			s->be->be_counters.failed_conns++;
+			HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 
 			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
@@ -919,7 +917,7 @@ static void sess_update_stream_int(struct stream *s)
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 			if (srv)
 				srv->counters.failed_conns++;
-			s->be->be_counters.failed_conns++;
+			HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 			si_shutr(si);
 			si_shutw(si);
 			req->flags |= CF_WRITE_TIMEOUT;
@@ -985,7 +983,7 @@ static void sess_set_term_flags(struct stream *s)
 	if (!(s->flags & SF_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
 
-			strm_fe(s)->fe_counters.failed_req++;
+			HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.failed_req, 1);
 			if (strm_li(s) && strm_li(s)->counters)
 				HA_ATOMIC_ADD(&strm_li(s)->counters->failed_req, 1);
 
@@ -1136,7 +1134,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	appctx_wakeup(appctx);
 
 	if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-		sess->fe->fe_counters.intercepted_req++;
+		HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
 	/* The flag SF_ASSIGNED prevent from server assignment. */
 	s->flags |= SF_ASSIGNED;
@@ -1702,8 +1700,8 @@ struct task *process_stream(struct task *t)
 			si_shutw(si_f);
 			stream_int_report_error(si_f);
 			if (!(req->analysers) && !(res->analysers)) {
-				s->be->be_counters.cli_aborts++;
-				sess->fe->fe_counters.cli_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 				if (srv)
 					srv->counters.cli_aborts++;
 				if (!(s->flags & SF_ERR_MASK))
@@ -1719,12 +1717,12 @@ struct task *process_stream(struct task *t)
 			si_shutr(si_b);
 			si_shutw(si_b);
 			stream_int_report_error(si_b);
-			s->be->be_counters.failed_resp++;
+			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (srv)
 				srv->counters.failed_resp++;
 			if (!(req->analysers) && !(res->analysers)) {
-				s->be->be_counters.srv_aborts++;
-				sess->fe->fe_counters.srv_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 				if (srv)
 					srv->counters.srv_aborts++;
 				if (!(s->flags & SF_ERR_MASK))
@@ -1979,29 +1977,29 @@ struct task *process_stream(struct task *t)
 			/* Report it if the client got an error or a read timeout expired */
 			req->analysers = 0;
 			if (req->flags & CF_READ_ERROR) {
-				s->be->be_counters.cli_aborts++;
-				sess->fe->fe_counters.cli_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLICL;
 			}
 			else if (req->flags & CF_READ_TIMEOUT) {
-				s->be->be_counters.cli_aborts++;
-				sess->fe->fe_counters.cli_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLITO;
 			}
 			else if (req->flags & CF_WRITE_ERROR) {
-				s->be->be_counters.srv_aborts++;
-				sess->fe->fe_counters.srv_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVCL;
 			}
 			else {
-				s->be->be_counters.srv_aborts++;
-				sess->fe->fe_counters.srv_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVTO;
@@ -2012,29 +2010,29 @@ struct task *process_stream(struct task *t)
 			/* Report it if the server got an error or a read timeout expired */
 			res->analysers = 0;
 			if (res->flags & CF_READ_ERROR) {
-				s->be->be_counters.srv_aborts++;
-				sess->fe->fe_counters.srv_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVCL;
 			}
 			else if (res->flags & CF_READ_TIMEOUT) {
-				s->be->be_counters.srv_aborts++;
-				sess->fe->fe_counters.srv_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVTO;
 			}
 			else if (res->flags & CF_WRITE_ERROR) {
-				s->be->be_counters.cli_aborts++;
-				sess->fe->fe_counters.cli_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLICL;
 			}
 			else {
-				s->be->be_counters.cli_aborts++;
-				sess->fe->fe_counters.cli_aborts++;
+				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLITO;
@@ -2426,7 +2424,7 @@ struct task *process_stream(struct task *t)
 	}
 
 	if (s->flags & SF_BE_ASSIGNED)
-		s->be->beconn--;
+		HA_ATOMIC_SUB(&s->be->beconn, 1);
 
 	if (sess->listener)
 		listener_release(sess->listener);
@@ -2451,12 +2449,12 @@ struct task *process_stream(struct task *t)
 			n = 0;
 
 		if (sess->fe->mode == PR_MODE_HTTP) {
-			sess->fe->fe_counters.p.http.rsp[n]++;
+			HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[n], 1);
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
-			s->be->be_counters.p.http.rsp[n]++;
-			s->be->be_counters.p.http.cum_req++;
+			HA_ATOMIC_ADD(&s->be->be_counters.p.http.rsp[n], 1);
+			HA_ATOMIC_ADD(&s->be->be_counters.p.http.cum_req, 1);
 		}
 	}
 
@@ -2513,10 +2511,12 @@ void stream_update_time_stats(struct stream *s)
 		swrate_add(&srv->counters.d_time, TIME_STATS_SAMPLES, t_data);
 		swrate_add(&srv->counters.t_time, TIME_STATS_SAMPLES, t_close);
 	}
+	SPIN_LOCK(PROXY_LOCK, &s->be->lock);
 	swrate_add(&s->be->be_counters.q_time, TIME_STATS_SAMPLES, t_queue);
 	swrate_add(&s->be->be_counters.c_time, TIME_STATS_SAMPLES, t_connect);
 	swrate_add(&s->be->be_counters.d_time, TIME_STATS_SAMPLES, t_data);
 	swrate_add(&s->be->be_counters.t_time, TIME_STATS_SAMPLES, t_close);
+	SPIN_UNLOCK(PROXY_LOCK, &s->be->lock);
 }
 
 /*
@@ -2533,7 +2533,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 
 	if (sess->srv_conn) {
 		sess->srv_conn->served--;
-		sess->srv_conn->proxy->served--;
+		HA_ATOMIC_SUB(&sess->srv_conn->proxy->served, 1);
 		if (sess->srv_conn->proxy->lbprm.server_drop_conn)
 			sess->srv_conn->proxy->lbprm.server_drop_conn(sess->srv_conn);
 		stream_del_srv_conn(sess);
@@ -2541,7 +2541,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 
 	if (newsrv) {
 		newsrv->served++;
-		newsrv->proxy->served++;
+		HA_ATOMIC_ADD(&newsrv->proxy->served, 1);
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
 		stream_add_srv_conn(sess, newsrv);
