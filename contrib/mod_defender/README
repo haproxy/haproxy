@@ -1,0 +1,159 @@
+                       --------------------------
+                        Mod Defender for HAProxy
+                       --------------------------
+
+
+This is a service that talks SPOE protocol and uses the Mod Defender
+(https://github.com/VultureProject/mod_defender) functionality to detect
+HTTP attacks. It returns a HTTP status code to indicate whether the request
+is suspicious or not, based on NAXSI rules. The value of the returned code
+can be used in HAProxy rules to determine if the HTTP request should be
+blocked/rejected.
+
+Unlike ModSecurity, Mod Defender is a whitelist based WAF (everything is
+disallowed, unless there are rules saying otherwise). It's a partial
+replication of NAXSI and it uses NAXSI compatible rules configuration
+format.
+
+
+1) How to build it
+------------------
+
+Required packages :
+
+    * Mod Defender source (https://github.com/VultureProject/mod_defender)
+    * Asynchronous event notification library and headers (libevent)
+    * Apache 2 (>= 2.4) development headers
+    * APR library and headers
+    * GNU C (gcc) and C++ (g++) >= 4.9
+    * GNU Standard C++ Library v3 (libstdc++)
+    * GNU Make
+
+
+Compile the source :
+
+    $ make MOD_DEFENDER_SRC=/path/to/mod_defender_src
+
+
+2) Configuration
+----------------
+
+Download the Naxsi core rules file :
+
+    $ wget -O /path/to/core.rules \
+    https://raw.githubusercontent.com/nbs-system/naxsi/master/naxsi_config/naxsi_core.rules
+
+
+Create the Mod Defender configuration file. For example :
+
+    # Defender toggle
+    Defender On
+    # Match log path
+    MatchLog /path/to/defender_match.log
+    # JSON Match log path
+    JSONMatchLog /path/to/defender_json_match.log
+    # Request body limit
+    RequestBodyLimit 8388608
+    # Learning mode toggle
+    LearningMode Off
+    # Extensive Learning log toggle
+    ExtensiveLog Off
+    # Libinjection SQL toggle
+    LibinjectionSQL On
+    # Libinjection XSS toggle
+    LibinjectionXSS On
+
+    # Rules
+    Include /path/to/core.rules
+
+    # Score action
+    CheckRule "$SQL >= 8" BLOCK
+    CheckRule "$RFI >= 8" BLOCK
+    CheckRule "$TRAVERSAL >= 4" BLOCK
+    CheckRule "$EVADE >= 4" BLOCK
+    CheckRule "$XSS >= 8" BLOCK
+    CheckRule "$UPLOAD >= 8" BLOCK
+
+    # Whitelists
+    # ....
+
+
+Next step is to configure the SPOE for use with the Mod Defender service.
+Example configuration (args elements order is important) :
+
+    [mod_defender]
+
+    spoe-agent mod-defender-agent
+        messages check-request
+        option   var-prefix    defender
+        timeout  hello         100ms
+        timeout  idle          30s
+        timeout  processing    15ms
+        use-backend spoe-mod-defender
+
+    spoe-message check-request
+        args src unique-id method path query req.ver req.hdrs_bin req.body
+        event on-frontend-http-request
+
+
+The engine is in the scope "mod_defender". To enable it, you must set the
+following line in a frontend/listener section :
+
+    frontend my_frontend
+        ...
+        filter spoe engine mod_defender config /path/to/spoe-mod-defender.conf
+        ...
+
+
+Also, we must define the "spoe-mod-defender" backend in HAProxy configuration :
+
+    backend spoe-mod-defender
+      mode tcp
+      balance roundrobin
+      timeout connect 5s
+      timeout server  3m
+      server defender1 127.0.0.1:12345
+
+
+The Mod Defender status is returned in a variable "sess.defender.status" --
+it contains the returned HTTP status code. The request is considered
+malicious if the variable contains value greater than zero.
+
+The following rule can be used to reject all suspicious HTTP requests :
+
+    http-request deny if { var(sess.defender.status) -m int gt 0 }
+
+
+3) Start the service
+--------------------
+
+To start the service, you need to use "defender" binary :
+
+    $ ./defender -h
+    Usage : ./defender [OPTION]...
+        -h                   Print this message
+        -f <config-file>     Mod Defender configuration file
+        -l <log-file>        Mod Defender log file
+        -d                   Enable the debug mode
+        -m <max-frame-size>  Specify the maximum frame size (default : 16384)
+        -p <port>            Specify the port to listen on (default : 12345)
+        -n <num-workers>     Specify the number of workers (default : 10)
+        -c <capability>      Enable the support of the specified capability
+        -t <time>            Set a delay to process a message (default: 0)
+                               The value is specified in milliseconds by default,
+                               but can be in any other unit if the number is suffixed
+                               by a unit (us, ms, s)
+
+        Supported capabilities: fragmentation, pipelining, async
+
+Example:
+
+    $ ./defender -n 4 -f /path/to/mod_defender.conf -d -l /path/to/error.log
+
+
+4) Known bugs and limitations
+-----------------------------
+
+In its current state, the module is limited by haproxy to the analysis of
+the first buffer. One workaround may consist in significantly increasing
+haproxy's buffer size.
