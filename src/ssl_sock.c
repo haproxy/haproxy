@@ -369,17 +369,19 @@ fail_get:
 static void ssl_async_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
-	int conn_fd = conn->t.sock.fd;
 
 	/* fd is an async enfine fd, we must stop
 	 * to poll this fd until it is requested
 	 */
+        fd_stop_recv(fd);
         fd_cant_recv(fd);
 
 	/* crypto engine is available, let's notify the associated
 	 * connection that it can pursue its processing.
 	 */
-	conn_fd_handler(conn_fd);
+	__conn_sock_want_recv(conn);
+	__conn_sock_want_send(conn);
+	conn_update_sock_polling(conn);
 }
 
 /*
