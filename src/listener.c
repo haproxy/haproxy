@@ -50,7 +50,7 @@ struct xfer_sock_list *xfer_sock_list = NULL;
  * also support binding only the relevant processes to their respective
  * listeners. We don't do that in debug mode however.
  */
-void enable_listener(struct listener *listener)
+static void enable_listener(struct listener *listener)
 {
 	if (listener->state == LI_LISTEN) {
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
@@ -80,7 +80,7 @@ void enable_listener(struct listener *listener)
  * polling lists if it is in the LI_READY or in the LI_FULL state. The listener
  * enters LI_LISTEN.
  */
-void disable_listener(struct listener *listener)
+static void disable_listener(struct listener *listener)
 {
 	if (listener->state < LI_READY)
 		return;

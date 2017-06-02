@@ -26,18 +26,6 @@
 
 #include <types/listener.h>
 
-/* This function adds the specified listener's file descriptor to the polling
- * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
- * LI_FULL state depending on its number of connections.
- */
-void enable_listener(struct listener *listener);
-
-/* This function removes the specified listener's file descriptor from the
- * polling lists if it is in the LI_READY or in the LI_FULL state. The listener
- * enters LI_LISTEN.
- */
-void disable_listener(struct listener *listener);
-
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
  * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but
