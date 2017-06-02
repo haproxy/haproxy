@@ -211,26 +211,26 @@ char default_rfc5424_sd_log_format[] = "- ";
  * RFC3164 format. It begins with time-based part and is updated by
  * update_log_hdr().
  */
-char *logheader = NULL;
+THREAD_LOCAL char *logheader = NULL;
 
 /* This is a global syslog header for messages in RFC5424 format. It is
  * updated by update_log_hdr_rfc5424().
  */
-char *logheader_rfc5424 = NULL;
+THREAD_LOCAL char *logheader_rfc5424 = NULL;
 
 /* This is a global syslog message buffer, common to all outgoing
  * messages. It contains only the data part.
  */
-char *logline = NULL;
+THREAD_LOCAL char *logline = NULL;
 
 /* A global syslog message buffer, common to all RFC5424 syslog messages.
  * Currently, it is used for generating the structured-data part.
  */
-char *logline_rfc5424 = NULL;
+THREAD_LOCAL char *logline_rfc5424 = NULL;
 
 /* A global buffer used to store all startup alerts/warnings. It will then be
  * retrieve on the CLI. */
-static char *startup_logs = NULL;
+static THREAD_LOCAL char *startup_logs = NULL;
 
 struct logformat_var_args {
 	char *name;
@@ -985,10 +985,10 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
  */
 static char *update_log_hdr(const time_t time)
 {
-	static long tvsec;
-	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
-	static struct chunk host = { NULL, 0, 0 };
-	static int sep = 0;
+	static THREAD_LOCAL long tvsec;
+	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
+	static THREAD_LOCAL struct chunk host = { NULL, 0, 0 };
+	static THREAD_LOCAL int sep = 0;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -1030,8 +1030,8 @@ static char *update_log_hdr(const time_t time)
  */
 static char *update_log_hdr_rfc5424(const time_t time)
 {
-	static long tvsec;
-	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
+	static THREAD_LOCAL long tvsec;
+	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
 	const char *gmt_offset;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
@@ -1094,14 +1094,14 @@ void send_log(struct proxy *p, int level, const char *format, ...)
  */
 void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd, size_t sd_size)
 {
-	static struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
-	static struct msghdr msghdr = {
-		.msg_iov = iovec,
+	static THREAD_LOCAL struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
+	static THREAD_LOCAL struct msghdr msghdr = {
+		//.msg_iov = iovec,
 		.msg_iovlen = NB_MSG_IOVEC_ELEMENTS
 	};
-	static int logfdunix = -1;	/* syslog to AF_UNIX socket */
-	static int logfdinet = -1;	/* syslog to AF_INET socket */
-	static char *dataptr = NULL;
+	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
+	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
+	static THREAD_LOCAL char *dataptr = NULL;
 	int fac_level;
 	struct list *logsrvs = NULL;
 	struct logsrv *tmp = NULL;
@@ -1110,9 +1110,11 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	size_t hdr_size;
 	time_t time = date.tv_sec;
 	struct chunk *tag = &global.log_tag;
-	static int curr_pid;
-	static char pidstr[100];
-	static struct chunk pid;
+	static THREAD_LOCAL int curr_pid;
+	static THREAD_LOCAL char pidstr[100];
+	static THREAD_LOCAL struct chunk pid;
+
+	msghdr.msg_iov = iovec;
 
 	dataptr = message;
 
@@ -1345,6 +1347,11 @@ void init_log()
 /* Initialize log buffers used for syslog messages */
 int init_log_buffers()
 {
+	if (global.nbthread > 1 && tid == (unsigned int)(-1)) {
+		hap_register_per_thread_init(init_log_buffers);
+		hap_register_per_thread_deinit(deinit_log_buffers);
+	}
+
 	logheader = my_realloc2(logheader, global.max_syslog_len + 1);
 	logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
 	logline = my_realloc2(logline, global.max_syslog_len + 1);

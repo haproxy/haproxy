@@ -28,6 +28,8 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <common/hathreads.h>
+
 #include <types/log.h>
 #include <types/proxy.h>
 #include <types/stream.h>
@@ -42,10 +44,10 @@ extern char clf_http_log_format[];
 
 extern char default_rfc5424_sd_log_format[];
 
-extern char *logheader;
-extern char *logheader_rfc5424;
-extern char *logline;
-extern char *logline_rfc5424;
+extern THREAD_LOCAL char *logheader;
+extern THREAD_LOCAL char *logheader_rfc5424;
+extern THREAD_LOCAL char *logline;
+extern THREAD_LOCAL char *logline_rfc5424;
 
 
 /*
