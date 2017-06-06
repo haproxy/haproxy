@@ -2,7 +2,7 @@ DESTDIR    =
 PREFIX     = /usr/local
 BINDIR     = $(PREFIX)/bin
 
-CC = gcc
+CC ?= gcc
 LD = $(CC)
 
 ifeq ($(MODSEC_INC),)
@@ -25,9 +25,17 @@ ifeq ($(LIBXML_INC),)
 LIBXML_INC := /usr/include/libxml2
 endif
 
-CFLAGS  = -g -Wall -pthread
-LDFLAGS += -lpthread  -levent -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
-INCS += -I../../include -I../../ebtree -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC)
+ifeq ($(EVENT_LIB),)
+EVENT_LIB := -levent
+endif
+
+ifeq ($(EVENT_INC),)
+EVENT_INC := /usr/include
+endif
+
+CFLAGS  += -g -Wall -pthread
+LDFLAGS += -lpthread  $(EVENT_LIB) -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
+INCS += -I../../include -I../../ebtree -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC) -I$(EVENT_INC)
 LIBS =
 
 OBJS = spoa.o modsec_wrapper.o
