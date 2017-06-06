@@ -1294,7 +1294,11 @@ ssl-engine <name> [algo <comma-seperated list of algorithms>]
 ssl-mode-async
   Adds SSL_MODE_ASYNC mode to the SSL context. This enables asynchronous TLS
   I/O operations if asynchronous capable SSL engines are used. The current
-  implementation supports a maximum of 32 engines.
+  implementation supports a maximum of 32 engines. The Openssl ASYNC API
+  doesn't support moving read/write buffers and is not compliant with
+  haproxy's buffer management. So the asynchronous mode is disabled on
+  read/write  operations (it is only enabled during initial and reneg
+  handshakes).
 
 tune.buffers.limit <number>
   Sets a hard limit on the number of buffers which may be allocated per process.

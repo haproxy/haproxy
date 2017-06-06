@@ -4757,6 +4757,15 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	}
 
 reneg_ok:
+
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+	/* ASYNC engine API doesn't support moving read/write
+	 * buffers. So we disable ASYNC mode right after
+	 * the handshake to avoid buffer oveflows.
+	 */
+	if (global_ssl.async)
+		SSL_clear_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
+#endif
 	/* Handshake succeeded */
 	if (!SSL_session_reused(conn->xprt_ctx)) {
 		if (objt_server(conn->target)) {
@@ -4875,6 +4884,11 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_send(conn);
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+				/* Async mode can be re-enabled, because we're leaving data state.*/
+				if (global_ssl.async)
+					SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
+#endif
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -4882,18 +4896,17 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_recv(conn);
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+					/* Async mode can be re-enabled, because we're leaving data state.*/
+					if (global_ssl.async)
+						SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
+#endif
 					break;
 				}
 				/* we need to poll for retry a read later */
 				fd_cant_recv(conn->t.sock.fd);
 				break;
 			}
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn, conn->xprt_ctx);
-				break;
-			}
-#endif
 			/* otherwise it's a real error */
 			goto out_error;
 		}
@@ -4984,6 +4997,11 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_send(conn);
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+					/* Async mode can be re-enabled, because we're leaving data state.*/
+					if (global_ssl.async)
+						SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
+#endif
 					break;
 				}
 				/* we need to poll to retry a write later */
@@ -4994,14 +5012,13 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_recv(conn);
-				break;
-			}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn, conn->xprt_ctx);
+				/* Async mode can be re-enabled, because we're leaving data state.*/
+				if (global_ssl.async)
+					SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
+#endif
 				break;
 			}
-#endif
 			goto out_error;
 		}
 	}
