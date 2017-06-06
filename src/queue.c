@@ -61,29 +61,6 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 }
 
 
-/*
- * Manages a server's connection queue. This function will try to dequeue as
- * many pending streams as possible, and wake them up.
- */
-void process_srv_queue(struct server *s)
-{
-	struct proxy  *p = s->proxy;
-	int maxconn;
-
-	/* First, check if we can handle some connections queued at the proxy. We
-	 * will take as many as we can handle.
-	 */
-
-	maxconn = srv_dynamic_maxconn(s);
-	while (s->served < maxconn) {
-		struct stream *strm = pendconn_get_next_strm(s, p);
-
-		if (strm == NULL)
-			break;
-		task_wakeup(strm->task, TASK_WOKEN_RES);
-	}
-}
-
 /* Detaches the next pending connection from either a server or a proxy, and
  * returns its associated stream. If no pending connection is found, NULL is
  * returned. Note that neither <srv> nor <px> may be NULL.
@@ -97,7 +74,7 @@ void process_srv_queue(struct server *s)
  * The stream is immediately marked as "assigned", and both its <srv> and
  * <srv_conn> are set to <srv>,
  */
-struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px)
+static struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px)
 {
 	struct pendconn *ps, *pp;
 	struct stream *strm;
@@ -131,6 +108,29 @@ struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px)
 		px->lbprm.server_take_conn(srv);
 
 	return strm;
+}
+
+/*
+ * Manages a server's connection queue. This function will try to dequeue as
+ * many pending streams as possible, and wake them up.
+ */
+void process_srv_queue(struct server *s)
+{
+	struct proxy  *p = s->proxy;
+	int maxconn;
+
+	/* First, check if we can handle some connections queued at the proxy. We
+	 * will take as many as we can handle.
+	 */
+
+	maxconn = srv_dynamic_maxconn(s);
+	while (s->served < maxconn) {
+		struct stream *strm = pendconn_get_next_strm(s, p);
+
+		if (strm == NULL)
+			break;
+		task_wakeup(strm->task, TASK_WOKEN_RES);
+	}
 }
 
 /* Adds the stream <strm> to the pending connection list of server <strm>->srv

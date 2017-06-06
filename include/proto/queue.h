@@ -37,7 +37,6 @@
 extern struct pool_head *pool2_pendconn;
 
 int init_pendconn();
-struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px);
 struct pendconn *pendconn_add(struct stream *strm);
 void pendconn_free(struct pendconn *p);
 void process_srv_queue(struct server *s);
