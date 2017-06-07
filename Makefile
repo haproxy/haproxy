@@ -286,7 +286,7 @@ ifeq ($(TARGET),solaris)
   # This is for Solaris 8
   # We also enable getaddrinfo() which works since solaris 8.
   USE_POLL       = implicit
-  TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT
+  TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
   USE_TPROXY     = implicit
   USE_LIBCRYPT    = implicit
