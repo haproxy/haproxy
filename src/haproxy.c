@@ -2574,12 +2574,13 @@ int main(int argc, char **argv)
 			if (global.mode & MODE_MWORKER) {
 				protocol_unbind_all();
 				mworker_wait();
+				/* should never get there */
+				exit(EXIT_FAILURE);
 			}
 #if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
 			ssl_free_dh();
 #endif
-			/* should never get there */
-			exit(EXIT_FAILURE);
+			exit(0); /* parent must leave */
 		}
 
 		/* child must never use the atexit function */
