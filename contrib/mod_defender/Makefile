@@ -2,10 +2,10 @@ DESTDIR    =
 PREFIX     = /usr/local
 BINDIR     = $(PREFIX)/bin
 
-CC = gcc
+CC ?= gcc
 LD = $(CC)
 
-CXX = g++
+CXX ?= g++
 
 ifeq ($(MOD_DEFENDER_SRC),)
 MOD_DEFENDER_SRC := ./mod_defender_src
@@ -19,9 +19,17 @@ ifeq ($(APR_INC),)
 APR_INC := /usr/include/apr-1.0
 endif
 
-CFLAGS  = -g -Wall -pthread
-LDFLAGS = -lpthread  -levent -levent_pthreads -lapr-1 -laprutil-1 -lstdc++
-INCS += -I../../include -I../../ebtree -I$(MOD_DEFENDER_SRC) -I$(APACHE2_INC) -I$(APR_INC)
+ifeq ($(EVENT_LIB),)
+EVENT_LIB := -levent
+endif
+
+ifeq ($(EVENT_INC),)
+EVENT_INC := /usr/include
+endif
+
+CFLAGS  += -g -Wall -pthread
+LDFLAGS += -lpthread  $(EVENT_LIB) -levent_pthreads -lapr-1 -laprutil-1 -lstdc++ -lm
+INCS += -I../../include -I../../ebtree -I$(MOD_DEFENDER_SRC) -I$(APACHE2_INC) -I$(APR_INC) -I$(EVENT_INC)
 LIBS =
 
 CXXFLAGS = -g -std=gnu++11

@@ -16,6 +16,7 @@
 #define __SPOA_H__
 
 #include <sys/time.h>
+#undef LIST_HEAD
 
 #include <event2/util.h>
 #include <event2/event.h>
