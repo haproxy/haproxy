@@ -32,6 +32,8 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <common/hathreads.h>
+
 #include <eb32tree.h>
 
 #include <types/connection.h>
@@ -282,6 +284,10 @@ struct server {
 		char *client_crt;		/* client certificate to send */
 		struct sample_expr *sni;        /* sample expression for SNI */
 	} ssl_ctx;
+#endif
+
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
 #endif
 	struct {
 		const char *file;		/* file where the section appears */

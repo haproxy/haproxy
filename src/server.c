@@ -761,9 +761,11 @@ void srv_shutdown_streams(struct server *srv, int why)
 {
 	struct stream *stream, *stream_bck;
 
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	list_for_each_entry_safe(stream, stream_bck, &srv->actconns, by_srv)
 		if (stream->srv_conn == srv)
 			stream_shutdown(stream, why);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
@@ -1029,7 +1031,6 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 	/* Register changes to be applied asynchronously */
 	if (LIST_ISEMPTY(&s->update_status))
 		LIST_ADDQ(&updated_servers, &s->update_status);
-
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
 	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)))
@@ -2021,6 +2022,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			/* Copy default server settings to new server settings. */
 			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
+			SPIN_INIT(&newsrv->lock);
 			cur_arg++;
 		} else {
 			newsrv = &curproxy->defsrv;

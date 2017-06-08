@@ -2880,9 +2880,11 @@ static int stats_process_http_post(struct stream_interface *si)
 						if (px->state != PR_STSTOPPED) {
 							struct stream *sess, *sess_bck;
 
+							SPIN_LOCK(SERVER_LOCK, &sv->lock);
 							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
 								if (sess->srv_conn == sv)
 									stream_shutdown(sess, SF_ERR_KILLED);
+							SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 
 							altered_servers++;
 							total_servers++;

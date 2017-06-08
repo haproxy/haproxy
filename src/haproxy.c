@@ -2080,6 +2080,7 @@ void deinit(void)
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 					xprt_get(XPRT_SSL)->destroy_srv(s);
 			}
+			SPIN_DESTROY(&s->lock);
 			free(s);
 			s = s_next;
 		}/* end while(s) */

@@ -64,10 +64,9 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
 {
-	s->counters.cum_sess++;
-	update_freq_ctr(&s->sess_per_sec, 1);
-	if (s->sess_per_sec.curr_ctr > s->counters.sps_max)
-		s->counters.sps_max = s->sess_per_sec.curr_ctr;
+	HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
+	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
+			     update_freq_ctr(&s->sess_per_sec, 1));
 }
 
 /* set the time of last session on the designated server */

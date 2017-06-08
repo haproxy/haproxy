@@ -148,6 +148,7 @@ enum lock_label {
 	LISTENER_LOCK,
 	LISTENER_QUEUE_LOCK,
 	PROXY_LOCK,
+	SERVER_LOCK,
 	SIGNALS_LOCK,
 	LOCK_LABELS
 };
@@ -233,7 +234,8 @@ static inline void show_lock_stats()
 {
 	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "FDTAB", "FDCACHE", "FD", "POLL",
 					   "TASK_RQ", "TASK_WQ", "POOL",
-					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SIGNALS" };
+					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
+					   "SIGNALS" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {

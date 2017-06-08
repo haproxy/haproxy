@@ -702,7 +702,7 @@ int assign_server(struct stream *s)
 		}
 		else if (srv != prev_srv) {
 			HA_ATOMIC_ADD(&s->be->be_counters.cum_lbconn, 1);
-			srv->counters.cum_lbconn++;
+			HA_ATOMIC_ADD(&srv->counters.cum_lbconn, 1);
 		}
 		s->target = &srv->obj_type;
 	}
@@ -879,10 +879,10 @@ int assign_server_and_queue(struct stream *s)
 					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
-				prev_srv->counters.redispatches++;
+				HA_ATOMIC_ADD(&prev_srv->counters.redispatches, 1);
 				HA_ATOMIC_ADD(&s->be->be_counters.redispatches, 1);
 			} else {
-				prev_srv->counters.retries++;
+				HA_ATOMIC_ADD(&prev_srv->counters.retries, 1);
 				HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
 			}
 		}
@@ -1197,10 +1197,11 @@ int connect_server(struct stream *s)
 	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
 	if (srv) {
+		int count;
+
 		s->flags |= SF_CURR_SESS;
-		srv->cur_sess++;
-		if (srv->cur_sess > srv->counters.cur_sess_max)
-			srv->counters.cur_sess_max = srv->cur_sess;
+		count = HA_ATOMIC_ADD(&srv->cur_sess, 1);
+		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
 
@@ -1277,7 +1278,7 @@ int srv_redispatch_connect(struct stream *s)
 			s->si[1].err_type = SI_ET_QUEUE_ERR;
 		}
 
-		srv->counters.failed_conns++;
+		HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
 		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		return 1;
 
@@ -1307,7 +1308,7 @@ int srv_redispatch_connect(struct stream *s)
 		if (srv)
 			srv_set_sess_last(srv);
 		if (srv)
-			srv->counters.failed_conns++;
+			HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
 		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 
 		/* release other streams waiting for this server */

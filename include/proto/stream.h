@@ -262,17 +262,23 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 
 static void inline stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	sess->srv_conn = srv;
 	LIST_ADD(&srv->actconns, &sess->by_srv);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 static void inline stream_del_srv_conn(struct stream *sess)
 {
-	if (!sess->srv_conn)
+	struct server *srv = sess->srv_conn;
+
+	if (!srv)
 		return;
 
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	sess->srv_conn = NULL;
 	LIST_DEL(&sess->by_srv);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 static void inline stream_init_srv_conn(struct stream *sess)

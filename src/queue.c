@@ -122,7 +122,7 @@ static struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *p
 	strm->flags |= SF_ASSIGNED;
 	strm->target = &srv->obj_type;
 	stream_add_srv_conn(strm, srv);
-	srv->served++;
+	HA_ATOMIC_ADD(&srv->served, 1);
 	HA_ATOMIC_ADD(&srv->proxy->served, 1);
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv);

@@ -242,7 +242,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		if ((!(check->state & CHK_ST_AGENT) ||
 		    (check->status >= HCHK_STATUS_L57DATA)) &&
 		    (check->health >= check->rise)) {
-			s->counters.failed_checks++;
+			HA_ATOMIC_ADD(&s->counters.failed_checks, 1);
 			report = 1;
 			check->health--;
 			if (check->health < check->rise)
@@ -410,7 +410,7 @@ void __health_adjust(struct server *s, short status)
 		return;
 	}
 
-	s->consecutive_errors++;
+	HA_ATOMIC_ADD(&s->consecutive_errors, 1);
 
 	if (s->consecutive_errors < s->consecutive_errors_limit)
 		return;
@@ -449,7 +449,7 @@ void __health_adjust(struct server *s, short status)
 	}
 
 	s->consecutive_errors = 0;
-	s->counters.failed_hana++;
+	HA_ATOMIC_ADD(&s->counters.failed_hana, 1);
 
 	if (s->check.fastinter) {
 		expire = tick_add(now_ms, MS_TO_TICKS(s->check.fastinter));
