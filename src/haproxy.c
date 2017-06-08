@@ -2575,7 +2575,7 @@ int main(int argc, char **argv)
 				protocol_unbind_all();
 				mworker_wait();
 			}
-#ifndef OPENSSL_NO_DH
+#if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
 			ssl_free_dh();
 #endif
 			/* should never get there */
