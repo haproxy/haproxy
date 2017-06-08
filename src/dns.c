@@ -322,7 +322,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	struct dns_query_item *query;
 	unsigned char buf[DNS_MAX_UDP_MESSAGE + 1];
 	unsigned char *bufend;
-	int fd, buflen, dns_resp, need_resend;
+	int fd, buflen, dns_resp, need_resend = 0;
 	unsigned short query_id;
 	struct eb32_node *eb;
 	struct lru64 *lru = NULL;
@@ -387,12 +387,6 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 
 		dns_resp = dns_validate_dns_response(buf, bufend, resolution);
 
-		/* treat errors first
-		 * need_resend flag could be set to 0 by default before the 'switch' and then
-		 * set to 1 only where needed, but I think it's better this way to make people
-		 * aware they have to think twice how to set this flag when updating this portion
-		 * of the code
-		 */
 		switch (dns_resp) {
 			case DNS_RESP_VALID:
 				need_resend = 0;
