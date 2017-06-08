@@ -1835,7 +1835,7 @@ typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
 {
-#if SSL_OP_NO_SSLv3
+#if SSL_OP_NO_SSLv3 && !defined(OPENSSL_NO_SSL3_METHOD)
 	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
 		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
 #endif
