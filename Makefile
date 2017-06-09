@@ -591,6 +591,7 @@ endif
 
 ifneq ($(USE_LUA),)
 check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
+check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
 
 BUILD_OPTIONS   += $(call ignore_implicit,USE_LUA)
 OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
@@ -600,6 +601,10 @@ ifeq ($(LUA_LIB_NAME),)
 LUA_LIB_NAME := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
 ifeq ($(LUA_LIB_NAME),)
 $(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.3, lua53, lua, ...))
+endif
+LUA_INC := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
+ifneq ($(LUA_INC),)
+OPTIONS_CFLAGS  += -I$(LUA_INC)
 endif
 endif
 
