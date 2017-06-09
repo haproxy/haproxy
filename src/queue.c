@@ -61,6 +61,26 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 }
 
 
+/* Returns the first pending connection for server <s>, which may be NULL if
+ * nothing is pending.
+ */
+static inline struct pendconn *pendconn_from_srv(const struct server *s) {
+	if (!s->nbpend)
+		return NULL;
+	return LIST_ELEM(s->pendconns.n, struct pendconn *, list);
+}
+
+/* Returns the first pending connection for proxy <px>, which may be NULL if
+ * nothing is pending.
+ */
+static inline struct pendconn *pendconn_from_px(const struct proxy *px) {
+	if (!px->nbpend)
+		return NULL;
+
+	return LIST_ELEM(px->pendconns.n, struct pendconn *, list);
+}
+
+
 /* Detaches the next pending connection from either a server or a proxy, and
  * returns its associated stream. If no pending connection is found, NULL is
  * returned. Note that neither <srv> nor <px> may be NULL.

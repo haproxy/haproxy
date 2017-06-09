@@ -44,27 +44,6 @@ unsigned int srv_dynamic_maxconn(const struct server *s);
 int pendconn_redistribute(struct server *s);
 int pendconn_grab_from_px(struct server *s);
 
-
-/* Returns the first pending connection for server <s>, which may be NULL if
- * nothing is pending.
- */
-static inline struct pendconn *pendconn_from_srv(const struct server *s) {
-	if (!s->nbpend)
-		return NULL;
-
-	return LIST_ELEM(s->pendconns.n, struct pendconn *, list);
-}
-
-/* Returns the first pending connection for proxy <px>, which may be NULL if
- * nothing is pending.
- */
-static inline struct pendconn *pendconn_from_px(const struct proxy *px) {
-	if (!px->nbpend)
-		return NULL;
-
-	return LIST_ELEM(px->pendconns.n, struct pendconn *, list);
-}
-
 /* Returns 0 if all slots are full on a server, or 1 if there are slots available. */
 static inline int server_has_room(const struct server *s) {
 	return !s->maxconn || s->cur_sess < srv_dynamic_maxconn(s);
