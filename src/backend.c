@@ -152,7 +152,7 @@ void update_backend_weight(struct proxy *px)
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned.
  */
-struct server *get_server_sh(struct proxy *px, const char *addr, int len)
+static struct server *get_server_sh(struct proxy *px, const char *addr, int len)
 {
 	unsigned int h, l;
 
@@ -190,7 +190,7 @@ struct server *get_server_sh(struct proxy *px, const char *addr, int len)
  * algorithm out of a tens because it gave him the best results.
  *
  */
-struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
+static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 {
 	unsigned int hash = 0;
 	int c;
