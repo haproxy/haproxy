@@ -8,12 +8,13 @@
 #   - copies & compresses files, changelog & docs to the final destination
 #   - shows a listing of the final file
 
-USAGE="Usage: ${0##*/} [-a] [-y] [-b branch] [-n newver] DIR"
+USAGE="Usage: ${0##*/} [-a] [-q] [-y] [-b branch] [-n newver] DIR"
 TARGET_DIR=
 OUTPUT=
 SAYYES=
 BRANCH=
 DEVEL=
+QUIET=
 AUTO=
 NEW=
 DIR=
@@ -29,13 +30,14 @@ err() {
 }
 
 quit() {
-	[ "$#" -eq 0 ] || echo "$*"
+	[ "$#" -eq 0 -o -n "$QUIET" ] || echo "$*"
 	exit 0
 }
 
 while [ -n "$1" -a -z "${1##-*}" ]; do
 	case "$1" in
 		-a)        AUTO=1         ; shift   ;;
+		-q)        QUIET=1        ; shift   ;;
 		-y)        SAYYES=1       ; shift   ;;
 		-b)        BRANCH="$2"    ; shift 2 ;;
 		-n)        NEW="$2"       ; shift 2 ;;
