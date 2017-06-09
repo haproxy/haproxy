@@ -64,13 +64,21 @@ if ! git rev-parse --verify -q HEAD >/dev/null; then
 fi
 
 # we want to go to the git top dir
-cd $(git rev-parse --show-toplevel)
+toplvl=$(git rev-parse --show-toplevel)
+if [ -n "$toplvl" ]; then
+	cd "$toplvl"
+fi
+
+# ensure that a master branch exists here
+if [ -z "$(git rev-parse --verify -q master 2>/dev/null)" ]; then
+	die "Current directory doesn't seem to be a valid git directory (no master branch)."
+fi
 
 if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
 	die "git HEAD doesn't match master branch."
 fi
 
-if [ "$(git diff HEAD|wc -c)" != 0 ]; then
+if [ "$(git diff HEAD 2>/dev/null |wc -c)" != 0 ]; then
 	err "You appear to have uncommitted local changes, please commit them first :"
 	git status -s -uno >&2
 	die
