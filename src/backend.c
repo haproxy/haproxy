@@ -240,7 +240,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
  */
-struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
+static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 {
 	unsigned int hash = 0;
 	const char *start, *end;
@@ -302,7 +302,7 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 /*
  * this does the same as the previous server_ph, but check the body contents
  */
-struct server *get_server_ph_post(struct stream *s)
+static struct server *get_server_ph_post(struct stream *s)
 {
 	unsigned int hash = 0;
 	struct http_txn *txn  = s->txn;
@@ -383,7 +383,7 @@ struct server *get_server_ph_post(struct stream *s)
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
  */
-struct server *get_server_hh(struct stream *s)
+static struct server *get_server_hh(struct stream *s)
 {
 	unsigned int hash = 0;
 	struct http_txn *txn  = s->txn;
@@ -459,7 +459,7 @@ struct server *get_server_hh(struct stream *s)
 }
 
 /* RDP Cookie HASH.  */
-struct server *get_server_rch(struct stream *s)
+static struct server *get_server_rch(struct stream *s)
 {
 	unsigned int hash = 0;
 	struct proxy    *px   = s->be;
