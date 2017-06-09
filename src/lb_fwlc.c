@@ -55,8 +55,11 @@ static void fwlc_srv_reposition(struct server *s)
 {
 	if (!s->lb_tree)
 		return;
+
+	SPIN_LOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 	fwlc_dequeue_srv(s);
 	fwlc_queue_srv(s);
+	SPIN_UNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -266,14 +269,19 @@ struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	srv = avoided = NULL;
 
+	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		node = eb32_first(&p->lbprm.fwlc.act);
-	else if (p->lbprm.fbck)
-		return p->lbprm.fbck;
+	else if (p->lbprm.fbck) {
+		srv = p->lbprm.fbck;
+		goto out;
+	}
 	else if (p->srv_bck)
 		node = eb32_first(&p->lbprm.fwlc.bck);
-	else
-		return NULL;
+	else {
+		srv = NULL;
+		goto out;
+	}
 
 	while (node) {
 		/* OK, we have a server. However, it may be saturated, in which
@@ -296,7 +304,8 @@ struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	if (!srv)
 		srv = avoided;
-
+ out:
+	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

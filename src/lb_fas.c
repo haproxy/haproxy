@@ -63,8 +63,11 @@ static void fas_srv_reposition(struct server *s)
 {
 	if (!s->lb_tree)
 		return;
+
+	SPIN_LOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 	fas_dequeue_srv(s);
 	fas_queue_srv(s);
+	SPIN_UNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -111,7 +114,7 @@ static void fas_set_server_status_down(struct server *srv)
 	fas_dequeue_srv(srv);
 	fas_remove_from_tree(srv);
 
-out_update_backend:
+ out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
  out_update_state:
@@ -274,14 +277,19 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	srv = avoided = NULL;
 
+	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		node = eb32_first(&p->lbprm.fas.act);
-	else if (p->lbprm.fbck)
-		return p->lbprm.fbck;
+	else if (p->lbprm.fbck) {
+		srv = p->lbprm.fbck;
+		goto out;
+	}
 	else if (p->srv_bck)
 		node = eb32_first(&p->lbprm.fas.bck);
-	else
-		return NULL;
+	else {
+		srv = NULL;
+		goto out;
+	}
 
 	while (node) {
 		/* OK, we have a server. However, it may be saturated, in which
@@ -304,7 +312,8 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	if (!srv)
 		srv = avoided;
-
+  out:
+	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

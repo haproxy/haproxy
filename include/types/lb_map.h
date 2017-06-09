@@ -25,13 +25,9 @@
 #include <common/config.h>
 #include <types/server.h>
 
-/* values for map.state */
-#define LB_MAP_RECALC  (1 << 0)
-
 struct lb_map {
 	struct server **srv;	/* the server map used to apply weights */
 	int rr_idx;		/* next server to be elected in round robin mode */
-	int state;		/* LB_MAP_RECALC */
 };
 
 #endif /* _TYPES_LB_MAP_H */

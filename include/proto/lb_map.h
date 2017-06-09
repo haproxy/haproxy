@@ -26,8 +26,6 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
-void map_set_server_status_down(struct server *srv);
-void map_set_server_status_up(struct server *srv);
 void recalc_server_map(struct proxy *px);
 void init_server_map(struct proxy *p);
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid);

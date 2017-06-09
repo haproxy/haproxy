@@ -99,6 +99,10 @@ static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned l
  * this.
  * This functions is designed to be called before server's weight and state
  * commit so it uses 'next' weight and states values.
+ *
+ * threads: this is the caller responsibility to lock data. For now, this
+ * function is called from lb modules, so it should be ok. But if you need to
+ * call it from another place, be careful (and update this comment).
  */
 void recount_servers(struct proxy *px)
 {
@@ -129,6 +133,10 @@ void recount_servers(struct proxy *px)
 /* This function simply updates the backend's tot_weight and tot_used values
  * after servers weights have been updated. It is designed to be used after
  * recount_servers() or equivalent.
+ *
+ * threads: this is the caller responsibility to lock data. For now, this
+ * function is called from lb modules, so it should be ok. But if you need to
+ * call it from another place, be careful (and update this comment).
  */
 void update_backend_weight(struct proxy *px)
 {
@@ -233,7 +241,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 		return map_get_server_hash(px, hash);
 }
 
-/* 
+/*
  * This function tries to find a running server for the proxy <px> following
  * the URL parameter hash method. It looks for a specific parameter in the
  * URL and hashes it to compute the server ID. This is useful to optimize
@@ -503,7 +511,7 @@ static struct server *get_server_rch(struct stream *s)
 	else
 		return map_get_server_hash(px, hash);
 }
- 
+
 /*
  * This function applies the load-balancing algorithm to the stream, as
  * defined by the backend it is assigned to. The stream is then marked as
@@ -579,6 +587,7 @@ int assign_server(struct stream *s)
 		s->target = &srv->obj_type;
 	}
 	else if (s->be->lbprm.algo & BE_LB_KIND) {
+
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
 			err = SRV_STATUS_NOSRV;

@@ -2129,6 +2129,7 @@ void deinit(void)
 
 		p0 = p;
 		p = p->next;
+		SPIN_DESTROY(&p0->lbprm.lock);
 		SPIN_DESTROY(&p0->lock);
 		free(p0);
 	}/* end while(p) */

@@ -118,7 +118,7 @@ static void chash_set_server_status_down(struct server *srv)
 	struct proxy *p = srv->proxy;
 
 	if (!srv_lb_status_changed(srv))
-		return;
+               return;
 
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
@@ -169,7 +169,7 @@ static void chash_set_server_status_up(struct server *srv)
 	struct proxy *p = srv->proxy;
 
 	if (!srv_lb_status_changed(srv))
-		return;
+               return;
 
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
@@ -364,14 +364,19 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	srv = avoided = NULL;
 	avoided_node = NULL;
 
+	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
-	else if (p->lbprm.fbck)
-		return p->lbprm.fbck;
+	else if (p->lbprm.fbck) {
+		srv = p->lbprm.fbck;
+		goto out;
+	}
 	else if (p->srv_bck)
 		root = &p->lbprm.chash.bck;
-	else
-		return NULL;
+	else {
+		srv = NULL;
+		goto out;
+	}
 
 	stop = node = p->lbprm.chash.last;
 	do {
@@ -415,6 +420,8 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		p->lbprm.chash.last = avoided_node;
 	}
 
+ out:
+	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

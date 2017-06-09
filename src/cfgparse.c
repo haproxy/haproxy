@@ -8434,6 +8434,7 @@ out_uri_auth_compat:
 			}
 			break;
 		}
+		SPIN_INIT(&curproxy->lbprm.lock);
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;

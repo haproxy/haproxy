@@ -315,7 +315,7 @@ static void fwrr_queue_srv(struct server *s)
 	struct fwrr_group *grp;
 
 	grp = (s->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	
+
 	/* Delay everything which does not fit into the window and everything
 	 * which does not fit into the theorical new window.
 	 */
@@ -327,7 +327,7 @@ static void fwrr_queue_srv(struct server *s)
 		 s->npos >= grp->curr_weight + grp->next_weight) {
 		/* put into next tree, and readjust npos in case we could
 		 * finally take this back to current. */
-		s->npos -= grp->curr_weight;
+		HA_ATOMIC_SUB(&s->npos, grp->curr_weight);
 		fwrr_queue_by_weight(grp->next, s);
 	}
 	else {
@@ -359,7 +359,7 @@ static inline void fwrr_get_srv_next(struct server *s)
 		&s->proxy->lbprm.fwrr.bck :
 		&s->proxy->lbprm.fwrr.act;
 
-	s->npos += grp->curr_weight;
+	HA_ATOMIC_ADD(&s->npos, grp->curr_weight);
 }
 
 /* prepares a server when it was marked down */
@@ -414,7 +414,7 @@ static struct server *fwrr_get_server_from_group(struct fwrr_group *grp)
 
 	node = eb32_first(&grp->curr);
 	s = eb32_entry(node, struct server, lb_node);
-	
+
 	if (!node || s->npos > grp->curr_pos) {
 		/* either we have no server left, or we have a hole */
 		struct eb32_node *node2;
@@ -442,20 +442,20 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
 		/* first time ever for this server */
 		s->lpos = grp->curr_pos;
 		s->npos = grp->curr_pos + grp->next_weight / s->cur_eweight;
-		s->rweight += grp->next_weight % s->cur_eweight;
+		HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
 
 		if (s->rweight >= s->cur_eweight) {
-			s->rweight -= s->cur_eweight;
-			s->npos++;
+			HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
+			HA_ATOMIC_ADD(&s->npos, 1);
 		}
 	} else {
 		s->lpos = s->npos;
-		s->npos += grp->next_weight / s->cur_eweight;
-		s->rweight += grp->next_weight % s->cur_eweight;
+		HA_ATOMIC_ADD(&s->npos, (grp->next_weight / s->cur_eweight));
+		HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
 
 		if (s->rweight >= s->cur_eweight) {
-			s->rweight -= s->cur_eweight;
-			s->npos++;
+			HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
+			HA_ATOMIC_ADD(&s->npos, 1);
 		}
 	}
 }
@@ -470,14 +470,19 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	struct fwrr_group *grp;
 	int switched;
 
+	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		grp = &p->lbprm.fwrr.act;
-	else if (p->lbprm.fbck)
-		return p->lbprm.fbck;
+	else if (p->lbprm.fbck) {
+		srv = p->lbprm.fbck;
+		goto out;
+	}
 	else if (p->srv_bck)
 		grp = &p->lbprm.fwrr.bck;
-	else
-		return NULL;
+	else {
+		srv = NULL;
+		goto out;
+	}
 
 	switched = 0;
 	avoided = NULL;
@@ -558,6 +563,8 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			} while (full);
 		}
 	}
+ out:
+	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

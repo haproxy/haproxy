@@ -23,6 +23,8 @@
 #define _TYPES_BACKEND_H
 
 #include <common/config.h>
+#include <common/hathreads.h>
+
 #include <types/lb_chash.h>
 #include <types/lb_fas.h>
 #include <types/lb_fwlc.h>
@@ -145,6 +147,9 @@ struct lbprm {
 	struct lb_fwlc fwlc;
 	struct lb_chash chash;
 	struct lb_fas fas;
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 	/* Call backs for some actions. Any of them may be NULL (thus should be ignored). */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
 	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */
