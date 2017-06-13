@@ -42,30 +42,61 @@
 #include <proto/tcp_rules.h>
 
 /* structure used to return a table key built from a sample */
-static struct stktable_key static_table_key;
+static THREAD_LOCAL struct stktable_key static_table_key;
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
  * in table <t>.
  */
-void stksess_free(struct stktable *t, struct stksess *ts)
+void __stksess_free(struct stktable *t, struct stksess *ts)
 {
 	t->current--;
 	pool_free2(t->pool, (void *)ts - t->data_size);
 }
 
 /*
+ * Free an allocated sticky session <ts>, and decrease sticky sessions counter
+ * in table <t>.
+ * This function locks the table
+ */
+void stksess_free(struct stktable *t, struct stksess *ts)
+{
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	__stksess_free(t, ts);
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+}
+
+/*
  * Kill an stksess (only if its ref_cnt is zero).
  */
-void stksess_kill(struct stktable *t, struct stksess *ts)
+int __stksess_kill(struct stktable *t, struct stksess *ts)
 {
 	if (ts->ref_cnt)
-		return;
+		return 0;
 
 	eb32_delete(&ts->exp);
 	eb32_delete(&ts->upd);
 	ebmb_delete(&ts->key);
-	stksess_free(t, ts);
+	__stksess_free(t, ts);
+	return 1;
+}
+
+/*
+ * Decrease the refcount if decrefcnt is not 0.
+ * and try to kill the stksess
+ * This function locks the table
+ */
+int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
+{
+	int ret;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	if (decrefcnt)
+		ts->ref_cnt--;
+	ret = __stksess_kill(t, ts);
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	return ret;
 }
 
 /*
@@ -87,13 +118,15 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
  * Init sticky session <ts> of table <t>. The data parts are cleared and <ts>
  * is returned.
  */
-static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
+static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 {
 	memset((void *)ts - t->data_size, 0, t->data_size);
 	ts->ref_cnt = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	ts->upd.node.leaf_p = NULL;
+	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	RWLOCK_INIT(&ts->lock);
 	return ts;
 }
 
@@ -101,7 +134,7 @@ static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
  * Trash oldest <to_batch> sticky sessions from table <t>
  * Returns number of trashed sticky sessions.
  */
-int stktable_trash_oldest(struct stktable *t, int to_batch)
+int __stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
@@ -152,7 +185,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
 		eb32_delete(&ts->upd);
-		stksess_free(t, ts);
+		__stksess_free(t, ts);
 		batched++;
 	}
 
@@ -160,13 +193,28 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 }
 
 /*
+ * Trash oldest <to_batch> sticky sessions from table <t>
+ * Returns number of trashed sticky sessions.
+ * This function locks the table
+ */
+int stktable_trash_oldest(struct stktable *t, int to_batch)
+{
+	int ret;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	ret = __stktable_trash_oldest(t, to_batch);
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	return ret;
+}
+/*
  * Allocate and initialise a new sticky session.
  * The new sticky session is returned or NULL in case of lack of memory.
  * Sticky sessions should only be allocated this way, and must be freed using
  * stksess_free(). Table <t>'s sticky session counter is increased. If <key>
  * is not NULL, it is assigned to the new session.
  */
-struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
+struct stksess *__stksess_new(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
 
@@ -174,7 +222,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 		if ( t->nopurge )
 			return NULL;
 
-		if (!stktable_trash_oldest(t, (t->size >> 8) + 1))
+		if (!__stktable_trash_oldest(t, (t->size >> 8) + 1))
 			return NULL;
 	}
 
@@ -182,10 +230,28 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 	if (ts) {
 		t->current++;
 		ts = (void *)ts + t->data_size;
-		stksess_init(t, ts);
+		__stksess_init(t, ts);
 		if (key)
 			stksess_setkey(t, ts, key);
 	}
+
+	return ts;
+}
+/*
+ * Allocate and initialise a new sticky session.
+ * The new sticky session is returned or NULL in case of lack of memory.
+ * Sticky sessions should only be allocated this way, and must be freed using
+ * stksess_free(). Table <t>'s sticky session counter is increased. If <key>
+ * is not NULL, it is assigned to the new session.
+ * This function locks the table
+ */
+struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
+{
+	struct stksess *ts;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	ts = __stksess_new(t, key);
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -194,7 +260,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
  * Looks in table <t> for a sticky session matching key <key>.
  * Returns pointer on requested sticky session or NULL if none was found.
  */
-struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key)
+struct stksess *__stktable_lookup_key(struct stktable *t, struct stktable_key *key)
 {
 	struct ebmb_node *eb;
 
@@ -211,23 +277,22 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 	return ebmb_entry(eb, struct stksess, key);
 }
 
-/* Lookup and touch <key> in <table>, or create the entry if it does not exist.
- * This is mainly used for situations where we want to refresh a key's usage so
- * that it does not expire, and we want to have it created if it was not there.
- * The stksess is returned, or NULL if it could not be created.
+/*
+ * Looks in table <t> for a sticky session matching key <key>.
+ * Returns pointer on requested sticky session or NULL if none was found.
+ * The refcount of the found entry is increased and this function
+ * is protected using the table lock
  */
-struct stksess *stktable_update_key(struct stktable *table, struct stktable_key *key)
+struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
 
-	ts = stktable_lookup_key(table, key);
-	if (likely(ts))
-		return stktable_touch(table, ts, 1);
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	ts = __stktable_lookup_key(t, key);
+	if (ts)
+		ts->ref_cnt++;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
-	/* entry does not exist, initialize a new one */
-	ts = stksess_new(table, key);
-	if (likely(ts))
-		stktable_store(table, ts, 1);
 	return ts;
 }
 
@@ -235,7 +300,7 @@ struct stksess *stktable_update_key(struct stktable *table, struct stktable_key 
  * Looks in table <t> for a sticky session with same key as <ts>.
  * Returns pointer on requested sticky session or NULL if none was found.
  */
-struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
+struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct ebmb_node *eb;
 
@@ -250,11 +315,31 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 	return ebmb_entry(eb, struct stksess, key);
 }
 
+/*
+ * Looks in table <t> for a sticky session with same key as <ts>.
+ * Returns pointer on requested sticky session or NULL if none was found.
+ * The refcount of the found entry is increased and this function
+ * is protected using the table lock
+ */
+struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
+{
+	struct stksess *lts;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	lts = __stktable_lookup(t, ts);
+	if (lts)
+		lts->ref_cnt++;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	return lts;
+}
+
 /* Update the expiration timer for <ts> but do not touch its expiration node.
  * The table's expiration timer is updated if set.
+ * The node will be also inserted into the update tree if needed, at a position
+ * depending if the update is a local or coming from a remote node
  */
-struct stksess *stktable_touch_with_exp(struct stktable *t, struct stksess *ts,
-                                        int local, int expire)
+void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire)
 {
 	struct eb32_node * eb;
 	ts->expire = expire;
@@ -263,89 +348,163 @@ struct stksess *stktable_touch_with_exp(struct stktable *t, struct stksess *ts,
 		task_queue(t->exp_task);
 	}
 
-	/* If sync is enabled and update is local */
-	if (t->sync_task && local) {
-		/* If this entry is not in the tree
-		   or not scheduled for at least one peer */
-		if (!ts->upd.node.leaf_p
-		    || (int)(t->commitupdate - ts->upd.key) >= 0
-		    || (int)(ts->upd.key - t->localupdate) >= 0) {
-			ts->upd.key = ++t->update;
-			t->localupdate = t->update;
-			eb32_delete(&ts->upd);
-			eb = eb32_insert(&t->updates, &ts->upd);
-			if (eb != &ts->upd)  {
-				eb32_delete(eb);
-				eb32_insert(&t->updates, &ts->upd);
+	/* If sync is enabled */
+	if (t->sync_task) {
+		if (local) {
+			/* If this entry is not in the tree
+			   or not scheduled for at least one peer */
+			if (!ts->upd.node.leaf_p
+			    || (int)(t->commitupdate - ts->upd.key) >= 0
+			    || (int)(ts->upd.key - t->localupdate) >= 0) {
+				ts->upd.key = ++t->update;
+				t->localupdate = t->update;
+				eb32_delete(&ts->upd);
+				eb = eb32_insert(&t->updates, &ts->upd);
+				if (eb != &ts->upd)  {
+					eb32_delete(eb);
+					eb32_insert(&t->updates, &ts->upd);
+				}
+			}
+			task_wakeup(t->sync_task, TASK_WOKEN_MSG);
+		}
+		else {
+			/* If this entry is not in the tree */
+			if (!ts->upd.node.leaf_p) {
+				ts->upd.key= (++t->update)+(2147483648U);
+				eb = eb32_insert(&t->updates, &ts->upd);
+				if (eb != &ts->upd) {
+					eb32_delete(eb);
+					eb32_insert(&t->updates, &ts->upd);
+				}
 			}
 		}
-		task_wakeup(t->sync_task, TASK_WOKEN_MSG);
 	}
-	return ts;
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
- * The table's expiration timer is updated if set. The date of expiration coming from
+ * The table's expiration timer is updated using the date of expiration coming from
  * <t> stick-table configuration.
+ * The node will be also inserted into the update tree if needed, at a position
+ * considering the update is coming from a remote node
  */
-struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local)
+void stktable_touch_remote(struct stktable *t, struct stksess *ts, int decrefcnt)
+{
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	__stktable_touch_with_exp(t, ts, 0, ts->expire);
+	if (decrefcnt)
+		ts->ref_cnt--;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+}
+
+/* Update the expiration timer for <ts> but do not touch its expiration node.
+ * The table's expiration timer is updated using the date of expiration coming from
+ * <t> stick-table configuration.
+ * The node will be also inserted into the update tree if needed, at a position
+ * considering the update was made locally
+ */
+void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
-	return stktable_touch_with_exp(t, ts, local, expire);
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	__stktable_touch_with_exp(t, ts, 1, expire);
+	if (decrefcnt)
+		ts->ref_cnt--;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+}
+/* Just decrease the ref_cnt of the current session */
+void stktable_release(struct stktable *t, struct stksess *ts)
+{
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	ts->ref_cnt--;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
  * yet exist (the caller must check this). The table's timeout is updated if it
  * is set. <ts> is returned.
  */
-struct stksess *stktable_store(struct stktable *t, struct stksess *ts, int local)
+void __stktable_store(struct stktable *t, struct stksess *ts)
 {
-	ebmb_insert(&t->keys, &ts->key, t->key_size);
-	stktable_touch(t, ts, local);
-	ts->exp.key = ts->expire;
-	eb32_insert(&t->exps, &ts->exp);
-	return ts;
-}
 
-/* Same function as stktable_store(), but with <expire> as supplementary argument
- * to set the date of expiration of <ts> new sticky session thanks to
- * stktable_touch_with_exp().
- */
-struct stksess *stktable_store_with_exp(struct stktable *t, struct stksess *ts,
-                                        int local, int expire)
-{
 	ebmb_insert(&t->keys, &ts->key, t->key_size);
-	stktable_touch_with_exp(t, ts, local, expire);
 	ts->exp.key = ts->expire;
 	eb32_insert(&t->exps, &ts->exp);
-	return ts;
+	if (t->expire) {
+		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
+		task_queue(t->exp_task);
+	}
 }
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
  * specified table, or NULL if the key was NULL, or if no entry was found nor
  * could be created. The entry's expiration is updated.
  */
-struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
+struct stksess *__stktable_get_entry(struct stktable *table, struct stktable_key *key)
 {
 	struct stksess *ts;
 
 	if (!key)
 		return NULL;
 
-	ts = stktable_lookup_key(table, key);
+	ts = __stktable_lookup_key(table, key);
 	if (ts == NULL) {
 		/* entry does not exist, initialize a new one */
-		ts = stksess_new(table, key);
+		ts = __stksess_new(table, key);
 		if (!ts)
 			return NULL;
-		stktable_store(table, ts, 1);
+		__stktable_store(table, ts);
 	}
-	else
-		stktable_touch(table, ts, 1);
+	return ts;
+}
+/* Returns a valid or initialized stksess for the specified stktable_key in the
+ * specified table, or NULL if the key was NULL, or if no entry was found nor
+ * could be created. The entry's expiration is updated.
+ * This function locks the table, and the refcount of the entry is increased.
+ */
+struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
+{
+	struct stksess *ts;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	ts = __stktable_get_entry(table, key);
+	if (ts)
+		ts->ref_cnt++;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+
 	return ts;
 }
 
+/* Lookup for an entry with the same key and store the submitted
+ * stksess if not found.
+ */
+struct stksess *__stktable_set_entry(struct stktable *table, struct stksess *nts)
+{
+	struct stksess *ts;
+
+	ts = __stktable_lookup(table, nts);
+	if (ts == NULL) {
+		ts = nts;
+		__stktable_store(table, ts);
+	}
+	return ts;
+}
+
+/* Lookup for an entry with the same key and store the submitted
+ * stksess if not found.
+ * This function locks the table, and the refcount of the entry is increased.
+ */
+struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
+{
+	struct stksess *ts;
+
+	SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	ts = __stktable_set_entry(table, nts);
+	ts->ref_cnt++;
+	SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+
+	return ts;
+}
 /*
  * Trash expired sticky sessions from table <t>. The next expiration date is
  * returned.
@@ -356,6 +515,7 @@ static int stktable_trash_expired(struct stktable *t)
 	struct eb32_node *eb;
 	int looped = 0;
 
+	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
 
 	while (1) {
@@ -376,6 +536,7 @@ static int stktable_trash_expired(struct stktable *t)
 		if (likely(tick_is_lt(now_ms, eb->key))) {
 			/* timer not expired yet, revisit it later */
 			t->exp_next = eb->key;
+			SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 			return t->exp_next;
 		}
 
@@ -404,8 +565,9 @@ static int stktable_trash_expired(struct stktable *t)
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
 		eb32_delete(&ts->upd);
-		stksess_free(t, ts);
+		__stksess_free(t, ts);
 	}
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	/* We have found no task to expire in any tree */
 	t->exp_next = TICK_ETERNITY;
@@ -428,9 +590,10 @@ static struct task *process_table_expire(struct task *task)
 int stktable_init(struct stktable *t)
 {
 	if (t->size) {
-		memset(&t->keys, 0, sizeof(t->keys));
+		t->keys = EB_ROOT_UNIQUE;
 		memset(&t->exps, 0, sizeof(t->exps));
 		t->updates = EB_ROOT_UNIQUE;
+		SPIN_INIT(&t->lock);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->data_size + t->key_size, MEM_F_SHARED);
 
@@ -1381,17 +1544,22 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 
 		/* First, update gpc0_rate if it's tracked. Second, update its gpc0 if tracked. */
 		ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0_RATE);
-		if (ptr1)
-			update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
+		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
+		if (ptr1 || ptr2) {
+			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+			if (ptr1)
+				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
 
-		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
-		if (ptr2)
-			stktable_data_cast(ptr2, gpc0)++;
+			if (ptr2)
+				stktable_data_cast(ptr2, gpc0)++;
 
-		/* If data was modified, we need to touch to re-schedule sync */
-		if (ptr1 || ptr2)
-			stktable_touch(stkctr->table, ts, 1);
+			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			stktable_touch_local(stkctr->table, ts, 0);
+		}
 	}
 	return ACT_RET_CONT;
 }
@@ -1460,8 +1628,13 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
 	if (ptr) {
+		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
 		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
-		stktable_touch(stkctr->table, ts, 1);
+
+		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		stktable_touch_local(stkctr->table, ts, 0);
 	}
 
 	return ACT_RET_CONT;
@@ -1563,9 +1736,8 @@ smp_fetch_table_avl(const struct arg *args, struct sample *smp, const char *kw, 
  * the session will be consulted.
  */
 struct stkctr *
-smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw)
+smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw, struct stkctr *stkctr)
 {
-	static struct stkctr stkctr;
 	struct stkctr *stkptr;
 	struct stksess *stksess;
 	unsigned int num = kw[2] - '0';
@@ -1597,9 +1769,9 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		if (!key)
 			return NULL;
 
-		stkctr.table = &args->data.prx->table;
-		stkctr_set_entry(&stkctr, stktable_lookup_key(stkctr.table, key));
-		return &stkctr;
+		stkctr->table = &args->data.prx->table;
+		stkctr_set_entry(stkctr, stktable_lookup_key(stkctr->table, key));
+		return stkctr;
 	}
 
 	/* Here, <num> contains the counter number from 0 to 9 for
@@ -1622,9 +1794,9 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 
 	if (unlikely(args[arg].type == ARGT_TAB)) {
 		/* an alternate table was specified, let's look up the same key there */
-		stkctr.table = &args[arg].data.prx->table;
-		stkctr_set_entry(&stkctr, stktable_lookup(stkctr.table, stksess));
-		return &stkctr;
+		stkctr->table = &args[arg].data.prx->table;
+		stkctr_set_entry(stkctr, stktable_lookup(stkctr->table, stksess));
+		return stkctr;
 	}
 	return stkptr;
 }
@@ -1635,9 +1807,8 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
  * src_clr_gpc*.
  */
 struct stkctr *
-smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw)
+smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw, struct stkctr *stkctr)
 {
-	static struct stkctr stkctr;
 	struct stktable_key *key;
 	struct connection *conn = objt_conn(sess->origin);
 	struct sample smp;
@@ -1660,9 +1831,9 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	if (!key)
 		return NULL;
 
-	stkctr.table = &args->data.prx->table;
-	stkctr_set_entry(&stkctr, stktable_update_key(stkctr.table, key));
-	return &stkctr;
+	stkctr->table = &args->data.prx->table;
+	stkctr_set_entry(stkctr, stktable_get_entry(stkctr->table, key));
+	return stkctr;
 }
 
 /* set return a boolean indicating if the requested stream counter is
@@ -1672,9 +1843,18 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 static int
 smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
+	struct stkctr *stkctr;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_BOOL;
-	smp->data.u.sint = !!smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	smp->data.u.sint = !!stkctr;
+
+	/* release the ref count */
+	if ((stkctr == &tmpstkctr) &&  stkctr_entry(stkctr))
+		stktable_release(stkctr->table, stkctr_entry(stkctr));
+
 	return 1;
 }
 
@@ -1686,9 +1866,10 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 static int
 smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1696,11 +1877,24 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT0);
-		if (!ptr)
+	if (stkctr_entry(stkctr)) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT0);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, gpt0);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1713,9 +1907,10 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1724,10 +1919,23 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.u.sint = 0;
 
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
-		if (!ptr)
+		void *ptr;
+
+		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1740,9 +1948,10 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1750,11 +1959,24 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
 		                  stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1766,9 +1988,10 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1776,29 +1999,37 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (stkctr_entry(stkctr) == NULL)
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw);
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
+
 
 		/* First, update gpc0_rate if it's tracked. Second, update its
 		 * gpc0 if tracked. Returns gpc0's value otherwise the curr_ctr.
 		 */
 		ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
-		if (ptr1) {
-			update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
-					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
-			smp->data.u.sint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
-		}
-
 		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
-		if (ptr2)
-			smp->data.u.sint = ++stktable_data_cast(ptr2, gpc0);
+		if (ptr1 || ptr2) {
+			RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		/* If data was modified, we need to touch to re-schedule sync */
-		if (ptr1 || ptr2)
-			stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
+			if (ptr1) {
+				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
+						       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
+				smp->data.u.sint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
+			}
+
+			if (ptr2)
+				smp->data.u.sint = ++stktable_data_cast(ptr2, gpc0);
+
+			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+		}
+		else if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1810,9 +2041,10 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1820,17 +2052,28 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (stkctr_entry(stkctr) == NULL)
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw);
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
-		if (!ptr)
+	if (stkctr && stkctr_entry(stkctr)) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
+
+		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch(stkctr->table, stkctr_entry(stkctr), 1);
+		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
 	}
 	return 1;
 }
@@ -1842,9 +2085,10 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1852,10 +2096,25 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, conn_cnt);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+
+
 	}
 	return 1;
 }
@@ -1867,9 +2126,10 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1877,11 +2137,24 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1913,18 +2186,28 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 
 	px = args->data.prx;
 
-	if ((ts = stktable_update_key(&px->table, key)) == NULL)
+	if ((ts = stktable_get_entry(&px->table, key)) == NULL)
 		/* entry does not exist and could not be created */
 		return 0;
 
 	ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CNT);
-	if (!ptr)
+	if (!ptr) {
 		return 0; /* parameter not stored in this table */
+	}
 
 	smp->data.type = SMP_T_SINT;
+
+	RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
 	smp->data.u.sint = ++stktable_data_cast(ptr, conn_cnt);
-	/* Touch was previously performed by stktable_update_key */
+
+	RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
 	smp->flags = SMP_F_VOL_TEST;
+
+	stktable_touch_local(&px->table, ts, 1);
+
+	/* Touch was previously performed by stktable_update_key */
 	return 1;
 }
 
@@ -1935,9 +2218,10 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 static int
 smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1945,10 +2229,23 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, conn_cur);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1960,9 +2257,10 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1970,10 +2268,23 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, sess_cnt);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -1984,9 +2295,10 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -1994,11 +2306,24 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2010,9 +2335,10 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2020,10 +2346,23 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, http_req_cnt);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2035,9 +2374,10 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 static int
 smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2045,11 +2385,24 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2061,9 +2414,10 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2071,10 +2425,23 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, http_err_cnt);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2086,9 +2453,10 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 static int
 smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2096,11 +2464,24 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2112,9 +2493,10 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2122,10 +2504,23 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2137,9 +2532,10 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 static int
 smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2147,11 +2543,24 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2163,9 +2572,10 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2173,10 +2583,23 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2188,9 +2611,10 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
@@ -2198,11 +2622,24 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
-		if (!ptr)
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
+		}
+
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
@@ -2213,15 +2650,23 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 static int
 smp_fetch_sc_trackers(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = stkctr_entry(stkctr) ? stkctr_entry(stkctr)->ref_cnt : 0;
+	if (stkctr == &tmpstkctr) {
+		smp->data.u.sint = stkctr_entry(stkctr) ? (stkctr_entry(stkctr)->ref_cnt-1) : 0;
+		stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
+	else {
+		smp->data.u.sint = stkctr_entry(stkctr) ? stkctr_entry(stkctr)->ref_cnt : 0;
+	}
+
 	return 1;
 }
 
@@ -2420,52 +2865,59 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	ts = stktable_lookup_key(&px->table, &static_table_key);
-
 	switch (appctx->ctx.table.action) {
 	case STK_CLI_ACT_SHOW:
+		ts = stktable_lookup_key(&px->table, &static_table_key);
 		if (!ts)
 			return 1;
 		chunk_reset(&trash);
-		if (!table_dump_head_to_buffer(&trash, si, px, px))
+		if (!table_dump_head_to_buffer(&trash, si, px, px)) {
+			stktable_release(&px->table, ts);
 			return 0;
-		if (!table_dump_entry_to_buffer(&trash, si, px, ts))
+		}
+		RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+		if (!table_dump_entry_to_buffer(&trash, si, px, ts)) {
+			RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+			stktable_release(&px->table, ts);
 			return 0;
+		}
+		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+		stktable_release(&px->table, ts);
 		break;
 
 	case STK_CLI_ACT_CLR:
+		ts = stktable_lookup_key(&px->table, &static_table_key);
 		if (!ts)
 			return 1;
-		if (ts->ref_cnt) {
+
+		if (!stksess_kill(&px->table, ts, 1)) {
 			/* don't delete an entry which is currently referenced */
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Entry currently in use, cannot remove\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		stksess_kill(&px->table, ts);
+
 		break;
 
 	case STK_CLI_ACT_SET:
-		if (ts)
-			stktable_touch(&px->table, ts, 1);
-		else {
-			ts = stksess_new(&px->table, &static_table_key);
-			if (!ts) {
-				/* don't delete an entry which is currently referenced */
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
-			stktable_store(&px->table, ts, 1);
+		ts = stktable_get_entry(&px->table, &static_table_key);
+		if (!ts) {
+			/* don't delete an entry which is currently referenced */
+			appctx->ctx.cli.severity = LOG_ERR;
+			appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
+			appctx->st0 = CLI_ST_PRINT;
+			return 1;
 		}
 
+		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
 			if (strncmp(args[cur_arg], "data.", 5) != 0) {
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
 				appctx->st0 = CLI_ST_PRINT;
+				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
 
@@ -2474,6 +2926,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Unknown data type\n";
 				appctx->st0 = CLI_ST_PRINT;
+				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
 
@@ -2481,6 +2935,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Data type not stored in this table\n";
 				appctx->st0 = CLI_ST_PRINT;
+				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
 
@@ -2488,6 +2944,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Require a valid integer value to store\n";
 				appctx->st0 = CLI_ST_PRINT;
+				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
 
@@ -2516,6 +2974,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				break;
 			}
 		}
+		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		stktable_touch_local(&px->table, ts, 1);
 		break;
 
 	default:
@@ -2658,8 +3118,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (appctx->st2 == STAT_ST_LIST) {
-			appctx->ctx.table.entry->ref_cnt--;
-			stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+			stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry, 1);
 		}
 		return 1;
 	}
@@ -2692,13 +3151,16 @@ static int cli_io_handler_table(struct appctx *appctx)
 				if (appctx->ctx.table.target &&
 				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
+					SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 					eb = ebmb_first(&appctx->ctx.table.proxy->table.keys);
 					if (eb) {
 						appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 						appctx->ctx.table.entry->ref_cnt++;
 						appctx->st2 = STAT_ST_LIST;
+						SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 						break;
 					}
+					SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 				}
 			}
 			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
@@ -2707,10 +3169,13 @@ static int cli_io_handler_table(struct appctx *appctx)
 		case STAT_ST_LIST:
 			skip_entry = 0;
 
+			RWLOCK_RDLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+
 			if (appctx->ctx.table.data_type >= 0) {
 				/* we're filtering on some data contents */
 				void *ptr;
 				long long data;
+
 
 				dt = appctx->ctx.table.data_type;
 				ptr = stktable_data_ptr(&appctx->ctx.table.proxy->table,
@@ -2751,9 +3216,14 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (show && !skip_entry &&
-			    !table_dump_entry_to_buffer(&trash, si, appctx->ctx.table.proxy, appctx->ctx.table.entry))
-			    return 0;
+			    !table_dump_entry_to_buffer(&trash, si, appctx->ctx.table.proxy, appctx->ctx.table.entry)) {
+				RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+				return 0;
+			}
 
+			RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+
+			SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 			appctx->ctx.table.entry->ref_cnt--;
 
 			eb = ebmb_next(&appctx->ctx.table.entry->key);
@@ -2761,18 +3231,21 @@ static int cli_io_handler_table(struct appctx *appctx)
 				struct stksess *old = appctx->ctx.table.entry;
 				appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 				if (show)
-					stksess_kill_if_expired(&appctx->ctx.table.proxy->table, old);
+					__stksess_kill_if_expired(&appctx->ctx.table.proxy->table, old);
 				else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
-					stksess_kill(&appctx->ctx.table.proxy->table, old);
+					__stksess_kill(&appctx->ctx.table.proxy->table, old);
 				appctx->ctx.table.entry->ref_cnt++;
+				SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 				break;
 			}
 
 
 			if (show)
-				stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+				__stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
 			else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
-				stksess_kill(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+				__stksess_kill(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+
+			SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 
 			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
 			appctx->st2 = STAT_ST_INFO;
@@ -2789,8 +3262,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 static void cli_release_show_table(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST) {
-		appctx->ctx.table.entry->ref_cnt--;
-		stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
+		stksess_kill_if_expired(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry, 1);
 	}
 }
 

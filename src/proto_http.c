@@ -2721,7 +2721,7 @@ resume_execution:
 				struct stktable *t;
 				struct stksess *ts;
 				struct stktable_key *key;
-				void *ptr;
+				void *ptr1, *ptr2;
 
 				t = rule->arg.trk_ctr.table.t;
 				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
@@ -2730,14 +2730,20 @@ resume_execution:
 					stream_track_stkctr(&s->stkctr[trk_idx(rule->action)], t, ts);
 
 					/* let's count a new HTTP request as it's the first time we do it */
-					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
-					if (ptr)
-						stktable_data_cast(ptr, http_req_cnt)++;
+					ptr1 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
+					ptr2 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
+					if (ptr1 || ptr2) {
+						RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
-					if (ptr)
-						update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-						                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+						if (ptr1)
+							stktable_data_cast(ptr1, http_req_cnt)++;
+
+						if (ptr2)
+							update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
+							                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+
+						RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+					}
 
 					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (sess->fe != s->be)
@@ -3002,6 +3008,8 @@ resume_execution:
 				if (key && (ts = stktable_get_entry(t, key))) {
 					stream_track_stkctr(&s->stkctr[trk_idx(rule->action)], t, ts);
 
+					RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
 					/* let's count a new HTTP request as it's the first time we do it */
 					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
 					if (ptr)
@@ -3011,10 +3019,6 @@ resume_execution:
 					if (ptr)
 						update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 											   t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
-
-					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
-					if (sess->fe != s->be)
-						stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 
 					/* When the client triggers a 4xx from the server, it's most often due
 					 * to a missing object or permission. These events should be tracked
@@ -3033,6 +3037,13 @@ resume_execution:
 							update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 									       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 					}
+
+					RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
+					if (sess->fe != s->be)
+						stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
+
 				}
 			}
 			break;

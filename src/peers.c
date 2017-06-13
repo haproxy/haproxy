@@ -270,7 +270,7 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size, int use_identifier, int use_timed)
+static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, unsigned int updateid, char *msg, size_t size, int use_identifier, int use_timed)
 {
 	uint32_t netinteger;
 	unsigned short datalen;
@@ -283,13 +283,13 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
 	/* construct message */
 
 	/* check if we need to send the update identifer */
-	if (!st->last_pushed || ts->upd.key < st->last_pushed || ((ts->upd.key - st->last_pushed) != 1)) {
+	if (!st->last_pushed || updateid < st->last_pushed || ((updateid - st->last_pushed) != 1)) {
 		use_identifier = 1;
 	}
 
 	/* encode update identifier if needed */
 	if (use_identifier)  {
-		netinteger = htonl(ts->upd.key);
+		netinteger = htonl(updateid);
 		memcpy(cursor, &netinteger, sizeof(netinteger));
 		cursor += sizeof(netinteger);
 	}
@@ -318,6 +318,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
 		cursor += st->table->key_size;
 	}
 
+	RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 	/* encode values */
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 
@@ -357,6 +358,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
 			}
 		}
 	}
+	RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	/* Compute datalen */
 	datalen = (cursor - datamsg);
@@ -1152,7 +1154,9 @@ switchstate:
 						newts = stksess_new(st->table, NULL);
 						if (!newts)
 							goto ignore_msg;
-
+						/* Force expiratiion to remote date
+						   in case of first insert */
+						newts->expire = tick_add(now_ms, expire);
 						if (st->table->type == SMP_T_STR) {
 							unsigned int to_read, to_store;
 
@@ -1201,27 +1205,13 @@ switchstate:
 						}
 
 						/* lookup for existing entry */
-						ts = stktable_lookup(st->table, newts);
-						if (ts) {
-							/* the entry already exist, we can free ours */
-							stktable_touch_with_exp(st->table, ts, 0, tick_add(now_ms, expire));
+						ts = stktable_set_entry(st->table, newts);
+						if (ts != newts) {
 							stksess_free(st->table, newts);
 							newts = NULL;
 						}
-						else {
-							struct eb32_node *eb;
 
-							/* create new entry */
-							ts = stktable_store_with_exp(st->table, newts, 0, tick_add(now_ms, expire));
-							newts = NULL; /* don't reuse it */
-
-							ts->upd.key= (++st->table->update)+(2147483648U);
-							eb = eb32_insert(&st->table->updates, &ts->upd);
-							if (eb != &ts->upd) {
-								eb32_delete(eb);
-								eb32_insert(&st->table->updates, &ts->upd);
-							}
-						}
+						RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 						for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 
@@ -1233,6 +1223,8 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
@@ -1248,6 +1240,8 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
@@ -1263,6 +1257,8 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
@@ -1278,18 +1274,24 @@ switchstate:
 										data.curr_tick = tick_add(now_ms, -intdecode(&msg_cur, msg_end));
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
 										data.curr_ctr = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
 										data.prev_ctr = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
+											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
 										}
@@ -1302,6 +1304,10 @@ switchstate:
 								}
 							}
 						}
+
+						RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+						stktable_touch_remote(st->table, ts, 1);
+
 					}
 					else if (msg_head[1] == PEER_MSG_STKT_ACK) {
 						/* ack message */
@@ -1441,12 +1447,14 @@ incomplete:
 
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
-								eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
+								SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
 									uint32_t msglen;
 									struct stksess *ts;
+									unsigned updateid;
 
 									/* push local updates */
+									eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 									if (!eb) {
 										eb = eb32_first(&st->table->updates);
 										if (!eb || ((int)(eb->key - st->last_pushed) <= 0)) {
@@ -1461,9 +1469,16 @@ incomplete:
 									}
 
 									ts = eb32_entry(eb, struct stksess, upd);
-									msglen = peer_prepare_updatemsg(ts, st, trash.str, trash.size, new_pushed, 0);
+									updateid = ts->upd.key;
+									ts->ref_cnt++;
+									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+
+									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, 0);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1472,20 +1487,25 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
-									st->last_pushed = ts->upd.key;
+
+									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									ts->ref_cnt--;
+									st->last_pushed = updateid;
 									if ((int)(st->last_pushed - st->table->commitupdate) > 0)
 											st->table->commitupdate = st->last_pushed;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
-
-									eb = eb32_next(eb);
 								}
+								SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 							}
 						}
 						else {
@@ -1518,13 +1538,15 @@ incomplete:
 
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
-								eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
+								SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
 									uint32_t msglen;
 									struct stksess *ts;
 									int use_timed;
+									unsigned updateid;
 
 									/* push local updates */
+									eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 									if (!eb) {
 										st->flags |= SHTABLE_F_TEACH_STAGE1;
 										eb = eb32_first(&st->table->updates);
@@ -1534,10 +1556,17 @@ incomplete:
 									}
 
 									ts = eb32_entry(eb, struct stksess, upd);
+									updateid = ts->upd.key;
+									ts->ref_cnt++;
+									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, trash.str, trash.size, new_pushed, use_timed);
+									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1546,18 +1575,22 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
-									st->last_pushed = ts->upd.key;
+									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									ts->ref_cnt--;
+									st->last_pushed = updateid;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
-
-									eb = eb32_next(eb);
 								}
+								SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 							}
 
 							if (!(st->flags & SHTABLE_F_TEACH_STAGE2)) {
@@ -1589,11 +1622,15 @@ incomplete:
 
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
-								eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
+								SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
 									uint32_t msglen;
 									struct stksess *ts;
 									int use_timed;
+									unsigned updateid;
+
+									/* push local updates */
+									eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 
 									/* push local updates */
 									if (!eb || eb->key > st->teaching_origin) {
@@ -1602,10 +1639,17 @@ incomplete:
 									}
 
 									ts = eb32_entry(eb, struct stksess, upd);
+									updateid = ts->upd.key;
+									ts->ref_cnt++;
+									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, trash.str, trash.size, new_pushed, use_timed);
+									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1614,18 +1658,23 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
+										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										ts->ref_cnt--;
+										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
-									st->last_pushed = ts->upd.key;
+
+									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									ts->ref_cnt--;
+									st->last_pushed = updateid;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
-
-									eb = eb32_next(eb);
 								}
+								SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 							}
 						}
 

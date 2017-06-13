@@ -152,6 +152,8 @@ enum lock_label {
 	UPDATED_SERVERS_LOCK,
 	LBPRM_LOCK,
 	SIGNALS_LOCK,
+	STK_TABLE_LOCK,
+	STK_SESS_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -237,7 +239,7 @@ static inline void show_lock_stats()
 	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "FDTAB", "FDCACHE", "FD", "POLL",
 					   "TASK_RQ", "TASK_WQ", "POOL",
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
-					   "UPDATED_SERVERS", "LBPRM", "SIGNALS" };
+					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {

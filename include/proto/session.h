@@ -46,19 +46,26 @@ static inline void session_store_counters(struct session *sess)
 {
 	void *ptr;
 	int i;
+	struct stksess *ts;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		struct stkctr *stkctr = &sess->stkctr[i];
 
-		if (!stkctr_entry(stkctr))
+		ts = stkctr_entry(stkctr);
+		if (!ts)
 			continue;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
-		if (ptr)
+		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_CONN_CUR);
+		if (ptr) {
+			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
 			stktable_data_cast(ptr, conn_cur)--;
-		stkctr_entry(stkctr)->ref_cnt--;
-		stksess_kill_if_expired(stkctr->table, stkctr_entry(stkctr));
+
+			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		}
+
 		stkctr_set_entry(stkctr, NULL);
+		stksess_kill_if_expired(stkctr->table, ts, 1);
 	}
 }
 
