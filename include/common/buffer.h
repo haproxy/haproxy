@@ -163,12 +163,16 @@ static inline int bi_contig_space(const struct buffer *b)
 {
 	const char *left, *right;
 
-	left  = bi_end(b);
-	right = bo_ptr(b);
-
-	if (left >= right)
-		right = b->data + b->size;
-
+	left  = b->p + b->i;
+	right = b->p - b->o;
+	if (left >= b->data + b->size)
+		left -= b->size;
+	else {
+		if (right < b->data)
+			right += b->size;
+		else
+			right = b->data + b->size;
+	}
 	return (right - left);
 }
 
@@ -181,10 +185,11 @@ static inline int bo_contig_space(const struct buffer *b)
 {
 	const char *left, *right;
 
-	left  = bo_end(b);
-	right = bo_ptr(b);
-
-	if (left >= right)
+	left  = b->p;
+	right = b->p - b->o;
+	if (right < b->data)
+		right += b->size;
+	else
 		right = b->data + b->size;
 
 	return (right - left);
