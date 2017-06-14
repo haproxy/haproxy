@@ -1,0 +1,59 @@
+  ** Plug queueing disciplines **
+
+  The 'plug' qdisc type is not documented. It is even not supported
+  by traffic shaping tools like 'tc' from iproute2 package.
+
+  Such qdiscs have already been used by Yelp engineers but outside
+  of haproxy with libnl-utils tools (especially nl-qdisc-* tools)
+  to implement a workaround and make haproxy reloads work.
+
+  Indeed with such plug qdiscs coupled with iptables configurations
+  we are able to temporarily bufferize IP packets and to release them as
+  needed. So, they may be very useful to "synchronize" TCP sessions
+  or at higher level to put network applications in states approaching
+  the ones suspected to occur during bugs. Furthermore to be sure
+  to produce a correct bug fix, it may be useful to reproduce
+  as mush as needed such painful bugs. This is where plug qdiscs
+  may be useful.
+
+  To have an idea about how to use plug qdisc on the command line I highly recommend to
+  read Willy Tarreau blog here:
+
+  https://www.haproxy.com/blog/truly-seamless-reloads-with-haproxy-no-more-hacks/
+
+  which refers to this other one from Yelp:
+
+  https://engineeringblog.yelp.com/2015/04/true-zero-downtime-haproxy-reloads.html
+
+  The code found in plug_qdisc.c file already helped in fixing a painful bug hard to
+  fix because hard to reproduce. To use the API it exports this is quite easy:
+
+    - First your program must call plug_disc_attach() to create if not already created
+      a plug qdisc and use it (must be done during your application own already existing
+      initializations).
+      Note that this function calls plug_qdisc_release_indefinite_buffer() so that to
+      release already buffered packets before you start your application,
+
+    - then call plug_qdisc_plug_buffer() to start buffering packets incoming to your
+      plug qdisc. So they won't be delivered to your application,
+
+    - then call plug_qdisc_release_indefinite_buffer() to stop buffering the packets
+      incoming to your plug qdisc and release those already buffered.
+      So, that to be deliver them to your application.
+
+  This code is short and simple. But uses several libraries especially libnl-route module
+  part of libnl library. To compile haproxy and make it use the plug_qdisc.c code we had
+  to link it against several libnl3 library modules like that:
+
+     -lnl-genl-3 -lnl-route-3 -lnl-3 -lnl-cli-3
+
+
+  - Some references:
+    Libnl API documentation may be found here:
+    https://www.infradead.org/~tgr/libnl/doc/api/index.html
+
+    Kernel sources:
+    http://elixir.free-electrons.com/linux/latest/source/net/sched/sch_plug.c
+
+    Nice website about traffic shaping with queuing disciplines:
+    http://wiki.linuxwall.info/doku.php/en:ressources:dossiers:networking:traffic_control
