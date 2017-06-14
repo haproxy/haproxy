@@ -140,7 +140,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	__label__ out_return, out_free_expr;
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
-	int patflags;
+	int refflags, patflags;
 	const char *arg;
 	struct sample_expr *smp = NULL;
 	int idx = 0;
@@ -441,6 +441,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 *   -u : force the unique id of the acl
 	 *   -- : everything after this is not an option
 	 */
+	refflags = PAT_REF_ACL;
 	patflags = 0;
 	is_loaded = 0;
 	unique_id = -1;
@@ -470,7 +471,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags, load_as_map, err, file, line))
+			if (!pattern_read_from_file(&expr->pat, refflags, args[1], patflags, load_as_map, err, file, line))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;
@@ -503,6 +504,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			args++;
 		}
 		else if (strcmp(*args, "-M") == 0) {
+			refflags |= PAT_REF_MAP;
 			load_as_map = 1;
 		}
 		else if (strcmp(*args, "--") == 0) {
