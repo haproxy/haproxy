@@ -50,7 +50,7 @@ const char *smp_to_type[SMP_TYPES] = {
 };
 
 /* static sample used in sample_process() when <p> is NULL */
-static struct sample temp_smp;
+static THREAD_LOCAL struct sample temp_smp;
 
 /* list head of all known sample fetch keywords */
 static struct sample_fetch_kw_list sample_fetches = {
