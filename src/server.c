@@ -3479,10 +3479,12 @@ void apply_server_state(void)
 			else if (diff & PR_FBM_MISMATCH_ID) {
 				Warning("In backend '%s' (id: '%d'): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
 				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
+				continue;
 			}
 			else if (diff & PR_FBM_MISMATCH_NAME) {
 				Warning("In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
 				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
+				continue;
 			}
 
 			/* now we can proceed with server's state update */
