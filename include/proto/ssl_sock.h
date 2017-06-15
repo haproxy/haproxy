@@ -72,6 +72,7 @@ void ssl_free_dh(void);
 void ssl_free_engines(void);
 
 SSL_CTX *ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key);
+SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);
 SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
 int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
 unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);

@@ -206,6 +206,51 @@ static struct {
 	.capture_cipherlist = 0,
 };
 
+#ifdef USE_THREAD
+static HA_RWLOCK_T *ssl_rwlocks;
+
+
+unsigned long ssl_id_function(void)
+{
+	return (unsigned long)tid;
+}
+
+void ssl_locking_function(int mode, int n, const char * file, int line)
+{
+	if (mode & CRYPTO_LOCK) {
+		if (mode & CRYPTO_READ)
+			RWLOCK_RDLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+		else
+			RWLOCK_WRLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+	}
+	else {
+		if (mode & CRYPTO_READ)
+			RWLOCK_RDUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+		else
+			RWLOCK_WRUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+	}
+}
+
+static int ssl_locking_init(void)
+{
+	int i;
+
+	ssl_rwlocks = malloc(sizeof(HA_RWLOCK_T)*CRYPTO_num_locks());
+	if (!ssl_rwlocks)
+		return -1;
+
+	for (i = 0 ; i < CRYPTO_num_locks() ; i++)
+		RWLOCK_INIT(&ssl_rwlocks[i]);
+
+	CRYPTO_set_id_callback(ssl_id_function);
+	CRYPTO_set_locking_callback(ssl_locking_function);
+
+	return 0;
+}
+#endif
+
+
+
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
 	unsigned long long int xxh64;
@@ -257,6 +302,12 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 /* LRU cache to store generated certificate */
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
+static unsigned int	  ssl_ctx_serial;
+
+#ifdef USE_THREAD
+static HA_RWLOCK_T ssl_ctx_lru_rwlock;
+#endif
+
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 
 static struct ssl_bind_kw ssl_bind_kws[];
@@ -1588,8 +1639,6 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 static SSL_CTX *
 ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
-	static unsigned int serial = 0;
-
 	X509         *cacert  = bind_conf->ca_sign_cert;
 	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
 	SSL_CTX      *ssl_ctx = NULL;
@@ -1621,9 +1670,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	 * number */
 	if (X509_set_version(newcrt, 2L) != 1)
 		goto mkcert_error;
-	if (!serial)
-		serial = now_ms;
-	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), serial++);
+	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), HA_ATOMIC_ADD(&ssl_ctx_serial, 1));
 
 	/* Set duration for the certificate */
 	if (!X509_gmtime_adj(X509_get_notBefore(newcrt), (long)-60*60*24) ||
@@ -1742,18 +1789,34 @@ ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned i
 }
 
 /* Do a lookup for a certificate in the LRU cache used to store generated
- * certificates. */
+ * certificates and immediately assign it to the SSL session if not null. */
 SSL_CTX *
-ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf)
+ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl)
 {
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
+		RWLOCK_RDLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
-		if (lru && lru->domain)
+		if (lru && lru->domain) {
+			if (ssl)
+				SSL_set_SSL_CTX(ssl, (SSL_CTX *)lru->data);
+			RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return (SSL_CTX *)lru->data;
+		}
+		RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 	}
 	return NULL;
+}
+
+/* Same as <ssl_sock_assign_generated_cert> but without SSL session. This
+ * function is not thread-safe, it should only be used to check if a certificate
+ * exists in the lru cache (with no warranty it will not be removed by another
+ * thread). It is kept for backward compatibility. */
+SSL_CTX *
+ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf)
+{
+	return ssl_sock_assign_generated_cert(key, bind_conf, NULL);
 }
 
 /* Set a certificate int the LRU cache used to store generated
@@ -1764,12 +1827,16 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_conf
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
+		RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_get(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
-		if (!lru)
+		if (!lru) {
+			RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return -1;
+		}
 		if (lru->domain && lru->data)
 			lru->free((SSL_CTX *)lru->data);
 		lru64_commit(lru, ssl_ctx, bind_conf->ca_sign_cert, 0, (void (*)(void *))SSL_CTX_free);
+		RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 0;
 	}
 	return -1;
@@ -1795,6 +1862,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 
 	key = ssl_sock_generated_cert_key(servername, strlen(servername));
 	if (ssl_ctx_lru_tree) {
+		RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_get(key, ssl_ctx_lru_tree, cacert, 0);
 		if (lru && lru->domain)
 			ssl_ctx = (SSL_CTX *)lru->data;
@@ -1803,6 +1871,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
+		RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 1;
 	}
 	else {
@@ -1818,18 +1887,13 @@ static int
 ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 {
 	unsigned int key;
-	SSL_CTX     *ssl_ctx = NULL;
 	struct connection *conn = SSL_get_app_data(ssl);
 
 	conn_get_to_addr(conn);
 	if (conn->flags & CO_FL_ADDR_TO_SET) {
 		key = ssl_sock_generated_cert_key(&conn->addr.to, get_addr_len(&conn->addr.to));
-		ssl_ctx = ssl_sock_get_generated_cert(key, bind_conf);
-		if (ssl_ctx) {
-			/* switch ctx */
-			SSL_set_SSL_CTX(ssl, ssl_ctx);
+		if (ssl_sock_assign_generated_cert(key, bind_conf, ssl))
 			return 1;
-		}
 	}
 	return 0;
 }
@@ -4351,7 +4415,15 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	global.ssl_used_backend = 1;
 
 	/* Initiate SSL context for current server */
-	srv->ssl_ctx.reused_sess = NULL;
+	if (!srv->ssl_ctx.reused_sess) {
+		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(SSL_SESSION*))) == NULL) {
+			Alert("Proxy '%s', server '%s' [%s:%d] out of memory.\n",
+			      curproxy->id, srv->id,
+			      srv->conf.file, srv->conf.line);
+			cfgerr++;
+			return cfgerr;
+		}
+	}
 	if (srv->use_ssl)
 		srv->xprt = &ssl_sock;
 	if (srv->check.use_ssl)
@@ -4599,7 +4671,10 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		}
 	}
 
-	alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize, sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE, sizeof(*sh_ssl_sess_tree), (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
+	alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
+			       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE,
+			       sizeof(*sh_ssl_sess_tree),
+			       ((global.nbthread > 1) || (!global_ssl.private_cache && (global.nbproc > 1))) ? 1 : 0);
 	if (alloc_ctx < 0) {
 		if (alloc_ctx == SHCTX_E_INIT_LOCK)
 			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
@@ -4706,9 +4781,12 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 		return err;
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
-	if (global_ssl.ctx_cache)
+	if (global_ssl.ctx_cache) {
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
+		RWLOCK_INIT(&ssl_ctx_lru_rwlock);
+	}
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
+	ssl_ctx_serial   = now_ms;
 #endif
 
 	if (!bind_conf->ca_sign_file) {
@@ -4826,9 +4904,9 @@ static int ssl_sock_init(struct connection *conn)
 
 		SSL_set_connect_state(conn->xprt_ctx);
 		if (objt_server(conn->target)->ssl_ctx.reused_sess) {
-			if(!SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess)) {
-				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
-				objt_server(conn->target)->ssl_ctx.reused_sess = NULL;
+			if(!SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess[tid])) {
+				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
+				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
 			}
 		}
 
@@ -5131,13 +5209,13 @@ reneg_ok:
 				global.ssl_be_keys_max = global.ssl_be_keys_per_sec.curr_ctr;
 
 			/* check if session was reused, if not store current session on server for reuse */
-			if (objt_server(conn->target)->ssl_ctx.reused_sess) {
-				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
-				objt_server(conn->target)->ssl_ctx.reused_sess = NULL;
+			if (objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
+				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
+				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
 			}
 
 			if (!(objt_server(conn->target)->ssl_ctx.options & SRV_SSL_O_NO_REUSE))
-				objt_server(conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
+				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = SSL_get1_session(conn->xprt_ctx);
 		}
 		else {
 			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
@@ -5156,9 +5234,9 @@ reneg_ok:
 	ERR_clear_error();
 
 	/* free resumed session if exists */
-	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess) {
-		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
-		objt_server(conn->target)->ssl_ctx.reused_sess = NULL;
+	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
+		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
+		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
 	}
 
 	/* Fail on all other handshake errors */
@@ -8629,6 +8707,9 @@ static void __ssl_sock_init(void)
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);
+#ifdef USE_THREAD
+	ssl_locking_init();
+#endif
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
@@ -8740,7 +8821,10 @@ __attribute__((destructor))
 static void __ssl_sock_deinit(void)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
-	lru64_destroy(ssl_ctx_lru_tree);
+	if (ssl_ctx_lru_tree) {
+		lru64_destroy(ssl_ctx_lru_tree);
+		RWLOCK_DESTROY(&ssl_ctx_lru_rwlock);
+	}
 #endif
 
         ERR_remove_state(0);

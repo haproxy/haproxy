@@ -273,7 +273,7 @@ struct server {
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
 		SSL_CTX *ctx;
-		SSL_SESSION *reused_sess;
+		SSL_SESSION **reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
 		int options;			/* ssl options */
 		struct tls_version_filter methods;	/* ssl methods */

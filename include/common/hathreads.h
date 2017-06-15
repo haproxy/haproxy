@@ -158,6 +158,8 @@ enum lock_label {
 	PEER_LOCK,
 	BUF_WQ_LOCK,
 	STRMS_LOCK,
+	SSL_LOCK,
+	SSL_GEN_CERTS_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -244,7 +246,7 @@ static inline void show_lock_stats()
 					   "TASK_RQ", "TASK_WQ", "POOL",
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
-					   "APPLETS", "PEER", "BUF_WQ", "STREAMS" };
+					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS"};
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
