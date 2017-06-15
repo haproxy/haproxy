@@ -76,7 +76,7 @@ struct hdr_exp {
     void *cond;				/* a possible condition or NULL */
 };
 
-extern regmatch_t pmatch[MAX_MATCH];
+extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 
 /* "str" is the string that contain the regex to compile.
  * "regex" is preallocated memory. After the execution of this function, this

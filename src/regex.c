@@ -22,7 +22,7 @@
 #include <proto/log.h>
 
 /* regex trash buffer used by various regex tests */
-regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
+THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches)
 {
