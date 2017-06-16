@@ -107,44 +107,6 @@ int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 }
 
 
-/* Tries to destroy the UNIX stream socket <path>. The socket must not be used
- * anymore. It practises best effort, and no error is returned.
- */
-static void destroy_uxst_socket(const char *path)
-{
-	struct sockaddr_un addr;
-	int sock, ret;
-
-	/* if the path was cleared, we do nothing */
-	if (!*path)
-		return;
-
-	/* We might have been chrooted, so we may not be able to access the
-	 * socket. In order to avoid bothering the other end, we connect with a
-	 * wrong protocol, namely SOCK_DGRAM. The return code from connect()
-	 * is enough to know if the socket is still live or not. If it's live
-	 * in mode SOCK_STREAM, we get EPROTOTYPE or anything else but not
-	 * ECONNREFUSED. In this case, we do not touch it because it's used
-	 * by some other process.
-	 */
-	sock = socket(PF_UNIX, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return;
-
-	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
-	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
-	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-	if (ret < 0 && errno == ECONNREFUSED) {
-		/* Connect failed: the socket still exists but is not used
-		 * anymore. Let's remove this socket now.
-		 */
-		unlink(path);
-	}
-	close(sock);
-}
-
-
 /********************************
  * 2) listener-oriented functions
  ********************************/
@@ -357,15 +319,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto err_rename;
 	}
 
-	/* Cleanup: If we're bound to an fd inherited from the parent, we
-	 * want to ensure that destroy_uxst_socket() will never remove the
-	 * path, and for this we simply clear the path to the socket, which
-	 * under Linux corresponds to an abstract socket.
-	 */
+	/* Cleanup: only unlink if we didn't inherit the fd from the parent */
 	if (!ext && path[0])
 		unlink(backname);
-	else
-		((struct sockaddr_un *)&listener->addr)->sun_path[0] = 0;
 
 	/* the socket is now listening */
 	listener->fd = fd;
@@ -405,7 +361,6 @@ static int uxst_unbind_listener(struct listener *listener)
 {
 	if (listener->state > LI_ASSIGNED) {
 		unbind_listener(listener);
-		destroy_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
 	}
 	return ERR_NONE;
 }
