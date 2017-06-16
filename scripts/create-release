@@ -156,7 +156,7 @@ echo "Updating CHANGELOG ..."
   #git shortlog v$OLD.. | sed -ne 's/^      /    - /p'
   git log --oneline --reverse --format="    - %s" v$OLD..
   echo
-  tail +4 CHANGELOG
+  tail -n +4 CHANGELOG
 ) >.chglog.tmp && mv .chglog.tmp CHANGELOG
 
 echo "Updating VERSION ..."
