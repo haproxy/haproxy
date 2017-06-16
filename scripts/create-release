@@ -48,6 +48,16 @@ do_tag() {
 	git tag -u "$GIT_GPG_KEY" -s -m "HAProxy $NEW" v$NEW && echo "Tagged as v$NEW"
 }
 
+if [ -z "$GIT_COMMITTER_NAME" ]; then
+	GIT_COMMITTER_NAME=$(git config --get user.name)
+	[ -n "$GIT_COMMITTER_NAME" ] || die "GIT_COMMITTER_NAME not set"
+fi
+
+if [ -z "$GIT_COMMITTER_EMAIL" ]; then
+	GIT_COMMITTER_EMAIL=$(git config --get user.email)
+	[ -n "$GIT_COMMITTER_EMAIL" ] || die "GIT_COMMITTER_EMAIL not set"
+fi
+
 while [ -n "$1" -a -z "${1##-*}" ]; do
 	case "$1" in
 		-y)        SAYYES=1       ; shift   ;;
