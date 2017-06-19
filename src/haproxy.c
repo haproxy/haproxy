@@ -1279,9 +1279,9 @@ static void init(int argc, char **argv)
 			else if (*flag == 'q')
 				arg_mode |= MODE_QUIET;
 			else if (*flag == 'x') {
-				if (argv[1][0] == '-') {
-					Alert("Unix socket path expected with the -x flag\n");
-					exit(1);
+				if (argc <= 1 || argv[1][0] == '-') {
+					Alert("Unix socket path expected with the -x flag\n\n");
+					usage(progname);
 				}
 				old_unixsocket = argv[1];
 				argv++;
