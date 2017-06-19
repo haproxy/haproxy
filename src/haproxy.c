@@ -1283,7 +1283,10 @@ static void init(int argc, char **argv)
 					Alert("Unix socket path expected with the -x flag\n\n");
 					usage(progname);
 				}
+				if (old_unixsocket)
+					Warning("-x option already set, overwriting the value\n");
 				old_unixsocket = argv[1];
+
 				argv++;
 				argc--;
 			}
