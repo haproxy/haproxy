@@ -2039,6 +2039,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->proto = proto;
 		newpeer->xprt  = xprt_get(XPRT_RAW);
 		newpeer->sock_init_arg = NULL;
+		SPIN_INIT(&newpeer->lock);
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */

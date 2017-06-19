@@ -67,6 +67,9 @@ struct peer {
 	struct shared_table *remote_table;
 	struct shared_table *last_local_table;
 	struct shared_table *tables;
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;	 /* lock used to handle this peer section */
+#endif
 	struct peer *next;	  /* next peer in the list */
 };
 

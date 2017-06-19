@@ -71,7 +71,7 @@ struct appctx {
 
 	union {
 		struct {
-			void *ptr;              /* multi-purpose pointer for peers */
+			void *ptr;              /* current peer or NULL, do not use for something else */
 		} peers;                        /* used by the peers applet */
 		struct {
 			int connected;
