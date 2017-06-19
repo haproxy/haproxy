@@ -1839,7 +1839,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	s = NULL;
 
-	appctx = appctx_new(&peer_applet);
+	appctx = appctx_new(&peer_applet, tid_bit);
 	if (!appctx)
 		goto out_close;
 

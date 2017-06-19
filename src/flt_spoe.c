@@ -1930,7 +1930,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	struct session     *sess;
 	struct stream      *strm;
 
-	if ((appctx = appctx_new(&spoe_applet)) == NULL)
+	if ((appctx = appctx_new(&spoe_applet, tid_bit)) == NULL)
 		goto out_error;
 
 	appctx->ctx.spoe.ptr = pool_alloc_dirty(pool2_spoe_appctx);

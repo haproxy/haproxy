@@ -23,6 +23,10 @@
 unsigned int nb_applets = 0;
 unsigned int applets_active_queue = 0;
 
+#ifdef USE_THREAD
+HA_SPINLOCK_T applet_active_lock;        /* spin lock related to applet active queue */
+#endif
+
 struct list applet_active_queue = LIST_HEAD_INIT(applet_active_queue);
 
 void applet_run_active()
@@ -34,15 +38,21 @@ void applet_run_active()
 	if (!applets_active_queue)
 		return;
 
+	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
+
 	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
 	while (&curr->runq != &applet_active_queue) {
 		next = LIST_NEXT(&curr->runq, typeof(next), runq);
-		LIST_DEL(&curr->runq);
-		curr->state = APPLET_RUNNING;
-		LIST_ADDQ(&applet_cur_queue, &curr->runq);
-		applets_active_queue--;
+		if (curr->process_mask & (1UL << tid)) {
+			LIST_DEL(&curr->runq);
+			curr->state = APPLET_RUNNING;
+			LIST_ADDQ(&applet_cur_queue, &curr->runq);
+			applets_active_queue--;
+		}
 		curr = next;
 	}
+
+	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 
 	/* The list is only scanned from the head. This guarantees that if any
 	 * applet removes another one, there is no side effect while walking
@@ -74,6 +84,7 @@ void applet_run_active()
 			/* curr was left in the list, move it back to the active list */
 			LIST_DEL(&curr->runq);
 			LIST_INIT(&curr->runq);
+			SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 			if (curr->state & APPLET_WANT_DIE) {
 				curr->state = APPLET_SLEEPING;
 				__appctx_free(curr);
@@ -87,6 +98,13 @@ void applet_run_active()
 					curr->state = APPLET_SLEEPING;
 				}
 			}
+			SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		}
 	}
+}
+
+__attribute__((constructor))
+static void __applet_init(void)
+{
+	SPIN_INIT(&applet_active_lock);
 }

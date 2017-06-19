@@ -31,7 +31,9 @@
 
 extern unsigned int nb_applets;
 extern unsigned int applets_active_queue;
-
+#ifdef USE_THREAD
+extern HA_SPINLOCK_T applet_active_lock;
+#endif
 extern struct list applet_active_queue;
 
 void applet_run_active();
@@ -44,10 +46,11 @@ static int inline appctx_res_wakeup(struct appctx *appctx);
  * minimum acceptable initialization for an appctx. This means only the
  * 3 integer states st0, st1, st2 are zeroed.
  */
-static inline void appctx_init(struct appctx *appctx)
+static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
 	appctx->io_release = NULL;
+	appctx->process_mask = thread_mask;
 	appctx->state = APPLET_SLEEPING;
 }
 
@@ -56,7 +59,7 @@ static inline void appctx_init(struct appctx *appctx)
  * pool_free2(connection) or appctx_free(), since it's allocated from the
  * connection pool. <applet> is assigned as the applet, but it can be NULL.
  */
-static inline struct appctx *appctx_new(struct applet *applet)
+static inline struct appctx *appctx_new(struct applet *applet, unsigned long thread_mask)
 {
 	struct appctx *appctx;
 
@@ -64,12 +67,12 @@ static inline struct appctx *appctx_new(struct applet *applet)
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
-		appctx_init(appctx);
+		appctx_init(appctx, thread_mask);
 		LIST_INIT(&appctx->runq);
 		LIST_INIT(&appctx->buffer_wait.list);
 		appctx->buffer_wait.target = appctx;
 		appctx->buffer_wait.wakeup_cb = (int (*)(void *))appctx_res_wakeup;
-		nb_applets++;
+		HA_ATOMIC_ADD(&nb_applets, 1);
 	}
 	return appctx;
 }
@@ -83,20 +86,25 @@ static inline void __appctx_free(struct appctx *appctx)
 		LIST_DEL(&appctx->runq);
 		applets_active_queue--;
 	}
+
 	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
 		LIST_DEL(&appctx->buffer_wait.list);
 		LIST_INIT(&appctx->buffer_wait.list);
 	}
+
 	pool_free2(pool2_connection, appctx);
-	nb_applets--;
+	HA_ATOMIC_SUB(&nb_applets, 1);
 }
 static inline void appctx_free(struct appctx *appctx)
 {
+	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		appctx->state |= APPLET_WANT_DIE;
+		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return;
 	}
 	__appctx_free(appctx);
+	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 }
 
 /* wakes up an applet when conditions have changed */
@@ -110,11 +118,14 @@ static inline void __appctx_wakeup(struct appctx *appctx)
 
 static inline void appctx_wakeup(struct appctx *appctx)
 {
+	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		appctx->state |= APPLET_WOKEN_UP;
+		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return;
 	}
 	__appctx_wakeup(appctx);
+	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -124,18 +135,23 @@ static inline void appctx_wakeup(struct appctx *appctx)
  * requested */
 static inline int appctx_res_wakeup(struct appctx *appctx)
 {
+	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		if (appctx->state & APPLET_WOKEN_UP) {
+			SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 			return 0;
 		}
 		appctx->state |= APPLET_WOKEN_UP;
+		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return 1;
 	}
 
 	if (!LIST_ISEMPTY(&appctx->runq)) {
+		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return 0;
 	}
 	__appctx_wakeup(appctx);
+	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 	return 1;
 }
 
