@@ -596,23 +596,12 @@ static void mworker_reload()
 	}
 	next_argv[next_argc] = NULL;
 
-	/* if -x was used, try to update the stat socket if not available anymore */
+	/* add the -x option with the stat socket */
 	if (cur_unixsocket) {
 
-		if (old_unixsocket) {
-
-			/* look for -x <path> */
-			for (j = 0; next_argv[j]; j++) {
-				if (!strcmp(next_argv[j], "-x"))
-					next_argv[j + 1] = (char *)cur_unixsocket;
-			}
-		} else {
-			/* if -x is not specified but we know the socket, add -x with it */
-			next_argv[next_argc++] = "-x";
-			next_argv[next_argc++] = (char *)cur_unixsocket;
-			next_argv[next_argc++] = NULL;
-
-		}
+		next_argv[next_argc++] = "-x";
+		next_argv[next_argc++] = (char *)cur_unixsocket;
+		next_argv[next_argc++] = NULL;
 	}
 
 	deinit(); /* we don't want to leak FD there */
@@ -1101,7 +1090,7 @@ out:
 static char **copy_argv(int argc, char **argv)
 {
 	char **newargv;
-	int i, j;
+	int i = 0, j = 0;
 
 	newargv = calloc(argc + 2, sizeof(char *));
 	if (newargv == NULL) {
@@ -1109,19 +1098,20 @@ static char **copy_argv(int argc, char **argv)
 		return NULL;
 	}
 
-	for (i = 0, j = 0; i < argc; i++, j++) {
-		char *flag = *(argv + i) + 1;
-
-		/* -sf or -st */
-		if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
-			/* list of pids to finish ('f') or terminate ('t') */
+	while (i < argc) {
+		/* -sf or -st or -x */
+		if ((argv[i][1] == 's' && (argv[i][2] == 'f' || argv[i][2] == 't')) || argv[i][1] == 'x' ) {
+			/* list of pids to finish ('f') or terminate ('t') or unix socket (-x) */
 			i++;
 			while (i < argc && argv[i][0] != '-') {
 				i++;
 			}
+			continue;
 		}
-		newargv[j] = argv[i];
+
+		newargv[j++] = argv[i++];
 	}
+
 	return newargv;
 }
 
