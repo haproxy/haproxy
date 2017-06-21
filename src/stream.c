@@ -320,8 +320,10 @@ static void stream_free(struct stream *s)
 
 	/* We may still be present in the buffer wait queue */
 	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&s->buffer_wait.list);
 		LIST_INIT(&s->buffer_wait.list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 	if (s->req.buf->size || s->res.buf->size) {
 		b_drop(&s->req.buf);
@@ -415,14 +417,18 @@ static void stream_free(struct stream *s)
 static int stream_alloc_work_buffer(struct stream *s)
 {
 	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&s->buffer_wait.list);
 		LIST_INIT(&s->buffer_wait.list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	if (b_alloc_margin(&s->res.buf, 0))
 		return 1;
 
+	SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	LIST_ADDQ(&buffer_wq, &s->buffer_wait.list);
+	SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	return 0;
 }
 

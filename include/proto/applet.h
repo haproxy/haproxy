@@ -88,8 +88,10 @@ static inline void __appctx_free(struct appctx *appctx)
 	}
 
 	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&appctx->buffer_wait.list);
 		LIST_INIT(&appctx->buffer_wait.list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	pool_free2(pool2_connection, appctx);

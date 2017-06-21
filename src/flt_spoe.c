@@ -18,6 +18,7 @@
 #include <common/debug.h>
 #include <common/memory.h>
 #include <common/time.h>
+#include <common/hathreads.h>
 
 #include <types/arg.h>
 #include <types/global.h>
@@ -2685,14 +2686,18 @@ spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 		return 1;
 
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&buffer_wait->list);
 		LIST_INIT(&buffer_wait->list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	if (b_alloc_margin(buf, global.tune.reserved_bufs))
 		return 1;
 
+	SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	LIST_ADDQ(&buffer_wq, &buffer_wait->list);
+	SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	return 0;
 }
 
@@ -2700,8 +2705,10 @@ static void
 spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 {
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&buffer_wait->list);
 		LIST_INIT(&buffer_wait->list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	/* Release the buffer if needed */

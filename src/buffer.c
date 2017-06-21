@@ -33,6 +33,9 @@ struct buffer buf_wanted = { .p = buf_wanted.data };
 
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
+#ifdef USE_THREAD
+HA_SPINLOCK_T buffer_wq_lock;
+#endif
 
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
@@ -71,6 +74,8 @@ int init_buffer()
 	pool2_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
 	if (global.tune.buf_limit)
 		pool2_buffer->limit = global.tune.buf_limit;
+
+	SPIN_INIT(&buffer_wq_lock);
 
 	buffer = pool_refill_alloc(pool2_buffer, pool2_buffer->minavail - 1);
 	if (!buffer)

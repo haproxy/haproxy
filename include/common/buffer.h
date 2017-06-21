@@ -52,6 +52,9 @@ extern struct pool_head *pool2_buffer;
 extern struct buffer buf_empty;
 extern struct buffer buf_wanted;
 extern struct list buffer_wq;
+#ifdef USE_THREAD
+extern HA_SPINLOCK_T buffer_wq_lock;
+#endif
 
 int init_buffer();
 void deinit_buffer();
@@ -748,9 +751,13 @@ void __offer_buffer(void *from, unsigned int threshold);
 
 static inline void offer_buffers(void *from, unsigned int threshold)
 {
-	if (LIST_ISEMPTY(&buffer_wq))
+	SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	if (LIST_ISEMPTY(&buffer_wq)) {
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		return;
+	}
 	__offer_buffer(from, threshold);
+	SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 }
 
 /*************************************************************************/

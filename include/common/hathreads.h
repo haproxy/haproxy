@@ -156,6 +156,7 @@ enum lock_label {
 	STK_SESS_LOCK,
 	APPLETS_LOCK,
 	PEER_LOCK,
+	BUF_WQ_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -242,7 +243,7 @@ static inline void show_lock_stats()
 					   "TASK_RQ", "TASK_WQ", "POOL",
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
-					   "APPLETS", "PEER" };
+					   "APPLETS", "PEER", "BUF_WQ" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
