@@ -1374,9 +1374,9 @@ tune.http.maxhdr <number>
   are blocked with "502 Bad Gateway". The default value is 101, which is enough
   for all usages, considering that the widely deployed Apache server uses the
   same limit. It can be useful to push this limit further to temporarily allow
-  a buggy application to work by the time it gets fixed. Keep in mind that each
-  new header consumes 32bits of memory for each session, so don't push this
-  limit too high.
+  a buggy application to work by the time it gets fixed. The accepted range is
+  1..32767. Keep in mind that each new header consumes 32bits of memory for
+  each session, so don't push this limit too high.
 
 tune.idletimer <timeout>
   Sets the duration after which haproxy will consider that an empty buffer is
