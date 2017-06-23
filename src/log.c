@@ -143,12 +143,12 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source ip */
 	{ "bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source port */
 	{ "bq", LOG_FMT_BCKQUEUE, PR_MODE_TCP, LW_BYTES, NULL }, /* backend_queue */
-	{ "ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL },  /* client ip */
-	{ "cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL }, /* client port */
+	{ "ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL },  /* client ip */
+	{ "cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL }, /* client port */
 	{ "f", LOG_FMT_FRONTEND, PR_MODE_TCP, LW_INIT, NULL },  /* frontend */
 	{ "fc", LOG_FMT_FECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* feconn */
-	{ "fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend ip */
-	{ "fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend port */
+	{ "fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL }, /* frontend ip */
+	{ "fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL }, /* frontend port */
 	{ "ft", LOG_FMT_FRONTEND_XPRT, PR_MODE_TCP, LW_INIT, NULL },  /* frontend with transport mode */
 	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request */
 	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request list */
@@ -182,10 +182,10 @@ static const struct logformat_type logformat_keywords[] = {
 	/* The following tags are deprecated and will be removed soon */
 	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bi" }, /* backend source ip */
 	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bp" }, /* backend source port */
-	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL, "ci" },  /* client ip */
-	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL, "cp" }, /* client port */
-	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL, "fi" }, /* frontend ip */
-	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL, "fp" }, /* frontend port */
+	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL, "ci" },  /* client ip */
+	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL, "cp" }, /* client port */
+	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL, "fi" }, /* frontend ip */
+	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL, "fp" }, /* frontend port */
 	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL, "si" }, /* server destination ip */
 	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL, "sp" }, /* server destination port */
 	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL, "CC" },  /* client cookie */
