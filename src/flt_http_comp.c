@@ -32,6 +32,10 @@ static const char *http_comp_flt_id = "compression filter";
 
 struct flt_ops comp_ops;
 
+
+/* Pools used to allocate comp_state structs */
+static struct pool_head *pool2_comp_state = NULL;
+
 static struct buffer *tmpbuf = &buf_empty;
 static struct buffer *zbuf   = &buf_empty;
 
@@ -87,7 +91,8 @@ comp_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 	if (filter->ctx == NULL) {
 		struct comp_state *st;
 
-		if (!(st = malloc(sizeof(*st))))
+		st = pool_alloc_dirty(pool2_comp_state);
+		if (st == NULL)
 			return -1;
 
 		st->comp_algo   = NULL;
@@ -113,7 +118,7 @@ comp_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 	/* release any possible compression context */
 	if (st->comp_algo)
 		st->comp_algo->end(&st->comp_ctx);
-	free(st);
+	pool_free2(pool2_comp_state, st);
 	filter->ctx = NULL;
  end:
 	return 1;
@@ -966,4 +971,5 @@ __flt_http_comp_init(void)
 	cfg_register_keywords(&cfg_kws);
 	flt_register_keywords(&filter_kws);
 	sample_register_fetches(&sample_fetch_keywords);
+	pool2_comp_state = create_pool("comp_state", sizeof(struct comp_state), MEM_F_SHARED);
 }
