@@ -107,21 +107,12 @@ comp_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct comp_state *st = filter->ctx;
 
-	if (!st || !(chn->flags & CF_ISRESP))
+	if (!st)
 		goto end;
 
-	if (!st->comp_algo || !s->txn->status)
-		goto release_ctx;
-
-	if (strm_fe(s)->mode == PR_MODE_HTTP)
-		strm_fe(s)->fe_counters.p.http.comp_rsp++;
-	if ((s->flags & SF_BE_ASSIGNED) && (s->be->mode == PR_MODE_HTTP))
-		s->be->be_counters.p.http.comp_rsp++;
-
 	/* release any possible compression context */
-	st->comp_algo->end(&st->comp_ctx);
-
- release_ctx:
+	if (st->comp_algo)
+		st->comp_algo->end(&st->comp_ctx);
 	free(st);
 	filter->ctx = NULL;
  end:
@@ -299,6 +290,22 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 	return ret;
 }
 
+static int
+comp_http_end(struct stream *s, struct filter *filter,
+	      struct http_msg *msg)
+{
+	struct comp_state *st = filter->ctx;
+
+	if (!(msg->chn->flags & CF_ISRESP) || !st || !st->comp_algo)
+		goto end;
+
+	if (strm_fe(s)->mode == PR_MODE_HTTP)
+		strm_fe(s)->fe_counters.p.http.comp_rsp++;
+	if ((s->flags & SF_BE_ASSIGNED) && (s->be->mode == PR_MODE_HTTP))
+		s->be->be_counters.p.http.comp_rsp++;
+ end:
+	return 1;
+}
 /***********************************************************************/
 /*
  * Selects a compression algorithm depending on the client request.
@@ -761,6 +768,7 @@ struct flt_ops comp_ops = {
 	.http_data             = comp_http_data,
 	.http_chunk_trailers   = comp_http_chunk_trailers,
 	.http_forward_data     = comp_http_forward_data,
+	.http_end              = comp_http_end,
 };
 
 static int
