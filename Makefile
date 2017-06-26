@@ -561,6 +561,12 @@ BUILD_OPTIONS   += $(call ignore_implicit,USE_DL)
 OPTIONS_LDFLAGS += -ldl
 endif
 
+ifneq ($(USE_THREAD),)
+BUILD_OPTIONS   += $(call ignore_implicit,USE_THREAD)
+OPTIONS_CFLAGS  += -DUSE_THREAD
+OPTIONS_LDFLAGS += -lpthread
+endif
+
 # report DLMALLOC_SRC only if explicitly specified
 ifneq ($(DLMALLOC_SRC),)
 BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
