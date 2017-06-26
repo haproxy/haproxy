@@ -24,22 +24,22 @@ unsigned int nb_applets = 0;
 unsigned int applets_active_queue = 0;
 
 struct list applet_active_queue = LIST_HEAD_INIT(applet_active_queue);
-struct list applet_cur_queue    = LIST_HEAD_INIT(applet_cur_queue);
 
 void applet_run_active()
 {
-	struct appctx *curr;
+	struct appctx *curr, *next;
 	struct stream_interface *si;
+	struct list applet_cur_queue = LIST_HEAD_INIT(applet_cur_queue);
 
-	if (LIST_ISEMPTY(&applet_active_queue))
-		return;
-
-	/* move active queue to run queue */
-	applet_active_queue.n->p = &applet_cur_queue;
-	applet_active_queue.p->n = &applet_cur_queue;
-
-	applet_cur_queue = applet_active_queue;
-	LIST_INIT(&applet_active_queue);
+	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
+	while (&curr->runq != &applet_active_queue) {
+		next = LIST_NEXT(&curr->runq, typeof(next), runq);
+		LIST_DEL(&curr->runq);
+		curr->state = APPLET_RUNNING;
+		LIST_ADDQ(&applet_cur_queue, &curr->runq);
+		applets_active_queue--;
+		curr = next;
+	}
 
 	/* The list is only scanned from the head. This guarantees that if any
 	 * applet removes another one, there is no side effect while walking
@@ -70,7 +70,20 @@ void applet_run_active()
 		if (applet_cur_queue.n == &curr->runq) {
 			/* curr was left in the list, move it back to the active list */
 			LIST_DEL(&curr->runq);
-			LIST_ADDQ(&applet_active_queue, &curr->runq);
+			LIST_INIT(&curr->runq);
+			if (curr->state & APPLET_WANT_DIE) {
+				curr->state = APPLET_SLEEPING;
+				__appctx_free(curr);
+			}
+			else {
+				if (curr->state & APPLET_WOKEN_UP) {
+					curr->state = APPLET_SLEEPING;
+					__appctx_wakeup(curr);
+				}
+				else {
+					curr->state = APPLET_SLEEPING;
+				}
+			}
 		}
 	}
 }

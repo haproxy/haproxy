@@ -1061,7 +1061,6 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	/* Stops the applet sheduling, in case of the init function miss
 	 * some data.
 	 */
-	appctx_pause(appctx);
 	si_applet_stop_get(&s->si[1]);
 
 	/* Call initialisation. */

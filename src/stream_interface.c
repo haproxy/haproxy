@@ -1369,16 +1369,6 @@ void si_applet_wake_cb(struct stream_interface *si)
 
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
-
-	/* Get away from the active list if we can't work anymore.
-	 * We also do that if the main task has already scheduled, because it
-	 * saves a useless wakeup/pause/wakeup cycle causing one useless call
-	 * per session on average.
-	 */
-	if (task_in_rq(si_task(si)) ||
-	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) != SI_FL_WANT_PUT) &&
-	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) != SI_FL_WANT_GET)))
-		appctx_pause(si_appctx(si));
 }
 
 
@@ -1393,8 +1383,6 @@ void stream_int_update_applet(struct stream_interface *si)
 	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
 	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET))
 		appctx_wakeup(si_appctx(si));
-	else
-		appctx_pause(si_appctx(si));
 }
 
 /*

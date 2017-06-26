@@ -48,6 +48,7 @@ static inline void appctx_init(struct appctx *appctx)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
 	appctx->io_release = NULL;
+	appctx->state = APPLET_SLEEPING;
 }
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
@@ -76,7 +77,7 @@ static inline struct appctx *appctx_new(struct applet *applet)
 /* Releases an appctx previously allocated by appctx_new(). Note that
  * we share the connection pool.
  */
-static inline void appctx_free(struct appctx *appctx)
+static inline void __appctx_free(struct appctx *appctx)
 {
 	if (!LIST_ISEMPTY(&appctx->runq)) {
 		LIST_DEL(&appctx->runq);
@@ -89,9 +90,17 @@ static inline void appctx_free(struct appctx *appctx)
 	pool_free2(pool2_connection, appctx);
 	nb_applets--;
 }
+static inline void appctx_free(struct appctx *appctx)
+{
+	if (appctx->state & APPLET_RUNNING) {
+		appctx->state |= APPLET_WANT_DIE;
+		return;
+	}
+	__appctx_free(appctx);
+}
 
 /* wakes up an applet when conditions have changed */
-static inline void appctx_wakeup(struct appctx *appctx)
+static inline void __appctx_wakeup(struct appctx *appctx)
 {
 	if (LIST_ISEMPTY(&appctx->runq)) {
 		LIST_ADDQ(&applet_active_queue, &appctx->runq);
@@ -99,25 +108,34 @@ static inline void appctx_wakeup(struct appctx *appctx)
 	}
 }
 
-/* removes an applet from the list of active applets */
-static inline void appctx_pause(struct appctx *appctx)
+static inline void appctx_wakeup(struct appctx *appctx)
 {
-	if (!LIST_ISEMPTY(&appctx->runq)) {
-		LIST_DEL(&appctx->runq);
-		LIST_INIT(&appctx->runq);
-		applets_active_queue--;
+	if (appctx->state & APPLET_RUNNING) {
+		appctx->state |= APPLET_WOKEN_UP;
+		return;
 	}
+	__appctx_wakeup(appctx);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up is if it is not already in the list of "active"
  * applets. This functions returns 1 is the stream is woken up, otherwise it
- * returns 0. */
+ * returns 0. If task is running we request we check if woken was already
+ * requested */
 static inline int appctx_res_wakeup(struct appctx *appctx)
 {
-	if (!LIST_ISEMPTY(&appctx->runq))
+	if (appctx->state & APPLET_RUNNING) {
+		if (appctx->state & APPLET_WOKEN_UP) {
+			return 0;
+		}
+		appctx->state |= APPLET_WOKEN_UP;
+		return 1;
+	}
+
+	if (!LIST_ISEMPTY(&appctx->runq)) {
 		return 0;
-	appctx_wakeup(appctx);
+	}
+	__appctx_wakeup(appctx);
 	return 1;
 }
 
