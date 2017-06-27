@@ -62,7 +62,7 @@ int frontend_accept(struct stream *s)
 	/* check if we're in HTTP mode, directly connected to the connection,
 	 * and with ALPN advertising H2.
 	 */
-	if (conn->owner == &s->si[0])
+	if (conn && conn->owner == &s->si[0])
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
