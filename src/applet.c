@@ -31,6 +31,9 @@ void applet_run_active()
 	struct stream_interface *si;
 	struct list applet_cur_queue = LIST_HEAD_INIT(applet_cur_queue);
 
+	if (!applets_active_queue)
+		return;
+
 	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
 	while (&curr->runq != &applet_active_queue) {
 		next = LIST_NEXT(&curr->runq, typeof(next), runq);
