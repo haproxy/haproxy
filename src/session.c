@@ -56,6 +56,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 	if (sess) {
 		sess->listener = li;
 		sess->fe = fe;
+		LIST_INIT(&sess->streams);
 		sess->origin = origin;
 		sess->accept_date = date; /* user-visible date for logging */
 		sess->tv_accept   = now;  /* corrected date for internal use */
