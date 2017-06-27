@@ -68,6 +68,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 
 void session_free(struct session *sess)
 {
+	if (!LIST_ISEMPTY(&sess->streams))
+		return;
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
