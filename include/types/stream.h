@@ -133,6 +133,7 @@ struct stream {
 					 * This is a bit field of TASK_WOKEN_* */
 
 	struct list list;               /* position in global streams list */
+	struct list by_sess;            /* position in the session's streams list */
 	struct list by_srv;             /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
