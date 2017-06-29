@@ -114,6 +114,7 @@ struct pat_ref {
  */
 struct pat_ref_elt {
 	struct list list; /* Used to chain elements. */
+	struct list back_refs; /* list of users tracking this pat ref */
 	char *pattern;
 	char *sample;
 	int line;

@@ -299,44 +299,67 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
+	struct pat_ref_elt *elt;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+		/* If we're forced to shut down, we might have to remove our
+		 * reference to the last ref_elt being dumped.
+		 */
+		if (appctx->st2 == STAT_ST_LIST) {
+			if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
+				LIST_DEL(&appctx->ctx.sess.bref.users);
+				LIST_INIT(&appctx->ctx.sess.bref.users);
+			}
+		}
+		return 1;
+	}
 
 	switch (appctx->st2) {
 
 	case STAT_ST_INIT:
-		/* Init to the first entry. The list cannot be change */
-		appctx->ctx.map.elt = LIST_NEXT(&appctx->ctx.map.ref->head,
-		                                struct pat_ref_elt *, list);
-		if (&appctx->ctx.map.elt->list == &appctx->ctx.map.ref->head)
-			appctx->ctx.map.elt = NULL;
+		/* the function had not been called yet, let's prepare the
+		 * buffer for a response. We initialize the current stream
+		 * pointer to the first in the global list. When a target
+		 * stream is being destroyed, it is responsible for updating
+		 * this pointer. We know we have reached the end when this
+		 * pointer points back to the head of the streams list.
+		 */
+		LIST_INIT(&appctx->ctx.map.bref.users);
+		appctx->ctx.map.bref.ref = appctx->ctx.map.ref->head.n;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		while (appctx->ctx.map.elt) {
+		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
+			LIST_DEL(&appctx->ctx.map.bref.users);
+			LIST_INIT(&appctx->ctx.map.bref.users);
+		}
+
+		while (appctx->ctx.map.bref.ref != &appctx->ctx.map.ref->head) {
 			chunk_reset(&trash);
 
+			elt = LIST_ELEM(appctx->ctx.map.bref.ref, struct pat_ref_elt *, list);
+
 			/* build messages */
-			if (appctx->ctx.map.elt->sample)
+			if (elt->sample)
 				chunk_appendf(&trash, "%p %s %s\n",
-				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern,
-				              appctx->ctx.map.elt->sample);
+				              elt, elt->pattern,
+				              elt->sample);
 			else
 				chunk_appendf(&trash, "%p %s\n",
-				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern);
+				              elt, elt->pattern);
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
 				si_applet_cant_put(si);
+				LIST_ADDQ(&elt->back_refs, &appctx->ctx.map.bref.users);
 				return 0;
 			}
 
 			/* get next list entry and check the end of the list */
-			appctx->ctx.map.elt = LIST_NEXT(&appctx->ctx.map.elt->list,
-			                                struct pat_ref_elt *, list);
-			if (&appctx->ctx.map.elt->list == &appctx->ctx.map.ref->head)
-				break;
+			appctx->ctx.map.bref.ref = elt->list.n;
 		}
 
 		appctx->st2 = STAT_ST_FIN;
@@ -583,6 +606,14 @@ static int cli_parse_get_map(char **args, struct appctx *appctx, void *private)
 	return 1;
 }
 
+static void cli_release_show_map(struct appctx *appctx)
+{
+	if (appctx->st2 == STAT_ST_LIST) {
+		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users))
+			LIST_DEL(&appctx->ctx.map.bref.users);
+	}
+}
+
 static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 ||
@@ -612,6 +643,7 @@ static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
 			return 1;
 		}
 		appctx->io_handler = cli_io_handler_pat_list;
+		appctx->io_release = cli_release_show_map;
 		return 0;
 	}
 

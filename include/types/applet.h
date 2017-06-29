@@ -141,7 +141,7 @@ struct appctx {
 		struct {
 			unsigned int display_flags;
 			struct pat_ref *ref;
-			struct pat_ref_elt *elt;
+			struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
 			struct pattern_expr *expr;
 			struct chunk chunk;
 		} map;

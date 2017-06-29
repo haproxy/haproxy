@@ -1581,10 +1581,22 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
 	struct pattern_expr *expr;
 	struct pat_ref_elt *elt, *safe;
+	struct bref *bref, *back;
 
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (elt == refelt) {
+			list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
+				/*
+				 * we have to unlink all watchers. We must not relink them if
+				 * this elt  was the last one in the list.
+				 */
+				LIST_DEL(&bref->users);
+				LIST_INIT(&bref->users);
+				if (elt->list.n != &ref->head)
+					LIST_ADDQ(&LIST_ELEM(elt->list.n, struct stream *, list)->back_refs, &bref->users);
+				bref->ref = elt->list.n;
+			}
 			list_for_each_entry(expr, &ref->pat, list)
 				pattern_delete(expr, elt);
 
@@ -1606,11 +1618,23 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 {
 	struct pattern_expr *expr;
 	struct pat_ref_elt *elt, *safe;
+	struct bref *bref, *back;
 	int found = 0;
 
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (strcmp(key, elt->pattern) == 0) {
+			list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
+				/*
+				 * we have to unlink all watchers. We must not relink them if
+				 * this elt was the last one in the list.
+				 */
+				LIST_DEL(&bref->users);
+				LIST_INIT(&bref->users);
+				if (elt->list.n != &ref->head)
+					LIST_ADDQ(&LIST_ELEM(elt->list.n, struct stream *, list)->back_refs, &bref->users);
+				bref->ref = elt->list.n;
+			}
 			list_for_each_entry(expr, &ref->pat, list)
 				pattern_delete(expr, elt);
 
@@ -1853,6 +1877,7 @@ int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line)
 	else
 		elt->sample = NULL;
 
+	LIST_INIT(&elt->back_refs);
 	LIST_ADDQ(&ref->head, &elt->list);
 
 	return 1;
@@ -1948,6 +1973,7 @@ int pat_ref_add(struct pat_ref *ref,
 	else
 		elt->sample = NULL;
 
+	LIST_INIT(&elt->back_refs);
 	LIST_ADDQ(&ref->head, &elt->list);
 
 	list_for_each_entry(expr, &ref->pat, list) {
@@ -1995,8 +2021,20 @@ void pat_ref_prune(struct pat_ref *ref)
 {
 	struct pat_ref_elt *elt, *safe;
 	struct pattern_expr *expr;
+	struct bref *bref, *back;
 
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
+			/*
+			 * we have to unlink all watchers. We must not relink them if
+			 * this elt  was the last one in the list.
+			 */
+			LIST_DEL(&bref->users);
+			LIST_INIT(&bref->users);
+			if (elt->list.n != &ref->head)
+				LIST_ADDQ(&LIST_ELEM(elt->list.n, struct stream *, list)->back_refs, &bref->users);
+			bref->ref = elt->list.n;
+		}
 		LIST_DEL(&elt->list);
 		free(elt->pattern);
 		free(elt->sample);
