@@ -464,9 +464,10 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 		return 0;
 
 	appctx->io_handler = kw->io_handler;
+	appctx->io_release = kw->io_release;
+	/* kw->parse could set its own io_handler or ip_release handler */
 	if ((!kw->parse || kw->parse(args, appctx, kw->private) == 0) && appctx->io_handler) {
 		appctx->st0 = CLI_ST_CALLBACK;
-		appctx->io_release = kw->io_release;
 	}
 	return 1;
 }
