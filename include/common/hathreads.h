@@ -157,6 +157,7 @@ enum lock_label {
 	APPLETS_LOCK,
 	PEER_LOCK,
 	BUF_WQ_LOCK,
+	STRMS_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -243,7 +244,7 @@ static inline void show_lock_stats()
 					   "TASK_RQ", "TASK_WQ", "POOL",
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
-					   "APPLETS", "PEER", "BUF_WQ" };
+					   "APPLETS", "PEER", "BUF_WQ", "STREAMS" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
@@ -524,7 +525,6 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	l->info.last_location.line     = line;
 
 	__RWLOCK_WRUNLOCK(&l->lock);
-
 	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_unlocked, 1);
 }
 
