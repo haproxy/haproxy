@@ -1354,7 +1354,7 @@ void stream_sock_read0(struct stream_interface *si)
 
 /* Callback to be used by applet handlers upon completion. It updates the stream
  * (which may or may not take this opportunity to try to forward data), then
- * may disable the applet's based on the channels and stream interface's final
+ * may re-enable the applet's based on the channels and stream interface's final
  * states.
  */
 void si_applet_wake_cb(struct stream_interface *si)
@@ -1369,8 +1369,15 @@ void si_applet_wake_cb(struct stream_interface *si)
 
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
-}
 
+	/* stream_int_notify may pass throught checksnd and released some
+	 * WAIT_ROOM flags. The process_stream will consider those flags
+	 * to wakeup the appctx but in the case the task is not in runqueue
+	 * we may have to wakeup the appctx immediately.
+	 */
+	if (!task_in_rq(si_task(si)))
+		stream_int_update_applet(si);
+}
 
 /* Updates the activity status of an applet outside of the applet handler based
  * on the channel's flags and the stream interface's flags. It needs to be
