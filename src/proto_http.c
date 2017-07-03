@@ -2621,7 +2621,9 @@ resume_execution:
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
+			SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			pat_ref_delete(ref, key->str);
+			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2647,8 +2649,10 @@ resume_execution:
 
 			/* perform update */
 			/* add entry only if it does not already exist */
+			SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			if (pat_ref_find_elt(ref, key->str) == NULL)
 				pat_ref_add(ref, key->str, NULL, NULL);
+			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2911,7 +2915,9 @@ resume_execution:
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
+			SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			pat_ref_delete(ref, key->str);
+			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2974,13 +2980,14 @@ resume_execution:
 			value->str[value->len] = '\0';
 
 			/* perform update */
+			SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			if (pat_ref_find_elt(ref, key->str) != NULL)
 				/* update entry if it exists */
 				pat_ref_set(ref, key->str, value->str, NULL);
 			else
 				/* insert a new entry */
 				pat_ref_add(ref, key->str, value->str, NULL);
-
+			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 			free_trash_chunk(key);
 			free_trash_chunk(value);
 			break;

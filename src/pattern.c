@@ -148,12 +148,16 @@ int pat_match_types[PAT_MATCH_NUM] = {
 };
 
 /* this struct is used to return information */
-static struct pattern static_pattern;
+static THREAD_LOCAL struct pattern static_pattern;
+static THREAD_LOCAL struct sample_data static_sample_data;
 
 /* This is the root of the list of all pattern_ref avalaibles. */
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
 static struct lru64_head *pat_lru_tree;
+#ifdef USE_THREAD
+HA_SPINLOCK_T pat_lru_tree_lock;
+#endif
 static unsigned long long pat_lru_seed;
 
 /*
@@ -485,11 +489,19 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
+
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
@@ -505,8 +517,10 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -522,10 +536,17 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
@@ -540,8 +561,10 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -583,10 +606,17 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
@@ -598,8 +628,10 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -643,10 +675,17 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
@@ -664,8 +703,10 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		break;
 	}
 
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -682,10 +723,17 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
@@ -703,8 +751,10 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 		break;
 	}
 
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -725,10 +775,17 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
+		SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (lru && lru->domain)
-			return lru->data;
+		if (!lru) {
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+		}
+		else if (lru->domain) {
+			ret = lru->data;
+			SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+			return ret;
+		}
 	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
@@ -760,8 +817,10 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
  leave:
-	if (lru)
-	    lru64_commit(lru, ret, expr, expr->revision, NULL);
+	if (lru) {
+		lru64_commit(lru, ret, expr, expr->revision, NULL);
+		SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
+	}
 
 	return ret;
 }
@@ -1600,6 +1659,8 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 			list_for_each_entry(expr, &ref->pat, list)
 				pattern_delete(expr, elt);
 
+			/* pat_ref_elt is trashed once all expr
+			   are cleaned and there is no ref remaining */
 			LIST_DEL(&elt->list);
 			free(elt->sample);
 			free(elt->pattern);
@@ -1638,6 +1699,8 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 			list_for_each_entry(expr, &ref->pat, list)
 				pattern_delete(expr, elt);
 
+			/* pat_ref_elt is trashed once all expr
+			   are cleaned and there is no ref remaining */
 			LIST_DEL(&elt->list);
 			free(elt->sample);
 			free(elt->pattern);
@@ -1695,9 +1758,6 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 		memprintf(err, "out of memory error");
 		return 0;
 	}
-	free(elt->sample);
-	elt->sample = sample;
-
 	/* Load sample in each reference. All the conversion are tested
 	 * below, normally these calls dosn't fail.
 	 */
@@ -1705,10 +1765,17 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 		if (!expr->pat_head->parse_smp)
 			continue;
 
+		RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
 		data = pattern_find_smp(expr, elt);
 		if (data && *data && !expr->pat_head->parse_smp(sample, *data))
 			*data = NULL;
+		RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 	}
+
+	/* free old sample only when all exprs are updated */
+	free(elt->sample);
+	elt->sample = sample;
+
 
 	return 1;
 }
@@ -1805,7 +1872,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
-
+	SPIN_INIT(&ref->lock);
 	LIST_ADDQ(&pattern_reference, &ref->list);
 
 	return ref;
@@ -1924,11 +1991,14 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 		return 0;
 	}
 
+	RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
 	/* index pattern */
 	if (!expr->pat_head->index(expr, &pattern, err)) {
+		RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 		free(data);
 		return 0;
 	}
+	RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 	return 1;
 }
@@ -1983,6 +2053,7 @@ int pat_ref_add(struct pat_ref *ref,
 			return 0;
 		}
 	}
+
 	return 1;
 }
 
@@ -1995,34 +2066,19 @@ int pat_ref_add(struct pat_ref *ref,
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 {
 	struct pattern_expr *expr;
-	struct pat_ref_elt *elt;
 	char *err = NULL;
-
-	pat_ref_prune(ref);
-
-	LIST_ADD(&replace->head, &ref->head);
-	LIST_DEL(&replace->head);
-
-	list_for_each_entry(elt, &ref->head, list) {
-		list_for_each_entry(expr, &ref->pat, list) {
-			if (!pat_ref_push(elt, expr, 0, &err)) {
-				send_log(NULL, LOG_NOTICE, "%s", err);
-				free(err);
-				err = NULL;
-			}
-		}
-	}
-}
-
-/* This function prune all entries of <ref>. This function
- * prune the associated pattern_expr.
- */
-void pat_ref_prune(struct pat_ref *ref)
-{
 	struct pat_ref_elt *elt, *safe;
-	struct pattern_expr *expr;
 	struct bref *bref, *back;
+	struct sample_data *data;
+	struct pattern pattern;
 
+
+	SPIN_LOCK(PATREF_LOCK, &ref->lock);
+	list_for_each_entry(expr, &ref->pat, list) {
+		RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+	}
+
+	/* all expr are locked, we can safely remove all pat_ref */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
 			/*
@@ -2041,8 +2097,95 @@ void pat_ref_prune(struct pat_ref *ref)
 		free(elt);
 	}
 
-	list_for_each_entry(expr, &ref->pat, list)
+	/* switch pat_ret_elt lists */
+	LIST_ADD(&replace->head, &ref->head);
+	LIST_DEL(&replace->head);
+
+	list_for_each_entry(expr, &ref->pat, list) {
 		expr->pat_head->prune(expr);
+		list_for_each_entry(elt, &ref->head, list) {
+			/* Create sample */
+			if (elt->sample && expr->pat_head->parse_smp) {
+				/* New sample. */
+				data = malloc(sizeof(*data));
+				if (!data)
+					continue;
+
+				/* Parse value. */
+				if (!expr->pat_head->parse_smp(elt->sample, data)) {
+					memprintf(&err, "unable to parse '%s'", elt->sample);
+					send_log(NULL, LOG_NOTICE, "%s", err);
+					free(err);
+					free(data);
+					continue;
+				}
+
+			}
+			else
+				data = NULL;
+
+			/* initialise pattern */
+			memset(&pattern, 0, sizeof(pattern));
+			pattern.data = data;
+			pattern.ref = elt;
+
+			/* parse pattern */
+			if (!expr->pat_head->parse(elt->pattern, &pattern, expr->mflags, &err)) {
+				send_log(NULL, LOG_NOTICE, "%s", err);
+				free(err);
+				free(data);
+				continue;
+			}
+
+			/* index pattern */
+			if (!expr->pat_head->index(expr, &pattern, &err)) {
+				send_log(NULL, LOG_NOTICE, "%s", err);
+				free(err);
+				free(data);
+				continue;
+			}
+		}
+		RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
+	}
+	SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+}
+
+/* This function prune all entries of <ref>. This function
+ * prune the associated pattern_expr.
+ */
+void pat_ref_prune(struct pat_ref *ref)
+{
+	struct pat_ref_elt *elt, *safe;
+	struct pattern_expr *expr;
+	struct bref *bref, *back;
+
+	list_for_each_entry(expr, &ref->pat, list) {
+		RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+		expr->pat_head->prune(expr);
+		RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
+	}
+
+	/* we trash pat_ref_elt in a second time to ensure that data is
+	   free once there is no ref on it */
+	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
+			/*
+			 * we have to unlink all watchers. We must not relink them if
+			 * this elt  was the last one in the list.
+			 */
+			LIST_DEL(&bref->users);
+			LIST_INIT(&bref->users);
+			if (elt->list.n != &ref->head)
+				LIST_ADDQ(&LIST_ELEM(elt->list.n, struct stream *, list)->back_refs, &bref->users);
+			bref->ref = elt->list.n;
+		}
+		LIST_DEL(&elt->list);
+		free(elt->pattern);
+		free(elt->sample);
+		free(elt);
+	}
+
+
 }
 
 /* This function lookup for existing reference <ref> in pattern_head <head>. */
@@ -2123,6 +2266,8 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 			LIST_INIT(&expr->list);
 
 		expr->ref = ref;
+
+		RWLOCK_INIT(&expr->lock);
 
 		/* We must free this pattern if it is no more used. */
 		list->do_free = 1;
@@ -2434,9 +2579,41 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 		return NULL;
 
 	list_for_each_entry(list, &head->head, list) {
+		RWLOCK_RDLOCK(PATEXP_LOCK, &list->expr->lock);
 		pat = head->match(smp, list->expr, fill);
-		if (pat)
+		if (pat) {
+			/* We duplicate the pattern cause it could be modified
+			   by another thread */
+			if (pat != &static_pattern) {
+				memcpy(&static_pattern, pat, sizeof(struct pattern));
+				pat = &static_pattern;
+			}
+
+			/* We also duplicate the sample data for
+			   same reason */
+			if (pat->data && (pat->data != &static_sample_data)) {
+				switch(pat->type) {
+					case SMP_T_STR:
+						static_sample_data.type = SMP_T_STR;
+						static_sample_data.u.str = *get_trash_chunk();
+						static_sample_data.u.str.len = pat->data->u.str.len;
+						if (static_sample_data.u.str.len >= static_sample_data.u.str.size)
+							static_sample_data.u.str.len = static_sample_data.u.str.size - 1;
+						memcpy(static_sample_data.u.str.str, pat->data->u.str.str, static_sample_data.u.str.len);
+						static_sample_data.u.str.str[static_sample_data.u.str.len] = 0;
+					case SMP_T_IPV4:
+					case SMP_T_IPV6:
+					case SMP_T_SINT:
+						memcpy(&static_sample_data, pat->data, sizeof(struct sample_data));
+					default:
+						pat->data = NULL;
+				}
+				pat->data = &static_sample_data;
+			}
+			RWLOCK_RDUNLOCK(PATEXP_LOCK, &list->expr->lock);
 			return pat;
+		}
+		RWLOCK_RDUNLOCK(PATEXP_LOCK, &list->expr->lock);
 	}
 	return NULL;
 }
@@ -2450,7 +2627,9 @@ void pattern_prune(struct pattern_head *head)
 		LIST_DEL(&list->list);
 		if (list->do_free) {
 			LIST_DEL(&list->expr->list);
+			RWLOCK_WRLOCK(PATEXP_LOCK, &list->expr->lock);
 			head->prune(list->expr);
+			RWLOCK_WRUNLOCK(PATEXP_LOCK, &list->expr->lock);
 			free(list->expr);
 		}
 		free(list);
@@ -2497,7 +2676,9 @@ struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_
  */
 int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
+	RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
 	expr->pat_head->delete(expr, ref);
+	RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 	return 1;
 }
 
@@ -2511,8 +2692,10 @@ void pattern_finalize_config(void)
 	struct list pr = LIST_HEAD_INIT(pr);
 
 	pat_lru_seed = random();
-	if (global.tune.pattern_cache)
+	if (global.tune.pattern_cache) {
 		pat_lru_tree = lru64_new(global.tune.pattern_cache);
+		SPIN_INIT(&pat_lru_tree_lock);
+	}
 
 	list_for_each_entry(ref, &pattern_reference, list) {
 		if (ref->unique_id == -1) {

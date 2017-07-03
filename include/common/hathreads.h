@@ -160,6 +160,9 @@ enum lock_label {
 	STRMS_LOCK,
 	SSL_LOCK,
 	SSL_GEN_CERTS_LOCK,
+	PATREF_LOCK,
+	PATEXP_LOCK,
+	PATLRU_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -246,7 +249,8 @@ static inline void show_lock_stats()
 					   "TASK_RQ", "TASK_WQ", "POOL",
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
-					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS"};
+					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS",
+					   "PATREF", "PATEXP", "PATLRU" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
