@@ -1768,6 +1768,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)h2c->dbuf->p;
+	struct chunk *copy = NULL;
 	int flen = h2c->dfl;
 	int outlen = 0;
 	int wrap;
@@ -1781,11 +1782,14 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	/* if the input buffer wraps, take a temporary copy of it (rare) */
 	wrap = h2c->dbuf->data + h2c->dbuf->size - h2c->dbuf->p;
 	if (wrap < h2c->dfl) {
-		char *copy = get_trash_chunk()->str;
-
-		memcpy(copy, h2c->dbuf->p, wrap);
-		memcpy(copy + wrap, h2c->dbuf->data, h2c->dfl - wrap);
-		hdrs = (uint8_t *)copy;
+		copy = alloc_trash_chunk();
+		if (!copy) {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			goto fail;
+		}
+		memcpy(copy->str, h2c->dbuf->p, wrap);
+		memcpy(copy->str + wrap, h2c->dbuf->data, h2c->dfl - wrap);
+		hdrs = (uint8_t *)copy->str;
 	}
 
 	/* The padlen is the first byte before data, and the padding appears
@@ -1814,7 +1818,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	 */
 	if (!(h2c->dff & H2_F_HEADERS_END_HEADERS)) {
 		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-		return 0;
+		goto fail;
 	}
 
 	do {
@@ -1825,7 +1829,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		if (try <= 0) {
 			try = buf->p - (buf->data + buf->o);
 			if (try <= 0)
-				return 0;
+				goto fail;
 		}
 		if (try > count)
 			try = count;
@@ -1842,17 +1846,17 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 				/* need to let the output buffer flush and
 				 * mark the buffer for later wake up.
 				 */
-				return 0;
+				goto fail;
 			}
 			else {
 				/* no other way around */
 				h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
-				return 0;
+				goto fail;
 			}
 		}
 		else if (outlen < 0) {
 			h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
-			return 0;
+			goto fail;
 		}
 	} while (outlen < 0);
 
@@ -1870,7 +1874,12 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		h2s->flags |= H2_SF_ES_RCVD;
 	}
 
+ leave:
+	free_trash_chunk(copy);
 	return outlen;
+ fail:
+	outlen = 0;
+	goto leave;
 }
 
 /*
