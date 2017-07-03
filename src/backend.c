@@ -1066,20 +1066,19 @@ int connect_server(struct stream *s)
 		 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
 		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
 		 */
-
-		if (!LIST_ISEMPTY(&srv->idle_conns) &&
+		if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
 		     s->txn && (s->txn->flags & TX_NOT_FIRST))) {
-			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
+			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
 		}
-		else if (!LIST_ISEMPTY(&srv->safe_conns) &&
+		else if (srv->safe_conns && !LIST_ISEMPTY(&srv->safe_conns[tid]) &&
 			 ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
 			  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR)) {
-			srv_conn = LIST_ELEM(srv->safe_conns.n, struct connection *, list);
+			srv_conn = LIST_ELEM(srv->safe_conns[tid].n, struct connection *, list);
 		}
-		else if (!LIST_ISEMPTY(&srv->idle_conns) &&
+		else if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 			 (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) {
-			srv_conn = LIST_ELEM(srv->idle_conns.n, struct connection *, list);
+			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
 		}
 
 		/* If we've picked a connection from the pool, we now have to

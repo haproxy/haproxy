@@ -4348,15 +4348,15 @@ void http_end_txn_clean_session(struct stream *s)
 		if (!srv)
 			si_idle_conn(&s->si[1], NULL);
 		else if (srv_conn->flags & CO_FL_PRIVATE)
-			si_idle_conn(&s->si[1], &srv->priv_conns);
+			si_idle_conn(&s->si[1], (srv->priv_conns ? &srv->priv_conns[tid] : NULL));
 		else if (prev_flags & TX_NOT_FIRST)
 			/* note: we check the request, not the connection, but
 			 * this is valid for strategies SAFE and AGGR, and in
 			 * case of ALWS, we don't care anyway.
 			 */
-			si_idle_conn(&s->si[1], &srv->safe_conns);
+			si_idle_conn(&s->si[1], (srv->safe_conns ? &srv->safe_conns[tid] : NULL));
 		else
-			si_idle_conn(&s->si[1], &srv->idle_conns);
+			si_idle_conn(&s->si[1], (srv->idle_conns ? &srv->idle_conns[tid] : NULL));
 	}
 	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
 	s->res.analysers = 0;
