@@ -536,12 +536,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* Create new pattern expression associated to this reference. */
-	pattern_expr = pattern_new_expr(&expr->pat, ref, err, NULL);
+	pattern_expr = pattern_new_expr(&expr->pat, ref, patflags, err, NULL);
 	if (!pattern_expr)
 		goto out_free_expr;
-
-	/* Copy the pattern matching and indexing flags. */
-	pattern_expr->mflags = patflags;
 
 	/* now parse all patterns */
 	while (**args) {
