@@ -3926,7 +3926,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 {
 	SSL *ssl;
 	struct connection *conn;
-	char *servername;
+	const char *servername;
 
 	int depth;
 	X509 *cert;
@@ -3941,7 +3941,20 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = SSL_get_app_data(ssl);
 
+	/* we're checking against the configured "verifyhost" directive if
+	 * present, or against the SNI used on this connection if present.
+	 * If neither is set, the verification is OK.
+	 */
 	servername = objt_server(conn->target)->ssl_ctx.verify_host;
+	if (!servername) {
+		SSL_SESSION *ssl_sess = SSL_get_session(conn->xprt_ctx);
+		if (!ssl_sess)
+			return ok;
+
+		servername = SSL_SESSION_get0_hostname(ssl_sess);
+		if (!servername)
+			return ok;
+	}
 
 	/* We only need to verify the CN on the actual server cert,
 	 * not the indirect CAs */
@@ -4138,7 +4151,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	}
 	SSL_CTX_set_verify(srv->ssl_ctx.ctx,
 	                   verify,
-	                   srv->ssl_ctx.verify_host ? ssl_sock_srv_verifycbk : NULL);
+	                   (srv->ssl_ctx.verify_host || (verify & SSL_VERIFY_PEER)) ? ssl_sock_srv_verifycbk : NULL);
 	if (verify & SSL_VERIFY_PEER) {
 		if (srv->ssl_ctx.ca_file) {
 			/* load CAfile to verify */

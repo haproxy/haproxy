@@ -94,6 +94,11 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
  * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
  */
 
+static inline const char *SSL_SESSION_get0_hostname(const SSL_SESSION *sess)
+{
+       return sess->tlsext_hostname;
+}
+
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
 {
 	*sid_ctx_length = sess->sid_ctx_length;
