@@ -459,7 +459,6 @@ void init_proto_http()
 
 	/* memory allocations */
 	pool2_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
-	pool2_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
 

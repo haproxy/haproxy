@@ -7404,6 +7404,8 @@ int check_config_validity()
 	if (!global.tune.requri_len)
 		global.tune.requri_len = REQURI_LEN;
 
+	pool2_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
+
 	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
 
 	/* allocate pool of resolution per resolvers */
