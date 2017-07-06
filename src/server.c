@@ -3756,7 +3756,7 @@ out:
  *  0 if server status is updated
  *  1 if server status has not changed
  */
-int snr_update_srv_status(struct server *s)
+int snr_update_srv_status(struct server *s, int has_no_ip)
 {
 	struct dns_resolution *resolution = s->resolution;
 	struct dns_resolvers *resolvers = s->resolvers;
@@ -3772,6 +3772,13 @@ int snr_update_srv_status(struct server *s)
 			 * resume health checks
 			 * server will be turned back on if health check is safe
 			 */
+			if (has_no_ip) {
+				if (s->admin & SRV_ADMF_RMAINT)
+					return 1;
+				srv_set_admin_flag(s, SRV_ADMF_RMAINT,
+				    "No IP for server ");
+				return (0);
+			}
 			if (!(s->admin & SRV_ADMF_RMAINT))
 				return 1;
 			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
@@ -3847,6 +3854,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	short server_sin_family, firstip_sin_family;
 	int ret;
 	struct chunk *chk = get_trash_chunk();
+	int has_no_ip = 0;
 
 	s = objt_server(requester->requester);
 	if (!s)
@@ -3893,10 +3901,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 			goto invalid;
 
 		case DNS_UPD_NO_IP_FOUND:
-			if (resolution->status != RSLV_STATUS_OTHER) {
-				resolution->status = RSLV_STATUS_OTHER;
-				resolution->last_status_change = now_ms;
-			}
+			has_no_ip = 1;
 			goto update_status;
 
 		case DNS_UPD_NAME_ERROR:
@@ -3927,7 +3932,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	update_server_addr(s, firstip, firstip_sin_family, (char *)chk->str);
 
  update_status:
-	snr_update_srv_status(s);
+	snr_update_srv_status(s, has_no_ip);
 	return 1;
 
  invalid:
@@ -3936,7 +3941,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	if (resolution->nb_responses >= nameserver->resolvers->count_nameservers)
 		goto update_status;
 
-	snr_update_srv_status(s);
+	snr_update_srv_status(s, has_no_ip);
 	return 0;
 }
 
@@ -3964,16 +3969,15 @@ int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
 		return 1;
 	}
 
-	snr_update_srv_status(s);
+	snr_update_srv_status(s, 0);
 	return 1;
 }
 
 /*
  * Function to check if <ip> is already affected to a server in the backend
- * which owns <srv>.
+ * which owns <srv> and is up.
  * It returns a pointer to the first server found or NULL if <ip> is not yet
  * assigned.
- * NOTE: <ip> and <ip_family> are provided by a 'struct rec' available in dns.c.
  */
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family)
 {
@@ -3996,6 +4000,10 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		    (srv->hostname_dn_len != tmpsrv->hostname_dn_len) ||
 		    (strcmp(srv->hostname_dn, tmpsrv->hostname_dn) != 0) ||
 		    (srv->puid == tmpsrv->puid))
+			continue;
+
+		/* If the server has been taken down, don't consider it */
+		if (tmpsrv->admin & SRV_ADMF_RMAINT)
 			continue;
 
 		/* At this point, we have 2 different servers using the same DNS hostname

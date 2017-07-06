@@ -51,6 +51,8 @@ static int64_t dns_query_id_seed;	/* random seed */
 static struct lru64_head *dns_lru_tree;
 static int dns_cache_size = 1024;       /* arbitrary DNS cache size */
 
+static struct pool_head *dns_answer_item_pool;
+
 /* proto_udp callback functions for a DNS resolution */
 struct dgram_data_cb resolve_dgram_cb = {
 	.recv = dns_resolve_recv,
@@ -169,6 +171,7 @@ int dns_trigger_resolution(struct dns_resolution *resolution)
 			}
 
 			requester->requester_cb(requester, NULL);
+			resolvers = NULL;
 		}
 		else {
 			LIST_DEL(&requester->list);
@@ -306,6 +309,12 @@ void dns_reset_resolution(struct dns_resolution *resolution)
 	resolution->qid.key = 0;
 }
 
+static inline void free_dns_answer_item(struct dns_answer_item *item)
+{
+	pool_free2(dns_answer_item_pool, item);
+}
+
+
 /*
  * function called when a network IO is generated on a name server socket for an incoming packet
  * It performs the following actions:
@@ -327,6 +336,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	struct eb32_node *eb;
 	struct lru64 *lru = NULL;
 	struct dns_requester *requester = NULL, *tmprequester = NULL;
+	struct dns_answer_item *item1, *item2 = NULL;
 
 	fd = dgram->t.sock.fd;
 
@@ -466,6 +476,15 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 				nameserver->counters.other += 1;
 				need_resend = 1;
 				break;
+		}
+
+		/* Check for any obsolete record */
+		list_for_each_entry_safe(item1, item2, &resolution->response.answer_list,
+		    list) {
+			if (item1->last_seen + nameserver->resolvers->hold.obsolete / 1000 < now.tv_sec) {
+				LIST_DEL(&item1->list);
+				free_dns_answer_item(item1);
+			}
 		}
 
 		/* some error codes trigger a re-send of the query, but switching the
@@ -885,13 +904,13 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
-	int len, flags, offset, ret;
-	int dns_query_record_id, dns_answer_record_id;
+	int len, flags, offset;
+	int dns_query_record_id;
 	int nb_saved_records;
 	struct dns_query_item *dns_query;
-	struct dns_answer_item *dns_answer_record;
+	struct dns_answer_item *dns_answer_record, *tmp_record;
 	struct dns_response_packet *dns_p;
-	struct chunk *dns_response_buffer;
+	int found = 0;
 
 	reader = resp;
 	len = 0;
@@ -899,9 +918,6 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 	/* initialization of response buffer and structure */
 	dns_p = &resolution->response;
-	dns_response_buffer = &resolution->response_buffer;
-	memset(dns_p, '\0', sizeof(struct dns_response_packet));
-	chunk_reset(dns_response_buffer);
 
 	/* query id */
 	if (reader + 2 >= bufend)
@@ -1011,30 +1027,29 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	}
 
 	/* now parsing response records */
-	LIST_INIT(&dns_p->answer_list);
 	nb_saved_records = 0;
-	for (dns_answer_record_id = 0; dns_answer_record_id < dns_p->header.ancount; dns_answer_record_id++) {
+	for (int i = 0; i < dns_p->header.ancount; i++) {
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
 
-		/* pull next response record from the list, if still one available, then add it
-		 * to the record list */
-		if (dns_answer_record_id > DNS_MAX_ANSWER_RECORDS)
-			return DNS_RESP_INVALID;
-		dns_answer_record = &resolution->response_answer_records[dns_answer_record_id];
-		LIST_ADDQ(&dns_p->answer_list, &dns_answer_record->list);
+		dns_answer_record = pool_alloc2(dns_answer_item_pool);
+		if (dns_answer_record == NULL)
+			return (DNS_RESP_INVALID);
 
 		offset = 0;
 		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
 
-		if (len == 0)
+		if (len == 0) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 
 		/* check if the current record dname is valid.
 		 * previous_dname points either to queried dname or last CNAME target
 		 */
 		if (memcmp(previous_dname, tmpname, len) != 0) {
-			if (dns_answer_record_id == 0) {
+			free_dns_answer_item(dns_answer_record);
+			if (i == 0) {
 				/* first record, means a mismatch issue between queried dname
 				 * and dname found in the first record */
 				return DNS_RESP_INVALID;
@@ -1046,43 +1061,50 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 		}
 
-		dns_answer_record->name = chunk_newstr(dns_response_buffer);
-		if (dns_answer_record->name == NULL)
-			return DNS_RESP_INVALID;
-
-		ret = chunk_strncat(dns_response_buffer, tmpname, len);
-		if (ret == 0)
-			return DNS_RESP_INVALID;
+		memcpy(dns_answer_record->name, tmpname, len);
+		dns_answer_record->name[len] = 0;
 
 		reader += offset;
-		if (reader >= bufend)
+		if (reader >= bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 
-		if (reader >= bufend)
+		if (reader >= bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 
 		/* 2 bytes for record type (A, AAAA, CNAME, etc...) */
-		if (reader + 2 > bufend)
+		if (reader + 2 > bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 		dns_answer_record->type = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 2 bytes for class (2) */
-		if (reader + 2 > bufend)
+		if (reader + 2 > bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 		dns_answer_record->class = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 4 bytes for ttl (4) */
-		if (reader + 4 > bufend)
+		if (reader + 4 > bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 		dns_answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
 			                 + reader[2] * 256 + reader[3];
 		reader += 4;
 
 		/* now reading data len */
-		if (reader + 2 > bufend)
+		if (reader + 2 > bufend) {
+			free_dns_answer_item(dns_answer_record);
 			return DNS_RESP_INVALID;
+		}
 		dns_answer_record->data_len = reader[0] * 256 + reader[1];
 
 		/* move forward 2 bytes for data len */
@@ -1092,8 +1114,10 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		switch (dns_answer_record->type) {
 			case DNS_RTYPE_A:
 				/* ipv4 is stored on 4 bytes */
-				if (dns_answer_record->data_len != 4)
+				if (dns_answer_record->data_len != 4) {
+					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_INVALID;
+				}
 				dns_answer_record->address.sa_family = AF_INET;
 				memcpy(&(((struct sockaddr_in *)&dns_answer_record->address)->sin_addr),
 						reader, dns_answer_record->data_len);
@@ -1107,22 +1131,21 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 				 * + 1 because dns_answer_record_id starts at 0 while number of answers
 				 * is an integer and starts at 1.
 				 */
-				if (dns_answer_record_id + 1 == dns_p->header.ancount)
+				if (i + 1 == dns_p->header.ancount) {
+					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_CNAME_ERROR;
+				}
 
 				offset = 0;
 				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
 
-				if (len == 0)
+				if (len == 0) {
+					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_INVALID;
+				}
 
-				dns_answer_record->target = chunk_newstr(dns_response_buffer);
-				if (dns_answer_record->target == NULL)
-					return DNS_RESP_INVALID;
-
-				ret = chunk_strncat(dns_response_buffer, tmpname, len);
-				if (ret == 0)
-					return DNS_RESP_INVALID;
+				memcpy(dns_answer_record->target, tmpname, len);
+				dns_answer_record->target[len] = 0;
 
 				previous_dname = dns_answer_record->target;
 
@@ -1130,8 +1153,10 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 			case DNS_RTYPE_AAAA:
 				/* ipv6 is stored on 16 bytes */
-				if (dns_answer_record->data_len != 16)
+				if (dns_answer_record->data_len != 16) {
+					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_INVALID;
+				}
 				dns_answer_record->address.sa_family = AF_INET6;
 				memcpy(&(((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr),
 						reader, dns_answer_record->data_len);
@@ -1144,12 +1169,39 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 		/* move forward dns_answer_record->data_len for analyzing next record in the response */
 		reader += dns_answer_record->data_len;
+
+		/* Lookup to see if we already had this entry */
+
+		list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
+			if (tmp_record->type != dns_answer_record->type)
+				continue;
+			switch (tmp_record->type) {
+			case DNS_RTYPE_A:
+				if (!memcmp(&((struct sockaddr_in *)&dns_answer_record->address)->sin_addr,
+				    &((struct sockaddr_in *)&tmp_record->address)->sin_addr, sizeof(in_addr_t)))
+					found = 1;
+				break;
+			case DNS_RTYPE_AAAA:
+				if (!memcmp(&((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr,
+				    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr, sizeof(struct in6_addr)))
+					found = 1;
+				break;
+			default:
+				break;
+			}
+			if (found == 1)
+				break;
+		}
+		if (found == 1) {
+			tmp_record->last_seen = now.tv_sec;
+			free_dns_answer_item(dns_answer_record);
+		} else {
+			dns_answer_record->last_seen = now.tv_sec;
+			LIST_ADDQ(&dns_p->answer_list, &dns_answer_record->list);
+		}
+
 	} /* for i 0 to ancount */
 
-	/* let's add a last \0 to close our last string */
-	ret = chunk_strncat(dns_response_buffer, "\0", 1);
-	if (ret == 0)
-		return DNS_RESP_INVALID;
 
 	/* save the number of records we really own */
 	dns_p->header.ancount = nb_saved_records;
@@ -1175,51 +1227,17 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 {
 	struct dns_answer_item *record;
 	int family_priority;
-	int i, currentip_found;
+	int currentip_found;
 	unsigned char *newip4, *newip6;
-	struct {
-		void *ip;
-		unsigned char type;
-	} rec[DNS_MAX_IP_REC];
 	int currentip_sel;
 	int j;
-	int rec_nb = 0;
 	int score, max_score;
 
 	family_priority = dns_opts->family_prio;
 	*newip = newip4 = newip6 = NULL;
 	currentip_found = 0;
 	*newip_sin_family = AF_UNSPEC;
-
-	/* now parsing response records */
-	list_for_each_entry(record, &dns_p->answer_list, list) {
-		/* analyzing record content */
-		switch (record->type) {
-			case DNS_RTYPE_A:
-				/* Store IPv4, only if some room is avalaible. */
-				if (rec_nb < DNS_MAX_IP_REC) {
-					rec[rec_nb].ip = &(((struct sockaddr_in *)&record->address)->sin_addr);
-					rec[rec_nb].type = AF_INET;
-					rec_nb++;
-				}
-				break;
-
-			/* we're looking for IPs only. CNAME validation is done when
-			 * parsing the response buffer for the first time */
-			case DNS_RTYPE_CNAME:
-				break;
-
-			case DNS_RTYPE_AAAA:
-				/* Store IPv6, only if some room is avalaible. */
-				if (rec_nb < DNS_MAX_IP_REC) {
-					rec[rec_nb].ip = &(((struct sockaddr_in6 *)&record->address)->sin6_addr);
-					rec[rec_nb].type = AF_INET6;
-					rec_nb++;
-				}
-				break;
-
-		} /* switch (record type) */
-	} /* list for each record entries */
+	max_score = -1;
 
 	/* Select an IP regarding configuration preference.
 	 * Top priority is the prefered network ip version,
@@ -1234,29 +1252,38 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	 *  1 - current ip.
 	 * The result with the biggest score is returned.
 	 */
-	max_score = -1;
-	for (i = 0; i < rec_nb; i++) {
-		int record_ip_already_affected = 0;
 
+	list_for_each_entry(record, &dns_p->answer_list, list) {
+		void *ip;
+		unsigned char ip_type;
+
+		if (record->type == DNS_RTYPE_A) {
+			ip = &(((struct sockaddr_in *)&record->address)->sin_addr);
+			ip_type = AF_INET;
+		} else if (record->type == DNS_RTYPE_AAAA) {
+			ip_type = AF_INET6;
+			ip = &(((struct sockaddr_in6 *)&record->address)->sin6_addr);
+		} else
+			continue;
 		score = 0;
 
 		/* Check for prefered ip protocol. */
-		if (rec[i].type == family_priority)
+		if (ip_type == family_priority)
 			score += 8;
 
 		/* Check for prefered network. */
 		for (j = 0; j < dns_opts->pref_net_nb; j++) {
 
 			/* Compare only the same adresses class. */
-			if (dns_opts->pref_net[j].family != rec[i].type)
+			if (dns_opts->pref_net[j].family != ip_type)
 				continue;
 
-			if ((rec[i].type == AF_INET &&
-			     in_net_ipv4(rec[i].ip,
+			if ((ip_type == AF_INET &&
+			     in_net_ipv4(ip,
 			                 &dns_opts->pref_net[j].mask.in4,
 			                 &dns_opts->pref_net[j].addr.in4)) ||
-			    (rec[i].type == AF_INET6 &&
-			     in_net_ipv6(rec[i].ip,
+			    (ip_type == AF_INET6 &&
+			     in_net_ipv6(ip,
 			                 &dns_opts->pref_net[j].mask.in6,
 			                 &dns_opts->pref_net[j].addr.in6))) {
 				score += 4;
@@ -1268,18 +1295,17 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 		 * If yes, the score should be incremented by 2.
 		 */
 		if (owner) {
-			if (snr_check_ip_callback(owner, rec[i].ip, &rec[i].type))
-				record_ip_already_affected = 1;
+			if (snr_check_ip_callback(owner, ip, &ip_type))
+			{
+				continue;
+			}
 		}
-		if (record_ip_already_affected == 0)
-			score += 2;
-
 		/* Check for current ip matching. */
-		if (rec[i].type == currentip_sin_family &&
+		if (ip_type == currentip_sin_family &&
 		    ((currentip_sin_family == AF_INET &&
-		      memcmp(rec[i].ip, currentip, 4) == 0) ||
+		      memcmp(ip, currentip, 4) == 0) ||
 		     (currentip_sin_family == AF_INET6 &&
-		      memcmp(rec[i].ip, currentip, 16) == 0))) {
+		      memcmp(ip, currentip, 16) == 0))) {
 			score += 1;
 			currentip_sel = 1;
 		} else
@@ -1292,21 +1318,22 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 		 * the ip selected is the current ip.
 		 */
 		if (score > max_score) {
-			if (rec[i].type == AF_INET)
-				newip4 = rec[i].ip;
+			if (ip_type == AF_INET)
+				newip4 = ip;
 			else
-				newip6 = rec[i].ip;
+				newip6 = ip;
 			currentip_found = currentip_sel;
 			if (score == 15)
 				return DNS_UPD_NO;
 			max_score = score;
 		}
-	}
+
+
+	} /* list for each record entries */
 
 	/* no IP found in the response */
-	if (!newip4 && !newip6) {
+	if (!newip4 && !newip6)
 		return DNS_UPD_NO_IP_FOUND;
-	}
 
 	/* case when the caller looks first for an IPv4 address */
 	if (family_priority == AF_INET) {
@@ -1410,6 +1437,14 @@ int dns_init_resolvers(int close_socket)
 	/* give a first random value to our dns query_id seed */
 	dns_query_id_seed = random();
 
+	/* Initialize the answer items pool */
+	dns_answer_item_pool = create_pool("dns_answer_item",
+	    sizeof(struct dns_answer_item), MEM_F_SHARED);
+	if (dns_answer_item_pool == NULL) {
+		Alert("Failed to create the dns answer items pool");
+		return 0;
+	}
+
 	/* run through the resolvers section list */
 	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
 		/* create the task associated to the resolvers section */
@@ -1442,6 +1477,7 @@ int dns_init_resolvers(int close_socket)
 
 			/* allocate memory only if it has not already been allocated
 			 * by a previous call to this function */
+
 			if (!dgram && (dgram = calloc(1, sizeof(*dgram))) == NULL) {
 				Alert("Starting [%s/%s] nameserver: out of memory.\n", curr_resolvers->id,
 						curnameserver->id);
@@ -2081,6 +2117,7 @@ int dns_link_resolution(void *requester, int requester_type, struct dns_resoluti
 		tmpresolution->status = RSLV_STATUS_NONE;
 		tmpresolution->step = RSLV_STEP_NONE;
 		tmpresolution->revision = 1;
+		LIST_INIT(&tmpresolution->response.answer_list);
 	}
 
 	/* add the requester to the resolution's wait queue */
@@ -2170,7 +2207,6 @@ struct dns_resolution *dns_alloc_resolution(void)
 		return NULL;
 	}
 
-	chunk_init(&resolution->response_buffer, buffer, global.tune.bufsize);
 	LIST_INIT(&resolution->requester.wait);
 	LIST_INIT(&resolution->requester.curr);
 
@@ -2180,7 +2216,6 @@ struct dns_resolution *dns_alloc_resolution(void)
 /* This function free the memory allocated to a DNS resolution */
 void dns_free_resolution(struct dns_resolution *resolution)
 {
-	chunk_destroy(&resolution->response_buffer);
 	free(resolution);
 
 	return;

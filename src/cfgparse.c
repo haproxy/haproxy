@@ -2167,6 +2167,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->hold.other = 30000;
 		curr_resolvers->hold.refused = 30000;
 		curr_resolvers->hold.timeout = 30000;
+		curr_resolvers->hold.obsolete = 30000;
 		/* default hold period for valid is 10s */
 		curr_resolvers->hold.valid = 10000;
 		curr_resolvers->timeout.retry = 1000;
@@ -2280,8 +2281,10 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			curr_resolvers->hold.timeout = time;
 		else if (strcmp(args[1], "valid") == 0)
 			curr_resolvers->hold.valid = time;
+		else if (strcmp(args[1], "obsolete") == 0)
+			curr_resolvers->hold.obsolete = time;
 		else {
-			Alert("parsing [%s:%d] : '%s' unknown <event>: '%s', expects either 'nx', 'timeout', 'valid', or 'other'.\n",
+			Alert("parsing [%s:%d] : '%s' unknown <event>: '%s', expects either 'nx', 'timeout', 'valid', 'obsolete' or 'other'.\n",
 				file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

@@ -113,7 +113,7 @@ struct dns_query_item {
 /* NOTE: big endian structure */
 struct dns_answer_item {
 	struct list list;
-	char *name;				/* answer name
+	char name[DNS_MAX_NAME_SIZE];		/* answer name
 						 * For SRV type, name also includes service
 						 * and protocol value */
 	int16_t type;				/* question type */
@@ -124,7 +124,8 @@ struct dns_answer_item {
 	int16_t port;				/* SRV type port */
 	int16_t data_len;			/* number of bytes in target below */
 	struct sockaddr address;		/* IPv4 or IPv6, network format */
-	char *target;				/* Response data: SRV or CNAME type target */
+	char target[DNS_MAX_NAME_SIZE];		/* Response data: SRV or CNAME type target */
+	time_t last_seen;			/* When was the answer was last seen */
 };
 
 struct dns_response_packet {
@@ -158,6 +159,7 @@ struct dns_resolvers {
 		int timeout;            /*   no answer was delivered */
 		int refused;            /*   dns server refused to answer */
 		int other;              /*   other dns response errors */
+		int obsolete;		/*   an answer hasn't been seen */
 	} hold;
 	struct task *t;			/* timeout management */
 	int resolution_pool_size;	/* size of the resolution pool associated to this resolvers section */
@@ -252,8 +254,6 @@ struct dns_resolution {
 	unsigned long long revision;    /* updated for each update */
 	struct dns_response_packet response;	/* structure hosting the DNS response */
 	struct dns_query_item response_query_records[DNS_MAX_QUERY_RECORDS];		/* <response> query records */
-	struct dns_answer_item response_answer_records[DNS_MAX_ANSWER_RECORDS];	/* <response> answer records */
-	struct chunk response_buffer;	/* buffer used as a data store for <response> above TODO: optimize the size (might be smaller) */
 };
 
 /*
@@ -315,6 +315,7 @@ enum {
 	DNS_UPD_CNAME,			/* CNAME without any IP provided in the response */
 	DNS_UPD_NAME_ERROR,		/* name in the response did not match the query */
 	DNS_UPD_NO_IP_FOUND,		/* no IP could be found in the response */
+	DNS_UPD_OBSOLETE_IP,		/* The server IP was obsolete, and no other IP was found */
 };
 
 #endif /* _TYPES_DNS_H */

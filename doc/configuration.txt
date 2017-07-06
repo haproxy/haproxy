@@ -11693,6 +11693,10 @@ For example, with 2 name servers configured in a resolvers section:
  - first response is truncated and second one is a NX Domain, then HAProxy
    stops resolution.
 
+As a DNS server may not answer all the IPs in one DNS request, haproxy keeps
+a cache of previous answers, an answer will be considered obsolete after
+"hold obsolete" seconds without the IP returned.
+
 
 resolvers <resolvers id>
   Creates a new name server list labelled <resolvers id>
@@ -11709,7 +11713,7 @@ hold <status> <period>
   Defines <period> during which the last name resolution should be kept based
   on last resolution <status>
     <status> : last name resolution status. Acceptable values are "nx",
-               "other", "refused", "timeout", "valid".
+               "other", "refused", "timeout", "valid", "obsolete".
     <period> : interval between two successive name resolution when the last
                answer was in <status>. It follows the HAProxy time format.
                <period> is in milliseconds by default.
@@ -11756,6 +11760,7 @@ timeout <event> <time>
      hold nx              30s
      hold timeout         30s
      hold valid           10s
+     hold obsolete        30s
 
 
 6. HTTP header manipulation
