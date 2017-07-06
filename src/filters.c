@@ -843,8 +843,20 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	/* We don't remove yet this analyzer because we need to synchronize the
 	 * both channels. So here, we just remove the flag CF_FLT_ANALYZE. */
 	ret = handle_analyzer_result(s, chn, 0, ret);
-	if (ret)
+	if (ret) {
 		chn->flags &= ~CF_FLT_ANALYZE;
+
+		/* Pretend there is an activity on both channels. Flag on the
+		 * current one will be automatically removed, so only the other
+		 * one will remain. This is a way to be sure that
+		 * 'channel_end_analyze' callback will have a chance to be
+		 * called at least once for the other side to finish the current
+		 * processing. Of course, this is the filter responsiblity to
+		 * wakeup the stream if it choose to loop on this callback. */
+		s->req.flags |= CF_WAKE_ONCE;
+		s->res.flags |= CF_WAKE_ONCE;
+	}
+
 
  sync:
 	/* Now we can check if filters have finished their work on the both
