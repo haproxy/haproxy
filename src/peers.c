@@ -383,7 +383,8 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 {
 	int len;
 	unsigned short datalen;
-	char *cursor, *datamsg;
+	struct chunk *chunk;
+	char *cursor, *datamsg, *chunkp, *chunkq;
 	uint64_t data = 0;
 	unsigned int data_type;
 
@@ -407,6 +408,8 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 	/* encode table key size */
 	intencode(st->table->key_size, &cursor);
 
+	chunk = get_trash_chunk();
+	chunkp = chunkq = chunk->str;
 	/* encode available known data types in table */
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		if (st->table->data_ofs[data_type]) {
@@ -414,13 +417,26 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 				case STD_T_SINT:
 				case STD_T_UINT:
 				case STD_T_ULL:
+					data |= 1 << data_type;
+					break;
 				case STD_T_FRQP:
 					data |= 1 << data_type;
+					intencode(data_type, &chunkq);
+					intencode(st->table->data_arg[data_type].u, &chunkq);
 					break;
 			}
 		}
 	}
 	intencode(data, &cursor);
+
+	/* Encode stick-table entries duration. */
+	intencode(st->table->expire, &cursor);
+
+	if (chunkq > chunkp) {
+		chunk->len = chunkq - chunkp;
+		memcpy(cursor, chunk->str, chunk->len);
+		cursor += chunk->len;
+	}
 
 	/* Compute datalen */
 	datalen = (cursor - datamsg);
