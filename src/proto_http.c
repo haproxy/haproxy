@@ -5654,16 +5654,18 @@ int http_resync_states(struct stream *s)
 		 * and the response buffer must realigned
 		 * (realign is done is http_end_txn_clean_session).
 		 */
-		if (s->req.buf->o)
+		if (s->req.buf->o) {
 			s->req.flags |= CF_WAKE_WRITE;
-		else if (s->res.buf->o)
-			s->res.flags |= CF_WAKE_WRITE;
-		else {
-			s->req.analysers = AN_REQ_FLT_END;
-			s->res.analysers = AN_RES_FLT_END;
-			txn->flags |= TX_WAIT_CLEANUP;
-			return 1;
+			return 0;
 		}
+		else if (s->res.buf->o) {
+			s->res.flags |= CF_WAKE_WRITE;
+			return 0;
+		}
+		s->req.analysers = AN_REQ_FLT_END;
+		s->res.analysers = AN_RES_FLT_END;
+		txn->flags |= TX_WAIT_CLEANUP;
+		return 1;
 	}
 
 	return txn->req.msg_state != old_req_state ||
