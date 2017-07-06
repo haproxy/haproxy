@@ -1881,6 +1881,7 @@ struct task *process_stream(struct task *t)
 
 		rp_cons_last = si_f->state;
 		rp_prod_last = si_b->state;
+		res->flags &= ~CF_WAKE_ONCE;
 		rpf_last = res->flags;
 
 		if ((res->flags ^ flags) & CF_MASK_STATIC)
