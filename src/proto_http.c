@@ -6238,17 +6238,14 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 
 	/*
-	 * 2: check for cacheability.
+	 * We may be facing a 100-continue response, or any other informational
+	 * 1xx response which is non-final, in which case this is not the right
+	 * response, and we're waiting for the next one. Let's allow this response
+	 * to go to the client and wait for the next one. There's an exception for
+	 * 101 which is used later in the code to switch protocols.
 	 */
-
-	switch (txn->status) {
-	case 100:
-		/*
-		 * We may be facing a 100-continue response, in which case this
-		 * is not the right response, and we're waiting for the next one.
-		 * Let's allow this response to go to the client and wait for the
-		 * next one.
-		 */
+	if (txn->status < 200 &&
+	    (txn->status == 100 || txn->status >= 102)) {
 		hdr_idx_init(&txn->hdr_idx);
 		msg->next -= channel_forward(rep, msg->next);
 		msg->msg_state = HTTP_MSG_RPBEFORE;
@@ -6256,7 +6253,13 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->logs.t_data = -1; /* was not a response yet */
 		FLT_STRM_CB(s, flt_http_reset(s, msg));
 		goto next_one;
+	}
 
+	/*
+	 * 2: check for cacheability.
+	 */
+
+	switch (txn->status) {
 	case 200:
 	case 203:
 	case 206:
