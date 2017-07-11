@@ -2205,6 +2205,11 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	/* Get args. */
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
+
+	/* The socket may be destroy. */
+	if (!socket->s)
+		return 0;
+
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	if (lua_gettop(L) >= 3)
 		port = MAY_LJMP(luaL_checkinteger(L, 3));
