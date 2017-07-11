@@ -401,6 +401,57 @@ static inline void h2_set_frame_size(void *frame, uint32_t len)
 	write_n16(out + 1, len);
 }
 
+/* Peeks an H2 frame header from buffer <b> into descriptor <h>. The algorithm
+ * is not obvious. It turns out that H2 headers are neither aligned nor do they
+ * use regular sizes. And to add to the trouble, the buffer may wrap so each
+ * byte read must be checked. The header is formed like this :
+ *
+ *       b0         b1       b2     b3   b4         b5..b8
+ *  +----------+---------+--------+----+----+----------------------+
+ *  |len[23:16]|len[15:8]|len[7:0]|type|flag|sid[31:0] (big endian)|
+ *  +----------+---------+--------+----+----+----------------------+
+ *
+ * Here we read a big-endian 64 bit word from h[1]. This way in a single read
+ * we get the sid properly aligned and ordered, and 16 bits of len properly
+ * ordered as well. The type and flags can be extracted using bit shifts from
+ * the word, and only one extra read is needed to fetch len[16:23].
+ * Returns zero if some bytes are missing, otherwise non-zero on success.
+ */
+static int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
+{
+	uint64_t w;
+
+	if (b->i < 9)
+		return 0;
+
+	w = readv_n64(b_ptr(b,1), b_end(b) - b_ptr(b,1), b->data);
+	h->len = *b->p << 16;
+	h->sid = w & 0x7FFFFFFF; /* RFC7540#4.1: R bit must be ignored */
+	h->ff = w >> 32;
+	h->ft = w >> 40;
+	h->len += w >> 48;
+	return 1;
+}
+
+/* skip the next 9 bytes corresponding to the frame header possibly parsed by
+ * h2_peek_frame_hdr() above.
+ */
+static inline void h2_skip_frame_hdr(struct buffer *b)
+{
+	bi_del(b, 9);
+}
+
+/* same as above, automatically advances the buffer on success */
+static inline int h2_get_frame_hdr(struct buffer *b, struct h2_fh *h)
+{
+	int ret;
+
+	ret = h2_peek_frame_hdr(b, h);
+	if (ret > 0)
+		h2_skip_frame_hdr(b);
+	return ret;
+}
+
 
 /*********************************************************/
 /* functions below are I/O callbacks from the connection */
