@@ -4875,8 +4875,6 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		if (ret > 0) {
 			buf->i += ret;
 			done += ret;
-			if (ret < try)
-				break;
 			count -= ret;
 		}
 		else if (ret == 0) {
