@@ -1808,6 +1808,10 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 #ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
+#ifdef OPENSSL_NO_SSL3                                  /* SSLv3 support removed */
+#undef  SSL_OP_NO_SSLv3
+#define SSL_OP_NO_SSLv3 0
+#endif
 #ifndef SSL_OP_NO_TLSv1_1                               /* needs OpenSSL >= 1.0.1 */
 #define SSL_OP_NO_TLSv1_1 0
 #endif
@@ -1835,7 +1839,7 @@ typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
 {
-#if SSL_OP_NO_SSLv3 && !defined(OPENSSL_NO_SSL3_METHOD)
+#if SSL_OP_NO_SSLv3
 	c == SET_SERVER ? SSL_CTX_set_ssl_version(ctx, SSLv3_server_method())
 		: SSL_CTX_set_ssl_version(ctx, SSLv3_client_method());
 #endif
