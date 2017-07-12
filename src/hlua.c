@@ -1630,6 +1630,13 @@ __LJMP static int hlua_socket_close(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "close"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	peer = xref_get_peer(&socket->xref);
 	if (!peer) {
 		xref_disconnect(&socket->xref);
@@ -1679,6 +1686,12 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	if (!hlua || !hlua->task)
 		WILL_LJMP(luaL_error(L, "The 'receive' function is only allowed in "
 		                      "'frontend', 'backend' or 'task'"));
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
@@ -1822,6 +1835,12 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	/* check for pattern. */
 	if (lua_gettop(L) >= 2) {
 		type = lua_type(L, 2);
@@ -1888,6 +1907,12 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	buf = MAY_LJMP(luaL_checklstring(L, 2, &buf_len));
 	sent = MAY_LJMP(luaL_checkinteger(L, 3));
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
@@ -2111,6 +2136,12 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
 	if (!peer) {
@@ -2150,6 +2181,12 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	MAY_LJMP(check_args(L, 1, "getsockname"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
@@ -2194,6 +2231,12 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 	struct stream_interface *si;
 	struct stream *s;
 
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
 	if (!peer) {
@@ -2205,6 +2248,12 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
 	si = appctx->owner;
 	s = si_strm(si);
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
 	/* Check for connection close. */
 	if (!hlua || channel_output_closed(&s->req)) {
@@ -2247,6 +2296,13 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	/* Get args. */
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
+
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	if (lua_gettop(L) >= 3)
 		port = MAY_LJMP(luaL_checkinteger(L, 3));
@@ -2357,6 +2413,12 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
 
+	/* Check if we run on the same thread than the xreator thread.
+	 * We cannot access to the socket if the thread is different.
+	 */
+	if (socket->tid != tid)
+		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
+
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer(&socket->xref);
 	if (!peer) {
@@ -2395,6 +2457,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket = MAY_LJMP(lua_newuserdata(L, sizeof(*socket)));
 	lua_rawseti(L, -2, 0);
 	memset(socket, 0, sizeof(*socket));
+	socket->tid = tid;
 
 	/* Check if the various memory pools are intialized. */
 	if (!pool2_stream || !pool2_buffer) {

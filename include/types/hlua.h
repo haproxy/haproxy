@@ -156,6 +156,7 @@ struct hlua_sleep {
 struct hlua_socket {
 	struct xref xref; /* cross reference with the stream used for socket I/O. */
 	luaL_Buffer b; /* buffer used to prepare strings. */
+	unsigned long tid; /* Store the thread id which creates the socket. */
 };
 
 struct hlua_concat {
