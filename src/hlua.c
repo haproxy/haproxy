@@ -882,9 +882,15 @@ void hlua_ctx_destroy(struct hlua *lua)
 	/* Purge all the pending signals. */
 	hlua_com_purge(&lua->com);
 
+	if (!SET_SAFE_LJMP(lua->T))
+		return;
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
-	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+	RESET_SAFE_LJMP(lua->T);
 
+	if (!SET_SAFE_LJMP(gL.T))
+		return;
+	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+	RESET_SAFE_LJMP(gL.T);
 	/* Forces a garbage collecting process. If the Lua program is finished
 	 * without error, we run the GC on the thread pointer. Its freed all
 	 * the unused memory.
@@ -895,9 +901,16 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * the garbage collection.
 	 */
 	if (lua->flags & HLUA_MUST_GC) {
+		if (!SET_SAFE_LJMP(lua->T))
+			return;
 		lua_gc(lua->T, LUA_GCCOLLECT, 0);
-		if (lua_status(lua->T) != LUA_OK)
+		RESET_SAFE_LJMP(lua->T);
+		if (lua_status(lua->T) != LUA_OK) {
+			if (!SET_SAFE_LJMP(gL.T))
+				return;
 			lua_gc(gL.T, LUA_GCCOLLECT, 0);
+			RESET_SAFE_LJMP(gL.T);
+		}
 	}
 
 	lua->T = NULL;
