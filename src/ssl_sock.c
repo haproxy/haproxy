@@ -8104,6 +8104,7 @@ __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
 	char *ptr;
+	int i;
 
 	STACK_OF(SSL_COMP)* cm;
 
@@ -8166,23 +8167,10 @@ static void __ssl_sock_init(void)
 #endif
 	       "", ptr);
 
-	memprintf(&ptr, "%s\nOpenSSL library supports : "
-#if SSL_OP_NO_SSLv3
-		  "SSLv3 "
-#endif
-#if SSL_OP_NO_TLSv1
-		  "TLSv1.0 "
-#endif
-#if SSL_OP_NO_TLSv1_1
-		  "TLSv1.1 "
-#endif
-#if SSL_OP_NO_TLSv1_2
-		  "TLSv1.2 "
-#endif
-#if SSL_OP_NO_TLSv1_3
-		  "TLSv1.3"
-#endif
-	       "", ptr);
+	memprintf(&ptr, "%s\nOpenSSL library supports :", ptr);
+	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		if (methodVersions[i].option)
+			memprintf(&ptr, "%s %s", ptr, methodVersions[i].name);
 
 	hap_register_build_opts(ptr, 1);
 
