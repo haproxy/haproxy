@@ -40,7 +40,7 @@ static int class_regex_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
-static struct field stats[STATS_LEN];
+static THREAD_LOCAL struct field stats[STATS_LEN];
 
 int hlua_checkboolean(lua_State *L, int index)
 {

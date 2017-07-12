@@ -98,7 +98,7 @@
  * because they must be exists in the program stack when the longjmp
  * is called.
  */
-jmp_buf safe_ljmp_env;
+THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 
