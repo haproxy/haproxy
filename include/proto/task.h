@@ -85,6 +85,7 @@ extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
+extern struct pool_head *pool2_notification;
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -252,6 +253,57 @@ static inline void task_schedule(struct task *task, int when)
 	task->expire = when;
 	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
+}
+
+/* This function register a new signal. "lua" is the current lua
+ * execution context. It contains a pointer to the associated task.
+ * "link" is a list head attached to an other task that must be wake
+ * the lua task if an event occurs. This is useful with external
+ * events like TCP I/O or sleep functions. This funcion allocate
+ * memory for the signal.
+ */
+static inline struct notification *notification_new(struct list *purge, struct list *event, struct task *wakeup)
+{
+	struct notification *com = pool_alloc2(pool2_notification);
+	if (!com)
+		return NULL;
+	LIST_ADDQ(purge, &com->purge_me);
+	LIST_ADDQ(event, &com->wake_me);
+	com->task = wakeup;
+	return com;
+}
+
+/* This function purge all the pending signals when the LUA execution
+ * is finished. This prevent than a coprocess try to wake a deleted
+ * task. This function remove the memory associated to the signal.
+ */
+static inline void notification_purge(struct list *purge)
+{
+	struct notification *com, *back;
+
+	/* Delete all pending communication signals. */
+	list_for_each_entry_safe(com, back, purge, purge_me) {
+		LIST_DEL(&com->purge_me);
+		LIST_DEL(&com->wake_me);
+		pool_free2(pool2_notification, com);
+	}
+}
+
+/* This function sends signals. It wakes all the tasks attached
+ * to a list head, and remove the signal, and free the used
+ * memory.
+ */
+static inline void notification_wake(struct list *wake)
+{
+	struct notification *com, *back;
+
+	/* Wake task and delete all pending communication signals. */
+	list_for_each_entry_safe(com, back, wake, wake_me) {
+		LIST_DEL(&com->purge_me);
+		LIST_DEL(&com->wake_me);
+		task_wakeup(com->task, TASK_WOKEN_MSG);
+		pool_free2(pool2_notification, com);
+	}
 }
 
 /*

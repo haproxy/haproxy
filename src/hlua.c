@@ -141,11 +141,6 @@ struct hlua gL;
  */
 struct pool_head *pool2_hlua;
 
-/* This is the memory pool containing all the signal structs. These
- * struct are used to store each requiered signal between two tasks.
- */
-struct pool_head *pool2_hlua_com;
-
 /* Used for Socket connection. */
 static struct proxy socket_proxy;
 static struct server socket_tcp;
@@ -293,57 +288,6 @@ static int hlua_pusherror(lua_State *L, const char *fmt, ...)
 	va_end(argp);
 	lua_concat(L, 2);
 	return 1;
-}
-
-/* This function register a new signal. "lua" is the current lua
- * execution context. It contains a pointer to the associated task.
- * "link" is a list head attached to an other task that must be wake
- * the lua task if an event occurs. This is useful with external
- * events like TCP I/O or sleep functions. This funcion allocate
- * memory for the signal.
- */
-static struct hlua_com *hlua_com_new(struct list *purge, struct list *event, struct task *wakeup)
-{
-	struct hlua_com *com = pool_alloc2(pool2_hlua_com);
-	if (!com)
-		return NULL;
-	LIST_ADDQ(purge, &com->purge_me);
-	LIST_ADDQ(event, &com->wake_me);
-	com->task = wakeup;
-	return com;
-}
-
-/* This function purge all the pending signals when the LUA execution
- * is finished. This prevent than a coprocess try to wake a deleted
- * task. This function remove the memory associated to the signal.
- */
-static void hlua_com_purge(struct list *purge)
-{
-	struct hlua_com *com, *back;
-
-	/* Delete all pending communication signals. */
-	list_for_each_entry_safe(com, back, purge, purge_me) {
-		LIST_DEL(&com->purge_me);
-		LIST_DEL(&com->wake_me);
-		pool_free2(pool2_hlua_com, com);
-	}
-}
-
-/* This function sends signals. It wakes all the tasks attached
- * to a list head, and remove the signal, and free the used
- * memory.
- */
-static void hlua_com_wake(struct list *wake)
-{
-	struct hlua_com *com, *back;
-
-	/* Wake task and delete all pending communication signals. */
-	list_for_each_entry_safe(com, back, wake, wake_me) {
-		LIST_DEL(&com->purge_me);
-		LIST_DEL(&com->wake_me);
-		task_wakeup(com->task, TASK_WOKEN_MSG);
-		pool_free2(pool2_hlua_com, com);
-	}
 }
 
 /* This functions is used with sample fetch and converters. It
@@ -881,7 +825,7 @@ void hlua_ctx_destroy(struct hlua *lua)
 		goto end;
 
 	/* Purge all the pending signals. */
-	hlua_com_purge(&lua->com);
+	notification_purge(&lua->com);
 
 	if (!SET_SAFE_LJMP(lua->T))
 		return;
@@ -1164,20 +1108,20 @@ resume_execution:
 		break;
 
 	case HLUA_E_ERRMSG:
-		hlua_com_purge(&lua->com);
+		notification_purge(&lua->com);
 		hlua_ctx_renew(lua, 1);
 		HLUA_CLR_RUN(lua);
 		break;
 
 	case HLUA_E_ERR:
 		HLUA_CLR_RUN(lua);
-		hlua_com_purge(&lua->com);
+		notification_purge(&lua->com);
 		hlua_ctx_renew(lua, 0);
 		break;
 
 	case HLUA_E_OK:
 		HLUA_CLR_RUN(lua);
-		hlua_com_purge(&lua->com);
+		notification_purge(&lua->com);
 		break;
 	}
 
@@ -1552,8 +1496,8 @@ static void hlua_socket_handler(struct appctx *appctx)
 		si_shutw(si);
 		si_shutr(si);
 		si_ic(si)->flags |= CF_READ_NULL;
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 		stream_shutdown(si_strm(si), SF_ERR_KILLED);
 	}
 
@@ -1564,18 +1508,18 @@ static void hlua_socket_handler(struct appctx *appctx)
 		si_shutw(si);
 		si_shutr(si);
 		si_ic(si)->flags |= CF_READ_NULL;
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 		return;
 	}
 
 	/* If we cant write, wakeup the pending write signals. */
 	if (channel_output_closed(si_ic(si)))
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
 	/* If we cant read, wakeup the pending read signals. */
 	if (channel_input_closed(si_oc(si)))
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 
 	/* if the connection is not estabkished, inform the stream that we want
 	 * to be notified whenever the connection completes.
@@ -1591,11 +1535,11 @@ static void hlua_socket_handler(struct appctx *appctx)
 
 	/* Wake the tasks which wants to write if the buffer have avalaible space. */
 	if (channel_may_recv(si_ic(si)))
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
 	/* Wake the tasks which wants to read if the buffer contains data. */
 	if (!channel_is_empty(si_oc(si)))
-		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 }
 
 /* This function is called when the "struct stream" is destroyed.
@@ -1608,8 +1552,8 @@ static void hlua_socket_release(struct appctx *appctx)
 	xref_disconnect(&appctx->ctx.hlua_cosocket.xref);
 
 	/* Wake all the task waiting for me. */
-	hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
-	hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+	notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+	notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 }
 
 /* If the garbage collectio of the object is launch, nobody
@@ -1812,7 +1756,7 @@ connection_closed:
 connection_empty:
 
 	appctx = objt_appctx(s->si[0].end);
-	if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_read, hlua->task))
+	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_read, hlua->task))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY, 0));
 	return 0;
@@ -1952,7 +1896,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	len = buffer_total_space(s->req.buf);
 	if (len <= 0) {
 		appctx = objt_appctx(s->si[0].end);
-		if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
+		if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
 			WILL_LJMP(luaL_error(L, "out of memory"));
 		goto hlua_socket_write_yield_return;
 	}
@@ -2246,7 +2190,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 1;
 	}
 
-	if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
+	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
 		WILL_LJMP(luaL_error(L, "out of memory error"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 	return 0;
@@ -2328,7 +2272,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	hlua->flags |= HLUA_MUST_GC;
 
-	if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
+	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
@@ -7303,7 +7247,6 @@ void hlua_init(void)
 
 	/* Initialise struct hlua and com signals pool */
 	pool2_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
-	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
 
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);

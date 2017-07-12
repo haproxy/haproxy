@@ -86,14 +86,6 @@ struct hlua {
 	struct hlua_consistency cons; /* Store data consistency check. */
 };
 
-struct hlua_com {
-	struct list purge_me; /* Part of the list of signals to be purged in the
-	                         case of the LUA execution stack crash. */
-	struct list wake_me; /* Part of list of signals to be targeted if an
-	                        event occurs. */
-	struct task *task; /* The task to be wake if an event occurs. */
-};
-
 /* This is a part of the list containing references to functions
  * called at the initialisation time.
  */

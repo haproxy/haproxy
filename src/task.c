@@ -25,6 +25,11 @@
 
 struct pool_head *pool2_task;
 
+/* This is the memory pool containing all the signal structs. These
+ * struct are used to store each requiered signal between two tasks.
+ */
+struct pool_head *pool2_notification;
+
 unsigned int nb_tasks = 0;
 unsigned int tasks_run_queue = 0;
 unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
@@ -266,7 +271,12 @@ int init_task()
 	memset(&timers, 0, sizeof(timers));
 	memset(&rqueue, 0, sizeof(rqueue));
 	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
-	return pool2_task != NULL;
+	if (!pool2_task)
+		return 0;
+	pool2_notification = create_pool("notification", sizeof(struct notification), MEM_F_SHARED);
+	if (!pool2_notification)
+		return 0;
+	return 1;
 }
 
 /*

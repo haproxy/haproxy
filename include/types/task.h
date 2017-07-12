@@ -50,6 +50,14 @@
  */
 #define TASK_REASON_SHIFT 8
 
+struct notification {
+	struct list purge_me; /* Part of the list of signals to be purged in the
+	                         case of the LUA execution stack crash. */
+	struct list wake_me; /* Part of list of signals to be targeted if an
+	                        event occurs. */
+	struct task *task; /* The task to be wake if an event occurs. */
+};
+
 /* The base for all tasks */
 struct task {
 	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
