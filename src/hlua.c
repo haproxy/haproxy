@@ -25,6 +25,7 @@
 
 #include <common/cfgparse.h>
 #include <common/xref.h>
+#include <common/hathreads.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>
@@ -97,7 +98,26 @@
  * RESET_SAFE_LJMP reset the longjmp. These function must be macro
  * because they must be exists in the program stack when the longjmp
  * is called.
+ *
+ * Note that the Lua processing is not really thread safe. It provides
+ * heavy system which consists to add our own lock function in the Lua
+ * code and recompile the library. This system will probably not accepted
+ * by maintainers of various distribs.
+ *
+ * Our main excution point of the Lua is the function lua_resume(). A
+ * quick looking on the Lua sources displays a lua_lock() a the start
+ * of function and a lua_unlock() at the end of the function. So I
+ * conclude that the Lua thread safe mode just perform a mutex around
+ * all execution. So I prefer to do this in the HAProxy code, it will be
+ * easier for distro maintainers.
+ *
+ * Note that the HAProxy lua functions rounded by the macro SET_SAFE_LJMP
+ * and RESET_SAFE_LJMP manipulates the Lua stack, so it will be careful
+ * to set mutex around these functions.
  */
+#ifdef USE_THREAD
+HA_SPINLOCK_T hlua_global_lock;
+#endif
 THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
@@ -105,9 +125,11 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define SET_SAFE_LJMP(__L) \
 	({ \
 		int ret; \
+		SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
 		if (setjmp(safe_ljmp_env) != 0) { \
 			lua_atpanic(__L, hlua_panic_safe); \
 			ret = 0; \
+			SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 		} else { \
 			lua_atpanic(__L, hlua_panic_ljmp); \
 			ret = 1; \
@@ -121,6 +143,7 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define RESET_SAFE_LJMP(__L) \
 	do { \
 		lua_atpanic(__L, hlua_panic_safe); \
+		SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 	} while(0)
 
 /* Applet status flags */
@@ -968,6 +991,11 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	if (!HLUA_IS_RUNNING(lua))
 		lua->run_time = 0;
 
+	/* Lock the whole Lua execution. This lock must be before the
+	 * label "resume_execution".
+	 */
+	SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
+
 resume_execution:
 
 	/* This hook interrupts the Lua processing each 'hlua_nb_instruction'
@@ -1124,6 +1152,9 @@ resume_execution:
 		notification_purge(&lua->com);
 		break;
 	}
+
+	/* This is the main exit point, remove the Lua lock. */
+	SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
 
 	return ret;
 }
@@ -7235,6 +7266,8 @@ void hlua_init(void)
 		NULL
 	};
 #endif
+
+	SPIN_INIT(&hlua_global_lock);
 
 	/* Initialise struct hlua and com signals pool */
 	pool2_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
