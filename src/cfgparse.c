@@ -1941,7 +1941,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		for (curpeers = peers; curpeers != NULL; curpeers = curpeers->next) {
+		for (curpeers = cfg_peers; curpeers != NULL; curpeers = curpeers->next) {
 			/*
 			 * If there are two proxies with the same name only following
 			 * combinations are allowed:
@@ -1959,8 +1959,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		curpeers->next = peers;
-		peers = curpeers;
+		curpeers->next = cfg_peers;
+		cfg_peers = curpeers;
 		curpeers->conf.file = strdup(file);
 		curpeers->conf.line = linenum;
 		curpeers->last_change = now.tv_sec;
@@ -2040,7 +2040,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
 			newpeer->local = 1;
-			peers->local = newpeer;
+			cfg_peers->local = newpeer;
 
 			if (!curpeers->peers_fe) {
 				if ((curpeers->peers_fe  = calloc(1, sizeof(struct proxy))) == NULL) {
@@ -8087,9 +8087,9 @@ int check_config_validity()
 		}
 
 		if (curproxy->table.peers.name) {
-			struct peers *curpeers = peers;
+			struct peers *curpeers;
 
-			for (curpeers = peers; curpeers; curpeers = curpeers->next) {
+			for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
 				if (strcmp(curpeers->id, curproxy->table.peers.name) == 0) {
 					free((void *)curproxy->table.peers.name);
 					curproxy->table.peers.p = curpeers;
@@ -9108,15 +9108,15 @@ out_uri_auth_compat:
 		if (curproxy->table.peers.p)
 			curproxy->table.peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
 
-	if (peers) {
-		struct peers *curpeers = peers, **last;
+	if (cfg_peers) {
+		struct peers *curpeers = cfg_peers, **last;
 		struct peer *p, *pb;
 
 		/* Remove all peers sections which don't have a valid listener,
 		 * which are not used by any table, or which are bound to more
 		 * than one process.
 		 */
-		last = &peers;
+		last = &cfg_peers;
 		while (*last) {
 			curpeers = *last;
 

@@ -1448,7 +1448,7 @@ static void init(int argc, char **argv)
 		struct peers *pr;
 		struct proxy *px;
 
-		for (pr = peers; pr; pr = pr->next)
+		for (pr = cfg_peers; pr; pr = pr->next)
 			if (pr->peers_fe)
 				break;
 
@@ -1662,11 +1662,11 @@ static void init(int argc, char **argv)
 	if (global.stats_fe)
 		global.maxsock += global.stats_fe->maxconn;
 
-	if (peers) {
+	if (cfg_peers) {
 		/* peers also need to bypass global maxconn */
-		struct peers *p = peers;
+		struct peers *p = cfg_peers;
 
-		for (p = peers; p; p = p->next)
+		for (p = cfg_peers; p; p = p->next)
 			if (p->peers_fe)
 				global.maxsock += p->peers_fe->maxconn;
 	}
@@ -2653,7 +2653,7 @@ int main(int argc, char **argv)
 		}
 
 		/* we might have to unbind some peers sections from some processes */
-		for (curpeers = peers; curpeers; curpeers = curpeers->next) {
+		for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
 			if (!curpeers->peers_fe)
 				continue;
 
