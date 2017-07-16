@@ -901,16 +901,10 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * the garbage collection.
 	 */
 	if (lua->flags & HLUA_MUST_GC) {
-		if (!SET_SAFE_LJMP(lua->T))
+		if (!SET_SAFE_LJMP(gL.T))
 			return;
-		lua_gc(lua->T, LUA_GCCOLLECT, 0);
-		RESET_SAFE_LJMP(lua->T);
-		if (lua_status(lua->T) != LUA_OK) {
-			if (!SET_SAFE_LJMP(gL.T))
-				return;
-			lua_gc(gL.T, LUA_GCCOLLECT, 0);
-			RESET_SAFE_LJMP(gL.T);
-		}
+		lua_gc(gL.T, LUA_GCCOLLECT, 0);
+		RESET_SAFE_LJMP(gL.T);
 	}
 
 	lua->T = NULL;
