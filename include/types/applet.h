@@ -76,6 +76,7 @@ struct appctx {
 			struct hlua_socket *socket;
 			struct list wake_on_read;
 			struct list wake_on_write;
+			int die;
 		} hlua_cosocket;                /* used by the Lua cosockets */
 		struct {
 			struct hlua *hlua;

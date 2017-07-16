@@ -1553,6 +1553,15 @@ static void hlua_socket_handler(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct connection *c = objt_conn(si_opposite(si)->end);
 
+	if (appctx->ctx.hlua_cosocket.die) {
+		si_shutw(si);
+		si_shutr(si);
+		si_ic(si)->flags |= CF_READ_NULL;
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
+		hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
+		stream_shutdown(si_strm(si), SF_ERR_KILLED);
+	}
+
 	/* If the connection object is not avalaible, close all the
 	 * streams and wakeup everithing waiting for.
 	 */
@@ -1628,9 +1637,10 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 
 	/* Remove all reference between the Lua stack and the coroutine stream. */
 	appctx = objt_appctx(socket->s->si[0].end);
-	stream_shutdown(socket->s, SF_ERR_KILLED);
 	socket->s = NULL;
 	appctx->ctx.hlua_cosocket.socket = NULL;
+	appctx->ctx.hlua_cosocket.die = 1;
+	appctx_wakeup(appctx);
 
 	return 0;
 }
@@ -1650,10 +1660,11 @@ __LJMP static int hlua_socket_close(lua_State *L)
 		return 0;
 
 	/* Close the stream and remove the associated stop task. */
-	stream_shutdown(socket->s, SF_ERR_KILLED);
 	appctx = objt_appctx(socket->s->si[0].end);
 	appctx->ctx.hlua_cosocket.socket = NULL;
 	socket->s = NULL;
+	appctx->ctx.hlua_cosocket.die = 1;
+	appctx_wakeup(appctx);
 
 	return 0;
 }
@@ -2325,6 +2336,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	appctx->ctx.hlua_cosocket.socket = socket;
 	appctx->ctx.hlua_cosocket.connected = 0;
+	appctx->ctx.hlua_cosocket.die = 0;
 	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_write);
 	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_read);
 
