@@ -294,6 +294,7 @@ static inline struct notification *notification_new(struct list *purge, struct l
 		return NULL;
 	LIST_ADDQ(purge, &com->purge_me);
 	LIST_ADDQ(event, &com->wake_me);
+	SPIN_INIT(&com->lock);
 	com->task = wakeup;
 	return com;
 }
@@ -308,9 +309,15 @@ static inline void notification_purge(struct list *purge)
 
 	/* Delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, purge, purge_me) {
+		SPIN_LOCK(NOTIF_LOCK, &com->lock);
 		LIST_DEL(&com->purge_me);
-		LIST_DEL(&com->wake_me);
-		pool_free2(pool2_notification, com);
+		if (!com->task) {
+			SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+			pool_free2(pool2_notification, com);
+			continue;
+		}
+		com->task = NULL;
+		SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 	}
 }
 
@@ -324,10 +331,16 @@ static inline void notification_wake(struct list *wake)
 
 	/* Wake task and delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, wake, wake_me) {
-		LIST_DEL(&com->purge_me);
+		SPIN_LOCK(NOTIF_LOCK, &com->lock);
 		LIST_DEL(&com->wake_me);
+		if (!com->task) {
+			SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+			pool_free2(pool2_notification, com);
+			continue;
+		}
 		task_wakeup(com->task, TASK_WOKEN_MSG);
-		pool_free2(pool2_notification, com);
+		com->task = NULL;
+		SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 	}
 }
 

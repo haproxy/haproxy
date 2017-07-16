@@ -166,6 +166,7 @@ enum lock_label {
 	VARS_LOCK,
 	COMP_POOL_LOCK,
 	LUA_LOCK,
+	NOTIF_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -253,7 +254,8 @@ static inline void show_lock_stats()
 					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
 					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS",
-					   "PATREF", "PATEXP", "PATLRU", "VARS", "COMP_POOL", "LUA" };
+					   "PATREF", "PATEXP", "PATLRU", "VARS", "COMP_POOL", "LUA",
+					   "NOTIF" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
