@@ -2356,7 +2356,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/* Configure an empty Lua for the stream. */
 	socket->s = strm;
-	strm->hlua = NULL;
 
 	/* Configure "right" stream interface. this "si" is used to connect
 	 * and retrieve data from the server. The connection is initialized
