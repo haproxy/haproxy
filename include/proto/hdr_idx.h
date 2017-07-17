@@ -47,7 +47,7 @@ static inline void hdr_idx_init(struct hdr_idx *list)
  * the first header just after the request or response. If zero is returned, it
  * means that the list is empty.
  */
-static inline int hdr_idx_first_idx(struct hdr_idx *list)
+static inline int hdr_idx_first_idx(const struct hdr_idx *list)
 {
 	return list->v[0].next;
 }
@@ -58,7 +58,7 @@ static inline int hdr_idx_first_idx(struct hdr_idx *list)
  * end of the headers if the request has no header. hdr_idx_start_idx() should
  * be checked before to ensure there is a valid header.
  */
-static inline int hdr_idx_first_pos(struct hdr_idx *list)
+static inline int hdr_idx_first_pos(const struct hdr_idx *list)
 {
 	return list->v[0].len + list->v[0].cr + 1;
 }
