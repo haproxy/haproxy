@@ -997,6 +997,7 @@ static int get_old_sockets(const char *unixsocket)
 		if (getsockname(fd, (struct sockaddr *)&xfer_sock->addr, &socklen) != 0) {
 			Warning("Failed to get socket address\n");
 			free(xfer_sock);
+			xfer_sock = NULL;
 			continue;
 		}
 		if (curoff >= maxoff) {
