@@ -5665,9 +5665,11 @@ void http_resync_states(struct stream *s)
 			s->req.flags |= CF_WAKE_WRITE;
 		else if (s->res.buf->o)
 			s->res.flags |= CF_WAKE_WRITE;
-		s->req.analysers = AN_REQ_FLT_END;
-		s->res.analysers = AN_RES_FLT_END;
-		txn->flags |= TX_WAIT_CLEANUP;
+		else {
+			s->req.analysers = AN_REQ_FLT_END;
+			s->res.analysers = AN_RES_FLT_END;
+			txn->flags |= TX_WAIT_CLEANUP;
+		}
 	}
 }
 
