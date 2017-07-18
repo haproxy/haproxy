@@ -511,6 +511,9 @@ static inline void pl_mb()
 #define pl_or(ptr, x)         ({ __sync_or_and_fetch((ptr), (x));  })
 #define pl_xor(ptr, x)        ({ __sync_xor_and_fetch((ptr), (x)); })
 #define pl_sub(ptr, x)        ({ __sync_sub_and_fetch((ptr), (x)); })
+#define pl_bts(ptr, bit)      ({ typeof(*(ptr)) __pl_t = (1u << (bit));         \
+                                 __sync_fetch_and_or((ptr), __pl_t) & __pl_t;	\
+                              })
 #define pl_xadd(ptr, x)       ({ __sync_fetch_and_add((ptr), (x)); })
 #define pl_cmpxchg(ptr, o, n) ({ __sync_val_compare_and_swap((ptr), (o), (n)); })
 #define pl_xchg(ptr, x)       ({ typeof(*(ptr)) __pl_t;                                       \
