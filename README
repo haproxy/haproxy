@@ -113,8 +113,12 @@ build fails due to missing symbols such as deflateInit(), then try again with
 Your are strongly encouraged to always use an up-to-date version of OpenSSL, as
 found on https://www.openssl.org/ as vulnerabilities are occasionally found and
 you don't want them on your systems. HAProxy is known to build correctly on all
-currently supported branches (0.9.8, 1.0.0, 1.0.1 and 1.0.2 at the time of
-writing). Branch 1.0.2 is recommended for the richest features.
+currently supported branches (0.9.8, 1.0.0, 1.0.1, 1.0.2 and 1.1.0 at the time
+of writing). Branch 1.0.2 is currently recommended for the best combination of
+features and stability. Asynchronous engines require OpenSSL 1.1.0 though. It's
+worth mentionning that some OpenSSL derivatives are also reported to work but
+may occasionally break. Patches to fix them are welcome but please read the
+CONTRIBUTING file first.
 
 To link OpenSSL statically against haproxy, build OpenSSL with the no-shared
 keyword and install it to a local directory, so your system is not affected :
