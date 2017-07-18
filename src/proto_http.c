@@ -5603,34 +5603,27 @@ int http_resync_states(struct stream *s)
 
 	/* OK, both state machines agree on a compatible state.
 	 * There are a few cases we're interested in :
-	 *  - HTTP_MSG_TUNNEL on either means we have to disable both analysers
 	 *  - HTTP_MSG_CLOSED on both sides means we've reached the end in both
 	 *    directions, so let's simply disable both analysers.
-	 *  - HTTP_MSG_CLOSED on the response only means we must abort the
-	 *    request.
-	 *  - HTTP_MSG_CLOSED on the request and HTTP_MSG_DONE on the response
-	 *    with server-close mode means we've completed one request and we
-	 *    must re-initialize the server connection.
+	 *  - HTTP_MSG_CLOSED on the response only or HTTP_MSG_ERROR on either
+	 *    means we must abort the request.
+	 *  - HTTP_MSG_TUNNEL on either means we have to disable analyser on
+	 *    corresponding channel.
+	 *  - HTTP_MSG_DONE or HTTP_MSG_CLOSED on the request and HTTP_MSG_DONE
+	 *    on the response with server-close mode means we've completed one
+	 *    request and we must re-initialize the server connection.
 	 */
-
-	if (txn->req.msg_state == HTTP_MSG_TUNNEL ||
-	    txn->rsp.msg_state == HTTP_MSG_TUNNEL ||
-	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
-	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
+	if (txn->req.msg_state == HTTP_MSG_CLOSED &&
+	    txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 		s->req.analysers &= AN_REQ_FLT_END;
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
 		s->res.analysers &= AN_RES_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
-		if (txn->req.msg_state == HTTP_MSG_TUNNEL && HAS_REQ_DATA_FILTERS(s))
-			s->req.analysers |= AN_REQ_FLT_XFER_DATA;
-		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL && HAS_RSP_DATA_FILTERS(s))
-			s->res.analysers |= AN_RES_FLT_XFER_DATA;
 	}
-	else if ((txn->req.msg_state >= HTTP_MSG_DONE &&
-		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->res.flags & CF_SHUTW))) ||
-		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
+	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
+		 txn->rsp.msg_state == HTTP_MSG_ERROR  ||
 		 txn->req.msg_state == HTTP_MSG_ERROR) {
 		s->res.analysers &= AN_RES_FLT_END;
 		channel_auto_close(&s->res);
@@ -5640,6 +5633,23 @@ int http_resync_states(struct stream *s)
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
 		channel_truncate(&s->req);
+	}
+	else if (txn->req.msg_state == HTTP_MSG_TUNNEL ||
+		 txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
+		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
+			s->req.analysers &= AN_REQ_FLT_END;
+			if (HAS_REQ_DATA_FILTERS(s))
+				s->req.analysers |= AN_REQ_FLT_XFER_DATA;
+		}
+		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
+			s->res.analysers &= AN_RES_FLT_END;
+			if (HAS_RSP_DATA_FILTERS(s))
+				s->res.analysers |= AN_RES_FLT_XFER_DATA;
+		}
+		channel_auto_close(&s->req);
+		channel_auto_read(&s->req);
+		channel_auto_close(&s->res);
+		channel_auto_read(&s->res);
 	}
 	else if ((txn->req.msg_state == HTTP_MSG_DONE ||
 		  txn->req.msg_state == HTTP_MSG_CLOSED) &&
