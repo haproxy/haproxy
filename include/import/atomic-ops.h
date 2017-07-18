@@ -499,10 +499,10 @@ static inline void pl_cpu_relax()
 #define pl_sub(ptr, x)        ({ __sync_sub_and_fetch((ptr), (x)); })
 #define pl_xadd(ptr, x)       ({ __sync_fetch_and_add((ptr), (x)); })
 #define pl_cmpxchg(ptr, o, n) ({ __sync_val_compare_and_swap((ptr), (o), (n)); })
-#define pl_xchg(ptr, x)       ({ typeof(*(ptr)) t;                                       \
-                                 do { t = *(ptr);                                        \
-                                 } while (!__sync_bool_compare_and_swap((ptr), t, (x))); \
-                                 t;                                                      \
+#define pl_xchg(ptr, x)       ({ typeof(*(ptr)) __pl_t;                                       \
+                                 do { __pl_t = *(ptr);                                        \
+                                 } while (!__sync_bool_compare_and_swap((ptr), __pl_t, (x))); \
+                                 __pl_t;                                                      \
                               })
 
 #endif
