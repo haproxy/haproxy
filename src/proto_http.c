@@ -5373,7 +5373,16 @@ int http_sync_req_state(struct stream *s)
 			 * let's enforce it now that we're not expecting any new
 			 * data to come. The caller knows the stream is complete
 			 * once both states are CLOSED.
+			 *
+			 *  However, there is an exception if the response
+			 *  length is undefined. In this case, we need to wait
+			 *  the close from the server. The response will be
+			 *  switched in TUNNEL mode until the end.
 			 */
+			if (!(txn->rsp.flags & HTTP_MSGF_XFER_LEN) &&
+			    txn->rsp.msg_state != HTTP_MSG_CLOSED)
+				goto check_channel_flags;
+
 			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 				channel_shutr_now(chn);
 				channel_shutw_now(chn);
@@ -5490,8 +5499,16 @@ int http_sync_res_state(struct stream *s)
 			 * let's enforce it now that we're not expecting any new
 			 * data to come. The caller knows the stream is complete
 			 * once both states are CLOSED.
+			 *
+			 * However, there is an exception if the response length
+			 * is undefined. In this case, we switch in TUNNEL mode.
 			 */
-			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+			if (!(txn->rsp.flags & HTTP_MSGF_XFER_LEN)) {
+				channel_auto_read(chn);
+				txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+				chn->flags |= CF_NEVER_WAIT;
+			}
+			else if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 				channel_shutr_now(chn);
 				channel_shutw_now(chn);
 			}
@@ -6996,14 +7013,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if ((msg->flags & HTTP_MSGF_TE_CHNK) || (msg->flags & HTTP_MSGF_COMPRESSING))
 		res->flags |= CF_EXPECT_MORE;
 
-	/* If there is neither content-length, nor transfer-encoding header
-	 * _AND_ there is no data filtering, we can safely forward all data
-	 * indefinitely. */
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !HAS_DATA_FILTERS(s, res)) {
-		buffer_flush(res->buf);
-		channel_forward_forever(res);
-	}
-
 	/* the stream handler will take care of timeouts and errors */
 	return 0;
 
@@ -7080,9 +7089,13 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 		goto missing_data_or_waiting;
 	}
 
-	/* The server still sending data that should be filtered */
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && !(chn->flags & CF_SHUTR))
-		goto missing_data_or_waiting;
+	/* This check can only be true for a response. HTTP_MSGF_XFER_LEN is
+	 * always set for a request. */
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN)) {
+		/* The server still sending data that should be filtered */
+		if (!(chn->flags & CF_SHUTR) && HAS_DATA_FILTERS(s, chn))
+			goto missing_data_or_waiting;
+	}
 
 	msg->msg_state = HTTP_MSG_ENDING;
 
