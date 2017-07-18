@@ -8,13 +8,21 @@ static inline void pl_barrier()
 	asm volatile("" ::: "memory");
 }
 
-/* full memory barrier */
+#if defined(__i386__) || defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
+
+/* full memory barrier using mfence when SSE2 is supported, falling back to
+ * "lock add %esp" (gcc uses "lock add" or "lock or").
+ */
 static inline void pl_mb()
 {
-	__sync_synchronize();
+#if defined(__SSE2__)
+	asm volatile("mfence" ::: "memory");
+#elif defined(__x86_64__)
+	asm volatile("lock addl $0,0 (%%rsp)" ::: "memory", "cc");
+#else
+	asm volatile("lock addl $0,0 (%%esp)" ::: "memory", "cc");
+#endif
 }
-
-#if defined(__i386__) || defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
 
 /*
  * Generic functions common to the x86 family
@@ -486,6 +494,12 @@ static inline void pl_cpu_relax()
 static inline void pl_cpu_relax()
 {
 	asm volatile("");
+}
+
+/* full memory barrier */
+static inline void pl_mb()
+{
+	__sync_synchronize();
 }
 
 #define pl_inc_noret(ptr)     ({ __sync_add_and_fetch((ptr), 1);   })
