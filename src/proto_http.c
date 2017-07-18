@@ -5313,7 +5313,7 @@ int http_sync_req_state(struct stream *s)
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->req.msg_state;
 
-	if (unlikely(txn->req.msg_state < HTTP_MSG_BODY))
+	if (unlikely(txn->req.msg_state < HTTP_MSG_DONE))
 		return 0;
 
 	if (txn->req.msg_state == HTTP_MSG_DONE) {
@@ -5357,13 +5357,6 @@ int http_sync_req_state(struct stream *s)
 			goto wait_other_side;
 		}
 
-		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
-			/* if any side switches to tunnel mode, the other one does too */
-			channel_auto_read(chn);
-			txn->req.msg_state = HTTP_MSG_TUNNEL;
-			goto wait_other_side;
-		}
-
 		/* When we get here, it means that both the request and the
 		 * response have finished receiving. Depending on the connection
 		 * mode, we'll have to wait for the last bytes to leave in either
@@ -5396,20 +5389,7 @@ int http_sync_req_state(struct stream *s)
 			}
 		}
 
-		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
-			/* if we've just closed an output, let's switch */
-			s->si[1].flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
-
-			if (!channel_is_empty(chn)) {
-				txn->req.msg_state = HTTP_MSG_CLOSING;
-				goto http_msg_closing;
-			}
-			else {
-				txn->req.msg_state = HTTP_MSG_CLOSED;
-				goto http_msg_closed;
-			}
-		}
-		goto wait_other_side;
+		goto check_channel_flags;
 	}
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSING) {
@@ -5438,6 +5418,16 @@ int http_sync_req_state(struct stream *s)
 		goto wait_other_side;
 	}
 
+ check_channel_flags:
+	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
+	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		/* if we've just closed an output, let's switch */
+		s->si[1].flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
+		txn->req.msg_state = HTTP_MSG_CLOSING;
+		goto http_msg_closing;
+	}
+
+
  wait_other_side:
 	return txn->req.msg_state != old_state || chn->flags != old_flags;
 }
@@ -5457,7 +5447,7 @@ int http_sync_res_state(struct stream *s)
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->rsp.msg_state;
 
-	if (unlikely(txn->rsp.msg_state < HTTP_MSG_BODY))
+	if (unlikely(txn->rsp.msg_state < HTTP_MSG_DONE))
 		return 0;
 
 	if (txn->rsp.msg_state == HTTP_MSG_DONE) {
@@ -5477,14 +5467,6 @@ int http_sync_res_state(struct stream *s)
 			 * We have the choice of either breaking the connection
 			 * or letting it pass through. Let's do the later.
 			 */
-			goto wait_other_side;
-		}
-
-		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
-			/* if any side switches to tunnel mode, the other one does too */
-			channel_auto_read(chn);
-			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
-			chn->flags |= CF_NEVER_WAIT;
 			goto wait_other_side;
 		}
 
@@ -5525,18 +5507,7 @@ int http_sync_res_state(struct stream *s)
 				txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 
-		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
-			/* if we've just closed an output, let's switch */
-			if (!channel_is_empty(chn)) {
-				txn->rsp.msg_state = HTTP_MSG_CLOSING;
-				goto http_msg_closing;
-			}
-			else {
-				txn->rsp.msg_state = HTTP_MSG_CLOSED;
-				goto http_msg_closed;
-			}
-		}
-		goto wait_other_side;
+		goto check_channel_flags;
 	}
 
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSING) {
@@ -5565,6 +5536,14 @@ int http_sync_res_state(struct stream *s)
 		channel_auto_close(chn);
 		channel_auto_read(chn);
 		goto wait_other_side;
+	}
+
+ check_channel_flags:
+	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
+	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		/* if we've just closed an output, let's switch */
+		txn->rsp.msg_state = HTTP_MSG_CLOSING;
+		goto http_msg_closing;
 	}
 
  wait_other_side:
