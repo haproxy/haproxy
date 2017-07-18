@@ -69,6 +69,16 @@ code :
 Since most of these restrictions are just a matter of coding style, it is
 normally not a problem to comply.
 
+When modifying some optional subsystem (SSL, Lua, compression, device detection
+engines), please make sure the code continues to build (and to work) when these
+features are disabled. Similarly, when modifying the SSL stack, please always
+ensure that supported OpenSSL versions continue to build and to work, especially
+if you modify support for alternate libraries. Clean support for the legacy
+OpenSSL libraries is mandatory, support for its derivatives is a bonus and may
+occasionally break eventhough a great care is taken. In other words, if you
+provide a patch for OpenSSL you don't need to test its derivatives, but if you
+provide a patch for a derivative you also need to test with OpenSSL.
+
 If your work is very confidential and you can't publicly discuss it, you can
 also mail willy@haproxy.org directly about it, but your mail may be waiting
 several days in the queue before you get a response, if you get a response at
@@ -441,12 +451,21 @@ do not think about them anymore after a few patches.
    way the subject is built. Please see the section below for more information
    regarding this formatting.
 
-   As a rule of thumb, your patch must never be made only of a subject line,
+   As a rule of thumb, your patch MUST NEVER be made only of a subject line,
    it *must* contain a description. Even one or two lines, or indicating
    whether a backport is desired or not. It turns out that single-line commits
    are so rare in the Git world that they require special manual (hence
    painful) handling when they are backported, and at least for this reason
    it's important to keep this in mind.
+
+   Each patch fixing a bug MUST be tagged with "BUG", a severity level, an
+   indication of the affected subsystem and a brief description of the nature
+   of the issue in the subject line, and a detailed analysis in the message
+   body. The explanation of the user-visible impact and the need for
+   backporting to stable branches or not are MANDATORY. Bug fixes with no
+   indication will simply be rejected as they are very likely to cause more
+   harm when nobody is able to tell whether or not the patch needs to be
+   backported or can be reverted in case of regression.
 
 12) Discuss on the mailing list
 
