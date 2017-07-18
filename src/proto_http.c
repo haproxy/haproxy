@@ -5549,7 +5549,7 @@ int http_sync_res_state(struct stream *s)
 			goto http_msg_closed;
 		}
 		else if (chn->flags & CF_SHUTW) {
-			txn->req.err_state = txn->req.msg_state;
+			txn->rsp.err_state = txn->rsp.msg_state;
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
 			s->be->be_counters.cli_aborts++;
 			if (objt_server(s->target))
