@@ -42,31 +42,31 @@
 #define PLOCK32_WL_ANY 0xFFFC0000
 
 /* dereferences <*p> as unsigned long without causing aliasing issues */
-#define pl_deref_long(p) ({ volatile unsigned long *__plock_l = (void *)(p); *__plock_l; })
+#define pl_deref_long(p) ({ volatile unsigned long *__pl_l = (void *)(p); *__pl_l; })
 
 /* dereferences <*p> as unsigned int without causing aliasing issues */
-#define pl_deref_int(p) ({ volatile unsigned int *__plock_i = (void *)(p); *__plock_i; })
+#define pl_deref_int(p) ({ volatile unsigned int *__pl_i = (void *)(p); *__pl_i; })
 
 /* request shared read access (R), return non-zero on success, otherwise 0 */
 #define pl_try_r(lock) (                                                                       \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock) & PLOCK64_WL_ANY;                      \
+		unsigned long __pl_r = pl_deref_long(lock) & PLOCK64_WL_ANY;                   \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK64_RL_1) & PLOCK64_WL_ANY;                  \
-			if (__builtin_expect(ret, 0))                                          \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK64_RL_1) & PLOCK64_WL_ANY;               \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK64_RL_1);                                  \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock) & PLOCK32_WL_ANY;                        \
+		unsigned int __pl_r = pl_deref_int(lock) & PLOCK32_WL_ANY;                     \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK32_RL_1) & PLOCK32_WL_ANY;                  \
-			if (__builtin_expect(ret, 0))                                          \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK32_RL_1) & PLOCK32_WL_ANY;               \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK32_RL_1);                                  \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_r__(char *,int);                   \
 		__unsupported_argument_size_for_pl_try_r__(__FILE__,__LINE__);                 \
@@ -96,25 +96,25 @@
 /* request a seek access (S), return non-zero on success, otherwise 0 */
 #define pl_try_s(lock) (                                                                       \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock);                                       \
+		unsigned long __pl_r = pl_deref_long(lock);                                    \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK64_SL_1 | PLOCK64_RL_1) &                   \
+		if (!__builtin_expect(__pl_r & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK64_SL_1 | PLOCK64_RL_1) &                \
 			      (PLOCK64_WL_ANY | PLOCK64_SL_ANY);                               \
-			if (__builtin_expect(ret, 0))                                          \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK64_SL_1 | PLOCK64_RL_1);                   \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock);                                         \
+		unsigned int __pl_r = pl_deref_int(lock);                                      \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK32_SL_1 | PLOCK32_RL_1) &                   \
+		if (!__builtin_expect(__pl_r & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK32_SL_1 | PLOCK32_RL_1) &                \
 			      (PLOCK32_WL_ANY | PLOCK32_SL_ANY);                               \
-			if (__builtin_expect(ret, 0))                                          \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK32_SL_1 | PLOCK32_RL_1);                   \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_s__(char *,int);                   \
 		__unsupported_argument_size_for_pl_try_s__(__FILE__,__LINE__);                 \
@@ -156,15 +156,15 @@
 /* take the W lock under the S lock */
 #define pl_stow(lock) (                                                                        \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_xadd((lock), PLOCK64_WL_1);                             \
+		unsigned long __pl_r = pl_xadd((lock), PLOCK64_WL_1);                          \
 		pl_barrier();                                                                  \
-		while ((ret & PLOCK64_RL_ANY) != PLOCK64_RL_1)                                 \
-			ret = pl_deref_long(lock);                                             \
+		while ((__pl_r & PLOCK64_RL_ANY) != PLOCK64_RL_1)                              \
+			__pl_r = pl_deref_long(lock);                                          \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_xadd((lock), PLOCK32_WL_1);                              \
+		unsigned int __pl_r = pl_xadd((lock), PLOCK32_WL_1);                           \
 		pl_barrier();                                                                  \
-		while ((ret & PLOCK32_RL_ANY) != PLOCK32_RL_1)                                 \
-			ret = pl_deref_int(lock);                                              \
+		while ((__pl_r & PLOCK32_RL_ANY) != PLOCK32_RL_1)                              \
+			__pl_r = pl_deref_int(lock);                                           \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_stow__(char *,int);                    \
 		__unsupported_argument_size_for_pl_stow__(__FILE__,__LINE__);                  \
@@ -212,41 +212,41 @@
  */
 #define pl_try_w(lock) (                                                                       \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock);                                       \
+		unsigned long __pl_r = pl_deref_long(lock);                                    \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK64_WL_1 | PLOCK64_SL_1 | PLOCK64_RL_1);     \
-			if (__builtin_expect(ret & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {    \
+		if (!__builtin_expect(__pl_r & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK64_WL_1 | PLOCK64_SL_1 | PLOCK64_RL_1);  \
+			if (__builtin_expect(__pl_r & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) { \
 				/* a writer, seeker or atomic is present, let's leave */       \
 				pl_sub((lock), PLOCK64_WL_1 | PLOCK64_SL_1 | PLOCK64_RL_1);    \
-				ret &= (PLOCK64_WL_ANY | PLOCK64_SL_ANY); /* return value */   \
+				__pl_r &= (PLOCK64_WL_ANY | PLOCK64_SL_ANY); /* return value */\
 			} else {                                                               \
 				/* wait for all other readers to leave */                      \
-				while (ret)                                                    \
-					ret = pl_deref_long(lock) -                            \
+				while (__pl_r)                                                 \
+					__pl_r = pl_deref_long(lock) -                         \
 						(PLOCK64_WL_1 | PLOCK64_SL_1 | PLOCK64_RL_1);  \
-					ret = 0;                                               \
+					__pl_r = 0;                                            \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock);                                         \
+		unsigned int __pl_r = pl_deref_int(lock);                                      \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);     \
-			if (__builtin_expect(ret & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {    \
+		if (!__builtin_expect(__pl_r & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);  \
+			if (__builtin_expect(__pl_r & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) { \
 				/* a writer, seeker or atomic is present, let's leave */       \
 				pl_sub((lock), PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);    \
-				ret &= (PLOCK32_WL_ANY | PLOCK32_SL_ANY); /* return value */   \
+				__pl_r &= (PLOCK32_WL_ANY | PLOCK32_SL_ANY); /* return value */\
 			} else {                                                               \
 				/* wait for all other readers to leave */                      \
-				while (ret)                                                    \
-					ret = pl_deref_int(lock) -                             \
+				while (__pl_r)                                                 \
+					__pl_r = pl_deref_int(lock) -                          \
 						(PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);  \
-					ret = 0;                                               \
+					__pl_r = 0;                                            \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_w__(char *,int);                   \
 		__unsupported_argument_size_for_pl_try_w__(__FILE__,__LINE__);                 \
@@ -280,25 +280,25 @@
  */
 #define pl_try_rtos(lock) (                                                                    \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock);                                       \
+		unsigned long __pl_r = pl_deref_long(lock);                                    \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK64_SL_1) &                                  \
+		if (!__builtin_expect(__pl_r & (PLOCK64_WL_ANY | PLOCK64_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK64_SL_1) &                               \
 			      (PLOCK64_WL_ANY | PLOCK64_SL_ANY);                               \
-			if (__builtin_expect(ret, 0))                                          \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK64_SL_1);                                  \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock);                                         \
+		unsigned int __pl_r = pl_deref_int(lock);                                      \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {           \
-			ret = pl_xadd((lock), PLOCK32_SL_1) &                                  \
+		if (!__builtin_expect(__pl_r & (PLOCK32_WL_ANY | PLOCK32_SL_ANY), 0)) {        \
+			__pl_r = pl_xadd((lock), PLOCK32_SL_1) &                               \
 			      (PLOCK32_WL_ANY | PLOCK32_SL_ANY);                               \
-			if (__builtin_expect(ret, 0))                                          \
+			if (__builtin_expect(__pl_r, 0))                                       \
 				pl_sub((lock), PLOCK32_SL_1);                                  \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_rtos__(char *,int);                \
 		__unsupported_argument_size_for_pl_try_rtos__(__FILE__,__LINE__);              \
@@ -317,39 +317,39 @@
  */
 #define pl_try_a(lock) (                                                                       \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock) & PLOCK64_SL_ANY;                      \
+		unsigned long __pl_r = pl_deref_long(lock) & PLOCK64_SL_ANY;                   \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK64_WL_1);                                   \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK64_WL_1);                                \
 			while (1) {                                                            \
-				if (__builtin_expect(ret & PLOCK64_SL_ANY, 0)) {               \
+				if (__builtin_expect(__pl_r & PLOCK64_SL_ANY, 0)) {            \
 					pl_sub((lock), PLOCK64_WL_1);                          \
-					break;  /* return !ret */                              \
+					break;  /* return !__pl_r */                           \
 				}                                                              \
-				ret &= PLOCK64_RL_ANY;                                         \
-				if (!__builtin_expect(ret, 0))                                 \
-					break;  /* return !ret */                              \
-				ret = pl_deref_long(lock);                                     \
+				__pl_r &= PLOCK64_RL_ANY;                                      \
+				if (!__builtin_expect(__pl_r, 0))                              \
+					break;  /* return !__pl_r */                           \
+				__pl_r = pl_deref_long(lock);                                  \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock) & PLOCK32_SL_ANY;                        \
+		unsigned int __pl_r = pl_deref_int(lock) & PLOCK32_SL_ANY;                     \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK32_WL_1);                                   \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK32_WL_1);                                \
 			while (1) {                                                            \
-				if (__builtin_expect(ret & PLOCK32_SL_ANY, 0)) {               \
+				if (__builtin_expect(__pl_r & PLOCK32_SL_ANY, 0)) {            \
 					pl_sub((lock), PLOCK32_WL_1);                          \
-					break;  /* return !ret */                              \
+					break;  /* return !__pl_r */                           \
 				}                                                              \
-				ret &= PLOCK32_RL_ANY;                                         \
-				if (!__builtin_expect(ret, 0))                                 \
-					break;  /* return !ret */                              \
-				ret = pl_deref_int(lock);                                      \
+				__pl_r &= PLOCK32_RL_ANY;                                      \
+				if (!__builtin_expect(__pl_r, 0))                              \
+					break;  /* return !__pl_r */                           \
+				__pl_r = pl_deref_int(lock);                                   \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_a__(char *,int);                   \
 		__unsupported_argument_size_for_pl_try_a__(__FILE__,__LINE__);                 \
@@ -386,39 +386,39 @@
  */
 #define pl_try_rtoa(lock) (                                                                    \
 	(sizeof(long) == 8 && sizeof(*(lock)) == 8) ? ({                                       \
-		unsigned long ret = pl_deref_long(lock) & PLOCK64_SL_ANY;                      \
+		unsigned long __pl_r = pl_deref_long(lock) & PLOCK64_SL_ANY;                   \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK64_WL_1 - PLOCK64_RL_1);                    \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK64_WL_1 - PLOCK64_RL_1);                 \
 			while (1) {                                                            \
-				if (__builtin_expect(ret & PLOCK64_SL_ANY, 0)) {               \
+				if (__builtin_expect(__pl_r & PLOCK64_SL_ANY, 0)) {            \
 					pl_sub((lock), PLOCK64_WL_1 - PLOCK64_RL_1);           \
-					break;  /* return !ret */                              \
+					break;  /* return !__pl_r */                           \
 				}                                                              \
-				ret &= PLOCK64_RL_ANY;                                         \
-				if (!__builtin_expect(ret, 0))                                 \
-					break;  /* return !ret */                              \
-				ret = pl_deref_long(lock);                                     \
+				__pl_r &= PLOCK64_RL_ANY;                                      \
+				if (!__builtin_expect(__pl_r, 0))                              \
+					break;  /* return !__pl_r */                           \
+				__pl_r = pl_deref_long(lock);                                  \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : (sizeof(*(lock)) == 4) ? ({                                                       \
-		unsigned int ret = pl_deref_int(lock) & PLOCK32_SL_ANY;                        \
+		unsigned int __pl_r = pl_deref_int(lock) & PLOCK32_SL_ANY;                     \
 		pl_barrier();                                                                  \
-		if (!__builtin_expect(ret, 0)) {                                               \
-			ret = pl_xadd((lock), PLOCK32_WL_1 - PLOCK32_RL_1);                    \
+		if (!__builtin_expect(__pl_r, 0)) {                                            \
+			__pl_r = pl_xadd((lock), PLOCK32_WL_1 - PLOCK32_RL_1);                 \
 			while (1) {                                                            \
-				if (__builtin_expect(ret & PLOCK32_SL_ANY, 0)) {               \
+				if (__builtin_expect(__pl_r & PLOCK32_SL_ANY, 0)) {            \
 					pl_sub((lock), PLOCK32_WL_1 - PLOCK32_RL_1);           \
-					break;  /* return !ret */                              \
+					break;  /* return !__pl_r */                           \
 				}                                                              \
-				ret &= PLOCK32_RL_ANY;                                         \
-				if (!__builtin_expect(ret, 0))                                 \
-					break;  /* return !ret */                              \
-				ret = pl_deref_int(lock);                                      \
+				__pl_r &= PLOCK32_RL_ANY;                                      \
+				if (!__builtin_expect(__pl_r, 0))                              \
+					break;  /* return !__pl_r */                           \
+				__pl_r = pl_deref_int(lock);                                   \
 			}                                                                      \
 		}                                                                              \
-		!ret; /* return value */                                                       \
+		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_rtoa__(char *,int);                \
 		__unsupported_argument_size_for_pl_try_rtoa__(__FILE__,__LINE__);              \
