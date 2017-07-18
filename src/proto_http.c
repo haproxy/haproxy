@@ -5573,14 +5573,14 @@ int http_sync_res_state(struct stream *s)
 }
 
 
-/* Resync the request and response state machines. Return 1 if either state
- * changes.
- */
-int http_resync_states(struct stream *s)
+/* Resync the request and response state machines. */
+void http_resync_states(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
+#ifdef DEBUG_FULL
 	int old_req_state = txn->req.msg_state;
 	int old_res_state = txn->rsp.msg_state;
+#endif
 
 	http_sync_req_state(s);
 	while (1) {
@@ -5590,11 +5590,12 @@ int http_resync_states(struct stream *s)
 			break;
 	}
 
-	DPRINTF(stderr,"[%u] %s: stream=%p old=%d,%d cur=%d,%d\n",
-		now_ms, __FUNCTION__,
-		s,
-		old_req_state, old_res_state,
-		txn->req.msg_state, txn->rsp.msg_state);
+	DPRINTF(stderr,"[%u] %s: stream=%p old=%s,%s cur=%s,%s "
+		"req->analysers=0x%08x res->analysers=0x%08x\n",
+		now_ms, __FUNCTION__, s,
+		http_msg_state_str(old_req_state), http_msg_state_str(old_res_state),
+		http_msg_state_str(txn->req.msg_state), http_msg_state_str(txn->rsp.msg_state),
+		s->req.analysers, s->res.analysers);
 
 
 	/* OK, both state machines agree on a compatible state.
@@ -5660,22 +5661,14 @@ int http_resync_states(struct stream *s)
 		 * and the response buffer must realigned
 		 * (realign is done is http_end_txn_clean_session).
 		 */
-		if (s->req.buf->o) {
+		if (s->req.buf->o)
 			s->req.flags |= CF_WAKE_WRITE;
-			return 0;
-		}
-		else if (s->res.buf->o) {
+		else if (s->res.buf->o)
 			s->res.flags |= CF_WAKE_WRITE;
-			return 0;
-		}
 		s->req.analysers = AN_REQ_FLT_END;
 		s->res.analysers = AN_RES_FLT_END;
 		txn->flags |= TX_WAIT_CLEANUP;
-		return 1;
 	}
-
-	return txn->req.msg_state != old_req_state ||
-		txn->rsp.msg_state != old_res_state;
 }
 
 /* This function is an analyser which forwards request body (including chunk
@@ -5772,9 +5765,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 		channel_dont_close(req);
 
-	if (http_resync_states(s)) {
-		/* some state changes occurred, maybe the analyser
-		 * was disabled too. */
+	http_resync_states(s);
+	if (!(req->analysers & an_bit)) {
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			if (req->flags & CF_SHUTW) {
 				/* request errors are most likely due to the
@@ -6946,9 +6938,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		channel_dont_close(res);
 
-	if (http_resync_states(s)) {
-		/* some state changes occurred, maybe the analyser was disabled
-		 * too. */
+	http_resync_states(s);
+	if (!(res->analysers & an_bit)) {
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			if (res->flags & CF_SHUTW) {
 				/* response errors are most likely due to the
