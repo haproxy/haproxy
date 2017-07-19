@@ -709,6 +709,27 @@ static inline void get_gmtime(const time_t now, struct tm *tm)
 	gmtime_r(&now, tm);
 }
 
+/* Counts a number of elapsed days since 01/01/0000 based solely on elapsed
+ * years and assuming the regular rule for leap years applies. It's fake but
+ * serves as a temporary origin. It's worth remembering that it's the first
+ * year of each period that is leap and not the last one, so for instance year
+ * 1 sees 366 days since year 0 was leap. For this reason we have to apply
+ * modular arithmetics which is why we offset the year by 399 before
+ * subtracting the excess at the end. No overflow here before ~11.7 million
+ * years.
+ */
+static inline unsigned int days_since_zero(unsigned int y)
+{
+	return y * 365 + (y + 399) / 4 - (y + 399) / 100 + (y + 399) / 400
+	       - 399 / 4 + 399 / 100;
+}
+
+/* Returns the number of seconds since 01/01/1970 0:0:0 GMT for GMT date <tm>.
+ * It is meant as a portable replacement for timegm() for use with valid inputs.
+ * Returns undefined results for invalid dates (eg: months out of range 0..11).
+ */
+extern time_t my_timegm(const struct tm *tm);
+
 /* This function parses a time value optionally followed by a unit suffix among
  * "d", "h", "m", "s", "ms" or "us". It converts the value into the unit
  * expected by the caller. The computation does its best to avoid overflows.

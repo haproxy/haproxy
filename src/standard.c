@@ -2860,6 +2860,60 @@ char *localdate2str_log(char *dst, time_t t, struct tm *tm, size_t size)
 	return dst;
 }
 
+/* Returns the number of seconds since 01/01/1970 0:0:0 GMT for GMT date <tm>.
+ * It is meant as a portable replacement for timegm() for use with valid inputs.
+ * Returns undefined results for invalid dates (eg: months out of range 0..11).
+ */
+time_t my_timegm(const struct tm *tm)
+{
+	/* Each month has 28, 29, 30 or 31 days, or 28+N. The date in the year
+	 * is thus (current month - 1)*28 + cumulated_N[month] to count the
+	 * sum of the extra N days for elapsed months. The sum of all these N
+	 * days doesn't exceed 30 for a complete year (366-12*28) so it fits
+	 * in a 5-bit word. This means that with 60 bits we can represent a
+	 * matrix of all these values at once, which is fast and efficient to
+	 * access. The extra February day for leap years is not counted here.
+	 *
+	 * Jan : none      =  0 (0)
+	 * Feb : Jan       =  3 (3)
+	 * Mar : Jan..Feb  =  3 (3 + 0)
+	 * Apr : Jan..Mar  =  6 (3 + 0 + 3)
+	 * May : Jan..Apr  =  8 (3 + 0 + 3 + 2)
+	 * Jun : Jan..May  = 11 (3 + 0 + 3 + 2 + 3)
+	 * Jul : Jan..Jun  = 13 (3 + 0 + 3 + 2 + 3 + 2)
+	 * Aug : Jan..Jul  = 16 (3 + 0 + 3 + 2 + 3 + 2 + 3)
+	 * Sep : Jan..Aug  = 19 (3 + 0 + 3 + 2 + 3 + 2 + 3 + 3)
+	 * Oct : Jan..Sep  = 21 (3 + 0 + 3 + 2 + 3 + 2 + 3 + 3 + 2)
+	 * Nov : Jan..Oct  = 24 (3 + 0 + 3 + 2 + 3 + 2 + 3 + 3 + 2 + 3)
+	 * Dec : Jan..Nov  = 26 (3 + 0 + 3 + 2 + 3 + 2 + 3 + 3 + 2 + 3 + 2)
+	 */
+	uint64_t extra =
+		( 0ULL <<  0*5) + ( 3ULL <<  1*5) + ( 3ULL <<  2*5) + /* Jan, Feb, Mar, */
+		( 6ULL <<  3*5) + ( 8ULL <<  4*5) + (11ULL <<  5*5) + /* Apr, May, Jun, */
+		(13ULL <<  6*5) + (16ULL <<  7*5) + (19ULL <<  8*5) + /* Jul, Aug, Sep, */
+		(21ULL <<  9*5) + (24ULL << 10*5) + (26ULL << 11*5);  /* Oct, Nov, Dec, */
+
+	unsigned int y = tm->tm_year + 1900;
+	unsigned int m = tm->tm_mon;
+	unsigned long days = 0;
+
+	/* days since 1/1/1970 for full years */
+	days += days_since_zero(y) - days_since_zero(1970);
+
+	/* days for full months in the current year */
+	days += 28 * m + ((extra >> (m * 5)) & 0x1f);
+
+	/* count + 1 after March for leap years. A leap year is a year multiple
+	 * of 4, unless it's multiple of 100 without being multiple of 400. 2000
+	 * is leap, 1900 isn't, 1904 is.
+	 */
+	if ((m > 1) && !(y & 3) && ((y % 100) || !(y % 400)))
+		days++;
+
+	days += tm->tm_mday - 1;
+	return days * 86400ULL + tm->tm_hour * 3600 + tm->tm_min * 60 + tm->tm_sec;
+}
+
 /* This function check a char. It returns true and updates
  * <date> and <len> pointer to the new position if the
  * character is found.
