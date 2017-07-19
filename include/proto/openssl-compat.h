@@ -192,4 +192,13 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define RAND_pseudo_bytes(x,y) RAND_bytes(x,y)
 #endif
 
+
+/* Signature from RFC 5246, missing in openssl < 1.0.1 */
+#ifndef TLSEXT_signature_anonymous
+#define TLSEXT_signature_anonymous  0
+#define TLSEXT_signature_rsa        1
+#define TLSEXT_signature_dsa        2
+#define TLSEXT_signature_ecdsa      3
+#endif
+
 #endif /* _PROTO_OPENSSL_COMPAT_H */
