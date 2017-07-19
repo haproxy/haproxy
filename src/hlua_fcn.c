@@ -287,7 +287,7 @@ static int hlua_parse_date(lua_State *L, int (*fcn)(const char *, int, struct tm
 	 * the timezone from the broken-down time, it must be fixed
 	 * after the conversion.
 	 */
-	time = timegm(&tm);
+	time = my_timegm(&tm);
 	if (time == -1) {
 		lua_pushnil(L);
 		return 1;
