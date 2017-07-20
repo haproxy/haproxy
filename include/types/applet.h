@@ -65,6 +65,7 @@ struct appctx {
 	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
 	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
 	                                               if the command is terminated or the session released */
+	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	unsigned long process_mask;     /* mask of thread IDs authorized to process the applet */
 
@@ -97,6 +98,7 @@ struct appctx {
 		} spoe;                         /* used by SPOE filter */
 		struct {
 			const char *msg;        /* pointer to a persistent message to be returned in CLI_ST_PRINT state */
+			int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 			char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
 			void *p0, *p1;          /* general purpose pointers and integers for registered commands, initialized */
 			int i0, i1;             /* to 0 by the CLI before first invocation of the keyword parser. */

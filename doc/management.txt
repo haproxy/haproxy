@@ -1672,6 +1672,10 @@ set server <backend>/<server> weight <weight>[%]
 set server <backend>/<server> fqdn <FQDN>
   Change a server's FQDN to the value passed in argument.
 
+set severity-output [ none | number | string ]
+  Change the severity output format of the stats socket connected to for the
+  duration of the current session.
+
 set ssl ocsp-response <response>
   This command is used to update an OCSP Response for a certificate (see "crt"
   on "bind" lines). Same controls are performed as during the initial loading of

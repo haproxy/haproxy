@@ -50,5 +50,13 @@ enum {
 	CLI_ST_CALLBACK,   /* custom callback pointer */
 };
 
+/* CLI severity output formats */
+enum {
+	CLI_SEVERITY_UNDEFINED = 0, /* undefined severity format */
+	CLI_SEVERITY_NONE,          /* no severity information prepended */
+	CLI_SEVERITY_NUMBER,        /* prepend informational cli messages with a severity as number */
+	CLI_SEVERITY_STRING,        /* prepend informational cli messages with a severity as string */
+};
+
 
 #endif /* _TYPES_CLI_H */

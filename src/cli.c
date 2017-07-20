@@ -392,6 +392,13 @@ int cli_has_level(struct appctx *appctx, int level)
 	return 1;
 }
 
+/* Returns severity_output for the current session if set, or default for the socket */
+static int cli_get_severity_output(struct appctx *appctx)
+{
+	if (appctx->cli_severity_output)
+		return appctx->cli_severity_output;
+	return strm_li(si_strm(appctx->owner))->bind_conf->severity_output;
+}
 
 /* Processes the CLI interpreter on the stats socket. This function is called
  * from the CLI's IO handler running in an appctx context. The function returns 1
@@ -472,6 +479,38 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 	return 1;
 }
 
+/* prepends then outputs the argument msg with a syslog-type severity depending on severity_output value */
+static int cli_output_msg(struct channel *chn, const char *msg, int severity, int severity_output)
+{
+	struct chunk *tmp;
+
+	if (likely(severity_output == CLI_SEVERITY_NONE))
+		return bi_putblk(chn, msg, strlen(msg));
+
+	tmp = get_trash_chunk();
+	chunk_reset(tmp);
+
+	if (severity < 0 || severity > 7) {
+		Warning("socket command feedback with invalid severity %d", severity);
+		chunk_printf(tmp, "[%d]: ", severity);
+	}
+	else {
+		switch (severity_output) {
+			case CLI_SEVERITY_NUMBER:
+				chunk_printf(tmp, "[%d]: ", severity);
+				break;
+			case CLI_SEVERITY_STRING:
+				chunk_printf(tmp, "[%s]: ", log_levels[severity]);
+				break;
+			default:
+				Warning("Unrecognized severity output %d", severity_output);
+		}
+	}
+	chunk_appendf(tmp, "%s", msg);
+
+	return bi_putblk(chn, tmp->str, strlen(tmp->str));
+}
+
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to processes I/O from/to the stats unix socket. The system relies on a
  * state machine handling requests and various responses. We read a request,
@@ -485,6 +524,7 @@ static void cli_io_handler(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
+	struct bind_conf *bind_conf = strm_li(si_strm(si))->bind_conf;
 	int reql;
 	int len;
 
@@ -501,6 +541,8 @@ static void cli_io_handler(struct appctx *appctx)
 		if (appctx->st0 == CLI_ST_INIT) {
 			/* Stats output not initialized yet */
 			memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
+			/* reset severity to default at init */
+			appctx->cli_severity_output = bind_conf->severity_output;
 			appctx->st0 = CLI_ST_GETREQ;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
@@ -600,13 +642,14 @@ static void cli_io_handler(struct appctx *appctx)
 			case CLI_ST_PROMPT:
 				break;
 			case CLI_ST_PRINT:
-				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
+				if (cli_output_msg(res, appctx->ctx.cli.msg, appctx->ctx.cli.severity,
+							cli_get_severity_output(appctx)) != -1)
 					appctx->st0 = CLI_ST_PROMPT;
 				else
 					si_applet_cant_put(si);
 				break;
 			case CLI_ST_PRINT_FREE:
-				if (bi_putstr(si_ic(si), appctx->ctx.cli.err) != -1) {
+				if (cli_output_msg(res, appctx->ctx.cli.err, LOG_ERR, cli_get_severity_output(appctx)) != -1) {
 					free(appctx->ctx.cli.err);
 					appctx->st0 = CLI_ST_PROMPT;
 				}
@@ -1049,6 +1092,34 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 	return 1;
 }
 
+static int set_severity_output(int *target, char *argument)
+{
+	if (!strcmp(argument, "none")) {
+		*target = CLI_SEVERITY_NONE;
+		return 1;
+	}
+	else if (!strcmp(argument, "number")) {
+		*target = CLI_SEVERITY_NUMBER;
+		return 1;
+	}
+	else if (!strcmp(argument, "string")) {
+		*target = CLI_SEVERITY_STRING;
+		return 1;
+	}
+	return 0;
+}
+
+/* parse a "set severity-output" command. */
+static int cli_parse_set_severity_output(char **args, struct appctx *appctx, void *private)
+{
+	if (*args[2] && set_severity_output(&appctx->cli_severity_output, args[2]))
+		return 0;
+
+	appctx->ctx.cli.severity = LOG_ERR;
+	appctx->ctx.cli.msg = "one of 'none', 'number', 'string' is a required argument";
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+}
 
 int cli_parse_default(char **args, struct appctx *appctx, void *private)
 {
@@ -1154,6 +1225,22 @@ static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct b
 	}
 
 	return 0;
+}
+
+static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing severity format", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (set_severity_output(&conf->severity_output, args[cur_arg+1]))
+		return 0;
+	else {
+		memprintf(err, "'%s' only supports 'none', 'number', and 'string' (got '%s')",
+				args[cur_arg], args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 }
 
 /* Send all the bound sockets, always returns 1 */
@@ -1349,6 +1436,7 @@ static struct applet cli_applet = {
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
+	{ { "set", "severity-output",  NULL }, "set severity-output [none|number|string] : set presence of severity level in feedback information", cli_parse_set_severity_output, NULL, NULL },
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL },
@@ -1365,6 +1453,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 static struct bind_kw_list bind_kws = { "STAT", { }, {
 	{ "level",     bind_parse_level,    1 }, /* set the unix socket admin level */
 	{ "expose-fd", bind_parse_expose_fd, 1 }, /* set the unix socket expose fd rights */
+	{ "severity-output", bind_parse_severity_output, 1 }, /* set the severity output format */
 	{ NULL, NULL, 0 },
 }};
 

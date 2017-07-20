@@ -161,6 +161,7 @@ struct bind_conf {
 		mode_t mode;       /* 0 to leave unchanged */
 	} ux;
 	int level;                 /* stats access level (ACCESS_LVL_*) */
+	int severity_output;       /* default severity output format in cli feedback messages */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	struct list listeners;     /* list of listeners using this bind config */
 	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */

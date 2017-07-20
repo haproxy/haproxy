@@ -10554,6 +10554,18 @@ level <level>
   - "admin" should be used with care, as everything is permitted (eg: clear
     all counters).
 
+severity-output <format>
+  This setting is used with the stats sockets only to configure severity
+  level output prepended to informational feedback messages. Severity
+  level of messages can range between 0 and 7, conforming to syslog
+  rfc5424. Valid and successful socket commands requesting data
+  (i.e. "show map", "get acl foo" etc.) will never have a severity level
+  prepended. It is ignored by other sockets. <format> can be one of :
+  - "none" (default) no severity level is prepended to feedback messages.
+  - "number" severity level is prepended as a number.
+  - "string" severity level is prepended as a string following the
+    rfc5424 convention.
+
 maxconn <maxconn>
   Limits the sockets to this number of concurrent connections. Extraneous
   connections will remain in the system's backlog until a connection is

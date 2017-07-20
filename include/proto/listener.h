@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include <types/listener.h>
+#include <types/cli.h>
 
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
@@ -122,6 +123,7 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 	bind_conf->ux.mode = 0;
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
+	bind_conf->severity_output = CLI_SEVERITY_NONE;
 
 	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;
