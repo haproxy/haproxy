@@ -5413,8 +5413,8 @@ int http_sync_req_state(struct stream *s)
 		else if (chn->flags & CF_SHUTW) {
 			txn->req.err_state = txn->req.msg_state;
 			txn->req.msg_state = HTTP_MSG_ERROR;
-			goto wait_other_side;
 		}
+		goto wait_other_side;
 	}
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
@@ -5542,8 +5542,8 @@ int http_sync_res_state(struct stream *s)
 			s->be->be_counters.cli_aborts++;
 			if (objt_server(s->target))
 				objt_server(s->target)->counters.cli_aborts++;
-			goto wait_other_side;
 		}
+		goto wait_other_side;
 	}
 
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
