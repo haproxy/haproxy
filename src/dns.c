@@ -2256,6 +2256,7 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 			}
 		}
 		if (appctx->ctx.cli.p0 == NULL) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Can't find that resolvers section\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;

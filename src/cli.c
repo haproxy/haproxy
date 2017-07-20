@@ -385,6 +385,7 @@ int cli_has_level(struct appctx *appctx, int level)
 	struct stream *s = si_strm(si);
 
 	if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < level) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = CLI_ST_PRINT;
 		return 0;
@@ -610,10 +611,14 @@ static void cli_io_handler(struct appctx *appctx)
 				else if (strcmp(trash.str, "help") == 0 ||
 					 !cli_parse_request(appctx, trash.str)) {
 					cli_gen_usage_msg();
-					if (dynamic_usage_msg)
+					if (dynamic_usage_msg) {
+						appctx->ctx.cli.severity = LOG_INFO;
 						appctx->ctx.cli.msg = dynamic_usage_msg;
-					else
+					}
+					else {
+						appctx->ctx.cli.severity = LOG_INFO;
 						appctx->ctx.cli.msg = stats_sock_usage_msg;
+					}
 					appctx->st0 = CLI_ST_PRINT;
 				}
 				/* NB: stats_sock_parse_request() may have put
@@ -626,10 +631,14 @@ static void cli_io_handler(struct appctx *appctx)
 				 * prompt and find help.
 				 */
 				cli_gen_usage_msg();
-				if (dynamic_usage_msg)
+				if (dynamic_usage_msg) {
+					appctx->ctx.cli.severity = LOG_INFO;
 					appctx->ctx.cli.msg = dynamic_usage_msg;
-				else
+				}
+				else {
+					appctx->ctx.cli.severity = LOG_INFO;
 					appctx->ctx.cli.msg = stats_sock_usage_msg;
+				}
 				appctx->st0 = CLI_ST_PRINT;
 			}
 
@@ -996,6 +1005,7 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 				break;
 		}
 		if (!*var) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Variable not found\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
@@ -1035,6 +1045,7 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 		const char *res;
 
 		if (!*args[3]) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Expects an integer value.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
@@ -1042,6 +1053,7 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 
 		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
 		if (res || timeout < 1) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Invalid timeout value.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
@@ -1052,6 +1064,7 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 		return 1;
 	}
 	else {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1067,6 +1080,7 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 		return 1;
 
 	if (!*args[3]) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Expects an integer value.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1074,6 +1088,7 @@ static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void
 
 	v = atoi(args[3]);
 	if (v > global.hardmaxconn) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Value out of range.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1149,6 +1164,7 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 		mul = 1024;
 	}
 	else {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg =
 			"'set rate-limit' only supports :\n"
 			"   - 'connections global' to set the per-process maximum connection rate\n"
@@ -1162,6 +1178,7 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 	}
 
 	if (!*args[4]) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Expects an integer value.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1169,6 +1186,7 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 
 	v = atoi(args[4]);
 	if (v < 0) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Value out of range.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;

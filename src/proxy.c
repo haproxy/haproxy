@@ -1351,6 +1351,7 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
 	struct proxy *px;
 
 	if (!*arg) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "A frontend name is expected.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
@@ -1358,6 +1359,7 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
 
 	px = proxy_fe_by_name(arg);
 	if (!px) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "No such frontend.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
@@ -1374,6 +1376,7 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 	struct proxy *px;
 
 	if (!*arg) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "A backend name is expected.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
@@ -1381,6 +1384,7 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 
 	px = proxy_be_by_name(arg);
 	if (!px) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "No such backend.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return NULL;
@@ -1403,6 +1407,7 @@ static int cli_parse_show_servers(char **args, struct appctx *appctx, void *priv
 		px = proxy_be_by_name(args[3]);
 
 		if (!px) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Can't find backend.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
@@ -1619,6 +1624,7 @@ static int cli_parse_set_dyncookie_key_backend(char **args, struct appctx *appct
 		return 1;
 
 	if (!*args[4]) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "String value expected.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1626,6 +1632,7 @@ static int cli_parse_set_dyncookie_key_backend(char **args, struct appctx *appct
 
 	newkey = strdup(args[4]);
 	if (!newkey) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Failed to allocate memory.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1654,6 +1661,7 @@ static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, vo
 		return 1;
 
 	if (!*args[4]) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Integer value expected.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1661,6 +1669,7 @@ static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, vo
 
 	v = atoi(args[4]);
 	if (v < 0) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Value out of range.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1695,6 +1704,7 @@ static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void 
 		return 1;
 
 	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.severity = LOG_NOTICE;
 		appctx->ctx.cli.msg = "Frontend was already shut down.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1721,18 +1731,21 @@ static int cli_parse_disable_frontend(char **args, struct appctx *appctx, void *
 		return 1;
 
 	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.severity = LOG_NOTICE;
 		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot disable.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (px->state == PR_STPAUSED) {
+		appctx->ctx.cli.severity = LOG_NOTICE;
 		appctx->ctx.cli.msg = "Frontend is already disabled.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!pause_proxy(px)) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Failed to pause frontend, check logs for precise cause.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
@@ -1753,18 +1766,21 @@ static int cli_parse_enable_frontend(char **args, struct appctx *appctx, void *p
 		return 1;
 
 	if (px->state == PR_STSTOPPED) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot enable.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (px->state != PR_STPAUSED) {
+		appctx->ctx.cli.severity = LOG_NOTICE;
 		appctx->ctx.cli.msg = "Frontend is already enabled.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
 	if (!resume_proxy(px)) {
+		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Failed to resume frontend, check logs for precise cause (port conflict?).\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
