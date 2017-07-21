@@ -5971,7 +5971,7 @@ struct task *hlua_applet_wakeup(struct task *t)
 	 */
 	si_applet_cant_put(si);
 	appctx_wakeup(ctx);
-	return NULL;
+	return t;
 }
 
 static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
