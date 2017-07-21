@@ -81,7 +81,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	}
 
 	if (!pool) {
-		pool = CALLOC(1, sizeof(*pool));
+		pool = calloc(1, sizeof(*pool));
 		if (!pool)
 			return NULL;
 		if (name)
@@ -114,7 +114,7 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		if (pool->limit && pool->allocated >= pool->limit)
 			return NULL;
 
-		ptr = MALLOC(pool->size + POOL_EXTRA);
+		ptr = malloc(pool->size + POOL_EXTRA);
 		if (!ptr) {
 			pool->failed++;
 			if (failed)
@@ -151,7 +151,7 @@ void pool_flush2(struct pool_head *pool)
 		temp = next;
 		next = *POOL_LINK(pool, temp);
 		pool->allocated--;
-		FREE(temp);
+		free(temp);
 	}
 	pool->free_list = next;
 
@@ -180,7 +180,7 @@ void pool_gc2()
 			temp = next;
 			next = *POOL_LINK(entry, temp);
 			entry->allocated--;
-			FREE(temp);
+			free(temp);
 		}
 		entry->free_list = next;
 	}
@@ -204,7 +204,7 @@ void *pool_destroy2(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DEL(&pool->list);
-			FREE(pool);
+			free(pool);
 		}
 	}
 	return NULL;

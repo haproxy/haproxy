@@ -41,28 +41,6 @@
 #  define CONFIG_HAP_MEM_OPTIM
 #endif /* CONFIG_HAP_NO_MEM_OPTIM */
 
-/* CONFIG_HAP_MALLOC / CONFIG_HAP_CALLOC / CONFIG_HAP_FREE
- * This macro allows to replace the malloc function with another one.
- */
-#ifdef CONFIG_HAP_MALLOC
-#define MALLOC	CONFIG_HAP_MALLOC
-#else
-#define MALLOC	malloc
-#endif
-
-#ifdef CONFIG_HAP_CALLOC
-#define CALLOC	CONFIG_HAP_CALLOC
-#else
-#define CALLOC	calloc
-#endif
-
-#ifdef CONFIG_HAP_FREE
-#define FREE	CONFIG_HAP_FREE
-#else
-#define FREE	free
-#endif
-
-
 /* CONFIG_HAP_INLINE_FD_SET
  * This makes use of inline FD_* macros instead of calling equivalent
  * functions. Benchmarks on a Pentium-M show that using functions is
