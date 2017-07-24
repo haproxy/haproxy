@@ -785,6 +785,10 @@ Proxy class
   This class provides a way for manipulating proxy and retrieving information
   like statistics.
 
+.. js:attribute:: Proxy.name
+
+  Contain the name of the proxy.
+
 .. js:attribute:: Proxy.servers
 
   Contain an array with the attached servers. Each server entry is an object of
