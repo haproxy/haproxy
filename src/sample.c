@@ -658,6 +658,11 @@ int smp_dup(struct sample *smp)
 		/* These type are not const. */
 		break;
 
+	case SMP_T_METH:
+		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
+			break;
+		/* Fall through */
+
 	case SMP_T_STR:
 		trash = get_trash_chunk();
 		trash->len = smp->data.u.str.len;
@@ -678,6 +683,7 @@ int smp_dup(struct sample *smp)
 		memcpy(trash->str, smp->data.u.str.str, trash->len);
 		smp->data.u.str = *trash;
 		break;
+
 	default:
 		/* Other cases are unexpected. */
 		return 0;
