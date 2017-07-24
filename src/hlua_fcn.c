@@ -776,6 +776,11 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	lua_pushlightuserdata(L, px);
 	lua_rawseti(L, -2, 0);
 
+	/* Add proxy name. */
+	lua_pushstring(L, "name");
+	lua_pushstring(L, px->id);
+	lua_settable(L, -3);
+
 	/* Browse and register servers. */
 	lua_pushstring(L, "servers");
 	lua_newtable(L);
