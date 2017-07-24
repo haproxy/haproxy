@@ -545,8 +545,7 @@ int hlua_server_get_addr(lua_State *L)
 		          addr, INET_ADDRSTRLEN);
 		luaL_addstring(&b, addr);
 		luaL_addstring(&b, ":");
-		snprintf(addr, INET_ADDRSTRLEN, "%d",
-		         ntohs(((struct sockaddr_in *)&srv->addr)->sin_port));
+		snprintf(addr, INET_ADDRSTRLEN, "%d", srv->svc_port);
 		luaL_addstring(&b, addr);
 		break;
 	case AF_INET6:
@@ -554,8 +553,7 @@ int hlua_server_get_addr(lua_State *L)
 		          addr, INET_ADDRSTRLEN);
 		luaL_addstring(&b, addr);
 		luaL_addstring(&b, ":");
-		snprintf(addr, INET_ADDRSTRLEN, "%d",
-		         ntohs(((struct sockaddr_in6 *)&srv->addr)->sin6_port));
+		snprintf(addr, INET_ADDRSTRLEN, "%d", srv->svc_port);
 		luaL_addstring(&b, addr);
 		break;
 	case AF_UNIX:
