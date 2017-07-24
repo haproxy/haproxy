@@ -95,7 +95,7 @@ unsigned int var_clear(struct var *var)
 		free(var->data.u.str.str);
 		size += var->data.u.str.len;
 	}
-	else if (var->data.type == SMP_T_METH) {
+	else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
 		free(var->data.u.meth.str.str);
 		size += var->data.u.meth.str.len;
 	}
@@ -309,7 +309,7 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 			free(var->data.u.str.str);
 			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.str.len);
 		}
-		else if (var->data.type == SMP_T_METH) {
+		else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
 			free(var->data.u.meth.str.str);
 			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.meth.str.len);
 		}
@@ -358,6 +358,10 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		memcpy(var->data.u.str.str, smp->data.u.str.str, var->data.u.str.len);
 		break;
 	case SMP_T_METH:
+		var->data.u.meth.meth = smp->data.u.meth.meth;
+		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
+			break;
+
 		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.meth.str.len)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
@@ -368,7 +372,6 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.u.meth.meth = smp->data.u.meth.meth;
 		var->data.u.meth.str.len = smp->data.u.meth.str.len;
 		var->data.u.meth.str.size = smp->data.u.meth.str.len;
 		memcpy(var->data.u.meth.str.str, smp->data.u.meth.str.str, var->data.u.meth.str.len);
