@@ -184,6 +184,7 @@ static inline struct task *task_init(struct task *t)
 	t->pending_state = t->state = TASK_SLEEPING;
 	t->nice = 0;
 	t->calls = 0;
+	t->expire = TICK_ETERNITY;
 	return t;
 }
 
