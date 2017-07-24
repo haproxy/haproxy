@@ -173,6 +173,40 @@ Core class
   proxy give an access to his list of listeners and servers. Each entry is of
   type :ref:`proxy_class`
 
+  Warning, if you are declared frontend and backend with the same name, only one
+  of these are listed.
+
+  :see: :js:attr:`core.backends`
+  :see: :js:attr:`core.frontends`
+
+.. js:attribute:: core.backends
+
+  **context**: task, action, sample-fetch, converter
+
+  This attribute is an array of declared proxies with backend capability. Each
+  proxy give an access to his list of listeners and servers. Each entry is of
+  type :ref:`proxy_class`
+
+  Warning, if you are declared frontend and backend with the same name, only one
+  of these are listed.
+
+  :see: :js:attr:`core.proxies`
+  :see: :js:attr:`core.frontends`
+
+.. js:attribute:: core.frontends
+
+  **context**: task, action, sample-fetch, converter
+
+  This attribute is an array of declared proxies with frontend capability. Each
+  proxy give an access to his list of listeners and servers. Each entry is of
+  type :ref:`proxy_class`
+
+  Warning, if you are declared frontend and backend with the same name, only one
+  of these are listed.
+
+  :see: :js:attr:`core.proxies`
+  :see: :js:attr:`core.backends`
+
 .. js:function:: core.log(loglevel, msg)
 
   **context**: body, init, task, action, sample-fetch, converter
