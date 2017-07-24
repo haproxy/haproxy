@@ -86,6 +86,11 @@ static inline
 int smp_is_safe(struct sample *smp)
 {
 	switch (smp->data.type) {
+	case SMP_T_METH:
+		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
+			return 1;
+		/* Fall through */
+
 	case SMP_T_STR:
 		if ((smp->data.u.str.len < 0) ||
 		    (smp->data.u.str.size && smp->data.u.str.len >= smp->data.u.str.size))
@@ -133,6 +138,11 @@ int smp_is_rw(struct sample *smp)
 		return 0;
 
 	switch (smp->data.type) {
+	case SMP_T_METH:
+		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
+			return 1;
+		/* Fall through */
+
 	case SMP_T_STR:
 		if (!smp->data.u.str.size ||
 		    smp->data.u.str.len < 0 ||
