@@ -1918,7 +1918,6 @@ spoe_create_appctx(struct spoe_config *conf)
 
 	SPOE_APPCTX(appctx)->owner           = appctx;
 	SPOE_APPCTX(appctx)->task->process   = spoe_process_appctx;
-	SPOE_APPCTX(appctx)->task->expire    = TICK_ETERNITY;
 	SPOE_APPCTX(appctx)->task->context   = appctx;
 	SPOE_APPCTX(appctx)->agent           = conf->agent;
 	SPOE_APPCTX(appctx)->version         = 0;

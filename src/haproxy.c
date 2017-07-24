@@ -1474,7 +1474,6 @@ static void init(int argc, char **argv)
 	/* very simple initialization, users will queue the task if needed */
 	global_listener_queue_task->context = NULL; /* not even a context! */
 	global_listener_queue_task->process = manage_global_listener_queue;
-	global_listener_queue_task->expire = TICK_ETERNITY;
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_buffer();

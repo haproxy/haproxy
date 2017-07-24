@@ -9058,10 +9058,6 @@ out_uri_auth_compat:
 		if (curproxy->task) {
 			curproxy->task->context = curproxy;
 			curproxy->task->process = manage_proxy;
-			/* no need to queue, it will be done automatically if some
-			 * listener gets limited.
-			 */
-			curproxy->task->expire = TICK_ETERNITY;
 		} else {
 			Alert("Proxy '%s': no more memory when trying to allocate the management task\n",
 			      curproxy->id);

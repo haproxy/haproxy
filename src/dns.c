@@ -1421,7 +1421,6 @@ int dns_init_resolvers(int close_socket)
 		/* update task's parameters */
 		t->process = dns_process_resolve;
 		t->context = curr_resolvers;
-		t->expire = 0;
 
 		/* no need to keep the new task if one is already affected to our resolvers
 		 * section */
