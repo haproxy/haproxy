@@ -550,7 +550,7 @@ int hlua_server_get_addr(lua_State *L)
 		break;
 	case AF_INET6:
 		inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&srv->addr)->sin6_addr,
-		          addr, INET_ADDRSTRLEN);
+		          addr, INET6_ADDRSTRLEN);
 		luaL_addstring(&b, addr);
 		luaL_addstring(&b, ":");
 		snprintf(addr, INET_ADDRSTRLEN, "%d", srv->svc_port);
