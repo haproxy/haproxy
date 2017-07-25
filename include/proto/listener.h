@@ -149,6 +149,18 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 	return bind_conf;
 }
 
+static inline const char *listener_state_str(const struct listener *l)
+{
+	static const char *states[9] = {
+		"NEW", "INI", "ASS", "PAU", "ZOM", "LIS", "RDY", "FUL", "LIM",
+	};
+	unsigned int st = l->state;
+
+	if (st > sizeof(states) / sizeof(*states))
+		return "INVALID";
+	return states[st];
+}
+
 extern struct xfer_sock_list *xfer_sock_list;
 #endif /* _PROTO_LISTENER_H */
 
