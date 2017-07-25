@@ -244,6 +244,25 @@ struct post_deinit_fct {
 	void (*fct)();
 };
 
+/* These functions are called for each thread just after the thread creation
+ * and before running the scheduler. They should be used to do per-thread
+ * initializations. They must return 0 if an error occurred. */
+struct list per_thread_init_list = LIST_HEAD_INIT(per_thread_init_list);
+struct per_thread_init_fct {
+	struct list list;
+	int (*fct)();
+};
+
+/* These functions are called for each thread just after the scheduler loop and
+ * before exiting the thread. They don't return anything and, as for post-deinit
+ * functions, they work in best effort mode as their sole goal is to make
+ * valgrind mostly happy. */
+struct list per_thread_deinit_list = LIST_HEAD_INIT(per_thread_deinit_list);
+struct per_thread_deinit_fct {
+	struct list list;
+	void (*fct)();
+};
+
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
 /*********************************************************************/
@@ -293,6 +312,34 @@ void hap_register_post_deinit(void (*fct)())
 	}
 	b->fct = fct;
 	LIST_ADDQ(&post_deinit_list, &b->list);
+}
+
+/* used to register some initialization functions to call for each thread. */
+void hap_register_per_thread_init(int (*fct)())
+{
+	struct per_thread_init_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&per_thread_init_list, &b->list);
+}
+
+/* used to register some de-initialization functions to call for each thread. */
+void hap_register_per_thread_deinit(void (*fct)())
+{
+	struct per_thread_deinit_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&per_thread_deinit_list, &b->list);
 }
 
 static void display_version()

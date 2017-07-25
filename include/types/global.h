@@ -206,6 +206,9 @@ void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
 void hap_register_post_deinit(void (*fct)());
 
+void hap_register_per_thread_init(int (*fct)());
+void hap_register_per_thread_deinit(void (*fct)());
+
 #endif /* _TYPES_GLOBAL_H */
 
 /*
