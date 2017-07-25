@@ -66,6 +66,7 @@
 #include <proto/server.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/proto_udp.h>
 
 static struct applet cli_applet;
 
@@ -734,6 +735,106 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	return 1;
 }
 
+/* This function dumps all file descriptors states (or the requested one) to
+ * the buffer. It returns 0 if the output buffer is full and it needs to be
+ * called again, otherwise non-zero. Dumps only one entry if st2 == STAT_ST_END.
+ * It uses cli.i0 as the fd number to restart from.
+ */
+static int cli_io_handler_show_fd(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	int fd = appctx->ctx.cli.i0;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	while (fd < maxfd) {
+		struct fdtab fdt;
+		struct listener *li;
+		struct server *sv;
+		struct proxy *px;
+		uint32_t conn_flags;
+
+		fdt = fdtab[fd];
+
+		if (fdt.iocb == conn_fd_handler) {
+			conn_flags = ((struct connection *)fdt.owner)->flags;
+			li = objt_listener(((struct connection *)fdt.owner)->target);
+			sv = objt_server(((struct connection *)fdt.owner)->target);
+			px = objt_proxy(((struct connection *)fdt.owner)->target);
+		}
+		else if (fdt.iocb == listener_accept)
+			li = fdt.owner;
+
+		if (!fdt.owner)
+			goto skip; // closed
+
+		chunk_printf(&trash,
+			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c%c%c] cache=%u owner=%p iocb=%p(%s)",
+			     fd,
+			     fdt.state,
+			     (fdt.state & FD_EV_POLLED_R) ? 'P' : 'p',
+			     (fdt.state & FD_EV_READY_R)  ? 'R' : 'r',
+			     (fdt.state & FD_EV_ACTIVE_R) ? 'A' : 'a',
+			     (fdt.state & FD_EV_POLLED_W) ? 'P' : 'p',
+			     (fdt.state & FD_EV_READY_W)  ? 'R' : 'r',
+			     (fdt.state & FD_EV_ACTIVE_W) ? 'A' : 'a',
+			     fdt.ev,
+			     (fdt.ev & FD_POLL_HUP) ? 'H' : 'h',
+			     (fdt.ev & FD_POLL_ERR) ? 'E' : 'e',
+			     (fdt.ev & FD_POLL_OUT) ? 'O' : 'o',
+			     (fdt.ev & FD_POLL_PRI) ? 'P' : 'p',
+			     (fdt.ev & FD_POLL_IN)  ? 'I' : 'i',
+			     fdt.new ? 'N' : 'n',
+			     fdt.updated ? 'U' : 'u',
+			     fdt.linger_risk ? 'L' : 'l',
+			     fdt.cloned ? 'C' : 'c',
+			     fdt.cache,
+			     fdt.owner,
+			     fdt.iocb,
+			     (fdt.iocb == conn_fd_handler)  ? "conn_fd_handler" :
+			     (fdt.iocb == dgram_fd_handler) ? "dgram_fd_handler" :
+			     (fdt.iocb == listener_accept)  ? "listener_accept" :
+			     "unknown");
+
+		if (fdt.iocb == conn_fd_handler) {
+			chunk_appendf(&trash, " cflg=0x%08x", conn_flags);
+			if (px)
+				chunk_appendf(&trash, " px=%s", px->id);
+			else if (sv)
+				chunk_appendf(&trash, " sv=%s/%s", sv->id, sv->proxy->id);
+			else if (li)
+				chunk_appendf(&trash, " fe=%s", li->bind_conf->frontend->id);
+		}
+		else if (fdt.iocb == listener_accept) {
+			chunk_appendf(&trash, " l.st=%s fe=%s",
+			              listener_state_str(li),
+			              li->bind_conf->frontend->id);
+		}
+
+		chunk_appendf(&trash, "\n");
+
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+	skip:
+		if (appctx->st2 == STAT_ST_END)
+			break;
+
+		fd++;
+		appctx->ctx.cli.i0 = fd;
+	}
+
+	/* dump complete */
+	return 1;
+}
+
 /*
  * CLI IO handler for `show cli sockets`.
  * Uses ctx.cli.p0 to store the restart pointer.
@@ -860,6 +961,24 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
 		appctx->st2 = STAT_ST_END;
 	}
 	appctx->ctx.cli.p0 = var;
+	return 0;
+}
+
+/* parse a "show fd" CLI request. Returns 0 if it needs to continue, 1 if it
+ * wants to stop here. It puts the FD number into cli.i0 if a specific FD is
+ * requested and sets st2 to STAT_ST_END, otherwise leaves 0 in i0.
+ */
+static int cli_parse_show_fd(char **args, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	appctx->ctx.cli.i0 = 0;
+
+	if (*args[2]) {
+		appctx->ctx.cli.i0 = atoi(args[2]);
+		appctx->st2 = STAT_ST_END;
+	}
 	return 0;
 }
 
@@ -1234,6 +1353,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL },
+	{ { "show", "fd", NULL }, "show fd [num] : dump list of file descriptors in use", cli_parse_show_fd, cli_io_handler_show_fd, NULL },
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
 	{{},}
 }};
