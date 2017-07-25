@@ -36,8 +36,8 @@ struct flt_ops comp_ops;
 /* Pools used to allocate comp_state structs */
 static struct pool_head *pool2_comp_state = NULL;
 
-static struct buffer *tmpbuf = &buf_empty;
-static struct buffer *zbuf   = &buf_empty;
+static THREAD_LOCAL struct buffer *tmpbuf = &buf_empty;
+static THREAD_LOCAL struct buffer *zbuf   = &buf_empty;
 
 struct comp_state {
 	struct comp_ctx  *comp_ctx;   /* compression context */
@@ -66,9 +66,8 @@ static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 /***********************************************************************/
 static int
-comp_flt_init(struct proxy *px, struct flt_conf *fconf)
+comp_flt_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 {
-
 	if (!tmpbuf->size && b_alloc(&tmpbuf) == NULL)
 		return -1;
 	if (!zbuf->size && b_alloc(&zbuf) == NULL)
@@ -77,7 +76,7 @@ comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 }
 
 static void
-comp_flt_deinit(struct proxy *px, struct flt_conf *fconf)
+comp_flt_deinit_per_thread(struct proxy *px, struct flt_conf *fconf)
 {
 	if (tmpbuf->size)
 		b_free(&tmpbuf);
@@ -88,6 +87,7 @@ comp_flt_deinit(struct proxy *px, struct flt_conf *fconf)
 static int
 comp_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
+
 	if (filter->ctx == NULL) {
 		struct comp_state *st;
 
@@ -790,8 +790,8 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 /***********************************************************************/
 struct flt_ops comp_ops = {
-	.init   = comp_flt_init,
-	.deinit = comp_flt_deinit,
+	.init_per_thread   = comp_flt_init_per_thread,
+	.deinit_per_thread = comp_flt_deinit_per_thread,
 
 	.channel_start_analyze = comp_start_analyze,
 	.channel_end_analyze   = comp_end_analyze,
