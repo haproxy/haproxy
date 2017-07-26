@@ -19,6 +19,8 @@
 #include <common/chunk.h>
 #include <common/standard.h>
 
+#include <types/global.h>
+
 /* trash chunks used for various conversions */
 static struct chunk *trash_chunk;
 static struct chunk trash_chunk1;
@@ -31,6 +33,9 @@ static char *trash_buf2;
 
 /* the trash pool for reentrant allocations */
 struct pool_head *pool2_trash = NULL;
+
+/* this is used to drain data, and as a temporary buffer for sprintf()... */
+struct chunk trash = { .str = NULL };
 
 /*
 * Returns a pre-allocated and initialized trash chunk that can be used for any
@@ -61,7 +66,7 @@ struct chunk *get_trash_chunk(void)
 /* (re)allocates the trash buffers. Returns 0 in case of failure. It is
  * possible to call this function multiple times if the trash size changes.
  */
-int alloc_trash_buffers(int bufsize)
+static int alloc_trash_buffers(int bufsize)
 {
 	trash_size = bufsize;
 	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
@@ -70,11 +75,21 @@ int alloc_trash_buffers(int bufsize)
 	return trash_buf1 && trash_buf2 && pool2_trash;
 }
 
+/* Initialize the trash buffers. It returns 0 if an error occurred. */
+int init_trash_buffers()
+{
+	chunk_init(&trash, my_realloc2(trash.str, global.tune.bufsize), global.tune.bufsize);
+	if (!trash.str || !alloc_trash_buffers(global.tune.bufsize))
+		return 0;
+	return 1;
+}
+
 /*
  * free the trash buffers
  */
-void free_trash_buffers(void)
+void deinit_trash_buffers(void)
 {
+	chunk_destroy(&trash);
 	free(trash_buf2);
 	free(trash_buf1);
 	trash_buf2 = NULL;

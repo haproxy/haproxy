@@ -50,10 +50,10 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src);
 int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc);
 int chunk_strcmp(const struct chunk *chk, const char *str);
 int chunk_strcasecmp(const struct chunk *chk, const char *str);
-int alloc_trash_buffers(int bufsize);
-void free_trash_buffers(void);
 struct chunk *get_trash_chunk(void);
 struct chunk *alloc_trash_chunk(void);
+int init_trash_buffers(void);
+void deinit_trash_buffers(void);
 
 /*
  * free a trash chunk allocated by alloc_trash_chunk(). NOP on NULL.

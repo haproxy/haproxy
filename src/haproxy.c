@@ -177,9 +177,6 @@ static const char *old_unixsocket;
 
 static char *cur_unixsocket = NULL;
 
-/* this is used to drain data, and as a temporary buffer for sprintf()... */
-struct chunk trash = { };
-
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
  */
@@ -1137,8 +1134,10 @@ static void init(int argc, char **argv)
 
 	next_argv = copy_argv(argc, argv);
 
-	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
-	alloc_trash_buffers(global.tune.bufsize);
+	if (!init_trash_buffers()) {
+		Alert("failed to initialize trash buffers.\n");
+		exit(1);
+	}
 
 	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
 	 * the string in case of truncation, and at least FreeBSD appears not to do
@@ -2102,8 +2101,7 @@ void deinit(void)
 
 	cfg_unregister_sections();
 
-	free_trash_buffers();
-	chunk_destroy(&trash);
+	deinit_trash_buffers();
 
 	protocol_unbind_all();
 

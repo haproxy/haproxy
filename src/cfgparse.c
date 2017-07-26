@@ -773,8 +773,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		chunk_init(&trash, realloc(trash.str, global.tune.bufsize), global.tune.bufsize);
-		alloc_trash_buffers(global.tune.bufsize);
+		if (!init_trash_buffers()) {
+			Alert("parsing [%s:%d] : failed to initialize trash buffers.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 	}
 	else if (!strcmp(args[0], "tune.maxrewrite")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
