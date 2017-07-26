@@ -1322,6 +1322,31 @@ void init_log()
 	}
 }
 
+/* Initialize log buffers used for syslog messages */
+int init_log_buffers()
+{
+	logheader = my_realloc2(logheader, global.max_syslog_len + 1);
+	logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
+	logline = my_realloc2(logline, global.max_syslog_len + 1);
+	logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
+	if (!logheader || !logline_rfc5424 || !logline || !logline_rfc5424)
+		return 0;
+	return 1;
+}
+
+/* Deinitialize log buffers used for syslog messages */
+void deinit_log_buffers()
+{
+	free(logheader);
+	free(logheader_rfc5424);
+	free(logline);
+	free(logline_rfc5424);
+	logheader         = NULL;
+	logheader_rfc5424 = NULL;
+	logline           = NULL;
+	logline_rfc5424   = NULL;
+}
+
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size

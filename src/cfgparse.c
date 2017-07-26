@@ -1420,10 +1420,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		if (logsrv->maxlen > global.max_syslog_len) {
 			global.max_syslog_len = logsrv->maxlen;
-			logheader = my_realloc2(logheader, global.max_syslog_len + 1);
-			logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
-			logline = my_realloc2(logline, global.max_syslog_len + 1);
-			logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
+			if (!init_log_buffers()) {
+				Alert("parsing [%s:%d] : failed to initialize log buffers.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 
 		/* after the length, a format may be specified */
@@ -6082,10 +6083,11 @@ stats_error_parsing:
 
 			if (logsrv->maxlen > global.max_syslog_len) {
 				global.max_syslog_len = logsrv->maxlen;
-				logheader = my_realloc2(logheader, global.max_syslog_len + 1);
-				logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
-				logline = my_realloc2(logline, global.max_syslog_len + 1);
-				logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
+				if (!init_log_buffers()) {
+					Alert("parsing [%s:%d] : failed to initialize log buffers.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 			}
 
 			/* after the length, a format may be specified */

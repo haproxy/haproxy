@@ -2107,6 +2107,7 @@ void deinit(void)
 
 	cfg_unregister_sections();
 
+	deinit_log_buffers();
 	deinit_trash_buffers();
 
 	protocol_unbind_all();

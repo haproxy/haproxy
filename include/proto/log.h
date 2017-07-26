@@ -53,6 +53,11 @@ extern char *logline_rfc5424;
  */
 void init_log();
 
+
+/* Initialize/Deinitialize log buffers used for syslog messages */
+int init_log_buffers();
+void deinit_log_buffers();
+
 /*
  * Builds a log line.
  */
