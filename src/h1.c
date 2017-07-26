@@ -10,7 +10,9 @@
  *
  */
 
+#include <ctype.h>
 #include <common/config.h>
+#include <common/http-hdr.h>
 
 #include <proto/h1.h>
 #include <proto/hdr_idx.h>
@@ -793,6 +795,402 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	msg->msg_state = HTTP_MSG_ERROR;
 	msg->next = ptr - buf->p;
 	return;
+}
+
+/* This function parses a contiguous HTTP/1 headers block starting at <start>
+ * and ending before <stop>, at once, and converts it a list of (name,value)
+ * pairs representing header fields into the array <hdr> of size <hdr_num>,
+ * whose last entry will have an empty name and an empty value. If <hdr_num> is
+ * too small to represent the whole message, an error is returned. If <h1m> is
+ * not NULL, some protocol elements such as content-length and transfer-encoding
+ * will be parsed and stored there as well.
+ *
+ * For now it's limited to the response. If the header block is incomplete,
+ * 0 is returned, waiting to be called again with more data to try it again.
+ *
+ * The code derived from the main HTTP/1 parser above but was simplified and
+ * optimized to process responses produced or forwarded by haproxy. The caller
+ * is responsible for ensuring that the message doesn't wrap, and should ensure
+ * it is complete to avoid having to retry the operation after a failed
+ * attempt. The message is not supposed to be invalid, which is why a few
+ * properties such as the character set used in the header field names are not
+ * checked. In case of an unparsable response message, a negative value will be
+ * returned with h1m->err_pos and h1m->err_state matching the location and
+ * state where the error was met. Leading blank likes are tolerated but not
+ * recommended.
+ *
+ * This function returns :
+ *    -1 in case of error. In this case, h1m->err_state is filled (if h1m is
+ *       set) with the state the error occurred in and h2-m>err_pos with the
+ *       the position relative to <start>
+ *    -2 if the output is full (hdr_num reached). err_state and err_pos also
+ *       indicate where it failed.
+ *     0 in case of missing data.
+ *   > 0 on success, it then corresponds to the number of bytes read since
+ *       <start> so that the caller can go on with the payload.
+ */
+int h1_headers_to_hdr_list(char *start, const char *stop,
+                           struct http_hdr *hdr, unsigned int hdr_num,
+                           struct h1m *h1m)
+{
+	enum h1_state state = HTTP_MSG_RPBEFORE;
+	register char *ptr  = start;
+	register const char *end  = stop;
+	unsigned int hdr_count = 0;
+	unsigned int code = 0; /* status code, ASCII form */
+	unsigned int st_c;     /* beginning of status code, relative to msg_start */
+	unsigned int st_c_l;   /* length of status code */
+	unsigned int sol = 0;  /* start of line */
+	unsigned int col = 0;  /* position of the colon */
+	unsigned int eol = 0;  /* end of line */
+	unsigned int sov = 0;  /* start of value */
+	unsigned int skip = 0; /* number of bytes skipped at the beginning */
+	struct ist n, v;       /* header name and value during parsing */
+
+	if (unlikely(ptr >= end))
+		goto http_msg_ood;
+
+	switch (state)	{
+	case HTTP_MSG_RPBEFORE:
+	http_msg_rpbefore:
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			/* we have a start of message, we may have skipped some
+			 * heading CRLF. Skip them now.
+			 */
+			skip += ptr - start;
+			start = ptr;
+
+			sol = 0;
+			hdr_count = 0;
+			state = HTTP_MSG_RPVER;
+			goto http_msg_rpver;
+		}
+
+		if (unlikely(!HTTP_IS_CRLF(*ptr))) {
+			state = HTTP_MSG_RPBEFORE;
+			goto http_msg_invalid;
+		}
+
+		if (unlikely(*ptr == '\n'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpbefore, http_msg_ood, state, HTTP_MSG_RPBEFORE);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpbefore_cr, http_msg_ood, state, HTTP_MSG_RPBEFORE_CR);
+		/* stop here */
+
+	case HTTP_MSG_RPBEFORE_CR:
+	http_msg_rpbefore_cr:
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_RPBEFORE_CR);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpbefore, http_msg_ood, state, HTTP_MSG_RPBEFORE);
+		/* stop here */
+
+	case HTTP_MSG_RPVER:
+	http_msg_rpver:
+		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver, http_msg_ood, state, HTTP_MSG_RPVER);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			/* version length = ptr - start */
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver_sp, http_msg_ood, state, HTTP_MSG_RPVER_SP);
+		}
+		state = HTTP_MSG_RPVER;
+		goto http_msg_invalid;
+
+	case HTTP_MSG_RPVER_SP:
+	http_msg_rpver_sp:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			code = 0;
+			st_c = ptr - start;
+			goto http_msg_rpcode;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver_sp, http_msg_ood, state, HTTP_MSG_RPVER_SP);
+		/* so it's a CR/LF, this is invalid */
+		state = HTTP_MSG_RPVER_SP;
+		goto http_msg_invalid;
+
+	case HTTP_MSG_RPCODE:
+	http_msg_rpcode:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			code = (code << 8) + *ptr;
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode, http_msg_ood, state, HTTP_MSG_RPCODE);
+		}
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			st_c_l = ptr - start - st_c;
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode_sp, http_msg_ood, state, HTTP_MSG_RPCODE_SP);
+		}
+
+		/* so it's a CR/LF, so there is no reason phrase */
+		st_c_l = ptr - start - st_c;
+
+	http_msg_rsp_reason:
+		/* reason = ptr - start; */
+		/* reason length = 0 */
+		goto http_msg_rpline_eol;
+
+	case HTTP_MSG_RPCODE_SP:
+	http_msg_rpcode_sp:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			/* reason = ptr - start */
+			goto http_msg_rpreason;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode_sp, http_msg_ood, state, HTTP_MSG_RPCODE_SP);
+		/* so it's a CR/LF, so there is no reason phrase */
+		goto http_msg_rsp_reason;
+
+	case HTTP_MSG_RPREASON:
+	http_msg_rpreason:
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpreason, http_msg_ood, state, HTTP_MSG_RPREASON);
+		/* reason length = ptr - start - reason */
+	http_msg_rpline_eol:
+		/* We have seen the end of line. Note that we do not
+		 * necessarily have the \n yet, but at least we know that we
+		 * have EITHER \r OR \n, otherwise the response would not be
+		 * complete. We can then record the response length and return
+		 * to the caller which will be able to register it.
+		 */
+
+		if (unlikely(hdr_count >= hdr_num)) {
+			state = HTTP_MSG_RPREASON;
+			goto http_output_full;
+		}
+		http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + st_c, st_c_l));
+
+		sol = ptr - start;
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpline_end, http_msg_ood, state, HTTP_MSG_RPLINE_END);
+		goto http_msg_rpline_end;
+
+	case HTTP_MSG_RPLINE_END:
+	http_msg_rpline_end:
+		/* sol must point to the first of CR or LF. */
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_RPLINE_END);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_first, http_msg_ood, state, HTTP_MSG_HDR_FIRST);
+		/* stop here */
+
+	case HTTP_MSG_HDR_FIRST:
+	http_msg_hdr_first:
+		sol = ptr - start;
+		if (likely(!HTTP_IS_CRLF(*ptr))) {
+			goto http_msg_hdr_name;
+		}
+
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_last_lf, http_msg_ood, state, HTTP_MSG_LAST_LF);
+		goto http_msg_last_lf;
+
+	case HTTP_MSG_HDR_NAME:
+	http_msg_hdr_name:
+		/* assumes sol points to the first char */
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			/* turn it to lower case if needed */
+			if (isupper((unsigned char)*ptr))
+				*ptr = tolower(*ptr);
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, HTTP_MSG_HDR_NAME);
+		}
+
+		if (likely(*ptr == ':')) {
+			col = ptr - start;
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, HTTP_MSG_HDR_L1_SP);
+		}
+
+		if (HTTP_IS_LWS(*ptr)) {
+			state = HTTP_MSG_HDR_NAME;
+			goto http_msg_invalid;
+		}
+
+		/* now we have a non-token character in the header field name,
+		 * it's up to the H1 layer to have decided whether or not it
+		 * was acceptable. If we find it here, it was considered
+		 * acceptable due to configuration rules so we obey.
+		 */
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, HTTP_MSG_HDR_NAME);
+
+	case HTTP_MSG_HDR_L1_SP:
+	http_msg_hdr_l1_sp:
+		/* assumes sol points to the first char */
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, HTTP_MSG_HDR_L1_SP);
+
+		/* header value can be basically anything except CR/LF */
+		sov = ptr - start;
+
+		if (likely(!HTTP_IS_CRLF(*ptr))) {
+			goto http_msg_hdr_val;
+		}
+
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_lf, http_msg_ood, state, HTTP_MSG_HDR_L1_LF);
+		goto http_msg_hdr_l1_lf;
+
+	case HTTP_MSG_HDR_L1_LF:
+	http_msg_hdr_l1_lf:
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_HDR_L1_LF);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_lws, http_msg_ood, state, HTTP_MSG_HDR_L1_LWS);
+
+	case HTTP_MSG_HDR_L1_LWS:
+	http_msg_hdr_l1_lws:
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			/* replace HT,CR,LF with spaces */
+			for (; start + sov < ptr; sov++)
+				start[sov] = ' ';
+			goto http_msg_hdr_l1_sp;
+		}
+		/* we had a header consisting only in spaces ! */
+		eol = sov;
+		goto http_msg_complete_header;
+
+	case HTTP_MSG_HDR_VAL:
+	http_msg_hdr_val:
+		/* assumes sol points to the first char, and sov
+		 * points to the first character of the value.
+		 */
+
+		/* speedup: we'll skip packs of 4 or 8 bytes not containing bytes 0x0D
+		 * and lower. In fact since most of the time is spent in the loop, we
+		 * also remove the sign bit test so that bytes 0x8e..0x0d break the
+		 * loop, but we don't care since they're very rare in header values.
+		 */
+#if defined(__x86_64__)
+		while (ptr <= end - sizeof(long)) {
+			if ((*(long *)ptr - 0x0e0e0e0e0e0e0e0eULL) & 0x8080808080808080ULL)
+				goto http_msg_hdr_val2;
+			ptr += sizeof(long);
+		}
+#endif
+#if defined(__x86_64__) || \
+    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+    defined(__ARM_ARCH_7A__)
+		while (ptr <= end - sizeof(int)) {
+			if ((*(int*)ptr - 0x0e0e0e0e) & 0x80808080)
+				goto http_msg_hdr_val2;
+			ptr += sizeof(int);
+		}
+#endif
+		if (ptr >= end) {
+			state = HTTP_MSG_HDR_VAL;
+			goto http_msg_ood;
+		}
+	http_msg_hdr_val2:
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_val2, http_msg_ood, state, HTTP_MSG_HDR_VAL);
+
+		eol = ptr - start;
+		/* Note: we could also copy eol into ->eoh so that we have the
+		 * real header end in case it ends with lots of LWS, but is this
+		 * really needed ?
+		 */
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l2_lf, http_msg_ood, state, HTTP_MSG_HDR_L2_LF);
+		goto http_msg_hdr_l2_lf;
+
+	case HTTP_MSG_HDR_L2_LF:
+	http_msg_hdr_l2_lf:
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_HDR_L2_LF);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l2_lws, http_msg_ood, state, HTTP_MSG_HDR_L2_LWS);
+
+	case HTTP_MSG_HDR_L2_LWS:
+	http_msg_hdr_l2_lws:
+		if (unlikely(HTTP_IS_SPHT(*ptr))) {
+			/* LWS: replace HT,CR,LF with spaces */
+			for (; start + eol < ptr; eol++)
+				start[eol] = ' ';
+			goto http_msg_hdr_val;
+		}
+	http_msg_complete_header:
+		/*
+		 * It was a new header, so the last one is finished. Assumes
+		 * <sol> points to the first char of the name, <col> to the
+		 * colon, <sov> points to the first character of the value and
+		 * <eol> to the first CR or LF so we know how the line ends. We
+		 * will trim spaces around the value. It's possible to do it by
+		 * adjusting <eol> and <sov> which are no more used after this.
+		 * We can add the header field to the list.
+		 */
+		while (sov < eol && HTTP_IS_LWS(start[sov]))
+			sov++;
+
+		while (eol - 1 > sov && HTTP_IS_LWS(start[eol - 1]))
+			eol--;
+
+
+		n = ist2(start + sol, col - sol);
+		v = ist2(start + sov, eol - sov);
+
+		if (unlikely(hdr_count >= hdr_num)) {
+			state = HTTP_MSG_HDR_L2_LWS;
+			goto http_output_full;
+		}
+		http_set_hdr(&hdr[hdr_count++], n, v);
+
+		if (h1m) {
+			long long cl;
+
+			if (isteq(n, ist("transfer-encoding"))) {
+				h1m->flags &= ~H1_MF_CLEN;
+				h1m->flags |= H1_MF_CHNK;
+			}
+			else if (isteq(n, ist("content-length")) && !(h1m->flags & H1_MF_CHNK)) {
+				h1m->flags |= H1_MF_CLEN;
+				strl2llrc(v.ptr, v.len, &cl);
+				h1m->curr_len = h1m->body_len = cl;
+			}
+		}
+
+		sol = ptr - start;
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			goto http_msg_hdr_name;
+
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_last_lf, http_msg_ood, state, HTTP_MSG_LAST_LF);
+		goto http_msg_last_lf;
+
+	case HTTP_MSG_LAST_LF:
+	http_msg_last_lf:
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_LAST_LF);
+		ptr++;
+		/* <ptr> now points to the first byte of payload. If needed sol
+		 * still points to the first of either CR or LF of the empty
+		 * line ending the headers block.
+		 */
+		if (unlikely(hdr_count >= hdr_num)) {
+			state = HTTP_MSG_LAST_LF;
+			goto http_output_full;
+		}
+		http_set_hdr(&hdr[hdr_count++], ist(""), ist(""));
+		state = HTTP_MSG_BODY;
+		break;
+
+	default:
+		/* impossible states */
+		goto http_msg_invalid;
+	}
+
+	/* reaching here, we've parsed the whole message and the state is
+	 * HTTP_MSG_BODY.
+	 */
+	return ptr - start + skip;
+
+ http_msg_ood:
+	/* out of data at <ptr> during state <state> */
+	return 0;
+
+ http_msg_invalid:
+	/* invalid message, error at <ptr> */
+	if (h1m) {
+		h1m->err_state = state;
+		h1m->err_pos = ptr - start + skip;
+	}
+	return -1;
+
+ http_output_full:
+	/* no more room to store the current header, error at <ptr> */
+	if (h1m) {
+		h1m->err_state = state;
+		h1m->err_pos = ptr - start + skip;
+	}
+	return -2;
 }
 
 /* This function skips trailers in the buffer associated with HTTP message

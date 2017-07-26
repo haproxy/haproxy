@@ -25,6 +25,7 @@
 #include <common/buffer.h>
 #include <common/compiler.h>
 #include <common/config.h>
+#include <common/http-hdr.h>
 #include <common/standard.h>
 #include <types/h1.h>
 #include <types/proto_http.h>
@@ -39,6 +40,9 @@ const char *http_parse_stsline(struct http_msg *msg,
                                unsigned int *ret_ptr, enum h1_state *ret_state);
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 int http_forward_trailers(struct http_msg *msg);
+int h1_headers_to_hdr_list(char *start, const char *stop,
+                           struct http_hdr *hdr, unsigned int hdr_num,
+                           struct h1m *h1m);
 
 #define H1_FLG_CTL  0x01
 #define H1_FLG_SEP  0x02
