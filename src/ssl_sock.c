@@ -3951,11 +3951,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	 */
 	servername = objt_server(conn->target)->ssl_ctx.verify_host;
 	if (!servername) {
-		SSL_SESSION *ssl_sess = SSL_get_session(conn->xprt_ctx);
-		if (!ssl_sess)
-			return ok;
-
-		servername = SSL_SESSION_get0_hostname(ssl_sess);
+		servername = SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
 		if (!servername)
 			return ok;
 	}
