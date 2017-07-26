@@ -662,7 +662,7 @@ int hlua_server_check_enable(lua_State *L)
 
 	sv = hlua_check_server(L, 1);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
-		sv->check.state &= ~CHK_ST_ENABLED;
+		sv->check.state |= CHK_ST_ENABLED;
 	}
 	return 0;
 }
@@ -673,7 +673,7 @@ int hlua_server_check_disable(lua_State *L)
 
 	sv = hlua_check_server(L, 1);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
-		sv->check.state |= CHK_ST_ENABLED;
+		sv->check.state &= ~CHK_ST_ENABLED;
 	}
 	return 0;
 }
