@@ -179,6 +179,8 @@ enum {
 	CO_ER_SSL_RENEG,        /* forbidden client renegociation */
 	CO_ER_SSL_CA_FAIL,      /* client cert verification failed in the CA chain */
 	CO_ER_SSL_CRT_FAIL,     /* client cert verification failed on the certificate */
+	CO_ER_SSL_MISMATCH,     /* Server presented an SSL certificate different from the configured one */
+	CO_ER_SSL_MISMATCH_SNI, /* Server presented an SSL certificate different from the expected one */
 	CO_ER_SSL_HANDSHAKE,    /* SSL error during handshake */
 	CO_ER_SSL_HANDSHAKE_HB, /* SSL error during handshake with heartbeat present */
 	CO_ER_SSL_KILLED_HB,    /* Stopped a TLSv1 heartbeat attack (CVE-2014-0160) */

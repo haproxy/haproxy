@@ -605,6 +605,8 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_RENEG:     return "Rejected a client-initiated SSL renegociation attempt";
 	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
 	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
+	case CO_ER_SSL_MISMATCH:  return "Server presented an SSL certificate different from the configured one";
+	case CO_ER_SSL_MISMATCH_SNI: return "Server presented an SSL certificate different from the expected one";
 	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
 	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
 	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";

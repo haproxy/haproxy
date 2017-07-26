@@ -3931,6 +3931,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	SSL *ssl;
 	struct connection *conn;
 	const char *servername;
+	const char *sni;
 
 	int depth;
 	X509 *cert;
@@ -3952,6 +3953,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	 * verification is OK.
 	 */
 	servername = SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
+	sni = servername;
 	if (!servername) {
 		servername = objt_server(conn->target)->ssl_ctx.verify_host;
 		if (!servername)
@@ -4003,6 +4005,9 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		}
 	}
 
+	/* report the mismatch and indicate if SNI was used or not */
+	if (!ok && !conn->err_code)
+		conn->err_code = sni ? CO_ER_SSL_MISMATCH_SNI : CO_ER_SSL_MISMATCH;
 	return ok;
 }
 
