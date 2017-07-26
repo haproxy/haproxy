@@ -595,6 +595,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 static int sess_update_st_cer(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
+	struct connection *conn = objt_conn(si->end);
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
@@ -603,6 +604,27 @@ static int sess_update_st_cer(struct stream *s)
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;
 			objt_server(s->target)->cur_sess--;
+		}
+
+		if ((si->flags & SI_FL_ERR) &&
+		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
+			/* We tried to connect to a server which is configured
+			 * with "verify required" and which doesn't have the
+			 * "verifyhost" directive. The server presented a wrong
+			 * certificate (a certificate for an unexpected name),
+			 * which implies that we have used SNI in the handshake,
+			 * and that the server doesn't have the associated cert
+			 * and presented a default one.
+			 *
+			 * This is a serious enough issue not to retry. It's
+			 * especially important because this wrong name might
+			 * either be the result of a configuration error, and
+			 * retrying will only hammer the server, or is caused
+			 * by the use of a wrong SNI value, most likely
+			 * provided by the client and we don't want to let the
+			 * client provoke retries.
+			 */
+			si->conn_retries = 0;
 		}
 	}
 
