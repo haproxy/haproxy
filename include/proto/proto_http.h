@@ -60,6 +60,37 @@ extern const unsigned char http_char_classes[256];
 #define HTTP_IS_TOKEN(x)     (http_char_classes[(unsigned char)(x)] & HTTP_FLG_TOK)
 #define HTTP_IS_VER_TOKEN(x) (http_char_classes[(unsigned char)(x)] & HTTP_FLG_VER)
 
+/* Macros used in the HTTP parser, to check for the expected presence of
+ * certain bytes (ef: LF) or to skip to next byte and yield in case of failure.
+ */
+
+
+/* Expects to find an LF at <ptr>. If not, set <state> to <where> and jump to
+ * <bad>.
+ */
+#define EXPECT_LF_HERE(ptr, bad, state, where)                  \
+	do {                                                    \
+		if (unlikely(*(ptr) != '\n')) {                 \
+			state = (where);                        \
+			goto bad;                               \
+		}                                               \
+	} while (0)
+
+/* Increments pointer <ptr>, continues to label <more> if it's still below
+ * pointer <end>, or goes to <stop> and sets <state> to <where> if the end
+ * of buffer was reached.
+ */
+#define EAT_AND_JUMP_OR_RETURN(ptr, end, more, stop, state, where)        \
+	do {                                                              \
+		if (likely(++(ptr) < (end)))                              \
+			goto more;                                        \
+		else {                                                    \
+			state = (where);                                  \
+			goto stop;                                        \
+		}                                                         \
+	} while (0)
+
+
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern struct chunk http_err_chunks[HTTP_ERR_SIZE];
 extern const char *HTTP_302;
