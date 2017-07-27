@@ -601,6 +601,7 @@ The following keywords are supported in the "global" section :
    - tune.comp.maxlevel
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
+   - tune.h2.max-concurrent-streams
    - tune.http.cookielen
    - tune.http.logurilen
    - tune.http.maxhdr
@@ -1385,6 +1386,15 @@ tune.h2.initial-window-size <number>
   over a 1-ms local network. It can make sense to increase this value to allow
   faster uploads, or to reduce it to increase fairness when dealing with many
   clients. It doesn't affect resource usage.
+
+tune.h2.max-concurrent-streams <number>
+  Sets the HTTP/2 maximum number of concurrent streams per connection (ie the
+  number of outstanding requests on a single connection). The default value is
+  100. A larger one may slightly improve page load time for complex sites when
+  visited over high latency networks, but increases the amount of resources a
+  single client may allocate. A value of zero disables the limit so a single
+  client may create as many streams as allocatable by haproxy. It is highly
+  recommended not to change this value.
 
 tune.http.cookielen <number>
   Sets the maximum length of captured cookies. This is the maximum value that
