@@ -753,6 +753,140 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 	return ret;
 }
 
+/* Increase all streams' outgoing window size by the difference passed in
+ * argument. This is needed upon receipt of the settings frame if the initial
+ * window size is different. The difference may be negative and the resulting
+ * window size as well, for the time it takes to receive some window updates.
+ */
+static void h2c_update_all_ws(struct h2c *h2c, int diff)
+{
+	struct h2s *h2s;
+	struct eb32_node *node;
+
+	if (!diff)
+		return;
+
+	node = eb32_first(&h2c->streams_by_id);
+	while (node) {
+		h2s = container_of(node, struct h2s, by_id);
+		h2s->mws += diff;
+		node = eb32_next(node);
+	}
+}
+
+/* processes a SETTINGS frame whose payload is <payload> for <plen> bytes, and
+ * ACKs it if needed. Returns > 0 on success or zero on missing data. It may
+ * return an error in h2c. Described in RFC7540#6.5.
+ */
+static int h2c_handle_settings(struct h2c *h2c)
+{
+	unsigned int offset;
+	int error;
+
+	if (h2c->dff & H2_F_SETTINGS_ACK) {
+		if (h2c->dfl) {
+			error = H2_ERR_FRAME_SIZE_ERROR;
+			goto fail;
+		}
+		return 1;
+	}
+
+	if (h2c->dsi != 0) {
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto fail;
+	}
+
+	if (h2c->dfl % 6) {
+		error = H2_ERR_FRAME_SIZE_ERROR;
+		goto fail;
+	}
+
+	/* that's the limit we can process */
+	if (h2c->dfl > global.tune.bufsize) {
+		error = H2_ERR_FRAME_SIZE_ERROR;
+		goto fail;
+	}
+
+	/* process full frame only */
+	if (h2c->dbuf->i < h2c->dfl)
+		return 0;
+
+	/* parse the frame */
+	for (offset = 0; offset < h2c->dfl; offset += 6) {
+		uint16_t type = h2_get_n16(h2c->dbuf, offset);
+		int32_t  arg  = h2_get_n32(h2c->dbuf, offset + 2);
+
+		switch (type) {
+		case H2_SETTINGS_INITIAL_WINDOW_SIZE:
+			/* we need to update all existing streams with the
+			 * difference from the previous iws.
+			 */
+			if (arg < 0) { // RFC7540#6.5.2
+				error = H2_ERR_FLOW_CONTROL_ERROR;
+				goto fail;
+			}
+			h2c_update_all_ws(h2c, arg - h2c->miw);
+			h2c->miw = arg;
+			break;
+		case H2_SETTINGS_MAX_FRAME_SIZE:
+			if (arg < 16384 || arg > 16777215) { // RFC7540#6.5.2
+				error = H2_ERR_PROTOCOL_ERROR;
+				goto fail;
+			}
+			h2c->mfs = arg;
+			break;
+		}
+	}
+
+	/* need to ACK this frame now */
+	h2c->st0 = H2_CS_FRAME_A;
+	return 1;
+ fail:
+	h2c_error(h2c, error);
+	return 0;
+}
+
+/* try to send an ACK for a settings frame on the connection. Returns > 0 on
+ * success or one of the h2_status values.
+ */
+static int h2c_ack_settings(struct h2c *h2c)
+{
+	struct buffer *res;
+	char str[9];
+	int ret = -1;
+
+	if (h2c_mux_busy(h2c, NULL)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	memcpy(str,
+	       "\x00\x00\x00"     /* length : 0 (no data)  */
+	       "\x04" "\x01"      /* type   : 4, flags : ACK */
+	       "\x00\x00\x00\x00" /* stream ID */, 9);
+
+	ret = bo_istput(res, ist2(str, 9));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+	return ret;
+}
+
 /* processes a PING frame and schedules an ACK if needed. The caller must pass
  * the pointer to the payload in <payload>. Returns > 0 on success or zero on
  * missing data. It may return an error in h2c.
@@ -903,6 +1037,14 @@ static void h2_process_demux(struct h2c *h2c)
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 
 		switch (h2c->dft) {
+		case H2_FT_SETTINGS:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_handle_settings(h2c);
+
+			if (h2c->st0 == H2_CS_FRAME_A)
+				ret = h2c_ack_settings(h2c);
+			break;
+
 		case H2_FT_PING:
 			if (h2c->st0 == H2_CS_FRAME_P)
 				ret = h2c_handle_ping(h2c);
