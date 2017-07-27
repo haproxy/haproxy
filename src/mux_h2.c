@@ -18,6 +18,7 @@
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
+static int h2_settings_initial_window_size    = 65535; /* initial value */
 
 
 /*****************************************************************/
@@ -146,6 +147,22 @@ static int h2_parse_header_table_size(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* config parser for global "tune.h2.initial-window-size" */
+static int h2_parse_initial_window_size(char **args, int section_type, struct proxy *curpx,
+                                        struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	h2_settings_initial_window_size = atoi(args[1]);
+	if (h2_settings_initial_window_size < 0) {
+		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 
 /****************************************/
 /* MUX initialization and instanciation */
@@ -175,6 +192,7 @@ static struct alpn_mux_list alpn_mux_h2 =
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
+	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ 0, NULL, NULL }
 }};
 
