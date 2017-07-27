@@ -1718,7 +1718,6 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	get_http_auth_buff = calloc(1, global.tune.bufsize);
 
 	fdinfo = calloc(1, sizeof(struct fdinfo) * (global.maxsock));
 	fdtab = calloc(1, sizeof(struct fdtab) * (global.maxsock));
@@ -2122,7 +2121,6 @@ void deinit(void)
 	free(fdinfo);         fdinfo  = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
-	free(get_http_auth_buff); get_http_auth_buff = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {

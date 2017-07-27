@@ -1663,11 +1663,6 @@ const char *http_parse_reqline(struct http_msg *msg,
  * have the credentials overwritten by another stream in parallel.
  */
 
-/* This bufffer is initialized in the file 'src/haproxy.c'. This length is
- * set according to global.tune.bufsize.
- */
-char *get_http_auth_buff;
-
 int
 get_http_auth(struct stream *s)
 {
@@ -1713,22 +1708,23 @@ get_http_auth(struct stream *s)
 	chunk_initlen(&txn->auth.method_data, p + 1, 0, ctx.vlen - len - 1);
 
 	if (!strncasecmp("Basic", auth_method.str, auth_method.len)) {
+		struct chunk *http_auth = get_trash_chunk();
 
 		len = base64dec(txn->auth.method_data.str, txn->auth.method_data.len,
-				get_http_auth_buff, global.tune.bufsize - 1);
+				http_auth->str, global.tune.bufsize - 1);
 
 		if (len < 0)
 			return 0;
 
 
-		get_http_auth_buff[len] = '\0';
+		http_auth->str[len] = '\0';
 
-		p = strchr(get_http_auth_buff, ':');
+		p = strchr(http_auth->str, ':');
 
 		if (!p)
 			return 0;
 
-		txn->auth.user = get_http_auth_buff;
+		txn->auth.user = http_auth->str;
 		*p = '\0';
 		txn->auth.pass = p+1;
 
