@@ -14,6 +14,7 @@
 #include <common/config.h>
 #include <common/h2.h>
 #include <common/hpack-tbl.h>
+#include <common/net_helper.h>
 #include <proto/applet.h>
 #include <proto/connection.h>
 #include <proto/stream.h>
@@ -389,6 +390,15 @@ static inline void h2s_error(struct h2s *h2s, enum h2_err err)
 		if (h2s->cs)
 			h2s->cs->flags |= CS_FL_ERROR;
 	}
+}
+
+/* writes the 24-bit frame size <len> at address <frame> */
+static inline void h2_set_frame_size(void *frame, uint32_t len)
+{
+	uint8_t *out = frame;
+
+	*out = len >> 16;
+	write_n16(out + 1, len);
 }
 
 
