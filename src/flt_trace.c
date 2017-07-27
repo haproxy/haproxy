@@ -15,6 +15,7 @@
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/tools.h>
+#include <common/hathreads.h>
 
 #include <types/channel.h>
 #include <types/filters.h>
@@ -153,6 +154,26 @@ static int
 trace_check(struct proxy *px, struct flt_conf *fconf)
 {
 	return 0;
+}
+
+/* Initialize the filter for each thread. Return -1 on error, else 0. */
+static int
+trace_init_per_thread(struct proxy *px, struct flt_conf *fconf)
+{
+	struct trace_config *conf = fconf->conf;
+
+	TRACE(conf, "filter initialized for thread tid %u", tid);
+	return 0;
+}
+
+/* Free ressources allocate by the trace filter for each thread. */
+static void
+trace_deinit_per_thread(struct proxy *px, struct flt_conf *fconf)
+{
+	struct trace_config *conf = fconf->conf;
+
+	if (conf)
+		TRACE(conf, "filter deinitialized for thread tid %u", tid);
 }
 
 /**************************************************************************
@@ -509,9 +530,11 @@ trace_tcp_forward_data(struct stream *s, struct filter *filter, struct channel *
  ********************************************************************/
 struct flt_ops trace_ops = {
 	/* Manage trace filter, called for each filter declaration */
-	.init   = trace_init,
-	.deinit = trace_deinit,
-	.check  = trace_check,
+	.init              = trace_init,
+	.deinit            = trace_deinit,
+	.check             = trace_check,
+	.init_per_thread   = trace_init_per_thread,
+	.deinit_per_thread = trace_deinit_per_thread,
 
 	/* Handle start/stop of streams */
 	.attach             = trace_attach,
