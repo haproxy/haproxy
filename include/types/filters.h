@@ -62,6 +62,11 @@ struct flt_kw_list {
  *  - deinit              : Cleans up what the init function has done.
  *  - check               : Check the filter config for a proxy. Returns the
  *                          number of errors encountered.
+ * - init_per_thread      : Initializes the filter for a proxy for a specific
+ *                          thread. Returns a negative value if an error
+ *                          occurs.
+ * - deinit_per_thread    : Cleans up what the init_per_thread funcion has
+ *                          done.
  *
  *
  *  - attach              : Called after a filter instance creation, when it is
@@ -150,9 +155,11 @@ struct flt_ops {
 	/*
 	 * Callbacks to manage the filter lifecycle
 	 */
-	int  (*init)  (struct proxy *p, struct flt_conf *fconf);
-	void (*deinit)(struct proxy *p, struct flt_conf *fconf);
-	int  (*check) (struct proxy *p, struct flt_conf *fconf);
+	int  (*init)             (struct proxy *p, struct flt_conf *fconf);
+	void (*deinit)           (struct proxy *p, struct flt_conf *fconf);
+	int  (*check)            (struct proxy *p, struct flt_conf *fconf);
+	int  (*init_per_thread)  (struct proxy *p, struct flt_conf *fconf);
+	void (*deinit_per_thread)(struct proxy *p, struct flt_conf *fconf);
 	/*
 	 * Stream callbacks
 	 */

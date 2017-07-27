@@ -1,6 +1,6 @@
                    -----------------------------------------
                           Filters Guide - version 1.8
-                          ( Last update: 2016-11-10 )
+                          ( Last update: 2017-07-27 )
                    ------------------------------------------
                           Author : Christopher Faulet
               Contact : christopher dot faulet at capflam dot org
@@ -33,6 +33,7 @@ SUMMARY
   3.1.      API Overview
   3.2.      Defining the filter name and its configuration
   3.3.      Managing the filter lifecycle
+  3.3.1.        Dealing with threads
   3.4.      Handling the streams activity
   3.5.      Analyzing the channels activity
   3.6.      Filtering the data exchanged
@@ -179,9 +180,11 @@ existing callbacks. Available callbacks are listed in the following structure:
         /*
          * Callbacks to manage the filter lifecycle
          */
-        int  (*init)  (struct proxy *p, struct flt_conf *fconf);
-        void (*deinit)(struct proxy *p, struct flt_conf *fconf);
-        int  (*check) (struct proxy *p, struct flt_conf *fconf);
+        int  (*init)             (struct proxy *p, struct flt_conf *fconf);
+        void (*deinit)           (struct proxy *p, struct flt_conf *fconf);
+        int  (*check)            (struct proxy *p, struct flt_conf *fconf);
+	int  (*init_per_thread)  (struct proxy *p, struct flt_conf *fconf);
+	void (*deinit_per_thread)(struct proxy *p, struct flt_conf *fconf);
 
         /*
          * Stream callbacks
@@ -473,7 +476,7 @@ the HAProxy configuration is fully defined. For example:
 ----------------------------------
 
 Once the configuration parsed and checked, filters are ready to by used. There
-are two callbacks to manage the filter lifecycle:
+are two main callbacks to manage the filter lifecycle:
 
   * 'flt_ops.init': It initializes the filter for a proxy. You may define this
                     callback if you need to complete your filter configuration.
@@ -512,6 +515,30 @@ Here is an example:
 
 TODO: Add callbacks to handle creation/destruction of filter instances. And
       document it.
+
+
+3.3.1 DEALING WITH THREADS
+--------------------------
+
+When HAProxy is compiled with the threads support and started with more that one
+thread (global.nbthread > 1), then it is possible to manage the filter per
+thread with following callbacks:
+
+  * 'flt_ops.init_per_thread': It initializes the filter for each thread. It
+                               works the same way than 'flt_ops.init' but in the
+                               context of a thread. This callback is called
+                               after the thread creation.
+
+  * 'flt_ops.deinit_per_thread': It cleans up what the init_per_thread callback
+                                 have done. It is called in the context of a
+                                 thread, before exiting it.
+
+This is the filter's responsibility to deal with concurrency. check, init and
+deinit callbacks are called on the main thread. All others are called on a
+"worker" thread (not always the same). This is also the filter's responsibility
+to know if HAProxy is started with more than one thread. If it is started with
+one thread (or compiled without the threads support), these callbacks will be
+silently ignored (in this case, global.nbthread will be always equal to one).
 
 
 3.4. HANDLING THE STREAMS ACTIVITY

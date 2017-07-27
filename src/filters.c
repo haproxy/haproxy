@@ -18,6 +18,7 @@
 #include <common/errors.h>
 #include <common/namespace.h>
 #include <common/standard.h>
+#include <common/hathreads.h>
 
 #include <types/filters.h>
 #include <types/proto_http.h>
@@ -263,6 +264,23 @@ flt_init(struct proxy *proxy)
 	return 0;
 }
 
+/*
+ * Calls 'init_per_thread' callback for all filters attached to a proxy for each
+ * threads. This happens after the thread creation. Filters can finish to fill
+ * their config. Returns (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
+ */
+static int
+flt_init_per_thread(struct proxy *proxy)
+{
+	struct flt_conf *fconf;
+
+	list_for_each_entry(fconf, &proxy->filter_configs, list) {
+		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
+			return ERR_ALERT|ERR_FATAL;
+	}
+	return 0;
+}
+
 /* Calls flt_init() for all proxies, see above */
 static int
 flt_init_all()
@@ -279,6 +297,25 @@ flt_init_all()
 		}
 	}
 	return 0;
+}
+
+/* Calls flt_init_per_thread() for all proxies, see above.  Be carefull here, it
+ * returns 0 if an error occured. This is the opposite of flt_init_all. */
+static int
+flt_init_all_per_thread()
+{
+	struct proxy *px;
+	int err_code = 0;
+
+	for (px = proxy; px; px = px->next) {
+		err_code = flt_init_per_thread(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			Alert("Failed to initialize filters for proxy '%s' for thread %u.\n",
+			      px->id, tid);
+			return 0;
+		}
+	}
+	return 1;
 }
 
 /*
@@ -315,6 +352,32 @@ flt_deinit(struct proxy *proxy)
 		LIST_DEL(&fconf->list);
 		free(fconf);
 	}
+}
+
+/*
+ * Calls 'denit_per_thread' callback for all filters attached to a proxy for
+ * each threads. This happens before exiting a thread.
+ */
+void
+flt_deinit_per_thread(struct proxy *proxy)
+{
+	struct flt_conf *fconf, *back;
+
+	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
+		if (fconf->ops->deinit_per_thread)
+			fconf->ops->deinit_per_thread(proxy, fconf);
+	}
+}
+
+
+/* Calls flt_deinit_per_thread() for all proxies, see above */
+static void
+flt_deinit_all_per_thread()
+{
+	struct proxy *px;
+
+	for (px = proxy; px; px = px->next)
+		flt_deinit_per_thread(px);
 }
 
 /* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
@@ -1124,6 +1187,8 @@ __filters_init(void)
         pool2_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
 	cfg_register_keywords(&cfg_kws);
 	hap_register_post_check(flt_init_all);
+	hap_register_per_thread_init(flt_init_all_per_thread);
+	hap_register_per_thread_deinit(flt_deinit_all_per_thread);
 }
 
 __attribute__((destructor))
