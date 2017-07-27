@@ -98,6 +98,33 @@ static inline void chunk_initstr(struct chunk *chk, const char *str)
 	chk->size = 0;			/* mark it read-only */
 }
 
+/* copies memory area <src> into <chk> for <len> bytes. Returns 0 in
+ * case of failure. No trailing zero is added.
+ */
+static inline int chunk_memcpy(struct chunk *chk, const char *src, size_t len)
+{
+	if (unlikely(len >= chk->size))
+		return 0;
+
+	chk->len  = len;
+	memcpy(chk->str, src, len);
+
+	return 1;
+}
+
+/* appends memory area <src> after <chk> for <len> bytes. Returns 0 in
+ * case of failure. No trailing zero is added.
+ */
+static inline int chunk_memcat(struct chunk *chk, const char *src, size_t len)
+{
+	if (unlikely(chk->len < 0 || chk->len + len >= chk->size))
+		return 0;
+
+	memcpy(chk->str + chk->len, src, len);
+	chk->len += len;
+	return 1;
+}
+
 /* copies str into <chk> followed by a trailing zero. Returns 0 in
  * case of failure.
  */
