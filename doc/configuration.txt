@@ -599,6 +599,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.chksize
    - tune.comp.maxlevel
+   - tune.h2.header-table-size
    - tune.http.cookielen
    - tune.http.logurilen
    - tune.http.maxhdr
@@ -1366,6 +1367,13 @@ tune.comp.maxlevel <number>
   usage during compression. This value affects CPU usage during compression.
   Each session using compression initializes the compression algorithm with
   this value. The default value is 1.
+
+tune.h2.header-table-size <number>
+  Sets the HTTP/2 dynamic header table size. It defaults to 4096 bytes and
+  cannot be larger than 65536 bytes. A larger value may help certain clients
+  send more compact requests, depending on their capabilities. This amount of
+  memory is consumed for each HTTP/2 connection. It is recommended not to
+  change it.
 
 tune.http.cookielen <number>
   Sets the maximum length of captured cookies. This is the maximum value that
