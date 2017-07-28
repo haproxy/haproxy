@@ -10418,9 +10418,9 @@ crt-list <file>
 
         <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
 
-  sslbindconf support "npn", "alpn", "verify", "ca_file", "crl_file", "ecdhe",
-  "curves", "ciphers" configuration. With BoringSSL "ssl-min-ver" and
-  "ssl-max-ver" are also supported.
+  sslbindconf support "npn", "alpn", "verify", "ca-file", "no-ca-names",
+  crl-file", "ecdhe", "curves", "ciphers" configuration. With BoringSSL
+  "ssl-min-ver" and "ssl-max-ver" are also supported.
   It override the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
@@ -10600,6 +10600,10 @@ nice <nice>
   processing or bulk transfers which are less sensible to latency. For example,
   it may make sense to use a positive value for an SMTP socket and a negative
   one for an RDP socket.
+
+no-ca-names
+  This setting is only available when support for OpenSSL was built in. It
+  prevents from send CA names in server hello message when ca-file is used.
 
 no-sslv3
   This setting is only available when support for OpenSSL was built in. It
