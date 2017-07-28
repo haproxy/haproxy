@@ -1715,6 +1715,17 @@ set weight <backend>/<server> <weight>[%]
   "admin". Both the backend and the server may be specified either by their
   name or by their numeric ID, prefixed with a sharp ('#').
 
+show acl [<acl>]
+  Dump info about acl converters. Without argument, the list of all available
+  acls is returned. If a <acl> is specified, its contents are dumped. <acl> if
+  the #<id> or <file>. The dump format is the same than the map even for the
+  sample value. The data returned are not a list of available ACL, but are the
+  list of all patterns composing any ACL. Many of these patterns can be shared
+  with maps.
+
+show backend
+  Dump the list of backends available in the running process
+
 show cli sockets
   List CLI sockets. The output format is composed of 3 fields separated by
   spaces. The first field is the socket address, it can be a unix socket, a
@@ -1797,9 +1808,6 @@ show errors [<iid>|<proxy>] [request|response]
     213 bytes when the error was detected, and the error was at byte 23. This
     is the slash ('/') in header name "header/bizarre", which is not a valid
     HTTP character for a header name.
-
-show backend
-  Dump the list of backends available in the running process
 
 show info [typed|json]
   Dump info about haproxy status on current process. If "typed" is passed as an
@@ -1914,14 +1922,6 @@ show map [<map>]
   the pattern and the third column is the sample if available. The data returned
   are not directly a list of available maps, but are the list of all patterns
   composing any map. Many of these patterns can be shared with ACL.
-
-show acl [<acl>]
-  Dump info about acl converters. Without argument, the list of all available
-  acls is returned. If a <acl> is specified, its contents are dumped. <acl> if
-  the #<id> or <file>. The dump format is the same than the map even for the
-  sample value. The data returned are not a list of available ACL, but are the
-  list of all patterns composing any ACL. Many of these patterns can be shared
-  with maps.
 
 show pools
   Dump the status of internal memory pools. This is useful to track memory
