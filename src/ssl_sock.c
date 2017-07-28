@@ -3945,13 +3945,15 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = SSL_get_app_data(ssl);
 
-	/* we're checking against the configured "verifyhost" directive if
-	 * present, or against the SNI used on this connection if present.
-	 * If neither is set, the verification is OK.
+	/* We're checking if the provided hostnames match the desired one. The
+	 * desired hostname comes from the SNI we presented if any, or if not
+	 * provided then it may have been explicitly stated using a "verifyhost"
+	 * directive. If neither is set, we don't care about the name so the
+	 * verification is OK.
 	 */
-	servername = objt_server(conn->target)->ssl_ctx.verify_host;
+	servername = SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
-		servername = SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
+		servername = objt_server(conn->target)->ssl_ctx.verify_host;
 		if (!servername)
 			return ok;
 	}
