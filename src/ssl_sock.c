@@ -1586,8 +1586,8 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	unsigned int  i;
 	int 	      key_type;
 
-	/* Get the private key of the defautl certificate and use it */
-	if (!(pkey = SSL_get_privatekey(ssl)))
+	/* Get the private key of the default certificate and use it */
+	if (!(pkey = SSL_CTX_get0_privatekey(bind_conf->default_ctx)))
 		goto mkcert_error;
 
 	/* Create the certificate */
