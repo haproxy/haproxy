@@ -2892,8 +2892,11 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	int srv_f_forced_id;
 	int fqdn_set_by_cli;
 	const char *fqdn;
+	const char *port_str;
+	unsigned int port;
 
 	fqdn = NULL;
+	port = 0;
 	msg = get_trash_chunk();
 	switch (version) {
 		case 1:
@@ -2913,6 +2916,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 * bk_f_forced_id:       params[11]
 			 * srv_f_forced_id:      params[12]
 			 * srv_fqdn:             params[13]
+			 * srv_port:             params[14]
 			 */
 
 			/* validating srv_op_state */
@@ -3034,6 +3038,15 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			if (fqdn && (strlen(fqdn) > DNS_MAX_NAME_SIZE || invalid_domainchar(fqdn))) {
 				chunk_appendf(msg, ", invalid srv_fqdn value '%s'", params[13]);
 				fqdn = NULL;
+			}
+
+			port_str = params[14];
+			if (port_str) {
+				port = strl2uic(port_str, strlen(port_str));
+				if (port > USHRT_MAX) {
+					chunk_appendf(msg, ", invalid srv_port value '%s'", port_str);
+					port_str = NULL;
+				}
 			}
 
 			/* don't apply anything if one error has been detected */
@@ -3166,6 +3179,9 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					}
 				}
 			}
+
+			if (port_str)
+				srv->svc_port = port;
 
 			break;
 		default:
@@ -3416,6 +3432,7 @@ void apply_server_state(void)
 							 * bk_f_forced_id:       params[15] => srv_params[11]
 							 * srv_f_forced_id:      params[16] => srv_params[12]
 							 * srv_fqdn:             params[17] => srv_params[13]
+							 * srv_port:             params[18] => srv_params[14]
 							 */
 							if (arg >= 4) {
 								srv_params[srv_arg] = cur;

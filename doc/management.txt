@@ -2042,6 +2042,7 @@ show servers state [<backend>]
      srv_f_forced_id:             Flag to know if the server's ID is forced by
                                   configuration.
      srv_fqdn:                    Server FQDN.
+     srv_port:                    Server port.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can

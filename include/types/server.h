@@ -123,9 +123,10 @@ enum srv_initaddr {
     "srv_agent_state "            \
     "bk_f_forced_id "             \
     "srv_f_forced_id "            \
-    "srv_fqdn"
+    "srv_fqdn "                   \
+    "srv_port"
 
-#define SRV_STATE_FILE_MAX_FIELDS 18
+#define SRV_STATE_FILE_MAX_FIELDS 19
 #define SRV_STATE_FILE_NB_FIELDS_VERSION_1 18
 #define SRV_STATE_LINE_MAXLEN 512
 
