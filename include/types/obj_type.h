@@ -39,6 +39,7 @@ enum obj_type {
 	OBJ_TYPE_APPLET,       /* object is a struct applet */
 	OBJ_TYPE_APPCTX,       /* object is a struct appctx */
 	OBJ_TYPE_CONN,         /* object is a struct connection */
+	OBJ_TYPE_SRVRQ,        /* object is a struct dns_srvrq */
 	OBJ_TYPE_ENTRIES       /* last one : number of entries */
 } __attribute__((packed)) ;
 

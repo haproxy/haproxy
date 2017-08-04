@@ -131,6 +131,18 @@ static inline struct connection *objt_conn(enum obj_type *t)
 	return __objt_conn(t);
 }
 
+static inline struct dns_srvrq *__objt_dns_srvrq(enum obj_type *t)
+{
+	return container_of(t, struct dns_srvrq, obj_type);
+}
+
+static inline struct dns_srvrq *objt_dns_srvrq(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_SRVRQ)
+		return NULL;
+	return __objt_dns_srvrq(t);
+}
+
 static inline void *obj_base_ptr(enum obj_type *t)
 {
 	switch (obj_type(t)) {
