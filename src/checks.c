@@ -1557,7 +1557,7 @@ static int connect_conn_chk(struct task *t)
 	}
 
 	ret = SF_ERR_INTERNAL;
-	if (proto->connect)
+	if (proto && proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
 	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
