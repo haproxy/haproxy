@@ -1820,6 +1820,8 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 #ifdef TCP_USER_TIMEOUT
 	srv->tcp_ut = src->tcp_ut;
 #endif
+	if (srv_tmpl)
+		srv->srvrq = src->srvrq;
 }
 
 static struct server *new_server(struct proxy *proxy)
@@ -2285,18 +2287,68 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			/* save hostname and create associated name resolution */
 			if (fqdn) {
-				if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-					Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
-					      file, linenum, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
+				if (fqdn[0] == '_') {
+					struct dns_srvrq *srvrq = NULL;
+					int found = 0;
+					/* SRV record */
+					/* Check if a SRV request already exists, and if not, create it */
+					list_for_each_entry(srvrq, &curproxy->srvrq_list, list) {
+						if (!strcmp(srvrq->name, fqdn)) {
+							found = 1;
+							break;
+						}
+					}
+					if (found == 0) {
+						int hostname_dn_len;
+
+						srvrq = calloc(1, sizeof(*srvrq));
+						if (!srvrq) {
+							Alert("Failed to allocate memory");
+							err_code = ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						srvrq->obj_type = OBJ_TYPE_SRVRQ;
+						srvrq->proxy = proxy;
+						srvrq->name = strdup(fqdn);
+						srvrq->inter = 2000;
+						hostname_dn_len = dns_str_to_dn_label_len(fqdn);
+						if (hostname_dn_len == -1) {
+							Alert("Failed to parse domaine name '%s'", fqdn);
+							err_code = ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						srvrq->hostname_dn = malloc(hostname_dn_len + 1);
+						srvrq->hostname_dn_len = hostname_dn_len;
+						if (!srvrq->hostname_dn) {
+							Alert("Failed to alloc memory");
+							err_code = ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						if (!dns_str_to_dn_label(fqdn,
+						    srvrq->hostname_dn,
+						    hostname_dn_len + 1)) {
+							Alert("Failed to parse domain name '%s'", fqdn);
+							err_code = ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						LIST_ADDQ(&proxy->srvrq_list, &srvrq->list);
+
+					}
+					newsrv->srvrq = srvrq;
+
+
+				} else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
+						Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
+						    file, linenum, newsrv->id);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
 				}
 			}
 
 			newsrv->addr = *sk;
 			newsrv->svc_port = port;
 
-			if (!newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
+			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 				      file, linenum, newsrv->addr.ss_family, args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -2528,6 +2580,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 				newsrv->check.inter = val;
+				if (newsrv->srvrq)
+					newsrv->srvrq->inter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "fastinter")) {
@@ -4043,6 +4097,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 {
 	struct dns_resolution *resolution;
 	int hostname_dn_len;
+	int did_set_reso = 0;
 
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
@@ -4065,17 +4120,23 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 		return -1;
 
 
-	/* get a resolution from the curr or wait queues, or a brand new one from the pool */
-	resolution = dns_resolution_list_get(srv->resolvers, trash.str, srv->dns_requester->prefered_query_type);
-	if (!resolution)
-		return -1;
+	if (srv->resolution->hostname_dn) {
+		/* get a resolution from the curr or wait queues, or a brand new one from the pool */
+		resolution = dns_resolution_list_get(srv->resolvers, trash.str, srv->dns_requester->prefered_query_type);
+		if (!resolution)
+			return -1;
 
-	/* in this case, the new hostanme is the same than the old one */
-	if (srv->resolution == resolution)
-		return 0;
+		/* in this case, the new hostanme is the same than the old one */
+		if (srv->resolution == resolution && srv->hostname)
+			return 0;
 
-	/* first, we need to unlink our server from its current resolution */
-	srv_free_from_resolution(srv);
+		/* first, we need to unlink our server from its current resolution */
+		srv_free_from_resolution(srv);
+	} else {
+		resolution = srv->resolution;
+		resolution->last_resolution = now_ms;
+		did_set_reso = 1;
+	}
 
 	/* now we update server's parameters */
 	free(srv->hostname);
@@ -4085,6 +4146,11 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 	srv->hostname_dn_len = hostname_dn_len;
 	if (!srv->hostname || !srv->hostname_dn)
 		return -1;
+	if (did_set_reso) {
+		resolution->query_type = srv->dns_requester->prefered_query_type;
+		resolution->hostname_dn = srv->hostname_dn;
+		resolution->hostname_dn_len = hostname_dn_len;
+	}
 
 	/* then we can link srv to its new resolution */
 	dns_link_resolution(srv, OBJ_TYPE_SERVER, resolution);
@@ -4223,7 +4289,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 	msg = get_trash_chunk();
 	chunk_reset(msg);
 
-	if (!strcmp(fqdn, server->hostname)) {
+	if (server->hostname && !strcmp(fqdn, server->hostname)) {
 		chunk_appendf(msg, "no need to change the FDQN");
 		goto out;
 	}

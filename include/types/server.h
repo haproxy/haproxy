@@ -298,6 +298,7 @@ struct server {
 		int nb_low;
 		int nb_high;
 	} tmpl_info;
+	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 };
 
 /* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of

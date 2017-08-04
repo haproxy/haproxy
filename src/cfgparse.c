@@ -8549,7 +8549,20 @@ out_uri_auth_compat:
 					newsrv->id, newsrv->resolvers_id);
 					cfgerr++;
 				} else {
-					if (newsrv->hostname_dn) {
+					if (newsrv->srvrq) {
+						if (!newsrv->srvrq->resolvers) {
+							newsrv->srvrq->resolvers = curr_resolvers;
+							if (dns_link_resolution(newsrv->srvrq,
+							    OBJ_TYPE_SRVRQ, NULL) != 0) {
+								Alert("config : %s '%s', server '%s': unable to set DNS resolution\n",
+								    proxy_type_str(curproxy), curproxy->id,
+								    newsrv->id);
+								cfgerr++;
+							}
+						}
+
+					}
+					if (newsrv->srvrq || newsrv->hostname_dn) {
 						newsrv->resolvers = curr_resolvers;
 						if (dns_link_resolution(newsrv, OBJ_TYPE_SERVER, NULL) != 0) {
 							Alert("config : %s '%s', server '%s': unable to set DNS resolution\n",
@@ -8574,6 +8587,13 @@ out_uri_auth_compat:
 
 		next_srv:
 			newsrv = newsrv->next;
+		}
+		{
+			struct dns_srvrq *srvrq;
+
+			list_for_each_entry(srvrq, &curproxy->srvrq_list, list) {
+					dns_link_resolution(srvrq, OBJ_TYPE_SRVRQ, NULL);
+			}
 		}
 
 		/*

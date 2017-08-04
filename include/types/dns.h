@@ -63,6 +63,7 @@
 #define DNS_RTYPE_A		1	/* IPv4 address */
 #define DNS_RTYPE_CNAME		5	/* canonical name */
 #define DNS_RTYPE_AAAA		28	/* IPv6 address */
+#define DNS_RTYPE_SRV		33	/* SRV record */
 #define DNS_RTYPE_ANY		255	/* all records */
 
 /* dns rcode values */
@@ -316,6 +317,21 @@ enum {
 	DNS_UPD_NAME_ERROR,		/* name in the response did not match the query */
 	DNS_UPD_NO_IP_FOUND,		/* no IP could be found in the response */
 	DNS_UPD_OBSOLETE_IP,		/* The server IP was obsolete, and no other IP was found */
+};
+
+struct dns_srvrq {
+	enum obj_type obj_type;			/* object type == OBJ_TYPE_SRVRQ */
+	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used for this server template */
+
+	struct dns_resolution *resolution;	/* server name resolution */
+
+	struct proxy *proxy;			/* associated proxy */
+	char *name;
+	char *hostname_dn;			/* server hostname in Domain Name format */
+	int hostname_dn_len;			/* string length of the server hostname in Domain Name format */
+	struct dns_requester *dns_requester;	/* used to link to its DNS resolution */
+	int inter;				/* time in ms */
+	struct list list;			/* Next SRV RQ for the same proxy */
 };
 
 #endif /* _TYPES_DNS_H */

@@ -21,6 +21,7 @@
 
 #include <common/time.h>
 #include <common/ticks.h>
+#include <common/net_helper.h>
 
 #include <import/lru.h>
 #include <import/xxhash.h>
@@ -153,6 +154,10 @@ int dns_trigger_resolution(struct dns_resolution *resolution)
 				inter = objt_server(requester->requester)->check.inter;
 				resolvers = objt_server(requester->requester)->resolvers;
 				break;
+			case OBJ_TYPE_SRVRQ:
+				inter = objt_dns_srvrq(requester->requester)->inter;
+				resolvers = objt_dns_srvrq(requester->requester)->resolvers;
+				break;
 			case OBJ_TYPE_NONE:
 			default:
 				return -1;
@@ -212,10 +217,24 @@ dns_run_resolution(struct dns_requester *requester)
 			proxy = objt_server(requester->requester)->proxy;
 			query_type = requester->prefered_query_type;
 			break;
+		case OBJ_TYPE_SRVRQ:
+			resolution = objt_dns_srvrq(requester->requester)->resolution;
+			resolvers = objt_dns_srvrq(requester->requester)->resolvers;
+			proxy = objt_dns_srvrq(requester->requester)->proxy;
+			query_type = DNS_RTYPE_SRV;
+			break;
 		case OBJ_TYPE_NONE:
 		default:
 			return -1;
 	}
+
+	/*
+	 * Avoid sending requests for resolutions that don't yet have
+	 * an hostname, ie resolutions linked to servers that do not yet
+	 * have an fqdn
+	 */
+	if (!resolution->hostname_dn)
+		return 0;
 
 	/*
 	 * check if a resolution has already been started for this server
@@ -352,6 +371,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 
 	/* process all pending input messages */
 	while (1) {
+		int removed_reso = 0;
 		/* read message received */
 		memset(buf, '\0', DNS_MAX_UDP_MESSAGE + 1);
 		if ((buflen = recv(fd, (char*)buf , DNS_MAX_UDP_MESSAGE, 0)) < 0) {
@@ -478,14 +498,104 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 				break;
 		}
 
-		/* Check for any obsolete record */
+		/* Check for any obsolete record, also identify any SRV request, and try to find a corresponding server */
 		list_for_each_entry_safe(item1, item2, &resolution->response.answer_list,
 		    list) {
 			if (item1->last_seen + nameserver->resolvers->hold.obsolete / 1000 < now.tv_sec) {
 				LIST_DEL(&item1->list);
+				if (item1->type == DNS_RTYPE_SRV && !LIST_ISEMPTY(&resolution->requester.curr)) {
+					struct dns_srvrq *srvrq;
+
+					requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
+
+					srvrq = objt_dns_srvrq(requester->requester);
+					/* We're removing an obsolete entry, remove any associated server */
+					if (srvrq) {
+						struct server *srv;
+
+						for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+							if (srv->srvrq == srvrq &&
+							    item1->data_len ==
+							    srv->hostname_dn_len &&
+							    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
+							    srv->svc_port == item1->port) {
+								snr_update_srv_status(srv, 1);
+								free(srv->hostname);
+								srv->hostname = NULL;
+								srv->hostname_dn_len = 0;
+								free(srv->hostname_dn);
+								srv->hostname_dn = NULL;
+								dns_resolution_free(srv->resolvers, srv->resolution);
+								srv->resolution = dns_resolution_list_get(srv->resolvers, NULL, srv->dns_requester->prefered_query_type);
+								if (resolution == srv->resolution)
+									removed_reso = 1;
+							}
+						}
+					}
+				}
 				free_dns_answer_item(item1);
+				continue;
+			}
+			if (item1->type == DNS_RTYPE_SRV) {
+				struct server *srv;
+				struct dns_srvrq *srvrq;
+
+				if (LIST_ISEMPTY(&resolution->requester.curr))
+					continue;
+
+				requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
+				srvrq = objt_dns_srvrq(requester->requester);
+				if (!srvrq)
+					continue;
+				/* Check if a server already uses that hostname */
+				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+					if (srv->srvrq == srvrq &&
+					    item1->data_len == srv->hostname_dn_len &&
+					    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
+					    srv->svc_port == item1->port) {
+						if (srv->uweight != item1->weight) {
+							char weight[9];
+
+							snprintf(weight, sizeof(weight),
+							    "%d", item1->weight);
+							server_parse_weight_change_request(srv, weight);
+
+						}
+
+						break;
+					}
+				}
+				/* If not, try to find a server that is down */
+				if (!srv) {
+					for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+
+						if (srv->srvrq == srvrq &&
+						    !srv->hostname_dn)
+							break;
+					}
+					if (srv) {
+						char weight[9];
+
+						char hostname[DNS_MAX_NAME_SIZE];
+
+						if (item1->data_len > DNS_MAX_NAME_SIZE)
+							continue;
+						dns_dn_label_to_str(item1->target, hostname, item1->data_len);
+						update_server_fqdn(srv, hostname, "SRV record");
+						srv->svc_port = item1->port;
+						srv->flags &= ~SRV_F_MAPPORTS;
+						if ((srv->check.state & CHK_ST_CONFIGURED) && !(srv->flags & SRV_F_CHECKPORT))
+							srv->check.port = item1->port;
+						snprintf(weight, sizeof(weight),
+						    "%d", item1->weight);
+						server_parse_weight_change_request(srv, weight);
+					}
+
+				}
 			}
 		}
+		if (removed_reso)
+			goto next_packet;
 
 		/* some error codes trigger a re-send of the query, but switching the
 		 * query type.
@@ -576,6 +686,8 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		 * We can check only the first query of the list. We send one query at a time
 		 * so we get one query in the response */
 		query = LIST_NEXT(&resolution->response.query_list, struct dns_query_item *, list);
+		if (!resolution->hostname_dn)
+			abort();
 		if (query && memcmp(query->name, resolution->hostname_dn, resolution->hostname_dn_len) != 0) {
 			nameserver->counters.other += 1;
 			/* now parse list of requesters currently waiting for this resolution */
@@ -706,6 +818,9 @@ int dns_send_query(struct dns_resolution *resolution)
 		case OBJ_TYPE_SERVER:
 			resolvers = objt_server(requester->requester)->resolvers;
 			break;
+		case OBJ_TYPE_SRVRQ:
+			resolvers = objt_dns_srvrq(requester->requester)->resolvers;
+			break;
 		case OBJ_TYPE_NONE:
 		default:
 			return 0;
@@ -775,6 +890,9 @@ void dns_update_resolvers_timeout(struct dns_resolvers *resolvers)
 				case OBJ_TYPE_SERVER:
 					valid_period = objt_server(requester->requester)->check.inter;
 					break;
+				case OBJ_TYPE_SRVRQ:
+					valid_period = objt_dns_srvrq(requester->requester)->inter;
+					break;
 				case OBJ_TYPE_NONE:
 				default:
 					continue;
@@ -789,6 +907,9 @@ void dns_update_resolvers_timeout(struct dns_resolvers *resolvers)
 				switch (obj_type(requester->requester)) {
 					case OBJ_TYPE_SERVER:
 						dns_trigger_resolution(objt_server(requester->requester)->resolution);
+						break;
+					case OBJ_TYPE_SRVRQ:
+						dns_trigger_resolution(objt_dns_srvrq(requester->requester)->resolution);
 						break;
 					case OBJ_TYPE_NONE:
 					default:
@@ -911,6 +1032,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	struct dns_answer_item *dns_answer_record, *tmp_record;
 	struct dns_response_packet *dns_p;
 	int found = 0;
+	int i;
 
 	reader = resp;
 	len = 0;
@@ -1028,7 +1150,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 	/* now parsing response records */
 	nb_saved_records = 0;
-	for (int i = 0; i < dns_p->header.ancount; i++) {
+	for (i = 0; i < dns_p->header.ancount; i++) {
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
 
@@ -1151,6 +1273,36 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 				break;
 
+
+			case DNS_RTYPE_SRV:
+				/*
+				 * Answer must contain :
+				 * - 2 bytes for the priority
+				 * - 2 bytes for the weight
+				 * - 2 bytes for the port
+				 * - the target hostname
+				 */
+				if (dns_answer_record->data_len <= 6) {
+					free_dns_answer_item(dns_answer_record);
+					return DNS_RESP_INVALID;
+				}
+				dns_answer_record->priority = readn16(reader);
+				reader += sizeof(uint16_t);
+				dns_answer_record->weight = readn16(reader);
+				reader += sizeof(uint16_t);
+				dns_answer_record->port = readn16(reader);
+				reader += sizeof(uint16_t);
+				offset = 0;
+				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
+				if (len == 0) {
+					free_dns_answer_item(dns_answer_record);
+					return DNS_RESP_INVALID;
+				}
+				reader++;
+				dns_answer_record->data_len = len;
+				memcpy(dns_answer_record->target, tmpname, len);
+				dns_answer_record->target[len] = 0;
+				break;
 			case DNS_RTYPE_AAAA:
 				/* ipv6 is stored on 16 bytes */
 				if (dns_answer_record->data_len != 16) {
@@ -1172,6 +1324,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 
 		/* Lookup to see if we already had this entry */
 
+		found = 0;
 		list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
 			if (tmp_record->type != dns_answer_record->type)
 				continue;
@@ -1186,6 +1339,15 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 				    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr, sizeof(struct in6_addr)))
 					found = 1;
 				break;
+			case DNS_RTYPE_SRV:
+                                if (dns_answer_record->data_len == tmp_record->data_len &&
+				    !memcmp(dns_answer_record->target,
+                                    tmp_record->target, dns_answer_record->data_len) &&
+				    dns_answer_record->port == tmp_record->port) {
+					tmp_record->weight = dns_answer_record->weight;
+                                        found = 1;
+				}
+                                break;
 			default:
 				break;
 			}
@@ -1635,6 +1797,28 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
 	return ptr - buf;
 }
 
+/* Turn a domain name label into a string */
+void dns_dn_label_to_str(char *dn, char *str, int dn_len)
+{
+	int remain_size = 0;
+	int i;
+
+	for (i = 0; i < dn_len; i++) {
+		if (remain_size == 0) {
+			remain_size = dn[i];
+			if (i != 0) {
+				str[i - 1] = '.';
+
+			}
+		} else {
+			str[i - 1] = dn[i];
+			remain_size--;
+		}
+	}
+	str[dn_len - 1] = 0;
+
+}
+
 /*
  * turn a string into domain name label:
  * www.haproxy.org into 3www7haproxy3org
@@ -1827,8 +2011,23 @@ struct task *dns_process_resolve(struct task *t)
 		switch (obj_type(requester->requester)) {
 			case OBJ_TYPE_SERVER:
 				dns_opts = &(objt_server(requester->requester)->dns_opts);
+				res_preferred_afinet = dns_opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
+				res_preferred_afinet6 = dns_opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
+
+				/* let's change the query type if needed */
+				if (res_preferred_afinet6) {
+					/* fallback from AAAA to A */
+					resolution->query_type = DNS_RTYPE_A;
+				}
+				else if (res_preferred_afinet) {
+					/* fallback from A to AAAA */
+					resolution->query_type = DNS_RTYPE_AAAA;
+				}
+
 				break;
 
+			case OBJ_TYPE_SRVRQ:
+				break;
 			case OBJ_TYPE_NONE:
 			default:
 				/* clean up resolution information and remove from the list */
@@ -1840,19 +2039,6 @@ struct task *dns_process_resolve(struct task *t)
 				/* notify the result to the requester */
 				requester->requester_error_cb(requester, DNS_RESP_INTERNAL);
 				goto out;
-		}
-
-		res_preferred_afinet = dns_opts->family_prio == AF_INET && resolution->query_type == DNS_RTYPE_A;
-		res_preferred_afinet6 = dns_opts->family_prio == AF_INET6 && resolution->query_type == DNS_RTYPE_AAAA;
-
-		/* let's change the query type if needed */
-		if (res_preferred_afinet6) {
-			/* fallback from AAAA to A */
-			resolution->query_type = DNS_RTYPE_A;
-		}
-		else if (res_preferred_afinet) {
-			/* fallback from A to AAAA */
-			resolution->query_type = DNS_RTYPE_AAAA;
 		}
 
 		/* resend the DNS query */
@@ -1966,6 +2152,9 @@ dns_cache_lookup(int query_type, char *hostname_dn, int hostname_dn_len, int val
 		case OBJ_TYPE_SERVER:
 			resolvers = objt_server(requester->requester)->resolvers;
 			break;
+		case OBJ_TYPE_SRVRQ:
+			resolvers = objt_dns_srvrq(requester->requester)->resolvers;
+			break;
 		case OBJ_TYPE_NONE:
 		default:
 			return NULL;
@@ -2028,6 +2217,7 @@ int dns_link_resolution(void *requester, int requester_type, struct dns_resoluti
 	char *hostname_dn = NULL;
 	int new_resolution;
 
+
 	if (!resolution) {
 		tmprequester = calloc(1, sizeof(*tmprequester));
 		if (!tmprequester)
@@ -2046,6 +2236,11 @@ int dns_link_resolution(void *requester, int requester_type, struct dns_resoluti
 						tmprequester->prefered_query_type = DNS_RTYPE_AAAA;
 				}
 
+				break;
+			case OBJ_TYPE_SRVRQ:
+				tmprequester->requester = &((struct dns_srvrq *)requester)->obj_type;
+				hostname_dn = objt_dns_srvrq(requester)->hostname_dn;
+				resolvers = objt_dns_srvrq(requester)->resolvers;
 				break;
 			case OBJ_TYPE_NONE:
 			default:
@@ -2067,6 +2262,10 @@ int dns_link_resolution(void *requester, int requester_type, struct dns_resoluti
 			case OBJ_TYPE_SERVER:
 				tmprequester = ((struct server *)requester)->dns_requester;
 				resolvers = ((struct server *)requester)->resolvers;
+				break;
+			case OBJ_TYPE_SRVRQ:
+				tmprequester = objt_dns_srvrq(requester)->dns_requester;
+				resolvers = objt_dns_srvrq(requester)->resolvers;
 				break;
 			case OBJ_TYPE_NONE:
 			default:
@@ -2102,6 +2301,23 @@ int dns_link_resolution(void *requester, int requester_type, struct dns_resoluti
 				objt_server(tmprequester->requester)->dns_requester = tmprequester;
 			}
 			break;
+		case OBJ_TYPE_SRVRQ:
+			/* some parameters should be set only if the resolution is brand new */
+			if (new_resolution) {
+				tmpresolution->query_type = DNS_RTYPE_SRV;
+				tmpresolution->hostname_dn = objt_dns_srvrq(tmprequester->requester)->hostname_dn;
+				tmpresolution->hostname_dn_len = objt_dns_srvrq(tmprequester->requester)->hostname_dn_len;
+			}
+
+			/* update requester as well, only if we just allocated it */
+			objt_dns_srvrq(tmprequester->requester)->resolution = tmpresolution;
+			if (!resolution) {
+				tmprequester->requester_cb = snr_resolution_cb;
+				tmprequester->requester_error_cb = snr_resolution_error_cb;
+				objt_dns_srvrq(tmprequester->requester)->dns_requester = tmprequester;
+			}
+			break;
+
 		case OBJ_TYPE_NONE:
 		default:
 			free(tmprequester);
@@ -2142,42 +2358,45 @@ struct dns_resolution *dns_resolution_list_get(struct dns_resolvers *resolvers, 
 	struct dns_resolution *resolution, *tmpresolution;
 	struct dns_requester *requester;
 
-	/* search for same hostname and query type in resolution.curr */
-	list_for_each_entry_safe(resolution, tmpresolution, &resolvers->resolution.curr, list) {
-		requester = NULL;
+	if (hostname_dn) {
+		/* search for same hostname and query type in resolution.curr */
+		list_for_each_entry_safe(resolution, tmpresolution, &resolvers->resolution.curr, list) {
+			requester = NULL;
 
-		if (!LIST_ISEMPTY(&resolution->requester.wait))
-			requester = LIST_NEXT(&resolution->requester.wait, struct dns_requester *, list);
-		else if (!LIST_ISEMPTY(&resolution->requester.curr))
-			requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
+			if (!LIST_ISEMPTY(&resolution->requester.wait))
+				requester = LIST_NEXT(&resolution->requester.wait, struct dns_requester *, list);
+			else if (!LIST_ISEMPTY(&resolution->requester.curr))
+				requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
 
-		if (!requester)
-			continue;
+			if (!requester)
+				continue;
 
-		if ((query_type == requester->prefered_query_type) &&
-		    (strcmp(hostname_dn, resolution->hostname_dn) == 0)) {
-			return resolution;
+			if ((query_type == requester->prefered_query_type) &&
+			    (resolution->hostname_dn &&
+			     strcmp(hostname_dn, resolution->hostname_dn) == 0)) {
+				return resolution;
+			}
+		}
+
+		/* search for same hostname and query type in resolution.wait */
+		list_for_each_entry_safe(resolution, tmpresolution, &resolvers->resolution.wait, list) {
+			requester = NULL;
+
+			if (!LIST_ISEMPTY(&resolution->requester.wait))
+				requester = LIST_NEXT(&resolution->requester.wait, struct dns_requester *, list);
+			else if (!LIST_ISEMPTY(&resolution->requester.curr))
+				requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
+
+			if (!requester)
+				continue;
+
+			if ((query_type == requester->prefered_query_type) &&
+			    (resolution->hostname_dn &&
+			     strcmp(hostname_dn, resolution->hostname_dn) == 0)) {
+				return resolution;
+			}
 		}
 	}
-
-	/* search for same hostname and query type in resolution.wait */
-	list_for_each_entry_safe(resolution, tmpresolution, &resolvers->resolution.wait, list) {
-		requester = NULL;
-
-		if (!LIST_ISEMPTY(&resolution->requester.wait))
-			requester = LIST_NEXT(&resolution->requester.wait, struct dns_requester *, list);
-		else if (!LIST_ISEMPTY(&resolution->requester.curr))
-			requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
-
-		if (!requester)
-			continue;
-
-		if ((query_type == requester->prefered_query_type) &&
-		    (strcmp(hostname_dn, resolution->hostname_dn) == 0)) {
-			return resolution;
-		}
-	}
-
 	/* take the first one (hopefully) from the pool */
 	list_for_each_entry_safe(resolution, tmpresolution, &resolvers->resolution.pool, list) {
 		if (LIST_ISEMPTY(&resolution->requester.wait)) {
@@ -2261,6 +2480,9 @@ void dns_rm_requester_from_resolution(struct dns_requester *requester, struct dn
 		case OBJ_TYPE_SERVER:
 			hostname_dn = objt_server(requester->requester)->hostname_dn;
 			break;
+		case OBJ_TYPE_SRVRQ:
+			hostname_dn = objt_dns_srvrq(requester->requester)->hostname_dn;
+			break;
 		case OBJ_TYPE_NONE:
 		default:
 			hostname_dn = NULL;
@@ -2290,6 +2512,11 @@ void dns_rm_requester_from_resolution(struct dns_requester *requester, struct dn
 			resolution->hostname_dn = objt_server(tmprequester->requester)->hostname_dn;
 			resolution->hostname_dn_len = objt_server(tmprequester->requester)->hostname_dn_len;
 			break;
+		case OBJ_TYPE_SRVRQ:
+			resolution->hostname_dn = objt_dns_srvrq(tmprequester->requester)->hostname_dn;
+			resolution->hostname_dn_len = objt_dns_srvrq(tmprequester->requester)->hostname_dn_len;
+			break;
+
 		case OBJ_TYPE_NONE:
 		default:
 			;;
@@ -2301,6 +2528,9 @@ void dns_rm_requester_from_resolution(struct dns_requester *requester, struct dn
 	switch (obj_type(requester->requester)) {
 		case OBJ_TYPE_SERVER:
 			objt_server(requester->requester)->resolution = NULL;
+			break;
+		case OBJ_TYPE_SRVRQ:
+			objt_dns_srvrq(requester->requester)->resolution = NULL;
 			break;
 		case OBJ_TYPE_NONE:
 		default:
