@@ -11637,6 +11637,13 @@ A few other events can trigger a name resolution at run time:
     because the server has a new IP address. So we need to trigger a name
     resolution to know this new IP.
 
+When using resolvers, the server name can either be a hostname, or s SRV label.
+HAProxy considers anything that starts with an underscore a SRV label.
+If a SRV label is specified, then the corresponding SRV records will be
+retrieved from the DNS server, and the provided hostnames will be used. The
+SRV label will be checked periodically, and if any server are added or removed,
+haproxy will automatically do the same.
+
 A few things important to notice:
   - all the name servers are queried in the mean time. HAProxy will process the
     first valid response.
