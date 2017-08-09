@@ -2129,15 +2129,11 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	node = node_ecdsa ? node_ecdsa : (node_rsa ? node_rsa : node_anonymous);
 
 	if (node) {
-		int min, max;
 		/* switch ctx */
+		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
 		ssl_sock_switchctx_set(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
-		min = container_of(node, struct sni_ctx, name)->conf->ssl_methods.min;
-		if (min != s->ssl_methods.min)
-			methodVersions[min].ssl_set_version(ctx->ssl, SET_MIN);
-		max = container_of(node, struct sni_ctx, name)->conf->ssl_methods.max;
-		if (max != s->ssl_methods.max)
-			methodVersions[max].ssl_set_version(ctx->ssl, SET_MAX);
+		methodVersions[conf->ssl_methods.min].ssl_set_version(ctx->ssl, SET_MIN);
+		methodVersions[conf->ssl_methods.max].ssl_set_version(ctx->ssl, SET_MAX);
 		return 1;
 	}
 	if (!s->strict_sni) {
@@ -3552,7 +3548,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS |
 		SSL_MODE_SMALL_BUFFERS;
-	struct tls_version_filter *conf_ssl_methods = &bind_conf->ssl_methods;
+	struct tls_version_filter *conf_ssl_methods = &bind_conf->ssl_conf.ssl_methods;
 	int i, min, max, hole;
 	int flags = MC_SSL_O_ALL;
 	int cfgerr = 0;
@@ -3666,8 +3662,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		int flags = MC_SSL_O_ALL;
 
 		/* Real min and max should be determinate with configuration and openssl's capabilities */
-		min = conf_ssl_methods->min ? conf_ssl_methods->min : bind_conf->ssl_methods.min;
-		max = conf_ssl_methods->max ? conf_ssl_methods->max : bind_conf->ssl_methods.max;
+		min = conf_ssl_methods->min ? conf_ssl_methods->min : bind_conf->ssl_conf.ssl_methods.min;
+		max = conf_ssl_methods->max ? conf_ssl_methods->max : bind_conf->ssl_conf.ssl_methods.max;
 		if (min)
 			flags |= (methodVersions[min].flag - 1);
 		if (max)
@@ -6739,7 +6735,7 @@ static int parse_tls_method_options(char *arg, struct tls_version_filter *method
 
 static int bind_parse_tls_method_options(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return parse_tls_method_options(args[cur_arg], &conf->ssl_methods, err);
+	return parse_tls_method_options(args[cur_arg], &conf->ssl_conf.ssl_methods, err);
 }
 
 static int srv_parse_tls_method_options(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -6787,7 +6783,7 @@ static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct pro
 
 static int bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
+	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_conf.ssl_methods, err);
 }
 
 static int srv_parse_tls_method_minmax(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -6923,11 +6919,11 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
 	conf->ssl_options |= global_ssl.listen_default_ssloptions;
-	conf->ssl_methods.flags |= global_ssl.listen_default_sslmethods.flags;
-	if (!conf->ssl_methods.min)
-		conf->ssl_methods.min = global_ssl.listen_default_sslmethods.min;
-	if (!conf->ssl_methods.max)
-		conf->ssl_methods.max = global_ssl.listen_default_sslmethods.max;
+	conf->ssl_conf.ssl_methods.flags |= global_ssl.listen_default_sslmethods.flags;
+	if (!conf->ssl_conf.ssl_methods.min)
+		conf->ssl_conf.ssl_methods.min = global_ssl.listen_default_sslmethods.min;
+	if (!conf->ssl_conf.ssl_methods.max)
+		conf->ssl_conf.ssl_methods.max = global_ssl.listen_default_sslmethods.max;
 
 	return 0;
 }
