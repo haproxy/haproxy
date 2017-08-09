@@ -755,10 +755,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	 */
 	while (fd < maxfd) {
 		struct fdtab fdt;
-		struct listener *li;
-		struct server *sv;
-		struct proxy *px;
-		uint32_t conn_flags;
+		struct listener *li = NULL;
+		struct server *sv = NULL;
+		struct proxy *px = NULL;
+		uint32_t conn_flags = 0;
 
 		fdt = fdtab[fd];
 
