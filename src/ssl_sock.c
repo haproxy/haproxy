@@ -4283,9 +4283,15 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		return 0;
 	}
 	if (!bind_conf->default_ctx) {
-		Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
-		      px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-		return -1;
+		if (bind_conf->strict_sni && !bind_conf->generate_certs) {
+			Warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
+				px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		}
+		else {
+			Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
+			      px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			return -1;
+		}
 	}
 
 	alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
