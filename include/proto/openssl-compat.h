@@ -89,19 +89,6 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x10002000L) || defined(LIBRESSL_VERSION_NUMBER)
-/*
- * Functions introduced in OpenSSL 1.0.2 and not yet present in LibreSSL
- */
-EVP_PKEY *SSL_CTX_get0_privatekey(const SSL_CTX *ctx)
-{
-	if (ctx->cert != NULL)
-		return ctx->cert->key->privatekey;
-	else
-		return NULL;
-}
-#endif
-
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
 /*
  * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
