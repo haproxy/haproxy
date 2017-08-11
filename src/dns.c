@@ -1173,7 +1173,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		/* check if the current record dname is valid.
 		 * previous_dname points either to queried dname or last CNAME target
 		 */
-		if (memcmp(previous_dname, tmpname, len) != 0) {
+		if (dns_query->type != DNS_RTYPE_SRV && memcmp(previous_dname, tmpname, len) != 0) {
 			free_dns_answer_item(dns_answer_record);
 			if (i == 0) {
 				/* first record, means a mismatch issue between queried dname
