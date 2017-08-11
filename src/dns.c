@@ -1037,6 +1037,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	reader = resp;
 	len = 0;
 	previous_dname = NULL;
+	dns_query = NULL;
 
 	/* initialization of response buffer and structure */
 	dns_p = &resolution->response;
@@ -1060,9 +1061,6 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		return DNS_RESP_INVALID;
 
 	flags = reader[0] * 256 + reader[1];
-
-	if (flags & DNS_FLAG_TRUNCATED)
-		return DNS_RESP_TRUNCATED;
 
 	if ((flags & DNS_FLAG_REPLYCODE) != DNS_RCODE_NO_ERROR) {
 		if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_NX_DOMAIN)
@@ -1147,6 +1145,12 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		dns_query->class = reader[0] * 256 + reader[1];
 		reader += 2;
 	}
+
+	/* TRUNCATED flag must be checked after we could read the query type
+	 * because a TRUNCATED SRV query type response can still be exploited
+	 */
+	if (dns_query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED)
+		return DNS_RESP_TRUNCATED;
 
 	/* now parsing response records */
 	nb_saved_records = 0;
