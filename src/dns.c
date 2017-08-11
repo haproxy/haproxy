@@ -1302,7 +1302,6 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
-				reader++;
 				dns_answer_record->data_len = len;
 				memcpy(dns_answer_record->target, tmpname, len);
 				dns_answer_record->target[len] = 0;
@@ -1324,7 +1323,10 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 		nb_saved_records += 1;
 
 		/* move forward dns_answer_record->data_len for analyzing next record in the response */
-		reader += dns_answer_record->data_len;
+		if (dns_answer_record->type == DNS_RTYPE_SRV)
+			reader += offset;
+		else
+			reader += dns_answer_record->data_len;
 
 		/* Lookup to see if we already had this entry */
 
