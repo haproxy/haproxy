@@ -105,11 +105,31 @@ void dump_dns_config()
 			printf("    %p %s\n", curr_resolution, curr_resolution->hostname_dn);
 			printf("      requester.wait list:\n");
 			list_for_each_entry(curr_requester, &curr_resolution->requester.wait, list) {
-				printf("        %p %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+				switch (obj_type(curr_requester->requester)) {
+					case OBJ_TYPE_SERVER:
+						printf("        %p SRV   %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_SRVRQ:
+						printf("        %p SRVRQ %s %d\n", curr_requester, objt_dns_srvrq(curr_requester->requester)->name, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_NONE:
+					default:
+						;;
+				}
 			}
 			printf("      requester.curr list:\n");
 			list_for_each_entry(curr_requester, &curr_resolution->requester.curr, list) {
-				printf("        %p %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+				switch (obj_type(curr_requester->requester)) {
+					case OBJ_TYPE_SERVER:
+						printf("        %p SRV   %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_SRVRQ:
+						printf("        %p SRVRQ %s %d\n", curr_requester, objt_dns_srvrq(curr_requester->requester)->name, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_NONE:
+					default:
+						;;
+				}
 			}
 		}
 		printf("  resolution.curr list:\n");
@@ -117,11 +137,31 @@ void dump_dns_config()
 			printf("    %p %s\n", curr_resolution, curr_resolution->hostname_dn);
 			printf("      requester.wait list:\n");
 			list_for_each_entry(curr_requester, &curr_resolution->requester.wait, list) {
-				printf("        %p %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+				switch (obj_type(curr_requester->requester)) {
+					case OBJ_TYPE_SERVER:
+						printf("        %p SRV   %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_SRVRQ:
+						printf("        %p SRVRQ %s %d\n", curr_requester, objt_dns_srvrq(curr_requester->requester)->name, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_NONE:
+					default:
+						;;
+				}
 			}
 			printf("      requester.curr list:\n");
 			list_for_each_entry(curr_requester, &curr_resolution->requester.curr, list) {
-				printf("        %p %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+				switch (obj_type(curr_requester->requester)) {
+					case OBJ_TYPE_SERVER:
+						printf("        %p SRV   %s %d\n", curr_requester, objt_server(curr_requester->requester)->id, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_SRVRQ:
+						printf("        %p SRVRQ %s %d\n", curr_requester, objt_dns_srvrq(curr_requester->requester)->name, curr_requester->prefered_query_type);
+						break;
+					case OBJ_TYPE_NONE:
+					default:
+						;;
+				}
 			}
 		}
 	}
