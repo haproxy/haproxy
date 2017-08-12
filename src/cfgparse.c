@@ -8588,13 +8588,6 @@ out_uri_auth_compat:
 		next_srv:
 			newsrv = newsrv->next;
 		}
-		{
-			struct dns_srvrq *srvrq;
-
-			list_for_each_entry(srvrq, &curproxy->srvrq_list, list) {
-					dns_link_resolution(srvrq, OBJ_TYPE_SRVRQ, NULL);
-			}
-		}
 
 		/*
 		 * Try to generate dynamic cookies for servers now.
