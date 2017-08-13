@@ -897,8 +897,8 @@ int dns_send_query(struct dns_resolution *resolution)
 	if (!resolvers)
 		return 0;
 
-	bufsize = dns_build_query(resolution->query_id, resolution->query_type, resolution->hostname_dn,
-			resolution->hostname_dn_len, trash.str, trash.size);
+	bufsize = dns_build_query(resolution->query_id, resolution->query_type, resolvers->accepted_payload_size,
+			resolution->hostname_dn, resolution->hostname_dn_len, trash.str, trash.size);
 
 	if (bufsize == -1)
 		return 0;
@@ -1820,10 +1820,11 @@ int dns_alloc_resolution_pool(struct dns_resolvers *resolvers)
  * returns:
  *  -1 if <buf> is too short
  */
-int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostname_dn_len, char *buf, int bufsize)
+int dns_build_query(int query_id, int query_type, unsigned int accepted_payload_size, char *hostname_dn, int hostname_dn_len, char *buf, int bufsize)
 {
 	struct dns_header *dns;
 	struct dns_question qinfo;
+	struct dns_additional_record edns;
 	char *ptr, *bufend;
 
 	memset(buf, '\0', bufsize);
@@ -1841,7 +1842,7 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
 	dns->qdcount = htons(1);	/* 1 question */
 	dns->ancount = 0;
 	dns->nscount = 0;
-	dns->arcount = 0;
+	dns->arcount = htons(1);
 
 	/* move forward ptr */
 	ptr += sizeof(struct dns_header);
@@ -1867,6 +1868,19 @@ int dns_build_query(int query_id, int query_type, char *hostname_dn, int hostnam
 	memcpy(ptr, &qinfo, sizeof(qinfo));
 
 	ptr += sizeof(struct dns_question);
+
+	/* check if there is enough room for additional records */
+	if (ptr + sizeof(edns) >= bufend)
+		return -1;
+
+	/* set the DNS extension */
+	edns.name = 0;
+	edns.type = htons(DNS_RTYPE_OPT);
+	edns.udp_payload_size = htons(accepted_payload_size);
+	edns.extension = 0;
+	edns.data_length = 0;
+	memcpy(ptr, &edns, sizeof(edns));
+	ptr += sizeof(edns);
 
 	return ptr - buf;
 }

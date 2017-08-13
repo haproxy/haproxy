@@ -113,6 +113,20 @@ struct dns_query_item {
 };
 
 /* NOTE: big endian structure */
+struct dns_additional_record {
+	uint8_t name;                           /* domain name, must be 0 (RFC 6891) */
+	uint16_t type;			/* record type DNS_RTYPE_OPT (41) */
+	uint16_t udp_payload_size;	/* maximum size accepted for the response */
+	uint32_t extension;				/* extended rcode and flags, not used for now */
+	uint16_t data_length;		/* data length */
+/* as of today, we don't support yet edns options, that said I already put a placeholder here
+ * for this purpose. We may need to define a dns_option_record structure which itself should
+ * point to different type of data, based on the extension set (client subnet, tcp keepalive,
+ * etc...)*/
+//	struct list options;			/* list of option records */
+} __attribute__ ((packed));
+
+/* NOTE: big endian structure */
 struct dns_answer_item {
 	struct list list;
 	char name[DNS_MAX_NAME_SIZE];		/* answer name
@@ -150,6 +164,7 @@ struct dns_resolvers {
 		int line;		/* line where the section appears */
 	} conf;				/* config information */
 	struct list nameserver_list;	/* dns server list */
+	unsigned int accepted_payload_size;	/* maximum payload size we accept for responses */
 	int count_nameservers;			/* total number of nameservers in a resolvers section */
 	int resolve_retries;		/* number of retries before giving up */
 	struct {			/* time to: */

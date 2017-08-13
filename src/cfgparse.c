@@ -2162,6 +2162,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->conf.line = linenum;
 		curr_resolvers->id = strdup(args[1]);
 		curr_resolvers->query_ids = EB_ROOT;
+		/* default maximum response size */
+		curr_resolvers->accepted_payload_size = 512;
 		/* default hold period for nx, other, refuse and timeout is 30s */
 		curr_resolvers->hold.nx = 30000;
 		curr_resolvers->hold.other = 30000;
@@ -2290,6 +2292,15 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+	}
+	else if (strcmp(args[0], "accepted_payload_size") == 0) {
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects <nb> as argument.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curr_resolvers->accepted_payload_size = atoi(args[1]);
 	}
 	else if (strcmp(args[0], "resolution_pool_size") == 0) {
 		if (!*args[1]) {

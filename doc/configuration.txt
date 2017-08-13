@@ -11710,6 +11710,15 @@ resolvers <resolvers id>
 
 A resolvers section accept the following parameters:
 
+accepted_payload_size <nb>
+  Defines the maxium payload size accepted by HAProxy and announced to all the
+  naeservers configured in this resolvers section.
+  <nb> is in bytes. If not set, HAProxy announces 512. (minimal value defined
+       by RFC 6891)
+
+  Note: to get biggers response but still be sure that responses won't be
+        dropped on the wire, one can choose a value between 1280 and 1410.
+
 nameserver <id> <ip>:<port>
   DNS server description:
     <id>   : label of the server, should be unique
