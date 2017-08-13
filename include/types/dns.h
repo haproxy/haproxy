@@ -64,6 +64,7 @@
 #define DNS_RTYPE_CNAME		5	/* canonical name */
 #define DNS_RTYPE_AAAA		28	/* IPv6 address */
 #define DNS_RTYPE_SRV		33	/* SRV record */
+#define DNS_RTYPE_OPT		41	/* OPT */
 #define DNS_RTYPE_ANY		255	/* all records */
 
 /* dns rcode values */
