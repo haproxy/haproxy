@@ -1692,7 +1692,7 @@ static int srv_prepare_for_resolution(struct server *srv, const char *hostname)
  *   - move resolution's hostname_dn and hostname_dn_len to the next requester
  *     available (when applied)
  */
-static void srv_free_from_resolution(struct server *srv)
+void srv_free_from_resolution(struct server *srv)
 {
 	struct dns_requester *requester;
 	int count;

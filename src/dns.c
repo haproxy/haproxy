@@ -564,10 +564,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 									srv->hostname_dn_len = 0;
 									free(srv->hostname_dn);
 									srv->hostname_dn = NULL;
-									dns_resolution_free(srv->resolvers, srv->resolution);
-									srv->resolution = dns_resolution_list_get(srv->resolvers, NULL, srv->dns_requester->prefered_query_type);
-									if (resolution == srv->resolution)
-										removed_reso = 1;
+									srv_free_from_resolution(srv);
 								}
 							}
 						}

@@ -57,6 +57,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver);
 int snr_resolution_error_cb(struct dns_requester *requester, int error_code);
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family);
+void srv_free_from_resolution(struct server *srv);
 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
