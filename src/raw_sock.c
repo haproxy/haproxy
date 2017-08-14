@@ -429,7 +429,7 @@ static struct xprt_ops raw_sock = {
 
 
 __attribute__((constructor))
-static void __ssl_sock_deinit(void)
+static void __raw_sock_init(void)
 {
 	xprt_register(XPRT_RAW, &raw_sock);
 }
