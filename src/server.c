@@ -4133,9 +4133,14 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 		/* first, we need to unlink our server from its current resolution */
 		srv_free_from_resolution(srv);
 	} else {
-		resolution = srv->resolution;
-		resolution->last_resolution = now_ms;
-		did_set_reso = 1;
+		/* this server's fqdn has been set by a SRV record */
+		resolution = dns_resolution_list_get(srv->resolvers, trash.str, srv->dns_requester->prefered_query_type);
+		srv_free_from_resolution(srv);
+		srv->resolution = resolution;
+		if (resolution->hostname_dn == NULL) {
+			resolution->last_resolution = now_ms;
+			did_set_reso = 1;
+		}
 	}
 
 	/* now we update server's parameters */
