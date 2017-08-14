@@ -546,63 +546,91 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 				if (item1->type == DNS_RTYPE_SRV && !LIST_ISEMPTY(&resolution->requester.curr)) {
 					struct dns_srvrq *srvrq;
 
-					requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
+					list_for_each_entry_safe(requester, tmprequester, &resolution->requester.curr, list) {
+						srvrq = objt_dns_srvrq(requester->requester);
+						/* We're removing an obsolete entry, remove any associated server */
+						if (srvrq) {
+							struct server *srv;
 
-					srvrq = objt_dns_srvrq(requester->requester);
-					/* We're removing an obsolete entry, remove any associated server */
-					if (srvrq) {
-						struct server *srv;
-
-						for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-							if (srv->srvrq == srvrq &&
-							    item1->data_len ==
-							    srv->hostname_dn_len &&
-							    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
-							    srv->svc_port == item1->port) {
-								snr_update_srv_status(srv, 1);
-								free(srv->hostname);
-								srv->hostname = NULL;
-								srv->hostname_dn_len = 0;
-								free(srv->hostname_dn);
-								srv->hostname_dn = NULL;
-								dns_resolution_free(srv->resolvers, srv->resolution);
-								srv->resolution = dns_resolution_list_get(srv->resolvers, NULL, srv->dns_requester->prefered_query_type);
-								if (resolution == srv->resolution)
-									removed_reso = 1;
+							for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+								if (srv->srvrq == srvrq &&
+								    item1->data_len ==
+								    srv->hostname_dn_len &&
+								    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
+								    srv->svc_port == item1->port) {
+									snr_update_srv_status(srv, 1);
+									free(srv->hostname);
+									srv->hostname = NULL;
+									srv->hostname_dn_len = 0;
+									free(srv->hostname_dn);
+									srv->hostname_dn = NULL;
+									dns_resolution_free(srv->resolvers, srv->resolution);
+									srv->resolution = dns_resolution_list_get(srv->resolvers, NULL, srv->dns_requester->prefered_query_type);
+									if (resolution == srv->resolution)
+										removed_reso = 1;
+								}
 							}
 						}
-					}
+					} /* end of list_for_each(requester) */
 				}
 				free_dns_answer_item(item1);
 				continue;
 			}
 			if (item1->type == DNS_RTYPE_SRV) {
-				struct server *srv;
-				struct dns_srvrq *srvrq;
+				struct server *srv = NULL;
+				struct dns_srvrq *srvrq = NULL;
 
 				if (LIST_ISEMPTY(&resolution->requester.curr))
 					continue;
 
-				requester = LIST_NEXT(&resolution->requester.curr, struct dns_requester *, list);
-				srvrq = objt_dns_srvrq(requester->requester);
-				if (!srvrq)
-					continue;
-				/* Check if a server already uses that hostname */
-				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-					if (srv->srvrq == srvrq &&
-					    item1->data_len == srv->hostname_dn_len &&
-					    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
-					    srv->svc_port == item1->port) {
-						if (srv->uweight != item1->weight) {
+				list_for_each_entry_safe(requester, tmprequester, &resolution->requester.curr, list) {
+					srvrq = objt_dns_srvrq(requester->requester);
+					if (!srvrq)
+						continue;
+					/* Check if a server already uses that hostname */
+					for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+						if (srv->srvrq == srvrq &&
+						    item1->data_len == srv->hostname_dn_len &&
+						    !memcmp(srv->hostname_dn, item1->target, item1->data_len) &&
+						    srv->svc_port == item1->port) {
+							if (srv->uweight != item1->weight) {
+								char weight[9];
+
+								snprintf(weight, sizeof(weight),
+								    "%d", item1->weight);
+								server_parse_weight_change_request(srv, weight);
+
+							}
+
+							break;
+						}
+					}
+					/* If not, try to find a server that is down */
+					if (!srv) {
+						for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+
+							if (srv->srvrq == srvrq &&
+							    !srv->hostname_dn)
+								break;
+						}
+						if (srv) {
 							char weight[9];
 
+							char hostname[DNS_MAX_NAME_SIZE];
+
+							if (item1->data_len > DNS_MAX_NAME_SIZE)
+								continue;
+							dns_dn_label_to_str(item1->target, hostname, item1->data_len);
+							update_server_fqdn(srv, hostname, "SRV record");
+							srv->svc_port = item1->port;
+							srv->flags &= ~SRV_F_MAPPORTS;
+							if ((srv->check.state & CHK_ST_CONFIGURED) && !(srv->flags & SRV_F_CHECKPORT))
+								srv->check.port = item1->port;
 							snprintf(weight, sizeof(weight),
 							    "%d", item1->weight);
 							server_parse_weight_change_request(srv, weight);
-
 						}
 
-						break;
 					}
 				}
 				/* If not, try to find a server that is down */
