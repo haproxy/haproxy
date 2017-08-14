@@ -1771,7 +1771,7 @@ ssl_sock_generated_cert_key(const void *data, size_t len)
 /* Generate a cert and immediately assign it to the SSL session so that the cert's
  * refcount is maintained regardless of the cert's presence in the LRU cache.
  */
-static SSL_CTX *
+static int
 ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
 	X509         *cacert  = bind_conf->ca_sign_cert;
@@ -1789,14 +1789,35 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
+		return 1;
 	}
 	else {
 		ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
 		/* No LRU cache, this CTX will be released as soon as the session dies */
 		SSL_CTX_free(ssl_ctx);
+		return 1;
 	}
-	return ssl_ctx;
+	return 0;
+}
+static int
+ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
+{
+	unsigned int key;
+	SSL_CTX     *ssl_ctx = NULL;
+	struct connection *conn = SSL_get_app_data(ssl);
+
+	conn_get_to_addr(conn);
+	if (conn->flags & CO_FL_ADDR_TO_SET) {
+		key = ssl_sock_generated_cert_key(&conn->addr.to, get_addr_len(&conn->addr.to));
+		ssl_ctx = ssl_sock_get_generated_cert(key, bind_conf);
+		if (ssl_ctx) {
+			/* switch ctx */
+			SSL_set_SSL_CTX(ssl, ssl_ctx);
+			return 1;
+		}
+	}
+	return 0;
 }
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
@@ -1955,12 +1976,12 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 
 static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 {
+	struct bind_conf *s = priv;
 	(void)al; /* shut gcc stupid warning */
-	(void)priv;
 
-	if (!SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name))
-		return SSL_TLSEXT_ERR_NOACK;
-	return SSL_TLSEXT_ERR_OK;
+	if (SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name) || s->generate_certs)
+		return SSL_TLSEXT_ERR_OK;
+	return SSL_TLSEXT_ERR_NOACK;
 }
 
 #ifdef OPENSSL_IS_BORINGSSL
@@ -2022,6 +2043,11 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		servername = extension_data;
 		servername_len = len;
 	} else {
+#if (!defined SSL_NO_GENERATE_CERTIFICATES)
+		if (s->generate_certs && ssl_sock_generate_certificate_from_conn(s, ssl)) {
+			return 1;
+		}
+#endif
 		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
 		if (!s->strict_sni) {
 			ssl_sock_switchctx_set(ssl, s->default_ctx);
@@ -2165,6 +2191,12 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 		return 1;
 	}
+#if (!defined SSL_NO_GENERATE_CERTIFICATES)
+	if (s->generate_certs && ssl_sock_generate_certificate(trash.str, s, ssl)) {
+		/* switch ctx done in ssl_sock_generate_certificate */
+		return 1;
+	}
+#endif
 	if (!s->strict_sni) {
 		/* no certificate match, is the default_ctx */
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
@@ -2199,22 +2231,8 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		if (s->generate_certs) {
-			struct connection *conn = SSL_get_app_data(ssl);
-			unsigned int key;
-			SSL_CTX *ctx;
-
-			conn_get_to_addr(conn);
-			if (conn->flags & CO_FL_ADDR_TO_SET) {
-				key = ssl_sock_generated_cert_key(&conn->addr.to, get_addr_len(&conn->addr.to));
-				ctx = ssl_sock_get_generated_cert(key, s);
-				if (ctx) {
-					/* switch ctx */
-					SSL_set_SSL_CTX(ssl, ctx);
-					return SSL_TLSEXT_ERR_OK;
-				}
-			}
-		}
+		if (s->generate_certs && ssl_sock_generate_certificate_from_conn(s, ssl))
+			return SSL_TLSEXT_ERR_OK;
 #endif
 		if (s->strict_sni)
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
@@ -2247,10 +2265,8 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	}
 	if (!node || container_of(node, struct sni_ctx, name)->neg) {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		SSL_CTX *ctx;
-		if (s->generate_certs &&
-		    (ctx = ssl_sock_generate_certificate(servername, s, ssl))) {
-			/* switch ctx */
+		if (s->generate_certs && ssl_sock_generate_certificate(servername, s, ssl)) {
+			/* switch ctx done in ssl_sock_generate_certificate */
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
@@ -3678,8 +3694,8 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
 #else
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
-	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
+	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
 	return cfgerr;
 }
