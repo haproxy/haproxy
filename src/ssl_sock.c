@@ -1828,7 +1828,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 #ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
 #define SSL_OP_NO_TLSv1_2 0
 #endif
-#ifndef SSL_OP_NO_TLSv1_3                               /* dev */
+#ifndef SSL_OP_NO_TLSv1_3                               /* needs OpenSSL >= 1.1.1 */
 #define SSL_OP_NO_TLSv1_3 0
 #endif
 #ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
@@ -1951,7 +1951,7 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 	SSL_set_SSL_CTX(ssl, ctx);
 }
 
-#ifdef OPENSSL_IS_BORINGSSL
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_BORINGSSL)
 
 static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 {
@@ -1963,9 +1963,14 @@ static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 	return SSL_TLSEXT_ERR_OK;
 }
 
+#ifdef OPENSSL_IS_BORINGSSL
 static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 {
 	SSL *ssl = ctx->ssl;
+#else
+static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
+{
+#endif
 	struct connection *conn;
 	struct bind_conf *s;
 	const uint8_t *extension_data;
@@ -1981,8 +1986,12 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	conn = SSL_get_app_data(ssl);
 	s = objt_listener(conn->target)->bind_conf;
 
+#ifdef OPENSSL_IS_BORINGSSL
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_server_name,
 						 &extension_data, &extension_len)) {
+#else
+	if (SSL_client_hello_get0_ext(ssl, TLSEXT_TYPE_server_name, &extension_data, &extension_len)) {
+#endif
 		/*
 		 * The server_name extension was given too much extensibility when it
 		 * was written, so parsing the normal case is a bit complex.
@@ -2022,7 +2031,11 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	}
 
 	/* extract/check clientHello informations */
+#ifdef OPENSSL_IS_BORINGSSL
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
+#else
+	if (SSL_client_hello_get0_ext(ssl, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
+#endif
 		uint8_t sign;
 		size_t len;
 		if (extension_len < 2)
@@ -2057,13 +2070,21 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 		const SSL_CIPHER *cipher;
 		size_t len;
 		const uint8_t *cipher_suites;
+#ifdef OPENSSL_IS_BORINGSSL
 		len = ctx->cipher_suites_len;
 		cipher_suites = ctx->cipher_suites;
+#else
+		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
+#endif
 		if (len % 2 != 0)
 			goto abort;
 		for (; len != 0; len -= 2, cipher_suites += 2) {
+#ifdef OPENSSL_IS_BORINGSSL
 			uint16_t cipher_suite = (cipher_suites[0] << 8) | cipher_suites[1];
 			cipher = SSL_get_cipher_by_value(cipher_suite);
+#else
+			cipher = SSL_CIPHER_find(ssl, cipher_suites);
+#endif
 			if (cipher && SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
 				has_ecdsa = 1;
 				break;
@@ -2152,7 +2173,12 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	conn->err_code = CO_ER_SSL_HANDSHAKE;
+#ifdef OPENSSL_IS_BORINGSSL
 	return ssl_select_cert_error;
+#else
+	*al = SSL_AD_UNRECOGNIZED_NAME;
+	return 0;
+#endif
 }
 
 #else /* OPENSSL_IS_BORINGSSL */
@@ -3646,6 +3672,9 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 #ifdef OPENSSL_IS_BORINGSSL
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
+	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
+#elif (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
 #else
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
@@ -6773,7 +6802,7 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 
 static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
-#if !defined(OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x10101000L) || !defined(OPENSSL_IS_BORINGSSL)
 	Warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
 #endif
 	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
