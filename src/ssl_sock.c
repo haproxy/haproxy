@@ -1965,50 +1965,57 @@ static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 
 static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 {
+	SSL *ssl = ctx->ssl;
 	struct connection *conn;
 	struct bind_conf *s;
 	const uint8_t *extension_data;
 	size_t extension_len;
-	CBS extension, cipher_suites, server_name_list, host_name, sig_algs;
-	const SSL_CIPHER *cipher;
-	uint16_t cipher_suite;
-	uint8_t name_type, hash, sign;
 	int has_rsa = 0, has_ecdsa = 0, has_ecdsa_sig = 0;
 
 	char *wildp = NULL;
 	const uint8_t *servername;
+	size_t servername_len;
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	int i;
 
-	conn = SSL_get_app_data(ctx->ssl);
+	conn = SSL_get_app_data(ssl);
 	s = objt_listener(conn->target)->bind_conf;
 
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_server_name,
 						 &extension_data, &extension_len)) {
-		CBS_init(&extension, extension_data, extension_len);
-
-		if (!CBS_get_u16_length_prefixed(&extension, &server_name_list)
-		    || !CBS_get_u8(&server_name_list, &name_type)
-		    /* Although the server_name extension was intended to be extensible to
-		     * new name types and multiple names, OpenSSL 1.0.x had a bug which meant
-		     * different name types will cause an error. Further, RFC 4366 originally
-		     * defined syntax inextensibly. RFC 6066 corrected this mistake, but
-		     * adding new name types is no longer feasible.
-		     *
-		     * Act as if the extensibility does not exist to simplify parsing. */
-		    || !CBS_get_u16_length_prefixed(&server_name_list, &host_name)
-		    || CBS_len(&server_name_list) != 0
-		    || CBS_len(&extension) != 0
-		    || name_type != TLSEXT_NAMETYPE_host_name
-		    || CBS_len(&host_name) == 0
-		    || CBS_len(&host_name) > TLSEXT_MAXLEN_host_name
-		    || CBS_contains_zero_byte(&host_name)) {
+		/*
+		 * The server_name extension was given too much extensibility when it
+		 * was written, so parsing the normal case is a bit complex.
+		 */
+		size_t len;
+		if (extension_len <= 2)
 			goto abort;
-		}
+		/* Extract the length of the supplied list of names. */
+		len = (*extension_data++) << 8;
+		len |= *extension_data++;
+		if (len + 2 != extension_len)
+			goto abort;
+		/*
+		 * The list in practice only has a single element, so we only consider
+		 * the first one.
+		 */
+		if (len == 0 || *extension_data++ != TLSEXT_NAMETYPE_host_name)
+			goto abort;
+		extension_len = len - 1;
+		/* Now we can finally pull out the byte array with the actual hostname. */
+		if (extension_len <= 2)
+			goto abort;
+		len = (*extension_data++) << 8;
+		len |= *extension_data++;
+		if (len == 0 || len + 2 > extension_len || len > TLSEXT_MAXLEN_host_name
+		    || memchr(extension_data, 0, len) != NULL)
+			goto abort;
+		servername = extension_data;
+		servername_len = len;
 	} else {
 		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
 		if (!s->strict_sni) {
-			ssl_sock_switchctx_set(ctx->ssl, s->default_ctx);
+			ssl_sock_switchctx_set(ssl, s->default_ctx);
 			return 1;
 		}
 		goto abort;
@@ -2016,21 +2023,19 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 
 	/* extract/check clientHello informations */
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
-		CBS_init(&extension, extension_data, extension_len);
-
-		if (!CBS_get_u16_length_prefixed(&extension, &sig_algs)
-		    || CBS_len(&sig_algs) == 0
-		    || CBS_len(&extension) != 0) {
+		uint8_t sign;
+		size_t len;
+		if (extension_len < 2)
 			goto abort;
-		}
-		if (CBS_len(&sig_algs) % 2 != 0) {
+		len = (*extension_data++) << 8;
+		len |= *extension_data++;
+		if (len + 2 != extension_len)
 			goto abort;
-		}
-		while (CBS_len(&sig_algs) != 0) {
-			if (!CBS_get_u8(&sig_algs, &hash)
-			    || !CBS_get_u8(&sig_algs, &sign)) {
-				goto abort;
-			}
+		if (len % 2 != 0)
+			goto abort;
+		for (; len > 0; len -= 2) {
+			extension_data++; /* hash */
+			sign = *extension_data++;
 			switch (sign) {
 			case TLSEXT_signature_rsa:
 				has_rsa = 1;
@@ -2049,12 +2054,15 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 		has_rsa = 1;
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
-		CBS_init(&cipher_suites, ctx->cipher_suites, ctx->cipher_suites_len);
-
-		while (CBS_len(&cipher_suites) != 0) {
-			if (!CBS_get_u16(&cipher_suites, &cipher_suite)) {
-				goto abort;
-			}
+		const SSL_CIPHER *cipher;
+		size_t len;
+		const uint8_t *cipher_suites;
+		len = ctx->cipher_suites_len;
+		cipher_suites = ctx->cipher_suites;
+		if (len % 2 != 0)
+			goto abort;
+		for (; len != 0; len -= 2, cipher_suites += 2) {
+			uint16_t cipher_suite = (cipher_suites[0] << 8) | cipher_suites[1];
 			cipher = SSL_get_cipher_by_value(cipher_suite);
 			if (cipher && SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
 				has_ecdsa = 1;
@@ -2063,8 +2071,7 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 		}
 	}
 
-	servername = CBS_data(&host_name);
-	for (i = 0; i < trash.size && i < CBS_len(&host_name); i++) {
+	for (i = 0; i < trash.size && i < servername_len; i++) {
 		trash.str[i] = tolower(servername[i]);
 		if (!wildp && (trash.str[i] == '.'))
 			wildp = &trash.str[i];
@@ -2132,20 +2139,20 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 	if (node) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
-		ssl_sock_switchctx_set(ctx->ssl, container_of(node, struct sni_ctx, name)->ctx);
-		methodVersions[conf->ssl_methods.min].ssl_set_version(ctx->ssl, SET_MIN);
-		methodVersions[conf->ssl_methods.max].ssl_set_version(ctx->ssl, SET_MAX);
+		ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
+		methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
+		methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 		return 1;
 	}
 	if (!s->strict_sni) {
 		/* no certificate match, is the default_ctx */
-		ssl_sock_switchctx_set(ctx->ssl, s->default_ctx);
+		ssl_sock_switchctx_set(ssl, s->default_ctx);
 		return 1;
 	}
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	conn->err_code = CO_ER_SSL_HANDSHAKE;
-	return -1;
+	return ssl_select_cert_error;
 }
 
 #else /* OPENSSL_IS_BORINGSSL */
