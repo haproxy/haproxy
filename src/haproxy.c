@@ -109,7 +109,9 @@
 #include <proto/task.h>
 #include <proto/dns.h>
 #include <proto/vars.h>
+#ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
+#endif
 
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
