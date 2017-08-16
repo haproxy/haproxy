@@ -2558,7 +2558,18 @@ int main(int argc, char **argv)
 		    proc < LONGBITS &&       /* only the first 32/64 processes may be pinned */
 		    global.cpu_map[proc])    /* only do this if the process has a CPU map */
 #ifdef __FreeBSD__
-			cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(unsigned long), (void *)&global.cpu_map[proc]);
+		{
+			cpuset_t cpuset;
+			int i;
+			unsigned long cpu_map = global.cpu_map[proc];
+
+			CPU_ZERO(&cpuset);
+			while ((i = ffsl(cpu_map)) > 0) {
+				CPU_SET(i - 1, &cpuset);
+				cpu_map &= ~(1 << (i - 1));
+			}
+			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset), &cpuset);
+		}
 #else
 			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map[proc]);
 #endif
