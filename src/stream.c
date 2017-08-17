@@ -262,7 +262,7 @@ static void stream_free(struct stream *s)
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
-	struct connection *cli_conn = objt_conn(sess->origin);
+	struct connection *cli_conn = objt_conn(s->si[0].end);
 	int i;
 
 	if (s->pend_pos)
