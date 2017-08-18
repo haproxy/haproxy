@@ -1077,6 +1077,19 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	return ret;
 }
 
+/* return the major HTTP version as 1 or 2 depending on how the request arrived
+ * before being processed.
+ */
+static int
+smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = objt_conn(smp->sess->origin);
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = (conn && strcmp(conn_get_mux_name(conn), "H2") == 0) ? 2 : 1;
+	return 1;
+}
+
 /* fetch if the received connection used a PROXY protocol header */
 int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1104,6 +1117,7 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
  * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ /* END */ },
 }};

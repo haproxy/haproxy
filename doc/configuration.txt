@@ -13591,6 +13591,11 @@ dst_port : integer
   a same server, or to pass the destination port information to a server using
   an HTTP header.
 
+fc_http_major : integer
+  Reports the front connection's HTTP major version encoding, which may be 1
+  for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire
+  encoding and not on the version present in the request header.
+
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol
   header.
