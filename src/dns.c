@@ -615,13 +615,16 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 						}
 						if (srv) {
 							char weight[9];
-
+							const char *msg = NULL;
 							char hostname[DNS_MAX_NAME_SIZE];
 
 							if (item1->data_len > DNS_MAX_NAME_SIZE)
 								continue;
 							dns_dn_label_to_str(item1->target, hostname, item1->data_len);
-							update_server_fqdn(srv, hostname, "SRV record");
+							msg = update_server_fqdn(srv, hostname, "SRV record");
+							if (msg)
+								send_log(srv->proxy, LOG_NOTICE, "%s", msg);
+
 							srv->svc_port = item1->port;
 							srv->flags &= ~SRV_F_MAPPORTS;
 							if ((srv->check.state & CHK_ST_CONFIGURED) && !(srv->flags & SRV_F_CHECKPORT))
