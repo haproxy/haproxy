@@ -2169,7 +2169,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->hold.other = 30000;
 		curr_resolvers->hold.refused = 30000;
 		curr_resolvers->hold.timeout = 30000;
-		curr_resolvers->hold.obsolete = 30000;
+		curr_resolvers->hold.obsolete = 0;
 		/* default hold period for valid is 10s */
 		curr_resolvers->hold.valid = 10000;
 		curr_resolvers->timeout.retry = 1000;

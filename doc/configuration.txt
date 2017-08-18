@@ -11734,7 +11734,7 @@ hold <status> <period>
                answer was in <status>. It follows the HAProxy time format.
                <period> is in milliseconds by default.
 
-  Default value is 10s for "valid" and 30s for others.
+  Default value is 10s for "valid", 0s for "obsolete" and 30s for others.
 
   Note: since the name resolution is triggered by the health checks, a new
         resolution is triggered after <period> modulo the <inter> parameter of
