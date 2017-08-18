@@ -1193,6 +1193,57 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
+/* processes an RST_STREAM frame, and sets the 32-bit error code on the stream.
+ * Returns > 0 on success or zero on missing data. It may return an error in
+ * h2c. Described in RFC7540#6.4.
+ */
+static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
+{
+	int error;
+
+	if (h2c->dsi == 0) {
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2s->st == H2_SS_IDLE) {
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2c->dfl != 4) {
+		error = H2_ERR_FRAME_SIZE_ERROR;
+		goto conn_err;
+	}
+
+	/* process full frame only */
+	if (h2c->dbuf->i < h2c->dfl)
+		return 0;
+
+	/* late RST, already handled */
+	if (h2s->st == H2_SS_CLOSED)
+		return 1;
+
+	h2s->errcode = h2_get_n32(h2c->dbuf, 0);
+	h2s->st = H2_SS_CLOSED;
+
+	if (h2s->cs) {
+		h2s->cs->flags |= CS_FL_EOS;
+		/* recv is used to force to detect CS_FL_EOS that wake()
+		 * doesn't handle in the stream-int code.
+		 */
+		h2s->cs->data_cb->recv(h2s->cs);
+		h2s->cs->data_cb->wake(h2s->cs);
+	}
+
+	h2s->flags |= H2_SF_RST_RCVD;
+	return 1;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return 0;
+}
+
 /* processes a HEADERS frame. Returns > 0 on success or zero on missing data.
  * It may return an error in h2c or h2s. Described in RFC7540#6.2. Most of the
  * errors here are reported as connection errors since it's impossible to
@@ -1485,6 +1536,12 @@ static void h2_process_demux(struct h2c *h2c)
 			if (h2c->st0 == H2_CS_FRAME_A)
 				ret = h2c_send_strm_wu(h2c);
 			break;
+
+		case H2_FT_RST_STREAM:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_handle_rst_stream(h2c, h2s);
+			break;
+
 			/* FIXME: implement all supported frame types here */
 		default:
 			/* drop frames that we ignore. They may be larger than
