@@ -33,7 +33,7 @@ int dns_build_query(int query_id, int query_type, unsigned int accepted_payload_
 struct task *dns_process_resolve(struct task *t);
 int dns_init_resolvers(int close_socket);
 uint16_t dns_rnd16(void);
-int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_resolution *resolution);
+int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_resolution *resolution, int max_answer_records);
 int dns_get_ip_from_response(struct dns_response_packet *dns_p,
                              struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,

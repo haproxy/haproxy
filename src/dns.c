@@ -391,6 +391,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	unsigned char buf[DNS_MAX_UDP_MESSAGE + 1];
 	unsigned char *bufend;
 	int fd, buflen, dns_resp, need_resend = 0;
+	int max_answer_records = 0;
 	unsigned short query_id;
 	struct eb32_node *eb;
 	struct lru64 *lru = NULL;
@@ -413,15 +414,15 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 	while (1) {
 		int removed_reso = 0;
 		/* read message received */
-		memset(buf, '\0', DNS_MAX_UDP_MESSAGE + 1);
-		if ((buflen = recv(fd, (char*)buf , DNS_MAX_UDP_MESSAGE, 0)) < 0) {
+		memset(buf, '\0', resolvers->accepted_payload_size + 1);
+		if ((buflen = recv(fd, (char*)buf , resolvers->accepted_payload_size + 1, 0)) < 0) {
 			/* FIXME : for now we consider EAGAIN only */
 			fd_cant_recv(fd);
 			break;
 		}
 
 		/* message too big */
-		if (buflen > DNS_MAX_UDP_MESSAGE) {
+		if (buflen > resolvers->accepted_payload_size) {
 			nameserver->counters.too_big += 1;
 			continue;
 		}
@@ -455,7 +456,9 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 		/* number of responses received */
 		resolution->nb_responses += 1;
 
-		dns_resp = dns_validate_dns_response(buf, bufend, resolution);
+
+		max_answer_records = (resolvers->accepted_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
+		dns_resp = dns_validate_dns_response(buf, bufend, resolution, max_answer_records);
 
 		switch (dns_resp) {
 			case DNS_RESP_VALID:
@@ -1086,7 +1089,7 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend, unsigned char *n
  * This function returns one of the DNS_RESP_* code to indicate the type of
  * error found.
  */
-int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_resolution *resolution)
+int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct dns_resolution *resolution, int max_answer_records)
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
@@ -1157,7 +1160,7 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 	if (dns_p->header.ancount == 0)
 		return DNS_RESP_ANCOUNT_ZERO;
 	/* check if too many records are announced */
-	if (dns_p->header.ancount > DNS_MAX_ANSWER_RECORDS)
+	if (dns_p->header.ancount > max_answer_records)
 		return DNS_RESP_INVALID;
 	reader += 2;
 

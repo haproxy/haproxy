@@ -2294,13 +2294,24 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 	}
 	else if (strcmp(args[0], "accepted_payload_size") == 0) {
+		int i = 0;
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects <nb> as argument.\n",
 				file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		curr_resolvers->accepted_payload_size = atoi(args[1]);
+
+		i = atoi(args[1]);
+		if (i > DNS_MAX_UDP_MESSAGE) {
+			Alert("parsing [%s:%d] : '%s' size %d exceeds maximum allowed size %d.\n",
+				file, linenum, args[0], i, DNS_MAX_UDP_MESSAGE);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		curr_resolvers->accepted_payload_size = i;
 	}
 	else if (strcmp(args[0], "resolution_pool_size") == 0) {
 		if (!*args[1]) {
