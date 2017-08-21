@@ -183,7 +183,7 @@ int dns_trigger_resolution(struct dns_resolution *resolution)
 {
 	struct dns_requester *requester = NULL, *tmprequester;
 	struct dns_resolvers *resolvers = NULL;
-	int inter;
+	int inter, valid_period;
 
 	/* process the element of the wait queue */
 	list_for_each_entry_safe(requester, tmprequester, &resolution->requester.wait, list) {
@@ -191,17 +191,22 @@ int dns_trigger_resolution(struct dns_resolution *resolution)
 
 		switch (obj_type(requester->requester)) {
 			case OBJ_TYPE_SERVER:
-				inter = objt_server(requester->requester)->check.inter;
+				valid_period = objt_server(requester->requester)->check.inter;
 				resolvers = objt_server(requester->requester)->resolvers;
 				break;
 			case OBJ_TYPE_SRVRQ:
-				inter = objt_dns_srvrq(requester->requester)->inter;
+				valid_period = objt_dns_srvrq(requester->requester)->inter;
 				resolvers = objt_dns_srvrq(requester->requester)->resolvers;
 				break;
 			case OBJ_TYPE_NONE:
 			default:
 				return -1;
 		}
+
+		if (resolvers->hold.valid < valid_period)
+			inter = resolvers->hold.valid;
+		else
+			inter = valid_period;
 
 		/* if data is fresh enough, let's use it */
 		if (!tick_is_expired(tick_add(resolution->last_resolution, inter), now_ms)) {
