@@ -1239,11 +1239,6 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 			return DNS_RESP_INVALID;
 		}
 
-		if (reader >= bufend) {
-			free_dns_answer_item(dns_answer_record);
-			return DNS_RESP_INVALID;
-		}
-
 		/* 2 bytes for record type (A, AAAA, CNAME, etc...) */
 		if (reader + 2 > bufend) {
 			free_dns_answer_item(dns_answer_record);
