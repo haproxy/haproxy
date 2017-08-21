@@ -2085,6 +2085,12 @@ struct task *dns_process_resolve(struct task *t)
 				LIST_DEL(&requester->list);
 				LIST_ADDQ(&resolution->requester.wait, &requester->list);
 			}
+
+			/* this might be triggered by too big UDP packets dropped
+			 * somewhere on the network, so lowering the accepted_payload_size
+			 * announced */
+			if (resolvers->accepted_payload_size > 1280)
+				resolvers->accepted_payload_size = 1280;
 			goto out;
 		}
 
