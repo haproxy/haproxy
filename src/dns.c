@@ -633,35 +633,7 @@ void dns_resolve_recv(struct dgram_conn *dgram)
 							    "%d", item1->weight);
 							server_parse_weight_change_request(srv, weight);
 						}
-
 					}
-				}
-				/* If not, try to find a server that is down */
-				if (!srv) {
-					for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-
-						if (srv->srvrq == srvrq &&
-						    !srv->hostname_dn)
-							break;
-					}
-					if (srv) {
-						char weight[9];
-
-						char hostname[DNS_MAX_NAME_SIZE];
-
-						if (item1->data_len > DNS_MAX_NAME_SIZE)
-							continue;
-						dns_dn_label_to_str(item1->target, hostname, item1->data_len);
-						update_server_fqdn(srv, hostname, "SRV record");
-						srv->svc_port = item1->port;
-						srv->flags &= ~SRV_F_MAPPORTS;
-						if ((srv->check.state & CHK_ST_CONFIGURED) && !(srv->flags & SRV_F_CHECKPORT))
-							srv->check.port = item1->port;
-						snprintf(weight, sizeof(weight),
-						    "%d", item1->weight);
-						server_parse_weight_change_request(srv, weight);
-					}
-
 				}
 			}
 		}
