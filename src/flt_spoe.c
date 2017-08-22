@@ -655,7 +655,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 	vsn = max_frame_size = flags = 0;
 	while (p < end) {
 		char  *str;
-		size_t sz;
+		uint64_t sz;
 		int    ret;
 
 		/* Decode the item key */
@@ -836,7 +836,7 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 	/* Loop on K/V items */
 	while (p < end) {
 		char  *str;
-		size_t sz;
+		uint64_t sz;
 		int    ret;
 
 		/* Decode the item key */

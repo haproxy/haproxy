@@ -92,7 +92,7 @@ spoe_encode_frag_buffer(const char *str, size_t len, char **buf, char *end)
  * On success, it returns the buffer length and <*buf> is moved after the
  * encoded buffer. Otherwise, it returns -1. */
 static inline int
-spoe_decode_buffer(char **buf, char *end, char **str, size_t *len)
+spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
 {
 	char    *p = *buf;
 	uint64_t sz;
@@ -248,8 +248,7 @@ spoe_skip_data(char **buf, char *end)
 {
 	char    *str, *p = *buf;
 	int      type, ret;
-	size_t   sz;
-	uint64_t v;
+	uint64_t v, sz;
 
 	if (p >= end)
 		return -1;
@@ -296,7 +295,7 @@ spoe_decode_data(char **buf, char *end, struct sample *smp)
 {
 	char  *str, *p = *buf;
 	int    type, r = 0;
-	size_t sz;
+	uint64_t sz;
 
 	if (p >= end)
 		return -1;
