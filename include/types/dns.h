@@ -82,7 +82,7 @@
 #define SRV_MAX_PREF_NET 5
 
 /* DNS header size */
-#define DNS_HEADER_SIZE		sizeof(struct dns_header)
+#define DNS_HEADER_SIZE		((int)sizeof(struct dns_header))
 
 /* DNS resolution pool size, per resolvers section */
 #define DNS_DEFAULT_RESOLUTION_POOL_SIZE	64

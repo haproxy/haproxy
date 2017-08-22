@@ -2304,9 +2304,9 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		i = atoi(args[1]);
-		if (i > DNS_MAX_UDP_MESSAGE) {
-			Alert("parsing [%s:%d] : '%s' size %d exceeds maximum allowed size %d.\n",
-				file, linenum, args[0], i, DNS_MAX_UDP_MESSAGE);
+		if (i < DNS_HEADER_SIZE || i > DNS_MAX_UDP_MESSAGE) {
+			Alert("parsing [%s:%d] : '%s' must be between %d and %d inclusive (was %s).\n",
+			      file, linenum, args[0], DNS_HEADER_SIZE, DNS_MAX_UDP_MESSAGE, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
