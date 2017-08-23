@@ -5971,6 +5971,7 @@ struct task *hlua_applet_wakeup(struct task *t)
 	 */
 	si_applet_cant_put(si);
 	appctx_wakeup(ctx);
+	t->expire = TICK_ETERNITY;
 	return t;
 }
 
