@@ -4307,12 +4307,17 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11 && !hdr_connection)
 		chunk_appendf(tmp, "Connection: close\r\n");
 
-	/* If we dont have a content-length set, we must announce a transfer enconding
-	 * chunked. This is required by haproxy for the keepalive compliance.
-	 * If the applet annouce a transfer-encoding chunked itslef, don't
-	 * do anything.
+	/* If we dont have a content-length set, and the HTTP version is 1.1
+	 * and the status code implies the presence of a message body, we must
+	 * announce a transfer encoding chunked. This is required by haproxy
+	 * for the keepalive compliance. If the applet annouces a transfer-encoding
+	 * chunked itslef, don't do anything.
 	 */
-	if (hdr_contentlength == -1 && hdr_chunked == 0) {
+	if (hdr_contentlength == -1 && hdr_chunked == 0 &&
+	    (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11) &&
+	    appctx->appctx->ctx.hlua_apphttp.status >= 200 &&
+	    appctx->appctx->ctx.hlua_apphttp.status != 204 &&
+	    appctx->appctx->ctx.hlua_apphttp.status != 304) {
 		chunk_appendf(tmp, "Transfer-encoding: chunked\r\n");
 		appctx->appctx->ctx.hlua_apphttp.flags |= APPLET_CHUNKED;
 	}
