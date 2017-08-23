@@ -1079,6 +1079,15 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 		appctx = si_appctx(&s->si[1]);
 		memset(&appctx->ctx, 0, sizeof(appctx->ctx));
 		appctx->rule = rule;
+
+		/* enable the minimally required analyzers in case of HTTP
+		 * keep-alive to properly handle keep-alive and compression
+		 * on the HTTP response.
+		 */
+		if (rule->from == ACT_F_HTTP_REQ) {
+			s->req.analysers &= AN_REQ_FLT_HTTP_HDRS | AN_REQ_FLT_END;
+			s->req.analysers |= AN_REQ_HTTP_XFER_BODY;
+		}
 	}
 	else
 		appctx = si_appctx(&s->si[1]);
