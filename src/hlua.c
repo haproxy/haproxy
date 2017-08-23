@@ -4196,7 +4196,9 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	struct chunk *tmp = get_trash_chunk();
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	const char *name;
+	size_t name_len;
 	const char *value;
+	size_t value_len;
 	int id;
 	int hdr_connection = 0;
 	long long hdr_contentlength = -1;
@@ -4231,7 +4233,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 			               lua_typename(L, lua_type(L, -2)));
 			WILL_LJMP(lua_error(L));
 		}
-		name = lua_tostring(L, -2);
+		name = lua_tolstring(L, -2, &name_len);
 
 		/* We expect an array as -1. */
 		if (lua_type(L, -1) != LUA_TTABLE) {
@@ -4264,15 +4266,25 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 				               lua_typename(L, lua_type(L, -1)));
 				WILL_LJMP(lua_error(L));
 			}
-			value = lua_tostring(L, -1);
+			value = lua_tolstring(L, -1, &value_len);
 
 			/* Catenate a new header. */
-			chunk_appendf(tmp, "%s: %s\r\n", name, value);
+			if (tmp->len + name_len + 2 + value_len + 2 < tmp->size) {
+				memcpy(tmp->str + tmp->len, name, name_len);
+				tmp->len += name_len;
+				tmp->str[tmp->len++] = ':';
+				tmp->str[tmp->len++] = ' ';
+
+				memcpy(tmp->str + tmp->len, value, value_len);
+				tmp->len += value_len;
+				tmp->str[tmp->len++] = '\r';
+				tmp->str[tmp->len++] = '\n';
+			}
 
 			/* Protocol checks. */
 
 			/* Check if the header conneciton is present. */
-			if (strcasecmp("connection", name) == 0)
+			if (name_len == 10 && strcasecmp("connection", name) == 0)
 				hdr_connection = 1;
 
 			/* Copy the header content length. The length conversion
@@ -4280,11 +4292,12 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 			 * the content-length remains negative so that we can
 			 * switch to either chunked encoding or close.
 			 */
-			if (strcasecmp("content-length", name) == 0)
+			if (name_len == 14 && strcasecmp("content-length", name) == 0)
 				strl2llrc(value, strlen(value), &hdr_contentlength);
 
 			/* Check if the client annouces a transfer-encoding chunked it self. */
-			if (strcasecmp("transfer-encoding", name) == 0 &&
+			if (name_len == 17 && value_len == 7 &&
+			    strcasecmp("transfer-encoding", name) == 0 &&
 			    strcasecmp("chunked", value) == 0)
 				hdr_chunked = 1;
 
