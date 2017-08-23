@@ -4199,7 +4199,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	const char *value;
 	int id;
 	int hdr_connection = 0;
-	int hdr_contentlength = -1;
+	long long hdr_contentlength = -1;
 	int hdr_chunked = 0;
 	const char *reason = appctx->appctx->ctx.hlua_apphttp.reason;
 
@@ -4276,11 +4276,12 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 				hdr_connection = 1;
 
 			/* Copy the header content length. The length conversion
-			 * is done without control. If it contains a ad value, this
-			 * is not our problem.
+			 * is done without control. If it contains a bad value,
+			 * the content-length remains negative so that we can
+			 * switch to either chunked encoding or close.
 			 */
 			if (strcasecmp("content-length", name) == 0)
-				hdr_contentlength = atoi(value);
+				strl2llrc(value, strlen(value), &hdr_contentlength);
 
 			/* Check if the client annouces a transfer-encoding chunked it self. */
 			if (strcasecmp("transfer-encoding", name) == 0 &&
@@ -4313,7 +4314,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	 * for the keepalive compliance. If the applet annouces a transfer-encoding
 	 * chunked itslef, don't do anything.
 	 */
-	if (hdr_contentlength == -1 && hdr_chunked == 0 &&
+	if (hdr_contentlength < 0 && hdr_chunked == 0 &&
 	    (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11) &&
 	    appctx->appctx->ctx.hlua_apphttp.status >= 200 &&
 	    appctx->appctx->ctx.hlua_apphttp.status != 204 &&
