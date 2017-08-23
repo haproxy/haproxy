@@ -4200,7 +4200,6 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	const char *value;
 	size_t value_len;
 	int id;
-	int hdr_connection = 0;
 	long long hdr_contentlength = -1;
 	int hdr_chunked = 0;
 	const char *reason = appctx->appctx->ctx.hlua_apphttp.reason;
@@ -4283,10 +4282,6 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 
 			/* Protocol checks. */
 
-			/* Check if the header conneciton is present. */
-			if (name_len == 10 && strcasecmp("connection", name) == 0)
-				hdr_connection = 1;
-
 			/* Copy the header content length. The length conversion
 			 * is done without control. If it contains a bad value,
 			 * the content-length remains negative so that we can
@@ -4308,18 +4303,6 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 		/* Remove the array from the stack, and get next element with a remaining string. */
 		lua_pop(L, 1);
 	}
-
-	/* If the http protocol version is 1.1, we expect an header "connection" set
-	 * to "close" to be HAProxy/keeplive compliant. Otherwise, we expect nothing.
-	 * If the header conneciton is present, don't change it, if it is not present,
-	 * we must set.
-	 *
-	 * we set a "connection: close" header for ensuring that the keepalive will be
-	 * respected by haproxy. HAProcy considers that the application cloe the connection
-	 * and it keep the connection from the client open.
-	 */
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11 && !hdr_connection)
-		chunk_appendf(tmp, "Connection: close\r\n");
 
 	/* If we dont have a content-length set, and the HTTP version is 1.1
 	 * and the status code implies the presence of a message body, we must
