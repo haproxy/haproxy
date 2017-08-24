@@ -302,7 +302,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		return SF_ERR_INTERNAL;
 	}
 
-	fd = conn->t.sock.fd = create_server_socket(conn);
+	fd = conn->handle.fd = create_server_socket(conn);
 
 	if (fd == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
@@ -669,7 +669,7 @@ int tcp_drain(int fd)
  */
 int tcp_connect_probe(struct connection *conn)
 {
-	int fd = conn->t.sock.fd;
+	int fd = conn->handle.fd;
 	socklen_t lskerr;
 	int skerr;
 
@@ -1326,7 +1326,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	/* re-enable quickack if it was disabled to ack all data and avoid
 	 * retransmits from the client that might trigger a real reset.
 	 */
-	setsockopt(conn->t.sock.fd, SOL_TCP, TCP_QUICKACK, &one, sizeof(one));
+	setsockopt(conn->handle.fd, SOL_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	/* lingering must absolutely be disabled so that we don't send a
 	 * shutdown(), this is critical to the TCP_REPAIR trick. When no stream
@@ -1338,10 +1338,10 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	/* We're on the client-facing side, we must force to disable lingering to
 	 * ensure we will use an RST exclusively and kill any pending data.
 	 */
-	fdtab[conn->t.sock.fd].linger_risk = 1;
+	fdtab[conn->handle.fd].linger_risk = 1;
 
 #ifdef TCP_REPAIR
-	if (setsockopt(conn->t.sock.fd, SOL_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
+	if (setsockopt(conn->handle.fd, SOL_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
 		/* socket will be quiet now */
 		goto out;
 	}
@@ -1351,7 +1351,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	 * network and has no effect on local net.
 	 */
 #ifdef IP_TTL
-	setsockopt(conn->t.sock.fd, SOL_IP, IP_TTL, &one, sizeof(one));
+	setsockopt(conn->handle.fd, SOL_IP, IP_TTL, &one, sizeof(one));
 #endif
  out:
 	/* kill the stream if any */
@@ -1597,7 +1597,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* The fd may not be avalaible for the tcp_info struct, and the
 	  syscal can fail. */
 	optlen = sizeof(info);
-	if (getsockopt(conn->t.sock.fd, SOL_TCP, TCP_INFO, &info, &optlen) == -1)
+	if (getsockopt(conn->handle.fd, SOL_TCP, TCP_INFO, &info, &optlen) == -1)
 		return 0;
 
 	/* extract the value. */

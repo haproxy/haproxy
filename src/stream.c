@@ -2302,8 +2302,8 @@ struct task *process_stream(struct task *t)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->t.sock.fd : -1,
-			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->t.sock.fd : -1);
+			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
+			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
 			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 
@@ -2311,8 +2311,8 @@ struct task *process_stream(struct task *t)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->t.sock.fd : -1,
-			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->t.sock.fd : -1);
+			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
+			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
 			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 	}
@@ -2415,8 +2415,8 @@ struct task *process_stream(struct task *t)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-		              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->t.sock.fd : -1,
-		              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->t.sock.fd : -1);
+		              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
+		              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
 		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 	}
 
@@ -2835,10 +2835,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
 			              conn->flags,
-			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
+			              conn->handle.fd,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache : 0,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0);
 		}
 		else if ((tmpctx = objt_appctx(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
@@ -2863,10 +2863,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
 			              conn->flags,
-			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
+			              conn->handle.fd,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache : 0,
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0);
 		}
 		else if ((tmpctx = objt_appctx(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
@@ -3122,7 +3122,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[0].state,
 				     curr_strm->si[0].flags,
-				     conn ? conn->t.sock.fd : -1,
+				     conn ? conn->handle.fd : -1,
 				     curr_strm->si[0].exp ?
 				     human_time(TICKS_TO_MS(curr_strm->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
@@ -3132,7 +3132,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[1].state,
 				     curr_strm->si[1].flags,
-				     conn ? conn->t.sock.fd : -1,
+				     conn ? conn->handle.fd : -1,
 				     curr_strm->si[1].exp ?
 				     human_time(TICKS_TO_MS(curr_strm->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");

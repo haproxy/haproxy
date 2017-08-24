@@ -439,7 +439,7 @@ int uxst_connect_server(struct connection *conn, int data, int delack)
 		return SF_ERR_INTERNAL;
 	}
 
-	if ((fd = conn->t.sock.fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1) {
+	if ((fd = conn->handle.fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE) {

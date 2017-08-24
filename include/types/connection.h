@@ -42,6 +42,15 @@ struct buffer;
 struct server;
 struct pipe;
 
+
+/* A connection handle is how we differenciate two connections on the lower
+ * layers. It usually is a file descriptor but can be a connection id.
+ */
+union conn_handle {
+	int fd;                 /* file descriptor, for regular sockets */
+};
+
+
 /* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
  * indicates if read or write is desired in that direction for the respective
  * layers. The current status corresponding to the current layer being used is
@@ -293,12 +302,7 @@ struct connection {
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
-
-	union {                       /* definitions which depend on connection type */
-		struct {              /*** information used by socket-based connections ***/
-			int fd;       /* file descriptor for a stream driver when known */
-		} sock;
-	} t;
+	union conn_handle handle;     /* connection handle at the socket layer */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
 	const struct netns_entry *proxy_netns;

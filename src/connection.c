@@ -181,21 +181,21 @@ void conn_update_data_polling(struct connection *c)
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_DATA_RD_ENA)) {
-		fd_want_recv(c->t.sock.fd);
+		fd_want_recv(c->handle.fd);
 		f |= CO_FL_CURR_RD_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
-		fd_stop_recv(c->t.sock.fd);
+		fd_stop_recv(c->handle.fd);
 		f &= ~CO_FL_CURR_RD_ENA;
 	}
 
 	/* update write status if needed */
 	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_DATA_WR_ENA)) {
-		fd_want_send(c->t.sock.fd);
+		fd_want_send(c->handle.fd);
 		f |= CO_FL_CURR_WR_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
-		fd_stop_send(c->t.sock.fd);
+		fd_stop_send(c->handle.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
 	c->flags = f;
@@ -216,21 +216,21 @@ void conn_update_sock_polling(struct connection *c)
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_SOCK_RD_ENA)) {
-		fd_want_recv(c->t.sock.fd);
+		fd_want_recv(c->handle.fd);
 		f |= CO_FL_CURR_RD_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
-		fd_stop_recv(c->t.sock.fd);
+		fd_stop_recv(c->handle.fd);
 		f &= ~CO_FL_CURR_RD_ENA;
 	}
 
 	/* update write status if needed */
 	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_SOCK_WR_ENA)) {
-		fd_want_send(c->t.sock.fd);
+		fd_want_send(c->handle.fd);
 		f |= CO_FL_CURR_WR_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
-		fd_stop_send(c->t.sock.fd);
+		fd_stop_send(c->handle.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
 	c->flags = f;
@@ -265,11 +265,11 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	if (!len)
 		goto fail;
 
-	if (!fd_send_ready(conn->t.sock.fd))
+	if (!fd_send_ready(conn->handle.fd))
 		goto wait;
 
 	do {
-		ret = send(conn->t.sock.fd, buf, len, flags | MSG_DONTWAIT | MSG_NOSIGNAL);
+		ret = send(conn->handle.fd, buf, len, flags | MSG_DONTWAIT | MSG_NOSIGNAL);
 	} while (ret < 0 && errno == EINTR);
 
 
@@ -278,7 +278,7 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 
 	if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
 	wait:
-		fd_cant_send(conn->t.sock.fd);
+		fd_cant_send(conn->handle.fd);
 		return 0;
 	}
  fail:
@@ -301,11 +301,11 @@ int conn_sock_drain(struct connection *conn)
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
 		return 1;
 
-	if (fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) {
-		fdtab[conn->t.sock.fd].linger_risk = 0;
+	if (fdtab[conn->handle.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) {
+		fdtab[conn->handle.fd].linger_risk = 0;
 	}
 	else {
-		if (!fd_recv_ready(conn->t.sock.fd))
+		if (!fd_recv_ready(conn->handle.fd))
 			return 0;
 
 		/* disable draining if we were called and have no drain function */
@@ -314,7 +314,7 @@ int conn_sock_drain(struct connection *conn)
 			return 0;
 		}
 
-		if (conn->ctrl->drain(conn->t.sock.fd) <= 0)
+		if (conn->ctrl->drain(conn->handle.fd) <= 0)
 			return 0;
 	}
 
@@ -368,16 +368,16 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
-	if (!fd_recv_ready(conn->t.sock.fd))
+	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
 	do {
-		trash.len = recv(conn->t.sock.fd, trash.str, trash.size, MSG_PEEK);
+		trash.len = recv(conn->handle.fd, trash.str, trash.size, MSG_PEEK);
 		if (trash.len < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
-				fd_cant_recv(conn->t.sock.fd);
+				fd_cant_recv(conn->handle.fd);
 				return 0;
 			}
 			goto recv_abort;
@@ -609,7 +609,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * fail.
 	 */
 	do {
-		int len2 = recv(conn->t.sock.fd, trash.str, trash.len, 0);
+		int len2 = recv(conn->handle.fd, trash.str, trash.len, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.len)
@@ -680,16 +680,16 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
-	if (!fd_recv_ready(conn->t.sock.fd))
+	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
 	do {
-		trash.len = recv(conn->t.sock.fd, trash.str, trash.size, MSG_PEEK);
+		trash.len = recv(conn->handle.fd, trash.str, trash.size, MSG_PEEK);
 		if (trash.len < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
-				fd_cant_recv(conn->t.sock.fd);
+				fd_cant_recv(conn->handle.fd);
 				return 0;
 			}
 			goto recv_abort;
@@ -807,7 +807,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	 * result, we fail.
 	 */
 	do {
-		int len2 = recv(conn->t.sock.fd, trash.str, trash.len, 0);
+		int len2 = recv(conn->handle.fd, trash.str, trash.len, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.len)

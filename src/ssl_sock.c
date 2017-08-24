@@ -286,7 +286,7 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 			if (ret == 0)
 				return;
 			fprintf(stderr, "fd[%04x] OpenSSL error[0x%lx] %s: %s\n",
-			        (unsigned short)conn->t.sock.fd, ret,
+			        (unsigned short)conn->handle.fd, ret,
 			        ERR_func_error_string(ret), ERR_reason_error_string(ret));
 		}
 	}
@@ -4506,7 +4506,7 @@ static int ssl_sock_init(struct connection *conn)
 		}
 
 		/* set fd on SSL session context */
-		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
+		if (!SSL_set_fd(conn->xprt_ctx, conn->handle.fd)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
@@ -4560,7 +4560,7 @@ static int ssl_sock_init(struct connection *conn)
 		}
 
 		/* set fd on SSL session context */
-		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
+		if (!SSL_set_fd(conn->xprt_ctx, conn->handle.fd)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
@@ -4632,7 +4632,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				/* SSL handshake needs to write, L4 connection may not be ready */
 				__conn_sock_stop_recv(conn);
 				__conn_sock_want_send(conn);
-				fd_cant_send(conn->t.sock.fd);
+				fd_cant_send(conn->handle.fd);
 				return 0;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -4648,7 +4648,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				__conn_sock_stop_send(conn);
 				__conn_sock_want_recv(conn);
-				fd_cant_recv(conn->t.sock.fd);
+				fd_cant_recv(conn->handle.fd);
 				return 0;
 			}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
@@ -4723,7 +4723,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			/* SSL handshake needs to write, L4 connection may not be ready */
 			__conn_sock_stop_recv(conn);
 			__conn_sock_want_send(conn);
-			fd_cant_send(conn->t.sock.fd);
+			fd_cant_send(conn->handle.fd);
 			return 0;
 		}
 		else if (ret == SSL_ERROR_WANT_READ) {
@@ -4732,7 +4732,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 			__conn_sock_stop_send(conn);
 			__conn_sock_want_recv(conn);
-			fd_cant_recv(conn->t.sock.fd);
+			fd_cant_recv(conn->handle.fd);
 			return 0;
 		}
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
@@ -4941,7 +4941,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 					break;
 				}
 				/* we need to poll for retry a read later */
-				fd_cant_recv(conn->t.sock.fd);
+				fd_cant_recv(conn->handle.fd);
 				break;
 			}
 			/* otherwise it's a real error */
@@ -5042,7 +5042,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					break;
 				}
 				/* we need to poll to retry a write later */
-				fd_cant_send(conn->t.sock.fd);
+				fd_cant_send(conn->handle.fd);
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {

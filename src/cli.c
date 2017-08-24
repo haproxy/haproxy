@@ -1173,7 +1173,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	int tot_fd_nb = 0;
 	struct proxy *px;
 	int i = 0;
-	int fd = remote->t.sock.fd;
+	int fd = remote->handle.fd;
 	int curoff = 0;
 	int old_fcntl;
 	int ret;

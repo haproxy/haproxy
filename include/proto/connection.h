@@ -106,7 +106,7 @@ static inline void conn_xprt_close(struct connection *conn)
 static inline void conn_ctrl_init(struct connection *conn)
 {
 	if (!conn_ctrl_ready(conn)) {
-		int fd = conn->t.sock.fd;
+		int fd = conn->handle.fd;
 
 		fd_insert(fd);
 		/* mark the fd as ready so as not to needlessly poll at the beginning */
@@ -124,7 +124,7 @@ static inline void conn_ctrl_init(struct connection *conn)
 static inline void conn_ctrl_close(struct connection *conn)
 {
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
-		fd_delete(conn->t.sock.fd);
+		fd_delete(conn->handle.fd);
 		conn->flags &= ~CO_FL_CTRL_READY;
 	}
 }
@@ -151,9 +151,9 @@ static inline void conn_force_close(struct connection *conn)
 		conn->xprt->close(conn);
 
 	if (conn_ctrl_ready(conn))
-		fd_delete(conn->t.sock.fd);
+		fd_delete(conn->handle.fd);
 
-	conn->t.sock.fd = DEAD_FD_MAGIC;
+	conn->handle.fd = DEAD_FD_MAGIC;
 	conn->flags &= ~(CO_FL_XPRT_READY|CO_FL_CTRL_READY);
 }
 
@@ -183,9 +183,9 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 	if (conn_ctrl_ready(conn)) {
 		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
 
-		if (fd_recv_active(conn->t.sock.fd))
+		if (fd_recv_active(conn->handle.fd))
 			flags |= CO_FL_CURR_RD_ENA;
-		if (fd_send_active(conn->t.sock.fd))
+		if (fd_send_active(conn->handle.fd))
 			flags |= CO_FL_CURR_WR_ENA;
 		conn->flags = flags;
 	}
@@ -264,7 +264,7 @@ static inline void conn_stop_polling(struct connection *c)
 		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
 		      CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
 	if (conn_ctrl_ready(c))
-		fd_stop_both(c->t.sock.fd);
+		fd_stop_both(c->handle.fd);
 }
 
 /* Automatically update polling on connection <c> depending on the DATA and
@@ -304,7 +304,7 @@ static inline void __conn_data_stop_recv(struct connection *c)
  */
 static inline int __conn_data_done_recv(struct connection *c)
 {
-	if (!conn_ctrl_ready(c) || !fd_recv_polled(c->t.sock.fd)) {
+	if (!conn_ctrl_ready(c) || !fd_recv_polled(c->handle.fd)) {
 		c->flags &= ~CO_FL_DATA_RD_ENA;
 		return 1;
 	}
@@ -425,7 +425,7 @@ static inline void conn_sock_read0(struct connection *c)
 	 * zero from the other side.
 	 */
 	if (conn_ctrl_ready(c))
-		fdtab[c->t.sock.fd].linger_risk = 0;
+		fdtab[c->handle.fd].linger_risk = 0;
 }
 
 static inline void conn_data_read0(struct connection *c)
@@ -439,7 +439,7 @@ static inline void conn_sock_shutw(struct connection *c)
 	c->flags |= CO_FL_SOCK_WR_SH;
 	__conn_sock_stop_send(c);
 	if (conn_ctrl_ready(c))
-		shutdown(c->t.sock.fd, SHUT_WR);
+		shutdown(c->handle.fd, SHUT_WR);
 }
 
 static inline void conn_data_shutw(struct connection *c)
@@ -497,7 +497,7 @@ static inline void conn_init(struct connection *conn)
 	conn->data = NULL;
 	conn->owner = NULL;
 	conn->send_proxy_ofs = 0;
-	conn->t.sock.fd = DEAD_FD_MAGIC;
+	conn->handle.fd = DEAD_FD_MAGIC;
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
 	conn->proxy_netns = NULL;
@@ -534,7 +534,7 @@ static inline void conn_get_from_addr(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
 		return;
 
-	if (conn->ctrl->get_src(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from,
+	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)&conn->addr.from,
 	                        sizeof(conn->addr.from),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return;
@@ -550,7 +550,7 @@ static inline void conn_get_to_addr(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
 		return;
 
-	if (conn->ctrl->get_dst(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to,
+	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)&conn->addr.to,
 	                        sizeof(conn->addr.to),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return;

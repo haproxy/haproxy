@@ -130,7 +130,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
 
-	cli_conn->t.sock.fd = cfd;
+	cli_conn->handle.fd = cfd;
 	cli_conn->addr.from = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->target = &l->obj_type;

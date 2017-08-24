@@ -573,7 +573,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
-	if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
+	if (getsockopt(conn->handle.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
 		errno = skerr;
 
 	if (errno == EAGAIN)
@@ -2986,7 +2986,7 @@ const char *init_check(struct check *check, int type)
 		return "out of memory while allocating check connection";
 	}
 
-	check->conn->t.sock.fd = -1; /* no agent in progress yet */
+	check->conn->handle.fd = -1; /* no agent in progress yet */
 
 	return NULL;
 }

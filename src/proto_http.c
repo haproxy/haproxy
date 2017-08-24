@@ -2809,7 +2809,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(__objt_conn(sess->origin)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(__objt_conn(sess->origin)->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -3517,13 +3517,13 @@ resume_execution:
 
 		case ACT_HTTP_SET_TOS:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				inet_set_tos(cli_conn->t.sock.fd, &cli_conn->addr.from, rule->arg.tos);
+				inet_set_tos(cli_conn->handle.fd, &cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case ACT_HTTP_SET_MARK:
 #ifdef SO_MARK
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
+				setsockopt(cli_conn->handle.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
@@ -3786,13 +3786,13 @@ resume_execution:
 
 		case ACT_HTTP_SET_TOS:
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				inet_set_tos(cli_conn->t.sock.fd, &cli_conn->addr.from, rule->arg.tos);
+				inet_set_tos(cli_conn->handle.fd, &cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case ACT_HTTP_SET_MARK:
 #ifdef SO_MARK
 			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
+				setsockopt(cli_conn->handle.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
@@ -4817,7 +4817,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	    cli_conn && conn_ctrl_ready(cli_conn) &&
 	    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 	     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
-		setsockopt(cli_conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+		setsockopt(cli_conn->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 
 	/*************************************************************
@@ -8818,8 +8818,8 @@ void debug_hdr(const char *dir, struct stream *s, const char *start, const char 
 
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
 		      dir,
-		     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->t.sock.fd : -1,
-		     objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
+		     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->handle.fd : -1,
+		     objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->handle.fd : -1);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')
