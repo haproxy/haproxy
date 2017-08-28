@@ -111,7 +111,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	struct connection *cli_conn;
 	struct proxy *p = l->bind_conf->frontend;
 	struct session *sess;
-	struct stream *strm;
 	int ret;
 
 
@@ -268,10 +267,9 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_sess;
 
 	session_count_new(sess);
-	if ((strm = stream_new(sess, &cli_conn->obj_type)) == NULL)
+	if (stream_create_from_conn(cli_conn) < 0)
 		goto out_free_sess;
 
-	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	return 1;
 
  out_free_sess:
@@ -417,7 +415,6 @@ static struct task *session_expire_embryonic(struct task *t)
 static int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
-	struct stream *strm;
 
 	conn_clear_xprt_done_cb(conn);
 
@@ -436,10 +433,8 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	session_count_new(sess);
-	if ((strm = stream_new(sess, &conn->obj_type)) == NULL)
+	if (stream_create_from_conn(conn) < 0)
 		goto fail;
-
-	task_wakeup(strm->task, TASK_WOKEN_INIT);
 
 	/* the embryonic session's task is not needed anymore */
 	task_delete(sess->task);

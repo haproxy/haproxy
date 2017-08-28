@@ -65,6 +65,23 @@ struct list streams;
 /* List of all use-service keywords. */
 static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 
+
+/* Create a new stream for connection <conn>. Return < 0 on error. This is only
+ * valid right after the handshake, before the connection's data layer is
+ * initialized, because it relies on the session to be in conn->owner.
+ */
+int stream_create_from_conn(struct connection *conn)
+{
+	struct stream *strm;
+
+	strm = stream_new(conn->owner, &conn->obj_type);
+	if (strm == NULL)
+		return -1;
+
+	task_wakeup(strm->task, TASK_WOKEN_INIT);
+	return 0;
+}
+
 /* This function is called from the session handler which detects the end of
  * handshake, in order to complete initialization of a valid stream. It must be
  * called with a completley initialized session. It returns the pointer to
