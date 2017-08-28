@@ -61,21 +61,6 @@ struct pool_head {
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 
-/*
- * This function destroys a pull by freeing it completely.
- * This should be called only under extreme circumstances.
- */
-static inline void pool_destroy(void **pool)
-{
-	void *temp, *next;
-	next = pool;
-	while (next) {
-		temp = next;
-		next = *(void **)temp;
-		free(temp);
-	}
-}
-
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1
  * available, then returns the last one for immediate use, so that at least
  * <avail> are left available in the pool upon return. NULL is returned if the
