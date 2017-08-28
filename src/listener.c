@@ -181,7 +181,7 @@ int resume_listener(struct listener *l)
 /* Marks a ready listener as full so that the stream code tries to re-enable
  * it upon next close() using resume_listener().
  */
-void listener_full(struct listener *l)
+static void listener_full(struct listener *l)
 {
 	if (l->state >= LI_READY) {
 		if (l->state == LI_LIMITED)
@@ -195,7 +195,7 @@ void listener_full(struct listener *l)
 /* Marks a ready listener as limited so that we only try to re-enable it when
  * resources are free again. It will be queued into the specified queue.
  */
-void limit_listener(struct listener *l, struct list *list)
+static void limit_listener(struct listener *l, struct list *list)
 {
 	if (l->state == LI_READY) {
 		LIST_ADDQ(list, &l->wait_queue);
