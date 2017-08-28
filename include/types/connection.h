@@ -299,7 +299,7 @@ struct connection {
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct data_cb  *data;  /* data layer callbacks. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
-	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
+	void *owner;                  /* pointer to upper layer's entity (eg: session, stream interface) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */

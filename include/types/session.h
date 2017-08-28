@@ -46,6 +46,7 @@ struct session {
 	struct timeval tv_accept;       /* date of the session's accept() in internal date (monotonic) */
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters for tcp-connection */
 	struct vars vars;               /* list of variables for the session scope. */
+	struct task *task;              /* handshake timeout processing */
 };
 
 #endif /* _TYPES_SESSION_H */

@@ -52,6 +52,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->tv_accept   = now;  /* corrected date for internal use */
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
 		vars_init(&sess->vars, SCOPE_SESS);
+		sess->task = NULL;
 	}
 	return sess;
 }
@@ -102,7 +103,8 @@ static void session_count_new(struct session *sess)
  * returns a positive value upon success, 0 if the connection can be ignored,
  * or a negative value upon critical failure. The accepted file descriptor is
  * closed if we return <= 0. If no handshake is needed, it immediately tries
- * to instanciate a new stream.
+ * to instanciate a new stream. The created connection's owner points to the
+ * new session until the upper layers are created.
  */
 int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
@@ -147,6 +149,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;
+
+	conn_set_owner(cli_conn, sess);
 
 	p->feconn++;
 	/* This session was accepted, count it now */
@@ -222,32 +226,33 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
-	/* OK, now either we have a pending handshake to execute with and
-	 * then we must return to the I/O layer, or we can proceed with the
-	 * end of the stream initialization. In case of handshake, we also
-	 * set the I/O timeout to the frontend's client timeout.
+	/* OK, now either we have a pending handshake to execute with and then
+	 * we must return to the I/O layer, or we can proceed with the end of
+	 * the stream initialization. In case of handshake, we also set the I/O
+	 * timeout to the frontend's client timeout and register a task in the
+	 * session for this purpose. The connection's owner is left to the
+	 * session during this period.
 	 *
 	 * At this point we set the relation between sess/task/conn this way :
 	 *
-	 *          orig -- sess <-- context
-	 *           |                   |
-	 *           v                   |
-	 *          conn -- owner ---> task
+	 *                   +----------------- task
+	 *                   |                    |
+	 *          orig -- sess <-- context      |
+	 *           |       ^           |        |
+	 *           v       |           |        |
+	 *          conn -- owner ---> task <-----+
 	 */
 	if (cli_conn->flags & CO_FL_HANDSHAKE) {
-		struct task *t;
-
-		if (unlikely((t = task_new()) == NULL))
+		if (unlikely((sess->task = task_new()) == NULL))
 			goto out_free_sess;
 
-		conn_set_owner(cli_conn, t);
 		conn_set_xprt_done_cb(cli_conn, conn_complete_session);
 
-		t->context = sess;
-		t->nice    = l->nice;
-		t->process = session_expire_embryonic;
-		t->expire  = tick_add_ifset(now_ms, p->timeout.client);
-		task_queue(t);
+		sess->task->context = sess;
+		sess->task->nice    = l->nice;
+		sess->task->process = session_expire_embryonic;
+		sess->task->expire  = tick_add_ifset(now_ms, p->timeout.client);
+		task_queue(sess->task);
 		return 1;
 	}
 
@@ -327,10 +332,11 @@ static void session_prepare_log_prefix(struct session *sess)
  * disabled and finally kills the file descriptor. This function requires that
  * sess->origin points to the incoming connection.
  */
-static void session_kill_embryonic(struct session *sess, struct task *task)
+static void session_kill_embryonic(struct session *sess)
 {
 	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(sess->origin);
+	struct task *task = sess->task;
 	unsigned int log = sess->fe->to_log;
 	const char *err_msg;
 
@@ -401,7 +407,7 @@ static struct task *session_expire_embryonic(struct task *t)
 	if (!(t->state & TASK_WOKEN_TIMER))
 		return t;
 
-	session_kill_embryonic(sess, t);
+	session_kill_embryonic(sess);
 	return NULL;
 }
 
@@ -410,8 +416,7 @@ static struct task *session_expire_embryonic(struct task *t)
  */
 static int conn_complete_session(struct connection *conn)
 {
-	struct task *task = conn->owner;
-	struct session *sess = task->context;
+	struct session *sess = conn->owner;
 	struct stream *strm;
 
 	conn_clear_xprt_done_cb(conn);
@@ -437,12 +442,13 @@ static int conn_complete_session(struct connection *conn)
 	task_wakeup(strm->task, TASK_WOKEN_INIT);
 
 	/* the embryonic session's task is not needed anymore */
-	task_delete(task);
-	task_free(task);
+	task_delete(sess->task);
+	task_free(sess->task);
+	sess->task = NULL;
 	return 0;
 
  fail:
-	session_kill_embryonic(sess, task);
+	session_kill_embryonic(sess);
 	return -1;
 }
 
