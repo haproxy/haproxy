@@ -86,12 +86,14 @@ void conn_fd_handler(int fd)
 	if (!(conn->flags & CO_FL_POLL_SOCK))
 		__conn_sock_stop_both(conn);
 
-	/* The data layer might not be ready yet (eg: when using embryonic
-	 * sessions). If we're about to move data, we must initialize it first.
-	 * The function may fail and cause the connection to be destroyed, thus
-	 * we must not use it anymore and should immediately leave instead.
+	/* The connection owner might want to be notified about an end of
+	 * handshake indicating the connection is ready, before we proceed with
+	 * any data exchange. The callback may fail and cause the connection to
+	 * be destroyed, thus we must not use it anymore and should immediately
+	 * leave instead. The caller must immediately unregister itself once
+	 * called.
 	 */
-	if ((conn->flags & CO_FL_INIT_DATA) && conn->data->init(conn) < 0)
+	if (conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
 		return;
 
 	if (conn->xprt && fd_send_ready(fd) &&
@@ -136,6 +138,16 @@ void conn_fd_handler(int fd)
 	/* Verify if the connection just established. */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
 		conn->flags |= CO_FL_CONNECTED;
+
+	/* The connection owner might want to be notified about failures to
+	 * complete the handshake. The callback may fail and cause the
+	 * connection to be destroyed, thus we must not use it anymore and
+	 * should immediately leave instead. The caller must immediately
+	 * unregister itself once called.
+	 */
+	if (((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) &&
+	    conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
+		return;
 
 	/* The wake callback is normally used to notify the data layer about
 	 * data layer activity (successful send/recv), connection establishment,

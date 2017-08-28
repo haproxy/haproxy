@@ -500,8 +500,27 @@ static inline void conn_init(struct connection *conn)
 	conn->handle.fd = DEAD_FD_MAGIC;
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
+	conn->xprt_done_cb = NULL;
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
+}
+
+/* sets <owner> as the connection's owner */
+static inline void conn_set_owner(struct connection *conn, void *owner)
+{
+	conn->owner = owner;
+}
+
+/* registers <cb> as a callback to notify for transport's readiness or failure */
+static inline void conn_set_xprt_done_cb(struct connection *conn, int (*cb)(struct connection *))
+{
+	conn->xprt_done_cb = cb;
+}
+
+/* unregisters the callback to notify for transport's readiness or failure */
+static inline void conn_clear_xprt_done_cb(struct connection *conn)
+{
+	conn->xprt_done_cb = NULL;
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The

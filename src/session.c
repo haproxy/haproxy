@@ -31,17 +31,7 @@
 struct pool_head *pool2_session;
 
 static int conn_complete_session(struct connection *conn);
-static int conn_update_session(struct connection *conn);
 static struct task *session_expire_embryonic(struct task *t);
-
-/* data layer callbacks for an embryonic stream */
-struct data_cb sess_conn_cb = {
-	.recv = NULL,
-	.send = NULL,
-	.wake = conn_update_session,
-	.init = conn_complete_session,
-	.name = "SESS",
-};
 
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
  * origin <origin>, set the current date and clear the stick counters pointers.
@@ -251,11 +241,11 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	 *          conn -- owner ---> task
 	 */
 	if (cli_conn->flags & CO_FL_HANDSHAKE) {
-		conn_attach(cli_conn, t, &sess_conn_cb);
+		conn_set_owner(cli_conn, t);
+		conn_set_xprt_done_cb(cli_conn, conn_complete_session);
 		t->process = session_expire_embryonic;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
-		cli_conn->flags |= CO_FL_INIT_DATA;
 		return 1;
 	}
 
@@ -423,8 +413,13 @@ static int conn_complete_session(struct connection *conn)
 	struct task *task = conn->owner;
 	struct session *sess = task->context;
 
+	conn_clear_xprt_done_cb(conn);
+
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
+
+	if (conn->flags & CO_FL_HANDSHAKE)
+		return 0; /* wait more */
 
 	/* if logs require transport layer information, note it on the connection */
 	if (sess->fe->to_log & LW_XPRT)
@@ -439,29 +434,12 @@ static int conn_complete_session(struct connection *conn)
 	if (!stream_new(sess, task, &conn->obj_type))
 		goto fail;
 
-	conn->flags &= ~CO_FL_INIT_DATA;
-
 	task_wakeup(task, TASK_WOKEN_INIT);
 	return 0;
 
  fail:
 	session_kill_embryonic(sess, task);
 	return -1;
-}
-
-/* Update a session status. The connection is killed in case of
- * error, and <0 will be returned. Otherwise it does nothing.
- */
-static int conn_update_session(struct connection *conn)
-{
-	struct task *task = conn->owner;
-	struct session *sess = task->context;
-
-	if (conn->flags & CO_FL_ERROR) {
-		session_kill_embryonic(sess, task);
-		return -1;
-	}
-	return 0;
 }
 
 /*

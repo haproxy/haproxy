@@ -95,8 +95,7 @@ enum {
 	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
 	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
 
-	/* flags indicating what event type the data layer is interested in */
-	CO_FL_INIT_DATA     = 0x00004000,  /* initialize the data layer before using it */
+	/* unused : 0x00004000 */
 	/* unused : 0x00008000 */
 
 	/* flags used to remember what shutdown have been performed/reported */
@@ -107,6 +106,7 @@ enum {
 
 	/* flags used to report connection errors or other closing conditions */
 	CO_FL_ERROR         = 0x00100000,  /* a fatal error was reported     */
+	CO_FL_NOTIFY_DONE   = 0x001C0000,  /* any xprt shut/error flags above needs to be reported */
 	CO_FL_NOTIFY_DATA   = 0x001F0000,  /* any shut/error flags above needs to be reported */
 
 	/* flags used to report connection status updates */
@@ -248,16 +248,12 @@ struct xprt_ops {
  * callbacks are supposed to make use of the xprt_ops above to exchange data
  * from/to buffers and pipes. The <wake> callback is used to report activity
  * at the transport layer, which can be a connection opening/close, or any
- * data movement. The <init> callback may be called by the connection handler
- * at the end of a transport handshake, when it is about to transfer data and
- * the data layer is not ready yet. Both <wake> and <init> may abort a connection
- * by returning < 0.
+ * data movement. It may abort a connection by returning < 0.
  */
 struct data_cb {
 	void (*recv)(struct connection *conn);  /* data-layer recv callback */
 	void (*send)(struct connection *conn);  /* data-layer send callback */
 	int  (*wake)(struct connection *conn);  /* data-layer callback to report activity */
-	int  (*init)(struct connection *conn);  /* data-layer initialization */
 	char name[8];                           /* data layer name, zero-terminated */
 };
 
@@ -289,7 +285,10 @@ struct conn_src {
  * socket, and can also be made to an internal applet. It can support
  * several transport schemes (raw, ssl, ...). It can support several
  * connection control schemes, generally a protocol for socket-oriented
- * connections, but other methods for applets.
+ * connections, but other methods for applets. The xprt_done_cb() callback
+ * is called once the transport layer initialization is done (success or
+ * failure). It may return < 0 to report an error and require an abort of the
+ * connection being instanciated. It must be removed once done.
  */
 struct connection {
 	enum obj_type obj_type;       /* differentiates connection from applet context */
@@ -305,6 +304,7 @@ struct connection {
 	union conn_handle handle;     /* connection handle at the socket layer */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
+	int (*xprt_done_cb)(struct connection *conn);  /* callback to notify of end of handshake */
 	const struct netns_entry *proxy_netns;
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
