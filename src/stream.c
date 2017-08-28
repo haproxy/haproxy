@@ -67,20 +67,22 @@ static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 
 /* This function is called from the session handler which detects the end of
  * handshake, in order to complete initialization of a valid stream. It must be
- * called with a session (which may be embryonic). It returns the pointer to
+ * called with a completley initialized session. It returns the pointer to
  * the newly created stream, or NULL in case of fatal error. The client-facing
- * end point is assigned to <origin>, which must be valid. The task's context
- * is set to the new stream, and its function is set to process_stream().
- * Target and analysers are null.
+ * end point is assigned to <origin>, which must be valid. The stream's task
+ * is configured with a nice value inherited from the listener's nice if any.
+ * The task's context is set to the new stream, and its function is set to
+ * process_stream(). Target and analysers are null.
  */
-struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *origin)
+struct stream *stream_new(struct session *sess, enum obj_type *origin)
 {
 	struct stream *s;
+	struct task *t;
 	struct connection *conn = objt_conn(origin);
 	struct appctx *appctx   = objt_appctx(origin);
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
-		return s;
+		goto out_fail_alloc;
 
 	/* minimum stream initialization required for an embryonic stream is
 	 * fairly low. We need very little to execute L4 ACLs, then we need a
@@ -145,11 +147,16 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	s->flags |= SF_INITIALIZED;
 	s->unique_id = NULL;
 
+	if ((t = task_new()) == NULL)
+		goto out_fail_alloc;
+
 	s->task = t;
 	s->pending_events = 0;
 	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
+	if (sess->listener)
+		t->nice = sess->listener->nice;
 
 	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
@@ -250,6 +257,8 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	/* Error unrolling */
  out_fail_accept:
 	flt_stream_release(s, 0);
+	task_free(t);
+ out_fail_alloc:
 	LIST_DEL(&s->by_sess);
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);

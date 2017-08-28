@@ -1901,7 +1901,6 @@ spoe_create_appctx(struct spoe_config *conf)
 {
 	struct appctx      *appctx;
 	struct session     *sess;
-	struct task        *task;
 	struct stream      *strm;
 
 	if ((appctx = appctx_new(&spoe_applet)) == NULL)
@@ -1937,11 +1936,8 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	if ((task = task_new()) == NULL)
+	if ((strm = stream_new(sess, &appctx->obj_type)) == NULL)
 		goto out_free_sess;
-
-	if ((strm = stream_new(sess, task, &appctx->obj_type)) == NULL)
-		goto out_free_task;
 
 	stream_set_backend(strm, conf->agent->b.be);
 
@@ -1960,12 +1956,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	LIST_ADDQ(&conf->agent->applets, &SPOE_APPCTX(appctx)->list);
 	conf->agent->applets_act++;
 
-	task_wakeup(task, TASK_WOKEN_INIT);
+	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */
- out_free_task:
-	task_free(task);
  out_free_sess:
 	session_free(sess);
  out_free_spoe:

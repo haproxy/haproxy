@@ -1784,7 +1784,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct appctx *appctx;
 	struct session *sess;
 	struct stream *s;
-	struct task *t;
 	struct connection *conn;
 
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
@@ -1804,15 +1803,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_appctx;
 	}
 
-	if ((t = task_new()) == NULL) {
-		Alert("out of memory in peer_session_create().\n");
-		goto out_free_sess;
-	}
-	t->nice = l->nice;
-
-	if ((s = stream_new(sess, t, &appctx->obj_type)) == NULL) {
+	if ((s = stream_new(sess, &appctx->obj_type)) == NULL) {
 		Alert("Failed to initialize stream in peer_session_create().\n");
-		goto out_free_task;
+		goto out_free_sess;
 	}
 
 	/* The tasks below are normally what is supposed to be done by
@@ -1851,7 +1844,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	totalconn++;
 
 	peer->appctx = appctx;
-	task_wakeup(t, TASK_WOKEN_INIT);
+	task_wakeup(s->task, TASK_WOKEN_INIT);
 	return appctx;
 
 	/* Error unrolling */
@@ -1859,8 +1852,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	LIST_DEL(&s->by_sess);
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
- out_free_task:
-	task_free(t);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:

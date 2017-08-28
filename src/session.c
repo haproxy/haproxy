@@ -109,7 +109,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	struct connection *cli_conn;
 	struct proxy *p = l->bind_conf->frontend;
 	struct session *sess;
-	struct task *t;
+	struct stream *strm;
 	int ret;
 
 
@@ -222,12 +222,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
-	if (unlikely((t = task_new()) == NULL))
-		goto out_free_sess;
-
-	t->context = sess;
-	t->nice = l->nice;
-
 	/* OK, now either we have a pending handshake to execute with and
 	 * then we must return to the I/O layer, or we can proceed with the
 	 * end of the stream initialization. In case of handshake, we also
@@ -241,10 +235,18 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	 *          conn -- owner ---> task
 	 */
 	if (cli_conn->flags & CO_FL_HANDSHAKE) {
+		struct task *t;
+
+		if (unlikely((t = task_new()) == NULL))
+			goto out_free_sess;
+
 		conn_set_owner(cli_conn, t);
 		conn_set_xprt_done_cb(cli_conn, conn_complete_session);
+
+		t->context = sess;
+		t->nice    = l->nice;
 		t->process = session_expire_embryonic;
-		t->expire = tick_add_ifset(now_ms, p->timeout.client);
+		t->expire  = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
 		return 1;
 	}
@@ -261,14 +263,12 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_sess;
 
 	session_count_new(sess);
-	if (!stream_new(sess, t, &cli_conn->obj_type))
-		goto out_free_task;
+	if ((strm = stream_new(sess, &cli_conn->obj_type)) == NULL)
+		goto out_free_sess;
 
-	task_wakeup(t, TASK_WOKEN_INIT);
+	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	return 1;
 
- out_free_task:
-	task_free(t);
  out_free_sess:
 	p->feconn--;
 	session_free(sess);
@@ -412,6 +412,7 @@ static int conn_complete_session(struct connection *conn)
 {
 	struct task *task = conn->owner;
 	struct session *sess = task->context;
+	struct stream *strm;
 
 	conn_clear_xprt_done_cb(conn);
 
@@ -430,11 +431,14 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	session_count_new(sess);
-	task->process = sess->listener->handler;
-	if (!stream_new(sess, task, &conn->obj_type))
+	if ((strm = stream_new(sess, &conn->obj_type)) == NULL)
 		goto fail;
 
-	task_wakeup(task, TASK_WOKEN_INIT);
+	task_wakeup(strm->task, TASK_WOKEN_INIT);
+
+	/* the embryonic session's task is not needed anymore */
+	task_delete(task);
+	task_free(task);
 	return 0;
 
  fail:
