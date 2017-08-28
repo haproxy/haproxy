@@ -2871,10 +2871,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if ((conn = objt_conn(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
+			              "  co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
+				      conn_get_mux_name(conn),
 				      conn_get_data_name(conn),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
@@ -2899,10 +2900,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if ((conn = objt_conn(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
+			              "  co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
+				      conn_get_mux_name(conn),
 				      conn_get_data_name(conn),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));

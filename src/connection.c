@@ -105,7 +105,7 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		conn->data->send(conn);
+		conn->mux->send(conn);
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -119,7 +119,7 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		conn->data->recv(conn);
+		conn->mux->recv(conn);
 	}
 
 	/* It may happen during the data phase that a handshake is
@@ -169,7 +169,7 @@ void conn_fd_handler(int fd)
 	if ((((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED)) &&
-	    conn->data->wake(conn) < 0)
+	    conn->mux->wake(conn) < 0)
 		return;
 
 	/* remove the events before leaving */

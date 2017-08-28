@@ -474,14 +474,17 @@ static inline int conn_xprt_read0_pending(struct connection *c)
 }
 
 /* prepares a connection to work with protocol <proto> and transport <xprt>.
- * The transport's context is initialized as well.
+ * The transport's is initialized as well, and the mux and its context are
+ * cleared.
  */
 static inline void conn_prepare(struct connection *conn, const struct protocol *proto, const struct xprt_ops *xprt)
 {
 	conn->ctrl = proto;
 	conn->xprt = xprt;
+	conn->mux  = NULL;
 	conn->xprt_st = 0;
 	conn->xprt_ctx = NULL;
+	conn->mux_ctx = NULL;
 }
 
 /* Initializes all required fields for a new connection. Note that it does the
@@ -495,6 +498,8 @@ static inline void conn_init(struct connection *conn)
 	conn->flags = CO_FL_NONE;
 	conn->data = NULL;
 	conn->tmp_early_data = -1;
+	conn->mux = NULL;
+	conn->mux_ctx = NULL;
 	conn->owner = NULL;
 	conn->send_proxy_ofs = 0;
 	conn->handle.fd = DEAD_FD_MAGIC;
@@ -540,6 +545,8 @@ static inline struct connection *conn_new()
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
+	if (conn->mux && conn->mux->release)
+		conn->mux->release(conn);
 	pool_free2(pool2_connection, conn);
 }
 
@@ -581,6 +588,16 @@ static inline void conn_attach(struct connection *conn, void *owner, const struc
 {
 	conn->data = data;
 	conn->owner = owner;
+}
+
+/* Installs the connection's mux layer for upper context <ctx>.
+ * Returns < 0 on error.
+ */
+static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux, void *ctx)
+{
+	conn->mux = mux;
+	conn->mux_ctx = ctx;
+	return mux->init ? mux->init(conn) : 0;
 }
 
 /* returns a human-readable error code for conn->err_code, or NULL if the code
@@ -646,6 +663,13 @@ static inline const char *conn_get_xprt_name(const struct connection *conn)
 	if (!conn_xprt_ready(conn))
 		return "NONE";
 	return conn->xprt->name;
+}
+
+static inline const char *conn_get_mux_name(const struct connection *conn)
+{
+	if (!conn->mux)
+		return "NONE";
+	return conn->mux->name;
 }
 
 static inline const char *conn_get_data_name(const struct connection *conn)

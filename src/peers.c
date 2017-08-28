@@ -38,6 +38,7 @@
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/mux_pt.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
@@ -1912,6 +1913,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_strm;
 
 	conn_prepare(conn, peer->proto, peer->xprt);
+	conn_install_mux(conn, &mux_pt_ops, conn);
 	si_attach_conn(&s->si[1], conn);
 
 	conn->target = s->target = &s->be->obj_type;

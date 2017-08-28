@@ -41,6 +41,7 @@
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
 #include <proto/log.h>
+#include <proto/mux_pt.h>
 #include <proto/obj_type.h>
 #include <proto/payload.h>
 #include <proto/protocol.h>
@@ -1159,12 +1160,14 @@ int connect_server(struct stream *s)
 		/* set the correct protocol on the output stream interface */
 		if (srv) {
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), srv->xprt);
+			conn_install_mux(srv_conn, &mux_pt_ops, srv_conn);
 		}
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), xprt_get(XPRT_RAW));
 			if (!objt_conn(s->si[1].end) || !objt_conn(s->si[1].end)->ctrl)
 				return SF_ERR_INTERNAL;
+			conn_install_mux(srv_conn, &mux_pt_ops, srv_conn);
 		}
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */

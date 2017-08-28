@@ -46,6 +46,7 @@
 #include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
+#include <proto/mux_pt.h>
 #include <proto/queue.h>
 #include <proto/port_range.h>
 #include <proto/proto_http.h>
@@ -1562,6 +1563,7 @@ static int connect_conn_chk(struct task *t)
 	proto = protocol_by_family(conn->addr.to.ss_family);
 
 	conn_prepare(conn, proto, check->xprt);
+	conn_install_mux(conn, &mux_pt_ops, conn);
 	conn_attach(conn, check, &check_conn_cb);
 	conn->target = &s->obj_type;
 
@@ -2725,6 +2727,7 @@ static int tcpcheck_main(struct check *check)
 				xprt = xprt_get(XPRT_RAW);
 			}
 			conn_prepare(conn, proto, xprt);
+			conn_install_mux(conn, &mux_pt_ops, conn);
 
 			ret = SF_ERR_INTERNAL;
 			if (proto->connect)

@@ -243,6 +243,22 @@ struct xprt_ops {
 	char name[8];                               /* transport layer name, zero-terminated */
 };
 
+/* mux_ops describes the mux operations, which are to be performed at the
+ * connection level after data are exchanged with the transport layer in order
+ * to propagate them to streams. The <init> function will automatically be
+ * called once the mux is instanciated by the connection's owner at the end
+ * of a transport handshake, when it is about to transfer data and the data
+ * layer is not ready yet.
+ */
+struct mux_ops {
+	int  (*init)(struct connection *conn);        /* early initialization */
+	void (*recv)(struct connection *conn);        /* mux-layer recv callback */
+	void (*send)(struct connection *conn);        /* mux-layer send callback */
+	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
+	void (*release)(struct connection *conn);     /* release all resources allocated by the mux */
+	char name[8];                                 /* mux layer name, zero-terminated */
+};
+
 /* data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
  * callbacks are supposed to make use of the xprt_ops above to exchange data
@@ -297,11 +313,13 @@ struct connection {
 	unsigned int flags;           /* CO_FL_* */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
+	const struct mux_ops  *mux;   /* mux layer opreations. Must be set before xprt->init() */
 	const struct data_cb  *data;  /* data layer callbacks. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
-	int tmp_early_data;           /* 1st byte of early data, if any */
+	void *mux_ctx;                /* mux-specific context, initialized to NULL */
 	void *owner;                  /* pointer to upper layer's entity (eg: session, stream interface) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
+	int tmp_early_data;           /* 1st byte of early data, if any */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
