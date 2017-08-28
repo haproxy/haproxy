@@ -2075,7 +2075,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->maxconn = curpeers->peers_fe->maxconn;
 					l->backlog = curpeers->peers_fe->backlog;
 					l->accept = session_accept_fd;
-					l->handler = process_stream;
 					l->analysers |=  curpeers->peers_fe->fe_req_ana;
 					l->default_target = curpeers->peers_fe->default_target;
 					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
@@ -9039,7 +9038,6 @@ out_uri_auth_compat:
 			}
 
 			listener->accept = session_accept_fd;
-			listener->handler = process_stream;
 			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
 

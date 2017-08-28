@@ -190,7 +190,6 @@ struct listener {
 	unsigned int maxaccept;         /* if set, max number of connections accepted at once */
 	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
-	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
