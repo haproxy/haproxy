@@ -41,7 +41,7 @@
 #include <proto/tcp_rules.h>
 
 /* structure used to return a table key built from a sample */
-struct stktable_key *static_table_key;
+static struct stktable_key static_table_key;
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
@@ -510,13 +510,13 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 	switch (t->type) {
 
 	case SMP_T_IPV4:
-		static_table_key->key = &smp->data.u.ipv4;
-		static_table_key->key_len = 4;
+		static_table_key.key = &smp->data.u.ipv4;
+		static_table_key.key_len = 4;
 		break;
 
 	case SMP_T_IPV6:
-		static_table_key->key = &smp->data.u.ipv6;
-		static_table_key->key_len = 16;
+		static_table_key.key = &smp->data.u.ipv6;
+		static_table_key.key_len = 16;
 		break;
 
 	case SMP_T_SINT:
@@ -524,15 +524,15 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		 * signed 64 it, so we can convert it inplace.
 		 */
 		*(unsigned int *)&smp->data.u.sint = (unsigned int)smp->data.u.sint;
-		static_table_key->key = &smp->data.u.sint;
-		static_table_key->key_len = 4;
+		static_table_key.key = &smp->data.u.sint;
+		static_table_key.key_len = 4;
 		break;
 
 	case SMP_T_STR:
 		if (!smp_make_safe(smp))
 			return NULL;
-		static_table_key->key = smp->data.u.str.str;
-		static_table_key->key_len = smp->data.u.str.len;
+		static_table_key.key = smp->data.u.str.str;
+		static_table_key.key_len = smp->data.u.str.len;
 		break;
 
 	case SMP_T_BIN:
@@ -550,15 +550,15 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 			       t->key_size - smp->data.u.str.len);
 			smp->data.u.str.len = t->key_size;
 		}
-		static_table_key->key = smp->data.u.str.str;
-		static_table_key->key_len = smp->data.u.str.len;
+		static_table_key.key = smp->data.u.str.str;
+		static_table_key.key_len = smp->data.u.str.len;
 		break;
 
 	default: /* impossible case. */
 		return NULL;
 	}
 
-	return static_table_key;
+	return &static_table_key;
 }
 
 /*
@@ -2362,11 +2362,11 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	switch (px->table.type) {
 	case SMP_T_IPV4:
 		uint32_key = htonl(inetaddr_host(args[4]));
-		static_table_key->key = &uint32_key;
+		static_table_key.key = &uint32_key;
 		break;
 	case SMP_T_IPV6:
 		inet_pton(AF_INET6, args[4], ip6_key);
-		static_table_key->key = &ip6_key;
+		static_table_key.key = &ip6_key;
 		break;
 	case SMP_T_SINT:
 		{
@@ -2382,13 +2382,13 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				return 1;
 			}
 			uint32_key = (uint32_t) val;
-			static_table_key->key = &uint32_key;
+			static_table_key.key = &uint32_key;
 			break;
 		}
 		break;
 	case SMP_T_STR:
-		static_table_key->key = args[4];
-		static_table_key->key_len = strlen(args[4]);
+		static_table_key.key = args[4];
+		static_table_key.key_len = strlen(args[4]);
 		break;
 	default:
 		switch (appctx->ctx.table.action) {
@@ -2413,7 +2413,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	ts = stktable_lookup_key(&px->table, static_table_key);
+	ts = stktable_lookup_key(&px->table, &static_table_key);
 
 	switch (appctx->ctx.table.action) {
 	case STK_CLI_ACT_SHOW:
@@ -2442,7 +2442,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		if (ts)
 			stktable_touch(&px->table, ts, 1);
 		else {
-			ts = stksess_new(&px->table, static_table_key);
+			ts = stksess_new(&px->table, &static_table_key);
 			if (!ts) {
 				/* don't delete an entry which is currently referenced */
 				appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
