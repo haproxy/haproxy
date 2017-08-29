@@ -2237,6 +2237,32 @@ static void run_poll_loop()
 	}
 }
 
+#ifdef USE_THREAD
+static void *run_thread_poll_loop(void *data)
+{
+	struct per_thread_init_fct   *ptif;
+	struct per_thread_deinit_fct *ptdf;
+
+	tid     = *((unsigned int *)data);
+	tid_bit = (1UL << tid);
+	tv_update_date(-1,-1);
+
+	list_for_each_entry(ptif, &per_thread_init_list, list) {
+		if (!ptif->fct()) {
+			Alert("failed to initialize thread %u.\n", tid);
+			exit(1);
+		}
+	}
+
+	run_poll_loop();
+
+	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+		ptdf->fct();
+
+	pthread_exit(NULL);
+}
+#endif
+
 /* This is the global management task for listeners. It enables listeners waiting
  * for global resources when there are enough free resource, or at least once in
  * a while. It is designed to be called as a task.
@@ -2755,11 +2781,32 @@ int main(int argc, char **argv)
 	/*
 	 * That's it : the central polling loop. Run until we stop.
 	 */
-	run_poll_loop();
+	if (global.nbthread > 1) {
+#ifdef USE_THREAD
+		unsigned int *tids    = calloc(global.nbthread, sizeof(unsigned int));
+		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
+		int          i;
 
-	/* Do some cleanup */ 
+		for (i = 0; i < global.nbthread; i++) {
+			tids[i] = i;
+			pthread_create(&threads[i], NULL, &run_thread_poll_loop, &tids[i]);
+		}
+		for (i = 0; i < global.nbthread; i++)
+			pthread_join(threads[i], NULL);
+
+		free(tids);
+		free(threads);
+
+#endif /* USE_THREAD */
+	}
+	else {
+		tid = 0;
+		run_poll_loop();
+	}
+
+	/* Do some cleanup */
 	deinit();
-    
+
 	exit(0);
 }
 
