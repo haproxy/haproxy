@@ -2046,7 +2046,7 @@ struct task *process_stream(struct task *t)
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
 	 */
-	if (unlikely(!req->analysers &&
+	if (unlikely((!req->analysers || (req->analysers == AN_REQ_FLT_END && !(req->flags & CF_FLT_ANALYZE))) &&
 	    !(req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (si_f->state >= SI_ST_EST) &&
 	    (req->to_forward != CHN_INFINITE_FORWARD))) {
@@ -2205,7 +2205,7 @@ struct task *process_stream(struct task *t)
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
 	 */
-	if (unlikely(!res->analysers &&
+	if (unlikely((!res->analysers || (res->analysers == AN_RES_FLT_END && !(res->flags & CF_FLT_ANALYZE))) &&
 	    !(res->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (si_b->state >= SI_ST_EST) &&
 	    (res->to_forward != CHN_INFINITE_FORWARD))) {
