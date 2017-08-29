@@ -53,6 +53,7 @@ extern struct buffer buf_wanted;
 extern struct list buffer_wq;
 
 int init_buffer();
+void deinit_buffer();
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);

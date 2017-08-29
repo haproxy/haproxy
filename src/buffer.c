@@ -34,6 +34,11 @@ struct buffer buf_wanted = { .p = buf_wanted.data };
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 
+/* this buffer is always the same size as standard buffers and is used for
+ * swapping data inside a buffer.
+ */
+static char *swap_buffer = NULL;
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
@@ -59,7 +64,18 @@ int init_buffer()
 		return 0;
 
 	pool_free2(pool2_buffer, buffer);
+
+	swap_buffer = calloc(1, global.tune.bufsize);
+	if (swap_buffer == NULL)
+		return 0;
+
 	return 1;
+}
+
+void deinit_buffer()
+{
+	free(swap_buffer); swap_buffer = NULL;
+	pool_destroy2(pool2_buffer);
 }
 
 /* This function writes the string <str> at position <pos> which must be in

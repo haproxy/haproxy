@@ -177,11 +177,6 @@ static const char *old_unixsocket;
 
 static char *cur_unixsocket = NULL;
 
-/* this buffer is always the same size as standard buffers and is used for
- * swapping data inside a buffer.
- */
-char *swap_buffer = NULL;
-
 int atexit_flag = 0;
 
 int nb_oldpids = 0;
@@ -1723,7 +1718,6 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	swap_buffer = calloc(1, global.tune.bufsize);
 	get_http_auth_buff = calloc(1, global.tune.bufsize);
 	static_table_key = calloc(1, sizeof(*static_table_key));
 
@@ -2131,7 +2125,6 @@ void deinit(void)
 	free(oldpids);        oldpids = NULL;
 	free(static_table_key); static_table_key = NULL;
 	free(get_http_auth_buff); get_http_auth_buff = NULL;
-	free(swap_buffer);    swap_buffer = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
@@ -2153,11 +2146,12 @@ void deinit(void)
 
 	vars_prune(&global.vars, NULL, NULL);
 
+	deinit_buffer();
+
 	pool_destroy2(pool2_stream);
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_connection);
 	pool_destroy2(pool2_trash);
-	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy2(pool2_capture);
