@@ -1418,14 +1418,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			logsrv->maxlen = MAX_SYSLOG_LEN;
 
-		if (logsrv->maxlen > global.max_syslog_len) {
+		if (logsrv->maxlen > global.max_syslog_len)
 			global.max_syslog_len = logsrv->maxlen;
-			if (!init_log_buffers()) {
-				Alert("parsing [%s:%d] : failed to initialize log buffers.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
 
 		/* after the length, a format may be specified */
 		if (strcmp(args[arg+2], "format") == 0) {
@@ -6081,14 +6075,8 @@ stats_error_parsing:
 			else
 				logsrv->maxlen = MAX_SYSLOG_LEN;
 
-			if (logsrv->maxlen > global.max_syslog_len) {
+			if (logsrv->maxlen > global.max_syslog_len)
 				global.max_syslog_len = logsrv->maxlen;
-				if (!init_log_buffers()) {
-					Alert("parsing [%s:%d] : failed to initialize log buffers.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			}
 
 			/* after the length, a format may be specified */
 			if (strcmp(args[arg+2], "format") == 0) {

@@ -1718,6 +1718,11 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	if (!init_log_buffers()) {
+		Alert("failed to initialize log buffers.\n");
+		exit(1);
+	}
+
 	swap_buffer = calloc(1, global.tune.bufsize);
 	get_http_auth_buff = calloc(1, global.tune.bufsize);
 	static_table_key = calloc(1, sizeof(*static_table_key));
