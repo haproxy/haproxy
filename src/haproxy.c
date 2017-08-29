@@ -77,6 +77,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <common/version.h>
+#include <common/hathreads.h>
 
 #include <types/capture.h>
 #include <types/filters.h>
@@ -122,6 +123,7 @@ int  relative_pid = 1;		/* process id starting at 1 */
 struct global global = {
 	.hard_stop_after = TICK_ETERNITY,
 	.nbproc = 1,
+	.nbthread = 1,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 	.maxzlibmem = 0,
@@ -1753,6 +1755,9 @@ static void init(int argc, char **argv)
 
 	if (global.nbproc < 1)
 		global.nbproc = 1;
+
+	if (global.nbthread < 1)
+		global.nbthread = 1;
 
 	/* Realloc trash buffers because global.tune.bufsize may have changed */
 	if (!init_trash_buffers()) {

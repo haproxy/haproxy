@@ -86,6 +86,7 @@ struct global {
 	int gid;
 	int external_check;
 	int nbproc;
+	int nbthread;
 	unsigned int hard_stop_after;	/* maximum time allowed to perform a soft-stop */
 	int maxconn, hardmaxconn;
 	int maxsslconn;

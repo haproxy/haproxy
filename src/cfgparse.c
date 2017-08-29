@@ -1041,6 +1041,30 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "nbthread")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.nbthread = atol(args[1]);
+		if (global.nbthread < 1 || global.nbthread > LONGBITS) {
+			Alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
+			      file, linenum, args[0], LONGBITS, global.nbthread);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+#ifndef USE_THREAD
+		if (global.nbthread > 1) {
+			Alert("HAProxy is not compiled with threads support, please check build options for USE_THREAD.\n");
+			global.nbthread = 1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+#endif
+	}
 	else if (!strcmp(args[0], "maxconn")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;

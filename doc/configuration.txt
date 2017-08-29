@@ -542,6 +542,7 @@ The following keywords are supported in the "global" section :
    - log-send-hostname
    - lua-load
    - nbproc
+   - nbthread
    - node
    - pidfile
    - presetenv
@@ -825,6 +826,13 @@ nbproc <number>
   of operation. For systems limited to small sets of file descriptors per
   process, it may be needed to fork multiple daemons. USING MULTIPLE PROCESSES
   IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon".
+
+nbthread <number>
+  This setting is only available when support for threads was built in. It
+  creates <number> threads for each created processes. It means if HAProxy is
+  started in foreground, it only creates <number> threads for the first
+  process. FOR NOW, THREADS SUPPORT IN HAPROXY IS HIGHLY EXPERIMENTAL AND IT
+  MUST BE ENABLED WITH CAUTION AND AT YOUR OWN RISK. See also "nbproc".
 
 pidfile <pidfile>
   Writes pids of all daemons into file <pidfile>. This option is equivalent to
