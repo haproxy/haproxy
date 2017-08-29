@@ -745,7 +745,7 @@ static void sig_soft_stop(struct sig_handler *sh)
 {
 	soft_stop();
 	signal_unregister_handler(sh);
-	pool_gc2();
+	pool_gc2(NULL);
 }
 
 /*
@@ -754,7 +754,7 @@ static void sig_soft_stop(struct sig_handler *sh)
 static void sig_pause(struct sig_handler *sh)
 {
 	pause_proxies();
-	pool_gc2();
+	pool_gc2(NULL);
 }
 
 /*
@@ -818,7 +818,7 @@ static void dump(struct sig_handler *sh)
 {
 	/* dump memory usage then free everything possible */
 	dump_pools();
-	pool_gc2();
+	pool_gc2(NULL);
 }
 
 /* This function check if cfg_cfgfiles containes directories.

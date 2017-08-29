@@ -4793,7 +4793,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->xprt_ctx = SSL_new(objt_server(conn->target)->ssl_ctx.ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4805,7 +4805,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4817,7 +4817,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4847,7 +4847,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->initial_ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4859,7 +4859,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4871,7 +4871,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2();
+				pool_gc2(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;

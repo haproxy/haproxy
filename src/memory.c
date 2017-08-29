@@ -57,6 +57,8 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
 	}
 
+	/* TODO: thread: we do not lock pool list for now because all pools are
+	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
 	pool = NULL;
 
@@ -91,6 +93,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		LIST_ADDQ(start, &pool->list);
 	}
 	pool->users++;
+	SPIN_INIT(&pool->lock);
 	return pool;
 }
 
@@ -102,7 +105,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
  * A call to the garbage collector is performed at most once in case malloc()
  * returns an error, before returning NULL.
  */
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 {
 	void *ptr = NULL;
 	int failed = 0;
@@ -120,7 +123,7 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 			if (failed)
 				return NULL;
 			failed++;
-			pool_gc2();
+			pool_gc2(pool);
 			continue;
 		}
 		if (++pool->allocated > avail)
@@ -136,7 +139,15 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 #endif
 	return ptr;
 }
+void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+{
+	void *ptr;
 
+	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	ptr = __pool_refill_alloc(pool, avail);
+	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	return ptr;
+}
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
@@ -146,6 +157,7 @@ void pool_flush2(struct pool_head *pool)
 	if (!pool)
 		return;
 
+	SPIN_LOCK(POOL_LOCK, &pool->lock);
 	next = pool->free_list;
 	while (next) {
 		temp = next;
@@ -154,7 +166,7 @@ void pool_flush2(struct pool_head *pool)
 		free(temp);
 	}
 	pool->free_list = next;
-
+	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	/* here, we should have pool->allocate == pool->used */
 }
 
@@ -162,18 +174,25 @@ void pool_flush2(struct pool_head *pool)
  * This function frees whatever can be freed in all pools, but respecting
  * the minimum thresholds imposed by owners. It takes care of avoiding
  * recursion because it may be called from a signal handler.
+ *
+ * <pool_ctx> is used when pool_gc2 is called to release resources to allocate
+ * an element in __pool_refill_alloc. It is important because <pool_ctx> is
+ * already locked, so we need to skip the lock here.
  */
-void pool_gc2()
+void pool_gc2(struct pool_head *pool_ctx)
 {
 	static int recurse;
+	int cur_recurse = 0;
 	struct pool_head *entry;
 
-	if (recurse++)
-		goto out;
+	if (recurse || !HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
+		return;
 
 	list_for_each_entry(entry, &pools, list) {
 		void *temp, *next;
 		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
+		if (entry != pool_ctx)
+			SPIN_LOCK(POOL_LOCK, &entry->lock);
 		next = entry->free_list;
 		while (next &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
@@ -183,9 +202,11 @@ void pool_gc2()
 			free(temp);
 		}
 		entry->free_list = next;
+		if (entry != pool_ctx)
+			SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
- out:
-	recurse--;
+
+	HA_ATOMIC_STORE(&recurse, 0);
 }
 
 /*
@@ -204,6 +225,7 @@ void *pool_destroy2(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DEL(&pool->list);
+			SPIN_DESTROY(&pool->lock);
 			free(pool);
 		}
 	}
@@ -220,6 +242,7 @@ void dump_pools_to_trash()
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
+		SPIN_LOCK(POOL_LOCK, &entry->lock);
 		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used, entry->failed,
@@ -228,6 +251,7 @@ void dump_pools_to_trash()
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
+		SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
 	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);

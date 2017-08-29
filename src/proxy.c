@@ -853,7 +853,7 @@ struct task *manage_proxy(struct task *t)
 				 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 			stop_proxy(p);
 			/* try to free more memory */
-			pool_gc2();
+			pool_gc2(NULL);
 		}
 		else {
 			next = tick_first(next, p->stop_time);
@@ -870,7 +870,7 @@ struct task *manage_proxy(struct task *t)
 	if (unlikely(stopping && p->state == PR_STSTOPPED && p->table.current)) {
 		if (!p->table.syncing) {
 			stktable_trash_oldest(&p->table, p->table.current);
-			pool_gc2();
+			pool_gc2(NULL);
 		}
 		if (p->table.current) {
 			/* some entries still remain, let's recheck in one second */

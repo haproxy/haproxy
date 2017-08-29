@@ -27,6 +27,7 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <common/hathreads.h>
 
 #ifndef DEBUG_DONT_SHARE_POOLS
 #define MEM_F_SHARED	0x1
@@ -46,6 +47,9 @@
 
 struct pool_head {
 	void **free_list;
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;     /* the spin lock */
+#endif
 	struct list list;	/* list of all known pools */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int allocated;	/* how many chunks have been allocated */
@@ -69,6 +73,7 @@ extern int mem_poison_byte;
  * A call to the garbage collector is performed at most once in case malloc()
  * returns an error, before returning NULL.
  */
+void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail);
 void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
 
 /* Try to find an existing shared pool with the same characteristics and
@@ -93,8 +98,12 @@ void pool_flush2(struct pool_head *pool);
 /*
  * This function frees whatever can be freed in all pools, but respecting
  * the minimum thresholds imposed by owners.
+ *
+ * <pool_ctx> is used when pool_gc2 is called to release resources to allocate
+ * an element in __pool_refill_alloc. It is important because <pool_ctx> is
+ * already locked, so we need to skip the lock here.
  */
-void pool_gc2();
+void pool_gc2(struct pool_head *pool_ctx);
 
 /*
  * This function destroys a pull by freeing it completely.
@@ -107,7 +116,7 @@ void *pool_destroy2(struct pool_head *pool);
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
  * is never performed. The purpose is to get the fastest possible allocation.
  */
-static inline void *pool_get_first(struct pool_head *pool)
+static inline void *__pool_get_first(struct pool_head *pool)
 {
 	void *p;
 
@@ -122,6 +131,15 @@ static inline void *pool_get_first(struct pool_head *pool)
 	return p;
 }
 
+static inline void *pool_get_first(struct pool_head *pool)
+{
+	void *ret;
+
+	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	ret = __pool_get_first(pool);
+	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	return ret;
+}
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
@@ -132,9 +150,10 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 {
 	void *p;
 
-	if ((p = pool_get_first(pool)) == NULL)
-		p = pool_refill_alloc(pool, 0);
-
+	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	if ((p = __pool_get_first(pool)) == NULL)
+		p = __pool_refill_alloc(pool, 0);
+	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	return p;
 }
 
@@ -150,8 +169,10 @@ static inline void *pool_alloc2(struct pool_head *pool)
 	p = pool_alloc_dirty(pool);
 #ifdef DEBUG_MEMORY_POOLS
 	if (p) {
+		SPIN_LOCK(POOL_LOCK, &pool->lock);
 		/* keep track of where the element was allocated from */
 		*POOL_LINK(pool, p) = (void *)pool;
+		SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 #endif
 	if (p && mem_poison_byte >= 0) {
@@ -173,6 +194,7 @@ static inline void *pool_alloc2(struct pool_head *pool)
 static inline void pool_free2(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
+		SPIN_LOCK(POOL_LOCK, &pool->lock);
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
@@ -181,10 +203,9 @@ static inline void pool_free2(struct pool_head *pool, void *ptr)
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
                 pool->free_list = (void *)ptr;
                 pool->used--;
+		SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 }
-
-
 #endif /* _COMMON_MEMORY_H */
 
 /*

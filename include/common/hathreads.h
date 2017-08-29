@@ -138,6 +138,7 @@ int  thread_need_sync(void);
 
 enum lock_label {
 	THREAD_SYNC_LOCK = 0,
+	POOL_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -220,7 +221,7 @@ struct ha_rwlock {
 
 static inline void show_lock_stats()
 {
-	const char *labels[LOCK_LABELS] = {"THREAD_SYNC" };
+	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "POOL"};
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
