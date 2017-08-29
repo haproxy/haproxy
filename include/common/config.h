@@ -41,6 +41,12 @@
 #  define CONFIG_HAP_MEM_OPTIM
 #endif /* CONFIG_HAP_NO_MEM_OPTIM */
 
+#ifdef USE_THREAD
+#define THREAD_LOCAL __thread
+#else
+#define THREAD_LOCAL
+#endif
+
 /* CONFIG_HAP_INLINE_FD_SET
  * This makes use of inline FD_* macros instead of calling equivalent
  * functions. Benchmarks on a Pentium-M show that using functions is
