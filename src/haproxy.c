@@ -1712,6 +1712,12 @@ static void init(int argc, char **argv)
 	if (global.nbproc < 1)
 		global.nbproc = 1;
 
+	/* Realloc trash buffers because global.tune.bufsize may have changed */
+	if (!init_trash_buffers()) {
+		Alert("failed to initialize trash buffers.\n");
+		exit(1);
+	}
+
 	swap_buffer = calloc(1, global.tune.bufsize);
 	get_http_auth_buff = calloc(1, global.tune.bufsize);
 	static_table_key = calloc(1, sizeof(*static_table_key));
