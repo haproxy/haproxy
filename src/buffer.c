@@ -37,7 +37,20 @@ struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
  */
-static char *swap_buffer = NULL;
+static THREAD_LOCAL char *swap_buffer = NULL;
+
+static int init_buffer_per_thread()
+{
+	swap_buffer = calloc(1, global.tune.bufsize);
+	if (swap_buffer == NULL)
+		return 0;
+	return 1;
+}
+
+static void deinit_buffer_per_thread()
+{
+	free(swap_buffer); swap_buffer = NULL;
+}
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
@@ -65,16 +78,19 @@ int init_buffer()
 
 	pool_free2(pool2_buffer, buffer);
 
-	swap_buffer = calloc(1, global.tune.bufsize);
-	if (swap_buffer == NULL)
-		return 0;
+	if (global.nbthread > 1) {
+		hap_register_per_thread_init(init_buffer_per_thread);
+		hap_register_per_thread_deinit(deinit_buffer_per_thread);
+	}
+	else if (!init_buffer_per_thread())
+		     return 0;
 
 	return 1;
 }
 
 void deinit_buffer()
 {
-	free(swap_buffer); swap_buffer = NULL;
+	deinit_buffer_per_thread();
 	pool_destroy2(pool2_buffer);
 }
 
