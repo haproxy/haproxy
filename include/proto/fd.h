@@ -252,46 +252,46 @@ static inline int fd_active(const int fd)
 /* Disable processing recv events on fd <fd> */
 static inline void fd_stop_recv(int fd)
 {
-	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
-		return; /* already disabled */
-	fdtab[fd].state &= ~FD_EV_ACTIVE_R;
-	fd_update_cache(fd); /* need an update entry to change the state */
+	if (fd_recv_active(fd)) {
+		fdtab[fd].state &= ~FD_EV_ACTIVE_R;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Disable processing send events on fd <fd> */
 static inline void fd_stop_send(int fd)
 {
-	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
-		return; /* already disabled */
-	fdtab[fd].state &= ~FD_EV_ACTIVE_W;
-	fd_update_cache(fd); /* need an update entry to change the state */
+	if (fd_send_active(fd)) {
+		fdtab[fd].state &= ~FD_EV_ACTIVE_W;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
 static inline void fd_stop_both(int fd)
 {
-	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_RW))
-		return; /* already disabled */
-	fdtab[fd].state &= ~FD_EV_ACTIVE_RW;
-	fd_update_cache(fd); /* need an update entry to change the state */
+	if (fd_active(fd)) {
+		fdtab[fd].state &= ~FD_EV_ACTIVE_RW;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
 static inline void fd_cant_recv(const int fd)
 {
-	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_R))
-		return; /* already marked as blocked */
-	fdtab[fd].state &= ~FD_EV_READY_R;
-	fd_update_cache(fd);
+	if (fd_recv_ready(fd)) {
+		fdtab[fd].state &= ~FD_EV_READY_R;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Report that FD <fd> can receive anymore without polling. */
 static inline void fd_may_recv(const int fd)
 {
-	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_R)
-		return; /* already marked as blocked */
-	fdtab[fd].state |= FD_EV_READY_R;
-	fd_update_cache(fd);
+	if (!fd_recv_ready(fd)) {
+		fdtab[fd].state |= FD_EV_READY_R;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Disable readiness when polled. This is useful to interrupt reading when it
@@ -301,44 +301,46 @@ static inline void fd_may_recv(const int fd)
  */
 static inline void fd_done_recv(const int fd)
 {
-	if (fd_recv_polled(fd))
-		fd_cant_recv(fd);
+	if (fd_recv_polled(fd) && fd_recv_ready(fd)) {
+		fdtab[fd].state &= ~FD_EV_READY_R;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
 static inline void fd_cant_send(const int fd)
 {
-	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_W))
-		return; /* already marked as blocked */
-	fdtab[fd].state &= ~FD_EV_READY_W;
-	fd_update_cache(fd);
+	if (fd_send_ready(fd)) {
+		fdtab[fd].state &= ~FD_EV_READY_W;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Report that FD <fd> can send anymore without polling (EAGAIN detected). */
 static inline void fd_may_send(const int fd)
 {
-	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_W)
-		return; /* already marked as blocked */
-	fdtab[fd].state |= FD_EV_READY_W;
-	fd_update_cache(fd);
+	if (!fd_send_ready(fd)) {
+		fdtab[fd].state |= FD_EV_READY_W;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Prepare FD <fd> to try to receive */
 static inline void fd_want_recv(int fd)
 {
-	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
-		return; /* already enabled */
-	fdtab[fd].state |= FD_EV_ACTIVE_R;
-	fd_update_cache(fd); /* need an update entry to change the state */
+	if (!fd_recv_active(fd)) {
+		fdtab[fd].state |= FD_EV_ACTIVE_R;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Prepare FD <fd> to try to send */
 static inline void fd_want_send(int fd)
 {
-	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
-		return; /* already enabled */
-	fdtab[fd].state |= FD_EV_ACTIVE_W;
-	fd_update_cache(fd); /* need an update entry to change the state */
+	if (!fd_send_active(fd)) {
+		fdtab[fd].state |= FD_EV_ACTIVE_W;
+		fd_update_cache(fd); /* need an update entry to change the state */
+	}
 }
 
 /* Prepares <fd> for being polled */
