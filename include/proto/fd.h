@@ -241,6 +241,14 @@ static inline int fd_send_polled(const int fd)
 	return (unsigned)fdtab[fd].state & FD_EV_POLLED_W;
 }
 
+/*
+ * returns true if the FD is active for recv or send
+ */
+static inline int fd_active(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_ACTIVE_RW;
+}
+
 /* Disable processing recv events on fd <fd> */
 static inline void fd_stop_recv(int fd)
 {
