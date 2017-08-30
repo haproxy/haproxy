@@ -462,12 +462,6 @@ static inline int conn_data_read0_pending(struct connection *c)
 	return (c->flags & CO_FL_SOCK_RD_SH) != 0;
 }
 
-/* detect data->sock shutw transition */
-static inline int conn_sock_shutw_pending(struct connection *c)
-{
-	return (c->flags & (CO_FL_DATA_WR_SH | CO_FL_SOCK_WR_SH)) == CO_FL_DATA_WR_SH;
-}
-
 /* prepares a connection to work with protocol <proto> and transport <xprt>.
  * The transport's context is initialized as well.
  */
