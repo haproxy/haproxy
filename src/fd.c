@@ -245,6 +245,8 @@ void fd_process_cached_events()
 	for (entry = 0; entry < fd_cache_num; ) {
 		fd = fd_cache[entry];
 
+		if (!(fdtab[fd].process_mask & tid_bit))
+			goto next;
 		if (SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock))
 			goto next;
 
