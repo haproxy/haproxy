@@ -132,6 +132,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	measure_idle();
 
 	for (count = 0; status > 0 && count < nbfd; count++) {
+		unsigned int n;
 		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
 	  
@@ -147,14 +148,12 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values... In fact it depends on gcc :-(
 		 */
-		fdtab[fd].ev &= FD_POLL_STICKY;
 		if (POLLIN == FD_POLL_IN && POLLOUT == FD_POLL_OUT &&
 		    POLLERR == FD_POLL_ERR && POLLHUP == FD_POLL_HUP) {
-			fdtab[fd].ev |= e & (POLLIN|POLLOUT|POLLERR|POLLHUP);
+			n = e & (POLLIN|POLLOUT|POLLERR|POLLHUP);
 		}
 		else {
-			fdtab[fd].ev |=
-				((e & POLLIN ) ? FD_POLL_IN  : 0) |
+			n =     ((e & POLLIN ) ? FD_POLL_IN  : 0) |
 				((e & POLLOUT) ? FD_POLL_OUT : 0) |
 				((e & POLLERR) ? FD_POLL_ERR : 0) |
 				((e & POLLHUP) ? FD_POLL_HUP : 0);
@@ -163,14 +162,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		/* always remap RDHUP to HUP as they're used similarly */
 		if (e & POLLRDHUP) {
 			cur_poller.flags |= HAP_POLL_F_RDHUP;
-			fdtab[fd].ev |= FD_POLL_HUP;
+			n |= FD_POLL_HUP;
 		}
 
-		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-			fd_may_recv(fd);
-
-		if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-			fd_may_send(fd);
+		fd_update_events(fd, n);
 	}
 
 }

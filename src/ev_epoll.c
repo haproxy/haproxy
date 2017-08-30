@@ -139,7 +139,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values... In fact it depends on gcc :-(
 		 */
-		fdtab[fd].ev &= FD_POLL_STICKY;
 		if (EPOLLIN == FD_POLL_IN && EPOLLOUT == FD_POLL_OUT &&
 		    EPOLLPRI == FD_POLL_PRI && EPOLLERR == FD_POLL_ERR &&
 		    EPOLLHUP == FD_POLL_HUP) {
@@ -158,13 +157,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			cur_poller.flags |= HAP_POLL_F_RDHUP;
 			n |= FD_POLL_HUP;
 		}
-
-		fdtab[fd].ev |= n;
-		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-			fd_may_recv(fd);
-
-		if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-			fd_may_send(fd);
+		fd_update_events(fd, n);
 	}
 	/* the caller will take care of cached events */
 }

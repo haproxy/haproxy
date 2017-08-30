@@ -129,24 +129,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 
 		for (count = BITS_PER_INT, fd = fds * BITS_PER_INT; count && fd < maxfd; count--, fd++) {
+			unsigned int n = 0;
+
 			/* if we specify read first, the accepts and zero reads will be
 			 * seen first. Moreover, system buffers will be flushed faster.
 			 */
 			if (!fdtab[fd].owner)
 				continue;
 
-			fdtab[fd].ev &= FD_POLL_STICKY;
 			if (FD_ISSET(fd, tmp_evts[DIR_RD]))
-				fdtab[fd].ev |= FD_POLL_IN;
+				n |= FD_POLL_IN;
 
 			if (FD_ISSET(fd, tmp_evts[DIR_WR]))
-				fdtab[fd].ev |= FD_POLL_OUT;
+				n |= FD_POLL_OUT;
 
-			if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-				fd_may_recv(fd);
-
-			if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-				fd_may_send(fd);
+			fd_update_events(fd, n);
 		}
 	}
 }

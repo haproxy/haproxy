@@ -117,30 +117,25 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	measure_idle();
 
 	for (count = 0; count < status; count++) {
+		unsigned int n = 0;
 		fd = kev[count].ident;
 
 		if (!fdtab[fd].owner)
 			continue;
 
-		fdtab[fd].ev &= FD_POLL_STICKY;
-
 		if (kev[count].filter ==  EVFILT_READ) {
 			if (kev[count].data)
-				fdtab[fd].ev |= FD_POLL_IN;
+				n |= FD_POLL_IN;
 			if (kev[count].flags & EV_EOF)
-				fdtab[fd].ev |= FD_POLL_HUP;
+				n |= FD_POLL_HUP;
 		}
 		else if (kev[count].filter ==  EVFILT_WRITE) {
-			fdtab[fd].ev |= FD_POLL_OUT;
+			n |= FD_POLL_OUT;
 			if (kev[count].flags & EV_EOF)
-				fdtab[fd].ev |= FD_POLL_ERR;
+				n |= FD_POLL_ERR;
 		}
 
-		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-			fd_may_recv(fd);
-
-		if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-			fd_may_send(fd);
+		fd_update_events(fd, n);
 	}
 }
 
