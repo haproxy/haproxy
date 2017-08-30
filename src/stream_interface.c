@@ -1060,13 +1060,13 @@ static void si_conn_recv_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		return;
 
-	/* stop here if we reached the end of data */
-	if (conn_data_read0_pending(conn))
-		goto out_shutdown_r;
-
 	/* maybe we were called immediately after an asynchronous shutr */
 	if (ic->flags & CF_SHUTR)
 		return;
+
+	/* stop here if we reached the end of data */
+	if (conn_data_read0_pending(conn))
+		goto out_shutdown_r;
 
 	cur_read = 0;
 
@@ -1153,7 +1153,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	 * that if such an event is not handled above in splice, it will be handled here by
 	 * recv().
 	 */
-	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) && !(ic->flags & CF_SHUTR)) {
 		max = channel_recv_max(ic);
 
 		if (!max) {
@@ -1267,7 +1267,6 @@ static void si_conn_recv_cb(struct connection *conn)
 	if (ic->flags & CF_AUTO_CLOSE)
 		channel_shutw_now(ic);
 	stream_sock_read0(si);
-	conn_data_read0(conn);
 	return;
 }
 

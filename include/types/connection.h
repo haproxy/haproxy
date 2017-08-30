@@ -99,7 +99,7 @@ enum {
 	/* unused : 0x00008000 */
 
 	/* flags used to remember what shutdown have been performed/reported */
-	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */
+	/* unused : 0x00010000 */
 	CO_FL_DATA_WR_SH    = 0x00020000,  /* DATA layer asked for shutw */
 	CO_FL_SOCK_RD_SH    = 0x00040000,  /* SOCK layer was notified about shutr/read0 */
 	CO_FL_SOCK_WR_SH    = 0x00080000,  /* SOCK layer asked for shutw */

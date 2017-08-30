@@ -428,12 +428,6 @@ static inline void conn_sock_read0(struct connection *c)
 		fdtab[c->handle.fd].linger_risk = 0;
 }
 
-static inline void conn_data_read0(struct connection *c)
-{
-	c->flags |= CO_FL_DATA_RD_SH;
-	__conn_data_stop_recv(c);
-}
-
 static inline void conn_sock_shutw(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
@@ -465,7 +459,7 @@ static inline void conn_data_shutw_hard(struct connection *c)
 /* detect sock->data read0 transition */
 static inline int conn_data_read0_pending(struct connection *c)
 {
-	return (c->flags & (CO_FL_DATA_RD_SH | CO_FL_SOCK_RD_SH)) == CO_FL_SOCK_RD_SH;
+	return (c->flags & CO_FL_SOCK_RD_SH) != 0;
 }
 
 /* detect data->sock shutw transition */
