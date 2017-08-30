@@ -438,7 +438,6 @@ static inline void conn_sock_shutw(struct connection *c)
 
 static inline void conn_data_shutw(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_WR_SH;
 	__conn_data_stop_send(c);
 
 	/* clean data-layer shutdown */
@@ -448,7 +447,6 @@ static inline void conn_data_shutw(struct connection *c)
 
 static inline void conn_data_shutw_hard(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_WR_SH;
 	__conn_data_stop_send(c);
 
 	/* unclean data-layer shutdown */

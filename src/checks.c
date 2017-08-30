@@ -744,7 +744,7 @@ static void event_srv_chk_w(struct connection *conn)
 		goto out_wakeup;
 	}
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH)) {
+	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* if the output is closed, we can't do anything */
 		conn->flags |= CO_FL_ERROR;
 		chk_report_conn_err(conn, 0, 0);
@@ -2756,7 +2756,7 @@ static void tcpcheck_main(struct connection *conn)
 				check->bi->i = 0;
 			}
 
-			if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH)) {
+			if (conn->flags & CO_FL_SOCK_WR_SH) {
 				conn->flags |= CO_FL_ERROR;
 				chk_report_conn_err(conn, 0, 0);
 				goto out_end_tcpcheck;
