@@ -343,6 +343,20 @@ static inline void fd_want_send(int fd)
 	}
 }
 
+/* Update events seen for FD <fd> and its state if needed. This should be called
+ * by the poller to set FD_POLL_* flags. */
+static inline void fd_update_events(int fd, int evts)
+{
+	fdtab[fd].ev &= FD_POLL_STICKY;
+	fdtab[fd].ev |= evts;
+
+	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+		fd_may_recv(fd);
+
+	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+		fd_may_send(fd);
+}
+
 /* Prepares <fd> for being polled */
 static inline void fd_insert(int fd)
 {
