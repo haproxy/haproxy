@@ -97,6 +97,8 @@ static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned l
  * This function also recomputes the total active and backup weights. However,
  * it does not update tot_weight nor tot_used. Use update_backend_weight() for
  * this.
+ * This functions is designed to be called before server's weight and state
+ * commit so it uses 'next' weight and states values.
  */
 void recount_servers(struct proxy *px)
 {
@@ -106,7 +108,7 @@ void recount_servers(struct proxy *px)
 	px->lbprm.tot_wact = px->lbprm.tot_wbck = 0;
 	px->lbprm.fbck = NULL;
 	for (srv = px->srv; srv != NULL; srv = srv->next) {
-		if (!srv_is_usable(srv))
+		if (!srv_willbe_usable(srv))
 			continue;
 
 		if (srv->flags & SRV_F_BACKUP) {
@@ -115,11 +117,11 @@ void recount_servers(struct proxy *px)
 				px->lbprm.fbck = srv;
 			px->srv_bck++;
 			srv->cumulative_weight = px->lbprm.tot_wbck;
-			px->lbprm.tot_wbck += srv->eweight;
+			px->lbprm.tot_wbck += srv->next_eweight;
 		} else {
 			px->srv_act++;
 			srv->cumulative_weight = px->lbprm.tot_wact;
-			px->lbprm.tot_wact += srv->eweight;
+			px->lbprm.tot_wact += srv->next_eweight;
 		}
 	}
 }
@@ -136,7 +138,7 @@ void update_backend_weight(struct proxy *px)
 	}
 	else if (px->lbprm.fbck) {
 		/* use only the first backup server */
-		px->lbprm.tot_weight = px->lbprm.fbck->eweight;
+		px->lbprm.tot_weight = px->lbprm.fbck->next_eweight;
 		px->lbprm.tot_used = 1;
 	}
 	else {
@@ -567,7 +569,7 @@ int assign_server(struct stream *s)
 	      (!s->be->max_ka_queue ||
 	       server_has_room(__objt_server(conn->target)) ||
 	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
-	    srv_is_usable(__objt_server(conn->target))) {
+	    srv_currently_usable(__objt_server(conn->target))) {
 		/* This stream was relying on a server in a previous request
 		 * and the proxy has "option prefer-last-server" set
 		 * and balance algorithm dont tell us to do otherwise, so
@@ -1387,7 +1389,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 		if (srv->addr.ss_family == AF_INET &&
 		    port == srv->svc_port &&
 		    addr == ((struct sockaddr_in *)&srv->addr)->sin_addr.s_addr) {
-			if ((srv->state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
+			if ((srv->cur_state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SF_DIRECT | SF_ASSIGNED;
 				s->target = &srv->obj_type;
@@ -1631,8 +1633,8 @@ smp_fetch_srv_is_up(const struct arg *args, struct sample *smp, const char *kw, 
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_BOOL;
-	if (!(srv->admin & SRV_ADMF_MAINT) &&
-	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state != SRV_ST_STOPPED)))
+	if (!(srv->cur_admin & SRV_ADMF_MAINT) &&
+	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->cur_state != SRV_ST_STOPPED)))
 		smp->data.u.sint = 1;
 	else
 		smp->data.u.sint = 0;
@@ -1653,7 +1655,7 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 	smp->data.u.sint = 0;
 
 	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
-		if (iterator->state == SRV_ST_STOPPED)
+		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {

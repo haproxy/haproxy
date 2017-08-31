@@ -359,10 +359,10 @@ static void check_notify_success(struct check *check)
 {
 	struct server *s = check->server;
 
-	if (s->admin & SRV_ADMF_MAINT)
+	if (s->next_admin & SRV_ADMF_MAINT)
 		return;
 
-	if (s->track && s->track->state == SRV_ST_STOPPED)
+	if (s->track && s->track->next_state == SRV_ST_STOPPED)
 		return;
 
 	if ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise))
@@ -371,7 +371,7 @@ static void check_notify_success(struct check *check)
 	if ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise))
 		return;
 
-	if ((check->state & CHK_ST_AGENT) && s->state == SRV_ST_STOPPING)
+	if ((check->state & CHK_ST_AGENT) && s->next_state == SRV_ST_STOPPING)
 		return;
 
 	srv_set_running(s, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL);
@@ -387,13 +387,13 @@ static void check_notify_stopping(struct check *check)
 {
 	struct server *s = check->server;
 
-	if (s->admin & SRV_ADMF_MAINT)
+	if (s->next_admin & SRV_ADMF_MAINT)
 		return;
 
 	if (check->state & CHK_ST_AGENT)
 		return;
 
-	if (s->track && s->track->state == SRV_ST_STOPPED)
+	if (s->track && s->track->next_state == SRV_ST_STOPPED)
 		return;
 
 	if ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise))
@@ -506,13 +506,13 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;
-	else if (s->state != SRV_ST_STOPPED) {
+	else if (s->cur_state != SRV_ST_STOPPED) {
 		if (s->check.health == s->check.rise + s->check.fall - 1)
 			sv_state = 3; /* UP */
 		else
 			sv_state = 2; /* going down */
 
-		if (s->state == SRV_ST_STOPPING)
+		if (s->cur_state == SRV_ST_STOPPING)
 			sv_state += 2;
 	} else {
 		if (s->check.health)
@@ -523,8 +523,8 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 
 	hlen += snprintf(buffer + hlen, size - hlen,
 			     srv_hlt_st[sv_state],
-			     (s->state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
-			     (s->state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
+			     (s->cur_state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
+			     (s->cur_state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
 
 	addr_to_str(&s->addr, addr, sizeof(addr));
 	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
@@ -535,12 +535,12 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 	hlen += snprintf(buffer + hlen,  size - hlen, "; address=%s; port=%s; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
 			     addr, port, s->proxy->id, s->id,
 			     global.node,
-			     (s->eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
+			     (s->cur_eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
 			     (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
 			     s->cur_sess, s->proxy->beconn - s->proxy->nbpend,
 			     s->nbpend);
 
-	if ((s->state == SRV_ST_STARTING) &&
+	if ((s->cur_state == SRV_ST_STARTING) &&
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
@@ -879,7 +879,7 @@ static void event_srv_chk_r(struct connection *conn)
 		desc = ltrim(check->bi->data + 12, ' ');
 		
 		if ((s->proxy->options & PR_O_DISABLE404) &&
-			 (s->state != SRV_ST_STOPPED) && (check->code == 404)) {
+			 (s->next_state != SRV_ST_STOPPED) && (check->code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
 			cut_crlf(desc);
 			set_server_check_status(check, HCHK_STATUS_L7OKCD, desc);
@@ -1427,8 +1427,8 @@ static struct task *server_warmup(struct task *t)
 
 	/* by default, plan on stopping the task */
 	t->expire = TICK_ETERNITY;
-	if ((s->admin & SRV_ADMF_MAINT) ||
-	    (s->state != SRV_ST_STARTING))
+	if ((s->next_admin & SRV_ADMF_MAINT) ||
+	    (s->next_state != SRV_ST_STARTING))
 		return t;
 
 	/* recalculate the weights and update the state */
@@ -1440,7 +1440,7 @@ static struct task *server_warmup(struct task *t)
 	/* get back there in 1 second or 1/20th of the slowstart interval,
 	 * whichever is greater, resulting in small 5% steps.
 	 */
-	if (s->state == SRV_ST_STARTING)
+	if (s->next_state == SRV_ST_STARTING)
 		t->expire = tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20)));
 	return t;
 }
@@ -2276,7 +2276,7 @@ static int start_checks()
 				t->process = server_warmup;
 				t->context = s;
 				/* server can be in this state only because of */
-				if (s->state == SRV_ST_STARTING)
+				if (s->next_state == SRV_ST_STARTING)
 					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, (now.tv_sec - s->last_change)) / 20)));
 			}
 

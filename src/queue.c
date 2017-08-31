@@ -50,7 +50,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 	else max = MAX(s->minconn,
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
-	if ((s->state == SRV_ST_STARTING) &&
+	if ((s->cur_state == SRV_ST_STARTING) &&
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		unsigned int ratio;
@@ -107,7 +107,7 @@ static struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *p
 	ps = pendconn_from_srv(srv);
 	pp = pendconn_from_px(px);
 	/* we want to get the definitive pendconn in <ps> */
-	if (!pp || !srv_is_usable(rsrv)) {
+	if (!pp || !srv_currently_usable(rsrv)) {
 		if (!ps)
 			return NULL;
 	} else {
@@ -226,7 +226,7 @@ int pendconn_grab_from_px(struct server *s)
 {
 	int xferred;
 
-	if (!srv_is_usable(s))
+	if (!srv_currently_usable(s))
 		return 0;
 
 	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {

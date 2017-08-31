@@ -186,8 +186,8 @@ struct tree_occ {
 
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
-	enum srv_state state, prev_state;       /* server state among SRV_ST_* */
-	enum srv_admin admin, prev_admin;       /* server maintenance status : SRV_ADMF_* */
+	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
+	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
 	unsigned char pp_opts;                  /* proxy protocol options (SRV_PP_*) */
 	unsigned int flags;                     /* server flags (SRV_F_*) */
 	struct server *next;
@@ -226,9 +226,9 @@ struct server {
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 
 	char *id;				/* just for identification */
-	unsigned iweight,uweight, eweight;	/* initial weight, user-specified weight, and effective weight */
+	unsigned iweight,uweight, cur_eweight;	/* initial weight, user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
-	unsigned prev_eweight;			/* eweight before last change */
+	unsigned next_eweight;			/* next pending eweight to commit */
 	unsigned rweight;			/* remainer of weight in the current LB tree */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	unsigned npos, lpos;			/* next and last positions in the LB tree */

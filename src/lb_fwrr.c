@@ -42,15 +42,15 @@ static void fwrr_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (srv_is_usable(srv))
+	if (srv_willbe_usable(srv))
 		goto out_update_state;
 
-	if (!srv_was_usable(srv))
+	if (!srv_currently_usable(srv))
 		/* server was already down */
 		goto out_update_backend;
 
 	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight -= srv->prev_eweight;
+	grp->next_weight -= srv->cur_eweight;
 
 	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
@@ -65,7 +65,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 				srv2 = srv2->next;
 			} while (srv2 &&
 				 !((srv2->flags & SRV_F_BACKUP) &&
-				   srv_is_usable(srv2)));
+				   srv_willbe_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
 	} else {
@@ -98,15 +98,15 @@ static void fwrr_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (!srv_is_usable(srv))
+	if (!srv_willbe_usable(srv))
 		goto out_update_state;
 
-	if (srv_was_usable(srv))
+	if (srv_currently_usable(srv))
 		/* server was already up */
 		goto out_update_backend;
 
 	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight += srv->eweight;
+	grp->next_weight += srv->next_eweight;
 
 	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
@@ -135,7 +135,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 
 	/* note that eweight cannot be 0 here */
 	fwrr_get_srv(srv);
-	srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->eweight;
+	srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
 	fwrr_queue_srv(srv);
 
 out_update_backend:
@@ -165,8 +165,8 @@ static void fwrr_update_server_weight(struct server *srv)
 	 * possibly a new tree for this server.
 	 */
 	 
-	old_state = srv_was_usable(srv);
-	new_state = srv_is_usable(srv);
+	old_state = srv_currently_usable(srv);
+	new_state = srv_willbe_usable(srv);
 
 	if (!old_state && !new_state) {
 		srv_lb_commit_status(srv);
@@ -182,7 +182,7 @@ static void fwrr_update_server_weight(struct server *srv)
 	}
 
 	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight = grp->next_weight - srv->prev_eweight + srv->eweight;
+	grp->next_weight = grp->next_weight - srv->cur_eweight + srv->next_eweight;
 
 	p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
 	p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
@@ -197,7 +197,7 @@ static void fwrr_update_server_weight(struct server *srv)
 		 */
 		fwrr_dequeue_srv(srv);
 		fwrr_get_srv(srv);
-		srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->eweight;
+		srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
 		fwrr_queue_srv(srv);
 	} else {
 		/* The server is either active or in the next queue. If it's
@@ -206,9 +206,9 @@ static void fwrr_update_server_weight(struct server *srv)
 		 */
 		fwrr_get_srv(srv);
 
-		if (srv->eweight > 0) {
+		if (srv->next_eweight > 0) {
 			int prev_next = srv->npos;
-			int step = grp->next_weight / srv->eweight;
+			int step = grp->next_weight / srv->next_eweight;
 
 			srv->npos = srv->lpos + step;
 			srv->rweight = 0;
@@ -245,7 +245,7 @@ static inline void fwrr_remove_from_tree(struct server *s)
  */
 static inline void fwrr_queue_by_weight(struct eb_root *root, struct server *s)
 {
-	s->lb_node.key = SRV_EWGHT_MAX - s->eweight;
+	s->lb_node.key = SRV_EWGHT_MAX - s->next_eweight;
 	eb32_insert(root, &s->lb_node);
 	s->lb_tree = root;
 }
@@ -265,7 +265,7 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
+		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv_lb_commit_status(srv);
 	}
 
@@ -290,7 +290,7 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	/* queue active and backup servers in two distinct groups */
 	for (srv = p->srv; srv; srv = srv->next) {
-		if (!srv_is_usable(srv))
+		if (!srv_currently_usable(srv))
 			continue;
 		fwrr_queue_by_weight((srv->flags & SRV_F_BACKUP) ?
 				p->lbprm.fwrr.bck.init :
@@ -319,10 +319,10 @@ static void fwrr_queue_srv(struct server *s)
 	/* Delay everything which does not fit into the window and everything
 	 * which does not fit into the theorical new window.
 	 */
-	if (!srv_is_usable(s)) {
+	if (!srv_willbe_usable(s)) {
 		fwrr_remove_from_tree(s);
 	}
-	else if (s->eweight <= 0 ||
+	else if (s->next_eweight <= 0 ||
 		 s->npos >= 2 * grp->curr_weight ||
 		 s->npos >= grp->curr_weight + grp->next_weight) {
 		/* put into next tree, and readjust npos in case we could
@@ -339,7 +339,7 @@ static void fwrr_queue_srv(struct server *s)
 		 * so we can use eb32_insert().
 		 */
 		s->lb_node.key = SRV_UWGHT_RANGE * s->npos +
-			(unsigned)(SRV_EWGHT_MAX + s->rweight - s->eweight) / BE_WEIGHT_SCALE;
+			(unsigned)(SRV_EWGHT_MAX + s->rweight - s->next_eweight) / BE_WEIGHT_SCALE;
 
 		eb32_insert(&grp->curr, &s->lb_node);
 		s->lb_tree = &grp->curr;
@@ -423,7 +423,7 @@ static struct server *fwrr_get_server_from_group(struct fwrr_group *grp)
 			node = node2;
 			s = eb32_entry(node, struct server, lb_node);
 			fwrr_get_srv_init(s);
-			if (s->eweight == 0) /* FIXME: is it possible at all ? */
+			if (s->cur_eweight == 0) /* FIXME: is it possible at all ? */
 				node = NULL;
 		}
 	}
@@ -441,20 +441,20 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
 	if (!s->npos) {
 		/* first time ever for this server */
 		s->lpos = grp->curr_pos;
-		s->npos = grp->curr_pos + grp->next_weight / s->eweight;
-		s->rweight += grp->next_weight % s->eweight;
+		s->npos = grp->curr_pos + grp->next_weight / s->cur_eweight;
+		s->rweight += grp->next_weight % s->cur_eweight;
 
-		if (s->rweight >= s->eweight) {
-			s->rweight -= s->eweight;
+		if (s->rweight >= s->cur_eweight) {
+			s->rweight -= s->cur_eweight;
 			s->npos++;
 		}
 	} else {
 		s->lpos = s->npos;
-		s->npos += grp->next_weight / s->eweight;
-		s->rweight += grp->next_weight % s->eweight;
+		s->npos += grp->next_weight / s->cur_eweight;
+		s->rweight += grp->next_weight % s->cur_eweight;
 
-		if (s->rweight >= s->eweight) {
-			s->rweight -= s->eweight;
+		if (s->rweight >= s->cur_eweight) {
+			s->rweight -= s->cur_eweight;
 			s->npos++;
 		}
 	}

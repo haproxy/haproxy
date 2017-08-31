@@ -69,7 +69,7 @@ static inline void chash_dequeue_srv(struct server *s)
  */
 static inline void chash_queue_dequeue_srv(struct server *s)
 {
-	while (s->lb_nodes_now > s->eweight) {
+	while (s->lb_nodes_now > s->next_eweight) {
 		if (s->lb_nodes_now >= s->lb_nodes_tot) // should always be false anyway
 			s->lb_nodes_now = s->lb_nodes_tot;
 		s->lb_nodes_now--;
@@ -78,7 +78,7 @@ static inline void chash_queue_dequeue_srv(struct server *s)
 		eb32_delete(&s->lb_nodes[s->lb_nodes_now].node);
 	}
 
-	while (s->lb_nodes_now < s->eweight) {
+	while (s->lb_nodes_now < s->next_eweight) {
 		if (s->lb_nodes_now >= s->lb_nodes_tot) // should always be false anyway
 			break;
 		if (s->proxy->lbprm.chash.last == &s->lb_nodes[s->lb_nodes_now].node)
@@ -101,15 +101,15 @@ static void chash_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (srv_is_usable(srv))
+	if (srv_willbe_usable(srv))
 		goto out_update_state;
 
-	if (!srv_was_usable(srv))
+	if (!srv_currently_usable(srv))
 		/* server was already down */
 		goto out_update_backend;
 
 	if (srv->flags & SRV_F_BACKUP) {
-		p->lbprm.tot_wbck -= srv->prev_eweight;
+		p->lbprm.tot_wbck -= srv->cur_eweight;
 		p->srv_bck--;
 
 		if (srv == p->lbprm.fbck) {
@@ -121,11 +121,11 @@ static void chash_set_server_status_down(struct server *srv)
 				srv2 = srv2->next;
 			} while (srv2 &&
 				 !((srv2->flags & SRV_F_BACKUP) &&
-				   srv_is_usable(srv2)));
+				   srv_willbe_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
 	} else {
-		p->lbprm.tot_wact -= srv->prev_eweight;
+		p->lbprm.tot_wact -= srv->cur_eweight;
 		p->srv_act--;
 	}
 
@@ -152,15 +152,15 @@ static void chash_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (!srv_is_usable(srv))
+	if (!srv_willbe_usable(srv))
 		goto out_update_state;
 
-	if (srv_was_usable(srv))
+	if (srv_currently_usable(srv))
 		/* server was already up */
 		goto out_update_backend;
 
 	if (srv->flags & SRV_F_BACKUP) {
-		p->lbprm.tot_wbck += srv->eweight;
+		p->lbprm.tot_wbck += srv->next_eweight;
 		p->srv_bck++;
 
 		if (!(p->options & PR_O_USE_ALL_BK)) {
@@ -180,7 +180,7 @@ static void chash_set_server_status_up(struct server *srv)
 			}
 		}
 	} else {
-		p->lbprm.tot_wact += srv->eweight;
+		p->lbprm.tot_wact += srv->next_eweight;
 		p->srv_act++;
 	}
 
@@ -213,8 +213,8 @@ static void chash_update_server_weight(struct server *srv)
 	 * possibly a new tree for this server.
 	 */
 
-	old_state = srv_was_usable(srv);
-	new_state = srv_is_usable(srv);
+	old_state = srv_currently_usable(srv);
+	new_state = srv_willbe_usable(srv);
 
 	if (!old_state && !new_state) {
 		srv_lb_commit_status(srv);
@@ -233,9 +233,9 @@ static void chash_update_server_weight(struct server *srv)
 	chash_queue_dequeue_srv(srv);
 
 	if (srv->flags & SRV_F_BACKUP)
-		p->lbprm.tot_wbck += srv->eweight - srv->prev_eweight;
+		p->lbprm.tot_wbck += srv->next_eweight - srv->cur_eweight;
 	else
-		p->lbprm.tot_wact += srv->eweight - srv->prev_eweight;
+		p->lbprm.tot_wact += srv->next_eweight - srv->cur_eweight;
 
 	update_backend_weight(p);
 	srv_lb_commit_status(srv);
@@ -256,10 +256,10 @@ int chash_server_is_eligible(struct server *s)
 	unsigned remainder = tot_slots % s->proxy->lbprm.tot_weight;
 
 	/* Allocate a whole number of slots per weight unit... */
-	unsigned slots = s->eweight * slots_per_weight;
+	unsigned slots = s->cur_eweight * slots_per_weight;
 
 	/* And then distribute the rest among servers proportionally to their weight. */
-	slots += ((s->cumulative_weight + s->eweight) * remainder) / s->proxy->lbprm.tot_weight
+	slots += ((s->cumulative_weight + s->cur_eweight) * remainder) / s->proxy->lbprm.tot_weight
 		- (s->cumulative_weight * remainder) / s->proxy->lbprm.tot_weight;
 
 	/* But never leave a server with 0. */
@@ -418,7 +418,7 @@ void chash_init_server_tree(struct proxy *p)
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
+		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv_lb_commit_status(srv);
 	}
 
@@ -441,7 +441,7 @@ void chash_init_server_tree(struct proxy *p)
 			srv->lb_nodes[node].node.key = full_hash(srv->puid * SRV_EWGHT_RANGE + node);
 		}
 
-		if (srv_is_usable(srv))
+		if (srv_currently_usable(srv))
 			chash_queue_dequeue_srv(srv);
 	}
 }

@@ -696,7 +696,7 @@ static int sess_update_st_cer(struct stream *s)
 	 */
 	if (objt_server(s->target) &&
 	    (s->be->options & PR_O_REDISP) && !(s->flags & SF_FORCE_PRST) &&
-	    ((__objt_server(s->target)->state < SRV_ST_RUNNING) ||
+	    ((__objt_server(s->target)->cur_state < SRV_ST_RUNNING) ||
 	     (((s->be->redispatch_after > 0) &&
 	       ((s->be->conn_retries - si->conn_retries) %
 	        s->be->redispatch_after == 0)) ||
@@ -1297,7 +1297,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 			if (ret) {
 				struct server *srv = rule->srv.ptr;
 
-				if ((srv->state != SRV_ST_STOPPED) ||
+				if ((srv->cur_state != SRV_ST_STOPPED) ||
 				    (px->options & PR_O_PERSIST) ||
 				    (s->flags & SF_FORCE_PRST)) {
 					s->flags |= SF_DIRECT | SF_ASSIGNED;
@@ -1383,7 +1383,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 							struct server *srv;
 
 							srv = container_of(node, struct server, conf.id);
-							if ((srv->state != SRV_ST_STOPPED) ||
+							if ((srv->cur_state != SRV_ST_STOPPED) ||
 							    (px->options & PR_O_PERSIST) ||
 							    (s->flags & SF_FORCE_PRST)) {
 								s->flags |= SF_DIRECT | SF_ASSIGNED;

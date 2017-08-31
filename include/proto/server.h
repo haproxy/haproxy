@@ -103,7 +103,7 @@ static inline unsigned int server_throttle_rate(struct server *sv)
 	if (!sv->uweight)
 		return 100;
 
-	return (100U * px->lbprm.wmult * sv->eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
+	return (100U * px->lbprm.wmult * sv->cur_eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
 }
 
 /*
@@ -134,7 +134,7 @@ const char *server_parse_maxconn_change_request(struct server *sv,
  */
 static inline int server_is_draining(const struct server *s)
 {
-	return !s->uweight || (s->admin & SRV_ADMF_DRAIN);
+	return !s->uweight || (s->cur_admin & SRV_ADMF_DRAIN);
 }
 
 /* Shutdown all connections of a server. The caller must pass a termination

@@ -55,7 +55,7 @@ static struct srv_kw_list srv_keywords = {
 
 int srv_downtime(const struct server *s)
 {
-	if ((s->state != SRV_ST_STOPPED) && s->last_change < now.tv_sec)		// ignore negative time
+	if ((s->cur_state != SRV_ST_STOPPED) && s->last_change < now.tv_sec)		// ignore negative time
 		return s->down_time;
 
 	return now.tv_sec - s->last_change + s->down_time;
@@ -76,7 +76,7 @@ int srv_getinter(const struct check *check)
 	if ((check->state & CHK_ST_CONFIGURED) && (check->health == check->rise + check->fall - 1))
 		return check->inter;
 
-	if ((s->state == SRV_ST_STOPPED) && check->health == 0)
+	if ((s->next_state == SRV_ST_STOPPED) && check->health == 0)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
@@ -317,8 +317,8 @@ static int srv_parse_cookie(char **args, int *cur_arg,
 static int srv_parse_disabled(char **args, int *cur_arg,
                               struct proxy *curproxy, struct server *newsrv, char **err)
 {
-	newsrv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
-	newsrv->state = SRV_ST_STOPPED;
+	newsrv->next_admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
+	newsrv->next_state = SRV_ST_STOPPED;
 	newsrv->check.state |= CHK_ST_PAUSED;
 	newsrv->check.health = 0;
 	return 0;
@@ -328,8 +328,8 @@ static int srv_parse_disabled(char **args, int *cur_arg,
 static int srv_parse_enabled(char **args, int *cur_arg,
                              struct proxy *curproxy, struct server *newsrv, char **err)
 {
-	newsrv->admin &= ~SRV_ADMF_CMAINT & ~SRV_ADMF_FMAINT;
-	newsrv->state = SRV_ST_RUNNING;
+	newsrv->next_admin &= ~SRV_ADMF_CMAINT & ~SRV_ADMF_FMAINT;
+	newsrv->next_state = SRV_ST_RUNNING;
 	newsrv->check.state &= ~CHK_ST_PAUSED;
 	newsrv->check.health = newsrv->check.rise;
 	return 0;
@@ -793,7 +793,7 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
 		chunk_appendf(msg, " via %s/%s", s->track->proxy->id, s->track->id);
 
 	if (xferred >= 0) {
-		if (s->state == SRV_ST_STOPPED)
+		if (s->next_state == SRV_ST_STOPPED)
 			chunk_appendf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
@@ -820,15 +820,15 @@ void srv_set_stopped(struct server *s, const char *reason)
 {
 	struct server *srv;
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
-	int srv_was_stopping = (s->state == SRV_ST_STOPPING);
+	int srv_was_stopping = (s->next_state == SRV_ST_STOPPING);
 	int log_level;
 	int xferred;
 
-	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
+	if ((s->next_admin & SRV_ADMF_MAINT) || s->next_state == SRV_ST_STOPPED)
 		return;
 
 	s->last_change = now.tv_sec;
-	s->state = SRV_ST_STOPPED;
+	s->next_state = SRV_ST_STOPPED;
 	if (s->proxy->lbprm.set_server_status_down)
 		s->proxy->lbprm.set_server_status_down(s);
 
@@ -875,10 +875,10 @@ void srv_set_running(struct server *s, const char *reason)
 	struct server *srv;
 	int xferred;
 
-	if (s->admin & SRV_ADMF_MAINT)
+	if (s->next_admin & SRV_ADMF_MAINT)
 		return;
 
-	if (s->state == SRV_ST_STARTING || s->state == SRV_ST_RUNNING)
+	if (s->next_state == SRV_ST_STARTING || s->next_state == SRV_ST_RUNNING)
 		return;
 
 	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
@@ -887,16 +887,16 @@ void srv_set_running(struct server *s, const char *reason)
 		s->proxy->last_change = now.tv_sec;
 	}
 
-	if (s->state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
+	if (s->next_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
 		s->down_time += now.tv_sec - s->last_change;
 
 	s->last_change = now.tv_sec;
 
-	s->state = SRV_ST_STARTING;
+	s->next_state = SRV_ST_STARTING;
 	if (s->slowstart > 0)
 		task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 	else
-		s->state = SRV_ST_RUNNING;
+		s->next_state = SRV_ST_RUNNING;
 
 	server_recalc_eweight(s);
 
@@ -906,7 +906,7 @@ void srv_set_running(struct server *s, const char *reason)
 	 * on all backup servers.
 	 */
 	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-	    !(s->flags & SRV_F_BACKUP) && s->eweight)
+	    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
 		srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
 
 	/* check if we can handle some connections queued at the proxy. We
@@ -940,14 +940,14 @@ void srv_set_stopping(struct server *s, const char *reason)
 	struct server *srv;
 	int xferred;
 
-	if (s->admin & SRV_ADMF_MAINT)
+	if (s->next_admin & SRV_ADMF_MAINT)
 		return;
 
-	if (s->state == SRV_ST_STOPPING)
+	if (s->next_state == SRV_ST_STOPPING)
 		return;
 
 	s->last_change = now.tv_sec;
-	s->state = SRV_ST_STOPPING;
+	s->next_state = SRV_ST_STOPPING;
 	if (s->proxy->lbprm.set_server_status_down)
 		s->proxy->lbprm.set_server_status_down(s);
 
@@ -991,14 +991,14 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		return;
 
 	/* stop going down as soon as we meet a server already in the same state */
-	if (s->admin & mode)
+	if (s->next_admin & mode)
 		return;
 
-	s->admin |= mode;
+	s->next_admin |= mode;
 
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
-	if (((mode & SRV_ADMF_MAINT) && (s->admin & ~mode & SRV_ADMF_MAINT)) ||
-	    ((mode & SRV_ADMF_DRAIN) && (s->admin & ~mode & SRV_ADMF_DRAIN)))
+	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
+	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & ~mode & SRV_ADMF_DRAIN)))
 		return;
 
 	/* Maintenance must also disable health checks */
@@ -1008,7 +1008,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 			check->health = 0;
 		}
 
-		if (s->state == SRV_ST_STOPPED) {	/* server was already down */
+		if (s->next_state == SRV_ST_STOPPED) {	/* server was already down */
 			chunk_printf(&trash,
 			             "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
 			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
@@ -1022,12 +1022,12 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 			}
 		}
 		else {	/* server was still running */
-			int srv_was_stopping = (s->state == SRV_ST_STOPPING) || (s->admin & SRV_ADMF_DRAIN);
+			int srv_was_stopping = (s->next_state == SRV_ST_STOPPING) || (s->next_admin & SRV_ADMF_DRAIN);
 			int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
 			check->health = 0; /* failure */
 			s->last_change = now.tv_sec;
-			s->state = SRV_ST_STOPPED;
+			s->next_state = SRV_ST_STOPPED;
 			if (s->proxy->lbprm.set_server_status_down)
 				s->proxy->lbprm.set_server_status_down(s);
 
@@ -1061,7 +1061,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 	}
 
 	/* drain state is applied only if not yet in maint */
-	if ((mode & SRV_ADMF_DRAIN) && !(s->admin & SRV_ADMF_MAINT))  {
+	if ((mode & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_MAINT))  {
 		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
 		s->last_change = now.tv_sec;
@@ -1115,12 +1115,12 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		return;
 
 	/* stop going down as soon as we see the flag is not there anymore */
-	if (!(s->admin & mode))
+	if (!(s->next_admin & mode))
 		return;
 
-	s->admin &= ~mode;
+	s->next_admin &= ~mode;
 
-	if (s->admin & SRV_ADMF_MAINT) {
+	if (s->next_admin & SRV_ADMF_MAINT) {
 		/* remaining in maintenance mode, let's inform precisely about the
 		 * situation.
 		 */
@@ -1180,7 +1180,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 			check->health = check->rise; /* start OK but check immediately */
 		}
 
-		if ((!s->track || s->track->state != SRV_ST_STOPPED) &&
+		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
 		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
 		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
 			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
@@ -1193,14 +1193,14 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 				s->down_time += now.tv_sec - s->last_change;
 			s->last_change = now.tv_sec;
 
-			if (s->track && s->track->state == SRV_ST_STOPPING)
-				s->state = SRV_ST_STOPPING;
+			if (s->track && s->track->next_state == SRV_ST_STOPPING)
+				s->next_state = SRV_ST_STOPPING;
 			else {
-				s->state = SRV_ST_STARTING;
+				s->next_state = SRV_ST_STARTING;
 				if (s->slowstart > 0)
 					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 				else
-					s->state = SRV_ST_RUNNING;
+					s->next_state = SRV_ST_RUNNING;
 			}
 
 			server_recalc_eweight(s);
@@ -1211,7 +1211,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 			 * on all backup servers.
 			 */
 			if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-			    !(s->flags & SRV_F_BACKUP) && s->eweight)
+			    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
 				srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
 
 			/* check if we can handle some connections queued at the proxy. We
@@ -1225,30 +1225,30 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 				     "%sServer %s/%s is %s/%s (leaving forced maintenance)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id,
-				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 		}
 		else if (mode & SRV_ADMF_RMAINT) {
 			chunk_printf(&trash,
 				     "%sServer %s/%s ('%s') is %s/%s (resolves again)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id, s->hostname,
-				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 		}
 		else {
 			chunk_printf(&trash,
 				     "%sServer %s/%s is %s/%s (leaving maintenance)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id,
-				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 			srv_append_status(&trash, s, NULL, xferred, 0);
 		}
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 	}
-	else if ((mode & SRV_ADMF_DRAIN) && (s->admin & SRV_ADMF_DRAIN)) {
+	else if ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)) {
 		/* remaining in drain mode after removing one of its flags */
 
 		if (mode & SRV_ADMF_FDRAIN) {
@@ -1288,14 +1288,14 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 				     "%sServer %s/%s is %s (leaving forced drain)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id,
-				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
 		}
 		else {
 			chunk_printf(&trash,
 				     "%sServer %s/%s is %s (leaving drain)",
 				     s->flags & SRV_F_BACKUP ? "Backup " : "",
 				     s->proxy->id, s->id,
-				     (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
 			if (s->track) /* normally it's mandatory here */
 				chunk_appendf(&trash, " via %s/%s",
 				              s->track->proxy->id, s->track->id);
@@ -1305,8 +1305,8 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 	}
 
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
-	if (((mode & SRV_ADMF_MAINT) && (s->admin & SRV_ADMF_MAINT)) ||
-	    ((mode & SRV_ADMF_DRAIN) && (s->admin & SRV_ADMF_DRAIN)))
+	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
+	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)))
 		return;
 
 	if (mode & SRV_ADMF_MAINT)
@@ -1329,10 +1329,10 @@ static void srv_propagate_admin_state(struct server *srv)
 		return;
 
 	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
-		if (srv->admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
+		if (srv->next_admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
 			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, NULL);
 
-		if (srv->admin & SRV_ADMF_DRAIN)
+		if (srv->next_admin & SRV_ADMF_DRAIN)
 			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, NULL);
 	}
 }
@@ -1405,24 +1405,24 @@ void server_recalc_eweight(struct server *sv)
 
 	if (now.tv_sec < sv->last_change || now.tv_sec >= sv->last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached */
-		if (sv->state == SRV_ST_STARTING)
-			sv->state = SRV_ST_RUNNING;
+		if (sv->next_state == SRV_ST_STARTING)
+			sv->next_state = SRV_ST_RUNNING;
 	}
 
 	/* We must take care of not pushing the server to full throttle during slow starts.
 	 * It must also start immediately, at least at the minimal step when leaving maintenance.
 	 */
-	if ((sv->state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
+	if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = (px->lbprm.wdiv * (now.tv_sec - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
 
-	sv->eweight = (sv->uweight * w + px->lbprm.wmult - 1) / px->lbprm.wmult;
+	sv->next_eweight = (sv->uweight * w + px->lbprm.wmult - 1) / px->lbprm.wmult;
 
 	/* now propagate the status change to any LB algorithms */
 	if (px->lbprm.update_server_eweight)
 		px->lbprm.update_server_eweight(sv);
-	else if (srv_is_usable(sv)) {
+	else if (srv_willbe_usable(sv)) {
 		if (px->lbprm.set_server_status_up)
 			px->lbprm.set_server_status_up(sv);
 	}
@@ -1791,9 +1791,9 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->check.fall               = src->check.fall;
 
 	/* Here we check if 'disabled' is the default server state */
-	if (src->admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
-		srv->admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
-		srv->state        = SRV_ST_STOPPED;
+	if (src->next_admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
+		srv->next_admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
+		srv->next_state        = SRV_ST_STOPPED;
 		srv->check.state |= CHK_ST_PAUSED;
 		srv->check.health = 0;
 	}
@@ -1840,7 +1840,7 @@ static struct server *new_server(struct proxy *proxy)
 	LIST_INIT(&srv->idle_conns);
 	LIST_INIT(&srv->safe_conns);
 
-	srv->state = SRV_ST_RUNNING; /* early server setup */
+	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
 
 	srv->check.status = HCHK_STATUS_INI;
@@ -3115,7 +3115,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					srv_set_stopped(srv, "changed from server-state after a reload");
 					break;
 				case SRV_ST_STARTING:
-					srv->state = srv_op_state;
+					srv->next_state = srv_op_state;
 					break;
 				case SRV_ST_STOPPING:
 					srv->check.health = srv->check.rise + srv->check.fall - 1;
@@ -3134,21 +3134,21 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 *   state is different from new configuration state
 			 */
 			/* configuration has changed */
-			if ((srv_admin_state & SRV_ADMF_CMAINT) != (srv->admin & SRV_ADMF_CMAINT)) {
-				if (srv->admin & SRV_ADMF_CMAINT)
+			if ((srv_admin_state & SRV_ADMF_CMAINT) != (srv->next_admin & SRV_ADMF_CMAINT)) {
+				if (srv->next_admin & SRV_ADMF_CMAINT)
 					srv_adm_set_maint(srv);
 				else
 					srv_adm_set_ready(srv);
 			}
 			/* configuration is the same, let's compate old running state and new conf state */
 			else {
-				if (srv_admin_state & SRV_ADMF_FMAINT && !(srv->admin & SRV_ADMF_CMAINT))
+				if (srv_admin_state & SRV_ADMF_FMAINT && !(srv->next_admin & SRV_ADMF_CMAINT))
 					srv_adm_set_maint(srv);
-				else if (!(srv_admin_state & SRV_ADMF_FMAINT) && (srv->admin & SRV_ADMF_CMAINT))
+				else if (!(srv_admin_state & SRV_ADMF_FMAINT) && (srv->next_admin & SRV_ADMF_CMAINT))
 					srv_adm_set_ready(srv);
 			}
 			/* apply drain mode if server is currently enabled */
-			if (!(srv->admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
+			if (!(srv->next_admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
 				/* The SRV_ADMF_FDRAIN flag is inherited when srv->iweight is 0
 				 * (srv->iweight is the weight set up in configuration).
 				 * There are two possible reasons for FDRAIN to have been present :
@@ -3220,7 +3220,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
 					 * any futher FQDN modification.
 					 */
-					srv->admin &= ~SRV_ADMF_HMAINT;
+					srv->next_admin &= ~SRV_ADMF_HMAINT;
 				}
 				else {
 					/* If the FDQN has been changed from stats socket,
@@ -3229,7 +3229,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					 */
 					if (fqdn_set_by_cli) {
 						srv_set_fqdn(srv, fqdn);
-						srv->admin |= SRV_ADMF_HMAINT;
+						srv->next_admin |= SRV_ADMF_HMAINT;
 					}
 				}
 			}
@@ -3827,13 +3827,13 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 			 * server will be turned back on if health check is safe
 			 */
 			if (has_no_ip) {
-				if (s->admin & SRV_ADMF_RMAINT)
+				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT,
 				    "No IP for server ");
 				return (0);
 			}
-			if (!(s->admin & SRV_ADMF_RMAINT))
+			if (!(s->next_admin & SRV_ADMF_RMAINT))
 				return 1;
 			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
 			chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer",
@@ -3846,7 +3846,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 		case RSLV_STATUS_NX:
 			/* stop server if resolution is NX for a long enough period */
 			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.nx), now_ms)) {
-				if (s->admin & SRV_ADMF_RMAINT)
+				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS NX status");
 				return 0;
@@ -3856,7 +3856,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 		case RSLV_STATUS_TIMEOUT:
 			/* stop server if resolution is TIMEOUT for a long enough period */
 			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.timeout), now_ms)) {
-				if (s->admin & SRV_ADMF_RMAINT)
+				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS timeout status");
 				return 0;
@@ -3866,7 +3866,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 		case RSLV_STATUS_REFUSED:
 			/* stop server if resolution is REFUSED for a long enough period */
 			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.refused), now_ms)) {
-				if (s->admin & SRV_ADMF_RMAINT)
+				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS refused status");
 				return 0;
@@ -3876,7 +3876,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 		default:
 			/* stop server if resolution is in unmatched error for a long enough period */
 			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.other), now_ms)) {
-				if (s->admin & SRV_ADMF_RMAINT)
+				if (s->next_admin & SRV_ADMF_RMAINT)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "unspecified DNS error");
 				return 0;
@@ -4057,7 +4057,7 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 			continue;
 
 		/* If the server has been taken down, don't consider it */
-		if (tmpsrv->admin & SRV_ADMF_RMAINT)
+		if (tmpsrv->next_admin & SRV_ADMF_RMAINT)
 			continue;
 
 		/* At this point, we have 2 different servers using the same DNS hostname
@@ -4315,7 +4315,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 	}
 
 	/* Flag as FQDN set from stats socket. */
-	server->admin |= SRV_ADMF_HMAINT;
+	server->next_admin |= SRV_ADMF_HMAINT;
 
  out:
 	if (updater)

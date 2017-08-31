@@ -732,7 +732,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			chunk_printf(&trash,
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
 			             p->id, s->id,
-			             (s->state != SRV_ST_STOPPED) ? "UP" : "DOWN",
+			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
 			             s->cur_sess, s->nbpend, s->counters.cum_sess);
 			Warning("%s\n", trash.str);
 			send_log(p, LOG_NOTICE, "%s\n", trash.str);

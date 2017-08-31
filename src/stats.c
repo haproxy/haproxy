@@ -1491,7 +1491,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	while (ref->track)
 		ref = ref->track;
 
-	if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
+	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
 		if ((ref->check.state & CHK_ST_ENABLED) &&
 		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
 			state = SRV_STATS_STATE_UP_GOING_DOWN;
@@ -1499,7 +1499,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 			state = SRV_STATS_STATE_UP;
 		}
 
-		if (sv->admin & SRV_ADMF_DRAIN) {
+		if (sv->cur_admin & SRV_ADMF_DRAIN) {
 			if (ref->agent.state & CHK_ST_ENABLED)
 				state = SRV_STATS_STATE_DRAIN_AGENT;
 			else if (state == SRV_STATS_STATE_UP_GOING_DOWN)
@@ -1512,7 +1512,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 			state = SRV_STATS_STATE_NO_CHECK;
 		}
 	}
-	else if (sv->state == SRV_ST_STOPPING) {
+	else if (sv->cur_state == SRV_ST_STOPPING) {
 		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
 		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
 			state = SRV_STATS_STATE_NOLB;
@@ -1556,21 +1556,21 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 
 	/* status */
 	fld_status = chunk_newstr(out);
-	if (sv->admin & SRV_ADMF_RMAINT)
+	if (sv->cur_admin & SRV_ADMF_RMAINT)
 		chunk_appendf(out, "MAINT (resolution)");
-	else if (sv->admin & SRV_ADMF_IMAINT)
+	else if (sv->cur_admin & SRV_ADMF_IMAINT)
 		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
-	else if (sv->admin & SRV_ADMF_MAINT)
+	else if (sv->cur_admin & SRV_ADMF_MAINT)
 		chunk_appendf(out, "MAINT");
 	else
 		chunk_appendf(out,
 			      srv_hlt_st[state],
-			      (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			      (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
+			      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+			      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
 	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
-	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
 	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
 
@@ -1588,7 +1588,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
 
-	if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
+	if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
 		stats[ST_F_THROTTLE] = mkf_u32(FN_AVG, server_throttle_rate(sv));
 
 	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
@@ -2088,8 +2088,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 
 			/* do not report servers which are DOWN and not changing state */
 			if ((appctx->ctx.stats.flags & STAT_HIDE_DOWN) &&
-			    ((sv->admin & SRV_ADMF_MAINT) || /* server is in maintenance */
-			     (sv->state == SRV_ST_STOPPED && /* server is down */
+			    ((sv->cur_admin & SRV_ADMF_MAINT) || /* server is in maintenance */
+			     (sv->cur_state == SRV_ST_STOPPED && /* server is down */
 			      (!((svs->agent.state | svs->check.state) & CHK_ST_ENABLED) ||
 			       ((svs->agent.state & CHK_ST_ENABLED) && !svs->agent.health) ||
 			       ((svs->check.state & CHK_ST_ENABLED) && !svs->check.health))))) {
@@ -2767,28 +2767,28 @@ static int stats_process_http_post(struct stream_interface *si)
 				else if ((sv = findserver(px, value)) != NULL) {
 					switch (action) {
 					case ST_ADM_ACTION_DISABLE:
-						if (!(sv->admin & SRV_ADMF_FMAINT)) {
+						if (!(sv->cur_admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
 							srv_set_admin_flag(sv, SRV_ADMF_FMAINT, "'disable' on stats page");
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
-						if (sv->admin & SRV_ADMF_FMAINT) {
+						if (sv->cur_admin & SRV_ADMF_FMAINT) {
 							altered_servers++;
 							total_servers++;
 							srv_clr_admin_flag(sv, SRV_ADMF_FMAINT);
 						}
 						break;
 					case ST_ADM_ACTION_STOP:
-						if (!(sv->admin & SRV_ADMF_FDRAIN)) {
+						if (!(sv->cur_admin & SRV_ADMF_FDRAIN)) {
 							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN, "'stop' on stats page");
 							altered_servers++;
 							total_servers++;
 						}
 						break;
 					case ST_ADM_ACTION_START:
-						if (sv->admin & SRV_ADMF_FDRAIN) {
+						if (sv->cur_admin & SRV_ADMF_FDRAIN) {
 							srv_clr_admin_flag(sv, SRV_ADMF_FDRAIN);
 							altered_servers++;
 							total_servers++;

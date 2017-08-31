@@ -7861,12 +7861,12 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				while (srv) {
 					if (srv->cookie && (srv->cklen == delim - val_beg) &&
 					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
-						if ((srv->state != SRV_ST_STOPPED) ||
+						if ((srv->cur_state != SRV_ST_STOPPED) ||
 						    (s->be->options & PR_O_PERSIST) ||
 						    (s->flags & SF_FORCE_PRST)) {
 							/* we found the server and we can use it */
 							txn->flags &= ~TX_CK_MASK;
-							txn->flags |= (srv->state != SRV_ST_STOPPED) ? TX_CK_VALID : TX_CK_DOWN;
+							txn->flags |= (srv->cur_state != SRV_ST_STOPPED) ? TX_CK_VALID : TX_CK_DOWN;
 							s->flags |= SF_DIRECT | SF_ASSIGNED;
 							s->target = &srv->obj_type;
 							break;

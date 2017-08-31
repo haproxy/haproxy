@@ -63,18 +63,19 @@ static void inline be_set_sess_last(struct proxy *be)
 	be->be_counters.last_sess = now.tv_sec;
 }
 
-/* This function returns non-zero if the designated server is usable for LB
- * according to its current weight and current state. Otherwise it returns 0.
+/* This function returns non-zero if the designated server will be
+ * usable for LB according to pending weight and state.
+ * Otherwise it returns 0.
  */
-static inline int srv_is_usable(const struct server *srv)
+static inline int srv_willbe_usable(const struct server *srv)
 {
-	enum srv_state state = srv->state;
+	enum srv_state state = srv->next_state;
 
-	if (!srv->eweight)
+	if (!srv->next_eweight)
 		return 0;
-	if (srv->admin & SRV_ADMF_MAINT)
+	if (srv->next_admin & SRV_ADMF_MAINT)
 		return 0;
-	if (srv->admin & SRV_ADMF_DRAIN)
+	if (srv->next_admin & SRV_ADMF_DRAIN)
 		return 0;
 	switch (state) {
 	case SRV_ST_STARTING:
@@ -88,17 +89,17 @@ static inline int srv_is_usable(const struct server *srv)
 }
 
 /* This function returns non-zero if the designated server was usable for LB
- * according to its current weight and previous state. Otherwise it returns 0.
+ * according to its current weight and state. Otherwise it returns 0.
  */
-static inline int srv_was_usable(const struct server *srv)
+static inline int srv_currently_usable(const struct server *srv)
 {
-	enum srv_state state = srv->prev_state;
+	enum srv_state state = srv->cur_state;
 
-	if (!srv->prev_eweight)
+	if (!srv->cur_eweight)
 		return 0;
-	if (srv->prev_admin & SRV_ADMF_MAINT)
+	if (srv->cur_admin & SRV_ADMF_MAINT)
 		return 0;
-	if (srv->prev_admin & SRV_ADMF_DRAIN)
+	if (srv->cur_admin & SRV_ADMF_DRAIN)
 		return 0;
 	switch (state) {
 	case SRV_ST_STARTING:
@@ -111,14 +112,14 @@ static inline int srv_was_usable(const struct server *srv)
 	return 0;
 }
 
-/* This function commits the current server state and weight onto the previous
+/* This function commits the next server state and weight onto the current
  * ones in order to detect future changes.
  */
 static inline void srv_lb_commit_status(struct server *srv)
 {
-	srv->prev_state = srv->state;
-	srv->prev_admin = srv->admin;
-	srv->prev_eweight = srv->eweight;
+	srv->cur_state = srv->next_state;
+	srv->cur_admin = srv->next_admin;
+	srv->cur_eweight = srv->next_eweight;
 }
 
 /* This function returns true when a server has experienced a change since last
@@ -126,9 +127,9 @@ static inline void srv_lb_commit_status(struct server *srv)
  */
 static inline int srv_lb_status_changed(const struct server *srv)
 {
-	return (srv->state != srv->prev_state ||
-		srv->admin != srv->prev_admin ||
-		srv->eweight != srv->prev_eweight);
+	return (srv->next_state != srv->cur_state ||
+		srv->next_admin != srv->cur_admin ||
+		srv->next_eweight != srv->cur_eweight);
 }
 
 /* sends a log message when a backend goes down, and also sets last

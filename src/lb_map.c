@@ -31,7 +31,7 @@ static void map_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (srv_is_usable(srv))
+	if (srv_willbe_usable(srv))
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
@@ -50,7 +50,7 @@ static void map_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (!srv_is_usable(srv))
+	if (!srv_willbe_usable(srv))
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
@@ -100,7 +100,7 @@ void recalc_server_map(struct proxy *px)
 		best = NULL;
 		for (cur = px->srv; cur; cur = cur->next) {
 			if ((cur->flags & SRV_F_BACKUP) == flag &&
-			    srv_is_usable(cur)) {
+			    srv_willbe_usable(cur)) {
 				int v;
 
 				/* If we are forced to return only one server, we don't want to
@@ -113,7 +113,7 @@ void recalc_server_map(struct proxy *px)
 					break;
 				}
 
-				cur->wscore += cur->eweight;
+				cur->wscore += cur->next_eweight;
 				v = (cur->wscore + tot) / tot; /* result between 0 and 3 */
 				if (best == NULL || v > max) {
 					max = v;
@@ -175,13 +175,13 @@ void init_server_map(struct proxy *p)
 
 	act = bck = 0;
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
-		srv_lb_commit_status(srv);
+		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 
 		if (srv->flags & SRV_F_BACKUP)
-			bck += srv->eweight;
+			bck += srv->next_eweight;
 		else
-			act += srv->eweight;
+			act += srv->next_eweight;
+		srv_lb_commit_status(srv);
 	}
 
 	/* this is the largest map we will ever need for this servers list */
