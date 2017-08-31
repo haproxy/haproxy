@@ -1299,6 +1299,11 @@ If an unknown command is sent, haproxy displays the usage message which reminds
 all supported commands. Some commands support a more complex syntax, generally
 it will explain what part of the command is invalid when this happens.
 
+Some commands require a higher level of privilege to work. If you do not have
+enough privilege, you will get an error "Permission denied". Please check
+the "level" option of the "bind" keyword lines in the configuration manual
+for more information.
+
 add acl <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
   "show acl". This command does not verify if the entry already exists. This
