@@ -1718,9 +1718,6 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-
-	fdinfo = calloc(1, sizeof(struct fdinfo) * (global.maxsock));
-	fdtab = calloc(1, sizeof(struct fdtab) * (global.maxsock));
 	/*
 	 * Note: we could register external pollers here.
 	 * Built-in pollers have been registered before main().
@@ -2118,8 +2115,6 @@ void deinit(void)
 	free(global.pidfile); global.pidfile = NULL;
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
-	free(fdinfo);         fdinfo  = NULL;
-	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
 

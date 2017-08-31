@@ -270,10 +270,16 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fd_cache = calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+	if ((fdtab = calloc(global.maxsock, sizeof(struct fdtab))) == NULL)
+		goto fail_tab;
+
+	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
+		goto fail_info;
+
+	if ((fd_cache = calloc(global.maxsock, sizeof(*fd_cache))) == NULL)
 		goto fail_cache;
 
-	if ((fd_updt = calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+	if ((fd_updt = calloc(global.maxsock, sizeof(*fd_updt))) == NULL)
 		goto fail_updt;
 
 	do {
@@ -295,6 +301,10 @@ int init_pollers()
  fail_updt:
 	free(fd_cache);
  fail_cache:
+	free(fdinfo);
+ fail_info:
+	free(fdtab);
+ fail_tab:
 	return 0;
 }
 
@@ -312,11 +322,10 @@ void deinit_pollers() {
 		if (bp && bp->pref)
 			bp->term(bp);
 	}
-
-	free(fd_updt);
-	free(fd_cache);
-	fd_updt = NULL;
-	fd_cache = NULL;
+	free(fd_updt);  fd_updt  = NULL;
+	free(fd_cache); fd_cache = NULL;
+	free(fdinfo);   fdinfo   = NULL;
+	free(fdtab);    fdtab    = NULL;
 }
 
 /*
