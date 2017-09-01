@@ -1002,6 +1002,8 @@ S (Servers).
         L7TOUT  -> layer 7 (HTTP/SMTP) timeout
         L7RSP   -> layer 7 invalid response - protocol error
         L7STS   -> layer 7 response error, for example HTTP 5xx
+     Notice: If a check is currently running, the last known status will be
+     reported, prefixed with "* ". e. g. "* L7OK".
  37. check_code [...S]: layer5-7 code, if available
  38. check_duration [...S]: time in ms took to finish last health check
  39. hrsp_1xx [.FBS]: http responses with 1xx code
