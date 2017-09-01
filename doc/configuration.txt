@@ -10292,6 +10292,10 @@ ciphers <ciphers>
   negotiated during the SSL/TLS handshake. The format of the string is defined
   in "man 1 ciphers" from OpenSSL man pages, and can be for instance a string
   such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes).
+  Depending on the compatiblity and security requirements, the list of suitable
+  ciphers depends on a variety of variables. For background information and
+  recommendations see e. g. (https://wiki.mozilla.org/Security/Server_Side_TLS)
+  and (https://mozilla.github.io/server-side-tls/ssl-config-generator/).
 
 crl-file <crlfile>
   This setting is only available when support for OpenSSL was built in. It
