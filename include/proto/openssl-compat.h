@@ -152,11 +152,6 @@ static inline X509_ALGOR *X509_get0_tbs_sigalg(const X509 *x)
 #define __OPENSSL_110_CONST__
 #endif
 
-#if defined(OPENSSL_IS_BORINGSSL) || defined(LIBRESSL_VERSION_NUMBER)
-#undef OPENSSL_NO_SSL_TRACE
-#define OPENSSL_NO_SSL_TRACE
-#endif
-
 #ifdef OPENSSL_IS_BORINGSSL
 #define SSL_NO_GENERATE_CERTIFICATES
 

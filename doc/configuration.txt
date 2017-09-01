@@ -14173,9 +14173,8 @@ ssl_fc_cipherlist_str : string
   Returns the decoded text form of the client hello cipher list. The maximum
   number of ciphers returned is according with the value of
   "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is only
-  avaible with OpenSSL > 1.0.2 compiled with the option enable-ssl-trace.
-  If the function is not enabled, this sample-fetch returns the hash
-  like "ssl_fc_cipherlist_xxh".
+  avaible with OpenSSL >= 1.0.2. If the function is not enabled, this
+  sample-fetch returns the hash like "ssl_fc_cipherlist_xxh".
 
 ssl_fc_cipherlist_xxh : integer
   Returns a xxh64 of the cipher list. This hash can be return only is the value

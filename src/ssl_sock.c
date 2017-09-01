@@ -6308,32 +6308,28 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 static int
 smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(OPENSSL_NO_SSL_TRACE)
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(LIBRESSL_VERSION_NUMBER)
 	struct chunk *data;
-	SSL_CIPHER cipher;
 	int i;
-	const char *str;
-	unsigned char *bin;
 
 	if (!smp_fetch_ssl_fc_cl_bin(args, smp, kw, private))
 		return 0;
 
-	/* The cipher algorith must not be SSL_SSLV2, because this
-	 * SSL version seems to not have the same cipher encoding,
-	 * and it is not supported by OpenSSL. Unfortunately, the
-	 * #define SSL_SSLV2, SSL_SSLV3 and others are not available
-	 * with standard defines. We just set the variable to 0,
-	 * ensure that the match with SSL_SSLV2 fails.
-	 */
-	cipher.algorithm_ssl = 0;
-
 	data = get_trash_chunk();
 	for (i = 0; i + 1 < smp->data.u.str.len; i += 2) {
-		bin = (unsigned char *)smp->data.u.str.str + i;
-		cipher.id = (unsigned int)(bin[0] << 8) | bin[1];
-		str = SSL_CIPHER_standard_name(&cipher);
-		if (!str || strcmp(str, "UNKNOWN") == 0)
-			chunk_appendf(data, "%sUNKNOWN(%04x)", i == 0 ? "" : ",", (unsigned int)cipher.id);
+		const char *str;
+		const SSL_CIPHER *cipher;
+		const unsigned char *bin = (const unsigned char *)smp->data.u.str.str + i;
+		uint16_t id = (bin[0] << 8) | bin[1];
+#if defined(OPENSSL_IS_BORINGSSL)
+		cipher = SSL_get_cipher_by_value(id);
+#else
+		struct connection *conn = objt_conn(smp->sess->origin);
+		cipher = SSL_CIPHER_find(conn->xprt_ctx, bin);
+#endif
+		str = SSL_CIPHER_get_name(cipher);
+		if (!str || strcmp(str, "(NONE)") == 0)
+			chunk_appendf(data, "%sUNKNOWN(%04x)", i == 0 ? "" : ",", id);
 		else
 			chunk_appendf(data, "%s%s", i == 0 ? "" : ",", str);
 	}
