@@ -45,14 +45,15 @@ static inline void rotate_freq_ctr(struct freq_ctr *ctr)
  * rotated if the period is over. It is important that it correctly initializes
  * a null area.
  */
-static inline void update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
+static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
 {
 	if (likely(ctr->curr_sec == now.tv_sec)) {
 		ctr->curr_ctr += inc;
-		return;
+		return ctr->curr_ctr;
 	}
 	rotate_freq_ctr(ctr);
 	ctr->curr_ctr = inc;
+	return ctr->curr_ctr;
 	/* Note: later we may want to propagate the update to other counters */
 }
 
@@ -79,15 +80,16 @@ static inline void rotate_freq_ctr_period(struct freq_ctr_period *ctr,
  * a null area. This one works on frequency counters which have a period
  * different from one second.
  */
-static inline void update_freq_ctr_period(struct freq_ctr_period *ctr,
-					  unsigned int period, unsigned int inc)
+static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
+						  unsigned int period, unsigned int inc)
 {
 	if (likely(now_ms - ctr->curr_tick < period)) {
 		ctr->curr_ctr += inc;
-		return;
+		return ctr->curr_ctr;
 	}
 	rotate_freq_ctr_period(ctr, period);
 	ctr->curr_ctr = inc;
+	return ctr->curr_ctr;
 	/* Note: later we may want to propagate the update to other counters */
 }
 
