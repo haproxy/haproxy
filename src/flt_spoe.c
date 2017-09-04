@@ -23,6 +23,7 @@
 #include <types/global.h>
 #include <types/spoe.h>
 
+#include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/filters.h>
@@ -107,17 +108,27 @@ spoe_release_msg_placeholder(struct spoe_msg_placeholder *mp)
 static void
 spoe_release_message(struct spoe_message *msg)
 {
-	struct spoe_arg *arg, *back;
+	struct spoe_arg *arg, *argback;
+	struct acl      *acl, *aclback;
 
 	if (!msg)
 		return;
 	free(msg->id);
 	free(msg->conf.file);
-	list_for_each_entry_safe(arg, back, &msg->args, list) {
+	list_for_each_entry_safe(arg, argback, &msg->args, list) {
 		release_sample_expr(arg->expr);
 		free(arg->name);
 		LIST_DEL(&arg->list);
 		free(arg);
+	}
+	list_for_each_entry_safe(acl, aclback, &msg->acls, list) {
+		LIST_DEL(&acl->list);
+		prune_acl(acl);
+		free(acl);
+	}
+	if (msg->cond) {
+		prune_acl_cond(msg->cond);
+		free(msg->cond);
 	}
 	free(msg);
 }
@@ -2070,7 +2081,8 @@ spoe_queue_context(struct spoe_context *ctx)
  **************************************************************************/
 /* Encode SPOE messages for a specific event. Info in <ctx->frag_ctx>, if any,
  * are used to handle fragmented content. On success it returns 1. If an error
- * occurred, -1 is returned. */
+ * occurred, -1 is returned. If nothing has been encoded, it returns 0 (this is
+ * only possible for unfragmented payload). */
 static int
 spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		     struct list *messages, int dir)
@@ -2099,6 +2111,19 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		ctx->frag_ctx.curoff = UINT_MAX;
 
 	  encode_message:
+		if (msg->cond) {
+			int ret = 1;
+
+			ret = acl_exec_cond(msg->cond, s->be, s->sess, s, dir|SMP_OPT_FINAL);
+			ret = acl_pass(ret);
+			if (msg->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			/* the rule does not match */
+			if (!ret)
+				continue;
+		}
+
 		/* Resume encoding of a SPOE argument */
 		if (ctx->frag_ctx.curarg != NULL) {
 			arg = ctx->frag_ctx.curarg;
@@ -2149,6 +2174,10 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		}
 	}
 
+	/* nothing has been encoded for an unfragmented payload */
+	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == ctx->buffer->p)
+		goto skip;
+
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 		    " - encode %s messages - spoe_appctx=%p"
 		    "- max_size=%u - encoded=%ld\n",
@@ -2163,6 +2192,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	ctx->frag_ctx.curarg = NULL;
 	ctx->frag_ctx.curoff = 0;
 	ctx->frag_ctx.flags  = SPOE_FRM_FL_FIN;
+
 	return 1;
 
   too_big:
@@ -2184,6 +2214,13 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	ctx->flags |= SPOE_CTX_FL_FRAGMENTED;
 	ctx->frag_ctx.flags &= ~SPOE_FRM_FL_FIN;
 	return 1;
+
+  skip:
+	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
+		    " - skip the frame because nothing has been encoded\n",
+		    (int)now.tv_sec, (int)now.tv_usec,
+		    agent->id, __FUNCTION__, s);
+	return 0;
 }
 
 
@@ -2477,6 +2514,8 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 		ret = spoe_encode_messages(s, ctx, &(ctx->messages[ev]), dir);
 		if (ret < 0)
 			goto error;
+		if (!ret)
+			goto skip;
 		ctx->state = SPOE_CTX_ST_SENDING_MSGS;
 	}
 
@@ -3320,6 +3359,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		curmsg->conf.line = linenum;
 		curmsg->nargs = 0;
 		LIST_INIT(&curmsg->args);
+		LIST_INIT(&curmsg->acls);
 		LIST_ADDQ(&curmsgs, &curmsg->list);
 	}
 	else if (!strcmp(args[0], "args")) {
@@ -3365,14 +3405,29 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		curproxy->conf.args.file = NULL;
 		curproxy->conf.args.line = 0;
 	}
+	else if (!strcmp(args[0], "acl")) {
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
+			      file, linenum, *err, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (parse_acl((const char **)args + 1, &curmsg->acls, &errmsg, &curproxy->conf.args, file, linenum) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
+			      file, linenum, args[1], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "event")) {
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : missing event name.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
+		/* if (alertif_too_many_args(1, file, linenum, args, &err_code)) */
+		/* 	goto out; */
 
 		if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_CLIENT_SESS]))
 			curmsg->event = SPOE_EV_ON_CLIENT_SESS;
@@ -3395,6 +3450,29 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		else {
 			Alert("parsing [%s:%d] : unkown event '%s'.\n",
 			      file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
+			struct acl_cond *cond;
+
+			cond = build_acl_cond(file, linenum, &curmsg->acls,
+					      curproxy, (const char **)args+2,
+					      &errmsg);
+			if (cond == NULL) {
+				Alert("parsing [%s:%d] : error detected while "
+				      "parsing an 'event %s' condition : %s.\n",
+				      file, linenum, args[1], errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			curmsg->cond = cond;
+		}
+		else if (*args[2]) {
+			Alert("parsing [%s:%d]: 'event %s' expects either 'if' "
+			      "or 'unless' followed by a condition but found '%s'.\n",
+			      file, linenum, args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

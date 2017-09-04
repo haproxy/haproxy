@@ -184,6 +184,8 @@ struct spoe_message {
 	struct list        args;    /* Arguments added when the SPOE messages is sent */
 	struct list        list;    /* Used to chain SPOE messages */
 
+	struct list        acls;    /* ACL declared on this message */
+	struct acl_cond   *cond;    /* acl condition to meet */
 	enum spoe_event    event;   /* SPOE_EV_* */
 };
 

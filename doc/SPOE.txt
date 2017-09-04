@@ -1,7 +1,7 @@
                 -----------------------------------------------
                    Stream Processing Offload Engine (SPOE)
-                                  Version 1.1
-                          ( Last update: 2017-02-27 )
+                                  Version 1.2
+                          ( Last update: 2017-09-22 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -351,10 +351,18 @@ spoe-message <name>
 
   Here you define a message that can be referenced in a "spoe-agent"
   section. Following keywords are supported :
+    - acl
     - args
     - event
 
   See also: "spoe-agent" section.
+
+
+acl <aclname> <criterion> [flags] [operator] <value> ...
+
+  Declare or complete an access list.
+
+  See section 7 about ACL usage in the HAProxy Configuration Manual.
 
 
 args [name=]<sample> ...
@@ -371,11 +379,17 @@ args [name=]<sample> ...
     args frontend=fe_id src dst
 
 
-event <name>
-  Set the event that triggers sending of the message.
+event <name> [ { if | unless } <condition> ]
+  Set the event that triggers sending of the message. It may optionally be
+  followed by an ACL-based condition, in which case it will only be evaluated
+  if the condition is true.
 
-  Argument :
-    <name>   is the event name.
+  ACL-based conditions are executed in the context of the stream that handle
+  the client and the server connections.
+
+  Arguments :
+    <name>      is the event name.
+    <condition> is a standard ACL-based condition.
 
   Supported events are:
     - on-client-session
@@ -387,7 +401,8 @@ event <name>
     - on-backend-http-request
     - on-http-response
 
-  See section "Events & Messages".
+  See section "Events & Messages" for more details about supported events.
+  See section 7 about ACL usage in the HAProxy Configuration Manual.
 
 2.4. Example
 -------------
@@ -441,7 +456,7 @@ and 0 a blacklisted IP with no doubt).
 
     spoe-message get-ip-reputation
         args ip=src
-        event on-client-session
+        event on-client-session if ! { src -f /etc/haproxy/whitelist.lst }
 
 
 3. SPOP specification
