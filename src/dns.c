@@ -1721,9 +1721,9 @@ int dns_init_resolvers(int close_socket)
 			fcntl(fd, F_SETFL, O_NONBLOCK);
 
 			/* add the fd in the fd list and update its parameters */
-			fd_insert(fd);
 			fdtab[fd].owner = dgram;
 			fdtab[fd].iocb = dgram_fd_handler;
+			fd_insert(fd);
 			fd_want_recv(fd);
 			dgram->t.sock.fd = fd;
 
