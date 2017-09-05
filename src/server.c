@@ -4276,8 +4276,7 @@ int srv_init_addr(void)
 			goto srv_init_addr_next;
 
 		for (srv = curproxy->srv; srv; srv = srv->next)
-			if (srv->hostname)
-				return_code |= srv_iterate_initaddr(srv);
+			return_code |= srv_iterate_initaddr(srv);
 
  srv_init_addr_next:
 		curproxy = curproxy->next;
