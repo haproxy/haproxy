@@ -24,6 +24,7 @@
 #include <ebpttree.h>
 
 #include <common/cfgparse.h>
+#include <common/xref.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>
@@ -1604,8 +1605,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 static void hlua_socket_release(struct appctx *appctx)
 {
 	/* Remove my link in the original object. */
-	if (appctx->ctx.hlua_cosocket.socket)
-		appctx->ctx.hlua_cosocket.socket->s = NULL;
+	xref_disconnect(&appctx->ctx.hlua_cosocket.xref);
 
 	/* Wake all the task waiting for me. */
 	hlua_com_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
@@ -1622,20 +1622,24 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct appctx *appctx;
+	struct xref *peer;
 
 	MAY_LJMP(check_args(L, 1, "__gc"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
-	if (!socket->s)
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
 		return 0;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
 
-	/* Remove all reference between the Lua stack and the coroutine stream. */
-	appctx = objt_appctx(socket->s->si[0].end);
-	socket->s = NULL;
-	appctx->ctx.hlua_cosocket.socket = NULL;
+	/* Set the flag which destroy the session. */
 	appctx->ctx.hlua_cosocket.die = 1;
 	appctx_wakeup(appctx);
 
+	/* Remove all reference between the Lua stack and the coroutine stream. */
+	xref_disconnect(&socket->xref);
 	return 0;
 }
 
@@ -1646,20 +1650,24 @@ __LJMP static int hlua_socket_close(lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct appctx *appctx;
+	struct xref *peer;
 
 	MAY_LJMP(check_args(L, 1, "close"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
-	if (!socket->s)
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
 		return 0;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
 
-	/* Close the stream and remove the associated stop task. */
-	appctx = objt_appctx(socket->s->si[0].end);
-	appctx->ctx.hlua_cosocket.socket = NULL;
-	socket->s = NULL;
+	/* Set the flag which destroy the session. */
 	appctx->ctx.hlua_cosocket.die = 1;
 	appctx_wakeup(appctx);
 
+	/* Remove all reference between the Lua stack and the coroutine stream. */
+	xref_disconnect(&socket->xref);
 	return 0;
 }
 
@@ -1688,17 +1696,26 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	int len2;
 	int skip_at_end = 0;
 	struct channel *oc;
+	struct stream_interface *si;
+	struct stream *s;
+	struct xref *peer;
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
 		WILL_LJMP(luaL_error(L, "The 'receive' function is only allowed in "
 		                      "'frontend', 'backend' or 'task'"));
 
-	/* check for connection closed. If some data where read, return it. */
-	if (!socket->s)
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
 		goto connection_closed;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
 
-	oc = &socket->s->res;
+	oc = &s->res;
 	if (wanted == HLSR_READ_LINE) {
 		/* Read line. */
 		nblk = bo_getline_nc(oc, &blk1, &len1, &blk2, &len2);
@@ -1766,8 +1783,8 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	bo_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
-	stream_int_notify(&socket->s->si[0]);
-	stream_int_update_applet(&socket->s->si[0]);
+	stream_int_notify(&s->si[0]);
+	stream_int_update_applet(&s->si[0]);
 
 	/* If the pattern reclaim to read all the data
 	 * in the connection, got out.
@@ -1794,7 +1811,7 @@ connection_closed:
 
 connection_empty:
 
-	appctx = objt_appctx(socket->s->si[0].end);
+	appctx = objt_appctx(s->si[0].end);
 	if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_read, hlua->task))
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY, 0));
@@ -1883,6 +1900,9 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	int len;
 	int send_len;
 	int sent;
+	struct xref *peer;
+	struct stream_interface *si;
+	struct stream *s;
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -1894,8 +1914,19 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	buf = MAY_LJMP(luaL_checklstring(L, 2, &buf_len));
 	sent = MAY_LJMP(luaL_checkinteger(L, 3));
 
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
+		lua_pushinteger(L, -1);
+		return 1;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
+
 	/* Check for connection close. */
-	if (!socket->s || channel_output_closed(&socket->s->req)) {
+	if (channel_output_closed(&s->req)) {
 		lua_pushinteger(L, -1);
 		return 1;
 	}
@@ -1911,16 +1942,16 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* Check if the buffer is avalaible because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
-	if (socket->s->req.buf->size == 0) {
+	if (s->req.buf->size == 0) {
 		appctx = hlua->task->context;
-		if (!channel_alloc_buffer(&socket->s->req, &appctx->buffer_wait))
+		if (!channel_alloc_buffer(&s->req, &appctx->buffer_wait))
 			goto hlua_socket_write_yield_return;
 	}
 
 	/* Check for avalaible space. */
-	len = buffer_total_space(socket->s->req.buf);
+	len = buffer_total_space(s->req.buf);
 	if (len <= 0) {
-		appctx = objt_appctx(socket->s->si[0].end);
+		appctx = objt_appctx(s->si[0].end);
 		if (!hlua_com_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task))
 			WILL_LJMP(luaL_error(L, "out of memory"));
 		goto hlua_socket_write_yield_return;
@@ -1929,7 +1960,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* send data */
 	if (len < send_len)
 		send_len = len;
-	len = bi_putblk(&socket->s->req, buf+sent, send_len);
+	len = bi_putblk(&s->req, buf+sent, send_len);
 
 	/* "Not enough space" (-1), "Buffer too little to contain
 	 * the data" (-2) are not expected because the available length
@@ -1938,7 +1969,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 */
 	if (len <= 0) {
 		if (len == -1)
-			socket->s->req.flags |= CF_WAKE_WRITE;
+			s->req.flags |= CF_WAKE_WRITE;
 
 		MAY_LJMP(hlua_socket_close(L));
 		lua_pop(L, 1);
@@ -1947,11 +1978,11 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* update buffers. */
-	stream_int_notify(&socket->s->si[0]);
-	stream_int_update_applet(&socket->s->si[0]);
+	stream_int_notify(&s->si[0]);
+	stream_int_update_applet(&s->si[0]);
 
-	socket->s->req.rex = TICK_ETERNITY;
-	socket->s->res.wex = TICK_ETERNITY;
+	s->req.rex = TICK_ETERNITY;
+	s->res.wex = TICK_ETERNITY;
 
 	/* Update length sent. */
 	lua_pop(L, 1);
@@ -2096,18 +2127,27 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct connection *conn;
+	struct xref *peer;
+	struct appctx *appctx;
+	struct stream_interface *si;
+	struct stream *s;
 
 	MAY_LJMP(check_args(L, 1, "getpeername"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
-	/* Check if the tcp object is avalaible. */
-	if (!socket->s) {
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
 		lua_pushnil(L);
 		return 1;
 	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
 
-	conn = objt_conn(socket->s->si[1].end);
+	conn = objt_conn(s->si[1].end);
 	if (!conn) {
 		lua_pushnil(L);
 		return 1;
@@ -2127,18 +2167,27 @@ static int hlua_socket_getsockname(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct connection *conn;
+	struct appctx *appctx;
+	struct xref *peer;
+	struct stream_interface *si;
+	struct stream *s;
 
 	MAY_LJMP(check_args(L, 1, "getsockname"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
-	/* Check if the tcp object is avalaible. */
-	if (!socket->s) {
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
 		lua_pushnil(L);
 		return 1;
 	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
 
-	conn = objt_conn(socket->s->si[1].end);
+	conn = objt_conn(s->si[1].end);
 	if (!conn) {
 		lua_pushnil(L);
 		return 1;
@@ -2165,16 +2214,31 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 {
 	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
 	struct hlua *hlua = hlua_gethlua(L);
+	struct xref *peer;
 	struct appctx *appctx;
+	struct stream_interface *si;
+	struct stream *s;
+
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
+		lua_pushnil(L);
+		lua_pushstring(L, "Can't connect");
+		return 2;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
 
 	/* Check for connection close. */
-	if (!hlua || !socket->s || channel_output_closed(&socket->s->req)) {
+	if (!hlua || channel_output_closed(&s->req)) {
 		lua_pushnil(L);
 		lua_pushstring(L, "Can't connect");
 		return 2;
 	}
 
-	appctx = objt_appctx(socket->s->si[0].end);
+	appctx = objt_appctx(s->si[0].end);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {
@@ -2199,27 +2263,37 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	struct appctx *appctx;
 	int low, high;
 	struct sockaddr_storage *addr;
+	struct xref *peer;
+	struct stream_interface *si;
+	struct stream *s;
 
 	if (lua_gettop(L) < 2)
 		WILL_LJMP(luaL_error(L, "connect: need at least 2 arguments"));
 
 	/* Get args. */
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
-
-	/* The socket may be destroy. */
-	if (!socket->s)
-		return 0;
-
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	if (lua_gettop(L) >= 3)
 		port = MAY_LJMP(luaL_checkinteger(L, 3));
 
-	conn = si_alloc_conn(&socket->s->si[1]);
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
+		lua_pushnil(L);
+		return 1;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
+
+	/* Initialise connection. */
+	conn = si_alloc_conn(&s->si[1]);
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 
 	/* needed for the connection not to be closed */
-	conn->target = socket->s->target;
+	conn->target = s->target;
 
 	/* Parse ip address. */
 	addr = str2sa_range(ip, NULL, &low, &high, NULL, NULL, NULL, 0);
@@ -2243,13 +2317,13 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 
 	hlua = hlua_gethlua(L);
-	appctx = objt_appctx(socket->s->si[0].end);
+	appctx = objt_appctx(s->si[0].end);
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
 	 */
-	si_applet_cant_get(&socket->s->si[0]);
-	si_applet_cant_put(&socket->s->si[0]);
+	si_applet_cant_get(&s->si[0]);
+	si_applet_cant_put(&s->si[0]);
 	appctx_wakeup(appctx);
 
 	hlua->flags |= HLUA_MUST_GC;
@@ -2265,10 +2339,26 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 {
 	struct hlua_socket *socket;
+	struct xref *peer;
+	struct appctx *appctx;
+	struct stream_interface *si;
+	struct stream *s;
 
 	MAY_LJMP(check_args(L, 3, "connect_ssl"));
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
-	socket->s->target = &socket_ssl.obj_type;
+
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
+		lua_pushnil(L);
+		return 1;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
+
+	s->target = &socket_ssl.obj_type;
 	return MAY_LJMP(hlua_socket_connect(L));
 }
 #endif
@@ -2282,16 +2372,32 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	int tmout;
+	struct xref *peer;
+	struct appctx *appctx;
+	struct stream_interface *si;
+	struct stream *s;
 
 	MAY_LJMP(check_args(L, 2, "settimeout"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
 
-	socket->s->req.rto = tmout;
-	socket->s->req.wto = tmout;
-	socket->s->res.rto = tmout;
-	socket->s->res.wto = tmout;
+	/* check for connection break. If some data where read, return it. */
+	peer = xref_get_peer(&socket->xref);
+	if (!peer) {
+		xref_disconnect(&socket->xref);
+		hlua_pusherror(L, "socket: not yet initialised, you can't set timeouts.");
+		WILL_LJMP(lua_error(L));
+		return 0;
+	}
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
+
+	s->req.rto = tmout;
+	s->req.wto = tmout;
+	s->res.rto = tmout;
+	s->res.wto = tmout;
 
 	return 0;
 }
@@ -2332,7 +2438,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_conf;
 	}
 
-	appctx->ctx.hlua_cosocket.socket = socket;
 	appctx->ctx.hlua_cosocket.connected = 0;
 	appctx->ctx.hlua_cosocket.die = 0;
 	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_write);
@@ -2351,8 +2456,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_stream;
 	}
 
-	/* Configure an empty Lua for the stream. */
-	socket->s = strm;
+	/* Initialise cross reference between stream and Lua socket object. */
+	xref_create(&socket->xref, &appctx->ctx.hlua_cosocket.xref);
 
 	/* Configure "right" stream interface. this "si" is used to connect
 	 * and retrieve data from the server. The connection is initialized

@@ -6,6 +6,8 @@
 #include <lua.h>
 #include <lauxlib.h>
 
+#include <common/xref.h>
+
 #include <types/proxy.h>
 #include <types/server.h>
 
@@ -159,7 +161,7 @@ struct hlua_sleep {
  * SSL I/O. It uses a fake stream.
  */
 struct hlua_socket {
-	struct stream *s; /* Stream used for socket I/O. */
+	struct xref xref; /* cross reference with the stream used for socket I/O. */
 	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 

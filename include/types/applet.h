@@ -29,6 +29,7 @@
 #include <common/buffer.h>
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/xref.h>
 
 struct appctx;
 
@@ -73,7 +74,7 @@ struct appctx {
 		} peers;                        /* used by the peers applet */
 		struct {
 			int connected;
-			struct hlua_socket *socket;
+			struct xref xref; /* cross reference with the Lua object owner. */
 			struct list wake_on_read;
 			struct list wake_on_write;
 			int die;
