@@ -266,7 +266,17 @@ struct mux_ops {
 	void (*recv)(struct connection *conn);        /* mux-layer recv callback */
 	void (*send)(struct connection *conn);        /* mux-layer send callback */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
+	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
+	int  (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, int count); /* Called from the upper layer to get data */
+	int  (*snd_buf)(struct conn_stream *cs, struct buffer *buf, int flags); /* Called from the upper layer to send data */
+	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
+	int  (*snd_pipe)(struct conn_stream *cs, struct pipe *pipe); /* send-to-pipe callback */
+	void (*shutr)(struct conn_stream *cs, int clean); /* shutr function */
+	void (*shutw)(struct conn_stream *cs, int clean); /* shutw function */
+
 	void (*release)(struct connection *conn);     /* release all resources allocated by the mux */
+	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
+	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
 
