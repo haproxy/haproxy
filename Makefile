@@ -90,6 +90,12 @@
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
 
+# Function used to detect support of a given option by the compiler.
+# Usage: CFLAGS += $(call cc-opt,option). Eg: $(call cc-opt,-fwrapv)
+# Note: ensure the referencing variable is assigned using ":=" and not "=" to
+#       call it only once.
+cc-opt = $(shell set -e; if $(CC) $(1) -c -xc - -o /dev/null </dev/null >&0 2>&0; then echo "$(1)"; fi;)
+
 #### Installation options.
 DESTDIR =
 PREFIX = /usr/local
@@ -132,7 +138,8 @@ DEBUG_CFLAGS = -g
 # We rely on signed integer wraparound on overflow, however clang think it
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
-SPEC_CFLAGS = -fno-strict-aliasing -Wdeclaration-after-statement -fwrapv
+SPEC_CFLAGS := -fno-strict-aliasing -Wdeclaration-after-statement
+SPEC_CFLAGS += $(call cc-opt,-fwrapv)
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
