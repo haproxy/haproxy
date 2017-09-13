@@ -101,7 +101,7 @@ int frontend_accept(struct stream *s)
 
 		/* try to report the ALPN value when available (also works for NPN) */
 
-		if (conn && conn->owner == &s->si[0]) {
+		if (conn && conn == cs_conn(objt_cs(s->si[0].end))) {
 			if (conn_get_alpn(conn, &alpn_str, &alpn_len) && alpn_str) {
 				int len = MIN(alpn_len, sizeof(alpn) - 1);
 				memcpy(alpn, alpn_str, len);

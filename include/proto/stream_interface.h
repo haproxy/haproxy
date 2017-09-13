@@ -152,18 +152,14 @@ static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
  */
 static inline void si_release_endpoint(struct stream_interface *si)
 {
-	struct connection *conn;
+	struct conn_stream *cs;
 	struct appctx *appctx;
 
 	if (!si->end)
 		return;
 
-	if ((conn = objt_conn(si->end))) {
-		LIST_DEL(&conn->list);
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		conn_free(conn);
-	}
+	if ((cs = objt_cs(si->end)))
+		cs_destroy(cs);
 	else if ((appctx = objt_appctx(si->end))) {
 		if (appctx->applet->release && si->state < SI_ST_DIS)
 			appctx->applet->release(appctx);
@@ -178,26 +174,27 @@ static inline void si_release_endpoint(struct stream_interface *si)
  * connection will also be added at the head of this list. This connection
  * remains assigned to the stream interface it is currently attached to.
  */
-static inline void si_idle_conn(struct stream_interface *si, struct list *pool)
+static inline void si_idle_cs(struct stream_interface *si, struct list *pool)
 {
-	struct connection *conn = __objt_conn(si->end);
+	struct conn_stream *cs = __objt_cs(si->end);
+	struct connection *conn = cs->conn;
 
 	if (pool)
 		LIST_ADD(pool, &conn->list);
 
-	conn_attach(conn, si, &si_idle_conn_cb);
-	conn_xprt_want_recv(conn);
+	cs_attach(cs, si, &si_idle_conn_cb);
+	cs_want_recv(cs);
 }
 
-/* Attach connection <conn> to the stream interface <si>. The stream interface
+/* Attach conn_stream <cs> to the stream interface <si>. The stream interface
  * is configured to work with a connection and the connection it configured
  * with a stream interface data layer.
  */
-static inline void si_attach_conn(struct stream_interface *si, struct connection *conn)
+static inline void si_attach_cs(struct stream_interface *si, struct conn_stream *cs)
 {
 	si->ops = &si_conn_ops;
-	si->end = &conn->obj_type;
-	conn_attach(conn, si, &si_conn_cb);
+	si->end = &cs->obj_type;
+	cs_attach(cs, si, &si_conn_cb);
 }
 
 /* Returns true if a connection is attached to the stream interface <si> and
@@ -205,7 +202,7 @@ static inline void si_attach_conn(struct stream_interface *si, struct connection
  */
 static inline int si_conn_ready(struct stream_interface *si)
 {
-	struct connection *conn = objt_conn(si->end);
+	struct connection *conn = cs_conn(objt_cs(si->end));
 
 	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
 }
@@ -276,22 +273,22 @@ static inline void si_applet_stop_get(struct stream_interface *si)
 	si->flags &= ~SI_FL_WANT_GET;
 }
 
-/* Try to allocate a new connection and assign it to the interface. If
+/* Try to allocate a new conn_stream and assign it to the interface. If
  * an endpoint was previously allocated, it is released first. The newly
- * allocated connection is initialized, assigned to the stream interface,
+ * allocated conn_stream is initialized, assigned to the stream interface,
  * and returned.
  */
-static inline struct connection *si_alloc_conn(struct stream_interface *si)
+static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struct connection *conn)
 {
-	struct connection *conn;
+	struct conn_stream *cs;
 
 	si_release_endpoint(si);
 
-	conn = conn_new();
-	if (conn)
-		si_attach_conn(si, conn);
+	cs = cs_new(conn);
+	if (cs)
+		si_attach_cs(si, cs);
 
-	return conn;
+	return cs;
 }
 
 /* Release the interface's existing endpoint (connection or appctx) and
@@ -346,7 +343,8 @@ static inline void si_chk_snd(struct stream_interface *si)
 /* Calls chk_snd on the connection using the ctrl layer */
 static inline int si_connect(struct stream_interface *si)
 {
-	struct connection *conn = objt_conn(si->end);
+	struct conn_stream *cs = objt_cs(si->end);
+	struct connection *conn = cs_conn(cs);
 	int ret = SF_ERR_NONE;
 
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
@@ -364,7 +362,7 @@ static inline int si_connect(struct stream_interface *si)
 		/* reuse the existing connection */
 		if (!channel_is_empty(si_oc(si))) {
 			/* we'll have to send a request there. */
-			conn_xprt_want_send(conn);
+			cs_want_send(cs);
 		}
 
 		/* the connection is established */

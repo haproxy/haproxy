@@ -1525,7 +1525,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
-				conn = objt_conn(s->si[1].end);
+				conn = cs_conn(objt_cs(s->si[1].end));
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -1538,7 +1538,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
-				conn = objt_conn(s->si[1].end);
+				conn = cs_conn(objt_cs(s->si[1].end));
 				if (conn)
 					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -1551,7 +1551,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
-				conn = objt_conn(s->si[1].end);
+				conn = cs_conn(objt_cs(s->si[1].end));
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
@@ -1564,7 +1564,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
-				conn = objt_conn(s->si[1].end);
+				conn = cs_conn(objt_cs(s->si[1].end));
 				if (conn)
 					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				else

@@ -36,7 +36,7 @@ extern struct list streams;
 extern struct data_cb sess_conn_cb;
 
 struct stream *stream_new(struct session *sess, enum obj_type *origin);
-int stream_create_from_conn(struct connection *conn);
+int stream_create_from_cs(struct conn_stream *cs);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_stream();

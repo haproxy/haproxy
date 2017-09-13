@@ -315,25 +315,25 @@ static inline void __conn_xprt_stop_recv(struct connection *c)
 	c->flags &= ~CO_FL_XPRT_RD_ENA;
 }
 
-static inline void __cs_data_want_recv(struct conn_stream *cs)
+static inline void __cs_want_recv(struct conn_stream *cs)
 {
 	cs->flags |= CS_FL_DATA_RD_ENA;
 }
 
-static inline void __cs_data_stop_recv(struct conn_stream *cs)
+static inline void __cs_stop_recv(struct conn_stream *cs)
 {
 	cs->flags &= ~CS_FL_DATA_RD_ENA;
 }
 
-static inline void cs_data_want_recv(struct conn_stream *cs)
+static inline void cs_want_recv(struct conn_stream *cs)
 {
-	__cs_data_want_recv(cs);
+	__cs_want_recv(cs);
 	cs_update_mux_polling(cs);
 }
 
-static inline void cs_data_stop_recv(struct conn_stream *cs)
+static inline void cs_stop_recv(struct conn_stream *cs)
 {
-	__cs_data_stop_recv(cs);
+	__cs_stop_recv(cs);
 	cs_update_mux_polling(cs);
 }
 
@@ -366,36 +366,36 @@ static inline void __conn_xprt_stop_both(struct connection *c)
 	c->flags &= ~(CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA);
 }
 
-static inline void __cs_data_want_send(struct conn_stream *cs)
+static inline void __cs_want_send(struct conn_stream *cs)
 {
 	cs->flags |= CS_FL_DATA_WR_ENA;
 }
 
-static inline void __cs_data_stop_send(struct conn_stream *cs)
+static inline void __cs_stop_send(struct conn_stream *cs)
 {
 	cs->flags &= ~CS_FL_DATA_WR_ENA;
 }
 
-static inline void cs_data_stop_send(struct conn_stream *cs)
+static inline void cs_stop_send(struct conn_stream *cs)
 {
-	__cs_data_stop_send(cs);
+	__cs_stop_send(cs);
 	cs_update_mux_polling(cs);
 }
 
-static inline void cs_data_want_send(struct conn_stream *cs)
+static inline void cs_want_send(struct conn_stream *cs)
 {
-	__cs_data_want_send(cs);
+	__cs_want_send(cs);
 	cs_update_mux_polling(cs);
 }
 
-static inline void __cs_data_stop_both(struct conn_stream *cs)
+static inline void __cs_stop_both(struct conn_stream *cs)
 {
 	cs->flags &= ~(CS_FL_DATA_WR_ENA | CS_FL_DATA_RD_ENA);
 }
 
-static inline void cs_data_stop_both(struct conn_stream *cs)
+static inline void cs_stop_both(struct conn_stream *cs)
 {
-	__cs_data_stop_both(cs);
+	__cs_stop_both(cs);
 	cs_update_mux_polling(cs);
 }
 
@@ -537,6 +537,45 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 		c->xprt->shutw(c, 0);
 }
 
+/* shut read after draining possibly pending data */
+static inline void cs_shutr(struct conn_stream *cs)
+{
+	__cs_stop_recv(cs);
+
+	/* clean data-layer shutdown */
+	if (cs->conn->mux && cs->conn->mux->shutr)
+		cs->conn->mux->shutr(cs, 1);
+}
+
+/* shut read after disabling lingering */
+static inline void cs_shutr_hard(struct conn_stream *cs)
+{
+	__cs_stop_recv(cs);
+
+	/* clean data-layer shutdown */
+	if (cs->conn->mux && cs->conn->mux->shutr)
+		cs->conn->mux->shutr(cs, 0);
+}
+
+static inline void cs_shutw(struct conn_stream *cs)
+{
+	__cs_stop_send(cs);
+
+	/* clean data-layer shutdown */
+	if (cs->conn->mux && cs->conn->mux->shutw)
+		cs->conn->mux->shutw(cs, 1);
+}
+
+static inline void cs_shutw_hard(struct conn_stream *cs)
+{
+	__cs_stop_send(cs);
+
+	/* unclean data-layer shutdown */
+	if (cs->conn->mux && cs->conn->mux->shutw)
+		cs->conn->mux->shutw(cs, 0);
+}
+
+
 /* detect sock->data read0 transition */
 static inline int conn_xprt_read0_pending(struct connection *c)
 {
@@ -576,7 +615,6 @@ static inline void conn_init(struct connection *conn)
 {
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
-	conn->data = NULL;
 	conn->tmp_early_data = -1;
 	conn->mux = NULL;
 	conn->mux_ctx = NULL;
@@ -622,31 +660,43 @@ static inline struct connection *conn_new()
 	return conn;
 }
 
-/* Tries to allocate a new conn_stream and initialize its main fields. The
- * connection is returned on success, NULL on failure. The connection must
- * be released using pool_free2() or conn_free().
- */
-static inline struct conn_stream *cs_new(struct connection *conn)
-{
-	struct conn_stream *cs;
-
-	cs = pool_alloc2(pool2_connstream);
-	if (likely(cs != NULL))
-		cs_init(cs, conn);
-	return cs;
-}
-
 /* Releases a conn_stream previously allocated by cs_new() */
 static inline void cs_free(struct conn_stream *cs)
 {
 	pool_free2(pool2_connstream, cs);
 }
 
+/* Tries to allocate a new conn_stream and initialize its main fields. If
+ * <conn> is NULL, then a new connection is allocated on the fly, initialized,
+ * and assigned to cs->conn ; this connection will then have to be released
+ * using pool_free2() or conn_free(). The conn_stream is initialized and added
+ * to the mux's stream list on success, then returned. On failure, nothing is
+ * allocated and NULL is returned.
+ */
+static inline struct conn_stream *cs_new(struct connection *conn)
+{
+	struct conn_stream *cs;
+
+	cs = pool_alloc2(pool2_connstream);
+	if (!likely(cs))
+		return NULL;
+
+	if (!conn) {
+		conn = conn_new();
+		if (!likely(conn)) {
+			cs_free(cs);
+			return NULL;
+		}
+		conn_init(conn);
+	}
+
+	cs_init(cs, conn);
+	return cs;
+}
+
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	if (conn->mux && conn->mux->release)
-		conn->mux->release(conn);
 	pool_free2(pool2_connection, conn);
 }
 
@@ -700,11 +750,11 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
-/* Attaches a connection to an owner and assigns a data layer */
-static inline void conn_attach(struct connection *conn, void *owner, const struct data_cb *data)
+/* Attaches a conn_stream to a data layer and sets the relevant callbacks */
+static inline void cs_attach(struct conn_stream *cs, void *data, const struct data_cb *data_cb)
 {
-	conn->data = data;
-	conn->owner = owner;
+	cs->data_cb = data_cb;
+	cs->data = data;
 }
 
 /* Installs the connection's mux layer for upper context <ctx>.
@@ -789,11 +839,11 @@ static inline const char *conn_get_mux_name(const struct connection *conn)
 	return conn->mux->name;
 }
 
-static inline const char *conn_get_data_name(const struct connection *conn)
+static inline const char *cs_get_data_name(const struct conn_stream *cs)
 {
-	if (!conn->data)
+	if (!cs->data_cb)
 		return "NONE";
-	return conn->data->name;
+	return cs->data_cb->name;
 }
 
 /* registers pointer to transport layer <id> (XPRT_*) */

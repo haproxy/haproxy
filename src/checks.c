@@ -582,7 +582,8 @@ static int retrieve_errno_from_socket(struct connection *conn)
  */
 static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 {
-	struct connection *conn = check->conn;
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
 	const char *err_msg;
 	struct chunk *chk;
 	int step;
@@ -705,9 +706,10 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
  * it sends the request. In other cases, it calls set_server_check_status()
  * to set check->status, check->duration and check->result.
  */
-static void event_srv_chk_w(struct connection *conn)
+static void event_srv_chk_w(struct conn_stream *cs)
 {
-	struct check *check = conn->owner;
+	struct connection *conn = cs->conn;
+	struct check *check = cs->data;
 	struct server *s = check->server;
 	struct task *t = check->task;
 
@@ -719,7 +721,7 @@ static void event_srv_chk_w(struct connection *conn)
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
-		__conn_xprt_stop_both(conn);
+		__cs_stop_both(cs);
 		goto out_wakeup;
 	}
 
@@ -741,10 +743,10 @@ static void event_srv_chk_w(struct connection *conn)
 		return;
 
 	if (check->bo->o) {
-		conn->xprt->snd_buf(conn, check->bo, 0);
+		conn->mux->snd_buf(cs, check->bo, 0);
 		if (conn->flags & CO_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
-			__conn_xprt_stop_both(conn);
+			__cs_stop_both(cs);
 			goto out_wakeup;
 		}
 		if (check->bo->o)
@@ -761,7 +763,7 @@ static void event_srv_chk_w(struct connection *conn)
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
-	__conn_xprt_stop_send(conn);   /* nothing more to write */
+	__cs_stop_send(cs);   /* nothing more to write */
 }
 
 /*
@@ -778,9 +780,10 @@ static void event_srv_chk_w(struct connection *conn)
  * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
  * etc.
  */
-static void event_srv_chk_r(struct connection *conn)
+static void event_srv_chk_r(struct conn_stream *cs)
 {
-	struct check *check = conn->owner;
+	struct connection *conn = cs->conn;
+	struct check *check = cs->data;
 	struct server *s = check->server;
 	struct task *t = check->task;
 	char *desc;
@@ -815,7 +818,7 @@ static void event_srv_chk_r(struct connection *conn)
 
 	done = 0;
 
-	conn->xprt->rcv_buf(conn, check->bi, check->bi->size);
+	conn->mux->rcv_buf(cs, check->bi, check->bi->size);
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 		done = 1;
 		if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
@@ -1339,8 +1342,8 @@ static void event_srv_chk_r(struct connection *conn)
 	 * range quickly.  To avoid sending RSTs all the time, we first try to
 	 * drain pending data.
 	 */
-	__conn_xprt_stop_both(conn);
-	conn_xprt_shutw(conn);
+	__cs_stop_both(cs);
+	cs_shutw(cs);
 
 	/* OK, let's not stay here forever */
 	if (check->result == CHK_RES_FAILED)
@@ -1350,7 +1353,7 @@ static void event_srv_chk_r(struct connection *conn)
 	return;
 
  wait_more_data:
-	__conn_xprt_want_recv(conn);
+	__cs_want_recv(cs);
 }
 
 /*
@@ -1359,15 +1362,17 @@ static void event_srv_chk_r(struct connection *conn)
  * It returns 0 on normal cases, <0 if at least one close() has happened on the
  * connection (eg: reconnect).
  */
-static int wake_srv_chk(struct connection *conn)
+static int wake_srv_chk(struct conn_stream *cs)
 {
-	struct check *check = conn->owner;
+	struct connection *conn = cs->conn;
+	struct check *check = cs->data;
 	int ret = 0;
 
 	/* we may have to make progress on the TCP checks */
 	if (check->type == PR_O2_TCPCHK_CHK) {
 		ret = tcpcheck_main(check);
-		conn = check->conn;
+		cs = check->cs;
+		conn = cs_conn(cs);
 	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
@@ -1378,8 +1383,7 @@ static int wake_srv_chk(struct connection *conn)
 		 * we expect errno to still be valid.
 		 */
 		chk_report_conn_err(check, errno, 0);
-
-		__conn_xprt_stop_both(conn);
+		__cs_stop_both(cs);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 	else if (!(conn->flags & (CO_FL_XPRT_RD_ENA|CO_FL_XPRT_WR_ENA|CO_FL_HANDSHAKE))) {
@@ -1478,7 +1482,8 @@ static int connect_conn_chk(struct task *t)
 {
 	struct check *check = t->context;
 	struct server *s = check->server;
-	struct connection *conn = check->conn;
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
 	struct protocol *proto;
 	struct tcpcheck_rule *tcp_rule = NULL;
 	int ret;
@@ -1535,9 +1540,10 @@ static int connect_conn_chk(struct task *t)
 	}
 
 	/* prepare a new connection */
-	conn = check->conn = conn_new();
-	if (!check->conn)
+	cs = check->cs = cs_new(NULL);
+	if (!check->cs)
 		return SF_ERR_RESOURCE;
+	conn = cs->conn;
 
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
@@ -1553,7 +1559,7 @@ static int connect_conn_chk(struct task *t)
 
 		i = srv_check_healthcheck_port(check);
 		if (i == 0) {
-			conn->owner = check;
+			cs->data = check;
 			return SF_ERR_CHK_PORT;
 		}
 
@@ -1563,8 +1569,8 @@ static int connect_conn_chk(struct task *t)
 	proto = protocol_by_family(conn->addr.to.ss_family);
 
 	conn_prepare(conn, proto, check->xprt);
-	conn_install_mux(conn, &mux_pt_ops, conn);
-	conn_attach(conn, check, &check_conn_cb);
+	conn_install_mux(conn, &mux_pt_ops, cs);
+	cs_attach(cs, check, &check_conn_cb);
 	conn->target = &s->obj_type;
 
 	/* no client address */
@@ -2077,7 +2083,8 @@ static struct task *process_chk_conn(struct task *t)
 {
 	struct check *check = t->context;
 	struct server *s = check->server;
-	struct connection *conn = check->conn;
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
 	int rv;
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -2105,7 +2112,8 @@ static struct task *process_chk_conn(struct task *t)
 		check->bo->o = 0;
 
 		ret = connect_conn_chk(t);
-		conn = check->conn;
+		cs = check->cs;
+		conn = cs_conn(cs);
 
 		switch (ret) {
 		case SF_ERR_UP:
@@ -2123,7 +2131,7 @@ static struct task *process_chk_conn(struct task *t)
 			}
 
 			if (check->type)
-				conn_xprt_want_recv(conn);   /* prepare for reading a possible reply */
+				cs_want_recv(cs);   /* prepare for reading a possible reply */
 
 			task_set_affinity(t, tid_bit);
 			goto reschedule;
@@ -2147,9 +2155,10 @@ static struct task *process_chk_conn(struct task *t)
 		}
 
 		/* here, we have seen a synchronous error, no fd was allocated */
-		if (conn) {
-			conn_free(conn);
-			check->conn = conn = NULL;
+		if (cs) {
+			cs_destroy(cs);
+			cs = check->cs = NULL;
+			conn = NULL;
 		}
 
 		check->state &= ~CHK_ST_INPROGRESS;
@@ -2201,8 +2210,9 @@ static struct task *process_chk_conn(struct task *t)
 		}
 
 		if (conn) {
-			conn_free(conn);
-			check->conn = conn = NULL;
+			cs_destroy(cs);
+			cs = check->cs = NULL;
+			conn = NULL;
 		}
 
 		if (check->result == CHK_RES_FAILED) {
@@ -2550,7 +2560,8 @@ static int tcpcheck_main(struct check *check)
 	char *contentptr, *comment;
 	struct tcpcheck_rule *next;
 	int done = 0, ret = 0, step = 0;
-	struct connection *conn = check->conn;
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
 	struct server *s = check->server;
 	struct task *t = check->task;
 	struct list *head = check->tcpcheck_rules;
@@ -2619,8 +2630,8 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* It's only the rules which will enable send/recv */
-	if (conn)
-		__conn_xprt_stop_both(conn);
+	if (cs)
+		cs_stop_both(cs);
 
 	while (1) {
 		/* We have to try to flush the output buffer before reading, at
@@ -2633,11 +2644,11 @@ static int tcpcheck_main(struct check *check)
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
-			__conn_xprt_want_send(conn);
-			if (conn->xprt->snd_buf(conn, check->bo, 0) <= 0) {
+			__cs_want_send(cs);
+			if (conn->mux->snd_buf(cs, check->bo, 0) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
 					chk_report_conn_err(check, errno, 0);
-					__conn_xprt_stop_both(conn);
+					__cs_stop_both(cs);
 					goto out_end_tcpcheck;
 				}
 				break;
@@ -2673,8 +2684,9 @@ static int tcpcheck_main(struct check *check)
 			 *   2: try to get a new connection
 			 *   3: release and replace the old one on success
 			 */
-			if (check->conn) {
-				conn_full_close(check->conn);
+			if (check->cs) {
+				/* XXX: need to kill all CS here as well but not to free them yet */
+				conn_full_close(check->cs->conn);
 				retcode = -1; /* do not reuse the fd! */
 			}
 
@@ -2682,8 +2694,8 @@ static int tcpcheck_main(struct check *check)
 			check->last_started_step = check->current_step;
 
 			/* prepare new connection */
-			conn = conn_new();
-			if (!conn) {
+			cs = cs_new(NULL);
+			if (!cs) {
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error allocating connection at step %d", step);
 				comment = tcpcheck_get_step_comment(check, step);
@@ -2694,11 +2706,15 @@ static int tcpcheck_main(struct check *check)
 				return retcode;
 			}
 
-			if (check->conn)
-				conn_free(check->conn);
-			check->conn = conn;
+			if (check->cs) {
+				if (check->cs->conn)
+					conn_free(check->cs->conn);
+				cs_free(check->cs);
+			}
 
-			conn_attach(conn, check, &check_conn_cb);
+			check->cs = cs;
+			conn = cs->conn;
+			cs_attach(cs, check, &check_conn_cb);
 			conn->target = &s->obj_type;
 
 			/* no client address */
@@ -2727,7 +2743,7 @@ static int tcpcheck_main(struct check *check)
 				xprt = xprt_get(XPRT_RAW);
 			}
 			conn_prepare(conn, proto, xprt);
-			conn_install_mux(conn, &mux_pt_ops, conn);
+			conn_install_mux(conn, &mux_pt_ops, cs);
 
 			ret = SF_ERR_INTERNAL;
 			if (proto->connect)
@@ -2860,8 +2876,8 @@ static int tcpcheck_main(struct check *check)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
-			__conn_xprt_want_recv(conn);
-			if (conn->xprt->rcv_buf(conn, check->bi, check->bi->size) <= 0) {
+			__cs_want_recv(cs);
+			if (conn->mux->rcv_buf(cs, check->bi, check->bi->size) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 					done = 1;
 					if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
@@ -2958,7 +2974,7 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__conn_xprt_stop_recv(conn);
+					__cs_stop_recv(cs);
 				}
 			}
 			else {
@@ -2978,7 +2994,7 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__conn_xprt_stop_recv(conn);
+					__cs_stop_recv(cs);
 				}
 				/* not matched but was supposed to => ERROR */
 				else {
@@ -3012,11 +3028,11 @@ static int tcpcheck_main(struct check *check)
 
 	/* warning, current_step may now point to the head */
 	if (check->bo->o)
-		__conn_xprt_want_send(conn);
+		__cs_want_send(cs);
 
 	if (&check->current_step->list != head &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
-		__conn_xprt_want_recv(conn);
+		__cs_want_recv(cs);
 	return retcode;
 
  out_end_tcpcheck:
@@ -3030,7 +3046,7 @@ static int tcpcheck_main(struct check *check)
 	if (check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
 
-	__conn_xprt_stop_both(conn);
+	__cs_stop_both(cs);
 	return retcode;
 }
 
@@ -3049,7 +3065,6 @@ const char *init_check(struct check *check, int type)
 		return "out of memory while allocating check buffer";
 	}
 	check->bo->size = global.tune.chksize;
-
 	return NULL;
 }
 
@@ -3059,8 +3074,10 @@ void free_check(struct check *check)
 	check->bi = NULL;
 	free(check->bo);
 	check->bo = NULL;
-	free(check->conn);
-	check->conn = NULL;
+	free(check->cs->conn);
+	check->cs->conn = NULL;
+	cs_free(check->cs);
+	check->cs = NULL;
 }
 
 void email_alert_free(struct email_alert *alert)

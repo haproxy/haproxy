@@ -1871,6 +1871,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct session *sess;
 	struct stream *s;
 	struct connection *conn;
+	struct conn_stream *cs;
 
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
@@ -1912,9 +1913,12 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (unlikely((conn = conn_new()) == NULL))
 		goto out_free_strm;
 
+	if (unlikely((cs = cs_new(conn)) == NULL))
+		goto out_free_conn;
+
 	conn_prepare(conn, peer->proto, peer->xprt);
-	conn_install_mux(conn, &mux_pt_ops, conn);
-	si_attach_conn(&s->si[1], conn);
+	conn_install_mux(conn, &mux_pt_ops, cs);
+	si_attach_cs(&s->si[1], cs);
 
 	conn->target = s->target = &s->be->obj_type;
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
@@ -1928,6 +1932,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	return appctx;
 
 	/* Error unrolling */
+ out_free_conn:
+	conn_free(conn);
  out_free_strm:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);

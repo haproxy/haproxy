@@ -14,17 +14,31 @@
 #include <proto/connection.h>
 #include <proto/stream.h>
 
-/* Initialize the mux once it's attached. If conn->mux_ctx is NULL, it is
- * assumed that no data layer has yet been instanciated so the mux is
- * attached to an incoming connection and will instanciate a new stream. If
- * conn->mux_ctx exists, it is assumed that it is an outgoing connection
- * requested for this context. Returns < 0 on error.
+/* Initialize the mux once it's attached. It is expected that conn->mux_ctx
+ * points to the existing conn_stream (for outgoing connections) or NULL (for
+ * incoming ones, in which case one will be allocated and a new stream will be
+ * instanciated). Returns < 0 on error.
  */
 static int mux_pt_init(struct connection *conn)
 {
-	if (!conn->mux_ctx)
-		return stream_create_from_conn(conn);
+	struct conn_stream *cs = conn->mux_ctx;
+
+	if (!cs) {
+		cs = cs_new(conn);
+		if (!cs)
+			goto fail;
+
+		if (stream_create_from_cs(cs) < 0)
+			goto fail_free;
+
+		conn->mux_ctx = cs;
+	}
 	return 0;
+
+ fail_free:
+	cs_free(cs);
+ fail:
+	return -1;
 }
 
 /* callback to be used by default for the pass-through mux. It calls the data
@@ -32,7 +46,13 @@ static int mux_pt_init(struct connection *conn)
  */
 static int mux_pt_wake(struct connection *conn)
 {
-	return conn->data->wake ? conn->data->wake(conn) : 0;
+	struct conn_stream *cs = conn->mux_ctx;
+	int ret;
+
+	ret = cs->data_cb->wake ? cs->data_cb->wake(cs) : 0;
+
+	cs_update_mux_polling(cs);
+	return (ret);
 }
 
 /* callback used to update the mux's polling flags after changing a cs' status.
@@ -60,7 +80,12 @@ static void mux_pt_update_poll(struct conn_stream *cs)
  */
 static void mux_pt_recv(struct connection *conn)
 {
-	conn->data->recv(conn);
+	struct conn_stream *cs = conn->mux_ctx;
+
+	if (conn_xprt_read0_pending(conn))
+		cs->flags |= CS_FL_EOS;
+	cs->data_cb->recv(cs);
+	cs_update_mux_polling(cs);
 }
 
 /* callback to be used by default for the pass-through mux. It simply calls the
@@ -68,7 +93,10 @@ static void mux_pt_recv(struct connection *conn)
  */
 static void mux_pt_send(struct connection *conn)
 {
-	conn->data->send(conn);
+	struct conn_stream *cs = conn->mux_ctx;
+
+	cs->data_cb->send(cs);
+	cs_update_mux_polling(cs);
 }
 
 /*

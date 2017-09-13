@@ -3662,7 +3662,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		char *path;
 
 		/* Note that for now we don't reuse existing proxy connections */
-		if (unlikely((conn = si_alloc_conn(&s->si[1])) == NULL)) {
+		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL)) {
 			txn->req.err_state = txn->req.msg_state;
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
@@ -4212,6 +4212,7 @@ void http_end_txn_clean_session(struct stream *s)
 	int prev_status = s->txn->status;
 	struct proxy *fe = strm_fe(s);
 	struct proxy *be = s->be;
+	struct conn_stream *cs;
 	struct connection *srv_conn;
 	struct server *srv;
 	unsigned int prev_flags = s->txn->flags;
@@ -4221,7 +4222,14 @@ void http_end_txn_clean_session(struct stream *s)
 	 * flags. We also need a more accurate method for computing per-request
 	 * data.
 	 */
-	srv_conn = objt_conn(s->si[1].end);
+	/*
+	 * XXX cognet: This is probably wrong, this is killing a whole
+	 * connection, in the new world order, we probably want to just kill
+	 * the stream, this is to be revisited the day we handle multiple
+	 * streams in one server connection.
+	 */
+	cs = objt_cs(s->si[1].end);
+	srv_conn = cs_conn(cs);
 
 	/* unless we're doing keep-alive, we want to quickly close the connection
 	 * to the server.
@@ -4364,17 +4372,17 @@ void http_end_txn_clean_session(struct stream *s)
 	if (srv_conn && LIST_ISEMPTY(&srv_conn->list)) {
 		srv = objt_server(srv_conn->target);
 		if (!srv)
-			si_idle_conn(&s->si[1], NULL);
+			si_idle_cs(&s->si[1], NULL);
 		else if (srv_conn->flags & CO_FL_PRIVATE)
-			si_idle_conn(&s->si[1], (srv->priv_conns ? &srv->priv_conns[tid] : NULL));
+			si_idle_cs(&s->si[1], (srv->priv_conns ? &srv->priv_conns[tid] : NULL));
 		else if (prev_flags & TX_NOT_FIRST)
 			/* note: we check the request, not the connection, but
 			 * this is valid for strategies SAFE and AGGR, and in
 			 * case of ALWS, we don't care anyway.
 			 */
-			si_idle_conn(&s->si[1], (srv->safe_conns ? &srv->safe_conns[tid] : NULL));
+			si_idle_cs(&s->si[1], (srv->safe_conns ? &srv->safe_conns[tid] : NULL));
 		else
-			si_idle_conn(&s->si[1], (srv->idle_conns ? &srv->idle_conns[tid] : NULL));
+			si_idle_cs(&s->si[1], (srv->idle_conns ? &srv->idle_conns[tid] : NULL));
 	}
 	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
 	s->res.analysers = 0;
@@ -7936,7 +7944,7 @@ void debug_hdr(const char *dir, struct stream *s, const char *start, const char 
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
 		      dir,
 		     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->handle.fd : -1,
-		     objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->handle.fd : -1);
+		     objt_cs(s->si[1].end) ? (unsigned short)objt_cs(s->si[1].end)->conn->handle.fd : -1);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')

@@ -1598,11 +1598,11 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* get the object associated with the stream interface.The
 	 * object can be other thing than a connection. For example,
 	 * it be a appctx. */
-	conn = objt_conn(smp->strm->si[dir].end);
+	conn = cs_conn(objt_cs(smp->strm->si[dir].end));
 	if (!conn)
 		return 0;
 
-	/* The fd may not be avalaible for the tcp_info struct, and the
+	/* The fd may not be available for the tcp_info struct, and the
 	  syscal can fail. */
 	optlen = sizeof(info);
 	if (getsockopt(conn->handle.fd, SOL_TCP, TCP_INFO, &info, &optlen) == -1)

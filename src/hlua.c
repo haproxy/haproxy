@@ -1521,7 +1521,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
-	struct connection *c = objt_conn(si_opposite(si)->end);
+	struct connection *c = cs_conn(objt_cs(si_opposite(si)->end));
 
 	if (appctx->ctx.hlua_cosocket.die) {
 		si_shutw(si);
@@ -2167,7 +2167,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	conn = objt_conn(s->si[1].end);
+	conn = cs_conn(objt_cs(s->si[1].end));
 	if (!conn) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2217,7 +2217,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	conn = objt_conn(s->si[1].end);
+	conn = cs_conn(objt_cs(s->si[1].end));
 	if (!conn) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
@@ -2346,7 +2346,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	s = si_strm(si);
 
 	/* Initialise connection. */
-	conn = si_alloc_conn(&s->si[1]);
+	conn = cs_conn(si_alloc_cs(&s->si[1], NULL));
 	if (!conn) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));

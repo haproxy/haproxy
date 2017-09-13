@@ -157,7 +157,7 @@ enum {
 
 struct check {
 	struct xprt_ops *xprt;			/* transport layer operations for health checks */
-	struct connection *conn;		/* connection state for health checks */
+	struct conn_stream *cs;			/* conn_stream state for health checks */
 	unsigned short port;			/* the port to use for the health checks */
 	struct buffer *bi, *bo;			/* input and output buffers to send/recv check */
 	struct task *task;			/* the task associated to the health check processing, NULL if disabled */

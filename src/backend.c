@@ -567,7 +567,7 @@ int assign_server(struct stream *s)
 
 	srv = NULL;
 	s->target = NULL;
-	conn = objt_conn(s->si[1].end);
+	conn = cs_conn(objt_cs(s->si[1].end));
 
 	if (conn &&
 	    (conn->flags & CO_FL_CONNECTED) &&
@@ -720,8 +720,7 @@ int assign_server(struct stream *s)
 		s->target = &s->be->obj_type;
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) &&
-		 (conn = objt_conn(s->si[1].end)) &&
-		 is_addr(&conn->addr.to)) {
+		 conn && is_addr(&conn->addr.to)) {
 		/* in proxy mode, we need a valid destination address */
 		s->target = &s->be->obj_type;
 	}
@@ -769,7 +768,7 @@ int assign_server(struct stream *s)
 int assign_server_address(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
-	struct connection *srv_conn = objt_conn(s->si[1].end);
+	struct connection *srv_conn = cs_conn(objt_cs(s->si[1].end));
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
@@ -973,7 +972,7 @@ static void assign_tproxy_address(struct stream *s)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
 	struct connection *cli_conn;
-	struct connection *srv_conn = objt_conn(s->si[1].end);
+	struct connection *srv_conn = cs_conn(objt_cs(s->si[1].end));
 
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
@@ -1041,21 +1040,23 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn;
 	struct connection *srv_conn;
-	struct connection *old_conn;
+	struct conn_stream *srv_cs;
+	struct conn_stream *old_cs;
 	struct server *srv;
 	int reuse = 0;
 	int err;
 
 	srv = objt_server(s->target);
-	srv_conn = objt_conn(s->si[1].end);
+	srv_cs = objt_cs(s->si[1].end);
+	srv_conn = cs_conn(srv_cs);
 	if (srv_conn)
 		reuse = s->target == srv_conn->target;
 
 	if (srv && !reuse) {
-		old_conn = srv_conn;
-		if (old_conn) {
+		old_cs = srv_cs;
+		if (old_cs) {
 			srv_conn = NULL;
-			old_conn->owner = NULL;
+			srv_cs->data = NULL;
 			si_detach_endpoint(&s->si[1]);
 			/* note: if the connection was in a server's idle
 			 * queue, it doesn't get dequeued.
@@ -1101,23 +1102,25 @@ int connect_server(struct stream *s)
 			LIST_DEL(&srv_conn->list);
 			LIST_INIT(&srv_conn->list);
 
-			if (srv_conn->owner) {
-				si_detach_endpoint(srv_conn->owner);
-				if (old_conn && !(old_conn->flags & CO_FL_PRIVATE)) {
-					si_attach_conn(srv_conn->owner, old_conn);
-					si_idle_conn(srv_conn->owner, NULL);
+			/* XXX cognet: this assumes only 1 conn_stream per
+			 * connection, has to be revisited later
+			 */
+			srv_cs = srv_conn->mux_ctx;
+
+			if (srv_conn->mux == &mux_pt_ops && srv_cs->data) {
+				si_detach_endpoint(srv_cs->data);
+				if (old_cs && !(old_cs->conn->flags & CO_FL_PRIVATE)) {
+					si_attach_cs(srv_cs->data, old_cs);
+					si_idle_cs(srv_cs->data, NULL);
 				}
 			}
-			si_attach_conn(&s->si[1], srv_conn);
+			si_attach_cs(&s->si[1], srv_cs);
 			reuse = 1;
 		}
 
 		/* we may have to release our connection if we couldn't swap it */
-		if (old_conn && !old_conn->owner) {
-			LIST_DEL(&old_conn->list);
-			conn_full_close(old_conn);
-			conn_free(old_conn);
-		}
+		if (old_cs && !old_cs->data)
+			cs_destroy(old_cs);
 	}
 
 	if (reuse) {
@@ -1136,15 +1139,16 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (!reuse)
-		srv_conn = si_alloc_conn(&s->si[1]);
-	else {
+	if (!reuse) {
+		srv_cs = si_alloc_cs(&s->si[1], NULL);
+		srv_conn = cs_conn(srv_cs);
+	} else {
 		/* reusing our connection, take it out of the idle list */
 		LIST_DEL(&srv_conn->list);
 		LIST_INIT(&srv_conn->list);
 	}
 
-	if (!srv_conn)
+	if (!srv_cs)
 		return SF_ERR_RESOURCE;
 
 	if (!(s->flags & SF_ADDR_SET)) {
@@ -1160,14 +1164,16 @@ int connect_server(struct stream *s)
 		/* set the correct protocol on the output stream interface */
 		if (srv) {
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), srv->xprt);
-			conn_install_mux(srv_conn, &mux_pt_ops, srv_conn);
+			/* XXX: Pick the right mux, when we finally have one */
+			conn_install_mux(srv_conn, &mux_pt_ops, srv_cs);
 		}
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), xprt_get(XPRT_RAW));
-			if (!objt_conn(s->si[1].end) || !objt_conn(s->si[1].end)->ctrl)
+			if (!objt_cs(s->si[1].end) || !objt_cs(s->si[1].end)->conn->ctrl)
 				return SF_ERR_INTERNAL;
-			conn_install_mux(srv_conn, &mux_pt_ops, srv_conn);
+			/* XXX: Pick the right mux, when we finally have one */
+			conn_install_mux(srv_conn, &mux_pt_ops, srv_cs);
 		}
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
@@ -1182,13 +1188,13 @@ int connect_server(struct stream *s)
 				conn_get_to_addr(cli_conn);
 		}
 
-		si_attach_conn(&s->si[1], srv_conn);
+		si_attach_cs(&s->si[1], srv_cs);
 
 		assign_tproxy_address(s);
 	}
 	else {
 		/* the connection is being reused, just re-attach it */
-		si_attach_conn(&s->si[1], srv_conn);
+		si_attach_cs(&s->si[1], srv_cs);
 		s->flags |= SF_SRV_REUSED;
 	}
 

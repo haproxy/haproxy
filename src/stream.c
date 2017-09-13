@@ -74,11 +74,11 @@ static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
  * valid right after the handshake, before the connection's data layer is
  * initialized, because it relies on the session to be in conn->owner.
  */
-int stream_create_from_conn(struct connection *conn)
+int stream_create_from_cs(struct conn_stream *cs)
 {
 	struct stream *strm;
 
-	strm = stream_new(conn->owner, &conn->obj_type);
+	strm = stream_new(cs->conn->owner, &cs->obj_type);
 	if (strm == NULL)
 		return -1;
 
@@ -99,7 +99,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 {
 	struct stream *s;
 	struct task *t;
-	struct connection *conn = objt_conn(origin);
+	struct conn_stream *cs  = objt_cs(origin);
 	struct appctx *appctx   = objt_appctx(origin);
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
@@ -198,8 +198,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
 	/* attach the incoming connection to the stream interface now. */
-	if (conn)
-		si_attach_conn(&s->si[0], conn);
+	if (cs)
+		si_attach_cs(&s->si[0], cs);
 	else if (appctx)
 		si_attach_appctx(&s->si[0], appctx);
 
@@ -261,8 +261,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 		goto out_fail_accept;
 
 	/* finish initialization of the accepted file descriptor */
-	if (conn)
-		conn_xprt_want_recv(conn);
+	if (cs)
+		cs_want_recv(cs);
 	else if (appctx)
 		si_applet_want_get(&s->si[0]);
 
@@ -295,7 +295,8 @@ static void stream_free(struct stream *s)
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
-	struct connection *cli_conn = objt_conn(s->si[0].end);
+	struct conn_stream *cli_cs = objt_cs(s->si[0].end);
+	struct connection *cli_conn = cs_conn(cli_cs);
 	int i;
 
 	if (s->pend_pos)
@@ -343,6 +344,7 @@ static void stream_free(struct stream *s)
 		http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
+	/* XXX cognet: wrong for multiple streams in one connection */
 	if (cli_conn) {
 		conn_stop_tracking(cli_conn);
 		conn_full_close(cli_conn);
@@ -577,7 +579,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
-	struct connection *srv_conn = __objt_conn(si->end);
+	struct connection *srv_conn = __objt_cs(si->end)->conn;
 
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
@@ -597,6 +599,9 @@ static int sess_update_st_con_tcp(struct stream *s)
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 
+		/* XXX cognet: do we really want to kill the connection here ?
+		 * Probably not for multiple streams.
+		 */
 		conn_full_close(srv_conn);
 
 		if (si->err_type)
@@ -647,7 +652,8 @@ static int sess_update_st_con_tcp(struct stream *s)
 static int sess_update_st_cer(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
-	struct connection *conn = objt_conn(si->end);
+	struct conn_stream *cs = objt_cs(si->end);
+	struct connection *conn = cs_conn(cs);
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
@@ -812,7 +818,7 @@ static void sess_establish(struct stream *s)
 		req->flags |= CF_WAKE_ONCE;
 		req->flags &= ~CF_WAKE_CONNECT;
 	}
-	if (objt_conn(si->end)) {
+	if (objt_cs(si->end)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
 		rep->rto = s->be->timeout.server;
@@ -2111,8 +2117,8 @@ struct task *process_stream(struct task *t)
 	if (!(req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (objt_conn(si_f->end) && __objt_conn(si_f->end)->xprt && __objt_conn(si_f->end)->xprt->rcv_pipe) &&
-	    (objt_conn(si_b->end) && __objt_conn(si_b->end)->xprt && __objt_conn(si_b->end)->xprt->snd_pipe) &&
+	    (objt_cs(si_f->end) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->rcv_pipe) &&
+	    (objt_cs(si_b->end) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2292,8 +2298,8 @@ struct task *process_stream(struct task *t)
 	if (!(res->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (objt_conn(si_f->end) && __objt_conn(si_f->end)->xprt && __objt_conn(si_f->end)->xprt->snd_pipe) &&
-	    (objt_conn(si_b->end) && __objt_conn(si_b->end)->xprt && __objt_conn(si_b->end)->xprt->rcv_pipe) &&
+	    (objt_cs(si_f->end) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->snd_pipe) &&
+	    (objt_cs(si_b->end) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2361,8 +2367,8 @@ struct task *process_stream(struct task *t)
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
-			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
+			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
+			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
 			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 
@@ -2370,8 +2376,8 @@ struct task *process_stream(struct task *t)
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-			              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
-			              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
+			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
+			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
 			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 	}
@@ -2460,8 +2466,8 @@ struct task *process_stream(struct task *t)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-		              objt_conn(si_f->end) ? (unsigned short)objt_conn(si_f->end)->handle.fd : -1,
-		              objt_conn(si_b->end) ? (unsigned short)objt_conn(si_b->end)->handle.fd : -1);
+		              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
+		              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
 		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 	}
 
@@ -2692,6 +2698,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
+	struct conn_stream *cs;
 	struct connection *conn;
 	struct appctx *tmpctx;
 
@@ -2777,7 +2784,9 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
-		conn = objt_conn(strm->si[1].end);
+		cs = objt_cs(strm->si[1].end);
+		conn = cs_conn(cs);
+
 		if (conn)
 			conn_get_from_addr(conn);
 
@@ -2869,14 +2878,16 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->si[1].err_type);
 
-		if ((conn = objt_conn(strm->si[0].end)) != NULL) {
+		if ((cs = objt_cs(strm->si[0].end)) != NULL) {
+			conn = cs->conn;
+
 			chunk_appendf(&trash,
 			              "  co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      conn_get_data_name(conn),
+				      cs_get_data_name(cs),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
@@ -2898,14 +2909,16 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              tmpctx->applet->name);
 		}
 
-		if ((conn = objt_conn(strm->si[1].end)) != NULL) {
+		if ((cs = objt_cs(strm->si[1].end)) != NULL) {
+			conn = cs->conn;
+
 			chunk_appendf(&trash,
 			              "  co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n",
 				      conn,
 				      conn_get_ctrl_name(conn),
 				      conn_get_xprt_name(conn),
 				      conn_get_mux_name(conn),
-				      conn_get_data_name(conn),
+				      cs_get_data_name(cs),
 			              obj_type_name(conn->target),
 			              obj_base_ptr(conn->target));
 
@@ -3171,7 +3184,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     human_time(TICKS_TO_MS(curr_strm->res.analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			conn = objt_conn(curr_strm->si[0].end);
+			conn = cs_conn(objt_cs(curr_strm->si[0].end));
 			chunk_appendf(&trash,
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[0].state,
@@ -3181,7 +3194,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     human_time(TICKS_TO_MS(curr_strm->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			conn = objt_conn(curr_strm->si[1].end);
+			conn = cs_conn(objt_cs(curr_strm->si[1].end));
 			chunk_appendf(&trash,
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_strm->si[1].state,

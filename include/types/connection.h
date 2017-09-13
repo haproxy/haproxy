@@ -288,9 +288,9 @@ struct mux_ops {
  * data movement. It may abort a connection by returning < 0.
  */
 struct data_cb {
-	void (*recv)(struct connection *conn);  /* data-layer recv callback */
-	void (*send)(struct connection *conn);  /* data-layer send callback */
-	int  (*wake)(struct connection *conn);  /* data-layer callback to report activity */
+	void (*recv)(struct conn_stream *cs);  /* data-layer recv callback */
+	void (*send)(struct conn_stream *cs);  /* data-layer send callback */
+	int  (*wake)(struct conn_stream *cs);  /* data-layer callback to report activity */
 	char name[8];                           /* data layer name, zero-terminated */
 };
 
@@ -347,10 +347,9 @@ struct connection {
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct mux_ops  *mux;   /* mux layer opreations. Must be set before xprt->init() */
-	const struct data_cb  *data;  /* data layer callbacks. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *mux_ctx;                /* mux-specific context, initialized to NULL */
-	void *owner;                  /* pointer to upper layer's entity (eg: session, stream interface) */
+	void *owner;                  /* pointer to the owner session for incoming connections, or NULL */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	int tmp_early_data;           /* 1st byte of early data, if any */
 	union conn_handle handle;     /* connection handle at the socket layer */
