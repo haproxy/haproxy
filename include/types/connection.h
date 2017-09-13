@@ -39,6 +39,7 @@
 
 /* referenced below */
 struct connection;
+struct conn_stream;
 struct buffer;
 struct server;
 struct pipe;
@@ -51,6 +52,15 @@ union conn_handle {
 	int fd;                 /* file descriptor, for regular sockets */
 };
 
+/* conn_stream flags */
+enum {
+	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
+	CS_FL_DATA_RD_ENA   = 0x00000001,  /* receiving data is allowed */
+	CS_FL_DATA_WR_ENA   = 0x00000002,  /* sending data is desired */
+
+	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
+	CS_FL_EOS           = 0x00001000,  /* End of stream */
+};
 
 /* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
  * indicates if read or write is desired in that direction for the respective
@@ -295,6 +305,18 @@ struct conn_src {
 	int bind_hdr_len;                    /* length of the name of the header above */
 	int bind_hdr_occ;                    /* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
 #endif
+};
+
+/*
+ * This structure describes the elements of a connection relevant to a stream
+ */
+struct conn_stream {
+	enum obj_type obj_type;              /* differentiates connection from applet context */
+	struct connection *conn;             /* xprt-level connection */
+	unsigned int flags;                    /* CS_FL_* */
+	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
+	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
+	void *ctx;                           /* mux-specific context */
 };
 
 /* This structure describes a connection with its methods and data.

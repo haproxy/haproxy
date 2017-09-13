@@ -2189,6 +2189,7 @@ void deinit(void)
 	pool_destroy2(pool2_stream);
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_connection);
+	pool_destroy2(pool2_connstream);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy2(pool2_capture);

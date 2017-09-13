@@ -31,6 +31,7 @@
 #include <proto/obj_type.h>
 
 extern struct pool_head *pool2_connection;
+extern struct pool_head *pool2_connstream;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct alpn_mux_list alpn_mux_list;
 
@@ -552,6 +553,11 @@ static inline void conn_free(struct connection *conn)
 	pool_free2(pool2_connection, conn);
 }
 
+/* Returns the conn from a cs. If cs is NULL, returns NULL */
+static inline struct connection *cs_conn(const struct conn_stream *cs)
+{
+	return cs ? cs->conn : NULL;
+}
 
 /* Retrieves the connection's source address */
 static inline void conn_get_from_addr(struct connection *conn)
