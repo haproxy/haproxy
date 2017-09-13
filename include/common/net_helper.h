@@ -31,42 +31,42 @@
 /* Functions to read various integer that may be unaligned */
 
 /* Read a uint16_t */
-uint16_t readu16(const void *p)
+static inline uint16_t readu16(const void *p)
 {
         const union {  uint16_t u16; } __attribute__((packed))*u = p;
         return u->u16;
 }
 
 /* Read a int16_t */
-int16_t readi16(const void *p)
+static inline int16_t readi16(const void *p)
 {
         const union {  int16_t i16; } __attribute__((packed))*u = p;
         return u->i16;
 }
 
 /* Read a uint16_t, and convert from network order to host order */
-uint16_t readn16(const void *p)
+static inline uint16_t readn16(const void *p)
 {
         const union {  uint16_t u16; } __attribute__((packed))*u = p;
         return ntohs(u->u16);
 }
 
 /* Read a uint32_t */
-uint32_t readu32(const void *p)
+static inline uint32_t readu32(const void *p)
 {
         const union {  uint32_t u32; } __attribute__((packed))*u = p;
         return u->u32;
 }
 
 /* Read a int32_t */
-int16_t readi32(const void *p)
+static inline int16_t readi32(const void *p)
 {
         const union {  int32_t i32; } __attribute__((packed))*u = p;
         return u->i32;
 }
 
 /* Read a uint32_t, and convert from network order to host order */
-uint32_t readn32(const void *p)
+static inline uint32_t readn32(const void *p)
 {
         const union {  uint32_t u32; } __attribute__((packed))*u = p;
         return ntohl(u->u32);
