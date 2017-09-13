@@ -185,7 +185,7 @@ static inline void si_idle_conn(struct stream_interface *si, struct list *pool)
 		LIST_ADD(pool, &conn->list);
 
 	conn_attach(conn, si, &si_idle_conn_cb);
-	conn_data_want_recv(conn);
+	conn_xprt_want_recv(conn);
 }
 
 /* Attach connection <conn> to the stream interface <si>. The stream interface
@@ -363,7 +363,7 @@ static inline int si_connect(struct stream_interface *si)
 		/* reuse the existing connection */
 		if (!channel_is_empty(si_oc(si))) {
 			/* we'll have to send a request there. */
-			conn_data_want_send(conn);
+			conn_xprt_want_send(conn);
 		}
 
 		/* the connection is established */

@@ -562,7 +562,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	}
 
 	if (data)
-		conn_data_want_send(conn);  /* prepare to send data if any */
+		conn_xprt_want_send(conn);  /* prepare to send data if any */
 
 	return SF_ERR_NONE;  /* connection is OK */
 }

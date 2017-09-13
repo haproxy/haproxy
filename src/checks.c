@@ -713,7 +713,7 @@ static void event_srv_chk_w(struct connection *conn)
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
-		__conn_data_stop_both(conn);
+		__conn_xprt_stop_both(conn);
 		goto out_wakeup;
 	}
 
@@ -738,7 +738,7 @@ static void event_srv_chk_w(struct connection *conn)
 		conn->xprt->snd_buf(conn, check->bo, 0);
 		if (conn->flags & CO_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
-			__conn_data_stop_both(conn);
+			__conn_xprt_stop_both(conn);
 			goto out_wakeup;
 		}
 		if (check->bo->o)
@@ -755,7 +755,7 @@ static void event_srv_chk_w(struct connection *conn)
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
-	__conn_data_stop_send(conn);   /* nothing more to write */
+	__conn_xprt_stop_send(conn);   /* nothing more to write */
 }
 
 /*
@@ -1327,8 +1327,8 @@ static void event_srv_chk_r(struct connection *conn)
 	 * range quickly.  To avoid sending RSTs all the time, we first try to
 	 * drain pending data.
 	 */
-	__conn_data_stop_both(conn);
-	conn_data_shutw(conn);
+	__conn_xprt_stop_both(conn);
+	conn_xprt_shutw(conn);
 
 	/* OK, let's not stay here forever */
 	if (check->result == CHK_RES_FAILED)
@@ -1338,7 +1338,7 @@ static void event_srv_chk_r(struct connection *conn)
 	return;
 
  wait_more_data:
-	__conn_data_want_recv(conn);
+	__conn_xprt_want_recv(conn);
 }
 
 /*
@@ -1367,10 +1367,10 @@ static int wake_srv_chk(struct connection *conn)
 		 */
 		chk_report_conn_err(check, errno, 0);
 
-		__conn_data_stop_both(conn);
+		__conn_xprt_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
-	else if (!(conn->flags & (CO_FL_DATA_RD_ENA|CO_FL_DATA_WR_ENA|CO_FL_HANDSHAKE))) {
+	else if (!(conn->flags & (CO_FL_XPRT_RD_ENA|CO_FL_XPRT_WR_ENA|CO_FL_HANDSHAKE))) {
 		/* we may get here if only a connection probe was required : we
 		 * don't have any data to send nor anything expected in response,
 		 * so the completion of the connection establishment is enough.
@@ -2095,7 +2095,7 @@ static struct task *process_chk_conn(struct task *t)
 			}
 
 			if (check->type)
-				conn_data_want_recv(conn);   /* prepare for reading a possible reply */
+				conn_xprt_want_recv(conn);   /* prepare for reading a possible reply */
 
 			goto reschedule;
 
@@ -2586,7 +2586,7 @@ static int tcpcheck_main(struct check *check)
 
 	/* It's only the rules which will enable send/recv */
 	if (conn)
-		__conn_data_stop_both(conn);
+		__conn_xprt_stop_both(conn);
 
 	while (1) {
 		/* We have to try to flush the output buffer before reading, at
@@ -2599,11 +2599,11 @@ static int tcpcheck_main(struct check *check)
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
-			__conn_data_want_send(conn);
+			__conn_xprt_want_send(conn);
 			if (conn->xprt->snd_buf(conn, check->bo, 0) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
 					chk_report_conn_err(check, errno, 0);
-					__conn_data_stop_both(conn);
+					__conn_xprt_stop_both(conn);
 					goto out_end_tcpcheck;
 				}
 				break;
@@ -2825,7 +2825,7 @@ static int tcpcheck_main(struct check *check)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
-			__conn_data_want_recv(conn);
+			__conn_xprt_want_recv(conn);
 			if (conn->xprt->rcv_buf(conn, check->bi, check->bi->size) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 					done = 1;
@@ -2923,7 +2923,7 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__conn_data_stop_recv(conn);
+					__conn_xprt_stop_recv(conn);
 				}
 			}
 			else {
@@ -2943,7 +2943,7 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__conn_data_stop_recv(conn);
+					__conn_xprt_stop_recv(conn);
 				}
 				/* not matched but was supposed to => ERROR */
 				else {
@@ -2977,11 +2977,11 @@ static int tcpcheck_main(struct check *check)
 
 	/* warning, current_step may now point to the head */
 	if (check->bo->o)
-		__conn_data_want_send(conn);
+		__conn_xprt_want_send(conn);
 
 	if (&check->current_step->list != head &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
-		__conn_data_want_recv(conn);
+		__conn_xprt_want_recv(conn);
 	return retcode;
 
  out_end_tcpcheck:
@@ -2995,7 +2995,7 @@ static int tcpcheck_main(struct check *check)
 	if (check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
 
-	__conn_data_stop_both(conn);
+	__conn_xprt_stop_both(conn);
 	return retcode;
 }
 

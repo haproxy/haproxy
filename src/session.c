@@ -147,7 +147,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		conn_sock_want_recv(cli_conn);
 	}
 
-	conn_data_want_recv(cli_conn);
+	conn_xprt_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_conn;
 

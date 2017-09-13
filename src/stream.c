@@ -255,7 +255,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 
 	/* finish initialization of the accepted file descriptor */
 	if (conn)
-		conn_data_want_recv(conn);
+		conn_xprt_want_recv(conn);
 	else if (appctx)
 		si_applet_want_get(&s->si[0]);
 

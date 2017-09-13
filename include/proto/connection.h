@@ -167,11 +167,11 @@ void conn_update_sock_polling(struct connection *c);
 
 /* Update polling on connection <c>'s file descriptor depending on its current
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_DATA_*.
+ * in CO_FL_WAIT_*, and the upper layer expectations indicated by CO_FL_XPRT_*.
  * The connection flags are updated with the new flags at the end of the
  * operation. Polling is totally disabled if an error was reported.
  */
-void conn_update_data_polling(struct connection *c);
+void conn_update_xprt_polling(struct connection *c);
 
 /* Refresh the connection's polling flags from its file descriptor status.
  * This should be called at the beginning of a connection handler.
@@ -191,7 +191,7 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 	}
 }
 
-/* inspects c->flags and returns non-zero if DATA ENA changes from the CURR ENA
+/* inspects c->flags and returns non-zero if XPRT ENA changes from the CURR ENA
  * or if the WAIT flags are set with their respective ENA flags. Additionally,
  * non-zero is also returned if an error was reported on the connection. This
  * function is used quite often and is inlined. In order to proceed optimally
@@ -204,10 +204,10 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
  * replace the last AND with a TEST in boolean conditions. This results in
  * checks that are done in 4-6 cycles and less than 30 bytes.
  */
-static inline unsigned int conn_data_polling_changes(const struct connection *c)
+static inline unsigned int conn_xprt_polling_changes(const struct connection *c)
 {
 	unsigned int f = c->flags;
-	f &= CO_FL_DATA_WR_ENA | CO_FL_DATA_RD_ENA | CO_FL_CURR_WR_ENA |
+	f &= CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA | CO_FL_CURR_WR_ENA |
 	     CO_FL_CURR_RD_ENA | CO_FL_ERROR;
 
 	f = (f ^ (f << 1)) & (CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_ENA);    /* test C ^ D */
@@ -237,13 +237,13 @@ static inline unsigned int conn_sock_polling_changes(const struct connection *c)
 	return f & (CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
 }
 
-/* Automatically updates polling on connection <c> depending on the DATA flags
+/* Automatically updates polling on connection <c> depending on the XPRT flags
  * if no handshake is in progress.
  */
-static inline void conn_cond_update_data_polling(struct connection *c)
+static inline void conn_cond_update_xprt_polling(struct connection *c)
 {
-	if (!(c->flags & CO_FL_POLL_SOCK) && conn_data_polling_changes(c))
-		conn_update_data_polling(c);
+	if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+		conn_update_xprt_polling(c);
 }
 
 /* Automatically updates polling on connection <c> depending on the SOCK flags
@@ -262,12 +262,12 @@ static inline void conn_stop_polling(struct connection *c)
 {
 	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
 		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
-		      CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
+		      CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
 	if (conn_ctrl_ready(c))
 		fd_stop_both(c->handle.fd);
 }
 
-/* Automatically update polling on connection <c> depending on the DATA and
+/* Automatically update polling on connection <c> depending on the XPRT and
  * SOCK flags, and on whether a handshake is in progress or not. This may be
  * called at any moment when there is a doubt about the effectiveness of the
  * polling state, for instance when entering or leaving the handshake state.
@@ -276,8 +276,8 @@ static inline void conn_cond_update_polling(struct connection *c)
 {
 	if (unlikely(c->flags & CO_FL_ERROR))
 		conn_stop_polling(c);
-	else if (!(c->flags & CO_FL_POLL_SOCK) && conn_data_polling_changes(c))
-		conn_update_data_polling(c);
+	else if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+		conn_update_xprt_polling(c);
 	else if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
 		conn_update_sock_polling(c);
 }
@@ -287,14 +287,14 @@ static inline void conn_cond_update_polling(struct connection *c)
  * to be used by handlers called by the connection handler. The other ones
  * may be used anywhere.
  */
-static inline void __conn_data_want_recv(struct connection *c)
+static inline void __conn_xprt_want_recv(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_RD_ENA;
+	c->flags |= CO_FL_XPRT_RD_ENA;
 }
 
-static inline void __conn_data_stop_recv(struct connection *c)
+static inline void __conn_xprt_stop_recv(struct connection *c)
 {
-	c->flags &= ~CO_FL_DATA_RD_ENA;
+	c->flags &= ~CO_FL_XPRT_RD_ENA;
 }
 
 /* this one is used only to stop speculative recv(). It doesn't stop it if the
@@ -302,58 +302,58 @@ static inline void __conn_data_stop_recv(struct connection *c)
  * Since it might require the upper layer to re-enable reading, we'll return 1
  * if we've really stopped something otherwise zero.
  */
-static inline int __conn_data_done_recv(struct connection *c)
+static inline int __conn_xprt_done_recv(struct connection *c)
 {
 	if (!conn_ctrl_ready(c) || !fd_recv_polled(c->handle.fd)) {
-		c->flags &= ~CO_FL_DATA_RD_ENA;
+		c->flags &= ~CO_FL_XPRT_RD_ENA;
 		return 1;
 	}
 	return 0;
 }
 
-static inline void __conn_data_want_send(struct connection *c)
+static inline void __conn_xprt_want_send(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_WR_ENA;
+	c->flags |= CO_FL_XPRT_WR_ENA;
 }
 
-static inline void __conn_data_stop_send(struct connection *c)
+static inline void __conn_xprt_stop_send(struct connection *c)
 {
-	c->flags &= ~CO_FL_DATA_WR_ENA;
+	c->flags &= ~CO_FL_XPRT_WR_ENA;
 }
 
-static inline void __conn_data_stop_both(struct connection *c)
+static inline void __conn_xprt_stop_both(struct connection *c)
 {
-	c->flags &= ~(CO_FL_DATA_WR_ENA | CO_FL_DATA_RD_ENA);
+	c->flags &= ~(CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA);
 }
 
-static inline void conn_data_want_recv(struct connection *c)
+static inline void conn_xprt_want_recv(struct connection *c)
 {
-	__conn_data_want_recv(c);
-	conn_cond_update_data_polling(c);
+	__conn_xprt_want_recv(c);
+	conn_cond_update_xprt_polling(c);
 }
 
-static inline void conn_data_stop_recv(struct connection *c)
+static inline void conn_xprt_stop_recv(struct connection *c)
 {
-	__conn_data_stop_recv(c);
-	conn_cond_update_data_polling(c);
+	__conn_xprt_stop_recv(c);
+	conn_cond_update_xprt_polling(c);
 }
 
-static inline void conn_data_want_send(struct connection *c)
+static inline void conn_xprt_want_send(struct connection *c)
 {
-	__conn_data_want_send(c);
-	conn_cond_update_data_polling(c);
+	__conn_xprt_want_send(c);
+	conn_cond_update_xprt_polling(c);
 }
 
-static inline void conn_data_stop_send(struct connection *c)
+static inline void conn_xprt_stop_send(struct connection *c)
 {
-	__conn_data_stop_send(c);
-	conn_cond_update_data_polling(c);
+	__conn_xprt_stop_send(c);
+	conn_cond_update_xprt_polling(c);
 }
 
-static inline void conn_data_stop_both(struct connection *c)
+static inline void conn_xprt_stop_both(struct connection *c)
 {
-	__conn_data_stop_both(c);
-	conn_cond_update_data_polling(c);
+	__conn_xprt_stop_both(c);
+	conn_cond_update_xprt_polling(c);
 }
 
 /***** Event manipulation primitives for use by handshake I/O callbacks *****/
@@ -436,18 +436,18 @@ static inline void conn_sock_shutw(struct connection *c)
 		shutdown(c->handle.fd, SHUT_WR);
 }
 
-static inline void conn_data_shutw(struct connection *c)
+static inline void conn_xprt_shutw(struct connection *c)
 {
-	__conn_data_stop_send(c);
+	__conn_xprt_stop_send(c);
 
 	/* clean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
 		c->xprt->shutw(c, 1);
 }
 
-static inline void conn_data_shutw_hard(struct connection *c)
+static inline void conn_xprt_shutw_hard(struct connection *c)
 {
-	__conn_data_stop_send(c);
+	__conn_xprt_stop_send(c);
 
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
@@ -455,7 +455,7 @@ static inline void conn_data_shutw_hard(struct connection *c)
 }
 
 /* detect sock->data read0 transition */
-static inline int conn_data_read0_pending(struct connection *c)
+static inline int conn_xprt_read0_pending(struct connection *c)
 {
 	return (c->flags & CO_FL_SOCK_RD_SH) != 0;
 }

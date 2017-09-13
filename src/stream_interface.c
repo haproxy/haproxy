@@ -378,7 +378,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
 		ret = conn_sock_send(conn, trash.str + ret + conn->send_proxy_ofs, -conn->send_proxy_ofs,
-		                     (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
+		                     (conn->flags & CO_FL_XPRT_WR_ENA) ? MSG_MORE : 0);
 
 		if (ret < 0)
 			goto out_error;
@@ -589,15 +589,15 @@ static int si_conn_wake_cb(struct connection *conn)
 	 * was done above (eg: maybe some buffers got emptied).
 	 */
 	if (channel_is_empty(oc))
-		__conn_data_stop_send(conn);
+		__conn_xprt_stop_send(conn);
 
 
 	if (si->flags & SI_FL_WAIT_ROOM) {
-		__conn_data_stop_recv(conn);
+		__conn_xprt_stop_recv(conn);
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL|CF_DONT_READ)) == CF_READ_PARTIAL &&
 		 channel_may_recv(ic)) {
-		__conn_data_want_recv(conn);
+		__conn_xprt_want_recv(conn);
 	}
 	return 0;
 }
@@ -761,20 +761,20 @@ void stream_int_update_conn(struct stream_interface *si)
 	if (!(ic->flags & CF_SHUTR)) {
 		/* Read not closed */
 		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic))
-			__conn_data_stop_recv(conn);
+			__conn_xprt_stop_recv(conn);
 		else
-			__conn_data_want_recv(conn);
+			__conn_xprt_want_recv(conn);
 	}
 
 	if (!(oc->flags & CF_SHUTW)) {
 		/* Write not closed */
 		if (channel_is_empty(oc))
-			__conn_data_stop_send(conn);
+			__conn_xprt_stop_send(conn);
 		else
-			__conn_data_want_send(conn);
+			__conn_xprt_want_send(conn);
 	}
 
-	conn_cond_update_data_polling(conn);
+	conn_cond_update_xprt_polling(conn);
 }
 
 /*
@@ -813,7 +813,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	}
 	else if (conn->ctrl) {
 		/* we want the caller to disable polling on this FD */
-		conn_data_stop_recv(conn);
+		conn_xprt_stop_recv(conn);
 	}
 }
 
@@ -856,11 +856,11 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
 			/* unclean data-layer shutdown */
-			conn_data_shutw_hard(conn);
+			conn_xprt_shutw_hard(conn);
 		}
 		else {
 			/* clean data-layer shutdown */
-			conn_data_shutw(conn);
+			conn_xprt_shutw(conn);
 
 			/* If the stream interface is configured to disable half-open
 			 * connections, we'll skip the shutdown(), but only if the
@@ -923,14 +923,14 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 		/* stop reading */
 		if (!(ic->flags & CF_DONT_READ)) /* full */
 			si->flags |= SI_FL_WAIT_ROOM;
-		__conn_data_stop_recv(conn);
+		__conn_xprt_stop_recv(conn);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		__conn_data_want_recv(conn);
+		__conn_xprt_want_recv(conn);
 	}
-	conn_cond_update_data_polling(conn);
+	conn_cond_update_xprt_polling(conn);
 }
 
 
@@ -957,7 +957,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (conn->flags & CO_FL_DATA_WR_ENA) {
+	if (conn->flags & CO_FL_XPRT_WR_ENA) {
 		/* already subscribed to write notifications, will be called
 		 * anyway, so let's avoid calling it especially if the reader
 		 * is not ready.
@@ -969,13 +969,13 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	 * the polling flags to ensure we properly detect changes.
 	 */
 	conn_refresh_polling_flags(conn);
-	__conn_data_want_send(conn);
+	__conn_xprt_want_send(conn);
 
 	if (!(conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
 		si_conn_send(conn);
 		if (conn->flags & CO_FL_ERROR) {
 			/* Write error on the file descriptor */
-			__conn_data_stop_both(conn);
+			__conn_xprt_stop_both(conn);
 			si->flags |= SI_FL_ERR;
 			goto out_wakeup;
 		}
@@ -990,7 +990,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 * ->o limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		__conn_data_stop_send(conn);
+		__conn_xprt_stop_send(conn);
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
@@ -1006,7 +1006,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		__conn_data_want_send(conn);
+		__conn_xprt_want_send(conn);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(oc->wex))
 			oc->wex = tick_add_ifset(now_ms, oc->wto);
@@ -1075,7 +1075,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		return;
 
 	/* stop here if we reached the end of data */
-	if (conn_data_read0_pending(conn))
+	if (conn_xprt_read0_pending(conn))
 		goto out_shutdown_r;
 
 	cur_read = 0;
@@ -1129,7 +1129,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			ic->flags |= CF_READ_PARTIAL;
 		}
 
-		if (conn_data_read0_pending(conn))
+		if (conn_xprt_read0_pending(conn))
 			goto out_shutdown_r;
 
 		if (conn->flags & CO_FL_ERROR)
@@ -1140,7 +1140,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			 * could soon be full. Let's stop before needing to poll.
 			 */
 			si->flags |= SI_FL_WAIT_ROOM;
-			__conn_data_stop_recv(conn);
+			__conn_xprt_stop_recv(conn);
 		}
 
 		/* splice not possible (anymore), let's go on on standard copy */
@@ -1197,7 +1197,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		}
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
-			if (__conn_data_done_recv(conn))
+			if (__conn_xprt_done_recv(conn))
 				si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
@@ -1265,7 +1265,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		return;
 
-	if (conn_data_read0_pending(conn))
+	if (conn_xprt_read0_pending(conn))
 		/* connection closed */
 		goto out_shutdown_r;
 
@@ -1334,12 +1334,12 @@ void stream_sock_read0(struct stream_interface *si)
 	if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		conn_data_shutw_hard(conn);
+		conn_xprt_shutw_hard(conn);
 		goto do_close;
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	__conn_data_stop_recv(conn);
+	__conn_xprt_stop_recv(conn);
 	return;
 
  do_close:

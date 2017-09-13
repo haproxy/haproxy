@@ -97,7 +97,7 @@ void conn_fd_handler(int fd)
 		return;
 
 	if (conn->xprt && fd_send_ready(fd) &&
-	    ((conn->flags & (CO_FL_DATA_WR_ENA|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_DATA_WR_ENA)) {
+	    ((conn->flags & (CO_FL_XPRT_WR_ENA|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_XPRT_WR_ENA)) {
 		/* force reporting of activity by clearing the previous flags :
 		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
 		 * both of which will be detected below.
@@ -111,7 +111,7 @@ void conn_fd_handler(int fd)
 	 * changes due to a quick unexpected close().
 	 */
 	if (conn->xprt && fd_recv_ready(fd) &&
-	    ((conn->flags & (CO_FL_DATA_RD_ENA|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_DATA_RD_ENA)) {
+	    ((conn->flags & (CO_FL_XPRT_RD_ENA|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_XPRT_RD_ENA)) {
 		/* force reporting of activity by clearing the previous flags :
 		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
 		 * both of which will be detected below.
@@ -180,11 +180,11 @@ void conn_fd_handler(int fd)
 
 /* Update polling on connection <c>'s file descriptor depending on its current
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_DATA_*.
+ * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_XPRT_*.
  * The connection flags are updated with the new flags at the end of the
  * operation. Polling is totally disabled if an error was reported.
  */
-void conn_update_data_polling(struct connection *c)
+void conn_update_xprt_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
 
@@ -192,21 +192,21 @@ void conn_update_data_polling(struct connection *c)
 		return;
 
 	/* update read status if needed */
-	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_DATA_RD_ENA)) {
+	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_XPRT_RD_ENA)) == CO_FL_XPRT_RD_ENA)) {
 		fd_want_recv(c->handle.fd);
 		f |= CO_FL_CURR_RD_ENA;
 	}
-	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
+	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_XPRT_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
 		fd_stop_recv(c->handle.fd);
 		f &= ~CO_FL_CURR_RD_ENA;
 	}
 
 	/* update write status if needed */
-	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_DATA_WR_ENA)) {
+	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_XPRT_WR_ENA)) == CO_FL_XPRT_WR_ENA)) {
 		fd_want_send(c->handle.fd);
 		f |= CO_FL_CURR_WR_ENA;
 	}
-	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
+	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_XPRT_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
 		fd_stop_send(c->handle.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
@@ -322,7 +322,7 @@ int conn_sock_drain(struct connection *conn)
 
 		/* disable draining if we were called and have no drain function */
 		if (!conn->ctrl->drain) {
-			__conn_data_stop_recv(conn);
+			__conn_xprt_stop_recv(conn);
 			return 0;
 		}
 
