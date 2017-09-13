@@ -140,6 +140,9 @@ DEBUG_CFLAGS = -g
 # to be sure we get the intended behavior.
 SPEC_CFLAGS := -fno-strict-aliasing -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-opt,-fwrapv)
+SPEC_CFLAGS += $(call cc-opt,-Wno-format-truncation)
+SPEC_CFLAGS += $(call cc-opt,-Wno-address-of-packed-member)
+SPEC_CFLAGS += $(call cc-opt,-Wno-null-dereference)
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
