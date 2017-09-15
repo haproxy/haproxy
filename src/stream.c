@@ -561,7 +561,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	 * attempts and error reports.
 	 */
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
-		if (unlikely(req->flags & CF_WRITE_PARTIAL)) {
+		if (unlikely(req->flags & CF_WROTE_DATA)) {
 			/* Some data were sent past the connection establishment,
 			 * so we need to pretend we're established to log correctly
 			 * and let later states handle the failure.
@@ -587,7 +587,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	}
 
 	/* OK, maybe we want to abort */
-	if (!(req->flags & CF_WRITE_PARTIAL) &&
+	if (!(req->flags & CF_WROTE_DATA) &&
 	    unlikely((rep->flags & CF_SHUTW) ||
 		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
 		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||

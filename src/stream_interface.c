@@ -496,6 +496,10 @@ void stream_int_notify(struct stream_interface *si)
 	 * the buffer is full. We must not stop based on input data alone because
 	 * an HTTP parser might need more data to complete the parsing.
 	 */
+
+	/* ensure it's only set if a write attempt has succeeded */
+	ic->flags &= ~CF_WRITE_PARTIAL;
+
 	if (!channel_is_empty(ic) &&
 	    (si_opposite(si)->flags & SI_FL_WAIT_DATA) &&
 	    (ic->buf->i == 0 || ic->pipe)) {
@@ -609,6 +613,9 @@ static void si_conn_send(struct connection *conn)
 	struct stream_interface *si = conn->owner;
 	struct channel *oc = si_oc(si);
 	int ret;
+
+	/* ensure it's only set if a write attempt has succeeded */
+	oc->flags &= ~CF_WRITE_PARTIAL;
 
 	if (oc->pipe && conn->xprt->snd_pipe) {
 		ret = conn->xprt->snd_pipe(conn, oc->pipe);
@@ -935,6 +942,9 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 	struct connection *conn = __objt_conn(si->end);
+
+	/* ensure it's only set if a write attempt has succeeded */
+	oc->flags &= ~CF_WRITE_PARTIAL;
 
 	if (unlikely(si->state > SI_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
