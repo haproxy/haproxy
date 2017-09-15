@@ -103,6 +103,12 @@ comp_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 		st->initialized = 0;
 		st->finished    = 0;
 		filter->ctx     = st;
+
+		/* Register post-analyzer on AN_RES_WAIT_HTTP because we need to
+		 * analyze response headers before http-response rules execution
+		 * to be sure we can use res.comp and res.comp_algo sample
+		 * fetches */
+		filter->post_analyzers |= AN_RES_WAIT_HTTP;
 	}
 	return 1;
 }
@@ -135,12 +141,33 @@ comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 	if (!(msg->chn->flags & CF_ISRESP))
 		select_compression_request_header(st, s, msg);
 	else {
-		select_compression_response_header(st, s, msg);
+		/* Response headers have already been checked in
+		 * comp_http_post_analyze callback. */
 		if (st->comp_algo) {
 			register_data_filter(s, msg->chn, filter);
 			st->hdrs_len = s->txn->rsp.sov;
 		}
 	}
+
+  end:
+	return 1;
+}
+
+static int
+comp_http_post_analyze(struct stream *s, struct filter *filter,
+		       struct channel *chn, unsigned an_bit)
+{
+	struct http_txn   *txn = s->txn;
+	struct http_msg   *msg = &txn->rsp;
+	struct comp_state *st  = filter->ctx;
+
+	if (an_bit != AN_RES_WAIT_HTTP)
+		goto end;
+
+	if (!strm_fe(s)->comp && !s->be->comp)
+		goto end;
+
+	select_compression_response_header(st, s, msg);
 
   end:
 	return 1;
@@ -768,6 +795,7 @@ struct flt_ops comp_ops = {
 
 	.channel_start_analyze = comp_start_analyze,
 	.channel_end_analyze   = comp_end_analyze,
+	.channel_post_analyze  = comp_http_post_analyze,
 
 	.http_headers          = comp_http_headers,
 	.http_data             = comp_http_data,
