@@ -2413,10 +2413,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
 	strm->target = &socket_tcp.obj_type;
 
-	/* Update statistics counters. */
-	socket_proxy.feconn++; /* beconn will be increased later */
-	totalconn++;
-
 	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	/* Return yield waiting for connection. */
 	return 1;

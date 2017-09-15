@@ -2417,7 +2417,6 @@ struct task *process_stream(struct task *t)
 		return t; /* nothing more to do */
 	}
 
-	sess->fe->feconn--;
 	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
 

@@ -36,7 +36,7 @@ static struct task *session_expire_embryonic(struct task *t);
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
  * origin <origin>, set the current date and clear the stick counters pointers.
  * Returns the session upon success or NULL. The session may be released using
- * session_free().
+ * session_free(). Note: <li> may be NULL.
  */
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin)
 {
@@ -53,6 +53,12 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
+		fe->feconn++;
+		if (fe->feconn > fe->fe_counters.conn_max)
+			fe->fe_counters.conn_max = fe->feconn;
+		if (li)
+			proxy_inc_fe_conn_ctr(li, fe);
+		totalconn++;
 		jobs++;
 	}
 	return sess;
@@ -62,6 +68,7 @@ void session_free(struct session *sess)
 {
 	if (!LIST_ISEMPTY(&sess->streams))
 		return;
+	sess->fe->feconn--;
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
@@ -152,13 +159,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_conn;
 
 	conn_set_owner(cli_conn, sess);
-
-	p->feconn++;
-	/* This session was accepted, count it now */
-	if (p->feconn > p->fe_counters.conn_max)
-		p->fe_counters.conn_max = p->feconn;
-
-	proxy_inc_fe_conn_ctr(l, p);
 
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.
@@ -265,7 +265,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	/* error unrolling */
  out_free_sess:
-	p->feconn--;
 	session_free(sess);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
@@ -365,7 +364,6 @@ static void session_kill_embryonic(struct session *sess)
 	conn_force_close(conn);
 	conn_free(conn);
 
-	sess->fe->feconn--;
 	listener_release(sess->listener);
 
 	task_delete(task);

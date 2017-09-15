@@ -1948,9 +1948,6 @@ spoe_create_appctx(struct spoe_config *conf)
 	strm->do_log = NULL;
 	strm->res.flags |= CF_READ_DONTWAIT;
 
-	conf->agent_fe.feconn++;
-	totalconn++;
-
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
 	LIST_ADDQ(&conf->agent->applets, &SPOE_APPCTX(appctx)->list);
 	conf->agent->applets_act++;

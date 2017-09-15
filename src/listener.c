@@ -527,7 +527,6 @@ void listener_accept(int fd)
 			actconn++;
 		}
 
-		totalconn++;
 		l->nbconn++;
 
 		if (l->counters) {
