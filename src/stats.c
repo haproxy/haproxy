@@ -58,7 +58,6 @@
 #include <proto/listener.h>
 #include <proto/map.h>
 #include <proto/proto_http.h>
-#include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>

@@ -42,7 +42,6 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/protocol.h>
-#include <proto/proto_uxst.h>
 #include <proto/task.h>
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
@@ -50,6 +49,9 @@ static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 static int uxst_unbind_listeners(struct protocol *proto);
 static int uxst_connect_server(struct connection *conn, int data, int delack);
 static void uxst_add_listener(struct listener *listener, int port);
+static int uxst_pause_listener(struct listener *l);
+static int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
+static int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_unix = {
@@ -85,7 +87,7 @@ static struct protocol proto_unix = {
  * success, -1 in case of error. The socket's source address is stored in
  * <sa> for <salen> bytes.
  */
-int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+static int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 {
 	if (dir)
 		return getsockname(fd, sa, &salen);
@@ -100,7 +102,7 @@ int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
  * case of success, -1 in case of error. The socket's source address is stored
  * in <sa> for <salen> bytes.
  */
-int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+static int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 {
 	if (dir)
 		return getpeername(fd, sa, &salen);
@@ -386,7 +388,7 @@ static void uxst_add_listener(struct listener *listener, int port)
  * plain unix sockets since currently it's the new process which handles
  * the renaming. Abstract sockets are completely unbound.
  */
-int uxst_pause_listener(struct listener *l)
+static int uxst_pause_listener(struct listener *l)
 {
 	if (((struct sockaddr_un *)&l->addr)->sun_path[0])
 		return 1;
@@ -419,7 +421,7 @@ int uxst_pause_listener(struct listener *l)
  * The connection's fd is inserted only when SF_ERR_NONE is returned, otherwise
  * it's invalid and the caller has nothing to do.
  */
-int uxst_connect_server(struct connection *conn, int data, int delack)
+static int uxst_connect_server(struct connection *conn, int data, int delack)
 {
 	int fd;
 	struct server *srv;
