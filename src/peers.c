@@ -1779,8 +1779,7 @@ void peers_setup_frontend(struct proxy *fe)
  */
 static struct appctx *peer_session_create(struct peers *peers, struct peer *peer)
 {
-	struct listener *l = LIST_NEXT(&peers->peers_fe->conf.listeners, struct listener *, by_fe);
-	struct proxy *p = l->bind_conf->frontend; /* attached frontend */
+	struct proxy *p = peers->peers_fe; /* attached frontend */
 	struct appctx *appctx;
 	struct session *sess;
 	struct stream *s;
@@ -1797,7 +1796,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)peer;
 
-	sess = session_new(p, l, &appctx->obj_type);
+	sess = session_new(p, NULL, &appctx->obj_type);
 	if (!sess) {
 		Alert("out of memory in peer_session_create().\n");
 		goto out_free_appctx;
@@ -1836,11 +1835,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	s->res.flags |= CF_READ_DONTWAIT;
 
-	l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 	p->feconn++;/* beconn will be increased later */
 	jobs++;
-	if (!(s->sess->listener->options & LI_O_UNLIMITED))
-		actconn++;
 	totalconn++;
 
 	peer->appctx = appctx;
