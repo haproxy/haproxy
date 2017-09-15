@@ -56,14 +56,6 @@ int frontend_accept(struct stream *s)
 	struct connection *conn = objt_conn(sess->origin);
 	struct listener *l = sess->listener;
 	struct proxy *fe = sess->fe;
-	const char *alpn_str = NULL;
-	int alpn_len;
-
-	/* check if we're in HTTP mode, directly connected to the connection,
-	 * and with ALPN advertising H2.
-	 */
-	if (conn && conn->owner == &s->si[0])
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
 
 	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
 	    && (!LIST_ISEMPTY(&fe->logsrvs))) {
@@ -102,13 +94,19 @@ int frontend_accept(struct stream *s)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		char pn[INET6_ADDRSTRLEN];
 		char alpn[16] = "<none>";
+		const char *alpn_str = NULL;
+		int alpn_len;
 
 		conn_get_from_addr(conn);
 
-		if (alpn_str) {
-			int len = MIN(alpn_len, sizeof(alpn) - 1);
-			memcpy(alpn, alpn_str, len);
-			alpn[len] = 0;
+		/* try to report the ALPN value when available (also works for NPN) */
+
+		if (conn && conn->owner == &s->si[0]) {
+			if (conn_get_alpn(conn, &alpn_str, &alpn_len) && alpn_str) {
+				int len = MIN(alpn_len, sizeof(alpn) - 1);
+				memcpy(alpn, alpn_str, len);
+				alpn[len] = 0;
+			}
 		}
 
 		switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
