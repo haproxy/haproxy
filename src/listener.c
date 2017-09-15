@@ -33,6 +33,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/listener.h>
+#include <proto/protocol.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 #include <proto/task.h>
@@ -296,6 +297,48 @@ int unbind_all_listeners(struct protocol *proto)
 	list_for_each_entry(listener, &proto->listeners, proto_list)
 		unbind_listener(listener);
 	return ERR_NONE;
+}
+
+/* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
+ * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
+ * allocation). The address family is taken from ss->ss_family. The number of
+ * jobs and listeners is automatically increased by the number of listeners
+ * created. It returns non-zero on success, zero on error with the error message
+ * set in <err>.
+ */
+int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
+                     int portl, int porth, int fd, char **err)
+{
+	struct protocol *proto = protocol_by_family(ss->ss_family);
+	struct listener *l;
+	int port;
+
+	if (!proto) {
+		memprintf(err, "unsupported protocol family %d", ss->ss_family);
+		return 0;
+	}
+
+	for (port = portl; port <= porth; port++) {
+		l = calloc(1, sizeof(*l));
+		if (!l) {
+			memprintf(err, "out of memory");
+			return 0;
+		}
+		l->obj_type = OBJ_TYPE_LISTENER;
+		LIST_ADDQ(&bc->frontend->conf.listeners, &l->by_fe);
+		LIST_ADDQ(&bc->listeners, &l->by_bind);
+		l->bind_conf = bc;
+
+		l->fd = fd;
+		memcpy(&l->addr, ss, sizeof(*ss));
+		l->state = LI_INIT;
+
+		proto->add(l, port);
+
+		jobs++;
+		listeners++;
+	}
+	return 1;
 }
 
 /* Delete a listener from its protocol's list of listeners. The listener's

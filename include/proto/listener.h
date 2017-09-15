@@ -78,6 +78,17 @@ int unbind_listener_no_close(struct listener *listener);
  */
 int unbind_all_listeners(struct protocol *proto);
 
+
+/* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
+ * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
+ * allocation). The address family is taken from ss->ss_family. The number of
+ * jobs and listeners is automatically increased by the number of listeners
+ * created. It returns non-zero on success, zero on error with the error message
+ * set in <err>.
+ */
+int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
+                     int portl, int porth, int fd, char **err);
+
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
  * number of listeners is updated. Note that the listener must have previously

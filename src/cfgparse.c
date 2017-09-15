@@ -220,14 +220,13 @@ static struct cfg_kw_list cfg_keywords = {
  */
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err)
 {
-	struct listener *l;
 	char *next, *dupstr;
 	int port, end;
 
 	next = dupstr = strdup(str);
 
 	while (next && *next) {
-		struct sockaddr_storage ss, *ss2;
+		struct sockaddr_storage *ss2;
 		int fd = -1;
 
 		str = next;
@@ -283,31 +282,10 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		/* OK the address looks correct */
-		memcpy(&ss, ss2, sizeof(ss));
-
-		for (; port <= end; port++) {
-			struct protocol *proto = protocol_by_family(ss.ss_family);
-
-			if (!proto) {
-				memprintf(err, "unsupported protocol family %d for address '%s'.\n", ss.ss_family, str);
-				goto fail;
-			}
-
-			l = calloc(1, sizeof(*l));
-			l->obj_type = OBJ_TYPE_LISTENER;
-			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
-			LIST_ADDQ(&bind_conf->listeners, &l->by_bind);
-			l->bind_conf = bind_conf;
-
-			l->fd = fd;
-			memcpy(&l->addr, &ss, sizeof(ss));
-			l->state = LI_INIT;
-
-			proto->add(l, port);
-
-			jobs++;
-			listeners++;
-		} /* end for(port) */
+		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
+			memprintf(err, "%s for address '%s'.\n", *err, str);
+			goto fail;
+		}
 	} /* end while(next) */
 	free(dupstr);
 	return 1;
