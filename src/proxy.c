@@ -1080,8 +1080,6 @@ void zombify_proxy(struct proxy *p)
 		unbind_listener_no_close(l);
 		if (l->state >= LI_ASSIGNED) {
 			delete_listener(l);
-			listeners--;
-			jobs--;
 		}
 		/*
 		 * Pretend we're still up and running so that the fd
@@ -1120,8 +1118,6 @@ void stop_proxy(struct proxy *p)
 		unbind_listener(l);
 		if (l->state >= LI_ASSIGNED) {
 			delete_listener(l);
-			listeners--;
-			jobs--;
 		}
 	}
 	p->state = PR_STSTOPPED;

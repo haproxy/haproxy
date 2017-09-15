@@ -343,8 +343,9 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
- * number of listeners is updated. Note that the listener must have previously
- * been unbound. This is the generic function to use to remove a listener.
+ * number of listeners is updated, as well as the global number of listeners
+ * and jobs. Note that the listener must have previously been unbound. This
+ * is the generic function to use to remove a listener.
  */
 void delete_listener(struct listener *listener)
 {
@@ -353,6 +354,8 @@ void delete_listener(struct listener *listener)
 	listener->state = LI_INIT;
 	LIST_DEL(&listener->proto_list);
 	listener->proto->nb_listeners--;
+	listeners--;
+	jobs--;
 }
 
 /* This function is called on a read event from a listening socket, corresponding

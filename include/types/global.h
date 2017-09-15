@@ -170,7 +170,7 @@ extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
-extern int  jobs;               /* # of active jobs */
+extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
 extern struct chunk trash;
 extern int nb_oldpids;          /* contains the number of old pids found */
 extern const int zero;
