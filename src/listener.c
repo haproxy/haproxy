@@ -527,7 +527,6 @@ void listener_accept(int fd)
 			actconn++;
 		}
 
-		jobs++;
 		totalconn++;
 		l->nbconn++;
 
@@ -545,7 +544,6 @@ void listener_accept(int fd)
 			 */
 			if (!(l->options & LI_O_UNLIMITED))
 				actconn--;
-			jobs--;
 			l->nbconn--;
 			if (ret == 0) /* successful termination */
 				continue;

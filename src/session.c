@@ -53,6 +53,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
+		jobs++;
 	}
 	return sess;
 }
@@ -64,6 +65,7 @@ void session_free(struct session *sess)
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
+	jobs--;
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -377,7 +379,6 @@ static void session_kill_embryonic(struct session *sess)
 
 	if (!(sess->listener->options & LI_O_UNLIMITED))
 		actconn--;
-	jobs--;
 	sess->listener->nbconn--;
 	if (sess->listener->state == LI_FULL)
 		resume_listener(sess->listener);

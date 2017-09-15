@@ -1836,7 +1836,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	p->feconn++;/* beconn will be increased later */
-	jobs++;
 	totalconn++;
 
 	peer->appctx = appctx;

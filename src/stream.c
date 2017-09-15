@@ -2420,7 +2420,7 @@ struct task *process_stream(struct task *t)
 	sess->fe->feconn--;
 	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
-	jobs--;
+
 	if (sess->listener) {
 		if (!(sess->listener->options & LI_O_UNLIMITED))
 			actconn--;

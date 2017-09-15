@@ -1949,7 +1949,6 @@ spoe_create_appctx(struct spoe_config *conf)
 	strm->res.flags |= CF_READ_DONTWAIT;
 
 	conf->agent_fe.feconn++;
-	jobs++;
 	totalconn++;
 
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);

@@ -2415,7 +2415,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/* Update statistics counters. */
 	socket_proxy.feconn++; /* beconn will be increased later */
-	jobs++;
 	totalconn++;
 
 	task_wakeup(strm->task, TASK_WOKEN_INIT);
