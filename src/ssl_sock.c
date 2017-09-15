@@ -4226,9 +4226,6 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	struct sni_ctx *sni;
 	int err = 0;
 
-	if (!bind_conf || !bind_conf->is_ssl)
-		return 0;
-
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_frontend = 1;
 
@@ -4333,9 +4330,6 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 	struct ebmb_node *node, *back;
 	struct sni_ctx *sni;
 
-	if (!bind_conf || !bind_conf->is_ssl)
-		return;
-
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
@@ -4400,7 +4394,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 	EVP_PKEY *capkey = NULL;
 	int       err    = 0;
 
-	if (!bind_conf || !bind_conf->generate_certs)
+	if (!bind_conf->generate_certs)
 		return err;
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -4453,9 +4447,6 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 void
 ssl_sock_free_ca(struct bind_conf *bind_conf)
 {
-	if (!bind_conf)
-		return;
-
 	if (bind_conf->ca_sign_pkey)
 		EVP_PKEY_free(bind_conf->ca_sign_pkey);
 	if (bind_conf->ca_sign_cert)
