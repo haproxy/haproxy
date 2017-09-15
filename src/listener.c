@@ -588,6 +588,29 @@ void listener_accept(int fd)
 	return;
 }
 
+/* Notify the listener that a connection initiated from it was released. This
+ * is used to keep the connection count consistent and to possibly re-open
+ * listening when it was limited.
+ */
+void listener_release(struct listener *l)
+{
+	struct proxy *fe = l->bind_conf->frontend;
+
+	if (!(l->options & LI_O_UNLIMITED))
+		actconn--;
+	l->nbconn--;
+	if (l->state == LI_FULL)
+		resume_listener(l);
+
+	/* Dequeues all of the listeners waiting for a resource */
+	if (!LIST_ISEMPTY(&global_listener_queue))
+		dequeue_all_listeners(&global_listener_queue);
+
+	if (!LIST_ISEMPTY(&fe->listener_queue) &&
+	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
+		dequeue_all_listeners(&fe->listener_queue);
+}
+
 /*
  * Registers the bind keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.

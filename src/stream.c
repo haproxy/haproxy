@@ -2421,21 +2421,8 @@ struct task *process_stream(struct task *t)
 	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
 
-	if (sess->listener) {
-		if (!(sess->listener->options & LI_O_UNLIMITED))
-			actconn--;
-		sess->listener->nbconn--;
-		if (sess->listener->state == LI_FULL)
-			resume_listener(sess->listener);
-
-		/* Dequeues all of the listeners waiting for a resource */
-		if (!LIST_ISEMPTY(&global_listener_queue))
-			dequeue_all_listeners(&global_listener_queue);
-
-		if (!LIST_ISEMPTY(&sess->fe->listener_queue) &&
-		    (!sess->fe->fe_sps_lim || freq_ctr_remain(&sess->fe->fe_sess_per_sec, sess->fe->fe_sps_lim, 0) > 0))
-			dequeue_all_listeners(&sess->fe->listener_queue);
-	}
+	if (sess->listener)
+		listener_release(sess->listener);
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
