@@ -260,20 +260,10 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
 
-	/* if logs require transport layer information, note it on the connection */
-	if (sess->fe->to_log & LW_XPRT)
-		cli_conn->flags |= CO_FL_XPRT_TRACKED;
+	if (conn_complete_session(cli_conn) >= 0)
+		return 1;
 
-	/* we may have some tcp-request-session rules */
-	if ((l->options & LI_O_TCP_L5_RULES) && !tcp_exec_l5_rules(sess))
-		goto out_free_sess;
-
-	session_count_new(sess);
-	if (stream_create_from_conn(cli_conn) < 0)
-		goto out_free_sess;
-
-	return 1;
-
+	/* error unrolling */
  out_free_sess:
 	p->feconn--;
 	session_free(sess);
@@ -398,13 +388,15 @@ static struct task *session_expire_embryonic(struct task *t)
 }
 
 /* Finish initializing a session from a connection, or kills it if the
- * connection shows and error. Returns <0 if the connection was killed.
+ * connection shows and error. Returns <0 if the connection was killed. It may
+ * be called either asynchronously as an xprt_done callback with an embryonic
+ * session, or synchronously to finalize the session. The distinction is made
+ * on sess->task which is only set in the embryonic session case.
  */
 static int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
 
-	/* the embryonic session's task is not needed anymore */
 	conn_clear_xprt_done_cb(conn);
 
 	if (conn->flags & CO_FL_ERROR)
@@ -423,13 +415,16 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	/* the embryonic session's task is not needed anymore */
-	task_delete(sess->task);
-	task_free(sess->task);
-	sess->task = NULL;
+	if (sess->task) {
+		task_delete(sess->task);
+		task_free(sess->task);
+		sess->task = NULL;
+	}
 	return 0;
 
  fail:
-	session_kill_embryonic(sess);
+	if (sess->task)
+		session_kill_embryonic(sess);
 	return -1;
 }
 
