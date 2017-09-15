@@ -2762,7 +2762,7 @@ spoe_start(struct stream *s, struct filter *filter)
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 			    " - failed to create SPOE context\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
-			    __FUNCTION__, ctx->strm);
+			    __FUNCTION__, s);
 		send_log(s->be, LOG_EMERG,
 			 "SPOE: [%s] failed to create SPOE context\n",
 			 agent->id);
