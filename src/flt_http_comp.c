@@ -923,7 +923,7 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 	struct filter     *filter;
 	struct comp_state *st;
 
-	if (!(txn || !(txn->rsp.flags & HTTP_MSGF_COMPRESSING)))
+	if (!txn || !(txn->rsp.flags & HTTP_MSGF_COMPRESSING))
 		return 0;
 
 	list_for_each_entry(filter, &strm_flt(smp->strm)->filters, list) {
