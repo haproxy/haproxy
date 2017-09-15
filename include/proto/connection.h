@@ -757,17 +757,17 @@ static inline const struct mux_ops *conn_find_best_mux(struct connection *conn, 
 }
 
 /* finds the best mux for incoming connection <conn>, a proxy in and http mode
- * <mode>, and installs it on the connection for direction <dir> (MUX_INBOUND/
- * MUX_OUTBOUND). Returns < 0 on error.
+ * <mode>, and installs it on the connection for upper context <ctx>. Returns
+ * < 0 on error.
  */
-static inline int conn_install_best_mux(struct connection *conn, int mode, enum mux_dir dir)
+static inline int conn_install_best_mux(struct connection *conn, int mode, void *ctx)
 {
 	const struct mux_ops *mux_ops;
 
 	mux_ops = conn_find_best_mux(conn, mode);
 	if (!mux_ops)
 		return -1;
-	return conn_install_mux(conn, mux_ops, dir);
+	return conn_install_mux(conn, mux_ops, ctx);
 }
 
 #endif /* _PROTO_CONNECTION_H */

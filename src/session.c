@@ -21,7 +21,6 @@
 #include <proto/connection.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/mux_pt.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
@@ -407,7 +406,7 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	session_count_new(sess);
-	if (conn_install_mux(conn, &mux_pt_ops, NULL) < 0)
+	if (conn_install_best_mux(conn, sess->fe->mode == PR_MODE_HTTP, NULL) < 0)
 		goto fail;
 
 	/* the embryonic session's task is not needed anymore */
