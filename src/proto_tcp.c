@@ -1137,30 +1137,32 @@ static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 	return err;
 }
 
-/* Add listener to the list of tcpv4 listeners. The listener's state
- * is automatically updated from LI_INIT to LI_ASSIGNED. The number of
- * listeners is updated. This is the function to use to add a new listener.
+/* Add <listener> to the list of tcpv4 listeners, on port <port>. The
+ * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
+ * The number of listeners for the protocol is updated.
  */
-void tcpv4_add_listener(struct listener *listener)
+void tcpv4_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_tcpv4;
+	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv4.listeners, &listener->proto_list);
 	proto_tcpv4.nb_listeners++;
 }
 
-/* Add listener to the list of tcpv4 listeners. The listener's state
- * is automatically updated from LI_INIT to LI_ASSIGNED. The number of
- * listeners is updated. This is the function to use to add a new listener.
+/* Add <listener> to the list of tcpv6 listeners, on port <port>. The
+ * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
+ * The number of listeners for the protocol is updated.
  */
-void tcpv6_add_listener(struct listener *listener)
+void tcpv6_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_tcpv6;
+	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv6.listeners, &listener->proto_list);
 	proto_tcpv6.nb_listeners++;
 }

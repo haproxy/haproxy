@@ -28,8 +28,8 @@
 #include <proto/stick_table.h>
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
-void tcpv4_add_listener(struct listener *listener);
-void tcpv6_add_listener(struct listener *listener);
+void tcpv4_add_listener(struct listener *listener, int port);
+void tcpv6_add_listener(struct listener *listener, int port);
 int tcp_pause_listener(struct listener *l);
 int tcp_connect_server(struct connection *conn, int data, int delack);
 int tcp_connect_probe(struct connection *conn);

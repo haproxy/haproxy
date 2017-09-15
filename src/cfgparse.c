@@ -299,15 +299,13 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			l->state = LI_INIT;
 
 			if (ss.ss_family == AF_INET) {
-				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
-				tcpv4_add_listener(l);
+				tcpv4_add_listener(l, port);
 			}
 			else if (ss.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
-				tcpv6_add_listener(l);
+				tcpv6_add_listener(l, port);
 			}
 			else {
-				uxst_add_listener(l);
+				uxst_add_listener(l, port);
 			}
 
 			jobs++;

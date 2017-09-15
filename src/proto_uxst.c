@@ -365,11 +365,11 @@ static int uxst_unbind_listener(struct listener *listener)
 	return ERR_NONE;
 }
 
-/* Add a listener to the list of unix stream listeners. The listener's state
- * is automatically updated from LI_INIT to LI_ASSIGNED. The number of
- * listeners is updated. This is the function to use to add a new listener.
+/* Add <listener> to the list of unix stream listeners (port is ignored). The
+ * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
+ * The number of listeners for the protocol is updated.
  */
-void uxst_add_listener(struct listener *listener)
+void uxst_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
