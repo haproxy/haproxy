@@ -404,13 +404,11 @@ static int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
 
+	/* the embryonic session's task is not needed anymore */
 	conn_clear_xprt_done_cb(conn);
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
-
-	if (conn->flags & CO_FL_HANDSHAKE)
-		return 0; /* wait more */
 
 	/* if logs require transport layer information, note it on the connection */
 	if (sess->fe->to_log & LW_XPRT)
