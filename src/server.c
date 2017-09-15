@@ -3990,10 +3990,11 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	return 1;
 
  invalid:
-	if (nameserver)
+	if (nameserver) {
 		nameserver->counters.invalid += 1;
-	if (resolution->nb_responses >= nameserver->resolvers->count_nameservers)
-		goto update_status;
+		if (resolution->nb_responses >= nameserver->resolvers->count_nameservers)
+			goto update_status;
+	}
 
 	snr_update_srv_status(s, has_no_ip);
 	return 0;
