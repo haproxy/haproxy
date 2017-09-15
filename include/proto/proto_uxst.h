@@ -26,7 +26,6 @@
 #include <types/stream.h>
 #include <types/task.h>
 
-void uxst_add_listener(struct listener *listener, int port);
 int uxst_pause_listener(struct listener *l);
 int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);

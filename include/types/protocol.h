@@ -61,6 +61,7 @@ struct protocol {
 	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
+	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
 
 	struct list listeners;				/* list of listeners using this protocol */
 	int nb_listeners;				/* number of listeners */

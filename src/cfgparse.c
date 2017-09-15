@@ -72,8 +72,6 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/protocol.h>
-#include <proto/proto_tcp.h>
-#include <proto/proto_uxst.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/peers.h>
@@ -288,6 +286,13 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		memcpy(&ss, ss2, sizeof(ss));
 
 		for (; port <= end; port++) {
+			struct protocol *proto = protocol_by_family(ss.ss_family);
+
+			if (!proto) {
+				memprintf(err, "unsupported protocol family %d for address '%s'.\n", ss.ss_family, str);
+				goto fail;
+			}
+
 			l = calloc(1, sizeof(*l));
 			l->obj_type = OBJ_TYPE_LISTENER;
 			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
@@ -298,15 +303,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			memcpy(&l->addr, &ss, sizeof(ss));
 			l->state = LI_INIT;
 
-			if (ss.ss_family == AF_INET) {
-				tcpv4_add_listener(l, port);
-			}
-			else if (ss.ss_family == AF_INET6) {
-				tcpv6_add_listener(l, port);
-			}
-			else {
-				uxst_add_listener(l, port);
-			}
+			proto->add(l, port);
 
 			jobs++;
 			listeners++;

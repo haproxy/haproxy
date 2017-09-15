@@ -63,6 +63,8 @@
 
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static void tcpv4_add_listener(struct listener *listener, int port);
+static void tcpv6_add_listener(struct listener *listener, int port);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv4 = {
@@ -83,6 +85,7 @@ static struct protocol proto_tcpv4 = {
 	.get_dst = tcp_get_dst,
 	.drain = tcp_drain,
 	.pause = tcp_pause_listener,
+	.add = tcpv4_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_tcpv4.listeners),
 	.nb_listeners = 0,
 };
@@ -106,6 +109,7 @@ static struct protocol proto_tcpv6 = {
 	.get_dst = tcp_get_dst,
 	.drain = tcp_drain,
 	.pause = tcp_pause_listener,
+	.add = tcpv6_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
 	.nb_listeners = 0,
 };
@@ -1141,7 +1145,7 @@ static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
  * The number of listeners for the protocol is updated.
  */
-void tcpv4_add_listener(struct listener *listener, int port)
+static void tcpv4_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
@@ -1156,7 +1160,7 @@ void tcpv4_add_listener(struct listener *listener, int port)
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
  * The number of listeners for the protocol is updated.
  */
-void tcpv6_add_listener(struct listener *listener, int port)
+static void tcpv6_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;

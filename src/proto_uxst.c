@@ -49,6 +49,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int uxst_unbind_listeners(struct protocol *proto);
 static int uxst_connect_server(struct connection *conn, int data, int delack);
+static void uxst_add_listener(struct listener *listener, int port);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_unix = {
@@ -69,6 +70,7 @@ static struct protocol proto_unix = {
 	.get_src = uxst_get_src,
 	.get_dst = uxst_get_dst,
 	.pause = uxst_pause_listener,
+	.add = uxst_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
 	.nb_listeners = 0,
 };
@@ -369,7 +371,7 @@ static int uxst_unbind_listener(struct listener *listener)
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
  * The number of listeners for the protocol is updated.
  */
-void uxst_add_listener(struct listener *listener, int port)
+static void uxst_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
