@@ -149,9 +149,10 @@ static char *defender_printf(apr_pool_t *pool, const char *fmt, ...)
 
 	va_start(argp, fmt);
 	len = vsnprintf(NULL, 0, fmt, argp);
+	va_end(argp);
+
 	if (len < 0)
 		return NULL;
-	va_end(argp);
 
 	if (!(dst = apr_pcalloc(pool, len + 1)))
 		return NULL;
