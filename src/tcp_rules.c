@@ -184,7 +184,7 @@ resume_execution:
 				struct stktable_key *key;
 				struct sample smp;
 
-				if (stkctr_entry(&s->stkctr[tcp_trk_idx(rule->action)]))
+				if (stkctr_entry(&s->stkctr[trk_idx(rule->action)]))
 					continue;
 
 				t = rule->arg.trk_ctr.table.t;
@@ -194,10 +194,10 @@ resume_execution:
 					goto missing_data; /* key might appear later */
 
 				if (key && (ts = stktable_get_entry(t, key))) {
-					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
-					stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
+					stream_track_stkctr(&s->stkctr[trk_idx(rule->action)], t, ts);
+					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (sess->fe != s->be)
-						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
+						stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
 			else if (rule->action == ACT_TCP_CAPTURE) {
@@ -440,14 +440,14 @@ int tcp_exec_l4_rules(struct session *sess)
 				 */
 				struct stktable_key *key;
 
-				if (stkctr_entry(&sess->stkctr[tcp_trk_idx(rule->action)]))
+				if (stkctr_entry(&sess->stkctr[trk_idx(rule->action)]))
 					continue;
 
 				t = rule->arg.trk_ctr.table.t;
 				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
-					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
 			}
 			else if (rule->action == ACT_TCP_EXPECT_PX) {
 				conn->flags |= CO_FL_ACCEPT_PROXY;
@@ -527,14 +527,14 @@ int tcp_exec_l5_rules(struct session *sess)
 				 */
 				struct stktable_key *key;
 
-				if (stkctr_entry(&sess->stkctr[tcp_trk_idx(rule->action)]))
+				if (stkctr_entry(&sess->stkctr[trk_idx(rule->action)]))
 					continue;
 
 				t = rule->arg.trk_ctr.table.t;
 				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
-					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
 			}
 			else {
 				/* Custom keywords. */

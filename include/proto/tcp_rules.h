@@ -37,14 +37,6 @@ void tcp_req_sess_keywords_register(struct action_kw_list *kw_list);
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list);
 void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 
-/* for a tcp-request action ACT_TCP_TRK_*, return a tracking index starting at
- * zero for SC0. Unknown actions also return zero.
- */
-static inline int tcp_trk_idx(int trk_action)
-{
-	return trk_action - ACT_ACTION_TRK_SC0;
-}
-
 #endif /* _PROTO_TCP_RULES_H */
 
 /*

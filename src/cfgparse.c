@@ -54,6 +54,7 @@
 #include <types/stats.h>
 
 #include <proto/acl.h>
+#include <proto/action.h>
 #include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
@@ -7879,7 +7880,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -7890,7 +7891,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
@@ -7918,7 +7919,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -7929,7 +7930,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
@@ -7957,7 +7958,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -7968,7 +7969,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      tcp_trk_idx(trule->action));
+				      trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
@@ -8022,7 +8023,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
-				      http_trk_idx(hrqrule->action));
+				      trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -8033,7 +8034,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
-				      http_trk_idx(hrqrule->action));
+				      trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else {
@@ -8061,7 +8062,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
-				      http_trk_idx(hrqrule->action));
+				      trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -8072,7 +8073,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
-				      http_trk_idx(hrqrule->action));
+				      trk_idx(hrqrule->action));
 				cfgerr++;
 			}
 			else {

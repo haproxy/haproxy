@@ -226,14 +226,6 @@ static inline int http_body_bytes(const struct http_msg *msg)
 	return len;
 }
 
-/* for an http-request/response action ACT_ACTION_TRK_SC*, return a tracking index
- * starting at zero for SC0. Unknown actions also return zero.
- */
-static inline int http_trk_idx(int trk_action)
-{
-	return trk_action - ACT_ACTION_TRK_SC0;
-}
-
 #endif /* _PROTO_PROTO_HTTP_H */
 
 /*
