@@ -7449,8 +7449,7 @@ int check_config_validity()
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
-		struct act_rule *trule;
-		struct act_rule *hrqrule;
+		struct act_rule *arule;
 		struct logsrv *tmplogsrv;
 		unsigned int next_id;
 		int nbproc;
@@ -7865,224 +7864,53 @@ int check_config_validity()
 			}
 		}
 
-		/* find the target table for 'tcp-request' layer 4 rules */
-		list_for_each_entry(trule, &curproxy->tcp_req.l4_rules, list) {
-			struct proxy *target;
-
-			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
-				continue;
-
-			if (trule->arg.trk_ctr.table.n)
-				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
-			else
-				target = curproxy;
-
-			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else if (target->table.size == 0) {
-				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
-				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else {
-				free(trule->arg.trk_ctr.table.n);
-				trule->arg.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-sc syntax, we may be able
-				 * to pass a list of counters to track and allocate them right here using
-				 * stktable_alloc_data_type().
-				 */
-			}
-		}
-
-		/* find the target table for 'tcp-request' layer 5 rules */
-		list_for_each_entry(trule, &curproxy->tcp_req.l5_rules, list) {
-			struct proxy *target;
-
-			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
-				continue;
-
-			if (trule->arg.trk_ctr.table.n)
-				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
-			else
-				target = curproxy;
-
-			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else if (target->table.size == 0) {
-				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
-				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else {
-				free(trule->arg.trk_ctr.table.n);
-				trule->arg.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-sc syntax, we may be able
-				 * to pass a list of counters to track and allocate them right here using
-				 * stktable_alloc_data_type().
-				 */
-			}
-		}
-
-		/* find the target table for 'tcp-request' layer 6 rules */
-		list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
-			struct proxy *target;
-
-			if (trule->action < ACT_ACTION_TRK_SC0 || trule->action > ACT_ACTION_TRK_SCMAX)
-				continue;
-
-			if (trule->arg.trk_ctr.table.n)
-				target = proxy_tbl_by_name(trule->arg.trk_ctr.table.n);
-			else
-				target = curproxy;
-
-			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else if (target->table.size == 0) {
-				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(trule->arg.trk_ctr.expr,  target->table.type)) {
-				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, trule->arg.trk_ctr.table.n ? trule->arg.trk_ctr.table.n : curproxy->id,
-				      trk_idx(trule->action));
-				cfgerr++;
-			}
-			else {
-				free(trule->arg.trk_ctr.table.n);
-				trule->arg.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-sc syntax, we may be able
-				 * to pass a list of counters to track and allocate them right here using
-				 * stktable_alloc_data_type().
-				 */
-			}
-		}
-
-		/* parse http-request capture rules to ensure id really exists */
-		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
-			if (hrqrule->action  != ACT_CUSTOM ||
-			    hrqrule->action_ptr != http_action_req_capture_by_id)
-				continue;
-
-			if (hrqrule->arg.capid.idx >= curproxy->nb_req_cap) {
-				Alert("Proxy '%s': unable to find capture id '%d' referenced by http-request capture rule.\n",
-				      curproxy->id, hrqrule->arg.capid.idx);
+		/* check validity for 'tcp-request' layer 4 rules */
+		list_for_each_entry(arule, &curproxy->tcp_req.l4_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				Alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
 				cfgerr++;
 			}
 		}
 
-		/* parse http-response capture rules to ensure id really exists */
-		list_for_each_entry(hrqrule, &curproxy->http_res_rules, list) {
-			if (hrqrule->action  != ACT_CUSTOM ||
-			    hrqrule->action_ptr != http_action_res_capture_by_id)
-				continue;
-
-			if (hrqrule->arg.capid.idx >= curproxy->nb_rsp_cap) {
-				Alert("Proxy '%s': unable to find capture id '%d' referenced by http-response capture rule.\n",
-				      curproxy->id, hrqrule->arg.capid.idx);
+		/* check validity for 'tcp-request' layer 5 rules */
+		list_for_each_entry(arule, &curproxy->tcp_req.l5_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				Alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
 				cfgerr++;
 			}
 		}
 
-		/* find the target table for 'http-request' layer 7 rules */
-		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
-			struct proxy *target;
-
-			if (hrqrule->action < ACT_ACTION_TRK_SC0 || hrqrule->action > ACT_ACTION_TRK_SCMAX)
-				continue;
-
-			if (hrqrule->arg.trk_ctr.table.n)
-				target = proxy_tbl_by_name(hrqrule->arg.trk_ctr.table.n);
-			else
-				target = curproxy;
-
-			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
-				      trk_idx(hrqrule->action));
+		/* check validity for 'tcp-request' layer 6 rules */
+		list_for_each_entry(arule, &curproxy->tcp_req.inspect_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				Alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
 				cfgerr++;
-			}
-			else if (target->table.size == 0) {
-				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
-				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
-				      trk_idx(hrqrule->action));
-				cfgerr++;
-			}
-			else {
-				free(hrqrule->arg.trk_ctr.table.n);
-				hrqrule->arg.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-sc syntax, we may be able
-				 * to pass a list of counters to track and allocate them right here using
-				 * stktable_alloc_data_type().
-				 */
 			}
 		}
 
-		/* find the target table for 'http-response' layer 7 rules */
-		list_for_each_entry(hrqrule, &curproxy->http_res_rules, list) {
-			struct proxy *target;
-
-			if (hrqrule->action < ACT_ACTION_TRK_SC0 || hrqrule->action > ACT_ACTION_TRK_SCMAX)
-				continue;
-
-			if (hrqrule->arg.trk_ctr.table.n)
-				target = proxy_tbl_by_name(hrqrule->arg.trk_ctr.table.n);
-			else
-				target = curproxy;
-
-			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n,
-				      trk_idx(hrqrule->action));
+		/* check validity for 'http-request' layer 7 rules */
+		list_for_each_entry(arule, &curproxy->http_req_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				Alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
 				cfgerr++;
 			}
-			else if (target->table.size == 0) {
-				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id);
+		}
+
+		/* check validity for 'http-response' layer 7 rules */
+		list_for_each_entry(arule, &curproxy->http_res_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				Alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
 				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(hrqrule->arg.trk_ctr.expr,  target->table.type)) {
-				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
-				      curproxy->id, hrqrule->arg.trk_ctr.table.n ? hrqrule->arg.trk_ctr.table.n : curproxy->id,
-				      trk_idx(hrqrule->action));
-				cfgerr++;
-			}
-			else {
-				free(hrqrule->arg.trk_ctr.table.n);
-				hrqrule->arg.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-sc syntax, we may be able
-				 * to pass a list of counters to track and allocate them right here using
-				 * stktable_alloc_data_type().
-				 */
 			}
 		}
 
@@ -8802,16 +8630,16 @@ out_uri_auth_compat:
 		 * with no inspect-delay
 		 */
 		if ((curproxy->cap & PR_CAP_FE) && !curproxy->tcp_req.inspect_delay) {
-			list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
-				if (trule->action == ACT_TCP_CAPTURE &&
-				    !(trule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+			list_for_each_entry(arule, &curproxy->tcp_req.inspect_rules, list) {
+				if (arule->action == ACT_TCP_CAPTURE &&
+				    !(arule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
-				if  ((trule->action >= ACT_ACTION_TRK_SC0 && trule->action <= ACT_ACTION_TRK_SCMAX) &&
-				     !(trule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+				if  ((arule->action >= ACT_ACTION_TRK_SC0 && arule->action <= ACT_ACTION_TRK_SCMAX) &&
+				     !(arule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
 			}
 
-			if (&trule->list != &curproxy->tcp_req.inspect_rules) {
+			if (&arule->list != &curproxy->tcp_req.inspect_rules) {
 				Warning("config : %s '%s' : some 'tcp-request content' rules explicitly depending on request"
 				        " contents were found in a frontend without any 'tcp-request inspect-delay' setting."
 				        " This means that these rules will randomly find their contents. This can be fixed by"
