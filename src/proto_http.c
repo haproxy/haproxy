@@ -11949,6 +11949,22 @@ enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct prox
 	return ACT_RET_CONT;
 }
 
+/* Check an "http-request capture" action.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int check_http_req_capture(struct act_rule *rule, struct proxy *px, char **err)
+{
+	if (rule->arg.capid.idx >= px->nb_req_cap) {
+		memprintf(err, "unable to find capture id '%d' referenced by http-request capture rule",
+			  rule->arg.capid.idx);
+		return 0;
+	}
+
+	return 1;
+}
+
 /* parse an "http-request capture" action. It takes a single argument which is
  * a sample fetch expression. It stores the expression into arg->act.p[0] and
  * the allocated hdr_cap struct or the preallocated "id" into arg->act.p[1].
@@ -12034,6 +12050,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture;
+		rule->check_ptr    = check_http_req_capture;
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr  = hdr;
 	}
@@ -12062,6 +12079,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture_by_id;
+		rule->check_ptr    = check_http_req_capture;
 		rule->arg.capid.expr = expr;
 		rule->arg.capid.idx  = id;
 	}
@@ -12115,6 +12133,22 @@ enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct prox
 	memcpy(cap[h->index], key->data.u.str.str, len);
 	cap[h->index][len] = 0;
 	return ACT_RET_CONT;
+}
+
+/* Check an "http-response capture" action.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int check_http_res_capture(struct act_rule *rule, struct proxy *px, char **err)
+{
+	if (rule->arg.capid.idx >= px->nb_rsp_cap) {
+		memprintf(err, "unable to find capture id '%d' referenced by http-response capture rule",
+			  rule->arg.capid.idx);
+		return 0;
+	}
+
+	return 1;
 }
 
 /* parse an "http-response capture" action. It takes a single argument which is
@@ -12185,6 +12219,7 @@ enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, stru
 
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_res_capture_by_id;
+	rule->check_ptr    = check_http_res_capture;
 	rule->arg.capid.expr = expr;
 	rule->arg.capid.idx  = id;
 
