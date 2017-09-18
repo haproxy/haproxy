@@ -68,4 +68,12 @@ static inline void action_build_list(struct list *keywords, struct chunk *chk)
 		*p = '\0';
 }
 
+/* for an action ACT_ACTION_TRK_SC*, return a tracking index starting at zero
+ * for SC0. Unknown actions also return zero.
+ */
+static inline int trk_idx(int trk_action)
+{
+	return trk_action - ACT_ACTION_TRK_SC0;
+}
+
 #endif /* _PROTO_ACTION_H */
