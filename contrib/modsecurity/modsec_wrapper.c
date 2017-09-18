@@ -105,9 +105,10 @@ static char *printf_dup(struct request_rec *req, char *fmt, ...)
 
 	va_start(ap, fmt);
 	len = vsnprintf(NULL, 0, fmt, ap);
+	va_end(ap);
+
 	if (len == -1)
 		return NULL;
-	va_end(ap);
 
 	out = apr_pcalloc(req->pool, len + 1);
 	if (!out)
@@ -115,9 +116,10 @@ static char *printf_dup(struct request_rec *req, char *fmt, ...)
 
 	va_start(ap, fmt);
 	len = vsnprintf(out, len + 1, fmt, ap);
+	va_end(ap);
+
 	if (len == -1)
 		return NULL;
-	va_end(ap);
 
 	return out;
 }
