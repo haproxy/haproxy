@@ -29,20 +29,6 @@
 #include "proto/shctx.h"
 #include <proto/openssl-compat.h>
 
-struct shsess_packet_hdr {
-	unsigned int eol;
-	unsigned char final:1;
-	unsigned char seq:7;
-	unsigned char id[SSL_MAX_SSL_SESSION_ID_LENGTH];
-};
-
-struct shsess_packet {
-	unsigned char version;
-	unsigned char sig[SHA_DIGEST_LENGTH];
-	struct shsess_packet_hdr hdr;
-	unsigned char data[0];
-};
-
 struct shared_session {
 	struct ebmb_node key;
 	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
@@ -67,9 +53,6 @@ struct shared_context {
 	unsigned int waiters;
 #endif
 #endif
-	struct shsess_packet_hdr upd;
-	unsigned char data[SHSESS_MAX_DATA_LEN];
-	short int data_len;
 	struct shared_block active;
 	struct shared_block free;
 };
@@ -388,8 +371,8 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 /* SSL callback used on new session creation */
 int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 {
-	unsigned char encsess[sizeof(struct shsess_packet)+SHSESS_MAX_DATA_LEN];
-	struct shsess_packet *packet = (struct shsess_packet *)encsess;
+	unsigned char encsess[SHSESS_MAX_DATA_LEN];           /* encoded session  */
+	unsigned char encid[SSL_MAX_SSL_SESSION_ID_LENGTH];   /* encoded id */
 	unsigned char *p;
 	int data_len;
 	unsigned int sid_length, sid_ctx_length;
@@ -410,18 +393,19 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	if (data_len > SHSESS_MAX_DATA_LEN)
 		goto err;
 
+	p = encsess;
+
 	/* process ASN1 session encoding before the lock */
-	p = packet->data;
 	i2d_SSL_SESSION(sess, &p);
 
-	memcpy(packet->hdr.id, sid_data, sid_length);
+	memcpy(encid, sid_data, sid_length);
 	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
-		memset(&packet->hdr.id[sid_length], 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
+		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
 	shared_context_lock();
 
 	/* store to cache */
-	shsess_store(packet->hdr.id, packet->data, data_len);
+	shsess_store(encid, encsess, data_len);
 
 	shared_context_unlock();
 
@@ -616,11 +600,6 @@ int shared_context_init(int size, int shared)
 
 	/* No duplicate authorized in tree: */
 	shctx->active.data.session.key.node.branches = EB_ROOT_UNIQUE;
-
-	/* Init remote update cache */
-	shctx->upd.eol = 0;
-	shctx->upd.seq = 0;
-	shctx->data_len = 0;
 
 	cur = &shctx->active;
 	cur->n = cur->p = cur;
