@@ -773,6 +773,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		}
 		rule->arg.trk_ctr.expr = expr;
 		rule->action = ACT_ACTION_TRK_SC0 + args[kw][8] - '0';
+		rule->check_ptr = check_trk_action;
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {
 		if (strcmp(args[arg+1], "layer4") != 0) {

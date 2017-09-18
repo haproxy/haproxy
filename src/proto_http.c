@@ -8404,6 +8404,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		}
 		rule->arg.trk_ctr.expr = expr;
 		rule->action = ACT_ACTION_TRK_SC0 + args[0][8] - '0';
+		rule->check_ptr = check_trk_action;
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
@@ -9008,6 +9009,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		}
 		rule->arg.trk_ctr.expr = expr;
 		rule->action = ACT_ACTION_TRK_SC0 + args[0][8] - '0';
+		rule->check_ptr = check_trk_action;
 	} else if (((custom = action_http_res_custom(args[0])) != NULL)) {
 		char *errmsg = NULL;
 		cur_arg = 1;

@@ -76,4 +76,12 @@ static inline int trk_idx(int trk_action)
 	return trk_action - ACT_ACTION_TRK_SC0;
 }
 
+/* Find and check the target table used by an action ACT_ACTION_TRK_*. This
+ * function should be called during the configuration validity check.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int check_trk_action(struct act_rule *rule, struct proxy *px, char **err);
+
 #endif /* _PROTO_ACTION_H */
