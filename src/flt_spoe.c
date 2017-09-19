@@ -2967,7 +2967,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 	if ((cfg_scope == NULL && curengine != NULL) ||
 	    (cfg_scope != NULL && curengine == NULL) ||
-	    strcmp(curengine, cfg_scope))
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
 		goto out;
 
 	if (!strcmp(args[0], "spoe-agent")) { /* new spoe-agent section */
@@ -3274,7 +3274,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 
 	if ((cfg_scope == NULL && curengine != NULL) ||
 	    (cfg_scope != NULL && curengine == NULL) ||
-	    strcmp(curengine, cfg_scope))
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
 		goto out;
 
 	if (!strcmp(args[0], "spoe-message")) { /* new spoe-message section */
