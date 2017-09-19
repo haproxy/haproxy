@@ -1333,11 +1333,11 @@ int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend, struct
 					free_dns_answer_item(dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
-				dns_answer_record->priority = readn16(reader);
+				dns_answer_record->priority = read_n16(reader);
 				reader += sizeof(uint16_t);
-				dns_answer_record->weight = readn16(reader);
+				dns_answer_record->weight = read_n16(reader);
 				reader += sizeof(uint16_t);
-				dns_answer_record->port = readn16(reader);
+				dns_answer_record->port = read_n16(reader);
 				reader += sizeof(uint16_t);
 				offset = 0;
 				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
