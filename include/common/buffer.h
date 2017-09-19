@@ -79,6 +79,17 @@ void buffer_slow_realign(struct buffer *buf);
 		__ret;                                          \
 	})
 
+/* Skips <del> bytes in a one-way buffer <b> : <p> advances by <del>, <i>
+ * shrinks by <del> as well, and <o> is left untouched (supposed to be zero).
+ * The caller is responsible for ensuring that <del> is always smaller than or
+ * equal to b->i.
+ */
+static inline void b_del(struct buffer *b, unsigned int del)
+{
+	b->i -= del;
+	b->p = b_ptr(b, del);
+}
+
 /* Advances the buffer by <adv> bytes, which means that the buffer
  * pointer advances, and that as many bytes from in are transferred
  * to out. The caller is responsible for ensuring that adv is always
