@@ -237,6 +237,8 @@ struct spoe_agent {
 
 /* SPOE filter configuration */
 struct spoe_config {
+	char              *id;          /* The SPOE engine name. If undefined in HAProxy config,
+					 * it will be set with the SPOE agent name */
 	struct proxy      *proxy;       /* Proxy owning the filter */
 	struct spoe_agent *agent;       /* Agent used by this filter */
 	struct proxy       agent_fe;    /* Agent frontend */

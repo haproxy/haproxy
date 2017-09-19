@@ -140,6 +140,9 @@ If no engine name is provided on the SPOE filter line, no SPOE scope must be
 found in the SPOE configuration file. All the file is considered to be in the
 same anonymous and implicit scope.
 
+The engine name must be uniq for a proxy. If no engine name is provided on the
+SPOE filter line, the SPOE agent name is unsed by default.
+
 2.2. "spoe-agent" section
 --------------------------
 

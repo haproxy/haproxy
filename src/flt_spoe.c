@@ -2745,6 +2745,7 @@ spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 		struct spoe_agent *agent = conf->agent;
 
 		spoe_release_agent(agent);
+		free(conf->id);
 		free(conf);
 	}
 	fconf->conf = NULL;
@@ -2755,8 +2756,29 @@ spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 static int
 spoe_check(struct proxy *px, struct flt_conf *fconf)
 {
+	struct flt_conf    *f;
 	struct spoe_config *conf = fconf->conf;
 	struct proxy       *target;
+
+	/* Check all SPOE filters for proxy <px> to be sure all SPOE agent names
+	 * are uniq */
+	list_for_each_entry(f, &px->filter_configs, list) {
+		struct spoe_config *c = f->conf;
+
+		/* This is not an SPOE filter */
+		if (f->id != spoe_filter_id)
+			continue;
+		/* This is the current SPOE filter */
+		if (f == fconf)
+			continue;
+
+		/* Check engine Id. It should be uniq */
+		if (!strcmp(conf->id, c->id)) {
+			Alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
+			      px->id, conf->id);
+			return 1;
+		}
+	}
 
 	target = proxy_be_by_name(conf->agent->b.name);
 	if (target == NULL) {
@@ -3707,6 +3729,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 
  finish:
+	conf->id    = strdup(engine ? engine : curagent->id);
 	conf->agent = curagent;
 	list_for_each_entry_safe(mp, mpback, &curmps, list) {
 		LIST_DEL(&mp->list);
