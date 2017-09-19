@@ -79,6 +79,18 @@ void buffer_slow_realign(struct buffer *buf);
 		__ret;                                          \
 	})
 
+/* Returns the pointer to the buffer's end (data+size) */
+static inline const char *b_end(const struct buffer *b)
+{
+	return b->data + b->size;
+}
+
+/* Returns the distance between <p> and the buffer's end (data+size) */
+static inline unsigned int b_to_end(const struct buffer *b)
+{
+	return b->data + b->size - b->p;
+}
+
 /* Skips <del> bytes in a one-way buffer <b> : <p> advances by <del>, <i>
  * shrinks by <del> as well, and <o> is left untouched (supposed to be zero).
  * The caller is responsible for ensuring that <del> is always smaller than or
