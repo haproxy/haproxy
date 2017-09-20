@@ -28,6 +28,7 @@
 #define _COMMON_NET_HELPER_H
 
 #include <common/compiler.h>
+#include <common/standard.h>
 #include <arpa/inet.h>
 
 /* Functions to read/write various integers that may be unaligned */
@@ -58,6 +59,20 @@ static inline void write_u32(void *p, const uint32_t u32)
 {
 	union {  uint32_t u32; } __attribute__((packed))*u = p;
 	u->u32 = u32;
+}
+
+/* Read a uint64_t in native host order */
+static inline uint64_t read_u64(const void *p)
+{
+        const union {  uint64_t u64; } __attribute__((packed))*u = p;
+        return u->u64;
+}
+
+/* Write a uint64_t in native host order */
+static inline void write_u64(void *p, const uint64_t u64)
+{
+	union {  uint64_t u64; } __attribute__((packed))*u = p;
+	u->u64 = u64;
 }
 
 /* Read a possibly wrapping number of bytes <bytes> into destination <dst>. The
@@ -177,6 +192,35 @@ static inline void writev_u32(void *p1, size_t s1, void *p2, const uint32_t u32)
 		writev_bytes(&u32, sizeof(u32), p1, s1, p2);
 }
 
+/* Read a possibly wrapping uint64_t in native host order. The first segment is
+ * composed of <s1> bytes at p1. The remaining byte(s), if any, are read from
+ * <p2>. <s1> may be zero and may be larger than the type. The caller is always
+ * responsible for providing enough bytes.
+ */
+static inline uint64_t readv_u64(const void *p1, size_t s1, const void *p2)
+{
+	uint64_t u64;
+
+	if (!unlikely(s1 < sizeof(u64)))
+		u64 = read_u64(p1);
+	else
+		readv_bytes(&u64, sizeof(u64), p1, s1, p2);
+	return u64;
+}
+
+/* Write a possibly wrapping uint64_t in native host order. The first segment is
+ * composed of <s1> bytes at p1. The remaining byte(s), if any, are written to
+ * <p2>. <s1> may be zero and may be larger than the type. The caller is always
+ * responsible for providing enough room.
+ */
+static inline void writev_u64(void *p1, size_t s1, void *p2, const uint64_t u64)
+{
+	if (!unlikely(s1 < sizeof(u64)))
+		write_u64(p1, u64);
+	else
+		writev_bytes(&u64, sizeof(u64), p1, s1, p2);
+}
+
 /* Signed integer versions : return the same data but signed */
 
 /* Read an int16_t in native host order */
@@ -191,6 +235,12 @@ static inline int32_t read_i32(const void *p)
 	return read_u32(p);
 }
 
+/* Read an int64_t in native host order */
+static inline int64_t read_i64(const void *p)
+{
+	return read_u64(p);
+}
+
 /* Read a possibly wrapping int16_t in native host order */
 static inline int16_t readv_i16(const void *p1, size_t s1, const void *p2)
 {
@@ -201,6 +251,12 @@ static inline int16_t readv_i16(const void *p1, size_t s1, const void *p2)
 static inline int32_t readv_i32(const void *p1, size_t s1, const void *p2)
 {
 	return readv_u32(p1, s1, p2);
+}
+
+/* Read a possibly wrapping int64_t in native host order */
+static inline int64_t readv_i64(const void *p1, size_t s1, const void *p2)
+{
+	return readv_u64(p1, s1, p2);
 }
 
 /* Read a uint16_t, and convert from network order to host order */
@@ -225,6 +281,18 @@ static inline uint32_t read_n32(const void *p)
 static inline void write_n32(void *p, const uint32_t u32)
 {
 	write_u32(p, htonl(u32));
+}
+
+/* Read a uint64_t, and convert from network order to host order */
+static inline uint64_t read_n64(const void *p)
+{
+	return my_ntohll(read_u64(p));
+}
+
+/* Write a uint64_t after converting it from host order to network order */
+static inline void write_n64(void *p, const uint64_t u64)
+{
+	write_u64(p, my_htonll(u64));
 }
 
 /* Read a possibly wrapping uint16_t in network order. The first segment is
@@ -278,6 +346,26 @@ static inline uint32_t readv_n32(const void *p1, size_t s1, const void *p2)
 static inline void writev_n32(void *p1, size_t s1, void *p2, const uint32_t u32)
 {
 	writev_u32(p1, s1, p2, htonl(u32));
+}
+
+/* Read a possibly wrapping uint64_t in network order. The first segment is
+ * composed of <s1> bytes at p1. The remaining byte(s), if any, are read from
+ * <p2>. <s1> may be zero and may be larger than the type. The caller is always
+ * responsible for providing enough bytes.
+ */
+static inline uint64_t readv_n64(const void *p1, size_t s1, const void *p2)
+{
+	return my_ntohll(readv_u64(p1, s1, p2));
+}
+
+/* Write a possibly wrapping uint64_t in network order. The first segment is
+ * composed of <s1> bytes at p1. The remaining byte(s), if any, are written to
+ * <p2>. <s1> may be zero and may be larger than the type. The caller is always
+ * responsible for providing enough room.
+ */
+static inline void writev_n64(void *p1, size_t s1, void *p2, const uint64_t u64)
+{
+	writev_u64(p1, s1, p2, my_htonll(u64));
 }
 
 #endif /* COMMON_NET_HELPER_H */
