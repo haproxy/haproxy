@@ -107,7 +107,7 @@ enum {
 	/* flags used to report connection errors or other closing conditions */
 	CO_FL_ERROR         = 0x00100000,  /* a fatal error was reported     */
 	CO_FL_NOTIFY_DONE   = 0x001C0000,  /* any xprt shut/error flags above needs to be reported */
-	CO_FL_NOTIFY_DATA   = 0x001F0000,  /* any shut/error flags above needs to be reported */
+	CO_FL_NOTIFY_DATA   = 0x001C0000,  /* any shut/error flags above needs to be reported */
 
 	/* flags used to report connection status updates */
 	CO_FL_CONNECTED     = 0x00200000,  /* L4+L6 now ready ; extra handshakes may or may not exist */
