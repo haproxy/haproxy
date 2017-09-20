@@ -1201,6 +1201,10 @@ static inline unsigned char utf8_return_length(unsigned char code)
  */
 static inline unsigned long long my_htonll(unsigned long long a)
 {
+#if defined(__x86_64__)
+	__asm__ volatile("bswap %0" : "=r"(a));
+	return a;
+#else
 	union {
 		struct {
 			unsigned int w1;
@@ -1209,6 +1213,7 @@ static inline unsigned long long my_htonll(unsigned long long a)
 		unsigned long long by64;
 	} w = { .by64 = a };
 	return ((unsigned long long)htonl(w.by32.w1) << 32) | htonl(w.by32.w2);
+#endif
 }
 
 /* Turns 64-bit value <a> from network byte order to host byte order. */
