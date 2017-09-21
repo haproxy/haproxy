@@ -24,6 +24,7 @@
 #include <types/spoe.h>
 
 #include <proto/acl.h>
+#include <proto/action.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/filters.h>
@@ -39,6 +40,7 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
@@ -2655,6 +2657,7 @@ spoe_create_context(struct filter *filter)
 	ctx->status_code = SPOE_CTX_ERR_NONE;
 	ctx->flags       = 0;
 	ctx->events      = conf->agent->events;
+	ctx->groups      = &conf->agent->groups;
 	ctx->buffer      = &buf_empty;
 	LIST_INIT(&ctx->buffer_wait.list);
 	ctx->buffer_wait.target = ctx;
@@ -3786,8 +3789,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 					goto next_mph;
 				}
 				if (msg->event == SPOE_EV_NONE) {
-					Warning("Proxy '%s': Ignore SPOE message without event at %s:%d.\n",
-						px->id, msg->conf.file, msg->conf.line);
+					Warning("Proxy '%s': Ignore SPOE message '%s' without event at %s:%d.\n",
+						px->id, msg->id, msg->conf.file, msg->conf.line);
 					goto next_mph;
 				}
 
@@ -3843,13 +3846,13 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 				list_for_each_entry(arg, &msg->args, list) {
 					if (!(arg->expr->fetch->val & where)) {
-						Warning("Proxy '%s': Ignore SPOE message at %s:%d: "
+						memprintf(err, "Ignore SPOE message '%s' at %s:%d: "
 							"some args extract information from '%s', "
-							"none of which is available here ('%s').\n",
-							px->id, msg->conf.file, msg->conf.line,
+							"none of which is available here ('%s')",
+							msg->id, msg->conf.file, msg->conf.line,
 							sample_ckp_names(arg->expr->fetch->use),
 							sample_ckp_names(where));
-						goto next_mph;
+						goto error;
 					}
 				}
 
@@ -3964,6 +3967,164 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Send a SPOE group. TODO */
+static enum act_return
+spoe_send_group(struct act_rule *rule, struct proxy *px,
+		struct session *sess, struct stream *s, int flags)
+{
+	struct filter      *filter;
+	struct spoe_agent   *agent = NULL;
+	struct spoe_group   *group = NULL;
+	struct spoe_context *ctx   = NULL;
+	int ret, dir;
+
+	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		if (filter->config == rule->arg.act.p[0]) {
+			agent = rule->arg.act.p[2];
+			group = rule->arg.act.p[3];
+			ctx   = filter->ctx;
+			break;
+		}
+	}
+	if (agent == NULL || group == NULL || ctx == NULL)
+		return ACT_RET_ERR;
+
+	/* TODO */
+	return ACT_RET_CONT;
+}
+
+/* Check an "send-spoe-group" action. Here, we'll try to find the real SPOE
+ * group associated to <rule>. The format of an rule using 'send-spoe-group'
+ * action should be:
+ *
+ *   (http|tcp)-(request|response) send-spoe-group <engine-id> <group-id>
+ *
+ * So, we'll loop on each configured SPOE filter for the proxy <px> to find the
+ * SPOE engine matching <engine-id>. And then, we'll try to find the good group
+ * matching <group-id>. Finally, we'll check all messages referenced by the SPOE
+ * group.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+static int
+check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
+{
+	struct flt_conf     *fconf;
+	struct spoe_config  *conf;
+	struct spoe_agent   *agent = NULL;
+	struct spoe_group   *group;
+	struct spoe_message *msg;
+	char                *engine_id = rule->arg.act.p[0];
+	char                *group_id  = rule->arg.act.p[1];
+	unsigned int         where = 0;
+
+	switch (rule->from) {
+		case ACT_F_TCP_REQ_SES: where = SMP_VAL_FE_SES_ACC; break;
+		case ACT_F_TCP_REQ_CNT: where = SMP_VAL_FE_REQ_CNT; break;
+		case ACT_F_TCP_RES_CNT: where = SMP_VAL_BE_RES_CNT; break;
+		case ACT_F_HTTP_REQ:    where = SMP_VAL_FE_HRQ_HDR; break;
+		case ACT_F_HTTP_RES:    where = SMP_VAL_BE_HRS_HDR; break;
+		default:
+			memprintf(err,
+				  "internal error, unexpected rule->from=%d, please report this bug!",
+				  rule->from);
+			goto error;
+	}
+
+	/* Try to find the SPOE engine by checking all SPOE filters for proxy
+	 * <px> */
+	list_for_each_entry(fconf, &px->filter_configs, list) {
+		conf = fconf->conf;
+
+		/* This is not an SPOE filter */
+		if (fconf->id != spoe_filter_id)
+			continue;
+
+		/* This is the good engine */
+		if (!strcmp(conf->id, engine_id)) {
+			agent = conf->agent;
+			break;
+		}
+	}
+	if (agent == NULL) {
+		memprintf(err, "unable to find SPOE engine '%s' used by the send-spoe-group '%s'",
+			  engine_id, group_id);
+		goto error;
+	}
+
+	/* Try to find the right group */
+	list_for_each_entry(group, &agent->groups, list) {
+		/* This is the good group */
+		if (!strcmp(group->id, group_id))
+			break;
+	}
+	if (&group->list == &agent->groups) {
+		memprintf(err, "unable to find SPOE group '%s' into SPOE engine '%s' configuration",
+			  group_id, engine_id);
+		goto error;
+	}
+
+	/* Ok, we found the group, we need to check messages and their
+	 * arguments */
+	list_for_each_entry(msg, &group->messages, by_grp) {
+		struct spoe_arg *arg;
+
+		list_for_each_entry(arg, &msg->args, list) {
+			if (!(arg->expr->fetch->val & where)) {
+				memprintf(err, "Invalid SPOE message '%s' used by SPOE group '%s' at %s:%d: "
+					  "some args extract information from '%s',"
+					  "none of which is available here ('%s')",
+					  msg->id, group->id, msg->conf.file, msg->conf.line,
+					  sample_ckp_names(arg->expr->fetch->use),
+					  sample_ckp_names(where));
+				goto error;
+			}
+		}
+	}
+
+	free(engine_id);
+	free(group_id);
+	rule->arg.act.p[0] = fconf; /* Associate filter config with the rule */
+	rule->arg.act.p[1] = conf;  /* Associate SPOE config with the rule */
+	rule->arg.act.p[2] = agent; /* Associate SPOE agent with the rule */
+	rule->arg.act.p[3] = group; /* Associate SPOE group with the rule */
+	return 1;
+
+  error:
+	free(engine_id);
+	free(group_id);
+	return 0;
+}
+
+/* Parse 'send-spoe-group' action following the format:
+ *
+ *     ... send-spoe-group <engine-id> <group-id>
+ *
+ * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error
+ * message. Otherwise, it returns ACT_RET_PRS_OK and parsing engine and group
+ * ids are saved and used later, when the rule will be checked.
+ */
+static enum act_parse_ret
+parse_send_spoe_group(const char **args, int *orig_arg, struct proxy *px,
+		      struct act_rule *rule, char **err)
+{
+	if (!*args[*orig_arg] || !*args[*orig_arg+1] ||
+	    (*args[*orig_arg+2] && strcmp(args[*orig_arg+2], "if") != 0 && strcmp(args[*orig_arg+2], "unless") != 0)) {
+		memprintf(err, "expects 2 arguments: <engine-id> <group-id>");
+		return ACT_RET_PRS_ERR;
+	}
+	rule->arg.act.p[0] = strdup(args[*orig_arg]);   /* Copy the SPOE engine id */
+	rule->arg.act.p[1] = strdup(args[*orig_arg+1]); /* Cope the SPOE group id */
+
+	(*orig_arg) += 2;
+
+	rule->action     = ACT_CUSTOM;
+	rule->action_ptr = spoe_send_group;
+	rule->check_ptr  = check_send_spoe_group;
+	return ACT_RET_PRS_OK;
+}
+
 
 /* Declare the filter parser for "spoe" keyword */
 static struct flt_kw_list flt_kws = { "SPOE", { }, {
@@ -3972,10 +4133,36 @@ static struct flt_kw_list flt_kws = { "SPOE", { }, {
 	}
 };
 
+/* Delcate the action parser for "spoe-action" keyword */
+static struct action_kw_list tcp_req_action_kws = { { }, {
+		{ "send-spoe-group", parse_send_spoe_group },
+		{ /* END */ },
+	}
+};
+static struct action_kw_list tcp_res_action_kws = { { }, {
+		{ "send-spoe-group", parse_send_spoe_group },
+		{ /* END */ },
+	}
+};
+static struct action_kw_list http_req_action_kws = { { }, {
+		{ "send-spoe-group", parse_send_spoe_group },
+		{ /* END */ },
+	}
+};
+static struct action_kw_list http_res_action_kws = { { }, {
+		{ "send-spoe-group", parse_send_spoe_group },
+		{ /* END */ },
+	}
+};
+
 __attribute__((constructor))
 static void __spoe_init(void)
 {
 	flt_register_keywords(&flt_kws);
+	tcp_req_cont_keywords_register(&tcp_req_action_kws);
+	tcp_res_cont_keywords_register(&tcp_res_action_kws);
+	http_req_keywords_register(&http_req_action_kws);
+	http_res_keywords_register(&http_res_action_kws);
 
 	pool2_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
 	pool2_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);

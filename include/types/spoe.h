@@ -276,6 +276,7 @@ struct spoe_context {
 	struct stream      *strm;         /* The stream that should be offloaded */
 
 	struct list        *events;       /* List of messages that will be sent during the stream processing */
+	struct list        *groups;       /* List of available SPOE group */
 
 	struct buffer      *buffer;       /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;  /* position in the list of ressources waiting for a buffer */

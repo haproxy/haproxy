@@ -3771,6 +3771,7 @@ http-request { allow | auth [realm <realm>] | redirect <rule> |
               sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
               silent-drop |
+	      send-spoe-group
              }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -4167,9 +4168,22 @@ http-request { allow | auth [realm <realm>] | redirect <rule> |
       pass the first router, though it's still delivered to local networks. Do
       not use it unless you fully understand how it works.
 
+
     - "wait-for-handshake" : this will delay the processing of the request
       until the SSL handshake happened. This is mostly useful to delay
       processing early data until we're sure they are valid.
+
+    - send-spoe-group <engine-name> <group-name> :
+      This action is used to trigger sending of a group of SPOE messages. To do
+      so, the SPOE engine used to send messages must be defined, as well as the
+      SPOE group to send. Of course, the SPOE engine must refer to an existing
+      SPOE filter. If not engine name is provided on the SPOE filter line, the
+      SPOE agent name must be used.
+
+        <engine-name> The SPOE engine name.
+
+        <group-name>  The SPOE group name as specified in the engine
+                      configuration.
 
   There is no limit to the number of http-request statements per instance.
 
@@ -4248,6 +4262,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 silent-drop |
+		send-spoe-group
               }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
@@ -4498,6 +4513,18 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       systems, the socket's TTL is reduced to 1 so that the TCP reset doesn't
       pass the first router, though it's still delivered to local networks. Do
       not use it unless you fully understand how it works.
+
+    - send-spoe-group <engine-name> <group-name> :
+      This action is used to trigger sending of a group of SPOE messages. To do
+      so, the SPOE engine used to send messages must be defined, as well as the
+      SPOE group to send. Of course, the SPOE engine must refer to an existing
+      SPOE filter. If not engine name is provided on the SPOE filter line, the
+      SPOE agent name must be used.
+
+        <engine-name> The SPOE engine name.
+
+        <group-name>  The SPOE group name as specified in the engine
+                      configuration.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -9240,6 +9267,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
     - silent-drop
+    - send-spoe-group <engin-name> <group-name>
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -9292,6 +9320,16 @@ tcp-request content <action> [{if | unless} <condition>]
 
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
+
+  The "send-spoe-group" is used to trigger sending of a group of SPOE
+  messages. To do so, the SPOE engine used to send messages must be defined, as
+  well as the SPOE group to send. Of course, the SPOE engine must refer to an
+  existing SPOE filter. If not engine name is provided on the SPOE filter line,
+  the SPOE agent name must be used.
+
+    <engine-name> The SPOE engine name.
+
+    <group-name>  The SPOE group name as specified in the engine configuration.
 
   Example:
 
@@ -9483,6 +9521,9 @@ tcp-response content <action> [{if | unless} <condition>]
         TCP reset doesn't pass the first router, though it's still delivered to
         local networks. Do not use it unless you fully understand how it works.
 
+    - send-spoe-group <engine-name> <group-name>
+        Send a group of SPOE messages.
+
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
   for changing the default action to a reject.
@@ -9523,6 +9564,16 @@ tcp-response content <action> [{if | unless} <condition>]
   Example:
 
         tcp-request content unset-var(sess.my_var)
+
+  The "send-spoe-group" is used to trigger sending of a group of SPOE
+  messages. To do so, the SPOE engine used to send messages must be defined, as
+  well as the SPOE group to send. Of course, the SPOE engine must refer to an
+  existing SPOE filter. If not engine name is provided on the SPOE filter line,
+  the SPOE agent name must be used.
+
+    <engine-name> The SPOE engine name.
+
+    <group-name>  The SPOE group name as specified in the engine configuration.
 
   See section 7 about ACL usage.
 
