@@ -172,21 +172,24 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	return bytes;
 }
 
-/* Parse the chunk size at msg->next. Once done, caller should adjust ->next to
- * point to the first byte of data after the chunk size, so that we know we can
- * forward exactly msg->next bytes. msg->sol contains the exact number of bytes
- * forming the chunk size. That way it is always possible to differentiate
- * between the start of the body and the start of the data.  Return the number
- * of byte parsed on success, 0 when some data is missing, <0 on error.  Note:
- * this function is designed to parse wrapped CRLF at the end of the buffer.
+/* Parse the chunk size start at buf->p + start and stops before buf->p + stop.
+ * It returns the chunk size in <res> and the amount of bytes read this way :
+ *   < 0 : error at this position relative to <stop>
+ *   = 0 : not enough bytes to read a complete chunk size
+ *   > 0 : number of bytes successfully read that the caller can skip
+ * On success, the caller should adjust its msg->next to point to the first
+ * byte of data after the chunk size, so that we know we can forward exactly
+ * msg->next bytes, and msg->sol to contain the exact number of bytes forming
+ * the chunk size. That way it is always possible to differentiate between the
+ * start of the body and the start of the data. Note: this function is designed
+ * to parse wrapped CRLF at the end of the buffer.
  */
-static inline int http_parse_chunk_size(struct http_msg *msg)
+static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int stop, unsigned int *res)
 {
-	const struct buffer *buf = msg->chn->buf;
-	const char *ptr = b_ptr(buf, msg->next);
+	const char *ptr = b_ptr(buf, start);
 	const char *ptr_old = ptr;
 	const char *end = buf->data + buf->size;
-	const char *stop = bi_end(buf);
+	const char *ptr_stop = b_ptr(buf, stop);
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -195,7 +198,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	 */
 	while (1) {
 		int c;
-		if (ptr == stop)
+		if (ptr == ptr_stop)
 			return 0;
 		c = hex2i(*ptr);
 		if (c < 0) /* not a hex digit anymore */
@@ -214,7 +217,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	while (HTTP_IS_SPHT(*ptr)) {
 		if (++ptr >= end)
 			ptr = buf->data;
-		if (unlikely(ptr == stop))
+		if (unlikely(ptr == ptr_stop))
 			return 0;
 	}
 
@@ -227,7 +230,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 			if (likely(*ptr == '\r')) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == stop)
+				if (ptr == ptr_stop)
 					return 0;
 			}
 
@@ -242,13 +245,13 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 			/* chunk extension, ends at next CRLF */
 			if (++ptr >= end)
 				ptr = buf->data;
-			if (ptr == stop)
+			if (ptr == ptr_stop)
 				return 0;
 
 			while (!HTTP_IS_CRLF(*ptr)) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == stop)
+				if (ptr == ptr_stop)
 					return 0;
 			}
 			/* we have a CRLF now, loop above */
@@ -259,18 +262,13 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	}
 
 	/* OK we found our CRLF and now <ptr> points to the next byte, which may
-	 * or may not be present. We save the number of bytes parsed into
-	 * msg->sol.
+	 * or may not be present. Let's return the number of bytes parsed.
 	 */
-	msg->sol = ptr - ptr_old;
-	if (unlikely(ptr < ptr_old))
-		msg->sol += buf->size;
-	msg->chunk_len = chunk;
-	msg->body_len += chunk;
-	return msg->sol;
+	*res = chunk;
+	return (ptr - ptr_old) >= 0 ? (ptr - ptr_old) : (ptr - ptr_old + buf->size);
  error:
-	msg->err_pos = buffer_count(buf, buf->p, ptr);
-	return -1;
+	*res = 0; // just to stop gcc's -Wuninitialized warning :-(
+	return -buffer_count(buf, ptr, ptr_stop);
 }
 
 

@@ -3972,14 +3972,23 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		 * set ->sov and ->next to point to the body and switch to DATA or
 		 * TRAILERS state.
 		 */
-		int ret = http_parse_chunk_size(msg);
+		unsigned int chunk;
+		int ret = h1_parse_chunk_size(req->buf, msg->next, req->buf->i, &chunk);
 
 		if (!ret)
 			goto missing_data;
 		else if (ret < 0) {
+			msg->err_pos = req->buf->i + ret;
+			if (msg->err_pos < 0)
+				msg->err_pos += req->buf->size;
 			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
 		}
+
+		msg->chunk_len = chunk;
+		msg->body_len += chunk;
+
+		msg->sol = ret;
 		msg->next += ret;
 		msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	}
@@ -6119,6 +6128,7 @@ static inline int
 http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 {
 	struct channel *chn = msg->chn;
+	unsigned int chunk;
 	int ret;
 
 	/* Here we have the guarantee to be in one of the following state:
@@ -6160,12 +6170,21 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			 * then set ->next to point to the body and switch to
 			 * DATA or TRAILERS state.
 			 */
-			ret = http_parse_chunk_size(msg);
+			ret = h1_parse_chunk_size(chn->buf, msg->next, chn->buf->i, &chunk);
 			if (ret == 0)
 				goto missing_data_or_waiting;
-			if (ret < 0)
+			if (ret < 0) {
+				msg->err_pos = chn->buf->i + ret;
+				if (msg->err_pos < 0)
+					msg->err_pos += chn->buf->size;
 				goto chunk_parsing_error;
+			}
+
+			msg->sol = ret;
 			msg->next += ret;
+			msg->chunk_len = chunk;
+			msg->body_len += chunk;
+
 			if (msg->chunk_len) {
 				msg->msg_state = HTTP_MSG_DATA;
 				goto switch_states;
