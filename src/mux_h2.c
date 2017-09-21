@@ -117,6 +117,14 @@ struct h2s {
 	enum h2_ss st;
 };
 
+/* descriptor for an h2 frame header */
+struct h2_fh {
+	uint32_t len;       /* length, host order, 24 bits */
+	uint32_t sid;       /* stream id, host order, 31 bits */
+	uint8_t ft;         /* frame type */
+	uint8_t ff;         /* frame flags */
+};
+
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
