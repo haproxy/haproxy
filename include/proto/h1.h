@@ -22,11 +22,15 @@
 #ifndef _PROTO_H1_H
 #define _PROTO_H1_H
 
+#include <common/buffer.h>
 #include <common/compiler.h>
 #include <common/config.h>
+#include <common/standard.h>
 #include <types/h1.h>
+#include <types/proto_http.h>
 
 extern const uint8_t h1_char_classes[256];
+int http_forward_trailers(struct http_msg *msg);
 
 #define H1_FLG_CTL  0x01
 #define H1_FLG_SEP  0x02
@@ -119,6 +123,146 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
 	case HTTP_MSG_TUNNEL:      return "MSG_TUNNEL";
 	default:                   return "MSG_??????";
 	}
+}
+
+/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
+ * a possible LF alone at the end of a chunk. The caller should adjust msg->next
+ * in order to include this part into the next forwarding phase.  Note that the
+ * caller must ensure that ->p points to the first byte to parse.  It returns
+ * the number of bytes parsed on success, so the caller can set msg_state to
+ * HTTP_MSG_CHUNK_SIZE. If not enough data are available, the function does not
+ * change anything and returns zero. If a parse error is encountered, the
+ * function returns < 0. Note: this function is designed to parse wrapped CRLF
+ * at the end of the buffer.
+ */
+static inline int http_skip_chunk_crlf(struct http_msg *msg)
+{
+	const struct buffer *buf = msg->chn->buf;
+	const char *ptr;
+	int bytes;
+
+	/* NB: we'll check data availabilty at the end. It's not a
+	 * problem because whatever we match first will be checked
+	 * against the correct length.
+	 */
+	bytes = 1;
+	ptr = b_ptr(buf, msg->next);
+	if (*ptr == '\r') {
+		bytes++;
+		ptr++;
+		if (ptr >= buf->data + buf->size)
+			ptr = buf->data;
+	}
+
+	if (msg->next + bytes > buf->i)
+		return 0;
+
+	if (*ptr != '\n') {
+		msg->err_pos = buffer_count(buf, buf->p, ptr);
+		return -1;
+	}
+	return bytes;
+}
+
+/* Parse the chunk size at msg->next. Once done, caller should adjust ->next to
+ * point to the first byte of data after the chunk size, so that we know we can
+ * forward exactly msg->next bytes. msg->sol contains the exact number of bytes
+ * forming the chunk size. That way it is always possible to differentiate
+ * between the start of the body and the start of the data.  Return the number
+ * of byte parsed on success, 0 when some data is missing, <0 on error.  Note:
+ * this function is designed to parse wrapped CRLF at the end of the buffer.
+ */
+static inline int http_parse_chunk_size(struct http_msg *msg)
+{
+	const struct buffer *buf = msg->chn->buf;
+	const char *ptr = b_ptr(buf, msg->next);
+	const char *ptr_old = ptr;
+	const char *end = buf->data + buf->size;
+	const char *stop = bi_end(buf);
+	unsigned int chunk = 0;
+
+	/* The chunk size is in the following form, though we are only
+	 * interested in the size and CRLF :
+	 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
+	 */
+	while (1) {
+		int c;
+		if (ptr == stop)
+			return 0;
+		c = hex2i(*ptr);
+		if (c < 0) /* not a hex digit anymore */
+			break;
+		if (unlikely(++ptr >= end))
+			ptr = buf->data;
+		if (unlikely(chunk & 0xF8000000)) /* integer overflow will occur if result >= 2GB */
+			goto error;
+		chunk = (chunk << 4) + c;
+	}
+
+	/* empty size not allowed */
+	if (unlikely(ptr == ptr_old))
+		goto error;
+
+	while (HTTP_IS_SPHT(*ptr)) {
+		if (++ptr >= end)
+			ptr = buf->data;
+		if (unlikely(ptr == stop))
+			return 0;
+	}
+
+	/* Up to there, we know that at least one byte is present at *ptr. Check
+	 * for the end of chunk size.
+	 */
+	while (1) {
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* we now have a CR or an LF at ptr */
+			if (likely(*ptr == '\r')) {
+				if (++ptr >= end)
+					ptr = buf->data;
+				if (ptr == stop)
+					return 0;
+			}
+
+			if (unlikely(*ptr != '\n'))
+				goto error;
+			if (++ptr >= end)
+				ptr = buf->data;
+			/* done */
+			break;
+		}
+		else if (likely(*ptr == ';')) {
+			/* chunk extension, ends at next CRLF */
+			if (++ptr >= end)
+				ptr = buf->data;
+			if (ptr == stop)
+				return 0;
+
+			while (!HTTP_IS_CRLF(*ptr)) {
+				if (++ptr >= end)
+					ptr = buf->data;
+				if (ptr == stop)
+					return 0;
+			}
+			/* we have a CRLF now, loop above */
+			continue;
+		}
+		else
+			goto error;
+	}
+
+	/* OK we found our CRLF and now <ptr> points to the next byte, which may
+	 * or may not be present. We save the number of bytes parsed into
+	 * msg->sol.
+	 */
+	msg->sol = ptr - ptr_old;
+	if (unlikely(ptr < ptr_old))
+		msg->sol += buf->size;
+	msg->chunk_len = chunk;
+	msg->body_len += chunk;
+	return msg->sol;
+ error:
+	msg->err_pos = buffer_count(buf, buf->p, ptr);
+	return -1;
 }
 
 

@@ -153,3 +153,77 @@ const unsigned char h1_char_classes[256] = {
 	['~'] = H1_FLG_TOK,
 	[127] = H1_FLG_CTL,
 };
+
+
+/* This function skips trailers in the buffer associated with HTTP message
+ * <msg>. The first visited position is msg->next. If the end of the trailers is
+ * found, the function returns >0. So, the caller can automatically schedul it
+ * to be forwarded, and switch msg->msg_state to HTTP_MSG_DONE. If not enough
+ * data are available, the function does not change anything except maybe
+ * msg->sol if it could parse some lines, and returns zero.  If a parse error
+ * is encountered, the function returns < 0 and does not change anything except
+ * maybe msg->sol. Note that the message must already be in HTTP_MSG_TRAILERS
+ * state before calling this function, which implies that all non-trailers data
+ * have already been scheduled for forwarding, and that msg->next exactly
+ * matches the length of trailers already parsed and not forwarded. It is also
+ * important to note that this function is designed to be able to parse wrapped
+ * headers at end of buffer.
+ */
+int http_forward_trailers(struct http_msg *msg)
+{
+	const struct buffer *buf = msg->chn->buf;
+
+	/* we have msg->next which points to next line. Look for CRLF. But
+	 * first, we reset msg->sol */
+	msg->sol = 0;
+	while (1) {
+		const char *p1 = NULL, *p2 = NULL;
+		const char *start = b_ptr(buf, msg->next + msg->sol);
+		const char *stop  = bi_end(buf);
+		const char *ptr   = start;
+		int bytes = 0;
+
+		/* scan current line and stop at LF or CRLF */
+		while (1) {
+			if (ptr == stop)
+				return 0;
+
+			if (*ptr == '\n') {
+				if (!p1)
+					p1 = ptr;
+				p2 = ptr;
+				break;
+			}
+
+			if (*ptr == '\r') {
+				if (p1) {
+					msg->err_pos = buffer_count(buf, buf->p, ptr);
+					return -1;
+				}
+				p1 = ptr;
+			}
+
+			ptr++;
+			if (ptr >= buf->data + buf->size)
+				ptr = buf->data;
+		}
+
+		/* after LF; point to beginning of next line */
+		p2++;
+		if (p2 >= buf->data + buf->size)
+			p2 = buf->data;
+
+		bytes = p2 - start;
+		if (bytes < 0)
+			bytes += buf->size;
+		msg->sol += bytes;
+
+		/* LF/CRLF at beginning of line => end of trailers at p2.
+		 * Everything was scheduled for forwarding, there's nothing left
+		 * from this message. */
+		if (p1 == start)
+			return 1;
+
+		/* OK, next line then */
+	}
+}
