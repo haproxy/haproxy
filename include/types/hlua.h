@@ -62,7 +62,7 @@ struct hlua_consistency {
 	union {
 		struct {
 			int dir;
-			enum ht_state state;
+			enum h1_state state;
 		} http;
 	} data;
 };

@@ -57,6 +57,7 @@
 #include <proto/fd.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>
+#include <proto/h1.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/pattern.h>
@@ -509,146 +510,6 @@ const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
 	[HTTP_METH_DELETE]  = { "DELETE",   6 },
 	[HTTP_METH_TRACE]   = { "TRACE",    5 },
 	[HTTP_METH_CONNECT] = { "CONNECT",  7 },
-};
-
-/* It is about twice as fast on recent architectures to lookup a byte in a
- * table than to perform a boolean AND or OR between two tests. Refer to
- * RFC2616/RFC5234/RFC7230 for those chars. A token is any ASCII char that is
- * neither a separator nor a CTL char. An http ver_token is any ASCII which can
- * be found in an HTTP version, which includes 'H', 'T', 'P', '/', '.' and any
- * digit. Note: please do not overwrite values in assignment since gcc-2.95
- * will not handle them correctly. It's worth noting that chars 128..255 are
- * nothing, not even control chars.
- */
-const unsigned char http_char_classes[256] = {
-	[  0] = HTTP_FLG_CTL,
-	[  1] = HTTP_FLG_CTL,
-	[  2] = HTTP_FLG_CTL,
-	[  3] = HTTP_FLG_CTL,
-	[  4] = HTTP_FLG_CTL,
-	[  5] = HTTP_FLG_CTL,
-	[  6] = HTTP_FLG_CTL,
-	[  7] = HTTP_FLG_CTL,
-	[  8] = HTTP_FLG_CTL,
-	[  9] = HTTP_FLG_SPHT | HTTP_FLG_LWS | HTTP_FLG_SEP | HTTP_FLG_CTL,
-	[ 10] = HTTP_FLG_CRLF | HTTP_FLG_LWS | HTTP_FLG_CTL,
-	[ 11] = HTTP_FLG_CTL,
-	[ 12] = HTTP_FLG_CTL,
-	[ 13] = HTTP_FLG_CRLF | HTTP_FLG_LWS | HTTP_FLG_CTL,
-	[ 14] = HTTP_FLG_CTL,
-	[ 15] = HTTP_FLG_CTL,
-	[ 16] = HTTP_FLG_CTL,
-	[ 17] = HTTP_FLG_CTL,
-	[ 18] = HTTP_FLG_CTL,
-	[ 19] = HTTP_FLG_CTL,
-	[ 20] = HTTP_FLG_CTL,
-	[ 21] = HTTP_FLG_CTL,
-	[ 22] = HTTP_FLG_CTL,
-	[ 23] = HTTP_FLG_CTL,
-	[ 24] = HTTP_FLG_CTL,
-	[ 25] = HTTP_FLG_CTL,
-	[ 26] = HTTP_FLG_CTL,
-	[ 27] = HTTP_FLG_CTL,
-	[ 28] = HTTP_FLG_CTL,
-	[ 29] = HTTP_FLG_CTL,
-	[ 30] = HTTP_FLG_CTL,
-	[ 31] = HTTP_FLG_CTL,
-	[' '] = HTTP_FLG_SPHT | HTTP_FLG_LWS | HTTP_FLG_SEP,
-	['!'] = HTTP_FLG_TOK,
-	['"'] = HTTP_FLG_SEP,
-	['#'] = HTTP_FLG_TOK,
-	['$'] = HTTP_FLG_TOK,
-	['%'] = HTTP_FLG_TOK,
-	['&'] = HTTP_FLG_TOK,
-	[ 39] = HTTP_FLG_TOK,
-	['('] = HTTP_FLG_SEP,
-	[')'] = HTTP_FLG_SEP,
-	['*'] = HTTP_FLG_TOK,
-	['+'] = HTTP_FLG_TOK,
-	[','] = HTTP_FLG_SEP,
-	['-'] = HTTP_FLG_TOK,
-	['.'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['/'] = HTTP_FLG_SEP | HTTP_FLG_VER,
-	['0'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['1'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['2'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['3'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['4'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['5'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['6'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['7'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['8'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['9'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	[':'] = HTTP_FLG_SEP,
-	[';'] = HTTP_FLG_SEP,
-	['<'] = HTTP_FLG_SEP,
-	['='] = HTTP_FLG_SEP,
-	['>'] = HTTP_FLG_SEP,
-	['?'] = HTTP_FLG_SEP,
-	['@'] = HTTP_FLG_SEP,
-	['A'] = HTTP_FLG_TOK,
-	['B'] = HTTP_FLG_TOK,
-	['C'] = HTTP_FLG_TOK,
-	['D'] = HTTP_FLG_TOK,
-	['E'] = HTTP_FLG_TOK,
-	['F'] = HTTP_FLG_TOK,
-	['G'] = HTTP_FLG_TOK,
-	['H'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['I'] = HTTP_FLG_TOK,
-	['J'] = HTTP_FLG_TOK,
-	['K'] = HTTP_FLG_TOK,
-	['L'] = HTTP_FLG_TOK,
-	['M'] = HTTP_FLG_TOK,
-	['N'] = HTTP_FLG_TOK,
-	['O'] = HTTP_FLG_TOK,
-	['P'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['Q'] = HTTP_FLG_TOK,
-	['R'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['S'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['T'] = HTTP_FLG_TOK | HTTP_FLG_VER,
-	['U'] = HTTP_FLG_TOK,
-	['V'] = HTTP_FLG_TOK,
-	['W'] = HTTP_FLG_TOK,
-	['X'] = HTTP_FLG_TOK,
-	['Y'] = HTTP_FLG_TOK,
-	['Z'] = HTTP_FLG_TOK,
-	['['] = HTTP_FLG_SEP,
-	[ 92] = HTTP_FLG_SEP,
-	[']'] = HTTP_FLG_SEP,
-	['^'] = HTTP_FLG_TOK,
-	['_'] = HTTP_FLG_TOK,
-	['`'] = HTTP_FLG_TOK,
-	['a'] = HTTP_FLG_TOK,
-	['b'] = HTTP_FLG_TOK,
-	['c'] = HTTP_FLG_TOK,
-	['d'] = HTTP_FLG_TOK,
-	['e'] = HTTP_FLG_TOK,
-	['f'] = HTTP_FLG_TOK,
-	['g'] = HTTP_FLG_TOK,
-	['h'] = HTTP_FLG_TOK,
-	['i'] = HTTP_FLG_TOK,
-	['j'] = HTTP_FLG_TOK,
-	['k'] = HTTP_FLG_TOK,
-	['l'] = HTTP_FLG_TOK,
-	['m'] = HTTP_FLG_TOK,
-	['n'] = HTTP_FLG_TOK,
-	['o'] = HTTP_FLG_TOK,
-	['p'] = HTTP_FLG_TOK,
-	['q'] = HTTP_FLG_TOK,
-	['r'] = HTTP_FLG_TOK,
-	['s'] = HTTP_FLG_TOK,
-	['t'] = HTTP_FLG_TOK,
-	['u'] = HTTP_FLG_TOK,
-	['v'] = HTTP_FLG_TOK,
-	['w'] = HTTP_FLG_TOK,
-	['x'] = HTTP_FLG_TOK,
-	['y'] = HTTP_FLG_TOK,
-	['z'] = HTTP_FLG_TOK,
-	['{'] = HTTP_FLG_SEP,
-	['|'] = HTTP_FLG_TOK,
-	['}'] = HTTP_FLG_SEP,
-	['~'] = HTTP_FLG_TOK,
-	[127] = HTTP_FLG_CTL,
 };
 
 /*
@@ -1392,8 +1253,8 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_stsline(struct http_msg *msg,
-			       enum ht_state state, const char *ptr, const char *end,
-			       unsigned int *ret_ptr, enum ht_state *ret_state)
+			       enum h1_state state, const char *ptr, const char *end,
+			       unsigned int *ret_ptr, enum h1_state *ret_state)
 {
 	const char *msg_start = msg->chn->buf->p;
 
@@ -1505,8 +1366,8 @@ const char *http_parse_stsline(struct http_msg *msg,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_reqline(struct http_msg *msg,
-			       enum ht_state state, const char *ptr, const char *end,
-			       unsigned int *ret_ptr, enum ht_state *ret_state)
+			       enum h1_state state, const char *ptr, const char *end,
+			       unsigned int *ret_ptr, enum h1_state *ret_state)
 {
 	const char *msg_start = msg->chn->buf->p;
 
@@ -1750,7 +1611,7 @@ get_http_auth(struct stream *s)
  */
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
-	enum ht_state state;       /* updated only when leaving the FSM */
+	enum h1_state state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 	struct buffer *buf;
 
@@ -5570,8 +5431,8 @@ void http_resync_states(struct stream *s)
 	DPRINTF(stderr,"[%u] %s: stream=%p old=%s,%s cur=%s,%s "
 		"req->analysers=0x%08x res->analysers=0x%08x\n",
 		now_ms, __FUNCTION__, s,
-		http_msg_state_str(old_req_state), http_msg_state_str(old_res_state),
-		http_msg_state_str(txn->req.msg_state), http_msg_state_str(txn->rsp.msg_state),
+		h1_msg_state_str(old_req_state), h1_msg_state_str(old_res_state),
+		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
 		s->req.analysers, s->res.analysers);
 
 
@@ -8622,7 +8483,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
  */
 void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
                               struct http_msg *msg,
-			      enum ht_state state, struct proxy *other_end)
+			      enum h1_state state, struct proxy *other_end)
 {
 	struct session *sess = strm_sess(s);
 	struct channel *chn = msg->chn;
@@ -13242,7 +13103,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				     es->srv ? es->srv->id : "<NONE>", es->srv ? es->srv->puid : -1,
 				     es->ev_id,
 				     pn, port, es->sid, es->s_flags,
-				     http_msg_state_str(es->state), es->state, es->m_flags, es->t_flags,
+				     h1_msg_state_str(es->state), es->state, es->m_flags, es->t_flags,
 				     es->m_clen, es->m_blen,
 				     es->b_flags, es->b_out, es->b_tot,
 				     es->len, es->b_wrap, es->pos);
