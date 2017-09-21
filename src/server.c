@@ -1183,41 +1183,44 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
 		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
 		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
-			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-				if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-				s->proxy->last_change = now.tv_sec;
-			}
-
-			if (s->last_change < now.tv_sec)			// ignore negative times
-				s->down_time += now.tv_sec - s->last_change;
-			s->last_change = now.tv_sec;
 
 			if (s->track && s->track->next_state == SRV_ST_STOPPING)
+				s->last_change = now.tv_sec;
 				s->next_state = SRV_ST_STOPPING;
 			else {
+				if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+					if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+						s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+					s->proxy->last_change = now.tv_sec;
+				}
+
+				if (s->last_change < now.tv_sec)			// ignore negative times
+					s->down_time += now.tv_sec - s->last_change;
+
+				s->last_change = now.tv_sec;
 				s->next_state = SRV_ST_STARTING;
 				if (s->slowstart > 0)
 					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 				else
 					s->next_state = SRV_ST_RUNNING;
+
+				server_recalc_eweight(s);
+
+				/* If the server is set with "on-marked-up shutdown-backup-sessions",
+				 * and it's not a backup server and its effective weight is > 0,
+				 * then it can accept new connections, so we shut down all streams
+				 * on all backup servers.
+				 */
+				if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
+				    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
+						srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
+
+				/* check if we can handle some connections queued at the proxy. We
+				 * will take as many as we can handle.
+				 */
+				xferred = pendconn_grab_from_px(s);
 			}
 
-			server_recalc_eweight(s);
-
-			/* If the server is set with "on-marked-up shutdown-backup-sessions",
-			 * and it's not a backup server and its effective weight is > 0,
-			 * then it can accept new connections, so we shut down all streams
-			 * on all backup servers.
-			 */
-			if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-			    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
-				srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
-
-			/* check if we can handle some connections queued at the proxy. We
-			 * will take as many as we can handle.
-			 */
-			xferred = pendconn_grab_from_px(s);
 		}
 
 		if (mode & SRV_ADMF_FMAINT) {
