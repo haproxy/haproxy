@@ -164,29 +164,50 @@ struct spoe_arg {
 };
 
 /* Used during the config parsing only because, when a SPOE agent section is
- * parsed, messages can be undefined. */
-struct spoe_msg_placeholder {
-	char       *id;    /* SPOE message placeholder id */
-	struct list list;  /* Use to chain SPOE message placeholders */
+ * parsed, messages/groups can be undefined. */
+struct spoe_placeholder {
+	char       *id;    /* SPOE placeholder id */
+	struct list list;  /* Use to chain SPOE placeholders */
 };
 
 /* Describe a message that will be sent in a NOTIFY frame. A message has a name,
  * an argument list (see above) and it is linked to a specific event. */
 struct spoe_message {
-	char              *id;      /* SPOE message id */
-	unsigned int       id_len;  /* The message id length */
-	struct spoe_agent *agent;   /* SPOE agent owning this SPOE message */
+	char               *id;     /* SPOE message id */
+	unsigned int        id_len; /* The message id length */
+	struct spoe_agent  *agent;  /* SPOE agent owning this SPOE message */
+	struct spoe_group  *group;  /* SPOE group owning this SPOE message (can be NULL) */
         struct {
-                char      *file;    /* file where the SPOE message appears */
-                int        line;    /* line where the SPOE message appears */
+                char       *file;   /* file where the SPOE message appears */
+                int         line;   /* line where the SPOE message appears */
         } conf;                     /* config information */
-	unsigned int       nargs;   /* # of arguments */
-	struct list        args;    /* Arguments added when the SPOE messages is sent */
-	struct list        list;    /* Used to chain SPOE messages */
+	unsigned int        nargs;  /* # of arguments */
+	struct list         args;   /* Arguments added when the SPOE messages is sent */
+	struct list         list;   /* Used to chain SPOE messages */
+	struct list         by_evt; /* By event list */
+	struct list         by_grp; /* By group list */
 
-	struct list        acls;    /* ACL declared on this message */
-	struct acl_cond   *cond;    /* acl condition to meet */
-	enum spoe_event    event;   /* SPOE_EV_* */
+	struct list         acls;   /* ACL declared on this message */
+	struct acl_cond    *cond;   /* acl condition to meet */
+	enum spoe_event     event;  /* SPOE_EV_* */
+};
+
+/* Describe a group of messages that will be sent in a NOTIFY frame. A group has
+ * a name and a list of messages. It can be used by HAProxy, outside events
+ * processing, mainly in (tcp|http) rules. */
+struct spoe_group {
+	char              *id;      /* SPOE group id */
+	struct spoe_agent *agent;   /* SPOE agent owning this SPOE group */
+        struct {
+                char      *file;    /* file where the SPOE group appears */
+                int        line;    /* line where the SPOE group appears */
+        } conf;                     /* config information */
+
+	struct list phs;      /* List of placeholders used during conf parsing */
+	struct list messages; /* List of SPOE messages that will be sent by this
+			       * group */
+
+	struct list list;     /* Used to chain SPOE groups */
 };
 
 /* Describe a SPOE agent. */
@@ -217,8 +238,12 @@ struct spoe_agent {
 	unsigned int          min_applets;    /* Minimum # applets alive at a time */
 	unsigned int          max_fpa;        /* Maximum # of frames handled per applet at once */
 
-	struct list messages[SPOE_EV_EVENTS]; /* List of SPOE messages that will be sent
+	struct list events[SPOE_EV_EVENTS];   /* List of SPOE messages that will be sent
 					       * for each supported events */
+
+	struct list groups;                   /* List of available SPOE groups */
+
+	struct list messages;                 /* list of all messages attached to this SPOE agent */
 
 	/* running info */
 	unsigned int          frame_size;     /* current maximum frame size, only used to encode messages */
@@ -250,7 +275,8 @@ struct spoe_context {
 	struct filter      *filter;       /* The SPOE filter */
 	struct stream      *strm;         /* The stream that should be offloaded */
 
-	struct list        *messages;     /* List of messages that will be sent during the stream processing */
+	struct list        *events;       /* List of messages that will be sent during the stream processing */
+
 	struct buffer      *buffer;       /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;  /* position in the list of ressources waiting for a buffer */
 	struct list         list;

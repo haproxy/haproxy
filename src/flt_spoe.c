@@ -74,14 +74,16 @@ struct proxy *curproxy = NULL;
 char *curengine = NULL;
 
 /* SPOE agent used during the parsing */
-struct spoe_agent *curagent = NULL;
-
-/* SPOE message used during the parsing */
-struct spoe_message *curmsg = NULL;
+/* SPOE agent/group/message used during the parsing */
+struct spoe_agent   *curagent = NULL;
+struct spoe_group   *curgrp   = NULL;
+struct spoe_message *curmsg   = NULL;
 
 /* list of SPOE messages and placeholders used during the parsing */
 struct list curmsgs;
-struct list curmps;
+struct list curgrps;
+struct list curmphs;
+struct list curgphs;
 
 /* Pools used to allocate SPOE structs */
 static struct pool_head *pool2_spoe_ctx = NULL;
@@ -97,12 +99,12 @@ static void spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_
  * helper functions/globals
  ********************************************************************/
 static void
-spoe_release_msg_placeholder(struct spoe_msg_placeholder *mp)
+spoe_release_placeholder(struct spoe_placeholder *ph)
 {
-	if (!mp)
+	if (!ph)
 		return;
-	free(mp->id);
-	free(mp);
+	free(ph->id);
+	free(ph);
 }
 
 static void
@@ -134,10 +136,20 @@ spoe_release_message(struct spoe_message *msg)
 }
 
 static void
+spoe_release_group(struct spoe_group *grp)
+{
+	if (!grp)
+		return;
+	free(grp->id);
+	free(grp->conf.file);
+	free(grp);
+}
+
+static void
 spoe_release_agent(struct spoe_agent *agent)
 {
-	struct spoe_message *msg, *back;
-	int                  i;
+	struct spoe_message *msg, *msgback;
+	struct spoe_group   *grp, *grpback;
 
 	if (!agent)
 		return;
@@ -146,11 +158,13 @@ spoe_release_agent(struct spoe_agent *agent)
 	free(agent->var_pfx);
 	free(agent->engine_id);
 	free(agent->var_on_error);
-	for (i = 0; i < SPOE_EV_EVENTS; ++i) {
-		list_for_each_entry_safe(msg, back, &agent->messages[i], list) {
-			LIST_DEL(&msg->list);
-			spoe_release_message(msg);
-		}
+	list_for_each_entry_safe(msg, msgback, &agent->messages, list) {
+		LIST_DEL(&msg->list);
+		spoe_release_message(msg);
+	}
+	list_for_each_entry_safe(grp, grpback, &agent->groups, list) {
+		LIST_DEL(&grp->list);
+		spoe_release_group(grp);
 	}
 	free(agent);
 }
@@ -2105,7 +2119,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	}
 
 	/* Loop on messages */
-	list_for_each_entry(msg, messages, list) {
+	list_for_each_entry(msg, messages, by_evt) {
 		ctx->frag_ctx.curmsg = msg;
 		ctx->frag_ctx.curarg = NULL;
 		ctx->frag_ctx.curoff = UINT_MAX;
@@ -2466,7 +2480,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 
 	dir = ((ev < SPOE_EV_ON_SERVER_SESS) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
 
-	if (LIST_ISEMPTY(&(ctx->messages[ev])))
+	if (LIST_ISEMPTY(&(ctx->events[ev])))
 		goto out;
 
 	if (ctx->state == SPOE_CTX_ST_ERROR)
@@ -2511,7 +2525,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 	if (ctx->state == SPOE_CTX_ST_ENCODING_MSGS) {
 		if (!spoe_acquire_buffer(&ctx->buffer, &ctx->buffer_wait))
 			goto out;
-		ret = spoe_encode_messages(s, ctx, &(ctx->messages[ev]), dir);
+		ret = spoe_encode_messages(s, ctx, &(ctx->events[ev]), dir);
 		if (ret < 0)
 			goto error;
 		if (!ret)
@@ -2640,7 +2654,7 @@ spoe_create_context(struct filter *filter)
 	ctx->state       = SPOE_CTX_ST_NONE;
 	ctx->status_code = SPOE_CTX_ERR_NONE;
 	ctx->flags       = 0;
-	ctx->messages    = conf->agent->messages;
+	ctx->events      = conf->agent->events;
 	ctx->buffer      = &buf_empty;
 	LIST_INIT(&ctx->buffer_wait.list);
 	ctx->buffer_wait.target = ctx;
@@ -2834,22 +2848,22 @@ spoe_start(struct stream *s, struct filter *filter)
 	ctx->state  = SPOE_CTX_ST_READY;
 	filter->ctx = ctx;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_TCP_REQ_FE]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_REQ_FE]))
 		filter->pre_analyzers |= AN_REQ_INSPECT_FE;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_TCP_REQ_BE]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_REQ_BE]))
 		filter->pre_analyzers |= AN_REQ_INSPECT_BE;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_TCP_RSP]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_RSP]))
 		filter->pre_analyzers |= AN_RES_INSPECT;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_HTTP_REQ_FE]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_HTTP_REQ_FE]))
 		filter->pre_analyzers |= AN_REQ_HTTP_PROCESS_FE;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_HTTP_REQ_BE]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_HTTP_REQ_BE]))
 		filter->pre_analyzers |= AN_REQ_HTTP_PROCESS_BE;
 
-	if (!LIST_ISEMPTY(&ctx->messages[SPOE_EV_ON_HTTP_RSP]))
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_HTTP_RSP]))
 		filter->pre_analyzers |= AN_RES_HTTP_PROCESS_FE;
 
 	return 1;
@@ -3083,7 +3097,9 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->max_fpa        = 100;
 
 		for (i = 0; i < SPOE_EV_EVENTS; ++i)
-			LIST_INIT(&curagent->messages[i]);
+			LIST_INIT(&curagent->events[i]);
+		LIST_INIT(&curagent->groups);
+		LIST_INIT(&curagent->messages);
 
 		curagent->frame_size   = curagent->max_frame_size;
 		curagent->applets_act  = 0;
@@ -3109,24 +3125,48 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "messages")) {
 		int cur_arg = 1;
 		while (*args[cur_arg]) {
-			struct spoe_msg_placeholder *mp = NULL;
+			struct spoe_placeholder *ph = NULL;
 
-			list_for_each_entry(mp, &curmps, list) {
-				if (!strcmp(mp->id, args[cur_arg])) {
-					Alert("parsing [%s:%d]: spoe-message message '%s' already declared.\n",
+			list_for_each_entry(ph, &curmphs, list) {
+				if (!strcmp(ph->id, args[cur_arg])) {
+					Alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
 					      file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
 
-			if ((mp = calloc(1, sizeof(*mp))) == NULL) {
+			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-			mp->id = strdup(args[cur_arg]);
-			LIST_ADDQ(&curmps, &mp->list);
+			ph->id = strdup(args[cur_arg]);
+			LIST_ADDQ(&curmphs, &ph->list);
+			cur_arg++;
+		}
+	}
+	else if (!strcmp(args[0], "groups")) {
+		int cur_arg = 1;
+		while (*args[cur_arg]) {
+			struct spoe_placeholder *ph = NULL;
+
+			list_for_each_entry(ph, &curgphs, list) {
+				if (!strcmp(ph->id, args[cur_arg])) {
+					Alert("parsing [%s:%d]: spoe-group '%s' already used.\n",
+					      file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+
+			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			ph->id = strdup(args[cur_arg]);
+			LIST_ADDQ(&curgphs, &ph->list);
 			cur_arg++;
 		}
 	}
@@ -3323,6 +3363,94 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
  out:
 	return err_code;
 }
+static int
+cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
+{
+	struct spoe_group *grp;
+	const char        *err;
+	int                err_code = 0;
+
+	if ((cfg_scope == NULL && curengine != NULL) ||
+	    (cfg_scope != NULL && curengine == NULL) ||
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
+		goto out;
+
+	if (!strcmp(args[0], "spoe-group")) { /* new spoe-group section */
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : missing name for spoe-group section.\n",
+			      file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		list_for_each_entry(grp, &curgrps, list) {
+			if (!strcmp(grp->id, args[1])) {
+				Alert("parsing [%s:%d]: spoe-group section '%s' has the same"
+				      " name as another one declared at %s:%d.\n",
+				      file, linenum, args[1], grp->conf.file, grp->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+
+		if ((curgrp = calloc(1, sizeof(*curgrp))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		curgrp->id        = strdup(args[1]);
+		curgrp->conf.file = strdup(file);
+		curgrp->conf.line = linenum;
+		LIST_INIT(&curgrp->phs);
+		LIST_INIT(&curgrp->messages);
+		LIST_ADDQ(&curgrps, &curgrp->list);
+	}
+	else if (!strcmp(args[0], "messages")) {
+		int cur_arg = 1;
+		while (*args[cur_arg]) {
+			struct spoe_placeholder *ph = NULL;
+
+			list_for_each_entry(ph, &curgrp->phs, list) {
+				if (!strcmp(ph->id, args[cur_arg])) {
+					Alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
+					      file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+
+			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			ph->id = strdup(args[cur_arg]);
+			LIST_ADDQ(&curgrp->phs, &ph->list);
+			cur_arg++;
+		}
+	}
+	else if (*args[0]) {
+		Alert("parsing [%s:%d] : unknown keyword '%s' in spoe-group section.\n",
+		      file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+ out:
+	return err_code;
+}
 
 static int
 cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
@@ -3382,6 +3510,8 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		curmsg->nargs = 0;
 		LIST_INIT(&curmsg->args);
 		LIST_INIT(&curmsg->acls);
+		LIST_INIT(&curmsg->by_evt);
+		LIST_INIT(&curmsg->by_grp);
 		LIST_ADDQ(&curmsgs, &curmsg->list);
 	}
 	else if (!strcmp(args[0], "args")) {
@@ -3518,7 +3648,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct list backup_sections;
 	struct spoe_config          *conf;
 	struct spoe_message         *msg, *msgback;
-	struct spoe_msg_placeholder *mp, *mpback;
+	struct spoe_group           *grp, *grpback;
+	struct spoe_placeholder     *ph, *phback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
 
@@ -3561,7 +3692,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	/* backup sections and register SPOE sections */
 	LIST_INIT(&backup_sections);
 	cfg_backup_sections(&backup_sections);
-	cfg_register_section("spoe-agent",   cfg_parse_spoe_agent,   NULL);
+	cfg_register_section("spoe-agent",   cfg_parse_spoe_agent, NULL);
+	cfg_register_section("spoe-group",   cfg_parse_spoe_group, NULL);
 	cfg_register_section("spoe-message", cfg_parse_spoe_message, NULL);
 
 	/* Parse SPOE filter configuration file */
@@ -3569,6 +3701,10 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	curproxy  = px;
 	curagent  = NULL;
 	curmsg    = NULL;
+	LIST_INIT(&curmsgs);
+	LIST_INIT(&curgrps);
+	LIST_INIT(&curmphs);
+	LIST_INIT(&curgphs);
 	ret = readcfgfile(file);
 	curproxy = NULL;
 
@@ -3622,18 +3758,20 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->engine_id == NULL)
 		curagent->engine_id = generate_pseudo_uuid();
 
-	if (LIST_ISEMPTY(&curmps)) {
-		Warning("Proxy '%s': No message used by SPOE agent '%s' declared at %s:%d.\n",
+	if (LIST_ISEMPTY(&curmphs) && LIST_ISEMPTY(&curgphs)) {
+		Warning("Proxy '%s': No message/group used by SPOE agent '%s' declared at %s:%d.\n",
 			px->id, curagent->id, curagent->conf.file, curagent->conf.line);
 		goto finish;
 	}
 
-	list_for_each_entry_safe(mp, mpback, &curmps, list) {
-		list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
+	/* Replace placeholders by the corresponding messages for the SPOE
+	 * agent */
+	list_for_each_entry(ph, &curmphs, list) {
+		list_for_each_entry(msg, &curmsgs, list) {
 			struct spoe_arg *arg;
 			unsigned int     where;
 
-			if (!strcmp(msg->id, mp->id)) {
+			if (!strcmp(msg->id, ph->id)) {
 				if ((px->cap & (PR_CAP_FE|PR_CAP_BE)) == (PR_CAP_FE|PR_CAP_BE)) {
 					if (msg->event == SPOE_EV_ON_TCP_REQ_BE)
 						msg->event = SPOE_EV_ON_TCP_REQ_FE;
@@ -3645,12 +3783,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 							       msg->event == SPOE_EV_ON_HTTP_REQ_FE)) {
 					Warning("Proxy '%s': frontend event used on a backend proxy at %s:%d.\n",
 						px->id, msg->conf.file, msg->conf.line);
-					goto next;
+					goto next_mph;
 				}
 				if (msg->event == SPOE_EV_NONE) {
 					Warning("Proxy '%s': Ignore SPOE message without event at %s:%d.\n",
 						px->id, msg->conf.file, msg->conf.line);
-					goto next;
+					goto next_mph;
 				}
 
 				where = 0;
@@ -3711,37 +3849,93 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 							px->id, msg->conf.file, msg->conf.line,
 							sample_ckp_names(arg->expr->fetch->use),
 							sample_ckp_names(where));
-						goto next;
+						goto next_mph;
 					}
 				}
 
 				msg->agent = curagent;
-				LIST_DEL(&msg->list);
-				LIST_ADDQ(&curagent->messages[msg->event], &msg->list);
-				goto next;
+				LIST_ADDQ(&curagent->events[msg->event], &msg->by_evt);
+				goto next_mph;
 			}
 		}
 		memprintf(err, "SPOE agent '%s' try to use undefined SPOE message '%s' at %s:%d",
-			  curagent->id, mp->id, curagent->conf.file, curagent->conf.line);
+			  curagent->id, ph->id, curagent->conf.file, curagent->conf.line);
 		goto error;
-	  next:
+	  next_mph:
 		continue;
 	}
 
- finish:
-	conf->id    = strdup(engine ? engine : curagent->id);
-	conf->agent = curagent;
-	list_for_each_entry_safe(mp, mpback, &curmps, list) {
-		LIST_DEL(&mp->list);
-		spoe_release_msg_placeholder(mp);
-	}
-	list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
-		Warning("Proxy '%s': Ignore unused SPOE messages '%s' declared at %s:%d.\n",
-			px->id, msg->id, msg->conf.file, msg->conf.line);
-		LIST_DEL(&msg->list);
-		spoe_release_message(msg);
+	/* Replace placeholders by the corresponding groups for the SPOE
+	 * agent */
+	list_for_each_entry(ph, &curgphs, list) {
+		list_for_each_entry_safe(grp, grpback, &curgrps, list) {
+			if (!strcmp(grp->id, ph->id)) {
+				grp->agent = curagent;
+				LIST_DEL(&grp->list);
+				LIST_ADDQ(&curagent->groups, &grp->list);
+				goto next_aph;
+			}
+		}
+		memprintf(err, "SPOE agent '%s' try to use undefined SPOE group '%s' at %s:%d",
+			  curagent->id, ph->id, curagent->conf.file, curagent->conf.line);
+		goto error;
+	  next_aph:
+		continue;
 	}
 
+	/* Replace placeholders by the corresponding message for each SPOE
+	 * group of the SPOE agent */
+	list_for_each_entry(grp, &curagent->groups, list) {
+		list_for_each_entry_safe(ph, phback, &grp->phs, list) {
+			list_for_each_entry(msg, &curmsgs, list) {
+				if (!strcmp(msg->id, ph->id)) {
+					if (msg->group != NULL) {
+						memprintf(err, "SPOE message '%s' already belongs to "
+							  "the SPOE group '%s' declare at %s:%d",
+							  msg->id, msg->group->id,
+							  msg->group->conf.file,
+							  msg->group->conf.line);
+						goto error;
+					}
+
+					/* Scope for arguments are not checked for now. We will check
+					 * them only if a rule use the corresponding SPOE group. */
+					msg->agent = curagent;
+					msg->group = grp;
+					LIST_DEL(&ph->list);
+					LIST_ADDQ(&grp->messages, &msg->by_grp);
+					goto next_mph_grp;
+				}
+			}
+			memprintf(err, "SPOE group '%s' try to use undefined SPOE message '%s' at %s:%d",
+				  grp->id, ph->id, curagent->conf.file, curagent->conf.line);
+			goto error;
+		  next_mph_grp:
+			continue;
+		}
+	}
+
+ finish:
+	/* move curmsgs to the agent message list */
+	curmsgs.n->p = &curagent->messages;
+	curmsgs.p->n = &curagent->messages;
+	curagent->messages = curmsgs;
+	LIST_INIT(&curmsgs);
+
+	conf->id    = strdup(engine ? engine : curagent->id);
+	conf->agent = curagent;
+	list_for_each_entry_safe(ph, phback, &curmphs, list) {
+		LIST_DEL(&ph->list);
+		spoe_release_placeholder(ph);
+	}
+	list_for_each_entry_safe(ph, phback, &curgphs, list) {
+		LIST_DEL(&ph->list);
+		spoe_release_placeholder(ph);
+	}
+	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
+		LIST_DEL(&grp->list);
+		spoe_release_group(grp);
+	}
 	*cur_arg    = pos;
 	fconf->id   = spoe_filter_id;
 	fconf->ops  = &spoe_ops;
@@ -3750,9 +3944,17 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
  error:
 	spoe_release_agent(curagent);
-	list_for_each_entry_safe(mp, mpback, &curmps, list) {
-		LIST_DEL(&mp->list);
-		spoe_release_msg_placeholder(mp);
+	list_for_each_entry_safe(ph, phback, &curmphs, list) {
+		LIST_DEL(&ph->list);
+		spoe_release_placeholder(ph);
+	}
+	list_for_each_entry_safe(ph, phback, &curgphs, list) {
+		LIST_DEL(&ph->list);
+		spoe_release_placeholder(ph);
+	}
+	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
+		LIST_DEL(&grp->list);
+		spoe_release_group(grp);
 	}
 	list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
 		LIST_DEL(&msg->list);
@@ -3775,8 +3977,6 @@ static void __spoe_init(void)
 {
 	flt_register_keywords(&flt_kws);
 
-	LIST_INIT(&curmsgs);
-	LIST_INIT(&curmps);
 	pool2_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
 	pool2_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);
 }

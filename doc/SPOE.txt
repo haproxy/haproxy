@@ -16,7 +16,8 @@ SUMMARY
   2.1.        SPOE scope
   2.2.        "spoe-agent" section
   2.3.        "spoe-message" section
-  2.4.        Example
+  2.4.        "spoe-group" section
+  2.5.        Example
   3.      SPOP specification
   3.1.        Data types
   3.2.        Frames
@@ -99,9 +100,8 @@ line, you completly disable the feature, including the parsing of sections
 reserved to SPOE. This is also a way to keep the HAProxy configuration clean.
 
 A SPOE configuration file must contains, at least, the SPOA configuration
-("spoe-agent" section) and SPOE messages ("spoe-message" section) attached to
-this agent. Unused messages (not reference in "spoe-agent" section) will be
-ignored.
+("spoe-agent" section) and SPOE messages/groups ("spoe-message" or "spoe-group"
+sections) attached to this agent.
 
 IMPORTANT : The configuration of a SPOE filter must be located in a dedicated
 file. But the backend used by a SPOA must be declared in HAProxy configuration
@@ -114,8 +114,8 @@ If you specify an engine name on the SPOE filter line, then you need to define
 scope in the SPOE configuration with the same name. You can have several SPOE
 scope in the same file. In each scope, you must define one and only one
 "spoe-agent" section to configure the SPOA linked to your SPOE and several
-"spoe-message" sections to describe messages sent to servers mananged by your
-SPOA.
+"spoe-message" and "spoe-group" sections to describe, respecively, messages and
+group of messages sent to servers mananged by your SPOA.
 
 A SPOE scope starts with this kind of line :
 
@@ -132,6 +132,10 @@ scope ends when the file ends or when another scope is found.
               ...
           spoe-message msg2
               ...
+	  spoe-group grp1
+              ...
+	  spoe-group grp2
+	      ...
 
       [my-second-engine]
           ...
@@ -159,6 +163,7 @@ spoe-agent <name>
     <name>   is the name of the agent section.
 
   following keywords are supported :
+    - groups
     - maxconnrate
     - maxerrrate
     - max-frame-size
@@ -171,6 +176,18 @@ spoe-agent <name>
     - option var-prefix
     - timeout hello|idle|processing
     - use-backend
+
+
+groups <grp-name> ...
+  Declare the list of SPOE groups that an agent will handle.
+
+  Arguments :
+    <grp-name>   is the name of a SPOE group.
+
+  Groups delcared here must be found in the same engine scope, else an error is
+  triggered during the configuration parsing. You can have many "groups" lines.
+
+  See also: "spoe-group" section.
 
 
 maxconnrate <number>
@@ -407,7 +424,42 @@ event <name> [ { if | unless } <condition> ]
   See section "Events & Messages" for more details about supported events.
   See section 7 about ACL usage in the HAProxy Configuration Manual.
 
-2.4. Example
+2.4. "spoe-group" section
+--------------------------
+
+This section can be used to declare a group of SPOE messages. Unlike messages
+referenced in a "spoe-agent" section, messages inside a group are not sent on a
+specific event. The sending must be triggered by TCP or HTTP rules, from the
+HAProxy configuration.
+
+
+spoe-group <name>
+  Create a new SPOE group with the name <name>.
+
+  Arguments :
+    <name>   is the name of the SPOE group.
+
+  Here you define a group of SPOE messages that can be referenced in a
+  "spoe-agent" section. Following keywords are supported :
+     - messages
+
+  See also: "spoe-agent" and "spoe-message" sections.
+
+
+messages <msg-name> ...
+  Declare the list of SPOE messages belonging to the group.
+
+  Arguments :
+    <msg-name>   is the name of a SPOE message.
+
+  Messages declared here must be found in the same engine scope, else an error
+  is triggered during the configuration parsing. Furthermore, a message belongs
+  at most to a group. You can have many "messages" lines.
+
+  See also: "spoe-message" section.
+
+
+2.5. Example
 -------------
 
 Here is a simple but complete example that sends client-ip address to a ip
