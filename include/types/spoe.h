@@ -32,6 +32,10 @@
 #include <types/stream.h>
 #include <types/task.h>
 
+/* Type of list of messages */
+#define SPOE_MSGS_BY_EVENT 0x01
+#define SPOE_MSGS_BY_GROUP 0x02
+
 /* Flags set on the SPOE agent */
 #define SPOE_FL_CONT_ON_ERR       0x00000001 /* Do not stop events processing when an error occurred */
 #define SPOE_FL_PIPELINING        0x00000002 /* Set when SPOE agent supports pipelining (set by default) */

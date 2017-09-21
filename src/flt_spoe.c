@@ -2174,13 +2174,13 @@ spoe_encode_message(struct stream *s, struct spoe_context *ctx,
 	return -1;
 }
 
-/* Encode SPOE messages for a specific event. Info in <ctx->frag_ctx>, if any,
- * are used to handle fragmented content. On success it returns 1. If an error
- * occurred, -1 is returned. If nothing has been encoded, it returns 0 (this is
- * only possible for unfragmented payload). */
+/* Encode list of SPOE messages. Info in <ctx->frag_ctx>, if any, are used to
+ * handle fragmented content. On success it returns 1. If an error occurred, -1
+ * is returned. If nothing has been encoded, it returns 0 (this is only possible
+ * for unfragmented payload). */
 static int
 spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
-		     struct list *messages, int dir)
+		     struct list *messages, int dir, int type)
 {
 	struct spoe_config  *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent   *agent = conf->agent;
@@ -2190,22 +2190,43 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	p   = ctx->buffer->p;
 	end =  p + agent->frame_size - FRAME_HDR_SIZE;
 
-	/* Resume encoding of a SPOE message */
-	if (ctx->frag_ctx.curmsg != NULL) {
-		msg = ctx->frag_ctx.curmsg;
-		goto encode_message;
-	}
+	if (type == SPOE_MSGS_BY_EVENT) { /* Loop on messages by event */
+		/* Resume encoding of a SPOE message */
+		if (ctx->frag_ctx.curmsg != NULL) {
+			msg = ctx->frag_ctx.curmsg;
+			goto encode_evt_message;
+		}
 
-	/* Loop on messages */
-	list_for_each_entry(msg, messages, by_evt) {
-		ctx->frag_ctx.curmsg = msg;
-		ctx->frag_ctx.curarg = NULL;
-		ctx->frag_ctx.curoff = UINT_MAX;
+		list_for_each_entry(msg, messages, by_evt) {
+			ctx->frag_ctx.curmsg = msg;
+			ctx->frag_ctx.curarg = NULL;
+			ctx->frag_ctx.curoff = UINT_MAX;
 
-	  encode_message:
-		if (spoe_encode_message(s, ctx, msg, dir, &p, end) == -1)
-			goto too_big;
+		encode_evt_message:
+			if (spoe_encode_message(s, ctx, msg, dir, &p, end) == -1)
+				goto too_big;
+		}
 	}
+	else if (type == SPOE_MSGS_BY_GROUP) { /* Loop on messages by group */
+		/* Resume encoding of a SPOE message */
+		if (ctx->frag_ctx.curmsg != NULL) {
+			msg = ctx->frag_ctx.curmsg;
+			goto encode_grp_message;
+		}
+
+		list_for_each_entry(msg, messages, by_grp) {
+			ctx->frag_ctx.curmsg = msg;
+			ctx->frag_ctx.curarg = NULL;
+			ctx->frag_ctx.curoff = UINT_MAX;
+
+		encode_grp_message:
+			if (spoe_encode_message(s, ctx, msg, dir, &p, end) == -1)
+				goto too_big;
+		}
+	}
+	else
+		goto skip;
+
 
 	/* nothing has been encoded for an unfragmented payload */
 	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == ctx->buffer->p)
@@ -2544,7 +2565,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 	if (ctx->state == SPOE_CTX_ST_ENCODING_MSGS) {
 		if (!spoe_acquire_buffer(&ctx->buffer, &ctx->buffer_wait))
 			goto out;
-		ret = spoe_encode_messages(s, ctx, &(ctx->events[ev]), dir);
+		ret = spoe_encode_messages(s, ctx, &(ctx->events[ev]), dir, SPOE_MSGS_BY_EVENT);
 		if (ret < 0)
 			goto error;
 		if (!ret)
