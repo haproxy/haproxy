@@ -45,6 +45,9 @@ struct ist {
 	size_t len;
 };
 
+/* makes a constant ist from a constant string, for use in array declarations */
+#define IST(str) { .ptr = str "", .len = (sizeof str "") - 1 }
+
 /* makes an ist from a regular zero terminated string. Null has length 0.
  * Constants are detected and replaced with constant initializers. Other values
  * are measured by hand without strlen() as it's much cheaper and inlinable on
