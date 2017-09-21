@@ -30,6 +30,11 @@
 struct pool_head *pool2_connection;
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
+/* List head of all known muxes for ALPN */
+struct alpn_mux_list alpn_mux_list = {
+        .list = LIST_HEAD_INIT(alpn_mux_list.list)
+};
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection()
 {

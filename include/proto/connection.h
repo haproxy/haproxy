@@ -23,6 +23,7 @@
 #define _PROTO_CONNECTION_H
 
 #include <common/config.h>
+#include <common/ist.h>
 #include <common/memory.h>
 #include <types/connection.h>
 #include <types/listener.h>
@@ -31,6 +32,7 @@
 
 extern struct pool_head *pool2_connection;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
+extern struct alpn_mux_list alpn_mux_list;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection();
@@ -700,6 +702,72 @@ static inline int conn_get_alpn(const struct connection *conn, const char **str,
 	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)
 		return 0;
 	return conn->xprt->get_alpn(conn, str, len);
+}
+
+/* registers alpn mux list <list>. Modifies the list element! */
+static inline void alpn_register_mux(struct alpn_mux_list *list)
+{
+	LIST_ADDQ(&alpn_mux_list.list, &list->list);
+}
+
+/* unregisters alpn mux list <list> */
+static inline void alpn_unregister_mux(struct alpn_mux_list *list)
+{
+	LIST_DEL(&list->list);
+	LIST_INIT(&list->list);
+}
+
+/* returns the first mux in the list matching the exact same token and
+ * compatible with the proxy's mode (http or tcp). Mode "health" has to be
+ * considered as TCP here. Ie passing "px->mode == PR_MODE_HTTP" is fine. Will
+ * fall back to the first compatible mux with empty ALPN name. May return null
+ * if the code improperly registered the default mux to use as a fallback.
+ */
+static inline const struct mux_ops *alpn_get_mux(const struct ist token, int http_mode)
+{
+	struct alpn_mux_list *item;
+	const struct mux_ops *fallback = NULL;
+
+	http_mode = 1 << !!http_mode;
+
+	list_for_each_entry(item, &alpn_mux_list.list, list) {
+		if (!(item->mode & http_mode))
+			continue;
+		if (isteq(token, item->token))
+			return item->mux;
+		if (!istlen(item->token))
+			fallback = item->mux;
+	}
+	return fallback;
+}
+
+/* finds the best mux for incoming connection <conn> and mode <http_mode> for
+ * the proxy. Null cannot be returned unless there's a serious bug somewhere
+ * else (no fallback mux registered).
+ */
+static inline const struct mux_ops *conn_find_best_mux(struct connection *conn, int http_mode)
+{
+	const char *alpn_str;
+	int alpn_len;
+
+	if (!conn_get_alpn(conn, &alpn_str, &alpn_len))
+		alpn_len = 0;
+
+	return alpn_get_mux(ist2(alpn_str, alpn_len), http_mode);
+}
+
+/* finds the best mux for incoming connection <conn>, a proxy in and http mode
+ * <mode>, and installs it on the connection for direction <dir> (MUX_INBOUND/
+ * MUX_OUTBOUND). Returns < 0 on error.
+ */
+static inline int conn_install_best_mux(struct connection *conn, int mode, enum mux_dir dir)
+{
+	const struct mux_ops *mux_ops;
+
+	mux_ops = conn_find_best_mux(conn, mode);
+	if (!mux_ops)
+		return -1;
+	return conn_install_mux(conn, mux_ops, dir);
 }
 
 #endif /* _PROTO_CONNECTION_H */

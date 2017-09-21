@@ -26,6 +26,7 @@
 #include <sys/socket.h>
 
 #include <common/config.h>
+#include <common/ist.h>
 
 #include <types/listener.h>
 #include <types/obj_type.h>
@@ -329,6 +330,21 @@ struct connection {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
+};
+
+/* ALPN token registration */
+enum alpn_proxy_mode {
+	ALPN_MODE_NONE = 0,
+	ALPN_MODE_TCP  = 1 << 0, // must not be changed!
+	ALPN_MODE_HTTP = 1 << 1, // must not be changed!
+	ALPN_MODE_ANY  = ALPN_MODE_TCP | ALPN_MODE_HTTP,
+};
+
+struct alpn_mux_list {
+	const struct ist token;    /* token name and length. Empty is catch-all */
+	enum alpn_proxy_mode mode;
+	const struct mux_ops *mux;
+	struct list list;
 };
 
 /* proxy protocol v2 definitions */
