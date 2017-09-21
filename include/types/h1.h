@@ -82,4 +82,20 @@ enum h1_state {
 } __attribute__((packed));
 
 
+/* HTTP/1 message flags (32 bit), for use in h1m->flags only */
+#define H1_MF_NONE              0x00000000
+#define H1_MF_CLEN              0x00000001 // content-length present
+#define H1_MF_CHNK              0x00000002 // chunk present, exclusive with c-l
+
+
+/* basic HTTP/1 message state for use in parsers */
+struct h1m {
+	enum h1_state state;        // H1 message state (HTTP_MSG_*)
+	uint32_t flags;             // H1 message flags (H1_MF_*)
+	uint64_t curr_len;          // content-length or last chunk length
+	uint64_t body_len;          // total known size of the body length
+	int err_pos;                // position in the byte stream of the first error (H1 or H2)
+	int err_state;              // state where the first error was met (H1 or H2)
+};
+
 #endif /* _TYPES_H1_H */

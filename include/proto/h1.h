@@ -267,5 +267,16 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	return -buffer_count(buf, ptr, ptr_stop);
 }
 
+/* initializes an H1 message */
+static inline struct h1m *h1m_init(struct h1m *h1m)
+{
+	h1m->state = HTTP_MSG_RQBEFORE;
+	h1m->flags = 0;
+	h1m->curr_len = 0;
+	h1m->body_len = 0;
+	h1m->err_pos = 0;
+	h1m->err_state = 0;
+	return h1m;
+}
 
 #endif /* _PROTO_H1_H */
