@@ -1184,9 +1184,13 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
 		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
 
-			if (s->track && s->track->next_state == SRV_ST_STOPPING)
+			if (s->track && s->track->next_state == SRV_ST_STOPPING) {
+				if (s->last_change < now.tv_sec)			// ignore negative times
+					s->down_time += now.tv_sec - s->last_change;
+
 				s->last_change = now.tv_sec;
 				s->next_state = SRV_ST_STOPPING;
+			}
 			else {
 				if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 					if (s->proxy->last_change < now.tv_sec)		// ignore negative times
