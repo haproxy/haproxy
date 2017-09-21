@@ -28,8 +28,16 @@
 #include <common/standard.h>
 #include <types/h1.h>
 #include <types/proto_http.h>
+#include <proto/hdr_idx.h>
 
 extern const uint8_t h1_char_classes[256];
+const char *http_parse_reqline(struct http_msg *msg,
+                               enum h1_state state, const char *ptr, const char *end,
+                               unsigned int *ret_ptr, enum h1_state *ret_state);
+const char *http_parse_stsline(struct http_msg *msg,
+                               enum h1_state state, const char *ptr, const char *end,
+                               unsigned int *ret_ptr, enum h1_state *ret_state);
+void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 int http_forward_trailers(struct http_msg *msg);
 
 #define H1_FLG_CTL  0x01
