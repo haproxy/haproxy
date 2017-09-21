@@ -6156,11 +6156,15 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
 		case HTTP_MSG_CHUNK_CRLF:
 			/* we want the CRLF after the data */
-			ret = http_skip_chunk_crlf(msg);
+			ret = h1_skip_chunk_crlf(chn->buf, msg->next, chn->buf->i);
 			if (ret == 0)
 				goto missing_data_or_waiting;
-			if (ret < 0)
+			if (ret < 0) {
+				msg->err_pos = chn->buf->i + ret;
+				if (msg->err_pos < 0)
+					msg->err_pos += chn->buf->size;
 				goto chunk_parsing_error;
+			}
 			msg->next += ret;
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 			/* fall through for HTTP_MSG_CHUNK_SIZE */

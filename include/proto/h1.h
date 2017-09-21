@@ -139,22 +139,19 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
  * caller must ensure that ->p points to the first byte to parse.  It returns
  * the number of bytes parsed on success, so the caller can set msg_state to
  * HTTP_MSG_CHUNK_SIZE. If not enough data are available, the function does not
- * change anything and returns zero. If a parse error is encountered, the
- * function returns < 0. Note: this function is designed to parse wrapped CRLF
- * at the end of the buffer.
+ * change anything and returns zero. Otherwise it returns a negative value
+ * indicating the error positionn relative to <stop>. Note: this function is
+ * designed to parse wrapped CRLF at the end of the buffer.
  */
-static inline int http_skip_chunk_crlf(struct http_msg *msg)
+static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int stop)
 {
-	const struct buffer *buf = msg->chn->buf;
-	const char *ptr;
-	int bytes;
+	const char *ptr = b_ptr(buf, start);
+	int bytes = 1;
 
 	/* NB: we'll check data availabilty at the end. It's not a
 	 * problem because whatever we match first will be checked
 	 * against the correct length.
 	 */
-	bytes = 1;
-	ptr = b_ptr(buf, msg->next);
 	if (*ptr == '\r') {
 		bytes++;
 		ptr++;
@@ -162,13 +159,12 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 			ptr = buf->data;
 	}
 
-	if (msg->next + bytes > buf->i)
+	if (bytes > stop - start)
 		return 0;
 
-	if (*ptr != '\n') {
-		msg->err_pos = buffer_count(buf, buf->p, ptr);
-		return -1;
-	}
+	if (*ptr != '\n')
+		return -buffer_count(buf, ptr, b_ptr(buf, stop));
+
 	return bytes;
 }
 
