@@ -2095,6 +2095,85 @@ spoe_queue_context(struct spoe_context *ctx)
 /***************************************************************************
  * Functions that encode SPOE messages
  **************************************************************************/
+/* Encode a SPOE message. Info in <ctx->frag_ctx>, if any, are used to handle
+ * fragmented_content. If the next message can be processed, it returns 0. If
+ * the message is too big, it returns -1.*/
+static int
+spoe_encode_message(struct stream *s, struct spoe_context *ctx,
+		    struct spoe_message *msg, int dir,
+		    char **buf, char *end)
+{
+	struct sample   *smp;
+	struct spoe_arg *arg;
+	int ret;
+
+	if (msg->cond) {
+		ret = acl_exec_cond(msg->cond, s->be, s->sess, s, dir|SMP_OPT_FINAL);
+		ret = acl_pass(ret);
+		if (msg->cond->pol == ACL_COND_UNLESS)
+			ret = !ret;
+
+		/* the rule does not match */
+		if (!ret)
+			goto next;
+	}
+
+		/* Resume encoding of a SPOE argument */
+	if (ctx->frag_ctx.curarg != NULL) {
+		arg = ctx->frag_ctx.curarg;
+		goto encode_argument;
+	}
+
+	if (ctx->frag_ctx.curoff != UINT_MAX)
+		goto encode_msg_payload;
+
+	/* Check if there is enough space for the message name and the
+	 * number of arguments. It implies <msg->id_len> is encoded on 2
+	 * bytes, at most (< 2288). */
+	if (*buf + 2 + msg->id_len + 1 > end)
+		goto too_big;
+
+	/* Encode the message name */
+	if (spoe_encode_buffer(msg->id, msg->id_len, buf, end) == -1)
+		goto too_big;
+
+	/* Set the number of arguments for this message */
+	**buf = msg->nargs;
+	(*buf)++;
+
+	ctx->frag_ctx.curoff = 0;
+  encode_msg_payload:
+
+	/* Loop on arguments */
+	list_for_each_entry(arg, &msg->args, list) {
+		ctx->frag_ctx.curarg = arg;
+		ctx->frag_ctx.curoff = UINT_MAX;
+
+	  encode_argument:
+		if (ctx->frag_ctx.curoff != UINT_MAX)
+			goto encode_arg_value;
+
+		/* Encode the arguement name as a string. It can by NULL */
+		if (spoe_encode_buffer(arg->name, arg->name_len, buf, end) == -1)
+			goto too_big;
+
+		ctx->frag_ctx.curoff = 0;
+	  encode_arg_value:
+
+		/* Fetch the arguement value */
+		smp = sample_process(s->be, s->sess, s, dir|SMP_OPT_FINAL, arg->expr, NULL);
+		ret = spoe_encode_data(smp, &ctx->frag_ctx.curoff, buf, end);
+		if (ret == -1 || ctx->frag_ctx.curoff)
+			goto too_big;
+	}
+
+  next:
+	return 0;
+
+  too_big:
+	return -1;
+}
+
 /* Encode SPOE messages for a specific event. Info in <ctx->frag_ctx>, if any,
  * are used to handle fragmented content. On success it returns 1. If an error
  * occurred, -1 is returned. If nothing has been encoded, it returns 0 (this is
@@ -2106,10 +2185,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	struct spoe_config  *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent   *agent = conf->agent;
 	struct spoe_message *msg;
-	struct sample       *smp;
-	struct spoe_arg     *arg;
 	char   *p, *end;
-	int     ret;
 
 	p   = ctx->buffer->p;
 	end =  p + agent->frame_size - FRAME_HDR_SIZE;
@@ -2127,67 +2203,8 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		ctx->frag_ctx.curoff = UINT_MAX;
 
 	  encode_message:
-		if (msg->cond) {
-			int ret = 1;
-
-			ret = acl_exec_cond(msg->cond, s->be, s->sess, s, dir|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (msg->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			/* the rule does not match */
-			if (!ret)
-				continue;
-		}
-
-		/* Resume encoding of a SPOE argument */
-		if (ctx->frag_ctx.curarg != NULL) {
-			arg = ctx->frag_ctx.curarg;
-			goto encode_argument;
-		}
-
-		if (ctx->frag_ctx.curoff != UINT_MAX)
-			goto encode_msg_payload;
-
-		/* Check if there is enough space for the message name and the
-		 * number of arguments. It implies <msg->id_len> is encoded on 2
-		 * bytes, at most (< 2288). */
-		if (p + 2 + msg->id_len + 1 > end)
+		if (spoe_encode_message(s, ctx, msg, dir, &p, end) == -1)
 			goto too_big;
-
-		/* Encode the message name */
-		if (spoe_encode_buffer(msg->id, msg->id_len, &p, end) == -1)
-			goto too_big;
-
-		/* Set the number of arguments for this message */
-		*p++ = msg->nargs;
-
-		ctx->frag_ctx.curoff = 0;
-	  encode_msg_payload:
-
-		/* Loop on arguments */
-		list_for_each_entry(arg, &msg->args, list) {
-			ctx->frag_ctx.curarg = arg;
-			ctx->frag_ctx.curoff = UINT_MAX;
-
-		  encode_argument:
-			if (ctx->frag_ctx.curoff != UINT_MAX)
-				goto encode_arg_value;
-
-			/* Encode the arguement name as a string. It can by NULL */
-			if (spoe_encode_buffer(arg->name, arg->name_len, &p, end) == -1)
-				goto too_big;
-
-			ctx->frag_ctx.curoff = 0;
-		  encode_arg_value:
-
-			/* Fetch the arguement value */
-			smp = sample_process(s->be, s->sess, s,
-					     dir|SMP_OPT_FINAL, arg->expr, NULL);
-			ret = spoe_encode_data(smp, &ctx->frag_ctx.curoff, &p, end);
-			if (ret == -1 || ctx->frag_ctx.curoff)
-				goto too_big;
-		}
 	}
 
 	/* nothing has been encoded for an unfragmented payload */
