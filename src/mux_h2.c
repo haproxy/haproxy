@@ -12,8 +12,70 @@
 
 #include <common/cfgparse.h>
 #include <common/config.h>
+#include <common/h2.h>
+#include <common/hpack-tbl.h>
 #include <proto/connection.h>
 #include <proto/stream.h>
+#include <eb32tree.h>
+
+
+/* the h2c connection pool */
+static struct pool_head *pool2_h2c;
+
+/* Connection flags (32 bit), in h2c->flags */
+#define H2_CF_NONE              0x00000000
+
+/* H2 connection state, in h2c->st0 */
+enum h2_cs {
+	H2_CS_PREFACE,   // init done, waiting for connection preface
+	H2_CS_SETTINGS1, // preface OK, waiting for first settings frame
+	H2_CS_FRAME_H,   // first settings frame ok, waiting for frame header
+	H2_CS_FRAME_P,   // frame header OK, waiting for frame payload
+	H2_CS_FRAME_A,   // frame payload OK, trying to send ACK/RST frame
+	H2_CS_ERROR,     // send GOAWAY(errcode) and close the connection ASAP
+	H2_CS_ERROR2,    // GOAWAY(errcode) sent, close the connection ASAP
+	H2_CS_ENTRIES    // must be last
+} __attribute__((packed));
+
+/* H2 connection descriptor */
+struct h2c {
+	struct connection *conn;
+
+	enum h2_cs st0; /* mux state */
+	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
+
+	/* 16 bit hole here */
+	uint32_t flags; /* connection flags: H2_CF_* */
+	int32_t max_id; /* highest ID known on this connection, <0 before preface */
+	uint32_t rcvd_c; /* newly received data to ACK for the connection */
+	uint32_t rcvd_s; /* newly received data to ACK for the current stream (dsi) */
+
+	/* states for the demux direction */
+	struct hpack_dht *ddht; /* demux dynamic header table */
+	struct buffer *dbuf;    /* demux buffer */
+
+	int32_t dsi; /* demux stream ID (<0 = idle) */
+	int32_t dfl; /* demux frame length (if dsi >= 0) */
+	int8_t  dft; /* demux frame type   (if dsi >= 0) */
+	int8_t  dff; /* demux frame flags  (if dsi >= 0) */
+	/* 16 bit hole here */
+	int32_t last_sid; /* last processed stream ID for GOAWAY, <0 before preface */
+
+	/* states for the mux direction */
+	struct buffer *mbuf;    /* mux buffer */
+	int32_t msi; /* mux stream ID (<0 = idle) */
+	int32_t mfl; /* mux frame length (if dsi >= 0) */
+	int8_t  mft; /* mux frame type   (if dsi >= 0) */
+	int8_t  mff; /* mux frame flags  (if dsi >= 0) */
+	/* 16 bit hole here */
+	int32_t miw; /* mux initial window size for all new streams */
+	int32_t mws; /* mux window size. Can be negative. */
+	int32_t mfs; /* mux's max frame size */
+
+	struct eb_root streams_by_id; /* all active streams by their ID */
+	struct list send_list; /* list of blocked streams requesting to send */
+	struct list fctl_list; /* list of streams blocked by connection's fctl */
+};
 
 
 /* a few settings from the global section */
@@ -214,9 +276,16 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ 0, NULL, NULL }
 }};
 
+static void __h2_deinit(void)
+{
+	pool_destroy2(pool2_h2c);
+}
+
 __attribute__((constructor))
 static void __h2_init(void)
 {
 	alpn_register_mux(&alpn_mux_h2);
 	cfg_register_keywords(&cfg_kws);
+	hap_register_post_deinit(__h2_deinit);
+	pool2_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
 }
