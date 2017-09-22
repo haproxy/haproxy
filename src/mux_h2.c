@@ -79,6 +79,7 @@ struct h2c {
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct buffer_wait dbuf_wait; /* wait list for demux buffer allocation */
+	struct buffer_wait mbuf_wait; /* wait list for mux buffer allocation */
 };
 
 /* H2 stream state, in h2s->st */
@@ -178,6 +179,56 @@ static inline void h2_release_dbuf(struct h2c *h2c)
 	}
 }
 
+/* re-enables sending on mux <target> after a buffer was allocated. It returns
+ * 1 if the allocation succeeds, in which case the connection is woken up, or 0
+ * if it's impossible to wake up and we prefer to be woken up later.
+ */
+static int h2_mbuf_available(void *target)
+{
+	struct h2c *h2c = target;
+
+	/* take the buffer now as we'll get scheduled waiting for ->wake(). */
+	if (b_alloc_margin(&h2c->mbuf, 0)) {
+		/* FIXME: we should in fact call something like h2_update_poll()
+		 * now to recompte the polling. For now it will be enough like
+		 * this.
+		 */
+		conn_xprt_want_recv(h2c->conn);
+		return 1;
+	}
+	return 0;
+}
+
+static inline struct buffer *h2_get_mbuf(struct h2c *h2c)
+{
+	struct buffer *buf = NULL;
+
+	if (likely(LIST_ISEMPTY(&h2c->mbuf_wait.list)) &&
+	    unlikely((buf = b_alloc_margin(&h2c->mbuf, 0)) == NULL)) {
+		h2c->mbuf_wait.target = h2c;
+		h2c->mbuf_wait.wakeup_cb = h2_mbuf_available;
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		LIST_ADDQ(&buffer_wq, &h2c->mbuf_wait.list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+
+		/* FIXME: we should in fact only block the direction being
+		 * currently used. For now it will be enough like this.
+		 */
+		__conn_xprt_stop_send(h2c->conn);
+		__conn_xprt_stop_recv(h2c->conn);
+	}
+	return buf;
+}
+
+static inline void h2_release_mbuf(struct h2c *h2c)
+{
+	if (h2c->mbuf->size) {
+		b_free(&h2c->mbuf);
+		offer_buffers(h2c->mbuf_wait.target,
+			      tasks_run_queue + applets_active_queue);
+	}
+}
+
 
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
@@ -218,6 +269,7 @@ static int h2c_frt_init(struct connection *conn)
 	LIST_INIT(&h2c->send_list);
 	LIST_INIT(&h2c->fctl_list);
 	LIST_INIT(&h2c->dbuf_wait.list);
+	LIST_INIT(&h2c->mbuf_wait.list);
 	conn->mux_ctx = h2c;
 
 	conn_xprt_want_recv(conn);
@@ -258,6 +310,12 @@ static void h2_release(struct connection *conn)
 		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&h2c->dbuf_wait.list);
 		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+
+		h2_release_mbuf(h2c);
+		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		LIST_DEL(&h2c->mbuf_wait.list);
+		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+
 		pool_free2(pool2_h2c, h2c);
 	}
 
@@ -364,6 +422,9 @@ static void h2_send(struct connection *conn)
 
 	if (conn->flags & CO_FL_ERROR)
 		goto error;
+
+	if (!h2c->mbuf->o)
+		h2_release_mbuf(h2c);
 
 	if (h2c->mbuf->o) {
 		/* incomplete send, the snd_buf callback has already updated
