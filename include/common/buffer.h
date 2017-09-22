@@ -28,6 +28,7 @@
 
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/ist.h>
 #include <common/memory.h>
 
 
@@ -565,6 +566,56 @@ static inline void offer_buffers(void *from, unsigned int threshold)
 	if (LIST_ISEMPTY(&buffer_wq))
 		return;
 	__offer_buffer(from, threshold);
+}
+
+/*************************************************************************/
+/* functions used to manipulate strings and blocks with wrapping buffers */
+/*************************************************************************/
+
+/* returns > 0 if the first <n> characters of buffer <b> starting at
+ * offset <o> relative to b->p match <ist>. (empty strings do match). It is
+ * designed to be use with reasonably small strings (ie matches a single byte
+ * per iteration). This function is usable both with input and output data. To
+ * be used like this depending on what to match :
+ * - input contents  :  b_isteq(b, 0, b->i, ist);
+ * - output contents :  b_isteq(b, -b->o, b->o, ist);
+ * Return value :
+ *   >0 : the number of matching bytes
+ *   =0 : not enough bytes (or matching of empty string)
+ *   <0 : non-matching byte found
+ */
+static inline int b_isteq(const struct buffer *b, unsigned int o, size_t n, const struct ist ist)
+{
+	struct ist r = ist;
+	const char *p;
+	const char *end = b->data + b->size;
+
+	if (n < r.len)
+		return 0;
+
+	p = b_ptr(b, o);
+	while (r.len--) {
+		if (*p++ != *r.ptr++)
+			return -1;
+		if (unlikely(p == end))
+			p = b->data;
+	}
+	return ist.len;
+}
+
+/* "eats" string <ist> from the input region of buffer <b>. Wrapping data is
+ * explicitly supported. It matches a single byte per iteration so strings
+ * should remain reasonably small. Returns :
+ *   > 0 : number of bytes matched and eaten
+ *   = 0 : not enough bytes (or matching an empty string)
+ *   < 0 : non-matching byte found
+ */
+static inline int bi_eat(struct buffer *b, const struct ist ist)
+{
+	int ret = b_isteq(b, 0, b->i, ist);
+	if (ret > 0)
+		bi_del(b, ret);
+	return ret;
 }
 
 #endif /* _COMMON_BUFFER_H */
