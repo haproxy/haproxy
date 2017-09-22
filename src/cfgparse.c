@@ -1822,7 +1822,7 @@ static int create_cond_regex_rule(const char *file, int line,
 
 	if (cond_start &&
 	    (strcmp(*cond_start, "if") == 0 || strcmp(*cond_start, "unless") == 0)) {
-		if ((cond = build_acl_cond(file, line, px, cond_start, &errmsg)) == NULL) {
+		if ((cond = build_acl_cond(file, line, &px->acl, px, cond_start, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 			      file, line, cmd, errmsg);
 			ret_code |= ERR_ALERT | ERR_FATAL;
@@ -3841,7 +3841,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
 				      file, linenum, errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -3898,7 +3898,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
 			      file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3934,7 +3934,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a '%s' rule : %s.\n",
 			      file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4209,7 +4209,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (strcmp(args[myidx], "if") == 0 || strcmp(args[myidx], "unless") == 0) {
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + myidx, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + myidx, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition : %s.\n",
 				      file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4267,7 +4267,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' rule : %s.\n",
 				      file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -5682,7 +5682,7 @@ stats_error_parsing:
 				goto out;
 			}
 
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' condition : %s.\n",
 				      file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -6431,7 +6431,7 @@ stats_error_parsing:
 		}
 
 		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args+2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 				      file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -6528,7 +6528,7 @@ stats_error_parsing:
 		}
 	
 		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
-			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2, &errmsg)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args+2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 				      file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;

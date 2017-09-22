@@ -90,7 +90,8 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
  * HTTP initialization requirements in the proxy. If <err> is not NULL, it will
  * be set to an error message upon errors, that the caller will have to free.
  */
-struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err);
+struct acl_cond *build_acl_cond(const char *file, int line, struct list *known_acl,
+				struct proxy *px, const char **args, char **err);
 
 /* Execute condition <cond> and return either ACL_TEST_FAIL, ACL_TEST_MISS or
  * ACL_TEST_PASS depending on the test results. ACL_TEST_MISS may only be

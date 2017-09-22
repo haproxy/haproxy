@@ -8592,7 +8592,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		struct acl_cond *cond;
 		char *errmsg = NULL;
 
-		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg, &errmsg)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, &proxy->acl, proxy, args+cur_arg, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition : %s.\n",
 			      file, linenum, args[0], errmsg);
 			free(errmsg);
@@ -9036,7 +9036,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		struct acl_cond *cond;
 		char *errmsg = NULL;
 
-		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg, &errmsg)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, &proxy->acl, proxy, args+cur_arg, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing an 'http-response %s' condition : %s.\n",
 			      file, linenum, args[0], errmsg);
 			free(errmsg);
@@ -9137,7 +9137,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		}
 		else if (strcmp(args[cur_arg], "if") == 0 ||
 			 strcmp(args[cur_arg], "unless") == 0) {
-			cond = build_acl_cond(file, linenum, curproxy, (const char **)args + cur_arg, errmsg);
+			cond = build_acl_cond(file, linenum, &proxy->acl, curproxy, (const char **)args + cur_arg, errmsg);
 			if (!cond) {
 				memprintf(errmsg, "error in condition: %s", *errmsg);
 				return NULL;

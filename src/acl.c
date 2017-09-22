@@ -1054,7 +1054,8 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
  * caller is responsible for freeing. The initial location must either be
  * freeable or NULL.
  */
-struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err)
+struct acl_cond *build_acl_cond(const char *file, int line, struct list *known_acl,
+				struct proxy *px, const char **args, char **err)
 {
 	enum acl_cond_pol pol = ACL_COND_NONE;
 	struct acl_cond *cond = NULL;
@@ -1075,7 +1076,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 		return NULL;
 	}
 
-	cond = parse_acl_cond(args, &px->acl, pol, err, &px->conf.args, file, line);
+	cond = parse_acl_cond(args, known_acl, pol, err, &px->conf.args, file, line);
 	if (!cond) {
 		/* note that parse_acl_cond must have filled <err> here */
 		return NULL;

@@ -606,7 +606,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(file, line, curpx, (const char **)args+arg, err)) == NULL) {
+		if ((rule->cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args+arg, err)) == NULL) {
 			memprintf(err,
 			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
 			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
@@ -850,7 +850,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(file, line, curpx, (const char **)args+arg, err)) == NULL) {
+		if ((rule->cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args+arg, err)) == NULL) {
 			memprintf(err,
 			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
 			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
