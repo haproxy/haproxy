@@ -279,6 +279,8 @@ option set-on-error <var name>
 
     * 4       the fragmentation of a payload is aborted.
 
+    * 5       The frame processing has been interrupted by HAProxy.
+
     * 255     an unknown error occurred during the event processing.
 
     * 256+N   a SPOP error occurred during the event processing (see section
