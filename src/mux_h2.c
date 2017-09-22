@@ -581,6 +581,27 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	return h2s;
 }
 
+/* Try to receive a connection preface, then upon success try to send our
+ * preface which is a SETTINGS frame. Returns > 0 on success or zero on
+ * missing data. It may return an error in h2c.
+ */
+static int h2c_frt_recv_preface(struct h2c *h2c)
+{
+	int ret1;
+
+	ret1 = b_isteq(h2c->dbuf, 0, h2c->dbuf->i, ist(H2_CONN_PREFACE));
+
+	if (unlikely(ret1 <= 0)) {
+		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn))
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		return 0;
+	}
+
+	bi_del(h2c->dbuf, ret1);
+
+	return ret1;
+}
+
 /* try to send a GOAWAY frame on the connection to report an error or a graceful
  * shutdown, with h2c->errcode as the error code. Returns > 0 on success or zero
  * if nothing was done. It uses h2c->last_sid as the advertised ID, or copies it
@@ -653,6 +674,26 @@ static void h2_process_demux(struct h2c *h2c)
 {
 	if (h2c->st0 >= H2_CS_ERROR)
 		return;
+
+	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
+		if (h2c->st0 == H2_CS_PREFACE) {
+			if (unlikely(h2c_frt_recv_preface(h2c) <= 0)) {
+				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				if (h2c->st0 == H2_CS_ERROR)
+					h2c->st0 = H2_CS_ERROR2;
+				goto fail;
+			}
+
+			h2c->max_id = 0;
+			h2c->st0 = H2_CS_SETTINGS1;
+		}
+		/* deal with SETTINGS here */
+	}
+	return;
+
+ fail:
+	/* we can go here on missing data, blocked response or error */
+	return;
 }
 
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
