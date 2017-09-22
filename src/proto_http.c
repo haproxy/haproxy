@@ -3341,6 +3341,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct cond_wordlist *wl;
 	enum rule_result verdict;
 	int deny_status = HTTP_ERR_403;
+	struct connection *conn = objt_conn(sess->origin);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3385,6 +3386,21 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		case HTTP_RULE_RES_BADREQ: /* failed with a bad request */
 			goto return_bad_req;
 		}
+	}
+
+	if (conn && conn->flags & CO_FL_EARLY_DATA) {
+		struct hdr_ctx ctx;
+
+		ctx.idx = 0;
+		if (!http_find_header2("Early-Data", strlen("Early-Data"),
+		    s->req.buf->p, &txn->hdr_idx, &ctx)) {
+			if (unlikely(http_header_add_tail2(&txn->req,
+			    &txn->hdr_idx, "Early-Data: 1",
+			    strlen("Early-Data: 1"))) < 0) {
+				goto return_bad_req;
+			 }
+		}
+
 	}
 
 	/* OK at this stage, we know that the request was accepted according to

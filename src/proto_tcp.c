@@ -550,8 +550,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		return SF_ERR_RESOURCE;
 	}
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN)) {
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_EARLY_SSL_HS)) {
 		conn_sock_want_send(conn);  /* for connect status, proxy protocol or SSL */
+		if (conn->flags & CO_FL_EARLY_SSL_HS)
+			conn_xprt_want_send(conn);
 	}
 	else {
 		/* If there's no more handshake, we need to notify the data

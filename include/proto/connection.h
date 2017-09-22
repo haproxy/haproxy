@@ -494,6 +494,7 @@ static inline void conn_init(struct connection *conn)
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
 	conn->data = NULL;
+	conn->tmp_early_data = -1;
 	conn->owner = NULL;
 	conn->send_proxy_ofs = 0;
 	conn->handle.fd = DEAD_FD_MAGIC;

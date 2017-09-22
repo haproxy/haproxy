@@ -1314,7 +1314,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
-		if (conn->flags & CO_FL_CONNECTED) {
+		if ((conn->flags & (CO_FL_CONNECTED | CO_FL_EARLY_SSL_HS)) == CO_FL_CONNECTED) {
 			conn->flags |= CO_FL_ERROR;
 			conn->err_code = CO_ER_SSL_RENEG;
 		}
@@ -2002,11 +2002,14 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	const uint8_t *servername;
 	size_t servername_len;
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
+	int allow_early = 0;
 	int i;
 
 	conn = SSL_get_app_data(ssl);
 	s = objt_listener(conn->target)->bind_conf;
 
+	if (s->ssl_options & BC_SSL_O_EARLY_DATA)
+		allow_early = 1;
 #ifdef OPENSSL_IS_BORINGSSL
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_server_name,
 						 &extension_data, &extension_len)) {
@@ -2045,13 +2048,13 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	} else {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		if (s->generate_certs && ssl_sock_generate_certificate_from_conn(s, ssl)) {
-			return 1;
+			goto allow_early;
 		}
 #endif
 		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
 		if (!s->strict_sni) {
 			ssl_sock_switchctx_set(ssl, s->default_ctx);
-			return 1;
+			goto allow_early;
 		}
 		goto abort;
 	}
@@ -2189,19 +2192,29 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
 		methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
 		methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
-		return 1;
+		if (conf->early_data)
+			allow_early = 1;
+		goto allow_early;
 	}
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 	if (s->generate_certs && ssl_sock_generate_certificate(trash.str, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
-		return 1;
+		goto allow_early;
 	}
 #endif
 	if (!s->strict_sni) {
 		/* no certificate match, is the default_ctx */
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
-		return 1;
 	}
+allow_early:
+#ifdef OPENSSL_IS_BORINGSSL
+	if (allow_early)
+		SSL_set_early_data_enabled(ssl, 1);
+#else
+	if (!allow_early)
+		SSL_set_max_early_data(ssl, 0);
+#endif
+	return 1;
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	conn->err_code = CO_ER_SSL_HANDSHAKE;
@@ -3911,8 +3924,20 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	if (!conf_curves) {
 		int i;
 		EC_KEY  *ecdh;
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
 		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
-			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
+			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe :
+			 NULL);
+
+		if (ecdhe == NULL) {
+			SSL_CTX_set_dh_auto(ctx, 1);
+			return cfgerr;
+		}
+#else
+		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
+			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe :
+			 ECDHE_DEFAULT_CURVE);
+#endif
 
 		i = OBJ_sn2nid(ecdhe);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
@@ -4627,6 +4652,9 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+#if OPENSSL_VERSION_NUMBER >= 0x0101000L
+		conn->flags |= CO_FL_EARLY_SSL_HS;
+#endif
 
 		sslconns++;
 		totalsslconns++;
@@ -4654,6 +4682,26 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!conn->xprt_ctx)
 		goto out_error;
 
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+	/*
+	 * Check if we have early data. If we do, we have to read them
+	 * before SSL_do_handshake() is called, And there's no way to
+	 * detect early data, except to try to read them
+	 */
+	if (conn->flags & CO_FL_EARLY_SSL_HS) {
+		size_t read_data;
+
+		ret = SSL_read_early_data(conn->xprt_ctx, &conn->tmp_early_data,
+		    1, &read_data);
+		if (ret == SSL_READ_EARLY_DATA_ERROR)
+			goto check_error;
+		if (ret == SSL_READ_EARLY_DATA_SUCCESS) {
+			conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
+			return 1;
+		} else
+			conn->flags &= ~CO_FL_EARLY_SSL_HS;
+	}
+#endif
 	/* If we use SSL_do_handshake to process a reneg initiated by
 	 * the remote peer, it sometimes returns SSL_ERROR_SSL.
 	 * Usually SSL_write and SSL_read are used and process implicitly
@@ -4753,8 +4801,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		/* read some data: consider handshake completed */
 		goto reneg_ok;
 	}
-
 	ret = SSL_do_handshake(conn->xprt_ctx);
+check_error:
 	if (ret != 1) {
 		/* handshake did not complete, let's find why */
 		ret = SSL_get_error(conn->xprt_ctx, ret);
@@ -4845,6 +4893,13 @@ reneg_ok:
 	if (global_ssl.async)
 		SSL_clear_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
 #endif
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+	/* Once the handshake succeeded, we can consider the early data
+	 * as valid.
+	 */
+	if (conn->flags & CO_FL_EARLY_DATA)
+		conn->flags &= ~CO_FL_EARLY_DATA;
+#endif
 	/* Handshake succeeded */
 	if (!SSL_session_reused(conn->xprt_ctx)) {
 		if (objt_server(conn->target)) {
@@ -4913,8 +4968,18 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		return 0;
 
 	/* let's realign the buffer to optimize I/O */
-	if (buffer_empty(buf))
+	if (buffer_empty(buf)) {
 		buf->p = buf->data;
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		/*
+		 * If we're done reading the early data, and we're using
+		 * a new buffer, then we know for sure we're not tainted
+		 * with early data anymore
+		 */
+		if ((conn->flags & (CO_FL_EARLY_SSL_HS |CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA)
+			conn->flags &= ~CO_FL_EARLY_DATA;
+#endif
+	}
 
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,
@@ -4922,6 +4987,8 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 * EINTR too.
 	 */
 	while (count > 0) {
+		int need_out = 0;
+
 		/* first check if we have some room after p+i */
 		try = buf->data + buf->size - (buf->p + buf->i);
 		/* otherwise continue between data and p-o */
@@ -4932,7 +4999,42 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		}
 		if (try > count)
 			try = count;
+		if (((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_EARLY_SSL_HS) &&
+		    conn->tmp_early_data != -1) {
+			*bi_end(buf) = conn->tmp_early_data;
+			done++;
+			try--;
+			count--;
+			buf->i++;
+			conn->tmp_early_data = -1;
+			continue;
+		}
 
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		if (conn->flags & CO_FL_EARLY_SSL_HS) {
+			size_t read_length;
+
+			ret = SSL_read_early_data(conn->xprt_ctx,
+			    bi_end(buf), try, &read_length);
+			if (read_length > 0)
+				conn->flags |= CO_FL_EARLY_DATA;
+			if (ret == SSL_READ_EARLY_DATA_SUCCESS ||
+			    ret == SSL_READ_EARLY_DATA_FINISH) {
+				if (ret == SSL_READ_EARLY_DATA_FINISH) {
+					/*
+					 * We're done reading the early data,
+					 * let's make the handshake
+					 */
+					conn->flags &= ~CO_FL_EARLY_SSL_HS;
+					conn->flags |= CO_FL_SSL_WAIT_HS;
+					need_out = 1;
+					if (read_length == 0)
+						break;
+				}
+				ret = read_length;
+			}
+		} else
+#endif
 		ret = SSL_read(conn->xprt_ctx, bi_end(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
@@ -4942,20 +5044,6 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			buf->i += ret;
 			done += ret;
 			count -= ret;
-		}
-		else if (ret == 0) {
-			ret =  SSL_get_error(conn->xprt_ctx, ret);
-			if (ret != SSL_ERROR_ZERO_RETURN) {
-				/* error on protocol or underlying transport */
-				if ((ret != SSL_ERROR_SYSCALL)
-				     || (errno && (errno != EAGAIN)))
-					conn->flags |= CO_FL_ERROR;
-
-				/* Clear openssl global errors stack */
-				ssl_sock_dump_errors(conn);
-				ERR_clear_error();
-			}
-			goto read0;
 		}
 		else {
 			ret =  SSL_get_error(conn->xprt_ctx, ret);
@@ -4985,10 +5073,13 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				/* we need to poll for retry a read later */
 				fd_cant_recv(conn->handle.fd);
 				break;
-			}
+			} else if (ret == SSL_ERROR_ZERO_RETURN)
+				goto read0;
 			/* otherwise it's a real error */
 			goto out_error;
 		}
+		if (need_out)
+			break;
 	}
  leave:
 	conn_cond_update_sock_polling(conn);
@@ -5036,6 +5127,10 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	 * in which case we accept to do it once again.
 	 */
 	while (buf->o) {
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		size_t written_data;
+#endif
+
 		try = bo_contig_data(buf);
 
 		if (!(flags & CO_SFL_STREAMER) &&
@@ -5051,6 +5146,27 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			conn->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
 		}
 
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		if (!SSL_is_init_finished(conn->xprt_ctx)) {
+			unsigned int max_early;
+
+			if (conn->tmp_early_data == -1)
+				conn->tmp_early_data = 0;
+
+			max_early = SSL_get_max_early_data(conn->xprt_ctx);
+			if (try + conn->tmp_early_data > max_early) {
+				try -= (try + conn->tmp_early_data) - max_early;
+				if (try <= 0)
+					break;
+			}
+			ret = SSL_write_early_data(conn->xprt_ctx, bo_ptr(buf), try, &written_data);
+			if (ret == 1) {
+				ret = written_data;
+				conn->tmp_early_data += ret;
+			}
+
+		} else
+#endif
 		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
 
 		if (conn->flags & CO_FL_ERROR) {
@@ -6841,6 +6957,19 @@ static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px,
 	return 0;
 }
 
+/* parse the "allow-0rtt" bind keyword */
+static int ssl_bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+{
+	conf->early_data = 1;
+	return 0;
+}
+
+static int bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->ssl_options |= BC_SSL_O_EARLY_DATA;
+	return 0;
+}
+
 /* parse the "npn" bind keyword */
 static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
@@ -7380,6 +7509,8 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 	while (*(args[i])) {
 		if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
+		else if (!strcmp(args[i], "allow-0rtt"))
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_EARLY_DATA;
 		else if (!strcmp(args[i], "prefer-client-ciphers"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
 		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
@@ -8045,6 +8176,7 @@ static struct acl_kw_list acl_kws = {ILH, {
  * not enabled.
  */
 static struct ssl_bind_kw ssl_bind_kws[] = {
+	{ "allow-0rtt",            ssl_bind_parse_allow_0rtt,       0 }, /* allow 0-RTT */
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process verify on client cert */
 	{ "ciphers",               ssl_bind_parse_ciphers,          1 }, /* set SSL cipher suite */
@@ -8060,6 +8192,7 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 };
 
 static struct bind_kw_list bind_kws = { "SSL", { }, {
+	{ "allow-0rtt",            bind_parse_allow_0rtt,         0 }, /* Allow 0RTT */
 	{ "alpn",                  bind_parse_alpn,               1 }, /* set ALPN supported protocols */
 	{ "ca-file",               bind_parse_ca_file,            1 }, /* set CAfile to process verify on client cert */
 	{ "ca-ignore-err",         bind_parse_ignore_err,         1 }, /* set error IDs to ignore on verify depth > 0 */

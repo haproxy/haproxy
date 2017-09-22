@@ -95,8 +95,8 @@ enum {
 	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
 	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
 
-	/* unused : 0x00004000 */
-	/* unused : 0x00008000 */
+	CO_FL_EARLY_SSL_HS  = 0x00004000,  /* We have early data pending, don't start SSL handshake yet */
+	CO_FL_EARLY_DATA    = 0x00008000,  /* At least some of the data are early data */
 	/* unused : 0x00010000 */
 	/* unused : 0x00020000 */
 
@@ -299,6 +299,7 @@ struct connection {
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct data_cb  *data;  /* data layer callbacks. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
+	int tmp_early_data;           /* 1st byte of early data, if any */
 	void *owner;                  /* pointer to upper layer's entity (eg: session, stream interface) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	union conn_handle handle;     /* connection handle at the socket layer */
