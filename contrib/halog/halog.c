@@ -1569,6 +1569,7 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 
 	if (unlikely(!*e)) {
 		truncated_line(linenum, line);
+		free(ustat);
 		return;
 	}
 
