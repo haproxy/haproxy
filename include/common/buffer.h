@@ -618,6 +618,64 @@ static inline int bi_eat(struct buffer *b, const struct ist ist)
 	return ret;
 }
 
+/* injects string <ist> into the input region of buffer <b> provided that it
+ * fits. Wrapping is supported. It's designed for small strings as it only
+ * writes a single byte per iteration. Returns the number of characters copied
+ * (ist.len), 0 if it temporarily does not fit or -1 if it will never fit. It
+ * will only modify the buffer upon success. In all cases, the contents are
+ * copied prior to reporting an error, so that the destination at least
+ * contains a valid but truncated string.
+ */
+static inline int bi_istput(struct buffer *b, const struct ist ist)
+{
+	const char *end = b->data + b->size;
+	struct ist r = ist;
+	char *p;
+
+	if (r.len > (size_t)(b->size - b->i - b->o))
+		return r.len < b->size ? 0 : -1;
+
+	p = b_ptr(b, b->i);
+	b->i += r.len;
+	while (r.len--) {
+		*p++ = *r.ptr++;
+		if (unlikely(p == end))
+			p = b->data;
+	}
+	return ist.len;
+}
+
+
+/* injects string <ist> into the output region of buffer <b> provided that it
+ * fits. Input data is assumed not to exist and will silently be overwritten.
+ * Wrapping is supported. It's designed for small strings as it only writes a
+ * single byte per iteration. Returns the number of characters copied (ist.len),
+ * 0 if it temporarily does not fit or -1 if it will never fit. It will only
+ * modify the buffer upon success. In all cases, the contents are copied prior
+ * to reporting an error, so that the destination at least contains a valid
+ * but truncated string.
+ */
+static inline int bo_istput(struct buffer *b, const struct ist ist)
+{
+	const char *end = b->data + b->size;
+	struct ist r = ist;
+	char *p;
+
+	if (r.len > (size_t)(b->size - b->o))
+		return r.len < b->size ? 0 : -1;
+
+	p = b->p;
+	b->o += r.len;
+	b->p = b_ptr(b, r.len);
+	while (r.len--) {
+		*p++ = *r.ptr++;
+		if (unlikely(p == end))
+			p = b->data;
+	}
+	return ist.len;
+}
+
+
 #endif /* _COMMON_BUFFER_H */
 
 /*
