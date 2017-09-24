@@ -128,6 +128,16 @@ struct cond_wordlist {
 	     item = LIST_ELEM(item->member.n, typeof(item), member))
 
 /*
+ * Same as list_for_each_entry but starting from current point
+ * Iterates <item> through the list starting from <item>
+ * It's basically the same macro but without initializing item to the head of
+ * the list.
+ */
+#define list_for_each_entry_from(item, list_head, member) \
+	for ( ; &item->member != (list_head); \
+	     item = LIST_ELEM(item->member.n, typeof(item), member))
+
+/*
  * Simpler FOREACH_ITEM_SAFE macro inspired from Linux sources.
  * Iterates <item> through a list of items of type "typeof(*item)" which are
  * linked via a "struct list" member named <member>. A pointer to the head of
@@ -138,6 +148,18 @@ struct cond_wordlist {
 #define list_for_each_entry_safe(item, back, list_head, member)           \
 	for (item = LIST_ELEM((list_head)->n, typeof(item), member),     \
 	     back = LIST_ELEM(item->member.n, typeof(item), member);     \
+	     &item->member != (list_head);                                \
+	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
+
+
+/*
+ * Same as list_for_each_entry_safe but starting from current point
+ * Iterates <item> through the list starting from <item>
+ * It's basically the same macro but without initializing item to the head of
+ * the list.
+ */
+#define list_for_each_entry_safe_from(item, back, list_head, member) \
+	for (back = LIST_ELEM(item->member.n, typeof(item), member);     \
 	     &item->member != (list_head);                                \
 	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
 
