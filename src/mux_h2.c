@@ -581,6 +581,87 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	return h2s;
 }
 
+/* try to send a settings frame on the connection. Returns > 0 on success, 0 if
+ * it couldn't do anything. It may return an error in h2c. See RFC7540#11.3 for
+ * the various settings codes.
+ */
+static int h2c_snd_settings(struct h2c *h2c)
+{
+	struct buffer *res;
+	char buf_data[100]; // enough for 15 settings
+	struct chunk buf;
+	int ret;
+
+	if (h2c_mux_busy(h2c, NULL)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	chunk_init(&buf, buf_data, sizeof(buf_data));
+	chunk_memcpy(&buf,
+	       "\x00\x00\x00"      /* length    : 0 for now */
+	       "\x04\x00"          /* type      : 4 (settings), flags : 0 */
+	       "\x00\x00\x00\x00", /* stream ID : 0 */
+	       9);
+
+	if (h2_settings_header_table_size != 4096) {
+		char str[6] = "\x00\x01"; /* header_table_size */
+
+		write_n32(str + 2, h2_settings_header_table_size);
+		chunk_memcat(&buf, str, 6);
+	}
+
+	if (h2_settings_initial_window_size != 65535) {
+		char str[6] = "\x00\x04"; /* initial_window_size */
+
+		write_n32(str + 2, h2_settings_initial_window_size);
+		chunk_memcat(&buf, str, 6);
+	}
+
+	if (h2_settings_max_concurrent_streams != 0) {
+		char str[6] = "\x00\x03"; /* max_concurrent_streams */
+
+		/* Note: 0 means "unlimited" for haproxy's config but not for
+		 * the protocol, so never send this value!
+		 */
+		write_n32(str + 2, h2_settings_max_concurrent_streams);
+		chunk_memcat(&buf, str, 6);
+	}
+
+	if (global.tune.bufsize != 16384) {
+		char str[6] = "\x00\x05"; /* max_frame_size */
+
+		/* note: similarly we could also emit MAX_HEADER_LIST_SIZE to
+		 * match bufsize - rewrite size, but at the moment it seems
+		 * that clients don't take care of it.
+		 */
+		write_n32(str + 2, global.tune.bufsize);
+		chunk_memcat(&buf, str, 6);
+	}
+
+	h2_set_frame_size(buf.str, buf.len - 9);
+	ret = bo_istput(res, ist2(buf.str, buf.len));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+	return ret;
+}
+
 /* Try to receive a connection preface, then upon success try to send our
  * preface which is a SETTINGS frame. Returns > 0 on success or zero on
  * missing data. It may return an error in h2c.
@@ -588,6 +669,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 static int h2c_frt_recv_preface(struct h2c *h2c)
 {
 	int ret1;
+	int ret2;
 
 	ret1 = b_isteq(h2c->dbuf, 0, h2c->dbuf->i, ist(H2_CONN_PREFACE));
 
@@ -597,9 +679,11 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 		return 0;
 	}
 
-	bi_del(h2c->dbuf, ret1);
+	ret2 = h2c_snd_settings(h2c);
+	if (ret2 > 0)
+		bi_del(h2c->dbuf, ret1);
 
-	return ret1;
+	return ret2;
 }
 
 /* try to send a GOAWAY frame on the connection to report an error or a graceful
