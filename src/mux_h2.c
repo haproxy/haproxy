@@ -28,6 +28,20 @@ static struct pool_head *pool2_h2s;
 /* Connection flags (32 bit), in h2c->flags */
 #define H2_CF_NONE              0x00000000
 
+/* Flags indicating why writing to the mux is blocked. */
+#define H2_CF_MUX_MALLOC        0x00000001  // mux blocked on lack of connection's mux buffer
+#define H2_CF_MUX_MFULL         0x00000002  // mux blocked on connection's mux buffer full
+#define H2_CF_MUX_BLOCK_ANY     0x00000003  // aggregate of the mux flags above
+
+/* Flags indicating why writing to the demux is blocked. */
+#define H2_CF_DEM_DALLOC        0x00000004  // demux blocked on lack of connection's demux buffer
+#define H2_CF_DEM_DFULL         0x00000008  // demux blocked on connection's demux buffer full
+#define H2_CF_DEM_MBUSY         0x00000010  // demux blocked on connection's mux side busy
+#define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
+#define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
+#define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
+#define H2_CF_DEM_BLOCK_ANY     0x000000FC  // aggregate of the demux flags above
+
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
 	H2_CS_PREFACE,   // init done, waiting for connection preface
@@ -103,6 +117,13 @@ enum h2_ss {
 
 #define H2_SF_RST_RCVD          0x00000004 // received RST_STREAM
 #define H2_SF_RST_SENT          0x00000008 // sent RST_STREAM
+
+/* stream flags indicating the reason the stream is blocked */
+#define H2_SF_BLK_MBUSY         0x00000010 // blocked waiting for mux access (transient)
+#define H2_SF_BLK_MROOM         0x00000020 // blocked waiting for room in the mux
+#define H2_SF_BLK_MFCTL         0x00000040 // blocked due to mux fctl
+#define H2_SF_BLK_SFCTL         0x00000080 // blocked due to stream fctl
+#define H2_SF_BLK_ANY           0x000000F0 // any of the reasons above
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
