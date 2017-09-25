@@ -191,7 +191,9 @@ static int h2_dbuf_available(void *target)
 
 	/* take the buffer now as we'll get scheduled waiting for ->wake() */
 	if (b_alloc_margin(&h2c->dbuf, 0)) {
-		conn_xprt_want_recv(h2c->conn);
+		h2c->flags &= ~H2_CF_DEM_DALLOC;
+		if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY))
+			conn_xprt_want_recv(h2c->conn);
 		return 1;
 	}
 	return 0;
@@ -232,11 +234,22 @@ static int h2_mbuf_available(void *target)
 
 	/* take the buffer now as we'll get scheduled waiting for ->wake(). */
 	if (b_alloc_margin(&h2c->mbuf, 0)) {
+		if (h2c->flags & H2_CF_MUX_MALLOC) {
+			h2c->flags &= ~H2_CF_MUX_MALLOC;
+			if (!(h2c->flags & H2_CF_MUX_BLOCK_ANY))
+				conn_xprt_want_send(h2c->conn);
+		}
+
+		if (h2c->flags & H2_CF_DEM_MROOM) {
+			h2c->flags &= ~H2_CF_DEM_MROOM;
+			if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY))
+				conn_xprt_want_recv(h2c->conn);
+		}
+
 		/* FIXME: we should in fact call something like h2_update_poll()
 		 * now to recompte the polling. For now it will be enough like
 		 * this.
 		 */
-		conn_xprt_want_recv(h2c->conn);
 		return 1;
 	}
 	return 0;
@@ -579,8 +592,10 @@ static void h2_recv(struct connection *conn)
 		goto error;
 
 	buf = h2_get_dbuf(h2c);
-	if (!buf)
+	if (!buf) {
+		h2c->flags |= H2_CF_DEM_DALLOC;
 		return;
+	}
 
 	/* note: buf->o == 0 */
 	max = buf->size - buf->i;
