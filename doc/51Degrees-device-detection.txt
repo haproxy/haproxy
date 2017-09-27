@@ -12,9 +12,18 @@ need. Attributes of the device making a web request can be added to HTTP
 headers as configurable parameters.
 
 In order to enable 51Degrees download the 51Degrees source code from the
-official github repository :
+official git repository :
 
-    git clone https://git.51Degrees.com/Device-Detection.git -b v3.2.10
+    - either use the proven stable but frozen 3.2.10 version which
+      supports the Trie algorithm :
+
+      git clone https://git.51Degrees.com/Device-Detection.git -b v3.2.10
+
+    - or use the new 3.2.12.12 version which continues to receive database
+      updates and supports a new Hash Trie algorithm, but which is not
+      compatible with older Trie databases :
+
+      git clone https://github.com/51Degrees/Device-Detection.git -b 3.2.12.12
 
 then run 'make' with USE_51DEGREES and 51DEGREES_SRC set. Both 51DEGREES_INC
 and 51DEGREES_LIB may additionally be used to force specific different paths
