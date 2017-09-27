@@ -605,6 +605,9 @@ static int init_51degrees(void)
 		case DATA_SET_INIT_STATUS_NOT_SET:
 			chunk_printf(temp, "Data set not initialised.");
 			break;
+		default:
+			chunk_printf(temp, "Other error.");
+			break;
 	}
 	if (_51d_dataset_status != DATA_SET_INIT_STATUS_SUCCESS) {
 		if (temp->len)
