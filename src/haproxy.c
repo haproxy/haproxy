@@ -1766,10 +1766,6 @@ static void init(int argc, char **argv)
 	if (!hlua_post_init())
 		exit(1);
 
-	/* initialize structures for name resolution */
-	if (!dns_init_resolvers(0))
-		exit(1);
-
 	free(err_msg);
 }
 
@@ -2025,6 +2021,7 @@ void deinit(void)
 			free(s->agent.bi);
 			free(s->agent.bo);
 			free(s->agent.send_string);
+			free(s->hostname_dn);
 			free((char*)s->conf.file);
 
 			if (s->use_ssl || s->check.use_ssl) {
@@ -2697,10 +2694,6 @@ int main(int argc, char **argv)
 		setsid();
 		fork_poller();
 	}
-
-	/* initialize structures for name resolution */
-	if (!dns_init_resolvers(1))
-		exit(1);
 
 	if (global.mode & MODE_MWORKER)
 		mworker_pipe_register(mworker_pipe);

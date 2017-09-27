@@ -11475,10 +11475,6 @@ resolve-net <network>[,<network[,...]]
 resolvers <id>
   Points to an existing "resolvers" section to resolve current server's
   hostname.
-  In order to be operational, DNS resolution requires that health check is
-  enabled on the server. Actually, health checks triggers the DNS resolution.
-  You must precise one 'resolvers' parameter on each server line where DNS
-  resolution is required.
 
   Example:
 
@@ -11712,21 +11708,20 @@ different steps of the process life:
      host name. It uses libc functions to get the host name resolved. This
      resolution relies on /etc/resolv.conf file.
 
-  2. at run time, when HAProxy gets prepared to run a health check on a server,
-     it verifies if the current name resolution is still considered as valid.
-     If not, it processes a new resolution, in parallel of the health check.
+  2. at run time, HAProxy performs periodically name resolutions for servers
+     requiring DNS resolutions.
 
 A few other events can trigger a name resolution at run time:
   - when a server's health check ends up in a connection timeout: this may be
     because the server has a new IP address. So we need to trigger a name
     resolution to know this new IP.
 
-When using resolvers, the server name can either be a hostname, or s SRV label.
-HAProxy considers anything that starts with an underscore a SRV label.
-If a SRV label is specified, then the corresponding SRV records will be
-retrieved from the DNS server, and the provided hostnames will be used. The
-SRV label will be checked periodically, and if any server are added or removed,
-haproxy will automatically do the same.
+When using resolvers, the server name can either be a hostname, or a SRV label.
+HAProxy considers anything that starts with an underscore as a SRV label.  If a
+SRV label is specified, then the corresponding SRV records will be retrieved
+from the DNS server, and the provided hostnames will be used. The SRV label
+will be checked periodically, and if any server are added or removed, haproxy
+will automatically do the same.
 
 A few things important to notice:
   - all the name servers are queried in the mean time. HAProxy will process the
@@ -11740,9 +11735,8 @@ A few things important to notice:
 ----------------------------
 
 This section is dedicated to host information related to name resolution in
-HAProxy.
-There can be as many as resolvers section as needed. Each section can contain
-many name servers.
+HAProxy. There can be as many as resolvers section as needed. Each section can
+contain many name servers.
 
 When multiple name servers are configured in a resolvers section, then HAProxy
 uses the first valid response. In case of invalid responses, only the last one
@@ -11750,43 +11744,40 @@ is treated. Purpose is to give the chance to a slow server to deliver a valid
 answer after a fast faulty or outdated server.
 
 When each server returns a different error type, then only the last error is
-used by HAProxy to decide what type of behavior to apply.
+used by HAProxy. The following processing is applied on this error:
 
-Two types of behavior can be applied:
- 1. stop DNS resolution
- 2. replay the DNS query with a new query type
-      In such case, the following types are applied in this exact order:
-        1. ANY query type
-        2. query type corresponding to family pointed by resolve-prefer
-           server's parameter
-        3. remaining family type
+  1. HAProxy retries the same DNS query with a new query type. The A queries are
+     switch to AAAA or the opposite. SRV queries are not concerned here. Timeout
+     errors are also excluded.
 
-HAProxy stops DNS resolution when the following errors occur:
- - invalid DNS response packet
- - wrong name in the query section of the response
- - NX domain
- - Query refused by server
- - CNAME not pointing to an IP address
+  2. When the fallback on the query type was done (or not applicable), HAProxy
+     retries the original DNS query, with the preferred query type.
 
-HAProxy tries a new query type when the following errors occur:
- - no Answer records in the response
- - DNS response truncated
- - Error in DNS response
- - No expected DNS records found in the response
- - name server timeout
+  3. HAProxy retries previous steps <resolve_retires> times. If no valid
+     response is received after that, it stops the DNS resolution and reports
+     the error.
 
-For example, with 2 name servers configured in a resolvers section:
- - first response is valid and is applied directly, second response is ignored
- - first response is invalid and second one is valid, then second response is
-   applied;
- - first response is a NX domain and second one a truncated response, then
-   HAProxy replays the query with a new type;
- - first response is truncated and second one is a NX Domain, then HAProxy
-   stops resolution.
+For example, with 2 name servers configured in a resolvers section, the
+following scenarios are possible:
+
+  - First response is valid and is applied directly, second response is
+    ignored
+
+  - First response is invalid and second one is valid, then second response is
+    applied
+
+  - First response is a NX domain and second one a truncated response, then
+    HAProxy retries the query with a new type
+
+  - First response is a NX domain and second one is a timeout, then HAProxy
+    retries the query with a new type
+
+  - Query timed out for both name servers, then HAProxy retries it with the
+    same query type
 
 As a DNS server may not answer all the IPs in one DNS request, haproxy keeps
 a cache of previous answers, an answer will be considered obsolete after
-"hold obsolete" seconds without the IP returned.
+<hold obsolete> seconds without the IP returned.
 
 
 resolvers <resolvers id>
@@ -11796,7 +11787,7 @@ A resolvers section accept the following parameters:
 
 accepted_payload_size <nb>
   Defines the maxium payload size accepted by HAProxy and announced to all the
-  naeservers configured in this resolvers section.
+  name servers configured in this resolvers section.
   <nb> is in bytes. If not set, HAProxy announces 512. (minimal value defined
        by RFC 6891)
 
@@ -11822,11 +11813,7 @@ hold <status> <period>
 
   Default value is 10s for "valid", 0s for "obsolete" and 30s for others.
 
-  Note: since the name resolution is triggered by the health checks, a new
-        resolution is triggered after <period> modulo the <inter> parameter of
-        the healch check.
-
-resolution_pool_size <nb>
+resolution_pool_size <nb>  (deprecated)
   Defines the number of resolutions available in the pool for this resolvers.
   If not defines, it defaults to 64. If your configuration requires more than
   <nb>, then HAProxy will return an error when parsing the configuration.
@@ -11844,9 +11831,12 @@ timeout <event> <time>
   Defines timeouts related to name resolution
      <event> : the event on which the <time> timeout period applies to.
                events available are:
-               - retry: time between two DNS queries, when no response have
-                        been received.
-                        Default value: 1s
+	       - resolve : default time to trigger name resolutions when no
+	                   other time applied.
+                           Default value: 1s
+               - retry   : time between two DNS queries, when no valid response
+	                   have been received.
+                           Default value: 1s
      <time>  : time related to the event. It follows the HAProxy time format.
                <time> is expressed in milliseconds.
 
@@ -11856,6 +11846,7 @@ timeout <event> <time>
      nameserver dns1 10.0.0.1:53
      nameserver dns2 10.0.0.2:53
      resolve_retries       3
+     timeout resolve       1s
      timeout retry         1s
      hold other           30s
      hold refused         30s

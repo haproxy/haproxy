@@ -2149,14 +2149,13 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->hold.obsolete = 0;
 		/* default hold period for valid is 10s */
 		curr_resolvers->hold.valid = 10000;
-		curr_resolvers->timeout.retry = 1000;
+		curr_resolvers->timeout.resolve = 1000;
+		curr_resolvers->timeout.retry   = 1000;
 		curr_resolvers->resolve_retries = 3;
-		/* default resolution pool size */
-		curr_resolvers->resolution_pool_size = DNS_DEFAULT_RESOLUTION_POOL_SIZE;
-		LIST_INIT(&curr_resolvers->nameserver_list);
-		LIST_INIT(&curr_resolvers->resolution.curr);
-		LIST_INIT(&curr_resolvers->resolution.wait);
-		LIST_INIT(&curr_resolvers->resolution.pool);
+		curr_resolvers->nb_nameservers  = 0;
+		LIST_INIT(&curr_resolvers->nameservers);
+		LIST_INIT(&curr_resolvers->resolutions.curr);
+		LIST_INIT(&curr_resolvers->resolutions.wait);
 	}
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct sockaddr_storage *sk;
@@ -2178,7 +2177,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		list_for_each_entry(newnameserver, &curr_resolvers->nameserver_list, list) {
+		list_for_each_entry(newnameserver, &curr_resolvers->nameservers, list) {
 			/* Error if two resolvers owns the same name */
 			if (strcmp(newnameserver->id, args[1]) == 0) {
 				Alert("Parsing [%s:%d]: nameserver '%s' has same name as another nameserver (declared at %s:%d).\n",
@@ -2194,8 +2193,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* the nameservers are linked backward first */
-		LIST_ADDQ(&curr_resolvers->nameserver_list, &newnameserver->list);
-		curr_resolvers->count_nameservers++;
+		LIST_ADDQ(&curr_resolvers->nameservers, &newnameserver->list);
 		newnameserver->resolvers = curr_resolvers;
 		newnameserver->conf.file = strdup(file);
 		newnameserver->conf.line = linenum;
@@ -2291,13 +2289,10 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		curr_resolvers->accepted_payload_size = i;
 	}
 	else if (strcmp(args[0], "resolution_pool_size") == 0) {
-		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects <nb> as argument.\n",
-				file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curr_resolvers->resolution_pool_size = atoi(args[1]);
+		Warning("parsing [%s:%d] : '%s' directive is now deprecated and ignored.\n",
+			file, linenum, args[0]);
+		err_code |= ERR_WARN;
+		goto out;
 	}
 	else if (strcmp(args[0], "resolve_retries") == 0) {
 		if (!*args[1]) {
@@ -2310,14 +2305,15 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "timeout") == 0) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects 'retry' and <time> as arguments.\n",
+			Alert("parsing [%s:%d] : '%s' expects 'retry' or 'resolve' and <time> as arguments.\n",
 				file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (strcmp(args[1], "retry") == 0) {
+		else if (strcmp(args[1], "retry") == 0 ||
+			 strcmp(args[1], "resolve") == 0) {
 			const char *res;
-			unsigned int timeout_retry;
+			unsigned int tout;
 
 			if (!*args[2]) {
 				Alert("parsing [%s:%d] : '%s %s' expects <time> as argument.\n",
@@ -2325,17 +2321,20 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			res = parse_time_err(args[2], &timeout_retry, TIME_UNIT_MS);
+			res = parse_time_err(args[2], &tout, TIME_UNIT_MS);
 			if (res) {
 				Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s %s>.\n",
 					file, linenum, *res, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			curr_resolvers->timeout.retry = timeout_retry;
+			if (args[1][2] == 't')
+				curr_resolvers->timeout.retry = tout;
+			else
+				curr_resolvers->timeout.resolve = tout;
 		}
 		else {
-			Alert("parsing [%s:%d] : '%s' expects 'retry' and <time> as arguments got '%s'.\n",
+			Alert("parsing [%s:%d] : '%s' expects 'retry' or 'resolve' and <time> as arguments got '%s'.\n",
 				file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -7394,7 +7393,6 @@ int check_config_validity()
 	unsigned int next_pxid = 1;
 	struct bind_conf *bind_conf;
 	char *err;
-	struct dns_resolvers *curr_resolvers;
 	struct cfg_postparser *postparser;
 
 	bind_conf = NULL;
@@ -7417,15 +7415,6 @@ int check_config_validity()
 	pool2_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 
 	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
-
-	/* allocate pool of resolution per resolvers */
-	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
-		if (dns_alloc_resolution_pool(curr_resolvers) != 0) {
-			/* error message is already displayed by dns_alloc_resolution_pool() */
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-	}
 
 	/* Post initialisation of the users and groups lists. */
 	err_code = userlist_postinit();
@@ -8360,64 +8349,6 @@ out_uri_auth_compat:
 
 				free(newsrv->trackit);
 				newsrv->trackit = NULL;
-			}
-
-			/*
-			 * resolve server's resolvers name and update the resolvers pointer
-			 * accordingly
-			 */
-			if (newsrv->resolvers_id) {
-				struct dns_resolvers *curr_resolvers;
-				int found;
-
-				found = 0;
-				list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
-					if (!strcmp(curr_resolvers->id, newsrv->resolvers_id)) {
-						found = 1;
-						break;
-					}
-				}
-
-				if (!found) {
-					Alert("config : %s '%s', server '%s': unable to find required resolvers '%s'\n",
-					proxy_type_str(curproxy), curproxy->id,
-					newsrv->id, newsrv->resolvers_id);
-					cfgerr++;
-				} else {
-					if (newsrv->srvrq) {
-						if (!newsrv->srvrq->resolvers) {
-							newsrv->srvrq->resolvers = curr_resolvers;
-							if (dns_link_resolution(newsrv->srvrq,
-							    OBJ_TYPE_SRVRQ, NULL) != 0) {
-								Alert("config : %s '%s', server '%s': unable to set DNS resolution\n",
-								    proxy_type_str(curproxy), curproxy->id,
-								    newsrv->id);
-								cfgerr++;
-							}
-						}
-
-					}
-					if (newsrv->srvrq || newsrv->hostname_dn) {
-						newsrv->resolvers = curr_resolvers;
-						if (dns_link_resolution(newsrv, OBJ_TYPE_SERVER, NULL) != 0) {
-							Alert("config : %s '%s', server '%s': unable to set DNS resolution\n",
-							proxy_type_str(curproxy), curproxy->id,
-							newsrv->id);
-							cfgerr++;
-						}
-					}
-				}
-			}
-			else {
-				/* if no resolvers section associated to this server
-				 * we can clean up the associated resolution structure
-				 */
-				if (newsrv->resolution) {
-					free(newsrv->resolution->hostname_dn);
-					newsrv->resolution->hostname_dn = NULL;
-					free(newsrv->resolution);
-					newsrv->resolution = NULL;
-				}
 			}
 
 		next_srv:

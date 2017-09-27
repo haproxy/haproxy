@@ -667,8 +667,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		 * might be due to a server IP change.
 		 * Let's trigger a DNS resolution if none are currently running.
 		 */
-		if ((check->server->resolution)	&& (check->server->resolution->step == RSLV_STEP_NONE))
-			dns_trigger_resolution(check->server->resolution);
+		dns_trigger_resolution(check->server->dns_requester);
 
 	}
 	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {

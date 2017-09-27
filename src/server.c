@@ -1375,68 +1375,34 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
  */
 static int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 {
+	char *hostname_dn;
+	int   hostname_len, hostname_dn_len;
+
 	if (!hostname)
 		return 0;
 
-	free(srv->hostname);
-	srv->hostname = strdup(hostname);
-
-	srv->hostname_dn_len = dns_str_to_dn_label_len(hostname);
-	srv->hostname_dn = calloc(srv->hostname_dn_len + 1, sizeof(char));
-
-	if (!srv->hostname || !srv->hostname_dn)
+	hostname_len    = strlen(hostname);
+	hostname_dn     = trash.str;
+	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
+					      hostname_dn, trash.size);
+	if (hostname_dn_len == -1)
 		goto err;
 
-	if (!dns_str_to_dn_label(srv->hostname,
-				 srv->hostname_dn,
-				 srv->hostname_dn_len + 1))
+
+	free(srv->hostname);
+	free(srv->hostname_dn);
+	srv->hostname        = strdup(hostname);
+	srv->hostname_dn     = strdup(hostname_dn);
+	srv->hostname_dn_len = hostname_dn_len;
+	if (!srv->hostname || !srv->hostname_dn)
 		goto err;
 
 	return 0;
 
  err:
-	free(srv->hostname);
-	srv->hostname = NULL;
-	free(srv->hostname_dn);
-	srv->hostname_dn = NULL;
+	free(srv->hostname);    srv->hostname    = NULL;
+	free(srv->hostname_dn); srv->hostname_dn = NULL;
 	return -1;
-}
-
-/*
- * Free the link between a server and its resolution.
- * It also performs the following tasks:
- *   - check if resolution can be moved back in the resolvers' pool
- *     (and do it)
- *   - move resolution's hostname_dn and hostname_dn_len to the next requester
- *     available (when applied)
- */
-void srv_free_from_resolution(struct server *srv)
-{
-	struct dns_requester *requester;
-	int count;
-
-	/* check if we can move the resolution back to the pool.
-	 * if <count> is greater than 1, then we can't */
-	count = 0;
-	list_for_each_entry(requester, &srv->resolution->requester.wait, list) {
-		++count;
-		if (count > 1)
-			break;
-	}
-	list_for_each_entry(requester, &srv->resolution->requester.curr, list) {
-		++count;
-		if (count > 1)
-			break;
-	}
-	if (count <= 1) {
-		/* move the resolution back to the pool */
-		dns_resolution_free(srv->resolvers, srv->resolution);
-		return;
-	}
-
-	dns_rm_requester_from_resolution(srv->dns_requester, srv->resolution);
-
-	return;
 }
 
 /*
@@ -2006,61 +1972,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			/* save hostname and create associated name resolution */
 			if (fqdn) {
-				if (fqdn[0] == '_') {
-					struct dns_srvrq *srvrq = NULL;
-					int found = 0;
-					/* SRV record */
+				if (fqdn[0] == '_') { /* SRV record */
 					/* Check if a SRV request already exists, and if not, create it */
-					list_for_each_entry(srvrq, &curproxy->srvrq_list, list) {
-						if (!strcmp(srvrq->name, fqdn)) {
-							found = 1;
-							break;
-						}
-					}
-					if (found == 0) {
-						int hostname_dn_len;
-
-						srvrq = calloc(1, sizeof(*srvrq));
-						if (!srvrq) {
-							Alert("Failed to allocate memory");
-							err_code = ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						srvrq->obj_type = OBJ_TYPE_SRVRQ;
-						srvrq->proxy = proxy;
-						srvrq->name = strdup(fqdn);
-						srvrq->inter = 2000;
-						hostname_dn_len = dns_str_to_dn_label_len(fqdn);
-						if (hostname_dn_len == -1) {
-							Alert("Failed to parse domaine name '%s'", fqdn);
-							err_code = ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						srvrq->hostname_dn = malloc(hostname_dn_len + 1);
-						srvrq->hostname_dn_len = hostname_dn_len;
-						if (!srvrq->hostname_dn) {
-							Alert("Failed to alloc memory");
-							err_code = ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						if (!dns_str_to_dn_label(fqdn,
-						    srvrq->hostname_dn,
-						    hostname_dn_len + 1)) {
-							Alert("Failed to parse domain name '%s'", fqdn);
-							err_code = ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						LIST_ADDQ(&proxy->srvrq_list, &srvrq->list);
-
-					}
-					newsrv->srvrq = srvrq;
-
-
-				} else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-						Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
-						    file, linenum, newsrv->id);
+					if ((newsrv->srvrq = find_srvrq_by_name(fqdn, curproxy)) == NULL)
+						newsrv->srvrq = new_dns_srvrq(newsrv, fqdn);
+					if (newsrv->srvrq == NULL) {
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
+					}
+				}
+				else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
+					Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
+					      file, linenum, newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
 				}
 			}
 
@@ -2299,8 +2224,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 				newsrv->check.inter = val;
-				if (newsrv->srvrq)
-					newsrv->srvrq->inter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "fastinter")) {
@@ -3531,8 +3454,9 @@ out:
  */
 int snr_update_srv_status(struct server *s, int has_no_ip)
 {
-	struct dns_resolution *resolution = s->resolution;
-	struct dns_resolvers *resolvers = s->resolvers;
+	struct dns_resolvers  *resolvers  = s->resolvers;
+	struct dns_resolution *resolution = s->dns_requester->resolution;
+	int exp;
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
@@ -3550,8 +3474,9 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 					return 1;
 				srv_set_admin_flag(s, SRV_ADMF_RMAINT,
 				    "No IP for server ");
-				return (0);
+				return 0;
 			}
+
 			if (!(s->next_admin & SRV_ADMF_RMAINT))
 				return 1;
 			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
@@ -3564,43 +3489,47 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 		case RSLV_STATUS_NX:
 			/* stop server if resolution is NX for a long enough period */
-			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.nx), now_ms)) {
-				if (s->next_admin & SRV_ADMF_RMAINT)
-					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS NX status");
-				return 0;
-			}
-			break;
+			exp = tick_add(resolution->last_valid, resolvers->hold.nx);
+			if (!tick_is_expired(exp, now_ms))
+				break;
+
+			if (s->next_admin & SRV_ADMF_RMAINT)
+				return 1;
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS NX status");
+			return 0;
 
 		case RSLV_STATUS_TIMEOUT:
 			/* stop server if resolution is TIMEOUT for a long enough period */
-			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.timeout), now_ms)) {
-				if (s->next_admin & SRV_ADMF_RMAINT)
-					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS timeout status");
-				return 0;
-			}
-			break;
+			exp = tick_add(resolution->last_valid, resolvers->hold.timeout);
+			if (!tick_is_expired(exp, now_ms))
+				break;
+
+			if (s->next_admin & SRV_ADMF_RMAINT)
+				return 1;
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS timeout status");
+			return 0;
 
 		case RSLV_STATUS_REFUSED:
 			/* stop server if resolution is REFUSED for a long enough period */
-			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.refused), now_ms)) {
-				if (s->next_admin & SRV_ADMF_RMAINT)
-					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS refused status");
-				return 0;
-			}
-			break;
+			exp = tick_add(resolution->last_valid, resolvers->hold.refused);
+			if (!tick_is_expired(exp, now_ms))
+				break;
+
+			if (s->next_admin & SRV_ADMF_RMAINT)
+				return 1;
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "DNS refused status");
+			return 0;
 
 		default:
-			/* stop server if resolution is in unmatched error for a long enough period */
-			if (tick_is_expired(tick_add(resolution->last_status_change, resolvers->hold.other), now_ms)) {
-				if (s->next_admin & SRV_ADMF_RMAINT)
-					return 1;
-				srv_set_admin_flag(s, SRV_ADMF_RMAINT, "unspecified DNS error");
-				return 0;
-			}
-			break;
+			/* stop server if resolution failed for a long enough period */
+			exp = tick_add(resolution->last_valid, resolvers->hold.other);
+			if (!tick_is_expired(exp, now_ms))
+				break;
+
+			if (s->next_admin & SRV_ADMF_RMAINT)
+				return 1;
+			srv_set_admin_flag(s, SRV_ADMF_RMAINT, "unspecified DNS error");
+			return 0;
 	}
 
 	return 1;
@@ -3629,11 +3558,11 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	struct chunk *chk = get_trash_chunk();
 	int has_no_ip = 0;
 
-	s = objt_server(requester->requester);
+	s = objt_server(requester->owner);
 	if (!s)
 		return 1;
 
-	resolution = s->resolution;
+	resolution = s->dns_requester->resolution;
 
 	/* initializing variables */
 	firstip = NULL;		/* pointer to the first valid response found */
@@ -3678,14 +3607,8 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 			goto update_status;
 
 		case DNS_UPD_NAME_ERROR:
-			/* if this is not the last expected response, we ignore it */
-			if (nameserver && (resolution->nb_responses < nameserver->resolvers->count_nameservers))
-				return 0;
 			/* update resolution status to OTHER error type */
-			if (resolution->status != RSLV_STATUS_OTHER) {
-				resolution->status = RSLV_STATUS_OTHER;
-				resolution->last_status_change = now_ms;
-			}
+			resolution->status = RSLV_STATUS_OTHER;
 			goto update_status;
 
 		default:
@@ -3694,12 +3617,11 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	}
 
  save_ip:
-	if (nameserver)
-		nameserver->counters.update += 1;
-
-	/* save the first ip we found */
-	if (nameserver)
+	if (nameserver) {
+		nameserver->counters.update++;
+		/* save the first ip we found */
 		chunk_printf(chk, "%s/%s", nameserver->resolvers->id, nameserver->id);
+	}
 	else
 		chunk_printf(chk, "DNS cache");
 	update_server_addr(s, firstip, firstip_sin_family, (char *)chk->str);
@@ -3710,11 +3632,9 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 
  invalid:
 	if (nameserver) {
-		nameserver->counters.invalid += 1;
-		if (resolution->nb_responses >= nameserver->resolvers->count_nameservers)
-			goto update_status;
+		nameserver->counters.invalid++;
+		goto update_status;
 	}
-
 	snr_update_srv_status(s, has_no_ip);
 	return 0;
 }
@@ -3727,22 +3647,11 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
  */
 int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
 {
-	struct server *s = NULL;
-	struct dns_resolution *resolution = NULL;
-	struct dns_resolvers *resolvers = NULL;
+	struct server *s;
 
-	s = objt_server(requester->requester);
+	s = objt_server(requester->owner);
 	if (!s)
 		return 1;
-
-	resolution = s->resolution;
-	resolvers = s->resolvers;
-
-	/* can be ignored if this is not the last response */
-	if ((error_code != DNS_RESP_TIMEOUT) && (resolution->nb_responses < resolvers->count_nameservers)) {
-		return 1;
-	}
-
 	snr_update_srv_status(s, 0);
 	return 1;
 }
@@ -3816,8 +3725,8 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 int srv_set_fqdn(struct server *srv, const char *hostname)
 {
 	struct dns_resolution *resolution;
-	int hostname_dn_len;
-	int did_set_reso = 0;
+	char                  *hostname_dn;
+	int                    hostname_len, hostname_dn_len;
 
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
@@ -3826,60 +3735,31 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 		return -1;
 
 	chunk_reset(&trash);
-
-	/* check if hostname is really a hostname and if we have enough
-	 * room to save it in its domain name format
-	 */
-	hostname_dn_len = dns_str_to_dn_label_len(hostname);
-	if (hostname_dn_len == -1 || hostname_dn_len + 1 > trash.size)
+	hostname_len    = strlen(hostname);
+	hostname_dn     = trash.str;
+	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
+					      hostname_dn, trash.size);
+	if (hostname_dn_len == -1)
 		return -1;
 
-	if (!dns_str_to_dn_label(hostname,
-				 trash.str,
-				 hostname_dn_len + 1))
-		return -1;
+	resolution = srv->dns_requester->resolution;
+	if (resolution &&
+	    resolution->hostname_dn &&
+	    !strcmp(resolution->hostname_dn, hostname_dn))
+		return 0;
 
+	dns_unlink_resolution(srv->dns_requester);
 
-	if (srv->resolution->hostname_dn) {
-		/* get a resolution from the curr or wait queues, or a brand new one from the pool */
-		resolution = dns_resolution_list_get(srv->resolvers, trash.str, srv->dns_requester->prefered_query_type);
-		if (!resolution)
-			return -1;
-
-		/* in this case, the new hostanme is the same than the old one */
-		if (srv->resolution == resolution && srv->hostname)
-			return 0;
-
-		/* first, we need to unlink our server from its current resolution */
-		srv_free_from_resolution(srv);
-	} else {
-		/* this server's fqdn has been set by a SRV record */
-		resolution = dns_resolution_list_get(srv->resolvers, trash.str, srv->dns_requester->prefered_query_type);
-		srv_free_from_resolution(srv);
-		srv->resolution = resolution;
-		if (resolution->hostname_dn == NULL) {
-			resolution->last_resolution = now_ms;
-			did_set_reso = 1;
-		}
-	}
-
-	/* now we update server's parameters */
 	free(srv->hostname);
 	free(srv->hostname_dn);
-	srv->hostname = strdup(hostname);
-	srv->hostname_dn = strdup(trash.str);
+	srv->hostname        = strdup(hostname);
+	srv->hostname_dn     = strdup(hostname_dn);
 	srv->hostname_dn_len = hostname_dn_len;
 	if (!srv->hostname || !srv->hostname_dn)
 		return -1;
-	if (did_set_reso) {
-		resolution->query_type = srv->dns_requester->prefered_query_type;
-		resolution->hostname_dn = srv->hostname_dn;
-		resolution->hostname_dn_len = hostname_dn_len;
-	}
 
-	/* then we can link srv to its new resolution */
-	dns_link_resolution(srv, OBJ_TYPE_SERVER, resolution);
-
+	if (dns_link_resolution(srv, OBJ_TYPE_SERVER) == -1)
+		return -1;
 	return 0;
 }
 

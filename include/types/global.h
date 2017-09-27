@@ -183,7 +183,6 @@ extern char localpeer[MAX_HOSTNAME_LEN];
 extern struct list global_listener_queue; /* list of the temporarily limited listeners */
 extern struct task *global_listener_queue_task;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
-extern struct list dns_resolvers;
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001

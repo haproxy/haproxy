@@ -438,7 +438,6 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
-	struct list srvrq_list;			/* List of SRV requests associated with this proxy */
 };
 
 struct switching_rule {
