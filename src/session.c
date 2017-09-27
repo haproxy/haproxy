@@ -241,7 +241,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	 *          conn -- owner ---> task <-----+
 	 */
 	if (cli_conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS)) {
-		if (unlikely((sess->task = task_new()) == NULL))
+		if (unlikely((sess->task = task_new(tid_bit)) == NULL))
 			goto out_free_sess;
 
 		conn_set_xprt_done_cb(cli_conn, conn_complete_session);

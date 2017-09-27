@@ -36,6 +36,10 @@ unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
+#ifdef USE_THREAD
+HA_SPINLOCK_T rq_lock;        /* spin lock related to run queue */
+HA_SPINLOCK_T wq_lock;        /* spin lock related to wait queue */
+#endif
 
 static struct eb_root timers;      /* sorted timers tree */
 static struct eb_root rqueue;      /* tree constituting the run queue */
@@ -113,22 +117,29 @@ int wake_expired_tasks()
 {
 	struct task *task;
 	struct eb32_node *eb;
+	int ret;
 
 	while (1) {
+		SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+  lookup_next:
 		eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
-		if (unlikely(!eb)) {
+		if (!eb) {
 			/* we might have reached the end of the tree, typically because
 			* <now_ms> is in the first half and we're first scanning the last
 			* half. Let's loop back to the beginning of the tree now.
 			*/
 			eb = eb32_first(&timers);
-			if (likely(!eb))
+			if (likely(!eb)) {
+				SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 				break;
+			}
 		}
 
 		if (likely(tick_is_lt(now_ms, eb->key))) {
+			ret = eb->key;
+			SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 			/* timer not expired yet, revisit it later */
-			return eb->key;
+			return ret;
 		}
 
 		/* timer looks expired, detach it from the queue */
@@ -150,10 +161,11 @@ int wake_expired_tasks()
 		 */
 		if (!tick_is_expired(task->expire, now_ms)) {
 			if (!tick_isset(task->expire))
-				continue;
+				goto lookup_next;
 			__task_queue(task);
-			continue;
+			goto lookup_next;
 		}
+		SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 		task_wakeup(task, TASK_WOKEN_TIMER);
 	}
 
@@ -192,6 +204,7 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
+	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	while (max_processed > 0) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
@@ -216,12 +229,14 @@ void process_runnable_tasks()
 		while (local_tasks_count < 16) {
 			t = eb32_entry(rq_next, struct task, rq);
 			rq_next = eb32_next(rq_next);
-			/* detach the task from the queue */
-			__task_unlink_rq(t);
-			t->state |= TASK_RUNNING;
-			t->pending_state = 0;
-			t->calls++;
-			local_tasks[local_tasks_count++] = t;
+			if (t->process_mask & (1UL << tid)) {
+				/* detach the task from the queue */
+				__task_unlink_rq(t);
+				t->state |= TASK_RUNNING;
+				t->pending_state = 0;
+				t->calls++;
+				local_tasks[local_tasks_count++] = t;
+			}
 			if (!rq_next) {
 				if (rewind || !(rq_next = eb32_first(&rqueue))) {
 					break;
@@ -233,6 +248,7 @@ void process_runnable_tasks()
 		if (!local_tasks_count)
 			break;
 
+		SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
 		for (i = 0; i < local_tasks_count ; i++) {
 			t = local_tasks[i];
@@ -247,6 +263,7 @@ void process_runnable_tasks()
 		}
 
 		max_processed -= local_tasks_count;
+		SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		for (i = 0; i < local_tasks_count ; i++) {
 			t = local_tasks[i];
 			if (likely(t != NULL)) {
@@ -263,6 +280,7 @@ void process_runnable_tasks()
 			}
 		}
 	}
+	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -270,6 +288,8 @@ int init_task()
 {
 	memset(&timers, 0, sizeof(timers));
 	memset(&rqueue, 0, sizeof(rqueue));
+	SPIN_INIT(&wq_lock);
+	SPIN_INIT(&rq_lock);
 	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
 	if (!pool2_task)
 		return 0;

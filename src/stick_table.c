@@ -436,7 +436,7 @@ int stktable_init(struct stktable *t)
 
 		t->exp_next = TICK_ETERNITY;
 		if ( t->expire ) {
-			t->exp_task = task_new();
+			t->exp_task = task_new(MAX_THREADS_MASK);
 			t->exp_task->process = process_table_expire;
 			t->exp_task->context = (void *)t;
 		}

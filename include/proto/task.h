@@ -30,6 +30,8 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/ticks.h>
+#include <common/hathreads.h>
+
 #include <eb32tree.h>
 
 #include <types/global.h>
@@ -86,6 +88,10 @@ extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 extern struct pool_head *pool2_notification;
+#ifdef USE_THREAD
+extern HA_SPINLOCK_T rq_lock;        /* spin lock related to run queue */
+extern HA_SPINLOCK_T wq_lock;        /* spin lock related to wait queue */
+#endif
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -103,19 +109,29 @@ static inline int task_in_wq(struct task *t)
 struct task *__task_wakeup(struct task *t);
 static inline struct task *task_wakeup(struct task *t, unsigned int f)
 {
+	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+
 	/* If task is running, we postpone the call
 	 * and backup the state.
 	 */
 	if (unlikely(t->state & TASK_RUNNING)) {
 		t->pending_state |= f;
+		SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 		return t;
 	}
 	if (likely(!task_in_rq(t)))
 		__task_wakeup(t);
 	t->state |= f;
+	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+
 	return t;
 }
 
+static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
+{
+
+	t->process_mask = thread_mask;
+}
 /*
  * Unlink the task from the wait queue, and possibly update the last_timer
  * pointer. A pointer to the task itself is returned. The task *must* already
@@ -130,8 +146,10 @@ static inline struct task *__task_unlink_wq(struct task *t)
 
 static inline struct task *task_unlink_wq(struct task *t)
 {
+	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (likely(task_in_wq(t)))
 		__task_unlink_wq(t);
+	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 	return t;
 }
 
@@ -156,9 +174,10 @@ static inline struct task *__task_unlink_rq(struct task *t)
  */
 static inline struct task *task_unlink_rq(struct task *t)
 {
-	if (likely(task_in_rq(t))) {
+	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	if (likely(task_in_rq(t)))
 		__task_unlink_rq(t);
-	}
+	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
 }
 
@@ -178,11 +197,12 @@ static inline struct task *task_delete(struct task *t)
  * state).  The task is returned. This function should not be used outside of
  * task_new().
  */
-static inline struct task *task_init(struct task *t)
+static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 {
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
 	t->pending_state = t->state = TASK_SLEEPING;
+	t->process_mask = thread_mask;
 	t->nice = 0;
 	t->calls = 0;
 	t->expire = TICK_ETERNITY;
@@ -194,12 +214,12 @@ static inline struct task *task_init(struct task *t)
  * case of lack of memory. The task count is incremented. Tasks should only
  * be allocated this way, and must be freed using task_free().
  */
-static inline struct task *task_new(void)
+static inline struct task *task_new(unsigned long thread_mask)
 {
 	struct task *t = pool_alloc2(pool2_task);
 	if (t) {
-		nb_tasks++;
-		task_init(t);
+		HA_ATOMIC_ADD(&nb_tasks, 1);
+		task_init(t, thread_mask);
 	}
 	return t;
 }
@@ -213,7 +233,7 @@ static inline void task_free(struct task *t)
 	pool_free2(pool2_task, t);
 	if (unlikely(stopping))
 		pool_flush2(pool2_task);
-	nb_tasks--;
+	HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
@@ -234,8 +254,10 @@ static inline void task_queue(struct task *task)
 	if (!tick_isset(task->expire))
 		return;
 
+	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
+	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 }
 
 /* Ensure <task> will be woken up at most at <when>. If the task is already in
@@ -244,15 +266,18 @@ static inline void task_queue(struct task *task)
  */
 static inline void task_schedule(struct task *task, int when)
 {
+	/* TODO: mthread, check if there is no tisk with this test */
 	if (task_in_rq(task))
 		return;
 
+	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (task_in_wq(task))
 		when = tick_first(when, task->expire);
 
 	task->expire = when;
 	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
+	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 }
 
 /* This function register a new signal. "lua" is the current lua

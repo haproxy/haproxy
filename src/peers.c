@@ -2055,7 +2055,7 @@ void peers_init_sync(struct peers *peers)
 
 	list_for_each_entry(listener, &peers->peers_fe->conf.listeners, by_fe)
 		listener->maxconn = peers->peers_fe->maxconn;
-	peers->sync_task = task_new();
+	peers->sync_task = task_new(MAX_THREADS_MASK);
 	peers->sync_task->process = process_peer_sync;
 	peers->sync_task->context = (void *)peers;
 	peers->sighandler = signal_register_task(0, peers->sync_task, 0);

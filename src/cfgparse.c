@@ -42,6 +42,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <common/namespace.h>
+#include <common/hathreads.h>
 
 #include <types/capture.h>
 #include <types/compression.h>
@@ -8862,7 +8863,7 @@ out_uri_auth_compat:
 		}
 
 		/* create the task associated with the proxy */
-		curproxy->task = task_new();
+		curproxy->task = task_new(MAX_THREADS_MASK);
 		if (curproxy->task) {
 			curproxy->task->context = curproxy;
 			curproxy->task->process = manage_proxy;

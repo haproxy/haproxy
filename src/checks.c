@@ -2226,7 +2226,7 @@ static int start_check_task(struct check *check, int mininter,
 {
 	struct task *t;
 	/* task for the check */
-	if ((t = task_new()) == NULL) {
+	if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
 		Alert("Starting [%s:%s] check: out of memory.\n",
 		      check->server->proxy->id, check->server->id);
 		return 0;
@@ -2272,7 +2272,7 @@ static int start_checks()
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			if (s->slowstart) {
-				if ((t = task_new()) == NULL) {
+				if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
 					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 					return ERR_ALERT | ERR_FATAL;
 				}
@@ -3130,7 +3130,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 			check->port = 587;
 		//check->server = s;
 
-		if ((t = task_new()) == NULL) {
+		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
 			memprintf(err, "out of memory while allocating mailer alerts task");
 			goto error;
 		}

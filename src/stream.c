@@ -163,7 +163,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->flags |= SF_INITIALIZED;
 	s->unique_id = NULL;
 
-	if ((t = task_new()) == NULL)
+	if ((t = task_new(tid_bit)) == NULL)
 		goto out_fail_alloc;
 
 	s->task = t;

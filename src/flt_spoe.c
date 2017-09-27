@@ -1939,7 +1939,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	memset(appctx->ctx.spoe.ptr, 0, pool2_spoe_appctx->size);
 
 	appctx->st0 = SPOE_APPCTX_ST_CONNECT;
-	if ((SPOE_APPCTX(appctx)->task = task_new()) == NULL)
+	if ((SPOE_APPCTX(appctx)->task = task_new(MAX_THREADS_MASK)) == NULL)
 		goto out_free_spoe_appctx;
 
 	SPOE_APPCTX(appctx)->owner           = appctx;
@@ -1975,10 +1975,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	strm->do_log = NULL;
 	strm->res.flags |= CF_READ_DONTWAIT;
 
-	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
 	LIST_ADDQ(&conf->agent->applets, &SPOE_APPCTX(appctx)->list);
 	conf->agent->applets_act++;
 
+	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
 	task_wakeup(strm->task, TASK_WOKEN_INIT);
 	return appctx;
 

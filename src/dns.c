@@ -1851,7 +1851,7 @@ static int dns_finalize_config(void)
 		}
 
 		/* Create the task associated to the resolvers section */
-		if ((t = task_new()) == NULL) {
+		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
 			Alert("config : resolvers '%s' : out of memory.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;

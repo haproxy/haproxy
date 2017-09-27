@@ -1511,7 +1511,7 @@ static void init(int argc, char **argv)
 		exit(2);
 	}
 
-	global_listener_queue_task = task_new();
+	global_listener_queue_task = task_new(MAX_THREADS_MASK);
 	if (!global_listener_queue_task) {
 		Alert("Out of memory when initializing global task\n");
 		exit(1);
