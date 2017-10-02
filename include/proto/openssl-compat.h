@@ -89,9 +89,9 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER) || defined(OPENSSL_IS_BORINGSSL)
 /*
- * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
+ * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL / BoringSSL
  */
 
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
@@ -107,12 +107,24 @@ static inline int SSL_SESSION_set1_id(SSL_SESSION *s, const unsigned char *sid, 
 	return 1;
 }
 
+static inline X509_ALGOR *X509_get0_tbs_sigalg(const X509 *x)
+{
+	return x->cert_info->signature;
+}
+
 #if (!defined OPENSSL_NO_OCSP)
 static inline const OCSP_CERTID *OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP *single)
 {
 	return single->certId;
 }
 #endif
+
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
+/*
+ * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
+ */
 
 static inline pem_password_cb *SSL_CTX_get_default_passwd_cb(SSL_CTX *ctx)
 {
@@ -137,11 +149,6 @@ static inline int DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g)
 static inline const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 {
 	return x->data;
-}
-
-static inline X509_ALGOR *X509_get0_tbs_sigalg(const X509 *x)
-{
-	return x->cert_info->signature;
 }
 
 #endif

@@ -46,6 +46,7 @@
 #include <openssl/x509.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <openssl/hmac.h>
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
 #endif
@@ -1843,7 +1844,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 #define SSL_MODE_SMALL_BUFFERS 0
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
@@ -2055,7 +2056,7 @@ static int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 				goto abort;
 			}
 			cipher = SSL_get_cipher_by_value(cipher_suite);
-			if (cipher && SSL_CIPHER_is_ECDSA(cipher)) {
+			if (cipher && SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
 				has_ecdsa = 1;
 				break;
 			}
@@ -3606,7 +3607,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	conf_ssl_methods->min = min;
 	conf_ssl_methods->max = max;
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
@@ -4106,7 +4107,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr += 1;
 	}
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) && !defined(OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any suprise with older openssl version. */
 	if (min == max)
