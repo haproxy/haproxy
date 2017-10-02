@@ -4163,6 +4163,10 @@ http-request { allow | auth [realm <realm>] | redirect <rule> |
       pass the first router, though it's still delivered to local networks. Do
       not use it unless you fully understand how it works.
 
+    - "wait-for-handshake" : this will delay the processing of the request
+      until the SSL handshake happened. This is mostly useful to delay
+      processing early data until we're sure they are valid.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -14251,6 +14255,11 @@ ssl_fc_has_crt : boolean
   certificate is not present in the current connection but may be retrieved
   from the cache or the ticket. So prefer "ssl_c_used" if you want to check if
   current SSL session uses a client certificate.
+
+ssl_fc_has_early : boolean
+  Returns true if early data were sent, and the handshake didn't happen yet. As
+  it has security implications, it is useful to be able to refuse those, or
+  wait until the handshake happened.
 
 ssl_fc_has_sni : boolean
   This checks for the presence of a Server Name Indication TLS extension (SNI)

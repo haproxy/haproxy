@@ -95,6 +95,7 @@
 #include <proto/openssl-compat.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
+#include <proto/proto_http.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
 #include <proto/log.h>
@@ -4893,13 +4894,6 @@ reneg_ok:
 	if (global_ssl.async)
 		SSL_clear_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
 #endif
-#if OPENSSL_VERSION_NUMBER >= 0x10101000L
-	/* Once the handshake succeeded, we can consider the early data
-	 * as valid.
-	 */
-	if (conn->flags & CO_FL_EARLY_DATA)
-		conn->flags &= ~CO_FL_EARLY_DATA;
-#endif
 	/* Handshake succeeded */
 	if (!SSL_session_reused(conn->xprt_ctx)) {
 		if (objt_server(conn->target)) {
@@ -5647,6 +5641,22 @@ static int ssl_sock_get_alpn(const struct connection *conn, const char **str, in
 }
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
+
+static int
+smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || conn->xprt != &ssl_sock)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = (conn->flags & CO_FL_EARLY_DATA) ? 1 : 0;
+
+	return 1;
+}
 
 /* boolean, returns true if client cert was present */
 static int
@@ -8139,6 +8149,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
+	{ "ssl_fc_has_early",       smp_fetch_ssl_fc_has_early,   0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_is_resumed",      smp_fetch_ssl_fc_is_resumed,  0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 #ifdef OPENSSL_NPN_NEGOTIATED
@@ -8317,6 +8328,34 @@ static struct xprt_ops ssl_sock = {
 	.name     = "SSL",
 };
 
+enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
+                                       struct session *sess, struct stream *s, int flags)
+{
+	struct connection *conn;
+
+	conn = objt_conn(sess->origin);
+
+	if (conn) {
+		if (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_SSL_WAIT_HS)) {
+			s->req.flags |= CF_READ_NULL;
+			return ACT_RET_YIELD;
+		}
+	}
+	return (ACT_RET_CONT);
+}
+
+static enum act_parse_ret ssl_parse_wait_for_hs(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+{
+	rule->action_ptr = ssl_action_wait_for_hs;
+
+	return ACT_RET_PRS_OK;
+}
+
+static struct action_kw_list http_req_actions = {ILH, {
+	{ "wait-for-handshake", ssl_parse_wait_for_hs },
+	{ /* END */ }
+}};
+
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 
 static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
@@ -8419,6 +8458,8 @@ static void __ssl_sock_init(void)
 #endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
+
+	http_req_keywords_register(&http_req_actions);
 }
 
 #ifndef OPENSSL_NO_ENGINE

@@ -572,6 +572,16 @@ static int si_conn_wake_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		si->flags |= SI_FL_ERR;
 
+	/* If we had early data, and the handshake ended, then
+	 * we can remove the flag, and attempt to wake the task up,
+	 * in the event there's an analyser waiting for the end of
+	 * the handshake.
+	 */
+	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS)) == CO_FL_EARLY_DATA) {
+		conn->flags &= ~CO_FL_EARLY_DATA;
+		task_wakeup(si_task(si), TASK_WOKEN_MSG);
+	}
+
 	if ((si->state < SI_ST_EST) &&
 	    (conn->flags & (CO_FL_CONNECTED | CO_FL_HANDSHAKE)) == CO_FL_CONNECTED) {
 		si->exp = TICK_ETERNITY;
