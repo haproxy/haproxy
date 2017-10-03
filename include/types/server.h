@@ -299,6 +299,9 @@ struct server {
 		int nb_high;
 	} tmpl_info;
 	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
+	struct list update_status;		/* to attach to list of servers chnaging status */
+	char op_st_chg_reason[48];		/* operational status change's reason */
+	char adm_st_chg_cause[48];		/* adminstrative status change's cause */
 };
 
 /* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of

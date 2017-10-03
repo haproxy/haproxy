@@ -44,6 +44,8 @@
 #include <proto/dns.h>
 #include <netinet/tcp.h>
 
+struct list updated_servers = LIST_HEAD_INIT(updated_servers);
+
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn);
@@ -819,44 +821,17 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
 void srv_set_stopped(struct server *s, const char *reason)
 {
 	struct server *srv;
-	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
-	int srv_was_stopping = (s->next_state == SRV_ST_STOPPING);
-	int log_level;
-	int xferred;
 
-	if ((s->next_admin & SRV_ADMF_MAINT) || s->next_state == SRV_ST_STOPPED)
+	if ((s->cur_admin & SRV_ADMF_MAINT) || s->next_state == SRV_ST_STOPPED)
 		return;
 
-	s->last_change = now.tv_sec;
 	s->next_state = SRV_ST_STOPPED;
-	if (s->proxy->lbprm.set_server_status_down)
-		s->proxy->lbprm.set_server_status_down(s);
+	if (reason)
+		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
 
-	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-		srv_shutdown_streams(s, SF_ERR_DOWN);
-
-	/* we might have streams queued on this server and waiting for
-	 * a connection. Those which are redispatchable will be queued
-	 * to another server or to the proxy itself.
-	 */
-	xferred = pendconn_redistribute(s);
-
-	chunk_printf(&trash,
-	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	srv_append_status(&trash, s, reason, xferred, 0);
-	Warning("%s.\n", trash.str);
-
-	/* we don't send an alert if the server was previously paused */
-	log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
-	send_log(s->proxy, log_level, "%s.\n", trash.str);
-	send_email_alert(s, log_level, "%s", trash.str);
-
-	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-		set_backend_down(s->proxy);
-
-	s->counters.down_trans++;
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&s->update_status))
+		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_stopped(srv, NULL);
@@ -873,55 +848,23 @@ void srv_set_stopped(struct server *s, const char *reason)
 void srv_set_running(struct server *s, const char *reason)
 {
 	struct server *srv;
-	int xferred;
 
-	if (s->next_admin & SRV_ADMF_MAINT)
+	if (s->cur_admin & SRV_ADMF_MAINT)
 		return;
 
 	if (s->next_state == SRV_ST_STARTING || s->next_state == SRV_ST_RUNNING)
 		return;
 
-	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-		if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-			s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-		s->proxy->last_change = now.tv_sec;
-	}
-
-	if (s->next_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
-		s->down_time += now.tv_sec - s->last_change;
-
-	s->last_change = now.tv_sec;
-
 	s->next_state = SRV_ST_STARTING;
-	if (s->slowstart > 0)
-		task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
-	else
+	if (reason)
+		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
+
+	if (s->slowstart <= 0)
 		s->next_state = SRV_ST_RUNNING;
 
-	server_recalc_eweight(s);
-
-	/* If the server is set with "on-marked-up shutdown-backup-sessions",
-	 * and it's not a backup server and its effective weight is > 0,
-	 * then it can accept new connections, so we shut down all streams
-	 * on all backup servers.
-	 */
-	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-	    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
-		srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
-
-	/* check if we can handle some connections queued at the proxy. We
-	 * will take as many as we can handle.
-	 */
-	xferred = pendconn_grab_from_px(s);
-
-	chunk_printf(&trash,
-	             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	srv_append_status(&trash, s, reason, xferred, 0);
-	Warning("%s.\n", trash.str);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-	send_email_alert(s, LOG_NOTICE, "%s", trash.str);
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&s->update_status))
+		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_running(srv, NULL);
@@ -938,36 +881,20 @@ void srv_set_running(struct server *s, const char *reason)
 void srv_set_stopping(struct server *s, const char *reason)
 {
 	struct server *srv;
-	int xferred;
 
-	if (s->next_admin & SRV_ADMF_MAINT)
+	if (s->cur_admin & SRV_ADMF_MAINT)
 		return;
 
 	if (s->next_state == SRV_ST_STOPPING)
 		return;
 
-	s->last_change = now.tv_sec;
 	s->next_state = SRV_ST_STOPPING;
-	if (s->proxy->lbprm.set_server_status_down)
-		s->proxy->lbprm.set_server_status_down(s);
+	if (reason)
+		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
 
-	/* we might have streams queued on this server and waiting for
-	 * a connection. Those which are redispatchable will be queued
-	 * to another server or to the proxy itself.
-	 */
-	xferred = pendconn_redistribute(s);
-
-	chunk_printf(&trash,
-	             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	srv_append_status(&trash, s, reason, xferred, 0);
-
-	Warning("%s.\n", trash.str);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-
-	if (!s->proxy->srv_bck && !s->proxy->srv_act)
-		set_backend_down(s->proxy);
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&s->update_status))
+		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_stopping(srv, NULL);
@@ -983,9 +910,7 @@ void srv_set_stopping(struct server *s, const char *reason)
  */
 void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause)
 {
-	struct check *check = &s->check;
 	struct server *srv;
-	int xferred;
 
 	if (!mode)
 		return;
@@ -995,99 +920,17 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		return;
 
 	s->next_admin |= mode;
+	if (cause)
+		strlcpy2(s->adm_st_chg_cause, cause, sizeof(s->adm_st_chg_cause));
+
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&s->update_status))
+		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
 	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & ~mode & SRV_ADMF_DRAIN)))
 		return;
-
-	/* Maintenance must also disable health checks */
-	if (mode & SRV_ADMF_MAINT) {
-		if (s->check.state & CHK_ST_ENABLED) {
-			s->check.state |= CHK_ST_PAUSED;
-			check->health = 0;
-		}
-
-		if (s->next_state == SRV_ST_STOPPED) {	/* server was already down */
-			chunk_printf(&trash,
-			             "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-			             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
-
-			srv_append_status(&trash, s, NULL, -1, (mode & SRV_ADMF_FMAINT));
-
-			if (!(global.mode & MODE_STARTING)) {
-				Warning("%s.\n", trash.str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-			}
-		}
-		else {	/* server was still running */
-			int srv_was_stopping = (s->next_state == SRV_ST_STOPPING) || (s->next_admin & SRV_ADMF_DRAIN);
-			int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
-
-			check->health = 0; /* failure */
-			s->last_change = now.tv_sec;
-			s->next_state = SRV_ST_STOPPED;
-			if (s->proxy->lbprm.set_server_status_down)
-				s->proxy->lbprm.set_server_status_down(s);
-
-			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-				srv_shutdown_streams(s, SF_ERR_DOWN);
-
-			/* we might have streams queued on this server and waiting for
-			 * a connection. Those which are redispatchable will be queued
-			 * to another server or to the proxy itself.
-			 */
-			xferred = pendconn_redistribute(s);
-
-			chunk_printf(&trash,
-			             "%sServer %s/%s is going DOWN for maintenance%s%s%s",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id,
-			             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
-
-			srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FMAINT));
-
-			if (!(global.mode & MODE_STARTING)) {
-				Warning("%s.\n", trash.str);
-				send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
-			}
-
-			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-				set_backend_down(s->proxy);
-
-			s->counters.down_trans++;
-		}
-	}
-
-	/* drain state is applied only if not yet in maint */
-	if ((mode & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_MAINT))  {
-		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
-
-		s->last_change = now.tv_sec;
-		if (s->proxy->lbprm.set_server_status_down)
-			s->proxy->lbprm.set_server_status_down(s);
-
-		/* we might have streams queued on this server and waiting for
-		 * a connection. Those which are redispatchable will be queued
-		 * to another server or to the proxy itself.
-		 */
-		xferred = pendconn_redistribute(s);
-
-		chunk_printf(&trash, "%sServer %s/%s enters drain state%s%s%s",
-			     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-		             cause ? " (" : "", cause ? cause : "", cause ? ")" : "");
-
-		srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FDRAIN));
-
-		if (!(global.mode & MODE_STARTING)) {
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-			send_email_alert(s, LOG_NOTICE, "%s", trash.str);
-		}
-		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-			set_backend_down(s->proxy);
-	}
 
 	/* compute the inherited flag to propagate */
 	if (mode & SRV_ADMF_MAINT)
@@ -1107,9 +950,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
  */
 void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 {
-	struct check *check = &s->check;
 	struct server *srv;
-	int xferred = -1;
 
 	if (!mode)
 		return;
@@ -1120,196 +961,9 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 
 	s->next_admin &= ~mode;
 
-	if (s->next_admin & SRV_ADMF_MAINT) {
-		/* remaining in maintenance mode, let's inform precisely about the
-		 * situation.
-		 */
-		if (mode & SRV_ADMF_FMAINT) {
-			chunk_printf(&trash,
-			             "%sServer %s/%s is leaving forced maintenance but remains in maintenance",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-
-			if (s->track) /* normally it's mandatory here */
-				chunk_appendf(&trash, " via %s/%s",
-				              s->track->proxy->id, s->track->id);
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		}
-		if (mode & SRV_ADMF_RMAINT) {
-			chunk_printf(&trash,
-			             "%sServer %s/%s ('%s') resolves again but remains in maintenance",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id, s->hostname);
-
-			if (s->track) /* normally it's mandatory here */
-				chunk_appendf(&trash, " via %s/%s",
-				              s->track->proxy->id, s->track->id);
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		}
-		else if (mode & SRV_ADMF_IMAINT) {
-			chunk_printf(&trash,
-			             "%sServer %s/%s remains in forced maintenance",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-			Warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		}
-		/* don't report anything when leaving drain mode and remaining in maintenance */
-	}
-	else if (mode & SRV_ADMF_MAINT) {
-		/* OK here we're leaving maintenance, we have many things to check,
-		 * because the server might possibly be coming back up depending on
-		 * its state. In practice, leaving maintenance means that we should
-		 * immediately turn to UP (more or less the slowstart) under the
-		 * following conditions :
-		 *   - server is neither checked nor tracked
-		 *   - server tracks another server which is not checked
-		 *   - server tracks another server which is already up
-		 * Which sums up as something simpler :
-		 * "either the tracking server is up or the server's checks are disabled
-		 * or up". Otherwise we only re-enable health checks. There's a special
-		 * case associated to the stopping state which can be inherited. Note
-		 * that the server might still be in drain mode, which is naturally dealt
-		 * with by the lower level functions.
-		 */
-
-		if (s->check.state & CHK_ST_ENABLED) {
-			s->check.state &= ~CHK_ST_PAUSED;
-			check->health = check->rise; /* start OK but check immediately */
-		}
-
-		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
-		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
-		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
-
-			if (s->track && s->track->next_state == SRV_ST_STOPPING) {
-				if (s->last_change < now.tv_sec)			// ignore negative times
-					s->down_time += now.tv_sec - s->last_change;
-
-				s->last_change = now.tv_sec;
-				s->next_state = SRV_ST_STOPPING;
-			}
-			else {
-				if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-					if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-						s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-					s->proxy->last_change = now.tv_sec;
-				}
-
-				if (s->last_change < now.tv_sec)			// ignore negative times
-					s->down_time += now.tv_sec - s->last_change;
-
-				s->last_change = now.tv_sec;
-				s->next_state = SRV_ST_STARTING;
-				if (s->slowstart > 0)
-					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
-				else
-					s->next_state = SRV_ST_RUNNING;
-
-				server_recalc_eweight(s);
-
-				/* If the server is set with "on-marked-up shutdown-backup-sessions",
-				 * and it's not a backup server and its effective weight is > 0,
-				 * then it can accept new connections, so we shut down all streams
-				 * on all backup servers.
-				 */
-				if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-				    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
-						srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
-
-				/* check if we can handle some connections queued at the proxy. We
-				 * will take as many as we can handle.
-				 */
-				xferred = pendconn_grab_from_px(s);
-			}
-
-		}
-
-		if (mode & SRV_ADMF_FMAINT) {
-			chunk_printf(&trash,
-				     "%sServer %s/%s is %s/%s (leaving forced maintenance)",
-				     s->flags & SRV_F_BACKUP ? "Backup " : "",
-				     s->proxy->id, s->id,
-				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
-		}
-		else if (mode & SRV_ADMF_RMAINT) {
-			chunk_printf(&trash,
-				     "%sServer %s/%s ('%s') is %s/%s (resolves again)",
-				     s->flags & SRV_F_BACKUP ? "Backup " : "",
-				     s->proxy->id, s->id, s->hostname,
-				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
-		}
-		else {
-			chunk_printf(&trash,
-				     "%sServer %s/%s is %s/%s (leaving maintenance)",
-				     s->flags & SRV_F_BACKUP ? "Backup " : "",
-				     s->proxy->id, s->id,
-				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
-				     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
-			srv_append_status(&trash, s, NULL, xferred, 0);
-		}
-		Warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-	}
-	else if ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)) {
-		/* remaining in drain mode after removing one of its flags */
-
-		if (mode & SRV_ADMF_FDRAIN) {
-			chunk_printf(&trash,
-			             "%sServer %s/%s is leaving forced drain but remains in drain mode",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-
-			if (s->track) /* normally it's mandatory here */
-				chunk_appendf(&trash, " via %s/%s",
-				              s->track->proxy->id, s->track->id);
-		}
-		else {
-			chunk_printf(&trash,
-			             "%sServer %s/%s remains in forced drain mode",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-		}
-		Warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-	}
-	else if (mode & SRV_ADMF_DRAIN) {
-		/* OK completely leaving drain mode */
-		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-			s->proxy->last_change = now.tv_sec;
-		}
-
-		if (s->last_change < now.tv_sec)			// ignore negative times
-			s->down_time += now.tv_sec - s->last_change;
-		s->last_change = now.tv_sec;
-		server_recalc_eweight(s);
-
-		if (mode & SRV_ADMF_FDRAIN) {
-			chunk_printf(&trash,
-				     "%sServer %s/%s is %s (leaving forced drain)",
-				     s->flags & SRV_F_BACKUP ? "Backup " : "",
-				     s->proxy->id, s->id,
-				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
-		}
-		else {
-			chunk_printf(&trash,
-				     "%sServer %s/%s is %s (leaving drain)",
-				     s->flags & SRV_F_BACKUP ? "Backup " : "",
-				     s->proxy->id, s->id,
-				     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
-			if (s->track) /* normally it's mandatory here */
-				chunk_appendf(&trash, " via %s/%s",
-				              s->track->proxy->id, s->track->id);
-		}
-		Warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-	}
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&s->update_status))
+		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
@@ -1426,17 +1080,9 @@ void server_recalc_eweight(struct server *sv)
 
 	sv->next_eweight = (sv->uweight * w + px->lbprm.wmult - 1) / px->lbprm.wmult;
 
-	/* now propagate the status change to any LB algorithms */
-	if (px->lbprm.update_server_eweight)
-		px->lbprm.update_server_eweight(sv);
-	else if (srv_willbe_usable(sv)) {
-		if (px->lbprm.set_server_status_up)
-			px->lbprm.set_server_status_up(sv);
-	}
-	else {
-		if (px->lbprm.set_server_status_down)
-			px->lbprm.set_server_status_down(sv);
-	}
+	/* Register changes to be applied asynchronously */
+	if (LIST_ISEMPTY(&sv->update_status))
+		LIST_ADDQ(&updated_servers, &sv->update_status);
 }
 
 /*
@@ -1846,6 +1492,7 @@ static struct server *new_server(struct proxy *proxy)
 	LIST_INIT(&srv->priv_conns);
 	LIST_INIT(&srv->idle_conns);
 	LIST_INIT(&srv->safe_conns);
+	LIST_INIT(&srv->update_status);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -4758,6 +4405,516 @@ __attribute__((constructor))
 static void __server_init(void)
 {
 	cli_register_kw(&cli_kws);
+}
+
+
+/*
+ * This function applies server's status changes, it is
+ * is designed to be called asynchronously.
+ *
+ */
+void srv_update_status(struct server *s)
+{
+	struct check *check = &s->check;
+	int xferred;
+	struct proxy *px = s->proxy;
+	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
+	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
+	int log_level;
+	struct chunk *tmptrash = NULL;
+
+
+	/* If currently main is not set we try to apply pending state changes */
+	if (!(s->cur_admin & SRV_ADMF_MAINT)) {
+		int next_admin;
+
+		/* Backup next admin */
+		next_admin = s->next_admin;
+
+		/* restore current admin state */
+		s->next_admin = s->cur_admin;
+
+		if ((s->cur_state != SRV_ST_STOPPED) && (s->next_state == SRV_ST_STOPPED)) {
+			s->last_change = now.tv_sec;
+			if (s->proxy->lbprm.set_server_status_down)
+				s->proxy->lbprm.set_server_status_down(s);
+
+			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+				srv_shutdown_streams(s, SF_ERR_DOWN);
+
+			/* we might have streams queued on this server and waiting for
+			 * a connection. Those which are redispatchable will be queued
+			 * to another server or to the proxy itself.
+			 */
+			xferred = pendconn_redistribute(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id);
+
+				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+				Warning("%s.\n", tmptrash->str);
+
+				/* we don't send an alert if the server was previously paused */
+				log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
+				send_log(s->proxy, log_level, "%s.\n", tmptrash->str);
+				send_email_alert(s, log_level, "%s", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+
+			s->counters.down_trans++;
+		}
+		else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
+			s->last_change = now.tv_sec;
+			if (s->proxy->lbprm.set_server_status_down)
+				s->proxy->lbprm.set_server_status_down(s);
+
+			/* we might have streams queued on this server and waiting for
+			 * a connection. Those which are redispatchable will be queued
+			 * to another server or to the proxy itself.
+			 */
+			xferred = pendconn_redistribute(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id);
+
+				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+		}
+		else if (((s->cur_state != SRV_ST_RUNNING) && (s->next_state == SRV_ST_RUNNING))
+			 || ((s->cur_state != SRV_ST_STARTING) && (s->next_state == SRV_ST_STARTING))) {
+			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+				if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+				s->proxy->last_change = now.tv_sec;
+			}
+
+			if (s->next_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
+				s->down_time += now.tv_sec - s->last_change;
+
+			s->last_change = now.tv_sec;
+			if (s->next_state == SRV_ST_STARTING)
+				task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
+
+			server_recalc_eweight(s);
+			/* now propagate the status change to any LB algorithms */
+			if (px->lbprm.update_server_eweight)
+				px->lbprm.update_server_eweight(s);
+			else if (srv_willbe_usable(s)) {
+				if (px->lbprm.set_server_status_up)
+					px->lbprm.set_server_status_up(s);
+			}
+			else {
+				if (px->lbprm.set_server_status_down)
+					px->lbprm.set_server_status_down(s);
+			}
+
+			/* If the server is set with "on-marked-up shutdown-backup-sessions",
+			 * and it's not a backup server and its effective weight is > 0,
+			 * then it can accept new connections, so we shut down all streams
+			 * on all backup servers.
+			 */
+			if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
+			    !(s->flags & SRV_F_BACKUP) && s->next_eweight)
+				srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
+
+			/* check if we can handle some connections queued at the proxy. We
+			 * will take as many as we can handle.
+			 */
+			xferred = pendconn_grab_from_px(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id);
+
+				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+		}
+		else if (s->cur_eweight != s->next_eweight) {
+			/* now propagate the status change to any LB algorithms */
+			if (px->lbprm.update_server_eweight)
+				px->lbprm.update_server_eweight(s);
+			else if (srv_willbe_usable(s)) {
+				if (px->lbprm.set_server_status_up)
+					px->lbprm.set_server_status_up(s);
+			}
+			else {
+				if (px->lbprm.set_server_status_down)
+					px->lbprm.set_server_status_down(s);
+			}
+
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+		}
+
+		s->next_admin = next_admin;
+	}
+
+
+	/* Now we try to apply pending admin changes */
+
+	/* Maintenance must also disable health checks */
+	if (!(s->cur_admin & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) {
+		if (s->check.state & CHK_ST_ENABLED) {
+			s->check.state |= CHK_ST_PAUSED;
+			check->health = 0;
+		}
+
+		if (s->cur_state == SRV_ST_STOPPED) {	/* server was already down */
+			chunk_printf(tmptrash,
+			             "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
+			             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+
+			srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
+
+			if (!(global.mode & MODE_STARTING)) {
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+			}
+		}
+		else {	/* server was still running */
+			check->health = 0; /* failure */
+			s->last_change = now.tv_sec;
+			if (s->proxy->lbprm.set_server_status_down)
+				s->proxy->lbprm.set_server_status_down(s);
+
+			s->next_state = SRV_ST_STOPPED;
+			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+				srv_shutdown_streams(s, SF_ERR_DOWN);
+
+			/* we might have streams queued on this server and waiting for
+			 * a connection. Those which are redispatchable will be queued
+			 * to another server or to the proxy itself.
+			 */
+			xferred = pendconn_redistribute(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s is going DOWN for maintenance%s%s%s",
+				             s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id,
+				             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+
+				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FMAINT));
+
+				if (!(global.mode & MODE_STARTING)) {
+					Warning("%s.\n", tmptrash->str);
+					send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", tmptrash->str);
+				}
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+
+			s->counters.down_trans++;
+		}
+	}
+	else if ((s->cur_admin & SRV_ADMF_MAINT) && !(s->next_admin & SRV_ADMF_MAINT)) {
+		/* OK here we're leaving maintenance, we have many things to check,
+		 * because the server might possibly be coming back up depending on
+		 * its state. In practice, leaving maintenance means that we should
+		 * immediately turn to UP (more or less the slowstart) under the
+		 * following conditions :
+		 *   - server is neither checked nor tracked
+		 *   - server tracks another server which is not checked
+		 *   - server tracks another server which is already up
+		 * Which sums up as something simpler :
+		 * "either the tracking server is up or the server's checks are disabled
+		 * or up". Otherwise we only re-enable health checks. There's a special
+		 * case associated to the stopping state which can be inherited. Note
+		 * that the server might still be in drain mode, which is naturally dealt
+		 * with by the lower level functions.
+		 */
+
+		if (s->check.state & CHK_ST_ENABLED) {
+			s->check.state &= ~CHK_ST_PAUSED;
+			check->health = check->rise; /* start OK but check immediately */
+		}
+
+		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
+		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
+		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
+			if (s->track && s->track->next_state == SRV_ST_STOPPING) {
+				s->next_state = SRV_ST_STOPPING;
+			}
+			else {
+				s->next_state = SRV_ST_STARTING;
+				if (s->slowstart > 0)
+					task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
+				else
+					s->next_state = SRV_ST_RUNNING;
+			}
+
+		}
+
+		tmptrash = alloc_trash_chunk();
+		if (tmptrash) {
+			if (!(s->next_admin & SRV_ADMF_FMAINT) && (s->cur_admin & SRV_ADMF_FMAINT)) {
+				chunk_printf(tmptrash,
+					     "%sServer %s/%s is %s/%s (leaving forced maintenance)",
+					     s->flags & SRV_F_BACKUP ? "Backup " : "",
+					     s->proxy->id, s->id,
+					     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+					     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+			}
+			if (!(s->next_admin & SRV_ADMF_RMAINT) && (s->cur_admin & SRV_ADMF_RMAINT)) {
+				chunk_printf(tmptrash,
+					     "%sServer %s/%s ('%s') is %s/%s (resolves again)",
+					     s->flags & SRV_F_BACKUP ? "Backup " : "",
+					     s->proxy->id, s->id, s->hostname,
+					     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+					     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+			}
+			if (!(s->next_admin & SRV_ADMF_IMAINT) && (s->cur_admin & SRV_ADMF_IMAINT)) {
+				chunk_printf(tmptrash,
+					     "%sServer %s/%s is %s/%s (leaving maintenance)",
+					     s->flags & SRV_F_BACKUP ? "Backup " : "",
+					     s->proxy->id, s->id,
+					     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
+					     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
+			}
+			Warning("%s.\n", tmptrash->str);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+			free_trash_chunk(tmptrash);
+			tmptrash = NULL;
+		}
+
+		server_recalc_eweight(s);
+		/* now propagate the status change to any LB algorithms */
+		if (px->lbprm.update_server_eweight)
+			px->lbprm.update_server_eweight(s);
+		else if (srv_willbe_usable(s)) {
+			if (px->lbprm.set_server_status_up)
+				px->lbprm.set_server_status_up(s);
+		}
+		else {
+			if (px->lbprm.set_server_status_down)
+				px->lbprm.set_server_status_down(s);
+		}
+
+		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+			set_backend_down(s->proxy);
+
+	}
+	else if (s->next_admin & SRV_ADMF_MAINT) {
+		/* remaining in maintenance mode, let's inform precisely about the
+		 * situation.
+		 */
+		if (!(s->next_admin & SRV_ADMF_FMAINT) && (s->cur_admin & SRV_ADMF_FMAINT)) {
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s is leaving forced maintenance but remains in maintenance",
+				             s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id);
+
+				if (s->track) /* normally it's mandatory here */
+					chunk_appendf(tmptrash, " via %s/%s",
+				              s->track->proxy->id, s->track->id);
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+		}
+		if (!(s->next_admin & SRV_ADMF_RMAINT) && (s->cur_admin & SRV_ADMF_RMAINT)) {
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s ('%s') resolves again but remains in maintenance",
+				             s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id, s->hostname);
+
+				if (s->track) /* normally it's mandatory here */
+					chunk_appendf(tmptrash, " via %s/%s",
+				              s->track->proxy->id, s->track->id);
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+		}
+		else if (!(s->next_admin & SRV_ADMF_IMAINT) && (s->cur_admin & SRV_ADMF_IMAINT)) {
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				             "%sServer %s/%s remains in forced maintenance",
+				             s->flags & SRV_F_BACKUP ? "Backup " : "",
+				             s->proxy->id, s->id);
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+		}
+		/* don't report anything when leaving drain mode and remaining in maintenance */
+
+		s->cur_admin = s->next_admin;
+	}
+
+	if (!(s->next_admin & SRV_ADMF_MAINT)) {
+		if (!(s->cur_admin & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)) {
+			/* drain state is applied only if not yet in maint */
+
+			s->last_change = now.tv_sec;
+			if (px->lbprm.set_server_status_down)
+				px->lbprm.set_server_status_down(s);
+
+			/* we might have streams queued on this server and waiting for
+			 * a connection. Those which are redispatchable will be queued
+			 * to another server or to the proxy itself.
+			 */
+			xferred = pendconn_redistribute(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash, "%sServer %s/%s enters drain state%s%s%s",
+					     s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
+				             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+
+				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
+
+				if (!(global.mode & MODE_STARTING)) {
+					Warning("%s.\n", tmptrash->str);
+					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+					send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
+				}
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+
+			if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+				set_backend_down(s->proxy);
+		}
+		else if ((s->cur_admin & SRV_ADMF_DRAIN) && !(s->next_admin & SRV_ADMF_DRAIN)) {
+			/* OK completely leaving drain mode */
+			if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+				if (s->proxy->last_change < now.tv_sec)         // ignore negative times
+					s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+				s->proxy->last_change = now.tv_sec;
+			}
+
+			if (s->last_change < now.tv_sec)                        // ignore negative times
+				s->down_time += now.tv_sec - s->last_change;
+			s->last_change = now.tv_sec;
+			server_recalc_eweight(s);
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				if (!(s->next_admin & SRV_ADMF_FDRAIN)) {
+					chunk_printf(tmptrash,
+						     "%sServer %s/%s is %s (leaving forced drain)",
+						     s->flags & SRV_F_BACKUP ? "Backup " : "",
+					             s->proxy->id, s->id,
+					             (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+				}
+				else {
+					chunk_printf(tmptrash,
+					             "%sServer %s/%s is %s (leaving drain)",
+					             s->flags & SRV_F_BACKUP ? "Backup " : "",
+						     s->proxy->id, s->id,
+						     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+					if (s->track) /* normally it's mandatory here */
+						chunk_appendf(tmptrash, " via %s/%s",
+					s->track->proxy->id, s->track->id);
+				}
+
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+
+			/* now propagate the status change to any LB algorithms */
+			if (px->lbprm.update_server_eweight)
+				px->lbprm.update_server_eweight(s);
+			else if (srv_willbe_usable(s)) {
+				if (px->lbprm.set_server_status_up)
+					px->lbprm.set_server_status_up(s);
+			}
+			else {
+				if (px->lbprm.set_server_status_down)
+					px->lbprm.set_server_status_down(s);
+			}
+		}
+		else if ((s->next_admin & SRV_ADMF_DRAIN)) {
+			/* remaining in drain mode after removing one of its flags */
+
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				if (!(s->next_admin & SRV_ADMF_FDRAIN)) {
+					chunk_printf(tmptrash,
+					             "%sServer %s/%s is leaving forced drain but remains in drain mode",
+					             s->flags & SRV_F_BACKUP ? "Backup " : "",
+					             s->proxy->id, s->id);
+
+					if (s->track) /* normally it's mandatory here */
+						chunk_appendf(tmptrash, " via %s/%s",
+					              s->track->proxy->id, s->track->id);
+				}
+				else {
+					chunk_printf(tmptrash,
+					             "%sServer %s/%s remains in forced drain mode",
+					             s->flags & SRV_F_BACKUP ? "Backup " : "",
+					             s->proxy->id, s->id);
+				}
+				Warning("%s.\n", tmptrash->str);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
+			}
+
+			/* commit new admin status */
+
+			s->cur_admin = s->next_admin;
+		}
+	}
+
+	/* Re-set log strings to empty */
+	*s->op_st_chg_reason = 0;
+	*s->adm_st_chg_cause = 0;
+}
+/*
+ * This function loops on servers registered for asynchronous
+ * status changes
+ */
+void servers_update_status(void) {
+	struct server *s, *stmp;
+
+	list_for_each_entry_safe(s, stmp, &updated_servers, update_status) {
+		srv_update_status(s);
+		LIST_DEL(&s->update_status);
+		LIST_INIT(&s->update_status);
+	}
 }
 
 /*
