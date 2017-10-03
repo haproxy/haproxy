@@ -2248,9 +2248,9 @@ static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *pr
 {
 	struct dns_resolvers *presolvers;
 
-	if (*args[3]) {
+	if (*args[2]) {
 		list_for_each_entry(presolvers, &dns_resolvers, list) {
-			if (strcmp(presolvers->id, args[3]) == 0) {
+			if (strcmp(presolvers->id, args[2]) == 0) {
 				appctx->ctx.cli.p0 = presolvers;
 				break;
 			}
@@ -2675,12 +2675,13 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 }
 
 /* register cli keywords */
-static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "stat", "resolvers", NULL }, "show stat resolvers [id]: dumps counters from all resolvers section and\n"
-	                                         "                          associated name servers",
-	                                         cli_parse_stat_resolvers, cli_io_handler_dump_resolvers_to_buffer },
-	{{},}
-}};
+static struct cli_kw_list cli_kws = {{ }, {
+		{ { "show", "resolvers", NULL }, "show resolvers [id]: dumps counters from all resolvers section and\n"
+		  "                     associated name servers",
+		  cli_parse_stat_resolvers, cli_io_handler_dump_resolvers_to_buffer },
+		{{},}
+	}
+};
 
 
 __attribute__((constructor))
