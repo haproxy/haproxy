@@ -1300,14 +1300,14 @@ enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy 
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
-			if (cli_conn->addr.from.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			if (cli_conn->addr.to.ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = htons(smp->data.u.sint);
 			} else {
-				if (cli_conn->addr.from.ss_family != AF_INET) {
-					cli_conn->addr.from.ss_family = AF_INET;
-					((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = 0;
+				if (cli_conn->addr.to.ss_family != AF_INET) {
+					cli_conn->addr.to.ss_family = AF_INET;
+					((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr = 0;
 				}
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
+				((struct sockaddr_in *)&cli_conn->addr.to)->sin_port = htons(smp->data.u.sint);
 			}
 		}
 	}
