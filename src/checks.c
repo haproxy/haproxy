@@ -2964,8 +2964,8 @@ const char *init_check(struct check *check, int type)
 	}
 	check->bo->size = global.tune.chksize;
 
-	/* Allocate buffer for partial results... */
-	if ((check->conn = calloc(1, sizeof(struct connection))) == NULL) {
+	if (check->type != PR_O2_EXT_CHK &&
+	    (check->conn = calloc(1, sizeof(struct connection))) == NULL) {
 		return "out of memory while allocating check connection";
 	}
 
