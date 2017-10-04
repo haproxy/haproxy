@@ -1483,12 +1483,15 @@ static int connect_conn_chk(struct task *t)
 	struct server *s = check->server;
 	struct connection *conn = check->conn;
 	struct protocol *proto;
+	struct tcpcheck_rule *tcp_rule = NULL;
 	int ret;
 	int quickack;
 
 	/* tcpcheck send/expect initialisation */
-	if (check->type == PR_O2_TCPCHK_CHK)
+	if (check->type == PR_O2_TCPCHK_CHK) {
 		check->current_step = NULL;
+		tcp_rule = get_first_tcpcheck_rule(check->tcpcheck_rules);
+	}
 
 	/* prepare the check buffer.
 	 * This should not be used if check is the secondary agent check
@@ -1520,6 +1523,14 @@ static int connect_conn_chk(struct task *t)
 
 	if ((check->type & PR_O2_LB_AGENT_CHK) && check->send_string_len) {
 		bo_putblk(check->bo, check->send_string, check->send_string_len);
+	}
+
+	/* for tcp-checks, the initial connection setup is handled separately as
+	 * it may be sent to a specific port and not to the server's.
+	 */
+	if (tcp_rule && tcp_rule->action == TCPCHK_ACT_CONNECT) {
+		tcpcheck_main(check);
+		return SF_ERR_UP;
 	}
 
 	/* prepare a new connection */
@@ -1558,19 +1569,8 @@ static int connect_conn_chk(struct task *t)
 	/* only plain tcp-check supports quick ACK */
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
 
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		struct tcpcheck_rule *r = get_first_tcpcheck_rule(check->tcpcheck_rules);
-
-		if (r) {
-			/* if first step is a 'connect', then tcpcheck_main must run it */
-			if (r->action == TCPCHK_ACT_CONNECT) {
-				tcpcheck_main(check);
-				return SF_ERR_UP;
-			}
-			if (r->action == TCPCHK_ACT_EXPECT)
-				quickack = 0;
-		}
-	}
+	if (tcp_rule && tcp_rule->action == TCPCHK_ACT_EXPECT)
+		quickack = 0;
 
 	ret = SF_ERR_INTERNAL;
 	if (proto && proto->connect)
