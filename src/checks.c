@@ -1916,7 +1916,6 @@ static struct task *process_chk_proc(struct task *t)
 {
 	struct check *check = t->context;
 	struct server *s = check->server;
-	struct connection *conn = check->conn;
 	int rv;
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -1940,8 +1939,7 @@ static struct task *process_chk_proc(struct task *t)
 		check->state |= CHK_ST_INPROGRESS;
 
 		ret = connect_proc_chk(t);
-		switch (ret) {
-		case SF_ERR_NONE:
+		if (ret == SF_ERR_NONE) {
 			/* the process was forked, we allow up to min(inter,
 			 * timeout.connect) for it to report its status, but
 			 * only when timeout.check is set as it may be to short
@@ -1955,11 +1953,6 @@ static struct task *process_chk_proc(struct task *t)
 			}
 
 			goto reschedule;
-
-		default:
-			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(check, 0, 0);
-			break;
 		}
 
 		/* here, we failed to start the check */
