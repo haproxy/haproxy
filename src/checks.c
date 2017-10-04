@@ -63,7 +63,7 @@
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
-static void tcpcheck_main(struct check *);
+static int tcpcheck_main(struct check *);
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { CHK_RES_UNKNOWN,  "UNK",     "Unknown" },
@@ -1371,15 +1371,18 @@ static void event_srv_chk_r(struct connection *conn)
 /*
  * This function is used only for server health-checks. It handles connection
  * status updates including errors. If necessary, it wakes the check task up.
- * It always returns 0.
+ * It returns 0 on normal cases, <0 if at least one close() has happened on the
+ * connection (eg: reconnect).
  */
 static int wake_srv_chk(struct connection *conn)
 {
 	struct check *check = conn->owner;
+	int ret = 0;
 
 	/* we may have to make progress on the TCP checks */
-	if (check->type == PR_O2_TCPCHK_CHK)
-		tcpcheck_main(check);
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		ret = tcpcheck_main(check);
+	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
@@ -1407,8 +1410,16 @@ static int wake_srv_chk(struct connection *conn)
 		 */
 		conn_sock_drain(conn);
 		conn_force_close(conn);
+		ret = -1;
 	}
-	return 0;
+
+	/* if a connection got replaced, we must absolutely prevent the connection
+	 * handler from touching its fd, and perform the FD polling updates ourselves
+	 */
+	if (ret < 0)
+		conn_cond_update_polling(conn);
+
+	return ret;
 }
 
 struct data_cb check_conn_cb = {
@@ -2504,8 +2515,10 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
 
 /* proceed with next steps for the TCP checks <check>. Note that this is called
  * both from the connection's wake() callback and from the check scheduling task.
+ * It returns 0 on normal cases, or <0 if a close() has happened on an existing
+ * connection, presenting the risk of an fd replacement.
  */
-static void tcpcheck_main(struct check *check)
+static int tcpcheck_main(struct check *check)
 {
 	char *contentptr, *comment;
 	struct tcpcheck_rule *next;
@@ -2514,6 +2527,7 @@ static void tcpcheck_main(struct check *check)
 	struct server *s = check->server;
 	struct task *t = check->task;
 	struct list *head = check->tcpcheck_rules;
+	int retcode = 0;
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
@@ -2555,7 +2569,7 @@ static void tcpcheck_main(struct check *check)
 			if (s->proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
-		return;
+		return retcode;
 	}
 
 	/* special case: option tcp-check with no rule, a connect is enough */
@@ -2743,7 +2757,7 @@ static void tcpcheck_main(struct check *check)
 					if (s->proxy->timeout.check)
 						t->expire = tick_first(t->expire, t_con);
 				}
-				return;
+				return retcode;
 			}
 
 		} /* end 'connect' */
@@ -2948,7 +2962,7 @@ static void tcpcheck_main(struct check *check)
 	if (&check->current_step->list != head &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__conn_data_want_recv(conn);
-	return;
+	return retcode;
 
  out_end_tcpcheck:
 	/* collect possible new errors */
@@ -2962,7 +2976,7 @@ static void tcpcheck_main(struct check *check)
 		conn->flags |= CO_FL_ERROR;
 
 	__conn_data_stop_both(conn);
-	return;
+	return retcode;
 }
 
 const char *init_check(struct check *check, int type)
