@@ -1839,11 +1839,7 @@ err:
  *
  * It can return one of :
  *  - SF_ERR_NONE if everything's OK
- *  - SF_ERR_SRVTO if there are no more servers
- *  - SF_ERR_SRVCL if the connection was refused by the server
- *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
  *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SF_ERR_INTERNAL for any other purely internal errors
  * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  *
  * Blocks and then unblocks SIGCHLD
@@ -1913,7 +1909,7 @@ out:
 }
 
 /*
- * manages a server health-check that uses a process. Returns
+ * manages a server health-check that uses an external process. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
 static struct task *process_chk_proc(struct task *t)
@@ -1945,12 +1941,11 @@ static struct task *process_chk_proc(struct task *t)
 
 		ret = connect_proc_chk(t);
 		switch (ret) {
-		case SF_ERR_UP:
-			return t;
 		case SF_ERR_NONE:
-			/* we allow up to min(inter, timeout.connect) for a connection
-			 * to establish but only when timeout.check is set
-			 * as it may be to short for a full check otherwise
+			/* the process was forked, we allow up to min(inter,
+			 * timeout.connect) for it to report its status, but
+			 * only when timeout.check is set as it may be to short
+			 * for a full check otherwise.
 			 */
 			t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 
@@ -1961,20 +1956,13 @@ static struct task *process_chk_proc(struct task *t)
 
 			goto reschedule;
 
-		case SF_ERR_SRVTO: /* ETIMEDOUT */
-		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(check, errno, 0);
-			break;
-		case SF_ERR_PRXCOND:
-		case SF_ERR_RESOURCE:
-		case SF_ERR_INTERNAL:
+		default:
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(check, 0, 0);
 			break;
 		}
 
-		/* here, we have seen a synchronous error, no fd was allocated */
+		/* here, we failed to start the check */
 
 		check->state &= ~CHK_ST_INPROGRESS;
 		check_notify_failure(check);
