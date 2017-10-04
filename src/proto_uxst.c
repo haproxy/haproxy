@@ -623,12 +623,15 @@ static int uxst_unbind_listeners(struct protocol *proto)
 /* parse the "mode" bind keyword */
 static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	if (!*args[cur_arg + 1]) {
-		memprintf(err, "'%s' : missing mode (octal integer expected)", args[cur_arg]);
+	char *endptr;
+
+	conf->ux.mode = strtol(args[cur_arg + 1], &endptr, 8);
+
+	if (!*args[cur_arg + 1] || *endptr) {
+		memprintf(err, "'%s' : missing or invalid mode '%s' (octal integer expected)", args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->ux.mode = strtol(args[cur_arg + 1], NULL, 8);
 	return 0;
 }
 
