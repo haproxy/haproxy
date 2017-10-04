@@ -606,9 +606,9 @@ static int retrieve_errno_from_socket(struct connection *conn)
  * All situations where at least one of <expired> or CO_FL_ERROR are set
  * produce a status.
  */
-static void chk_report_conn_err(struct connection *conn, int errno_bck, int expired)
+static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 {
-	struct check *check = conn->owner;
+	struct connection *conn = check->conn;
 	const char *err_msg;
 	struct chunk *chk;
 	int step;
@@ -739,7 +739,7 @@ static void event_srv_chk_w(struct connection *conn)
 		return;
 
 	if (retrieve_errno_from_socket(conn)) {
-		chk_report_conn_err(conn, errno, 0);
+		chk_report_conn_err(check, errno, 0);
 		__conn_data_stop_both(conn);
 		goto out_wakeup;
 	}
@@ -747,7 +747,7 @@ static void event_srv_chk_w(struct connection *conn)
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* if the output is closed, we can't do anything */
 		conn->flags |= CO_FL_ERROR;
-		chk_report_conn_err(conn, 0, 0);
+		chk_report_conn_err(check, 0, 0);
 		goto out_wakeup;
 	}
 
@@ -764,7 +764,7 @@ static void event_srv_chk_w(struct connection *conn)
 	if (check->bo->o) {
 		conn->xprt->snd_buf(conn, check->bo, 0);
 		if (conn->flags & CO_FL_ERROR) {
-			chk_report_conn_err(conn, errno, 0);
+			chk_report_conn_err(check, errno, 0);
 			__conn_data_stop_both(conn);
 			goto out_wakeup;
 		}
@@ -839,7 +839,7 @@ static void event_srv_chk_r(struct connection *conn)
 			 * or not. It is very common that an RST sent by the server is
 			 * reported as an error just after the last data chunk.
 			 */
-			chk_report_conn_err(conn, errno, 0);
+			chk_report_conn_err(check, errno, 0);
 			goto out_wakeup;
 		}
 	}
@@ -1341,7 +1341,7 @@ static void event_srv_chk_r(struct connection *conn)
  out_wakeup:
 	/* collect possible new errors */
 	if (conn->flags & CO_FL_ERROR)
-		chk_report_conn_err(conn, 0, 0);
+		chk_report_conn_err(check, 0, 0);
 
 	/* Reset the check buffer... */
 	*check->bi->data = '\0';
@@ -1388,7 +1388,7 @@ static int wake_srv_chk(struct connection *conn)
 		 * main processing task so let's simply wake it up. If we get here,
 		 * we expect errno to still be valid.
 		 */
-		chk_report_conn_err(conn, errno, 0);
+		chk_report_conn_err(check, errno, 0);
 
 		__conn_data_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
@@ -1964,13 +1964,13 @@ static struct task *process_chk_proc(struct task *t)
 		case SF_ERR_SRVTO: /* ETIMEDOUT */
 		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(conn, errno, 0);
+			chk_report_conn_err(check, errno, 0);
 			break;
 		case SF_ERR_PRXCOND:
 		case SF_ERR_RESOURCE:
 		case SF_ERR_INTERNAL:
 			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(conn, 0, 0);
+			chk_report_conn_err(check, 0, 0);
 			break;
 		}
 
@@ -2110,7 +2110,7 @@ static struct task *process_chk_conn(struct task *t)
 		case SF_ERR_SRVTO: /* ETIMEDOUT */
 		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(conn, errno, 0);
+			chk_report_conn_err(check, errno, 0);
 			break;
 		/* should share same code than cases below */
 		case SF_ERR_CHK_PORT:
@@ -2119,7 +2119,7 @@ static struct task *process_chk_conn(struct task *t)
 		case SF_ERR_RESOURCE:
 		case SF_ERR_INTERNAL:
 			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(conn, 0, 0);
+			chk_report_conn_err(check, 0, 0);
 			break;
 		}
 
@@ -2156,7 +2156,7 @@ static struct task *process_chk_conn(struct task *t)
 					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 			}
 			else if ((conn->flags & CO_FL_ERROR) || expired) {
-				chk_report_conn_err(conn, 0, expired);
+				chk_report_conn_err(check, 0, expired);
 			}
 			else
 				goto out_wait; /* timeout not reached, wait again */
@@ -2596,7 +2596,7 @@ static void tcpcheck_main(struct connection *conn)
 			__conn_data_want_send(conn);
 			if (conn->xprt->snd_buf(conn, check->bo, 0) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
-					chk_report_conn_err(conn, errno, 0);
+					chk_report_conn_err(check, errno, 0);
 					__conn_data_stop_both(conn);
 					goto out_end_tcpcheck;
 				}
@@ -2761,7 +2761,7 @@ static void tcpcheck_main(struct connection *conn)
 
 			if (conn->flags & CO_FL_SOCK_WR_SH) {
 				conn->flags |= CO_FL_ERROR;
-				chk_report_conn_err(conn, 0, 0);
+				chk_report_conn_err(check, 0, 0);
 				goto out_end_tcpcheck;
 			}
 
@@ -2803,7 +2803,7 @@ static void tcpcheck_main(struct connection *conn)
 						 * or not. It is very common that an RST sent by the server is
 						 * reported as an error just after the last data chunk.
 						 */
-						chk_report_conn_err(conn, errno, 0);
+						chk_report_conn_err(check, errno, 0);
 						goto out_end_tcpcheck;
 					}
 				}
@@ -2955,7 +2955,7 @@ static void tcpcheck_main(struct connection *conn)
  out_end_tcpcheck:
 	/* collect possible new errors */
 	if (conn->flags & CO_FL_ERROR)
-		chk_report_conn_err(conn, 0, 0);
+		chk_report_conn_err(check, 0, 0);
 
 	/* cleanup before leaving */
 	check->current_step = NULL;
