@@ -757,10 +757,9 @@ static void event_srv_chk_w(struct connection *conn)
 	if (!check->type)
 		goto out_wakeup;
 
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		tcpcheck_main(conn);
+	/* wake() will take care of calling tcpcheck_main() */
+	if (check->type == PR_O2_TCPCHK_CHK)
 		return;
-	}
 
 	if (check->bo->o) {
 		conn->xprt->snd_buf(conn, check->bo, 0);
@@ -815,10 +814,9 @@ static void event_srv_chk_r(struct connection *conn)
 	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		tcpcheck_main(conn);
+	/* wake() will take care of calling tcpcheck_main() */
+	if (check->type == PR_O2_TCPCHK_CHK)
 		return;
-	}
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
@@ -1378,6 +1376,10 @@ static void event_srv_chk_r(struct connection *conn)
 static int wake_srv_chk(struct connection *conn)
 {
 	struct check *check = conn->owner;
+
+	/* we may have to make progress on the TCP checks */
+	if (check->type == PR_O2_TCPCHK_CHK)
+		tcpcheck_main(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
