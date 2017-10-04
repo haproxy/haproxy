@@ -2986,8 +2986,6 @@ const char *init_check(struct check *check, int type)
 		return "out of memory while allocating check connection";
 	}
 
-	check->conn->handle.fd = -1; /* no agent in progress yet */
-
 	return NULL;
 }
 
