@@ -63,7 +63,7 @@
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
-static void tcpcheck_main(struct connection *);
+static void tcpcheck_main(struct check *);
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { CHK_RES_UNKNOWN,  "UNK",     "Unknown" },
@@ -1379,7 +1379,7 @@ static int wake_srv_chk(struct connection *conn)
 
 	/* we may have to make progress on the TCP checks */
 	if (check->type == PR_O2_TCPCHK_CHK)
-		tcpcheck_main(conn);
+		tcpcheck_main(check);
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
@@ -1564,7 +1564,7 @@ static int connect_conn_chk(struct task *t)
 		if (r) {
 			/* if first step is a 'connect', then tcpcheck_main must run it */
 			if (r->action == TCPCHK_ACT_CONNECT) {
-				tcpcheck_main(conn);
+				tcpcheck_main(check);
 				return SF_ERR_UP;
 			}
 			if (r->action == TCPCHK_ACT_EXPECT)
@@ -2502,12 +2502,15 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
 	return ret;
 }
 
-static void tcpcheck_main(struct connection *conn)
+/* proceed with next steps for the TCP checks <check>. Note that this is called
+ * both from the connection's wake() callback and from the check scheduling task.
+ */
+static void tcpcheck_main(struct check *check)
 {
 	char *contentptr, *comment;
 	struct tcpcheck_rule *next;
 	int done = 0, ret = 0, step = 0;
-	struct check *check = conn->owner;
+	struct connection *conn = check->conn;
 	struct server *s = check->server;
 	struct task *t = check->task;
 	struct list *head = check->tcpcheck_rules;
