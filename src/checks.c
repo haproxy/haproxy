@@ -618,10 +618,10 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		return;
 
 	errno = errno_bck;
-	if (!errno || errno == EAGAIN)
+	if (conn && (!errno || errno == EAGAIN))
 		retrieve_errno_from_socket(conn);
 
-	if (!(conn->flags & CO_FL_ERROR) && !expired)
+	if (conn && !(conn->flags & CO_FL_ERROR) && !expired)
 		return;
 
 	/* we'll try to build a meaningful error message depending on the
@@ -660,7 +660,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		}
 	}
 
-	if (conn->err_code) {
+	if (conn && conn->err_code) {
 		if (errno && errno != EAGAIN)
 			chunk_printf(&trash, "%s (%s)%s", conn_err_code_str(conn), strerror(errno), chk->str);
 		else
@@ -677,13 +677,17 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		}
 	}
 
-       if (check->state & CHK_ST_PORT_MISS) {
+	if (check->state & CHK_ST_PORT_MISS) {
 		/* NOTE: this is reported after <fall> tries */
 		chunk_printf(chk, "No port available for the TCP connection");
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
-	if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
+	if (!conn) {
+		/* connection allocation error before the connection was established */
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
+	}
+	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 		/* L4 not established (yet) */
 		if (conn->flags & CO_FL_ERROR)
 			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
@@ -1382,6 +1386,7 @@ static int wake_srv_chk(struct connection *conn)
 	/* we may have to make progress on the TCP checks */
 	if (check->type == PR_O2_TCPCHK_CHK) {
 		ret = tcpcheck_main(check);
+		conn = check->conn;
 	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
@@ -1498,6 +1503,10 @@ static int connect_conn_chk(struct task *t)
 	int ret;
 	int quickack;
 
+	/* we cannot have a connection here */
+	if (conn)
+		return SF_ERR_INTERNAL;
+
 	/* tcpcheck send/expect initialisation */
 	if (check->type == PR_O2_TCPCHK_CHK) {
 		check->current_step = NULL;
@@ -1545,7 +1554,9 @@ static int connect_conn_chk(struct task *t)
 	}
 
 	/* prepare a new connection */
-	conn_init(conn);
+	conn = check->conn = conn_new();
+	if (!check->conn)
+		return SF_ERR_RESOURCE;
 
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
@@ -2093,6 +2104,8 @@ static struct task *process_chk_conn(struct task *t)
 		check->bo->o = 0;
 
 		ret = connect_conn_chk(t);
+		conn = check->conn;
+
 		switch (ret) {
 		case SF_ERR_UP:
 			return t;
@@ -2115,7 +2128,8 @@ static struct task *process_chk_conn(struct task *t)
 
 		case SF_ERR_SRVTO: /* ETIMEDOUT */
 		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-			conn->flags |= CO_FL_ERROR;
+			if (conn)
+				conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(check, errno, 0);
 			break;
 		/* should share same code than cases below */
@@ -2124,8 +2138,9 @@ static struct task *process_chk_conn(struct task *t)
 		case SF_ERR_PRXCOND:
 		case SF_ERR_RESOURCE:
 		case SF_ERR_INTERNAL:
-			conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(check, 0, 0);
+			if (conn)
+				conn->flags |= CO_FL_ERROR;
+			chk_report_conn_err(check, conn ? 0 : ENOMEM, 0);
 			break;
 		}
 
@@ -2169,7 +2184,7 @@ static struct task *process_chk_conn(struct task *t)
 		}
 
 		/* check complete or aborted */
-		if (conn->xprt) {
+		if (conn && conn->xprt) {
 			/* The check was aborted and the connection was not yet closed.
 			 * This can happen upon timeout, or when an external event such
 			 * as a failed response coupled with "observe layer7" caused the
@@ -2177,6 +2192,11 @@ static struct task *process_chk_conn(struct task *t)
 			 */
 			conn_sock_drain(conn);
 			conn_force_close(conn);
+		}
+
+		if (conn) {
+			conn_free(conn);
+			check->conn = conn = NULL;
 		}
 
 		if (check->result == CHK_RES_FAILED) {
@@ -2535,13 +2555,13 @@ static int tcpcheck_main(struct check *check)
 
 	/* We have 4 possibilities here :
 	 *   1. we've not yet attempted step 1, and step 1 is a connect, so no
-	 *      connection attempt was made yet ;
+	 *      connection attempt was made yet ; conn==NULL;current_step==NULL.
 	 *   2. we've not yet attempted step 1, and step 1 is a not connect or
 	 *      does not exist (no rule), so a connection attempt was made
-	 *      before coming here.
+	 *      before coming here, conn!=NULL.
 	 *   3. we're coming back after having started with step 1, so we may
-	 *      be waiting for a connection attempt to complete.
-	 *   4. the connection + handshake are complete
+	 *      be waiting for a connection attempt to complete. conn!=NULL.
+	 *   4. the connection + handshake are complete. conn!=NULL.
 	 *
 	 * #2 and #3 are quite similar, we want both the connection and the
 	 * handshake to complete before going any further. Thus we must always
@@ -2554,8 +2574,8 @@ static int tcpcheck_main(struct check *check)
 	while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
 		next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
 
-	if ((!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE)) &&
-	    (check->current_step || &next->list == head)) {
+	if ((check->current_step || &next->list == head) &&
+	    (!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE))) {
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
@@ -2592,13 +2612,14 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* It's only the rules which will enable send/recv */
-	__conn_data_stop_both(conn);
+	if (conn)
+		__conn_data_stop_both(conn);
 
 	while (1) {
 		/* We have to try to flush the output buffer before reading, at
 		 * the end, or if we're about to send a string that does not fit
 		 * in the remaining space. That explains why we break out of the
-		 * loop after this control.
+		 * loop after this control. If we have data, conn is valid.
 		 */
 		if (check->bo->o &&
 		    (&check->current_step->list == head ||
@@ -2636,14 +2657,40 @@ static int tcpcheck_main(struct check *check)
 			struct protocol *proto;
 			struct xprt_ops *xprt;
 
+			/* For a connect action we'll create a new connection.
+			 * We may also have to kill a previous one. But we don't
+			 * want to leave *without* a connection if we came here
+			 * from the connection layer, hence with a connection.
+			 * Thus we'll proceed in the following order :
+			 *   1: close but not release previous connection
+			 *   2: try to get a new connection
+			 *   3: release and replace the old one on success
+			 */
+			if (check->conn) {
+				conn_force_close(check->conn);
+				retcode = -1; /* do not reuse the fd! */
+			}
+
 			/* mark the step as started */
 			check->last_started_step = check->current_step;
-			/* first, shut existing connection */
-			conn_force_close(conn);
 
 			/* prepare new connection */
-			/* initialization */
-			conn_init(conn);
+			conn = conn_new();
+			if (!conn) {
+				step = tcpcheck_get_step_id(check);
+				chunk_printf(&trash, "TCPCHK error allocating connection at step %d", step);
+				comment = tcpcheck_get_step_comment(check, step);
+				if (comment)
+					chunk_appendf(&trash, " comment: '%s'", comment);
+				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
+				check->current_step = NULL;
+				return retcode;
+			}
+
+			if (check->conn)
+				conn_free(check->conn);
+			check->conn = conn;
+
 			conn_attach(conn, check, &check_conn_cb);
 			conn->target = &s->obj_type;
 
@@ -2994,11 +3041,6 @@ const char *init_check(struct check *check, int type)
 		return "out of memory while allocating check buffer";
 	}
 	check->bo->size = global.tune.chksize;
-
-	if (check->type != PR_O2_EXT_CHK &&
-	    (check->conn = calloc(1, sizeof(struct connection))) == NULL) {
-		return "out of memory while allocating check connection";
-	}
 
 	return NULL;
 }
