@@ -168,6 +168,7 @@ enum lock_label {
 	LUA_LOCK,
 	NOTIF_LOCK,
 	SPOE_APPLET_LOCK,
+	DNS_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -256,7 +257,7 @@ static inline void show_lock_stats()
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
 					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS",
 					   "PATREF", "PATEXP", "PATLRU", "VARS", "COMP_POOL", "LUA",
-					   "NOTIF", "SPOE_APPLET" };
+					   "NOTIF", "SPOE_APPLET", "DNS" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {

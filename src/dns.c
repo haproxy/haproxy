@@ -45,7 +45,7 @@
 struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);
 
-static int64_t dns_query_id_seed = 0;	/* random seed */
+static THREAD_LOCAL int64_t dns_query_id_seed = 0; /* random seed */
 static struct pool_head *dns_answer_item_pool = NULL;
 static struct pool_head *dns_resolution_pool  = NULL;
 static unsigned int resolution_uuid = 1;
@@ -125,6 +125,8 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 /* 2 bytes random generator to generate DNS query ID */
 static inline uint16_t dns_rnd16(void)
 {
+	if (!dns_query_id_seed)
+		dns_query_id_seed = now_ms;
 	dns_query_id_seed ^= dns_query_id_seed << 13;
 	dns_query_id_seed ^= dns_query_id_seed >> 7;
 	dns_query_id_seed ^= dns_query_id_seed << 17;
@@ -1444,6 +1446,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		return;
 
 	resolvers = ns->resolvers;
+	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* process all pending input messages */
 	while (1) {
@@ -1604,6 +1607,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		continue;
 	}
 	dns_update_resolvers_timeout(resolvers);
+	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 }
 
 /* Called when a resolvers network socket is ready to send data */
@@ -1628,6 +1632,8 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		return;
 
 	resolvers = ns->resolvers;
+	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+
 	list_for_each_entry(res, &resolvers->resolutions.curr, list) {
 		int ret;
 
@@ -1653,6 +1659,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		ns->counters.snd_error++;
 		res->nb_queries++;
 	}
+	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 }
 
 /* Processes DNS resolution. First, it checks the active list to detect expired
@@ -1664,6 +1671,8 @@ static struct task *dns_process_resolvers(struct task *t)
 	struct dns_resolvers  *resolvers = t->context;
 	struct dns_resolution *res, *resback;
 	int exp;
+
+	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* Handle all expired resolutions from the active list */
 	list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
@@ -1733,6 +1742,7 @@ static struct task *dns_process_resolvers(struct task *t)
 	}
 
 	dns_update_resolvers_timeout(resolvers);
+	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 	return t;
 }
 
@@ -2014,9 +2024,6 @@ static void __dns_init(void)
 {
 	dns_answer_item_pool = create_pool("dns_answer_item", sizeof(struct dns_answer_item), MEM_F_SHARED);
 	dns_resolution_pool  = create_pool("dns_resolution",  sizeof(struct dns_resolution),  MEM_F_SHARED);
-
-	/* give a first random value to our dns query_id seed */
-	dns_query_id_seed = random();
 
 	hap_register_post_check(dns_finalize_config);
 	hap_register_post_deinit(dns_deinit);

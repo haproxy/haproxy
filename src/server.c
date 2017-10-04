@@ -3751,11 +3751,12 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 	char                  *hostname_dn;
 	int                    hostname_len, hostname_dn_len;
 
+	SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
 	 */
 	if (!srv->dns_requester)
-		return -1;
+		goto err;
 
 	chunk_reset(&trash);
 	hostname_len    = strlen(hostname);
@@ -3763,13 +3764,13 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
 					      hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
-		return -1;
+		goto err;
 
 	resolution = srv->dns_requester->resolution;
 	if (resolution &&
 	    resolution->hostname_dn &&
 	    !strcmp(resolution->hostname_dn, hostname_dn))
-		return 0;
+		goto end;
 
 	dns_unlink_resolution(srv->dns_requester);
 
@@ -3779,11 +3780,18 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 	srv->hostname_dn     = strdup(hostname_dn);
 	srv->hostname_dn_len = hostname_dn_len;
 	if (!srv->hostname || !srv->hostname_dn)
-		return -1;
+		goto err;
 
 	if (dns_link_resolution(srv, OBJ_TYPE_SERVER) == -1)
-		return -1;
+		goto err;
+
+  end:
+	SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return 0;
+
+  err:
+	SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+	return -1;
 }
 
 /* Sets the server's address (srv->addr) from srv->lastaddr which was filled

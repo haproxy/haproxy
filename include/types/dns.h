@@ -25,6 +25,7 @@
 #include <eb32tree.h>
 
 #include <common/mini-clist.h>
+#include <common/hathreads.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>
@@ -192,6 +193,9 @@ struct dns_resolvers {
 	struct eb_root query_ids;           /* tree to quickly lookup/retrieve query ids currently in use
                                              * used by each nameserver, but stored in resolvers since there must
                                              * be a unique relation between an eb_root and an eb_node (resolution) */
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 	struct list list;                   /* resolvers list */
 };
 

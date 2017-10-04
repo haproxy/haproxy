@@ -2182,6 +2182,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curr_resolvers->nameservers);
 		LIST_INIT(&curr_resolvers->resolutions.curr);
 		LIST_INIT(&curr_resolvers->resolutions.wait);
+		SPIN_INIT(&curr_resolvers->lock);
 	}
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct sockaddr_storage *sk;
