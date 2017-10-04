@@ -2786,8 +2786,6 @@ static void tcpcheck_main(struct connection *conn)
 				check->current_step->action == TCPCHK_ACT_COMMENT)
 				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
-			if (&check->current_step->list == head)
-				break;
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			if (unlikely(check->result == CHK_RES_FAILED))
