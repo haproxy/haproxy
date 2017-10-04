@@ -812,6 +812,9 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		fdt = fdtab[fd];
 
+		if (!fdt.owner)
+			goto skip; // closed
+
 		if (fdt.iocb == conn_fd_handler) {
 			conn_flags = ((struct connection *)fdt.owner)->flags;
 			li = objt_listener(((struct connection *)fdt.owner)->target);
@@ -820,9 +823,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		}
 		else if (fdt.iocb == listener_accept)
 			li = fdt.owner;
-
-		if (!fdt.owner)
-			goto skip; // closed
 
 		chunk_printf(&trash,
 			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c%c%c] cache=%u owner=%p iocb=%p(%s)",
