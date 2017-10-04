@@ -1447,6 +1447,20 @@ static struct task *server_warmup(struct task *t)
 	return t;
 }
 
+/* returns the first NON-COMMENT tcp-check rule from list <list> or NULL if
+ * none was found.
+ */
+static struct tcpcheck_rule *get_first_tcpcheck_rule(struct list *list)
+{
+	struct tcpcheck_rule *r;
+
+	list_for_each_entry(r, list, list) {
+		if (r->action != TCPCHK_ACT_COMMENT)
+			return r;
+	}
+	return NULL;
+}
+
 /*
  * establish a server health-check that makes use of a connection.
  *
@@ -1544,18 +1558,18 @@ static int connect_conn_chk(struct task *t)
 	/* only plain tcp-check supports quick ACK */
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
 
-	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(check->tcpcheck_rules)) {
-		struct tcpcheck_rule *r;
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		struct tcpcheck_rule *r = get_first_tcpcheck_rule(check->tcpcheck_rules);
 
-		r = LIST_NEXT(check->tcpcheck_rules, struct tcpcheck_rule *, list);
-
-		/* if first step is a 'connect', then tcpcheck_main must run it */
-		if (r->action == TCPCHK_ACT_CONNECT) {
-			tcpcheck_main(conn);
-			return SF_ERR_UP;
+		if (r) {
+			/* if first step is a 'connect', then tcpcheck_main must run it */
+			if (r->action == TCPCHK_ACT_CONNECT) {
+				tcpcheck_main(conn);
+				return SF_ERR_UP;
+			}
+			if (r->action == TCPCHK_ACT_EXPECT)
+				quickack = 0;
 		}
-		if (r->action == TCPCHK_ACT_EXPECT)
-			quickack = 0;
 	}
 
 	ret = SF_ERR_INTERNAL;
