@@ -2591,6 +2591,7 @@ static void tcpcheck_main(struct connection *conn)
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
+			__conn_data_want_send(conn);
 			if (conn->xprt->snd_buf(conn, check->bo, 0) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
 					chk_report_conn_err(conn, errno, 0);
@@ -2792,6 +2793,7 @@ static void tcpcheck_main(struct connection *conn)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
+			__conn_data_want_recv(conn);
 			if (conn->xprt->rcv_buf(conn, check->bi, check->bi->size) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 					done = 1;
