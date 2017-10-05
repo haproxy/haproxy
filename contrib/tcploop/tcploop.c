@@ -118,6 +118,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "  I            : wait for Input data to be present (POLLIN)\n"
 	    "  O            : wait for Output queue to be empty (POLLOUT + TIOCOUTQ)\n"
 	    "  F            : FIN : shutdown(SHUT_WR)\n"
+	    "  r            : shutr : shutdown(SHUT_RD) (pauses a listener or ends recv)\n"
 	    "  N<max>       : fork New process, limited to <max> concurrent (default 1)\n"
 	    "  X[i|o|e]* ** : execvp() next args passing socket as stdin/stdout/stderr.\n"
 	    "                 If i/o/e present, only stdin/out/err are mapped to socket.\n"
@@ -897,7 +898,14 @@ int main(int argc, char **argv)
 			/* ignore errors on shutdown() as they are common */
 			if (sock >= 0)
 				shutdown(sock, SHUT_WR);
-			dolog("shutdown\n");
+			dolog("shutdown(w)\n");
+			break;
+
+		case 'r':
+			/* ignore errors on shutdown() as they are common */
+			if (sock >= 0)
+				shutdown(sock, SHUT_RD);
+			dolog("shutdown(r)\n");
 			break;
 
 		case 'N':
