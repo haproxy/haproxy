@@ -571,7 +571,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 
-		conn_force_close(srv_conn);
+		conn_full_close(srv_conn);
 
 		if (si->err_type)
 			return 0;
