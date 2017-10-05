@@ -545,7 +545,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	fdtab[fd].linger_risk = 1;  /* close hard if needed */
 
 	if (conn_xprt_init(conn) < 0) {
-		conn_force_close(conn);
+		conn_full_close(conn);
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_RESOURCE;
 	}
