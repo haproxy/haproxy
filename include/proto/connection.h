@@ -150,22 +150,6 @@ static inline void conn_stop_tracking(struct connection *conn)
 	conn->flags &= ~CO_FL_XPRT_TRACKED;
 }
 
-/* Force to close the connection whatever the tracking state. This is mainly
- * used on the error path where the tracking does not make sense, or to kill
- * an idle connection we want to abort immediately.
- */
-static inline void conn_force_close(struct connection *conn)
-{
-	if (conn_xprt_ready(conn) && conn->xprt->close)
-		conn->xprt->close(conn);
-
-	if (conn_ctrl_ready(conn))
-		fd_delete(conn->handle.fd);
-
-	conn->handle.fd = DEAD_FD_MAGIC;
-	conn->flags &= ~(CO_FL_XPRT_READY|CO_FL_CTRL_READY);
-}
-
 /* Update polling on connection <c>'s file descriptor depending on its current
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
  * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
