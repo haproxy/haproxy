@@ -890,6 +890,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * layer to try to signal it to the peer before we close.
 			 */
 			cs_shutw(cs, CS_SHW_NORMAL);
+			conn_sock_shutw(conn);
 
 			/* If the stream interface is configured to disable half-open
 			 * connections, we'll skip the shutdown(), but only if the
