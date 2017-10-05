@@ -559,6 +559,14 @@ static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	cs->flags |= (mode == CS_SHW_NORMAL) ? CS_FL_SHWN : CS_FL_SHWS;
 }
 
+/* completely close a conn_stream (but do not detach it) */
+static inline void cs_close(struct conn_stream *cs)
+{
+	cs_shutw(cs, CS_SHW_SILENT);
+	cs_shutr(cs, CS_SHR_RESET);
+	cs->flags = CS_FL_NONE;
+}
+
 /* detect sock->data read0 transition */
 static inline int conn_xprt_read0_pending(struct connection *c)
 {
