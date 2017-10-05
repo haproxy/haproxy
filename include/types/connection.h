@@ -58,8 +58,29 @@ enum {
 	CS_FL_DATA_RD_ENA   = 0x00000001,  /* receiving data is allowed */
 	CS_FL_DATA_WR_ENA   = 0x00000002,  /* sending data is desired */
 
+	CS_FL_SHRD          = 0x00000010,  /* read shut, draining extra data */
+	CS_FL_SHRR          = 0x00000020,  /* read shut, resetting extra data */
+	CS_FL_SHR           = CS_FL_SHRD | CS_FL_SHRR, /* read shut status */
+
+	CS_FL_SHWN          = 0x00000040,  /* write shut, verbose mode */
+	CS_FL_SHWS          = 0x00000080,  /* write shut, silent mode */
+	CS_FL_SHW           = CS_FL_SHWN | CS_FL_SHWS, /* write shut status */
+
+
 	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
 	CS_FL_EOS           = 0x00001000,  /* End of stream */
+};
+
+/* cs_shutr() modes */
+enum cs_shr_mode {
+	CS_SHR_DRAIN        = 0,           /* read shutdown, drain any extra stuff */
+	CS_SHR_RESET        = 1,           /* read shutdown, reset any extra stuff */
+};
+
+/* cs_shutw() modes */
+enum cs_shw_mode {
+	CS_SHW_NORMAL       = 0,           /* regular write shutdown */
+	CS_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
 };
 
 /* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
