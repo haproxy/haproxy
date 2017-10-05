@@ -821,8 +821,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
-		/* XXX: should just close cs ? */
-		conn_full_close(conn);
+		cs_close(cs);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 	}
@@ -890,22 +889,13 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * layer to try to signal it to the peer before we close.
 			 */
 			cs_shutw(cs, CS_SHW_NORMAL);
-			conn_sock_shutw(conn);
 
-			/* If the stream interface is configured to disable half-open
-			 * connections, we'll skip the shutdown(), but only if the
-			 * read size is already closed. Otherwise we can't support
-			 * closed write with pending read (eg: abortonclose while
-			 * waiting for the server).
-			 */
-			if (!(si->flags & SI_FL_NOHALF) || !(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
-				if (!(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
-					/* OK just a shutw, but we want the caller
-					 * to disable polling on this FD if exists.
-					 */
-					conn_cond_update_polling(conn);
-					return;
-				}
+			if (!(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
+				/* OK just a shutw, but we want the caller
+				 * to disable polling on this FD if exists.
+				 */
+				conn_cond_update_polling(conn);
+				return;
 			}
 		}
 
@@ -914,7 +904,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		conn_full_close(conn);
+		cs_close(cs);
 		/* fall through */
 	case SI_ST_CER:
 	case SI_ST_QUE:
@@ -1369,11 +1359,7 @@ void stream_sock_read0(struct stream_interface *si)
 
  do_close:
 	/* OK we completely close the socket here just as if we went through si_shut[rw]() */
-	conn_full_close(cs->conn);
-
-	ic->flags &= ~CF_SHUTR_NOW;
-	ic->flags |= CF_SHUTR;
-	ic->rex = TICK_ETERNITY;
+	cs_close(cs);
 
 	oc->flags &= ~CF_SHUTW_NOW;
 	oc->flags |= CF_SHUTW;

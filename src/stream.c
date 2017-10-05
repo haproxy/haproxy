@@ -579,7 +579,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
-	struct connection *srv_conn = __objt_cs(si->end)->conn;
+	struct conn_stream *srv_cs = __objt_cs(si->end);
 
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
@@ -602,7 +602,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 		/* XXX cognet: do we really want to kill the connection here ?
 		 * Probably not for multiple streams.
 		 */
-		conn_full_close(srv_conn);
+		cs_close(srv_cs);
 
 		if (si->err_type)
 			return 0;

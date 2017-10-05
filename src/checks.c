@@ -1400,7 +1400,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		 * sure want to abort the hard way.
 		 */
 		conn_sock_drain(conn);
-		conn_full_close(conn);
+		cs_close(cs);
 		ret = -1;
 	}
 
@@ -2207,7 +2207,7 @@ static struct task *process_chk_conn(struct task *t)
 			 * server state to be suddenly changed.
 			 */
 			conn_sock_drain(conn);
-			conn_full_close(conn);
+			cs_close(cs);
 		}
 
 		if (conn) {
@@ -2686,9 +2686,8 @@ static int tcpcheck_main(struct check *check)
 			 *   3: release and replace the old one on success
 			 */
 			if (check->cs) {
-				/* XXX: need to kill all CS here as well but not to free them yet */
-				conn_full_close(check->cs->conn);
-				retcode = -1; /* do not reuse the fd! */
+				cs_close(check->cs);
+				retcode = -1; /* do not reuse the fd in the caller! */
 			}
 
 			/* mark the step as started */
