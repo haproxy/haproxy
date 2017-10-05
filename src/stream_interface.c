@@ -861,6 +861,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		else {
 			/* clean data-layer shutdown */
 			conn_xprt_shutw(conn);
+			conn_sock_shutw(conn);
 
 			/* If the stream interface is configured to disable half-open
 			 * connections, we'll skip the shutdown(), but only if the
@@ -869,9 +870,6 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * waiting for the server).
 			 */
 			if (!(si->flags & SI_FL_NOHALF) || !(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
-				/* We shutdown transport layer */
-				conn_sock_shutw(conn);
-
 				if (!(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
 					/* OK just a shutw, but we want the caller
 					 * to disable polling on this FD if exists.

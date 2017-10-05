@@ -432,7 +432,8 @@ static inline void conn_sock_shutw(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	__conn_sock_stop_send(c);
-	if (conn_ctrl_ready(c))
+	/* don't perform a clean shutdown if we're going to reset */
+	if (conn_ctrl_ready(c) && !fdtab[c->handle.fd].linger_risk)
 		shutdown(c->handle.fd, SHUT_WR);
 }
 
