@@ -264,7 +264,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
  out_free_sess:
 	session_free(sess);
  out_free_conn:
-	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
+	conn_stop_tracking(cli_conn);
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
  out_close:
@@ -358,7 +358,8 @@ static void session_kill_embryonic(struct session *sess)
 	}
 
 	/* kill the connection now */
-	conn_force_close(conn);
+	conn_stop_tracking(conn);
+	conn_full_close(conn);
 	conn_free(conn);
 
 	listener_release(sess->listener);
