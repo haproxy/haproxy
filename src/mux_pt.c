@@ -122,14 +122,24 @@ static void mux_pt_detach(struct conn_stream *cs)
 
 static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
+	if (cs->flags & CS_FL_SHR)
+		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
+	if (cs->flags & CS_FL_SHW)
+		conn_full_close(cs->conn);
 }
 
 static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
+	if (cs->flags & CS_FL_SHW)
+		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutw)
 		cs->conn->xprt->shutw(cs->conn, (mode == CS_SHW_NORMAL));
+	if (!(cs->flags & CS_FL_SHR))
+		conn_sock_shutw(cs->conn);
+	else
+		conn_full_close(cs->conn);
 }
 
 /*
