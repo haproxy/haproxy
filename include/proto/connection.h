@@ -125,6 +125,7 @@ static inline void conn_ctrl_close(struct connection *conn)
 {
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
 		fd_delete(conn->handle.fd);
+		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->flags &= ~CO_FL_CTRL_READY;
 	}
 }
