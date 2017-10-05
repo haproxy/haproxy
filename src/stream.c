@@ -334,8 +334,10 @@ static void stream_free(struct stream *s)
 		http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
-	if (cli_conn)
-		conn_force_close(cli_conn);
+	if (cli_conn) {
+		conn_stop_tracking(cli_conn);
+		conn_full_close(cli_conn);
+	}
 
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
