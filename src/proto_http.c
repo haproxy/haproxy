@@ -12414,7 +12414,7 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	/* Add final \0 required by url_decode(), and convert the input string. */
 	smp->data.u.str.str[smp->data.u.str.len] = '\0';
 	smp->data.u.str.len = url_decode(smp->data.u.str.str);
-	return 1;
+	return (smp->data.u.str.len >= 0);
 }
 
 static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void *private)
