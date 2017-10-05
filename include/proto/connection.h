@@ -537,44 +537,27 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 		c->xprt->shutw(c, 0);
 }
 
-/* shut read after draining possibly pending data */
-static inline void cs_shutr(struct conn_stream *cs)
+/* shut read */
+static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	__cs_stop_recv(cs);
 
 	/* clean data-layer shutdown */
 	if (cs->conn->mux && cs->conn->mux->shutr)
-		cs->conn->mux->shutr(cs, 1);
+		cs->conn->mux->shutr(cs, mode);
+	cs->flags |= (mode == CS_SHR_DRAIN) ? CS_FL_SHRD : CS_FL_SHRR;
 }
 
-/* shut read after disabling lingering */
-static inline void cs_shutr_hard(struct conn_stream *cs)
-{
-	__cs_stop_recv(cs);
-
-	/* clean data-layer shutdown */
-	if (cs->conn->mux && cs->conn->mux->shutr)
-		cs->conn->mux->shutr(cs, 0);
-}
-
-static inline void cs_shutw(struct conn_stream *cs)
+/* shut write */
+static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	__cs_stop_send(cs);
 
 	/* clean data-layer shutdown */
 	if (cs->conn->mux && cs->conn->mux->shutw)
-		cs->conn->mux->shutw(cs, 1);
+		cs->conn->mux->shutw(cs, mode);
+	cs->flags |= (mode == CS_SHW_NORMAL) ? CS_FL_SHWN : CS_FL_SHWS;
 }
-
-static inline void cs_shutw_hard(struct conn_stream *cs)
-{
-	__cs_stop_send(cs);
-
-	/* unclean data-layer shutdown */
-	if (cs->conn->mux && cs->conn->mux->shutw)
-		cs->conn->mux->shutw(cs, 0);
-}
-
 
 /* detect sock->data read0 transition */
 static inline int conn_xprt_read0_pending(struct connection *c)

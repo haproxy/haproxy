@@ -1344,7 +1344,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	 * drain pending data.
 	 */
 	__cs_stop_both(cs);
-	cs_shutw(cs);
+	cs_shutw(cs, CS_SHW_NORMAL);
 
 	/* OK, let's not stay here forever */
 	if (check->result == CHK_RES_FAILED)

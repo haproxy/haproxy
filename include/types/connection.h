@@ -292,8 +292,8 @@ struct mux_ops {
 	int  (*snd_buf)(struct conn_stream *cs, struct buffer *buf, int flags); /* Called from the upper layer to send data */
 	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct conn_stream *cs, struct pipe *pipe); /* send-to-pipe callback */
-	void (*shutr)(struct conn_stream *cs, int clean); /* shutr function */
-	void (*shutw)(struct conn_stream *cs, int clean); /* shutw function */
+	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */
+	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
 
 	void (*release)(struct connection *conn);     /* release all resources allocated by the mux */
 	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */

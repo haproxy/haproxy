@@ -880,7 +880,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * option abortonclose. No need for the TLS layer to try to
 			 * emit a shutdown message.
 			 */
-			cs_shutw_hard(cs);
+			cs_shutw(cs, CS_SHW_SILENT);
 		}
 		else {
 			/* clean data-layer shutdown. This only happens on the
@@ -889,7 +889,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 * while option abortonclose is set. We want the TLS
 			 * layer to try to signal it to the peer before we close.
 			 */
-			cs_shutw(cs);
+			cs_shutw(cs, CS_SHW_NORMAL);
 
 			/* If the stream interface is configured to disable half-open
 			 * connections, we'll skip the shutdown(), but only if the
@@ -1358,7 +1358,7 @@ void stream_sock_read0(struct stream_interface *si)
 	if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep stream in cache */
-		cs_shutw_hard(cs);
+		cs_shutw(cs, CS_SHW_SILENT);
 		goto do_close;
 	}
 
