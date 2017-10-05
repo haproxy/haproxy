@@ -142,6 +142,14 @@ static inline void conn_full_close(struct connection *conn)
 	conn_ctrl_close(conn);
 }
 
+/* stop tracking a connection, allowing conn_full_close() to always
+ * succeed.
+ */
+static inline void conn_stop_tracking(struct connection *conn)
+{
+	conn->flags &= ~CO_FL_XPRT_TRACKED;
+}
+
 /* Force to close the connection whatever the tracking state. This is mainly
  * used on the error path where the tracking does not make sense, or to kill
  * an idle connection we want to abort immediately.
