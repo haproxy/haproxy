@@ -296,7 +296,6 @@ static void stream_free(struct stream *s)
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
 	struct conn_stream *cli_cs = objt_cs(s->si[0].end);
-	struct connection *cli_conn = cs_conn(cli_cs);
 	int i;
 
 	if (s->pend_pos)
@@ -344,11 +343,8 @@ static void stream_free(struct stream *s)
 		http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
-	/* XXX cognet: wrong for multiple streams in one connection */
-	if (cli_conn) {
-		conn_stop_tracking(cli_conn);
-		conn_full_close(cli_conn);
-	}
+	if (cli_cs)
+		cs_close(cli_cs);
 
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
