@@ -289,6 +289,17 @@ static inline void conn_cond_update_polling(struct connection *c)
 	}
 }
 
+/* recompute the mux polling flags after updating the current conn_stream and
+ * propagate the result down the transport layer.
+ */
+static inline void cs_update_mux_polling(struct conn_stream *cs)
+{
+	struct connection *conn = cs->conn;
+
+	if (conn->mux && conn->mux->update_poll)
+		conn->mux->update_poll(cs);
+}
+
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
 /* The __conn_* versions do not propagate to lower layers and are only meant
  * to be used by handlers called by the connection handler. The other ones
@@ -302,6 +313,28 @@ static inline void __conn_xprt_want_recv(struct connection *c)
 static inline void __conn_xprt_stop_recv(struct connection *c)
 {
 	c->flags &= ~CO_FL_XPRT_RD_ENA;
+}
+
+static inline void __cs_data_want_recv(struct conn_stream *cs)
+{
+	cs->flags |= CS_FL_DATA_RD_ENA;
+}
+
+static inline void __cs_data_stop_recv(struct conn_stream *cs)
+{
+	cs->flags &= ~CS_FL_DATA_RD_ENA;
+}
+
+static inline void cs_data_want_recv(struct conn_stream *cs)
+{
+	__cs_data_want_recv(cs);
+	cs_update_mux_polling(cs);
+}
+
+static inline void cs_data_stop_recv(struct conn_stream *cs)
+{
+	__cs_data_stop_recv(cs);
+	cs_update_mux_polling(cs);
 }
 
 /* this one is used only to stop speculative recv(). It doesn't stop it if the
@@ -332,6 +365,40 @@ static inline void __conn_xprt_stop_both(struct connection *c)
 {
 	c->flags &= ~(CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA);
 }
+
+static inline void __cs_data_want_send(struct conn_stream *cs)
+{
+	cs->flags |= CS_FL_DATA_WR_ENA;
+}
+
+static inline void __cs_data_stop_send(struct conn_stream *cs)
+{
+	cs->flags &= ~CS_FL_DATA_WR_ENA;
+}
+
+static inline void cs_data_stop_send(struct conn_stream *cs)
+{
+	__cs_data_stop_send(cs);
+	cs_update_mux_polling(cs);
+}
+
+static inline void cs_data_want_send(struct conn_stream *cs)
+{
+	__cs_data_want_send(cs);
+	cs_update_mux_polling(cs);
+}
+
+static inline void __cs_data_stop_both(struct conn_stream *cs)
+{
+	cs->flags &= ~(CS_FL_DATA_WR_ENA | CS_FL_DATA_RD_ENA);
+}
+
+static inline void cs_data_stop_both(struct conn_stream *cs)
+{
+	__cs_data_stop_both(cs);
+	cs_update_mux_polling(cs);
+}
+
 
 static inline void conn_xprt_want_recv(struct connection *c)
 {
@@ -490,6 +557,16 @@ static inline void conn_prepare(struct connection *conn, const struct protocol *
 	conn->mux_ctx = NULL;
 }
 
+/*
+ * Initializes all required fields for a new conn_strema.
+ */
+static inline void cs_init(struct conn_stream *cs, struct connection *conn)
+{
+	cs->obj_type = OBJ_TYPE_CS;
+	cs->flags = CS_FL_NONE;
+	cs->conn = conn;
+}
+
 /* Initializes all required fields for a new connection. Note that it does the
  * minimum acceptable initialization for a connection that already exists and
  * is about to be reused. It also leaves the addresses untouched, which makes
@@ -545,12 +622,44 @@ static inline struct connection *conn_new()
 	return conn;
 }
 
+/* Tries to allocate a new conn_stream and initialize its main fields. The
+ * connection is returned on success, NULL on failure. The connection must
+ * be released using pool_free2() or conn_free().
+ */
+static inline struct conn_stream *cs_new(struct connection *conn)
+{
+	struct conn_stream *cs;
+
+	cs = pool_alloc2(pool2_connstream);
+	if (likely(cs != NULL))
+		cs_init(cs, conn);
+	return cs;
+}
+
+/* Releases a conn_stream previously allocated by cs_new() */
+static inline void cs_free(struct conn_stream *cs)
+{
+	pool_free2(pool2_connstream, cs);
+}
+
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
 	if (conn->mux && conn->mux->release)
 		conn->mux->release(conn);
 	pool_free2(pool2_connection, conn);
+}
+
+/* Release a conn_stream, and kill the connection if it was the last one */
+static inline void cs_destroy(struct conn_stream *cs)
+{
+	struct connection *conn = cs->conn;
+
+	LIST_DEL(&conn->list);
+	conn_stop_tracking(conn);
+	conn_full_close(conn);
+	conn_free(conn);
+	cs_free(cs);
 }
 
 /* Returns the conn from a cs. If cs is NULL, returns NULL */
