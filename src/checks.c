@@ -2210,7 +2210,7 @@ static struct task *process_chk_conn(struct task *t)
 			cs_close(cs);
 		}
 
-		if (conn) {
+		if (cs) {
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2706,11 +2706,8 @@ static int tcpcheck_main(struct check *check)
 				return retcode;
 			}
 
-			if (check->cs) {
-				if (check->cs->conn)
-					conn_free(check->cs->conn);
-				cs_free(check->cs);
-			}
+			if (check->cs)
+				cs_destroy(check->cs);
 
 			check->cs = cs;
 			conn = cs->conn;
