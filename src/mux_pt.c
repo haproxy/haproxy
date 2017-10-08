@@ -113,11 +113,16 @@ static struct conn_stream *mux_pt_attach(struct connection *conn)
 }
 
 /*
- * Detach the stream from the connection
- * (Used for outgoing connections)
+ * Detach the stream from the connection and possibly release the connection.
  */
 static void mux_pt_detach(struct conn_stream *cs)
 {
+	struct connection *conn = cs->conn;
+
+	LIST_DEL(&conn->list);
+	conn_stop_tracking(conn);
+	conn_full_close(conn);
+	conn_free(conn);
 }
 
 static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
