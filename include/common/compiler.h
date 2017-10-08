@@ -89,8 +89,8 @@
 #define __builtin_expect(x,y) (x)
 #define likely(x) (x)
 #define unlikely(x) (x)
-#elif __GNUC__ < 4
-/* gcc 3.x does the best job at this */
+#elif __GNUC__ < 4 || __GNUC__ >= 5
+/* gcc 3.x and 5.x do the best job at this */
 #define likely(x) (__builtin_expect((x) != 0, 1))
 #define unlikely(x) (__builtin_expect((x) != 0, 0))
 #else
