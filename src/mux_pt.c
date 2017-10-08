@@ -122,6 +122,8 @@ static void mux_pt_detach(struct conn_stream *cs)
 	LIST_DEL(&conn->list);
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
+	if (conn->destroy_cb)
+		conn->destroy_cb(conn);
 	conn_free(conn);
 }
 

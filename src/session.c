@@ -154,7 +154,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (!sess)
 		goto out_free_conn;
 
-	conn_set_owner(cli_conn, sess);
+	conn_set_owner(cli_conn, sess, NULL);
 
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.

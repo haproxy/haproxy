@@ -377,6 +377,7 @@ struct connection {
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
 	int (*xprt_done_cb)(struct connection *conn);  /* callback to notify of end of handshake */
+	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */
 	const struct netns_entry *proxy_netns;
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */

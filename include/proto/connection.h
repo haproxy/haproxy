@@ -615,14 +615,16 @@ static inline void conn_init(struct connection *conn)
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
 	conn->xprt_done_cb = NULL;
+	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
 }
 
 /* sets <owner> as the connection's owner */
-static inline void conn_set_owner(struct connection *conn, void *owner)
+static inline void conn_set_owner(struct connection *conn, void *owner, void (*cb)(struct connection *))
 {
 	conn->owner = owner;
+	conn->destroy_cb = cb;
 }
 
 /* registers <cb> as a callback to notify for transport's readiness or failure */
