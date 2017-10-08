@@ -1841,7 +1841,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	/* Error unrolling */
  out_free_strm:
-	LIST_DEL(&s->by_sess);
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
  out_free_sess:

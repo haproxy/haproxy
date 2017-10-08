@@ -154,7 +154,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
 	LIST_ADDQ(&streams, &s->list);
-	LIST_ADDQ(&sess->streams, &s->by_sess);
 	LIST_INIT(&s->back_refs);
 
 	LIST_INIT(&s->buffer_wait.list);
@@ -276,7 +275,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	flt_stream_release(s, 0);
 	task_free(t);
  out_fail_alloc:
-	LIST_DEL(&s->by_sess);
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
 	return NULL;
@@ -376,7 +374,6 @@ static void stream_free(struct stream *s)
 			LIST_ADDQ(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
 	}
-	LIST_DEL(&s->by_sess);
 	LIST_DEL(&s->list);
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
