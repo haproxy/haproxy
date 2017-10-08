@@ -73,6 +73,14 @@ void session_free(struct session *sess)
 	HA_ATOMIC_SUB(&jobs, 1);
 }
 
+/* callback used from the connection/mux layer to notify that a connection is
+ * gonig to be released.
+ */
+void conn_session_free(struct connection *conn)
+{
+	session_free(conn->owner);
+}
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session()
 {
@@ -415,6 +423,9 @@ static int conn_complete_session(struct connection *conn)
 		task_free(sess->task);
 		sess->task = NULL;
 	}
+
+	conn_set_owner(conn, sess, conn_session_free);
+
 	return 0;
 
  fail:

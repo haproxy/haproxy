@@ -394,7 +394,6 @@ static void stream_free(struct stream *s)
 	 * the stream must free the session.
 	 */
 	pool_free2(pool2_stream, s);
-	session_free(sess);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
