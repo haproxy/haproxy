@@ -226,11 +226,104 @@ static void h2_release(struct connection *conn)
 /* callback called on recv event by the connection handler */
 static void h2_recv(struct connection *conn)
 {
+	struct h2c *h2c = conn->mux_ctx;
+	struct buffer *buf = h2c->dbuf;
+	int max;
+
+	if (conn->flags & CO_FL_ERROR)
+		goto error;
+
+	/* note: buf->o == 0 */
+	max = buf->size - buf->i;
+	if (!max) {
+		/* FIXME: buffer full, add a flag, stop polling and wait */
+		__conn_xprt_stop_recv(conn);
+		return;
+	}
+
+	conn->xprt->rcv_buf(conn, buf, max);
+	if (conn->flags & CO_FL_ERROR)
+		goto error;
+
+	if (buf->i == buf->size) {
+		/* buffer now full */
+		__conn_xprt_stop_recv(conn);
+		return;
+	}
+
+	/* FIXME: should we try to process streams here instead of doing it in ->wake ? */
+
+	if (conn_xprt_read0_pending(conn))
+		__conn_xprt_stop_recv(conn);
+	return;
+
+ error:
+	__conn_xprt_stop_recv(conn);
 }
 
 /* callback called on send event by the connection handler */
 static void h2_send(struct connection *conn)
 {
+	struct h2c *h2c = conn->mux_ctx;
+
+	/* FIXME: should we try to process pending streams here instead of doing it in ->wake ? */
+
+	if (conn->flags & CO_FL_ERROR)
+		goto error;
+
+	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
+		/* a handshake was requested */
+		return;
+	}
+
+	if (!h2c->mbuf->o) {
+		/* nothing to send */
+		goto done;
+	}
+
+	if (conn->flags & CO_FL_SOCK_WR_SH) {
+		/* output closed, nothing to send, clear the buffer to release it */
+		h2c->mbuf->o = 0;
+		goto done;
+	}
+
+	/* pending response data, we need to try to send or subscribe to
+	 * writes. The snd_buf() function takes a "flags" argument which
+	 * may be made of a combination of CO_SFL_MSG_MORE to indicate
+	 * that more data immediately comes and CO_SFL_STREAMER to
+	 * indicate that the connection is streaming lots of data (used
+	 * to increase TLS record size at the expense of latency). The
+	 * former could be sent any time there's a buffer full flag, as
+	 * it indicates at least one stream attempted to send and failed
+	 * so there are pending data. And alternative would be to set it
+	 * as long as there's an active stream but that would be
+	 * problematic for ACKs. The latter should possibly not be set
+	 * for now.
+	 */
+	conn->xprt->snd_buf(conn, h2c->mbuf, 0);
+
+	if (conn->flags & CO_FL_ERROR)
+		goto error;
+
+	if (h2c->mbuf->o) {
+		/* incomplete send, the snd_buf callback has already updated
+		 * the connection flags.
+		 *
+		 * FIXME: we should arm a send timeout here
+		 */
+		__conn_xprt_want_send(conn);
+		return;
+	}
+
+ done:
+	/* FIXME: release the output buffer when empty or do it in ->wake() ? */
+	__conn_xprt_stop_send(conn);
+	return;
+
+ error:
+	/* FIXME: report an error somewhere in the mux */
+	__conn_xprt_stop_send(conn);
+	return;
 }
 
 /* callback called on any event by the connection handler.
@@ -239,6 +332,13 @@ static void h2_send(struct connection *conn)
  */
 static int h2_wake(struct connection *conn)
 {
+	struct h2c *h2c = conn->mux_ctx;
+
+	if ((conn->flags & CO_FL_ERROR) && eb_is_empty(&h2c->streams_by_id)) {
+		h2_release(conn);
+		return -1;
+	}
+
 	return 0;
 }
 
