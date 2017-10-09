@@ -75,7 +75,7 @@ to the mailing list whose responses are present in these documents.
   - intro.txt (this document) : it presents the basics of load balancing,
     HAProxy as a product, what it does, what it doesn't do, some known traps to
     avoid, some OS-specific limitations, how to get it, how it evolves, how to
-    ensure you're running with all known fixes how to update it, complements and
+    ensure you're running with all known fixes, how to update it, complements and
     alternatives.
 
   - management.txt : it explains how to start haproxy, how to manage it at
@@ -130,10 +130,10 @@ activity is by far the best known case of load balancing.
 A load balancer may act :
 
   - at the link level : this is called link load balancing, and it consists in
-    chosing what network link to send a packet to;
+    choosing what network link to send a packet to;
 
   - at the network level : this is called network load balancing, and it
-    consists in chosing what route a series of packets will follow;
+    consists in choosing what route a series of packets will follow;
 
   - at the server level : this is called server load balancing and it consists
     in deciding what server will process a connection or request.
@@ -222,7 +222,7 @@ after an error occurs.
 
 Other methods consist in sampling the production traffic sent to a destination
 to observe if it is processed correctly or not, and to evince the components
-which return inappropriate responses. However this requires to sacrify a part
+which return inappropriate responses. However this requires to sacrifice a part
 of the production traffic and this is not always acceptable. A combination of
 these two mechanisms provides the best of both worlds, with both of them being
 used to detect a fault, and only health checks to detect the end of the fault.
@@ -472,13 +472,13 @@ will be detailed in the next section.
 --------------------------------
 
 Proxying is the action of transferring data between a client and a server over
-two independant connections. The following basic features are supported by
+two independent connections. The following basic features are supported by
 HAProxy regarding proxying and connection management :
 
   - Provide the server with a clean connection to protect them against any
     client-side defect or attack;
 
-  - Listen to multiple IP address and/or ports, even port ranges;
+  - Listen to multiple IP addresses and/or ports, even port ranges;
 
   - Transparent accept : intercept traffic targetting any arbitrary IP address
     that doesn't even belong to the local system;
@@ -538,8 +538,8 @@ making it quite complete are :
   - authentication of the backend server ensures the backend server is the real
     one and not a man in the middle;
 
-  - authentication with the backend server lets the backend server it's really
-    the expected haproxy node that is connecting to it;
+  - authentication with the backend server lets the backend server know it's
+    really the expected haproxy node that is connecting to it;
 
   - TLS NPN and ALPN extensions make it possible to reliably offload SPDY/HTTP2
     connections and pass them in clear text to backend servers;
@@ -571,7 +571,7 @@ making it quite complete are :
 HAProxy focuses a lot on availability. As such it cares about servers state,
 and about reporting its own state to other network components :
 
-  - Servers state is continuously monitored using per-server parameters. This
+  - Servers' state is continuously monitored using per-server parameters. This
     ensures the path to the server is operational for regular traffic;
 
   - Health checks support two hysteresis for up and down transitions in order
@@ -587,7 +587,7 @@ and about reporting its own state to other network components :
 
   - Agents may be deployed on the server to monitor load and health : a server
     may be interested in reporting its load, operational status, administrative
-    status independantly from what health checks can see. By running a simple
+    status independently from what health checks can see. By running a simple
     agent on the server, it's possible to consider the server's view of its own
     health in addition to the health checks validating the whole path;
 
@@ -642,7 +642,7 @@ ensure the best global service continuity :
     a takeover is the most seamless possible;
 
   - Integrates well with standard VRRP daemon keepalived : HAProxy easily tells
-    keepalived about its state and copes very will with floating virtual IP
+    keepalived about its state and copes very well with floating virtual IP
     addresses. Note: only use IP redundancy protocols (VRRP/CARP) over cluster-
     based solutions (Heartbeat, ...) as they're the ones offering the fastest,
     most seamless, and most reliable switchover.
@@ -710,7 +710,7 @@ multiple load balancing nodes in that they don't require any replication :
 
   - stickiness information can come from anything that can be seen within a
     request or response, including source address, TCP payload offset and
-    length, HTTTP query string elements, header field values, cookies, and so
+    length, HTTP query string elements, header field values, cookies, and so
     on...
 
   - stick-tables are replicated between all nodes in a multi-master fashion ;
@@ -792,14 +792,14 @@ following ones are the most commonly used :
     computation on input data, such as computing ratios, percentages or simply
     converting from one unit to another one;
 
-  - IP address masks are useful when some addresses need to be grouped by larger 
+  - IP address masks are useful when some addresses need to be grouped by larger
     networks;
 
   - data representation : url-decode, base64, hex, JSON strings, hashing;
 
   - string conversion : extract substrings at fixed positions, fixed length,
     extract specific fields around certain delimiters, extract certain words,
-    change case, apply regex-based substitution ;
+    change case, apply regex-based substitution;
 
   - date conversion : convert to http date format, convert local to UTC and
     conversely, add or remove offset;
@@ -824,7 +824,7 @@ addresses but they can be used for various other purposes.
 Part of their strength comes from being updatable on the fly either from the CLI
 or from certain actions using other samples, making them capable of storing and
 retrieving information between subsequent accesses. Another strength comes from
-the binary tree based indexation which makes them extremely fast event when they
+the binary tree based indexation which makes them extremely fast even when they
 contain hundreds of thousands of entries, making geolocation very cheap and easy
 to set up.
 
@@ -866,7 +866,7 @@ condition is not evaluated.
 There is no practical limit to the number of declared ACLs, and a handful of
 commonly used ones are provided. However experience has shown that setups using
 a lot of named ACLs are quite hard to troubleshoot and that sometimes using
-anynmous ACLs inline is easier as it requires less references out of the scope
+anonymous ACLs inline is easier as it requires less references out of the scope
 being analysed.
 
 
@@ -1037,7 +1037,7 @@ levels while they're still finalizing their startup or compiling some classes.
 Regarding the protocol-level protection, it is possible to relax the HTTP parser
 to accept non stardard-compliant but harmless requests or responses and even to
 fix them. This allows bogus applications to be accessible while a fix is being
-developped. In parallel, offending messages are completely captured with a
+developed. In parallel, offending messages are completely captured with a
 detailed report that help developers spot the issue in the application. The most
 dangerous protocol violations are properly detected and dealt with and fixed.
 For example malformed requests or responses with two Content-length headers are
@@ -1078,7 +1078,7 @@ process state, connection counts, queue status, retries count, detailed
 stickiness actions and disconnect reasons, header captures with a safe output
 encoding. It is then possible to extend or replace this format to include any
 sampled data, variables, captures, resulting in very detailed information. For
-example it is possible to log the number cumulated requests for this client or
+example it is possible to log the number of cumulated requests for this client or
 the number of different URLs for the client.
 
 The log level may be adjusted per request using standard ACLs, so it is possible
@@ -1196,7 +1196,7 @@ deployed :
 
 Depending on the operating system HAProxy is deployed on, certain extra features
 may be available or needed. While it is supported on a number of platforms,
-HAProxy is primarily developped on Linux, which explains why some features are
+HAProxy is primarily developed on Linux, which explains why some features are
 only available on this platform.
 
 The transparent bind and connect features, the support for binding connections
@@ -1286,7 +1286,7 @@ per volume unit) than with small objects (many requests per volume unit). This
 explains why maximum bandwidth is always measured with large objects, while
 request rate or connection rates are measured with small objects.
 
-Some operations scale well on multiple process spread over multiple processors,
+Some operations scale well on multiple processes spread over multiple processors,
 and others don't scale as well. Network bandwidth doesn't scale very far because
 the CPU is rarely the bottleneck for large objects, it's mostly the network
 bandwidth and data busses to reach the network interfaces. The connection rate
@@ -1348,7 +1348,7 @@ renegociation, while it's only divided by 3 between HTTP keep-alive and HTTP
 close. Another good rule of thumb is to remember that a high frequency core
 with AES instructions can do around 5 Gbps of AES-GCM per core.
 
-Having more core rarely helps (except for TLS) and is even counter-productive
+Having more cores rarely helps (except for TLS) and is even counter-productive
 due to the lower frequency. In general a small number of high frequency cores
 is better.
 
@@ -1374,7 +1374,7 @@ which new branches are derived once the code is considered stable. A lot of web
 sites run some development branches in production on a voluntarily basis, either
 to participate to the project or because they need a bleeding edge feature, and
 their feedback is highly valuable to fix bugs and judge the overall quality and
-stability of the version being developped.
+stability of the version being developed.
 
 The new branches that are created when the code is stable enough constitute a
 stable version and are generally maintained for several years, so that there is
@@ -1393,7 +1393,7 @@ complete version includes one or two sub-version numbers indicating the level of
 fix. For example, version 1.5.14 is the 14th fix release in branch 1.5 after
 version 1.5.0 was issued. It contains 126 fixes for individual bugs, 24 updates
 on the documentation, and 75 other backported patches, most of which were needed
-to fix the aforementionned 126 bugs. An existing feature may never be modified
+to fix the aforementioned 126 bugs. An existing feature may never be modified
 nor removed in a stable branch, in order to guarantee that upgrades within the
 same branch will always be harmless.
 
@@ -1482,7 +1482,7 @@ Apache is the de-facto standard HTTP server. It's a very complete and modular
 project supporting both file serving and dynamic contents. It can serve as a
 frontend for some application servers. In can even proxy requests and cache
 responses. In all of these use cases, a front load balancer is commonly needed.
-Apache can work in various modes, certain being heavier than other ones. Certain
+Apache can work in various modes, some being heavier than others. Certain
 modules still require the heavier pre-forked model and will prevent Apache from
 scaling well with a high number of connections. In this case HAProxy can provide
 a tremendous help by enforcing the per-server connection limits to a safe value
