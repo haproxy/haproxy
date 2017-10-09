@@ -46,6 +46,6 @@ struct shared_context {
 	struct shared_block free;
 };
 
-extern struct shared_context *shctx;
+extern struct shared_context *ssl_shctx;
 
 #endif

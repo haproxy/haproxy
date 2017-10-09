@@ -41,7 +41,9 @@
  * Returns: -1 on alloc failure, <size> if it performs context alloc,
  * and 0 if cache is already allocated.
  */
-int shared_context_init(int size, int shared);
+
+int shared_context_init(struct shared_context **orig_shctx, int size, int shared);
+
 /* Set shared cache callbacks on an ssl context.
  * Set session cache mode to server and disable openssl internal cache.
  * Shared context MUST be firstly initialized */
@@ -153,7 +155,7 @@ static inline unsigned char atomic_dec(unsigned int *ptr)
 
 #endif
 
-static inline void _shared_context_lock()
+static inline void _shared_context_lock(struct shared_context *shctx)
 {
 	unsigned int x;
 	unsigned int count = 4;
@@ -170,7 +172,7 @@ static inline void _shared_context_lock()
 	}
 }
 
-static inline void _shared_context_unlock()
+static inline void _shared_context_unlock(struct shared_context *shctx)
 {
 	if (atomic_dec(&shctx->waiters)) {
 		shctx->waiters = 0;
@@ -178,9 +180,9 @@ static inline void _shared_context_unlock()
 	}
 }
 
-#define shared_context_lock()   if (use_shared_mem) _shared_context_lock()
+#define shared_context_lock(shctx)   if (use_shared_mem) _shared_context_lock(shctx)
 
-#define shared_context_unlock() if (use_shared_mem) _shared_context_unlock()
+#define shared_context_unlock(shctx) if (use_shared_mem) _shared_context_unlock(shctx)
 
 #endif
 

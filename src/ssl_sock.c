@@ -157,6 +157,7 @@ enum {
 	SSL_SOCK_VERIFY_NONE     = 3,
 };
 
+
 int sslconns = 0;
 int totalsslconns = 0;
 static struct xprt_ops ssl_sock;
@@ -273,6 +274,8 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 #else
 #define SSL_SOCK_NUM_KEYTYPES 1
 #endif
+
+struct shared_context *ssl_shctx = NULL;
 
 /*
  * This function gives the detail of the SSL error. It is used only
@@ -4376,7 +4379,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		}
 	}
 
-	alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
+	alloc_ctx = shared_context_init(&ssl_shctx, global.tune.sslcachesize, (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
 	if (alloc_ctx < 0) {
 		if (alloc_ctx == SHCTX_E_INIT_LOCK)
 			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");

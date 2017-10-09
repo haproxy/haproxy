@@ -21,66 +21,70 @@
 #include <types/global.h>
 #include <types/shctx.h>
 
-struct shared_context *shctx = NULL;
-
 #if !defined (USE_PRIVATE_CACHE)
 int use_shared_mem = 0;
 #endif
 
 /* List Macros */
 
-#define shblock_unset(s)	(s)->n->p = (s)->p; \
-				(s)->p->n = (s)->n;
+#define shblock_unset(s)		(s)->n->p = (s)->p; \
+					(s)->p->n = (s)->n;
 
-#define shblock_set_free(s)	shblock_unset(s) \
-				(s)->n = &shctx->free; \
-				(s)->p = shctx->free.p; \
-				shctx->free.p->n = s; \
-				shctx->free.p = s;
+static inline void shblock_set_free(struct shared_context *shctx,
+				    struct shared_block *s)
+{
+	shblock_unset(s);
+	(s)->n = &shctx->free;
+	(s)->p = shctx->free.p;
+	shctx->free.p->n = s;
+	shctx->free.p = s;
+}
 
-
-#define shblock_set_active(s)	shblock_unset(s) \
-				(s)->n = &shctx->active; \
-				(s)->p = shctx->active.p; \
-				shctx->active.p->n = s; \
-				shctx->active.p = s;
-
+static inline void shblock_set_active(struct shared_context *shctx,
+				      struct shared_block *s)
+{
+	shblock_unset(s)
+	(s)->n = &shctx->active;
+	(s)->p = shctx->active.p;
+	shctx->active.p->n = s;
+	shctx->active.p = s;
+}
 
 /* Tree Macros */
 
 #define shsess_tree_delete(s)	ebmb_delete(&(s)->key);
 
-#define shsess_tree_insert(s)	(struct shared_session *)ebmb_insert(&shctx->active.data.session.key.node.branches, \
+#define shsess_tree_insert(shctx, s)	(struct shared_session *)ebmb_insert(&shctx->active.data.session.key.node.branches, \
 								     &(s)->key, SSL_MAX_SSL_SESSION_ID_LENGTH);
 
-#define shsess_tree_lookup(k)	(struct shared_session *)ebmb_lookup(&shctx->active.data.session.key.node.branches, \
+#define shsess_tree_lookup(shctx, k)	(struct shared_session *)ebmb_lookup(&shctx->active.data.session.key.node.branches, \
 								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
 
 /* shared session functions */
 
 /* Free session blocks, returns number of freed blocks */
-static int shsess_free(struct shared_session *shsess)
+static int shsess_free(struct shared_context *shctx, struct shared_session *shsess)
 {
 	struct shared_block *block;
 	int ret = 1;
 
 	if (((struct shared_block *)shsess)->data_len <= sizeof(shsess->data)) {
-		shblock_set_free((struct shared_block *)shsess);
+		shblock_set_free(shctx, (struct shared_block *)shsess);
 		return ret;
 	}
 	block = ((struct shared_block *)shsess)->n;
-	shblock_set_free((struct shared_block *)shsess);
+	shblock_set_free(shctx, (struct shared_block *)shsess);
 	while (1) {
 		struct shared_block *next;
 
 		if (block->data_len <= sizeof(block->data)) {
 			/* last block */
-			shblock_set_free(block);
+			shblock_set_free(shctx, block);
 			ret++;
 			break;
 		}
 		next = block->n;
-		shblock_set_free(block);
+		shblock_set_free(shctx, block);
 		ret++;
 		block = next;
 	}
@@ -91,7 +95,7 @@ static int shsess_free(struct shared_session *shsess)
  * Returns a ptr on a free block if it succeeds, or NULL if there are not
  * enough blocks to store that session.
  */
-static struct shared_session *shsess_get_next(int data_len)
+static struct shared_session *shsess_get_next(struct shared_context *shctx, int data_len)
 {
 	int head = 0;
 	struct shared_block *b;
@@ -113,7 +117,7 @@ static struct shared_session *shsess_get_next(int data_len)
 		int freed;
 
 		shsess_tree_delete(&b->data.session);
-		freed = shsess_free(&b->data.session);
+		freed = shsess_free(shctx, &b->data.session);
 		if (!head)
 			data_len -= sizeof(b->data.session.data) + (freed-1)*sizeof(b->data.data);
 		else
@@ -131,11 +135,11 @@ static struct shared_session *shsess_get_next(int data_len)
  * data_len: asn1 encoded session length
  * Returns 1 id session was stored (else 0)
  */
-static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
+static int shsess_store(struct shared_context *shctx, unsigned char *s_id, unsigned char *data, int data_len)
 {
 	struct shared_session *shsess, *oldshsess;
 
-	shsess = shsess_get_next(data_len);
+	shsess = shsess_get_next(shctx, data_len);
 	if (!shsess) {
 		/* Could not retrieve enough free blocks to store that session */
 		return 0;
@@ -146,10 +150,10 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 
 	/* it returns the already existing node
            or current node if none, never returns null */
-	oldshsess = shsess_tree_insert(shsess);
+	oldshsess = shsess_tree_insert(shctx, shsess);
 	if (oldshsess != shsess) {
 		/* free all blocks used by old node */
-		shsess_free(oldshsess);
+		shsess_free(shctx, oldshsess);
 		shsess = oldshsess;
 	}
 
@@ -157,7 +161,7 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 	if (data_len <= sizeof(shsess->data)) {
 		/* Store on a single block */
 		memcpy(shsess->data, data, data_len);
-		shblock_set_active((struct shared_block *)shsess);
+		shblock_set_active(shctx, (struct shared_block *)shsess);
 	}
 	else {
 		unsigned char *p;
@@ -167,7 +171,7 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 		memcpy(shsess->data, data, sizeof(shsess->data));
 		p = data + sizeof(shsess->data);
 		cur_len = data_len - sizeof(shsess->data);
-		shblock_set_active((struct shared_block *)shsess);
+		shblock_set_active(shctx, (struct shared_block *)shsess);
 		while (1) {
 			/* Store next data on free block.
 			 * shsess_get_next guarantees that there are enough
@@ -180,7 +184,7 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 				/* This is the last block */
 				block->data_len = cur_len;
 				memcpy(block->data.data, p, cur_len);
-				shblock_set_active(block);
+				shblock_set_active(shctx, block);
 				break;
 			}
 			/* Intermediate block */
@@ -188,7 +192,7 @@ static int shsess_store(unsigned char *s_id, unsigned char *data, int data_len)
 			memcpy(block->data.data, p, sizeof(block->data));
 			p += sizeof(block->data.data);
 			cur_len -= sizeof(block->data.data);
-			shblock_set_active(block);
+			shblock_set_active(shctx, block);
 		}
 	}
 
@@ -232,12 +236,12 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
 		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
-	shared_context_lock();
+	shared_context_lock(ssl_shctx);
 
 	/* store to cache */
-	shsess_store(encid, encsess, data_len);
+	shsess_store(ssl_shctx, encid, encsess, data_len);
 
-	shared_context_unlock();
+	shared_context_unlock(ssl_shctx);
 
 err:
 	/* reset original length values */
@@ -269,13 +273,13 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 	}
 
 	/* lock cache */
-	shared_context_lock();
+	shared_context_lock(ssl_shctx);
 
 	/* lookup for session */
-	shsess = shsess_tree_lookup(key);
+	shsess = shsess_tree_lookup(ssl_shctx, key);
 	if (!shsess) {
 		/* no session found: unlock cache and exit */
-		shared_context_unlock();
+		shared_context_unlock(ssl_shctx);
 		global.shctx_misses++;
 		return NULL;
 	}
@@ -284,7 +288,7 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 	if (data_len <= sizeof(shsess->data)) {
 		/* Session stored on single block */
 		memcpy(data, shsess->data, data_len);
-		shblock_set_active((struct shared_block *)shsess);
+		shblock_set_active(ssl_shctx, (struct shared_block *)shsess);
 	}
 	else {
 		/* Session stored on multiple blocks */
@@ -293,7 +297,7 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 		memcpy(data, shsess->data, sizeof(shsess->data));
 		p = data + sizeof(shsess->data);
 		block = ((struct shared_block *)shsess)->n;
-		shblock_set_active((struct shared_block *)shsess);
+		shblock_set_active(ssl_shctx, (struct shared_block *)shsess);
 		while (1) {
 			/* Retrieve data from next block */
 			struct shared_block *next;
@@ -302,19 +306,19 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 				/* This is the last block */
 				memcpy(p, block->data.data, block->data_len);
 				p += block->data_len;
-				shblock_set_active(block);
+				shblock_set_active(ssl_shctx, block);
 				break;
 			}
 			/* Intermediate block */
 			memcpy(p, block->data.data, sizeof(block->data.data));
 			p += sizeof(block->data.data);
 			next = block->n;
-			shblock_set_active(block);
+			shblock_set_active(ssl_shctx, block);
 			block = next;
 		}
 	}
 
-	shared_context_unlock();
+	shared_context_unlock(ssl_shctx);
 
 	/* decode ASN1 session */
 	p = data;
@@ -345,18 +349,18 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 		sid_data = tmpkey;
 	}
 
-	shared_context_lock();
+	shared_context_lock(ssl_shctx);
 
 	/* lookup for session */
-	shsess = shsess_tree_lookup(sid_data);
+	shsess = shsess_tree_lookup(ssl_shctx, sid_data);
 	if (shsess) {
 		/* free session */
 		shsess_tree_delete(shsess);
-		shsess_free(shsess);
+		shsess_free(ssl_shctx, shsess);
 	}
 
 	/* unlock cache */
-	shared_context_unlock();
+	shared_context_unlock(ssl_shctx);
 }
 
 /* Allocate shared memory context.
@@ -365,9 +369,11 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
  * Returns: -1 on alloc failure, <size> if it performs context alloc,
  * and 0 if cache is already allocated.
  */
-int shared_context_init(int size, int shared)
+int shared_context_init(struct shared_context **orig_shctx, int size, int shared)
 {
 	int i;
+	struct shared_context *shctx;
+	int ret;
 #ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED
 	pthread_mutexattr_t attr;
@@ -376,7 +382,7 @@ int shared_context_init(int size, int shared)
 	struct shared_block *prev,*cur;
 	int maptype = MAP_PRIVATE;
 
-	if (shctx)
+	if (orig_shctx && *orig_shctx)
 		return 0;
 
 	if (size<=0)
@@ -393,7 +399,8 @@ int shared_context_init(int size, int shared)
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
 	if (!shctx || shctx == MAP_FAILED) {
 		shctx = NULL;
-		return SHCTX_E_ALLOC_CACHE;
+		ret = SHCTX_E_ALLOC_CACHE;
+		goto err;
 	}
 
 #ifndef USE_PRIVATE_CACHE
@@ -402,21 +409,24 @@ int shared_context_init(int size, int shared)
 		if (pthread_mutexattr_init(&attr)) {
 			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
 			shctx = NULL;
-			return SHCTX_E_INIT_LOCK;
+			ret = SHCTX_E_INIT_LOCK;
+			goto err;
 		}
 
 		if (pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED)) {
 			pthread_mutexattr_destroy(&attr);
 			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
 			shctx = NULL;
-			return SHCTX_E_INIT_LOCK;
+			ret = SHCTX_E_INIT_LOCK;
+			goto err;
 		}
 
 		if (pthread_mutex_init(&shctx->mutex, &attr)) {
 			pthread_mutexattr_destroy(&attr);
 			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
 			shctx = NULL;
-			return SHCTX_E_INIT_LOCK;
+			ret = SHCTX_E_INIT_LOCK;
+			goto err;
 		}
 #else
 		shctx->waiters = 0;
@@ -444,7 +454,11 @@ int shared_context_init(int size, int shared)
 	cur->n = &shctx->free;
 	shctx->free.p = cur;
 
-	return size;
+	ret = size;
+
+err:
+	*orig_shctx = shctx;
+	return ret;
 }
 
 
@@ -455,7 +469,7 @@ void shared_context_set_cache(SSL_CTX *ctx)
 {
 	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 
-	if (!shctx) {
+	if (!ssl_shctx) {
 		SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
 		return;
 	}
