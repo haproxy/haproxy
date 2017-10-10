@@ -401,6 +401,33 @@ static inline void h2_set_frame_size(void *frame, uint32_t len)
 	write_n16(out + 1, len);
 }
 
+/* reads <bytes> bytes from buffer <b> starting at relative offset <o> from the
+ * current pointer, dealing with wrapping, and stores the result in <dst>. It's
+ * the caller's responsibility to verify that there are at least <bytes> bytes
+ * available in the buffer's input prior to calling this function.
+ */
+static inline void h2_get_buf_bytes(void *dst, size_t bytes,
+                                    const struct buffer *b, int o)
+{
+	readv_bytes(dst, bytes, b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+}
+
+static inline uint16_t h2_get_n16(const struct buffer *b, int o)
+{
+	return readv_n16(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+}
+
+static inline uint32_t h2_get_n32(const struct buffer *b, int o)
+{
+	return readv_n32(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+}
+
+static inline uint64_t h2_get_n64(const struct buffer *b, int o)
+{
+	return readv_n64(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+}
+
+
 /* Peeks an H2 frame header from buffer <b> into descriptor <h>. The algorithm
  * is not obvious. It turns out that H2 headers are neither aligned nor do they
  * use regular sizes. And to add to the trouble, the buffer may wrap so each
