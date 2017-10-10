@@ -807,7 +807,58 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->st0 = H2_CS_FRAME_P;
 		}
 	}
-	return;
+
+	/* process as many incoming frames as possible below */
+	while (h2c->dbuf->i) {
+		int ret = 0;
+
+		if (h2c->st0 >= H2_CS_ERROR)
+			break;
+
+		if (h2c->st0 == H2_CS_FRAME_H) {
+			struct h2_fh hdr;
+
+			if (!h2_peek_frame_hdr(h2c->dbuf, &hdr))
+				break;
+
+			if ((int)hdr.len < 0 || (int)hdr.len > h2c->mfs) {
+				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+				h2c->st0 = H2_CS_ERROR;
+				break;
+			}
+
+			h2c->dfl = hdr.len;
+			h2c->dsi = hdr.sid;
+			h2c->dft = hdr.ft;
+			h2c->dff = hdr.ff;
+			h2c->st0 = H2_CS_FRAME_P;
+			h2_skip_frame_hdr(h2c->dbuf);
+		}
+
+		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
+
+		switch (h2c->dft) {
+			/* FIXME: implement all supported frame types here */
+		default:
+			/* drop frames that we ignore. They may be larger than
+			 * the buffer so we drain all of their contents until
+			 * we reach the end.
+			 */
+			ret = MIN(h2c->dbuf->i, h2c->dfl);
+			bi_del(h2c->dbuf, ret);
+			h2c->dfl -= ret;
+			ret = h2c->dfl == 0;
+		}
+
+		/* error or missing data condition met above ? */
+		if (ret <= 0)
+			break;
+
+		if (h2c->st0 != H2_CS_FRAME_H) {
+			bi_del(h2c->dbuf, h2c->dfl);
+			h2c->st0 = H2_CS_FRAME_H;
+		}
+	}
 
  fail:
 	/* we can go here on missing data, blocked response or error */
