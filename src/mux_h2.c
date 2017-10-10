@@ -753,6 +753,71 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 	return ret;
 }
 
+/* processes a PING frame and schedules an ACK if needed. The caller must pass
+ * the pointer to the payload in <payload>. Returns > 0 on success or zero on
+ * missing data. It may return an error in h2c.
+ */
+static int h2c_handle_ping(struct h2c *h2c)
+{
+	/* frame length must be exactly 8 */
+	if (h2c->dfl != 8) {
+		h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+		return 0;
+	}
+
+	/* schedule a response */
+	if (!(h2c->dft & H2_F_PING_ACK))
+		h2c->st0 = H2_CS_FRAME_A;
+	return 1;
+}
+
+/* try to send an ACK for a ping frame on the connection. Returns > 0 on
+ * success, 0 on missing data or one of the h2_status values.
+ */
+static int h2c_ack_ping(struct h2c *h2c)
+{
+	struct buffer *res;
+	char str[17];
+	int ret = -1;
+
+	if (h2c->dbuf->i < 8)
+		return 0;
+
+	if (h2c_mux_busy(h2c, NULL)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	memcpy(str,
+	       "\x00\x00\x08"     /* length : 8 (same payload) */
+	       "\x06" "\x01"      /* type   : 6, flags : ACK   */
+	       "\x00\x00\x00\x00" /* stream ID */, 9);
+
+	/* copy the original payload */
+	h2_get_buf_bytes(str + 9, 8, h2c->dbuf, 0);
+
+	ret = bo_istput(res, ist2(str, 17));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+	return ret;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
@@ -838,6 +903,14 @@ static void h2_process_demux(struct h2c *h2c)
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 
 		switch (h2c->dft) {
+		case H2_FT_PING:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_handle_ping(h2c);
+
+			if (h2c->st0 == H2_CS_FRAME_A)
+				ret = h2c_ack_ping(h2c);
+			break;
+
 			/* FIXME: implement all supported frame types here */
 		default:
 			/* drop frames that we ignore. They may be larger than
