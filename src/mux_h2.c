@@ -771,7 +771,41 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->max_id = 0;
 			h2c->st0 = H2_CS_SETTINGS1;
 		}
-		/* deal with SETTINGS here */
+
+		if (h2c->st0 == H2_CS_SETTINGS1) {
+			struct h2_fh hdr;
+
+			/* ensure that what is pending is a valid SETTINGS frame
+			 * without an ACK.
+			 */
+			if (!h2_get_frame_hdr(h2c->dbuf, &hdr)) {
+				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				if (h2c->st0 == H2_CS_ERROR)
+					h2c->st0 = H2_CS_ERROR2;
+				goto fail;
+			}
+
+			if (hdr.sid || hdr.ft != H2_FT_SETTINGS || hdr.ff & H2_F_SETTINGS_ACK) {
+				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+				h2c->st0 = H2_CS_ERROR2;
+				goto fail;
+			}
+
+			if ((int)hdr.len < 0 || (int)hdr.len > h2c->mfs) {
+				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+				h2c->st0 = H2_CS_ERROR2;
+				goto fail;
+			}
+
+			/* that's OK, switch to FRAME_P to process it */
+			h2c->dfl = hdr.len;
+			h2c->dsi = hdr.sid;
+			h2c->dft = hdr.ft;
+			h2c->dff = hdr.ff;
+			h2c->st0 = H2_CS_FRAME_P;
+		}
 	}
 	return;
 
