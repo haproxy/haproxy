@@ -21,6 +21,8 @@
 
 /* the h2c connection pool */
 static struct pool_head *pool2_h2c;
+/* the h2s stream pool */
+static struct pool_head *pool2_h2s;
 
 /* Connection flags (32 bit), in h2c->flags */
 #define H2_CF_NONE              0x00000000
@@ -77,6 +79,41 @@ struct h2c {
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 };
 
+/* H2 stream state, in h2s->st */
+enum h2_ss {
+	H2_SS_IDLE = 0, // idle
+	H2_SS_RLOC,     // reserved(local)
+	H2_SS_RREM,     // reserved(remote)
+	H2_SS_OPEN,     // open
+	H2_SS_HREM,     // half-closed(remote)
+	H2_SS_HLOC,     // half-closed(local)
+	H2_SS_CLOSED,   // closed
+	H2_SS_ENTRIES   // must be last
+} __attribute__((packed));
+
+/* HTTP/2 stream flags (32 bit), in h2s->flags */
+#define H2_SF_NONE              0x00000000
+#define H2_SF_ES_RCVD           0x00000001
+#define H2_SF_ES_SENT           0x00000002
+
+#define H2_SF_RST_RCVD          0x00000004 // received RST_STREAM
+#define H2_SF_RST_SENT          0x00000008 // sent RST_STREAM
+
+/* H2 stream descriptor, describing the stream as it appears in the H2C, and as
+ * it is being processed in the internal HTTP representation (H1 for now).
+ */
+struct h2s {
+	struct conn_stream *cs;
+	struct h2c *h2c;
+	struct h1m req, res;      /* request and response parser state for H1 */
+	struct eb32_node by_id; /* place in h2c's streams_by_id */
+	struct list list; /* position in active/blocked lists if blocked>0 */
+	int32_t id; /* stream ID */
+	uint32_t flags;      /* H2_SF_* */
+	int mws;             /* mux window size for this stream */
+	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
+	enum h2_ss st;
+};
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
@@ -278,6 +315,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 static void __h2_deinit(void)
 {
+	pool_destroy2(pool2_h2s);
 	pool_destroy2(pool2_h2c);
 }
 
@@ -288,4 +326,5 @@ static void __h2_init(void)
 	cfg_register_keywords(&cfg_kws);
 	hap_register_post_deinit(__h2_deinit);
 	pool2_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
+	pool2_h2s = create_pool("h2s", sizeof(struct h2s), MEM_F_SHARED);
 }
