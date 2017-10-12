@@ -24,22 +24,9 @@
 
 #include <common/config.h>
 #include <common/time.h>
+#include <common/hathreads.h>
 #include <types/freq_ctr.h>
 
-/* Rotate a frequency counter when current period is over. Must not be called
- * during a valid period. It is important that it correctly initializes a null
- * area.
- */
-static inline void rotate_freq_ctr(struct freq_ctr *ctr)
-{
-	ctr->prev_ctr = ctr->curr_ctr;
-	if (likely(now.tv_sec - ctr->curr_sec != 1)) {
-		/* we missed more than one second */
-		ctr->prev_ctr = 0;
-	}
-	ctr->curr_sec = now.tv_sec;
-	ctr->curr_ctr = 0; /* leave it at the end to help gcc optimize it away */
-}
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
@@ -47,32 +34,33 @@ static inline void rotate_freq_ctr(struct freq_ctr *ctr)
  */
 static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
 {
-	if (likely(ctr->curr_sec == now.tv_sec)) {
-		ctr->curr_ctr += inc;
-		return ctr->curr_ctr;
-	}
-	rotate_freq_ctr(ctr);
-	ctr->curr_ctr = inc;
-	return ctr->curr_ctr;
-	/* Note: later we may want to propagate the update to other counters */
-}
+	unsigned int elapsed;
+	unsigned int tot_inc;
+	unsigned int curr_sec;
 
-/* Rotate a frequency counter when current period is over. Must not be called
- * during a valid period. It is important that it correctly initializes a null
- * area. This one works on frequency counters which have a period different
- * from one second.
- */
-static inline void rotate_freq_ctr_period(struct freq_ctr_period *ctr,
-					  unsigned int period)
-{
-	ctr->prev_ctr = ctr->curr_ctr;
-	ctr->curr_tick += period;
-	if (likely(now_ms - ctr->curr_tick >= period)) {
-		/* we missed at least two periods */
-		ctr->prev_ctr = 0;
-		ctr->curr_tick = now_ms;
+	do {
+		/* remove the bit, used for the lock */
+		curr_sec = ctr->curr_sec & 0x7fffffff;
 	}
-	ctr->curr_ctr = 0; /* leave it at the end to help gcc optimize it away */
+	while (!HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x8000000));
+
+	elapsed = (now.tv_sec & 0x7fffffff)- curr_sec;
+	if (unlikely(elapsed)) {
+		ctr->prev_ctr = ctr->curr_ctr;
+		ctr->curr_ctr = 0;
+		if (likely(elapsed != 1)) {
+			/* we missed more than one second */
+			ctr->prev_ctr = 0;
+		}
+	}
+
+	ctr->curr_ctr += inc;
+	tot_inc = ctr->curr_ctr;
+
+	/* release the lock and update the time in case of rotate. */
+	HA_ATOMIC_STORE(&ctr->curr_sec, now.tv_sec & 0x7fffffff);
+	return tot_inc;
+	/* Note: later we may want to propagate the update to other counters */
 }
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
@@ -83,13 +71,31 @@ static inline void rotate_freq_ctr_period(struct freq_ctr_period *ctr,
 static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 						  unsigned int period, unsigned int inc)
 {
-	if (likely(now_ms - ctr->curr_tick < period)) {
-		ctr->curr_ctr += inc;
-		return ctr->curr_ctr;
+	unsigned int tot_inc;
+	unsigned int curr_tick;
+
+	do {
+		/* remove the bit, used for the lock */
+		curr_tick = (ctr->curr_tick >> 1) << 1;
 	}
-	rotate_freq_ctr_period(ctr, period);
-	ctr->curr_ctr = inc;
-	return ctr->curr_ctr;
+	while (!HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1));
+
+	if (now_ms - curr_tick >= period) {
+		ctr->prev_ctr = ctr->curr_ctr;
+		ctr->curr_ctr = 0;
+		curr_tick += period;
+		if (likely(now_ms - curr_tick >= period)) {
+			/* we missed at least two periods */
+			ctr->prev_ctr = 0;
+			curr_tick = now_ms;
+		}
+	}
+
+	ctr->curr_ctr += inc;
+	tot_inc = ctr->curr_ctr;
+	/* release the lock and update the time in case of rotate. */
+	HA_ATOMIC_STORE(&ctr->curr_tick, (curr_tick >> 1) << 1);
+	return tot_inc;
 	/* Note: later we may want to propagate the update to other counters */
 }
 
