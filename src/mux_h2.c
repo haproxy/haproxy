@@ -317,6 +317,18 @@ static int h2_init(struct connection *conn)
 	return h2c_frt_init(conn);
 }
 
+/* returns the stream associated with id <id> or NULL if not found */
+static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
+{
+	struct eb32_node *node;
+
+	node = eb32_lookup(&h2c->streams_by_id, id);
+	if (!node)
+		return NULL;
+
+	return container_of(node, struct h2s, by_id);
+}
+
 /* release function for a connection. This one should be called to free all
  * resources allocated to the mux.
  */
