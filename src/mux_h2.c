@@ -13,6 +13,7 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/h2.h>
+#include <common/hpack-dec.h>
 #include <common/hpack-tbl.h>
 #include <common/net_helper.h>
 #include <proto/applet.h>
@@ -1095,6 +1096,89 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
+/* processes a HEADERS frame. Returns > 0 on success or zero on missing data.
+ * It may return an error in h2c or h2s. Described in RFC7540#6.2. Most of the
+ * errors here are reported as connection errors since it's impossible to
+ * recover from such errors after the compression context has been altered.
+ */
+static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
+{
+	int error;
+
+	if (!h2c->dfl) {
+		error = H2_ERR_PROTOCOL_ERROR; // empty headers frame!
+		goto strm_err;
+	}
+
+	if (!h2c->dbuf->size)
+		return 0; // empty buffer
+
+	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+		return 0; // incomplete frame
+
+	/* now either the frame is complete or the buffer is complete */
+	if (h2s->st != H2_SS_IDLE) {
+		/* FIXME: stream already exists, this is only allowed for
+		 * trailers (not supported for now).
+		 */
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+	else if (h2c->dsi <= h2c->max_id || !(h2c->dsi & 1)) {
+		/* RFC7540#5.1.1 stream id > prev ones, and must be odd here */
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	h2s = h2c_stream_new(h2c, h2c->dsi);
+	if (!h2s) {
+		error = H2_ERR_INTERNAL_ERROR;
+		goto conn_err;
+	}
+
+	h2s->st = H2_SS_OPEN;
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->st = H2_SS_HREM;
+		h2s->flags |= H2_SF_ES_RCVD;
+	}
+
+	/* call the upper layers to process the frame, then let the upper layer
+	 * notify the stream about any change.
+	 */
+	h2s->cs->data_cb->recv(h2s->cs);
+
+	if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
+		/* FIXME: cs has already been destroyed, but we have to kill h2s. */
+		error = H2_ERR_INTERNAL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2s->st >= H2_SS_RESET) {
+		/* stream error : send RST_STREAM */
+		h2c->st0 = H2_CS_FRAME_A;
+	}
+	else {
+		/* update the max stream ID if the request is being processed */
+		if (h2s->id > h2c->max_id)
+			h2c->max_id = h2s->id;
+	}
+
+	return 1;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return 0;
+
+ strm_err:
+	if (h2s) {
+		h2s_error(h2s, error);
+		h2c->st0 = H2_CS_FRAME_A;
+	}
+	else
+		h2c_error(h2c, error);
+	return 0;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
@@ -1211,6 +1295,11 @@ static void h2_process_demux(struct h2c *h2c)
 			 */
 			if (h2c->st0 == H2_CS_FRAME_P)
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+			break;
+
+		case H2_FT_HEADERS:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_frt_handle_headers(h2c, h2s);
 			break;
 
 			/* FIXME: implement all supported frame types here */
@@ -1669,14 +1758,153 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 }
 
+/* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1
+ * request. Returns the number of bytes emitted if > 0, or 0 if it couldn't
+ * proceed. Stream errors are reported in h2s->errcode and connection errors
+ * in h2c->errcode. The caller must already have checked the frame header and
+ * ensured that the frame was complete or the buffer full.
+ */
+static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
+{
+	struct h2c *h2c = h2s->h2c;
+	const uint8_t *hdrs = (uint8_t *)h2c->dbuf->p;
+	int flen = h2c->dfl;
+	int outlen = 0;
+	int wrap;
+	int try;
+
+	if (!h2c->dfl) {
+		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR); // empty headers frame!
+		return 0;
+	}
+
+	/* if the input buffer wraps, take a temporary copy of it (rare) */
+	wrap = h2c->dbuf->data + h2c->dbuf->size - h2c->dbuf->p;
+	if (wrap < h2c->dfl) {
+		char *copy = get_trash_chunk()->str;
+
+		memcpy(copy, h2c->dbuf->p, wrap);
+		memcpy(copy + wrap, h2c->dbuf->data, h2c->dfl - wrap);
+		hdrs = (uint8_t *)copy;
+	}
+
+	/* The padlen is the first byte before data, and the padding appears
+	 * after data. padlen+data+padding are included in flen.
+	 */
+	if (h2c->dff & H2_F_HEADERS_PADDED) {
+		if (*hdrs >= flen) {
+			/* RFC7540#6.2 : pad length = length of frame payload or greater */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			h2c->st0 = H2_SS_ERROR;
+			return 0;
+		}
+		flen -= *hdrs + 1;
+		hdrs += 1; // skip Pad Length
+	}
+
+	/* Skip StreamDep and weight for now (we don't support PRIORITY) */
+	if (h2c->dff & H2_F_HEADERS_PRIORITY) {
+		hdrs += 5; // stream dep = 4, weight = 1
+		flen -= 5;
+	}
+
+	/* FIXME: lack of END_HEADERS means there's a continuation frame, we
+	 * don't support this for now and can't even decompress so we have to
+	 * break the connection.
+	 */
+	if (!(h2c->dff & H2_F_HEADERS_END_HEADERS)) {
+		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+		return 0;
+	}
+
+	do {
+		/* first check if we have some room after p+i */
+		try = buf->data + buf->size - (buf->p + buf->i);
+
+		/* otherwise continue between data and p-o */
+		if (try <= 0) {
+			try = buf->p - (buf->data + buf->o);
+			if (try <= 0)
+				return 0;
+		}
+		if (try > count)
+			try = count;
+
+		outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, bi_end(buf), try);
+		if (outlen == -HPACK_ERR_TOO_LARGE) {
+			if (buffer_space_wraps(buf)) {
+				/* it doesn't fit and the buffer is fragmented,
+				 * so let's defragment it and try again.
+				 */
+				buffer_slow_realign(buf);
+			}
+			else if (buf->o) {
+				/* need to let the output buffer flush and
+				 * mark the buffer for later wake up.
+				 */
+				return 0;
+			}
+			else {
+				/* no other way around */
+				h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+				return 0;
+			}
+		}
+		else if (outlen < 0) {
+			h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+			return 0;
+		}
+	} while (outlen < 0);
+
+	/* now consume the input data */
+	bi_del(h2c->dbuf, h2c->dfl);
+	h2c->st0 = H2_CS_FRAME_H;
+	buf->i += outlen;
+
+	/* don't send it before returning data!
+	 * FIXME: should we instead try to send it much later, after the
+	 * response ? This would require that we keep a copy of it in h2s.
+	 */
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->cs->flags |= CS_FL_EOS;
+		h2s->flags |= H2_SF_ES_RCVD;
+	}
+
+	return outlen;
+}
+
 /*
- * Called from the upper layer, to get more data
+ * Called from the upper layer to get more data, up to <count> bytes. The
+ * caller is responsible for never asking for more data than what is available
+ * in the buffer.
  */
 static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 {
-	/* FIXME: not handled for now */
-	cs->flags |= CS_FL_ERROR;
-	return 0;
+	struct h2s *h2s = cs->ctx;
+	struct h2c *h2c = h2s->h2c;
+	int ret = 0;
+
+	if (h2c->st0 != H2_CS_FRAME_P)
+		return 0; // no pre-parsed frame yet
+
+	if (h2c->dsi != h2s->id)
+		return 0; // not for us
+
+	if (!h2c->dbuf->size)
+		return 0; // empty buffer
+
+	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+		return 0; // incomplete input frame
+
+	switch (h2c->dft) {
+	case H2_FT_HEADERS:
+		ret = h2_frt_decode_headers(h2s, buf, count);
+		break;
+
+	default:
+		ret = 0;
+	}
+	return ret;
 }
 
 /* Called from the upper layer, to send data */
