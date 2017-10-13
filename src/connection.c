@@ -980,7 +980,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	struct sockaddr_storage *dst = &null_addr;
 
 #ifdef USE_OPENSSL
-	char *value = NULL;
+	const char *value = NULL;
 	struct tlv_ssl *tlv;
 	int ssl_tlv_len = 0;
 	struct chunk *cn_trash;
@@ -1035,7 +1035,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		tlv->tlv.type = PP2_TYPE_SSL;
 		if (ssl_sock_is_ssl(remote)) {
 			tlv->client |= PP2_CLIENT_SSL;
-			value = ssl_sock_get_version(remote);
+			value = ssl_sock_get_proto_version(remote);
 			if (value) {
 				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_SUBTYPE_SSL_VERSION, strlen(value), value);
 			}

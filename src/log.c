@@ -1667,8 +1667,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(sess->origin);
 				if (conn) {
-					if (sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
-						src = ssl_sock_get_cipher_name(conn);
+					src = ssl_sock_get_cipher_name(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -1681,8 +1680,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(sess->origin);
 				if (conn) {
-					if (sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
-						src = ssl_sock_get_proto_version(conn);
+					src = ssl_sock_get_proto_version(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)

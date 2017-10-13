@@ -5296,19 +5296,21 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 	}
 }
 
-/* used for logging, may be changed for a sample fetch later */
+/* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_cipher_name(struct connection *conn)
 {
-	if (!conn->xprt && !conn->xprt_ctx)
+	if (!ssl_sock_is_ssl(conn))
 		return NULL;
+
 	return SSL_get_cipher_name(conn->xprt_ctx);
 }
 
-/* used for logging, may be changed for a sample fetch later */
+/* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_proto_version(struct connection *conn)
 {
-	if (!conn->xprt && !conn->xprt_ctx)
+	if (!ssl_sock_is_ssl(conn))
 		return NULL;
+
 	return SSL_get_version(conn->xprt_ctx);
 }
 
@@ -5508,14 +5510,6 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 		return 0;
 
 	return 1;
-}
-
-char *ssl_sock_get_version(struct connection *conn)
-{
-	if (!ssl_sock_is_ssl(conn))
-		return NULL;
-
-	return (char *)SSL_get_version(conn->xprt_ctx);
 }
 
 /* Sets advertised SNI for outgoing connections. Please set <hostname> to NULL
