@@ -17,6 +17,7 @@
 #include <common/net_helper.h>
 #include <proto/applet.h>
 #include <proto/connection.h>
+#include <proto/h1.h>
 #include <proto/stream.h>
 #include <eb32tree.h>
 
@@ -512,6 +513,54 @@ static inline int h2_get_frame_hdr(struct buffer *b, struct h2_fh *h)
 	if (ret > 0)
 		h2_skip_frame_hdr(b);
 	return ret;
+}
+
+/* creates a new stream <id> on the h2c connection and returns it, or NULL in
+ * case of memory allocation error.
+ */
+static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
+{
+	struct conn_stream *cs;
+	struct h2s *h2s;
+
+	h2s = pool_alloc2(pool2_h2s);
+	if (!h2s)
+		goto out;
+
+	h2s->h2c       = h2c;
+	h2s->mws       = h2c->miw;
+	h2s->flags     = H2_SF_NONE;
+	h2s->errcode   = H2_ERR_NO_ERROR;
+	h2s->st        = H2_SS_IDLE;
+	h1m_init(&h2s->req);
+	h1m_init(&h2s->res);
+	h2s->by_id.key = h2s->id = id;
+	h2c->max_id    = id;
+	LIST_INIT(&h2s->list);
+
+	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
+
+	cs = cs_new(h2c->conn);
+	if (!cs)
+		goto out_close;
+
+	h2s->cs = cs;
+	cs->ctx = h2s;
+
+	if (stream_create_from_cs(cs) < 0)
+		goto out_free_cs;
+
+	/* OK done, the stream lives its own life now */
+	return h2s;
+
+ out_free_cs:
+	cs_free(cs);
+ out_close:
+	eb32_delete(&h2s->by_id);
+	pool_free2(pool2_h2s, h2s);
+	h2s = NULL;
+ out:
+	return h2s;
 }
 
 
