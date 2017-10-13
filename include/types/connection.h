@@ -373,10 +373,17 @@ struct proxy_hdr_v2 {
 	} addr;
 };
 
-#define PP2_TYPE_SSL           0x20
-#define PP2_TYPE_SSL_VERSION   0x21
-#define PP2_TYPE_SSL_CN        0x22
-#define PP2_TYPE_NETNS         0x30
+#define PP2_TYPE_ALPN           0x01
+#define PP2_TYPE_AUTHORITY      0x02
+#define PP2_TYPE_CRC32C         0x03
+#define PP2_TYPE_NOOP           0x04
+#define PP2_TYPE_SSL            0x20
+#define PP2_SUBTYPE_SSL_VERSION 0x21
+#define PP2_SUBTYPE_SSL_CN      0x22
+#define PP2_SUBTYPE_SSL_CIPHER  0x23
+#define PP2_SUBTYPE_SSL_SIG_ALG 0x24
+#define PP2_SUBTYPE_SSL_KEY_ALG 0x25
+#define PP2_TYPE_NETNS          0x30
 
 #define TLV_HEADER_SIZE      3
 struct tlv {

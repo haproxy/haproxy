@@ -1037,7 +1037,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			tlv->client |= PP2_CLIENT_SSL;
 			value = ssl_sock_get_version(remote);
 			if (value) {
-				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_TYPE_SSL_VERSION, strlen(value), value);
+				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_SUBTYPE_SSL_VERSION, strlen(value), value);
 			}
 			if (ssl_sock_get_cert_used_sess(remote)) {
 				tlv->client |= PP2_CLIENT_CERT_SESS;
@@ -1048,7 +1048,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
 				cn_trash = get_trash_chunk();
 				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
-					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, cn_trash->len, cn_trash->str);
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN, cn_trash->len, cn_trash->str);
 				}
 			}
 		}
