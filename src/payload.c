@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <common/net_helper.h>
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
@@ -909,6 +910,204 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 	return 1;
 }
 
+/* extracts the parameter value of a distcc token */
+static int
+smp_fetch_distcc_param(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	unsigned int match_tok = arg_p[0].data.sint;
+	unsigned int match_occ = arg_p[1].data.sint;
+	unsigned int token;
+	unsigned int param;
+	unsigned int body;
+	unsigned int ofs;
+	unsigned int occ;
+	struct channel *chn;
+	int i;
+
+	/* Format is (token[,occ]). occ starts at 1. */
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+
+	ofs = 0; occ = 0;
+	while (1) {
+		if (ofs + 12 > chn->buf->i) {
+			/* not there yet but could it at least fit ? */
+			if (!chn->buf->size)
+				goto too_short;
+
+			if (ofs + 12 <= channel_recv_limit(chn) + chn->buf->data - chn->buf->p)
+				goto too_short;
+
+			goto no_match;
+		}
+
+		token = read_n32(chn->buf->p + ofs);
+		ofs += 4;
+
+		for (i = param = 0; i < 8; i++) {
+			int c = hex2i(chn->buf->p[ofs + i]);
+
+			if (c < 0)
+				goto no_match;
+			param = (param << 4) + c;
+		}
+		ofs += 8;
+
+		/* these tokens don't have a body */
+		if (token != 0x41524743 /* ARGC */ && token != 0x44495354 /* DIST */ &&
+		    token != 0x4E46494C /* NFIL */ && token != 0x53544154 /* STAT */ &&
+		    token != 0x444F4E45 /* DONE */)
+			body = param;
+		else
+			body = 0;
+
+		if (token == match_tok) {
+			occ++;
+			if (!match_occ || match_occ == occ) {
+				/* found */
+				smp->data.type = SMP_T_SINT;
+				smp->data.u.sint = param;
+				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
+				return 1;
+			}
+		}
+		ofs += body;
+	}
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
+	return 0;
+ no_match:
+	/* will never match (end of buffer, or bad contents) */
+	smp->flags = 0;
+	return 0;
+
+}
+
+/* extracts the (possibly truncated) body of a distcc token */
+static int
+smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	unsigned int match_tok = arg_p[0].data.sint;
+	unsigned int match_occ = arg_p[1].data.sint;
+	unsigned int token;
+	unsigned int param;
+	unsigned int ofs;
+	unsigned int occ;
+	unsigned int body;
+	struct channel *chn;
+	int i;
+
+	/* Format is (token[,occ]). occ starts at 1. */
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+
+	ofs = 0; occ = 0;
+	while (1) {
+		if (ofs + 12 > chn->buf->i) {
+			if (!chn->buf->size)
+				goto too_short;
+
+			if (ofs + 12 <= channel_recv_limit(chn) + chn->buf->data - chn->buf->p)
+				goto too_short;
+
+			goto no_match;
+		}
+
+		token = read_n32(chn->buf->p + ofs);
+		ofs += 4;
+
+		for (i = param = 0; i < 8; i++) {
+			int c = hex2i(chn->buf->p[ofs + i]);
+
+			if (c < 0)
+				goto no_match;
+			param = (param << 4) + c;
+		}
+		ofs += 8;
+
+		/* these tokens don't have a body */
+		if (token != 0x41524743 /* ARGC */ && token != 0x44495354 /* DIST */ &&
+		    token != 0x4E46494C /* NFIL */ && token != 0x53544154 /* STAT */ &&
+		    token != 0x444F4E45 /* DONE */)
+			body = param;
+		else
+			body = 0;
+
+		if (token == match_tok) {
+			occ++;
+			if (!match_occ || match_occ == occ) {
+				/* found */
+
+				smp->data.type = SMP_T_BIN;
+				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
+
+				if (ofs + body > chn->buf->p - chn->buf->data + chn->buf->i) {
+					/* incomplete body */
+
+					if (ofs + body > channel_recv_limit(chn) + chn->buf->data - chn->buf->p) {
+						/* truncate it to whatever will fit */
+						smp->flags |= SMP_F_MAY_CHANGE;
+						body = channel_recv_limit(chn) + chn->buf->data - chn->buf->p - ofs;
+					}
+				}
+
+				chunk_initlen(&smp->data.u.str, chn->buf->p + ofs, 0, body);
+				return 1;
+			}
+		}
+		ofs += body;
+	}
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
+	return 0;
+ no_match:
+	/* will never match (end of buffer, or bad contents) */
+	smp->flags = 0;
+	return 0;
+
+}
+
+/* This function is used to validate the arguments passed to a "distcc_param" or
+ * "distcc_body" sample fetch keyword. They take a mandatory token name of exactly
+ * 4 characters, followed by an optional occurrence number starting at 1. It is
+ * assumed that the types are already the correct ones. Returns 0 on error, non-
+ * zero if OK. If <err_msg> is not NULL, it will be filled with a pointer to an
+ * error message in case of error, that the caller is responsible for freeing.
+ * The initial location must either be freeable or NULL.
+ */
+int val_distcc(struct arg *arg, char **err_msg)
+{
+	unsigned int token;
+
+	if (arg[0].data.str.len != 4) {
+		memprintf(err_msg, "token name must be exactly 4 characters");
+		return 0;
+	}
+
+	/* convert the token name to an unsigned int (one byte per character,
+	 * big endian format).
+	 */
+	token = (arg[0].data.str.str[0] << 24) + (arg[0].data.str.str[1] << 16) +
+		(arg[0].data.str.str[2] << 8) + (arg[0].data.str.str[3] << 0);
+
+	arg[0].type      = ARGT_SINT;
+	arg[0].data.sint = token;
+
+	if (arg[1].type != ARGT_SINT) {
+		arg[1].type      = ARGT_SINT;
+		arg[1].data.sint = 0;
+	}
+	return 1;
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
@@ -919,6 +1118,8 @@ int val_payload_lv(struct arg *arg, char **err_msg)
  * instance IPv4/IPv6 must be declared IPv4.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "distcc_body",         smp_fetch_distcc_body,    ARG2(1,STR,SINT),       val_distcc,     SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "distcc_param",        smp_fetch_distcc_param,   ARG2(1,STR,SINT),       val_distcc,     SMP_T_SINT, SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "payload",             smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
