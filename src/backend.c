@@ -1798,6 +1798,19 @@ smp_fetch_srv_conn(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+/* set temp integer to the number of connections pending in the server's queue.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+smp_fetch_srv_queue(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = args->data.srv->nbpend;
+	return 1;
+}
+
 /* set temp integer to the number of enabled servers on the proxy.
  * Accepts exactly 1 argument. Argument is a server, other types will lead to
  * undefined behaviour.
@@ -1845,6 +1858,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_SINT, SMP_USE_SERVR, },
 	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
+	{ "srv_queue",     smp_fetch_srv_queue,      ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};

@@ -13373,6 +13373,14 @@ srv_is_up([<backend>/]<server>) : boolean
   using dummy servers as boolean variables that can be enabled or disabled from
   the CLI, so that rules depending on those ACLs can be tweaked in realtime.
 
+srv_queue([<backend>/]<server>) : integer
+  Returns an integer value corresponding to the number of connections currently
+  pending in the designated server's queue. If <backend> is omitted, then the
+  server is looked up in the current backend. It can sometimes be used together
+  with the "use-server" directive to force to use a known faster server when it
+  is not much loaded. See also the "srv_conn", "avg_queue" and "queue" sample
+  fetch methods.
+
 srv_sess_rate([<backend>/]<server>) : integer
   Returns an integer corresponding to the sessions creation rate on the
   designated server, in number of new sessions per second. If <backend> is
