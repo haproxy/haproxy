@@ -2247,6 +2247,7 @@ static void sync_poll_loop()
 	/* *** { */
 	/* Put here all sync functions */
 
+	servers_update_status(); /* Commit server status changes */
 
 	/* *** } */
   exit:
@@ -2282,8 +2283,6 @@ static void run_poll_loop()
 		fd_process_cached_events();
 		applet_run_active();
 
-		/* Commit server status changes */
-		servers_update_status();
 
 		/* Synchronize all polling loops */
 		sync_poll_loop();

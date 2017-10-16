@@ -46,6 +46,11 @@
 
 struct list updated_servers = LIST_HEAD_INIT(updated_servers);
 
+#ifdef USE_THREAD
+HA_SPINLOCK_T updated_servers_lock;
+#endif
+
+static void srv_register_update(struct server *srv);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn);
@@ -761,11 +766,9 @@ void srv_shutdown_streams(struct server *srv, int why)
 {
 	struct stream *stream, *stream_bck;
 
-	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	list_for_each_entry_safe(stream, stream_bck, &srv->actconns, by_srv)
 		if (stream->srv_conn == srv)
 			stream_shutdown(stream, why);
-	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
@@ -876,10 +879,7 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 		s->op_st_chg.duration = check->duration;
 	}
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&s->update_status))
-		LIST_ADDQ(&updated_servers, &s->update_status);
-
+	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_stopped(srv, NULL, NULL);
 }
@@ -918,10 +918,7 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 	if (s->slowstart <= 0)
 		s->next_state = SRV_ST_RUNNING;
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&s->update_status))
-		LIST_ADDQ(&updated_servers, &s->update_status);
-
+	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_running(srv, NULL, NULL);
 }
@@ -959,10 +956,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 		s->op_st_chg.duration = check->duration;
 	}
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&s->update_status))
-		LIST_ADDQ(&updated_servers, &s->update_status);
-
+	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_stopping(srv, NULL, NULL);
 }
@@ -990,9 +984,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 	if (cause)
 		strlcpy2(s->adm_st_chg_cause, cause, sizeof(s->adm_st_chg_cause));
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&s->update_status))
-		LIST_ADDQ(&updated_servers, &s->update_status);
+	srv_register_update(s);
 
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
@@ -1028,9 +1020,8 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 
 	s->next_admin &= ~mode;
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&s->update_status))
-		LIST_ADDQ(&updated_servers, &s->update_status);
+	srv_register_update(s);
+
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
 	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)))
@@ -1146,9 +1137,7 @@ void server_recalc_eweight(struct server *sv)
 
 	sv->next_eweight = (sv->uweight * w + px->lbprm.wmult - 1) / px->lbprm.wmult;
 
-	/* Register changes to be applied asynchronously */
-	if (LIST_ISEMPTY(&sv->update_status))
-		LIST_ADDQ(&updated_servers, &sv->update_status);
+	srv_register_update(sv);
 }
 
 /*
@@ -2587,6 +2576,18 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
 	}
 
 	return NULL;
+}
+
+/* Registers changes to be applied asynchronously */
+static void srv_register_update(struct server *srv)
+{
+	if (LIST_ISEMPTY(&srv->update_status)) {
+		THREAD_WANT_SYNC();
+		SPIN_LOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
+		if (LIST_ISEMPTY(&srv->update_status))
+			LIST_ADDQ(&updated_servers, &srv->update_status);
+		SPIN_UNLOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
+	}
 }
 
 /* Update a server state using the parameters available in the params list */
@@ -4371,6 +4372,7 @@ static struct cli_kw_list cli_kws = {{ },{
 __attribute__((constructor))
 static void __server_init(void)
 {
+	SPIN_INIT(&updated_servers_lock);
 	cli_register_kw(&cli_kws);
 }
 
@@ -4880,6 +4882,9 @@ void srv_update_status(struct server *s)
 /*
  * This function loops on servers registered for asynchronous
  * status changes
+ *
+ * NOTE: No needs to lock <updated_servers> list because it is called inside the
+ * sync point.
  */
 void servers_update_status(void) {
 	struct server *s, *stmp;
