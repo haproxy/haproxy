@@ -126,6 +126,7 @@ struct cfg_section {
 	struct list list;
 	char *section_name;
 	int (*section_parser)(const char *, int, char **, int);
+	int (*post_section_parser)();
 };
 
 /* Used to chain configuration sections definitions. This list
@@ -6979,7 +6980,7 @@ int readcfgfile(const char *file)
 	FILE *f;
 	int linenum = 0;
 	int err_code = 0;
-	struct cfg_section *cs = NULL;
+	struct cfg_section *cs = NULL, *pcs = NULL;
 	struct cfg_section *ics;
 	int readbytes = 0;
 
@@ -7279,17 +7280,29 @@ next_line:
 			}
 		}
 
-		/* else it's a section keyword */
-		if (cs)
-			err_code |= cs->section_parser(file, linenum, args, kwm);
-		else {
+		if (!cs) {
 			Alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
-		}
+		} else {
+			/* else it's a section keyword */
 
-		if (err_code & ERR_ABORT)
-			break;
+			if (pcs != cs && pcs && pcs->post_section_parser) {
+				err_code |= pcs->post_section_parser();
+				if (err_code & ERR_ABORT)
+					goto err;
+			}
+
+			err_code |= cs->section_parser(file, linenum, args, kwm);
+			if (err_code & ERR_ABORT)
+				goto err;
+		}
+		pcs = cs;
 	}
+
+	if (pcs == cs && pcs && pcs->post_section_parser)
+		err_code |= pcs->post_section_parser();
+
+err:
 	free(cfg_scope);
 	cfg_scope = NULL;
 	cursection = NULL;
@@ -9252,7 +9265,8 @@ void cfg_unregister_keywords(struct cfg_kw_list *kwl)
  * only the first declared is used.
  */
 int cfg_register_section(char *section_name,
-                         int (*section_parser)(const char *, int, char **, int))
+                         int (*section_parser)(const char *, int, char **, int),
+                         int (*post_section_parser)())
 {
 	struct cfg_section *cs;
 
@@ -9271,6 +9285,7 @@ int cfg_register_section(char *section_name,
 
 	cs->section_name = section_name;
 	cs->section_parser = section_parser;
+	cs->post_section_parser = post_section_parser;
 
 	LIST_ADDQ(&sections, &cs->list);
 
@@ -9314,16 +9329,16 @@ __attribute__((constructor))
 static void cfgparse_init(void)
 {
 	/* Register internal sections */
-	cfg_register_section("listen",         cfg_parse_listen);
-	cfg_register_section("frontend",       cfg_parse_listen);
-	cfg_register_section("backend",        cfg_parse_listen);
-	cfg_register_section("defaults",       cfg_parse_listen);
-	cfg_register_section("global",         cfg_parse_global);
-	cfg_register_section("userlist",       cfg_parse_users);
-	cfg_register_section("peers",          cfg_parse_peers);
-	cfg_register_section("mailers",        cfg_parse_mailers);
-	cfg_register_section("namespace_list", cfg_parse_netns);
-	cfg_register_section("resolvers",      cfg_parse_resolvers);
+	cfg_register_section("listen",         cfg_parse_listen,    NULL);
+	cfg_register_section("frontend",       cfg_parse_listen,    NULL);
+	cfg_register_section("backend",        cfg_parse_listen,    NULL);
+	cfg_register_section("defaults",       cfg_parse_listen,    NULL);
+	cfg_register_section("global",         cfg_parse_global,    NULL);
+	cfg_register_section("userlist",       cfg_parse_users,     NULL);
+	cfg_register_section("peers",          cfg_parse_peers,     NULL);
+	cfg_register_section("mailers",        cfg_parse_mailers,   NULL);
+	cfg_register_section("namespace_list", cfg_parse_netns,     NULL);
+	cfg_register_section("resolvers",      cfg_parse_resolvers, NULL);
 }
 
 /*

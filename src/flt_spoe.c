@@ -3461,8 +3461,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	/* backup sections and register SPOE sections */
 	LIST_INIT(&backup_sections);
 	cfg_backup_sections(&backup_sections);
-	cfg_register_section("spoe-agent",   cfg_parse_spoe_agent);
-	cfg_register_section("spoe-message", cfg_parse_spoe_message);
+	cfg_register_section("spoe-agent",   cfg_parse_spoe_agent,   NULL);
+	cfg_register_section("spoe-message", cfg_parse_spoe_message, NULL);
 
 	/* Parse SPOE filter configuration file */
 	curengine = engine;
