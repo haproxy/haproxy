@@ -435,7 +435,7 @@ static int si_idle_conn_wake_cb(struct conn_stream *cs)
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 		/* warning, we can't do anything on <conn> after this call ! */
 		si_release_endpoint(si);
 		return -1;
@@ -574,7 +574,7 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	/* First step, report to the stream-int what was detected at the
 	 * connection layer : errors and connection establishment.
 	 */
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		si->flags |= SI_FL_ERR;
 
 	/* If we had early data, and the handshake ended, then
@@ -643,7 +643,7 @@ static void si_cs_send(struct conn_stream *cs)
 			oc->pipe = NULL;
 		}
 
-		if (conn->flags & CO_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			return;
 	}
 
@@ -656,7 +656,8 @@ static void si_cs_send(struct conn_stream *cs)
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
 	 */
-	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_HANDSHAKE)) && !(oc->flags & CF_SHUTW)) {
+	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_HANDSHAKE)) &&
+	    !(cs->flags & CS_FL_ERROR) && !(oc->flags & CF_SHUTW)) {
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
 		 *  - we're about to close after this last send and want to merge
@@ -991,7 +992,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	__cs_want_send(cs);
 
 	si_cs_send(cs);
-	if (cs->conn->flags & CO_FL_ERROR) {
+	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		__cs_stop_both(cs);
 		si->flags |= SI_FL_ERR;
@@ -1085,7 +1086,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		return;
 
 	/* maybe we were called immediately after an asynchronous shutr */
@@ -1150,7 +1151,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 		if (cs->flags & CS_FL_EOS)
 			goto out_shutdown_r;
 
-		if (conn->flags & CO_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			return;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
@@ -1181,7 +1182,8 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	 * that if such an event is not handled above in splice, it will be handled here by
 	 * recv().
 	 */
-	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) && !(ic->flags & CF_SHUTR)) {
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) &&
+	       !(cs->flags & CS_FL_ERROR) && !(ic->flags & CF_SHUTR)) {
 		max = channel_recv_max(ic);
 
 		if (!max) {
@@ -1283,7 +1285,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	}
 
  end_recv:
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		return;
 
 	if (cs->flags & CS_FL_EOS)
@@ -1311,7 +1313,7 @@ static void si_cs_send_cb(struct conn_stream *cs)
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
 
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		return;
 
 	if (conn->flags & CO_FL_HANDSHAKE)

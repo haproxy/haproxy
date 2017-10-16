@@ -82,6 +82,8 @@ static void mux_pt_recv(struct connection *conn)
 {
 	struct conn_stream *cs = conn->mux_ctx;
 
+	if (conn->flags & CO_FL_ERROR)
+		cs->flags |= CS_FL_ERROR;
 	if (conn_xprt_read0_pending(conn))
 		cs->flags |= CS_FL_EOS;
 	cs->data_cb->recv(cs);
@@ -95,6 +97,8 @@ static void mux_pt_send(struct connection *conn)
 {
 	struct conn_stream *cs = conn->mux_ctx;
 
+	if (conn->flags & CO_FL_ERROR)
+		cs->flags |= CS_FL_ERROR;
 	cs->data_cb->send(cs);
 	cs_update_mux_polling(cs);
 }
@@ -138,6 +142,8 @@ static int mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count);
 	if (conn_xprt_read0_pending(cs->conn))
 		cs->flags |= CS_FL_EOS;
+	if (cs->conn->flags & CO_FL_ERROR)
+		cs->flags |= CS_FL_ERROR;
 	return (ret);
 }
 
@@ -155,6 +161,8 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
 	if (conn_xprt_read0_pending(cs->conn))
 		cs->flags |= CS_FL_EOS;
+	if (cs->conn->flags & CO_FL_ERROR)
+		cs->flags |= CS_FL_ERROR;
 	return (ret);
 }
 

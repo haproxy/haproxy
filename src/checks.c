@@ -596,7 +596,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (conn && (!errno || errno == EAGAIN))
 		retrieve_errno_from_socket(conn);
 
-	if (conn && !(conn->flags & CO_FL_ERROR) && !expired)
+	if (conn && !(conn->flags & CO_FL_ERROR) &&
+	    !(cs->flags & CS_FL_ERROR) && !expired)
 		return;
 
 	/* we'll try to build a meaningful error message depending on the
@@ -665,7 +666,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 		/* L4 not established (yet) */
-		if (conn->flags & CO_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
@@ -679,12 +680,12 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 		/* L6 not established (yet) */
-		if (conn->flags & CO_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
 	}
-	else if (conn->flags & CO_FL_ERROR) {
+	else if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 		/* I/O error after connection was established and before we could diagnose */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
@@ -744,7 +745,7 @@ static void event_srv_chk_w(struct conn_stream *cs)
 
 	if (check->bo->o) {
 		conn->mux->snd_buf(cs, check->bo, 0);
-		if (conn->flags & CO_FL_ERROR) {
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
 			__cs_stop_both(cs);
 			goto out_wakeup;
@@ -819,9 +820,9 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	done = 0;
 
 	conn->mux->rcv_buf(cs, check->bi, check->bi->size);
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 		done = 1;
-		if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
+		if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !check->bi->i) {
 			/* Report network errors only if we got no other data. Otherwise
 			 * we'll let the upper layers decide whether the response is OK
 			 * or not. It is very common that an RST sent by the server is
@@ -1328,7 +1329,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
  out_wakeup:
 	/* collect possible new errors */
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		chk_report_conn_err(check, 0, 0);
 
 	/* Reset the check buffer... */
@@ -1375,7 +1376,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		conn = cs_conn(cs);
 	}
 
-	if (unlikely(conn->flags & CO_FL_ERROR)) {
+	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
@@ -2191,7 +2192,7 @@ static struct task *process_chk_conn(struct task *t)
 				else
 					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 			}
-			else if ((conn->flags & CO_FL_ERROR) || expired) {
+			else if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
 				chk_report_conn_err(check, 0, expired);
 			}
 			else
@@ -2646,7 +2647,7 @@ static int tcpcheck_main(struct check *check)
 
 			__cs_want_send(cs);
 			if (conn->mux->snd_buf(cs, check->bo, 0) <= 0) {
-				if (conn->flags & CO_FL_ERROR) {
+				if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 					chk_report_conn_err(check, errno, 0);
 					__cs_stop_both(cs);
 					goto out_end_tcpcheck;
@@ -2878,9 +2879,9 @@ static int tcpcheck_main(struct check *check)
 
 			__cs_want_recv(cs);
 			if (conn->mux->rcv_buf(cs, check->bi, check->bi->size) <= 0) {
-				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
+				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 					done = 1;
-					if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
+					if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !check->bi->i) {
 						/* Report network errors only if we got no other data. Otherwise
 						 * we'll let the upper layers decide whether the response is OK
 						 * or not. It is very common that an RST sent by the server is
@@ -3037,7 +3038,7 @@ static int tcpcheck_main(struct check *check)
 
  out_end_tcpcheck:
 	/* collect possible new errors */
-	if (conn->flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		chk_report_conn_err(check, 0, 0);
 
 	/* cleanup before leaving */
