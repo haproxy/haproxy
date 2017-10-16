@@ -1618,6 +1618,36 @@ static void h2_update_poll(struct conn_stream *cs)
  */
 static void h2_detach(struct conn_stream *cs)
 {
+	struct h2s *h2s = cs->ctx;
+	struct h2c *h2c;
+
+	cs->ctx = NULL;
+	if (!h2s)
+		return;
+
+	h2c = h2s->h2c;
+	h2s->cs = NULL;
+
+	if (h2s->by_id.node.leaf_p) {
+		/* h2s still attached to the h2c */
+		eb32_delete(&h2s->by_id);
+
+		/* We don't want to close right now unless we're removing the
+		 * last stream, and either the connection is in error, or it
+		 * reached the ID already specified in a GOAWAY frame received
+		 * or sent (as seen by last_sid >= 0). A timer should be armed
+		 * to kill the connection after some idle time though.
+		 */
+		if (eb_is_empty(&h2c->streams_by_id) &&
+		    (conn_xprt_read0_pending(h2c->conn) ||
+		     (h2c->conn->flags & CO_FL_ERROR) ||
+		     (h2c->flags & H2_CF_GOAWAY_FAILED) ||
+		     (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))) {
+			/* no more stream will come, kill it now */
+			h2_release(h2c->conn);
+		}
+	}
+	pool_free2(pool2_h2s, h2s);
 }
 
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
