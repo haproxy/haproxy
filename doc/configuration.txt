@@ -558,6 +558,7 @@ The following keywords are supported in the "global" section :
    - ssl-default-server-options
    - ssl-dh-param-file
    - ssl-server-verify
+   - thread-map
    - unix-bind
    - unsetenv
    - 51degrees-data-file
@@ -942,6 +943,15 @@ ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',
   servers certificates are not verified. The default is 'required' except if
   forced using cmdline option '-dV'.
+
+
+thread-map <"all"|"odd"|"even"|process_num> <"all"|"odd"|"even"|thread_num> <cpu-set>...
+  This setting is only available when support for threads was built in. It
+  binds a thread to a specific CPU set. The process must be specified to allow
+  different mapping for different processes. For details about the arguments,
+  see "cpu-map" directive. A thread will be bound on the intersection of its
+  mapping and the one of the process on which it is attached. If the
+  intersection is null, no specific bind will be set for the thread.
 
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.

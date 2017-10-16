@@ -586,6 +586,72 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
 	return ERR_WARN;
 }
 
+/* Parse a string representing a process number or a set of processes. It must
+ * be "all", "odd", "even" or a number between 1 and <LONGBITS>. It returns a
+ * mask where bits are set for corresponding processes or 0 if an error occured.
+ *
+ * Note: this function can also be used to parse a thread number or a set of
+ * threads.
+ */
+static unsigned long parse_process_number(const char *arg)
+{
+	unsigned long proc = 0;
+
+	if (strcmp(arg, "all") == 0)
+		proc = ~0UL;
+	else if (strcmp(arg, "odd") == 0)
+		proc = ~0UL/3UL; /* 0x555....555 */
+	else if (strcmp(arg, "even") == 0)
+		proc = (~0UL/3UL) << 1; /* 0xAAA...AAA */
+	else {
+		proc = atol(arg);
+		if (proc >= 1 && proc <= LONGBITS)
+			proc = 1UL << (proc - 1);
+	}
+	return proc;
+}
+
+/* Parse cpu sets. Each CPU set is either a unique number between 0 and
+ * <LONGBITS> or a range with two such numbers delimited by a dash
+ * ('-'). Multiple CPU numbers or ranges may be specified. On success, it
+ * returns 0. otherwise it returns 1 with an error message in <err>.
+ */
+static unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err)
+{
+	int cur_arg = 0;
+
+	*cpu_set = 0;
+	while (*args[cur_arg]) {
+		char        *dash;
+		unsigned int low, high;
+
+		if (!isdigit((int)*args[cur_arg])) {
+			memprintf(err, "'%s' is not a CPU range.\n", args[cur_arg]);
+			return -1;
+		}
+
+		low = high = str2uic(args[cur_arg]);
+		if ((dash = strchr(args[cur_arg], '-')) != NULL)
+			high = str2uic(dash + 1);
+
+		if (high < low) {
+			unsigned int swap = low;
+			low = high;
+			high = swap;
+		}
+
+		if (high >= LONGBITS) {
+			memprintf(err, "supports CPU numbers from 0 to %d.\n", LONGBITS - 1);
+			return 1;
+		}
+
+		while (low <= high)
+			*cpu_set |= 1UL << low++;
+
+		cur_arg++;
+	}
+	return 0;
+}
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
  * any combination of :
@@ -1602,74 +1668,77 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (strcmp(args[0], "cpu-map") == 0) {  /* map a process list to a CPU set */
+	else if (strcmp(args[0], "cpu-map") == 0) {
+		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
-		int cur_arg, i;
-		unsigned long proc = 0;
-		unsigned long cpus = 0;
+		unsigned long proc, cpus;
+		int i;
 
-		if (strcmp(args[1], "all") == 0)
-			proc = ~0UL;
-		else if (strcmp(args[1], "odd") == 0)
-			proc = ~0UL/3UL; /* 0x555....555 */
-		else if (strcmp(args[1], "even") == 0)
-			proc = (~0UL/3UL) << 1; /* 0xAAA...AAA */
-		else {
-			proc = atol(args[1]);
-			if (proc >= 1 && proc <= LONGBITS)
-				proc = 1UL << (proc - 1);
-		}
-
+		proc = parse_process_number(args[1]);
 		if (!proc || !*args[2]) {
-			Alert("parsing [%s:%d]: %s expects a process number including 'all', 'odd', 'even', or a number from 1 to %d, followed by a list of CPU ranges with numbers from 0 to %d.\n",
+			Alert("parsing [%s:%d]: %s expects a process number "
+			      " ('all', 'odd', 'even', or a number from 1 to %d), "
+			      " followed by a list of CPU ranges with numbers from 0 to %d.\n",
 			      file, linenum, args[0], LONGBITS, LONGBITS - 1);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
-		cur_arg = 2;
-		while (*args[cur_arg]) {
-			unsigned int low, high;
-
-			if (isdigit((int)*args[cur_arg])) {
-				char *dash = strchr(args[cur_arg], '-');
-
-				low = high = str2uic(args[cur_arg]);
-				if (dash)
-					high = str2uic(dash + 1);
-
-				if (high < low) {
-					unsigned int swap = low;
-					low = high;
-					high = swap;
-				}
-
-				if (high >= LONGBITS) {
-					Alert("parsing [%s:%d]: %s supports CPU numbers from 0 to %d.\n",
-					      file, linenum, args[0], LONGBITS - 1);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				while (low <= high)
-					cpus |= 1UL << low++;
-			}
-			else {
-				Alert("parsing [%s:%d]: %s : '%s' is not a CPU range.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			cur_arg++;
+		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
+			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		for (i = 0; i < LONGBITS; i++)
 			if (proc & (1UL << i))
 				global.cpu_map[i] = cpus;
 #else
-		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n", file, linenum, args[0]);
+		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
+		      file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
-#endif
+#endif /* ! USE_CPU_AFFINITY */
+	}
+	else if (strcmp(args[0], "thread-map") == 0) {
+		/* map a thread list to a CPU set */
+#ifdef USE_CPU_AFFINITY
+#ifdef USE_THREAD
+		unsigned long proc, thread, cpus;
+		int i, j;
+
+		proc    = parse_process_number(args[1]);
+		thread  = parse_process_number(args[2]);
+		if (!proc || !thread || !*args[3]) {
+			Alert("parsing [%s:%d]: %s expects a process number "
+			      "('all', 'odd', 'even', or a number from 1 to %d), "
+			      " followed by a thread number using the same format, "
+			      " followed by a list of CPU ranges with numbers from 0 to %d.\n",
+			      file, linenum, args[0], LONGBITS, LONGBITS - 1);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (parse_cpu_set((const char **)args+3, &cpus, &errmsg)) {
+			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		for (i = 0; i < LONGBITS; i++)
+			if (proc & (1UL << i)) {
+				for (j = 0; j < LONGBITS; j++)
+					if (thread & (1UL << j))
+						global.thread_map[i][j] = cpus;
+			}
+#else
+		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_THREAD.\n",
+		      file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif /* ! USE_THREAD*/
+#else
+		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
+		      file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif /* ! USE_CPU_AFFINITY */
 	}
 	else if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
 		if (alertif_too_many_args(3, file, linenum, args, &err_code))

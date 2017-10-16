@@ -2814,6 +2814,15 @@ int main(int argc, char **argv)
 		for (i = 0; i < global.nbthread; i++) {
 			tids[i] = i;
 			pthread_create(&threads[i], NULL, &run_thread_poll_loop, &tids[i]);
+#ifdef USE_CPU_AFFINITY
+			if (global.cpu_map[relative_pid-1])
+				global.thread_map[relative_pid-1][i] &= global.cpu_map[relative_pid-1];
+
+			if (i < LONGBITS &&       /* only the first 32/64 threads may be pinned */
+			    global.thread_map[relative_pid-1][i]) /* only do this if the thread has a THREAD map */
+				pthread_setaffinity_np(threads[i],
+						       sizeof(unsigned long), (void *)&global.thread_map[relative_pid-1][i]);
+#endif
 		}
 		for (i = 0; i < global.nbthread; i++)
 			pthread_join(threads[i], NULL);
@@ -2829,6 +2838,17 @@ int main(int argc, char **argv)
 	}
 	else {
 		tid = 0;
+
+#ifdef USE_THREAD
+#ifdef USE_CPU_AFFINITY
+		if (global.cpu_map[relative_pid-1])
+			global.thread_map[relative_pid-1][tid] &= global.cpu_map[relative_pid-1];
+
+		if (global.thread_map[relative_pid-1][tid]) /* only do this if the thread has a THREAD map */
+			pthread_setaffinity_np(pthread_self(),
+					       sizeof(unsigned long), (void *)&global.thread_map[relative_pid-1][tid]);
+#endif
+#endif
 
 		if (global.mode & MODE_MWORKER)
 			mworker_pipe_register(mworker_pipe);
