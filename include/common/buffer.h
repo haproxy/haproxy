@@ -247,6 +247,37 @@ static inline int buffer_empty(const struct buffer *buf)
 	return !buffer_not_empty(buf);
 }
 
+/* Return non-zero only if the buffer's free space wraps :
+ *  [     |oooo|           ]    => yes
+ *  [          |iiii|      ]    => yes
+ *  [     |oooo|iiii|      ]    => yes
+ *  [oooo|                 ]    => no
+ *  [                 |oooo]    => no
+ *  [iiii|                 ]    => no
+ *  [                 |iiii]    => no
+ *  [oooo|iiii|            ]    => no
+ *  [            |oooo|iiii]    => no
+ *  [iiii|            |oooo]    => no
+ *  [oo|iiii|           |oo]    => no
+ *  [iiii|           |oo|ii]    => no
+ *  [oooooooooo|iiiiiiiiiii]    => no
+ *  [iiiiiiiiiiiii|oooooooo]    => no
+ *
+ *  So the only case where the buffer does not wrap is when there's data either
+ *  at the beginning or at the end of the buffer. Thus we have this :
+ *  - if (p+i >= size) ==> doesn't wrap
+ *  - if (p-data <= o) ==> doesn't wrap
+ *  - otherwise wraps
+ */
+static inline int buffer_space_wraps(const struct buffer *buf)
+{
+	if (buf->p + buf->i >= buf->data + buf->size)
+		return 0;
+	if (buf->p <= buf->data + buf->o)
+		return 0;
+	return 1;
+}
+
 /* Returns non-zero if the buffer's INPUT is considered full, which means that
  * it holds at least as much INPUT data as (size - reserve). This also means
  * that data that are scheduled for output are considered as potential free
