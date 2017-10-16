@@ -87,6 +87,8 @@ enum h2_ss {
 	H2_SS_OPEN,     // open
 	H2_SS_HREM,     // half-closed(remote)
 	H2_SS_HLOC,     // half-closed(local)
+	H2_SS_ERROR,    // an error needs to be sent using RST_STREAM
+	H2_SS_RESET,    // closed after sending RST_STREAM
 	H2_SS_CLOSED,   // closed
 	H2_SS_ENTRIES   // must be last
 } __attribute__((packed));
