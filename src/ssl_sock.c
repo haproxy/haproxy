@@ -546,12 +546,12 @@ nosec:
 	else if (p[0] == '+') {
 		if (end - p != 5) return -1;
 		/* Apply timezone offset */
-		return epoch - ((10 * (p[1] - '0') + p[2] - '0') * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
+		return epoch - ((10 * (p[1] - '0') + p[2] - '0') * 60 * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
 	}
 	else if (p[0] == '-') {
 		if (end - p != 5) return -1;
 		/* Apply timezone offset */
-		return epoch + ((10 * (p[1] - '0') + p[2] - '0') * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
+		return epoch + ((10 * (p[1] - '0') + p[2] - '0') * 60 * 60 + (10 * (p[3] - '0') + p[4] - '0')) * 60;
 	}
 
 	return -1;
