@@ -1204,6 +1204,15 @@ static void h2_process_demux(struct h2c *h2c)
 				ret = h2c_handle_window_update(h2c, h2s);
 			break;
 
+		case H2_FT_CONTINUATION:
+			/* we currently don't support CONTINUATION frames since
+			 * we have nowhere to store the partial HEADERS frame.
+			 * Let's abort the stream on an INTERNAL_ERROR here.
+			 */
+			if (h2c->st0 == H2_CS_FRAME_P)
+				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+			break;
+
 			/* FIXME: implement all supported frame types here */
 		default:
 			/* drop frames that we ignore. They may be larger than
