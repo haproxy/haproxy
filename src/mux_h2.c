@@ -955,6 +955,8 @@ static int h2c_ack_ping(struct h2c *h2c)
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
+	struct h2s *h2s;
+
 	if (h2c->st0 >= H2_CS_ERROR)
 		return;
 
@@ -1035,6 +1037,7 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
+		h2s = h2c_st_by_id(h2c, h2c->dsi);
 
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
