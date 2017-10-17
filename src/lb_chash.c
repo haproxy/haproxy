@@ -78,6 +78,25 @@ static inline void chash_queue_dequeue_srv(struct server *s)
 		eb32_delete(&s->lb_nodes[s->lb_nodes_now].node);
 	}
 
+	/* Attempt to increase the total number of nodes, if the user
+	 * increased the weight beyond the original weight
+	 */
+	if (s->lb_nodes_tot < s->next_eweight) {
+		struct tree_occ *new_nodes = realloc(s->lb_nodes, s->next_eweight);
+
+		if (new_nodes) {
+			unsigned int j;
+
+			s->lb_nodes = new_nodes;
+			memset(&s->lb_nodes[s->lb_nodes_tot], 0,
+			    (s->next_eweight - s->lb_nodes_tot) * sizeof(*s->lb_nodes));
+			for (j = s->lb_nodes_tot; j < s->next_eweight; j++) {
+				s->lb_nodes[j].server = s;
+				s->lb_nodes[j].node.key = full_hash(s->puid * SRV_EWGHT_RANGE + j);
+			}
+			s->lb_nodes_tot = s->next_eweight;
+		}
+	}
 	while (s->lb_nodes_now < s->next_eweight) {
 		if (s->lb_nodes_now >= s->lb_nodes_tot) // should always be false anyway
 			break;
