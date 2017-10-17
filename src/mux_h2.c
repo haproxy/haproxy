@@ -14,6 +14,7 @@
 #include <common/config.h>
 #include <common/h2.h>
 #include <common/hpack-dec.h>
+#include <common/hpack-enc.h>
 #include <common/hpack-tbl.h>
 #include <common/net_helper.h>
 #include <proto/applet.h>
@@ -52,6 +53,7 @@ static struct pool_head *pool2_h2s;
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
 #define H2_CF_GOAWAY_FAILED     0x00000200  // a GOAWAY frame failed to be sent
+#define H2_CF_HEADERS_SENT      0x00000400  // a HEADERS frame was sent
 
 
 /* H2 connection state, in h2c->st0 */
@@ -1916,12 +1918,191 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 	return ret;
 }
 
+/* Try to send a HEADERS frame matching HTTP/1 response present in buffer <buf>
+ * for the H2 stream <h2s>. Returns 0 if not possible yet, <0 on error (one of
+ * the H2_ERR* or h2_status codes), >0 on success in which case it corresponds
+ * to the number of buffer bytes consumed.
+ */
+static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
+{
+	struct http_hdr list[MAX_HTTP_HDR];
+	struct h2c *h2c = h2s->h2c;
+	struct h1m *h1m = &h2s->res;
+	struct chunk outbuf;
+	int es_now = 0;
+	int ret = 0;
+	int hdr;
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		h2s->flags |= H2_SF_BLK_MBUSY;
+		return 0;
+	}
+
+	if (!h2_get_mbuf(h2c)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
+	}
+
+	/* First, try to parse the H1 response and index it into <list>.
+	 * NOTE! Since it comes from haproxy, we *know* that a response header
+	 * block does not wrap and we can safely read it this way without
+	 * having to realign the buffer.
+	 */
+	ret = h1_headers_to_hdr_list(bo_ptr(buf), bo_ptr(buf) + buf->o,
+	                             list, sizeof(list)/sizeof(list[0]), h1m);
+	if (ret <= 0) {
+		if (!ret)
+			goto end; // missing input
+
+		/* Impossible to index the response.
+		 * FIXME: we should instead add the ability to only return a
+		 * 502 bad gateway. But in theory this is not supposed to
+		 * happen.
+		 */
+		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+		ret = 0;
+		goto end;
+	}
+
+	chunk_reset(&outbuf);
+
+	while (1) {
+		outbuf.str  = bo_end(h2c->mbuf);
+		outbuf.size = bo_contig_space(h2c->mbuf);
+		outbuf.len = 0;
+
+		if (outbuf.size >= 9 || !buffer_space_wraps(h2c->mbuf))
+			break;
+	realign_again:
+		buffer_slow_realign(h2c->mbuf);
+	}
+
+	if (outbuf.size < 9) {
+		h2c->flags |= H2_CF_MUX_MFULL;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		ret = 0;
+		goto end;
+	}
+
+	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4 */
+	memcpy(outbuf.str, "\x00\x00\x00\x01\x04", 5);
+	write_n32(outbuf.str + 5, h2s->id); // 4 bytes
+	outbuf.len = 9;
+
+	/* encode status, which necessarily is the first one */
+	if (outbuf.len < outbuf.size && h1m->status == 200)
+		outbuf.str[outbuf.len++] = 0x88; // indexed field : idx[08]=(":status", "200")
+	else if (outbuf.len < outbuf.size && h1m->status == 304)
+		outbuf.str[outbuf.len++] = 0x8b; // indexed field : idx[11]=(":status", "304")
+	else if (list[0].v.len == 3 && outbuf.len + 2 + 3 <= outbuf.size) {
+		/* basic encoding of the status code */
+		outbuf.str[outbuf.len++] = 0x48; // indexed name -- name=":status" (idx 8)
+		outbuf.str[outbuf.len++] = 0x03; // 3 bytes status
+		outbuf.str[outbuf.len++] = list[0].v.ptr[0];
+		outbuf.str[outbuf.len++] = list[0].v.ptr[1];
+		outbuf.str[outbuf.len++] = list[0].v.ptr[2];
+	}
+	else {
+		if (buffer_space_wraps(h2c->mbuf))
+			goto realign_again;
+
+		h2c->flags |= H2_CF_MUX_MFULL;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		ret = 0;
+		goto end;
+	}
+
+	/* encode all headers, stop at empty name */
+	for (hdr = 1; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
+		/* these ones do not exist in H2 and must be dropped */
+		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding")))
+			continue;
+
+		if (isteq(list[hdr].n, ist("")))
+			break; // end
+
+		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
+			/* output full */
+			if (buffer_space_wraps(h2c->mbuf))
+				goto realign_again;
+
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2s->flags |= H2_SF_BLK_MROOM;
+			ret = 0;
+			goto end;
+		}
+	}
+
+	/* we may need to add END_STREAM */
+	if (((h1m->flags & H1_MF_CLEN) && !h1m->body_len) || h2s->cs->flags & CS_FL_SHW)
+		es_now = 1;
+
+	/* update the frame's size */
+	h2_set_frame_size(outbuf.str, outbuf.len - 9);
+
+	if (es_now)
+		outbuf.str[4] |= H2_F_HEADERS_END_STREAM;
+
+	/* consume incoming H1 response */
+	bo_del(buf, ret);
+
+	/* commit the H2 response */
+	h2c->mbuf->o += outbuf.len;
+	h2c->mbuf->p = b_ptr(h2c->mbuf, outbuf.len);
+	h2c->flags |= H2_CF_HEADERS_SENT;
+
+	/* for now we don't implemented CONTINUATION, so we wait for a
+	 * body or directly end in TRL2.
+	 */
+	if (es_now) {
+		h1m->state = HTTP_MSG_DONE;
+		h2s->flags |= H2_SF_ES_SENT;
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HLOC;
+		else
+			h2s->st = H2_SS_CLOSED;
+	}
+	else
+		h1m->state = (h1m->flags & H1_MF_CLEN) ? HTTP_MSG_BODY : HTTP_MSG_CHUNK_SIZE;
+
+ end:
+	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1_msg_state_str(h1m->err_state));
+	return ret;
+}
+
 /* Called from the upper layer, to send data */
 static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 {
-	/* FIXME: not handled for now */
-	cs->flags |= CS_FL_ERROR;
-	return 0;
+	struct h2s *h2s = cs->ctx;
+	int total = 0;
+
+	//fprintf(stderr, "cs=%p h2s=%p rqst=%d rsst=%d\n", cs, h2s, h2s->req.state, h2s->res.state);
+	while (h2s->res.state < HTTP_MSG_DONE && buf->o) {
+		if (h2s->res.state < HTTP_MSG_BODY) {
+			total += h2s_frt_make_resp_headers(h2s, buf);
+
+			if (h2s->st == H2_SS_ERROR)
+				break;
+
+			if (h2s->flags & H2_SF_BLK_ANY)
+				break;
+		}
+		else {
+			/* FIXME: DATA not handled for now */
+			cs->flags |= CS_FL_ERROR;
+			break;
+		}
+	}
+
+	if (h2s->st == H2_SS_ERROR)
+		cs->flags |= CS_FL_ERROR;
+
+	return total;
 }
 
 
