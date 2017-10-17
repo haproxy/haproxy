@@ -380,6 +380,17 @@ static inline void h2c_error(struct h2c *h2c, enum h2_err err)
 	h2c->st0 = H2_CS_ERROR;
 }
 
+/* marks an error on the stream */
+static inline void h2s_error(struct h2s *h2s, enum h2_err err)
+{
+	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_ERROR) {
+		h2s->errcode = err;
+		h2s->st = H2_SS_ERROR;
+		if (h2s->cs)
+			h2s->cs->flags |= CS_FL_ERROR;
+	}
+}
+
 
 /*********************************************************/
 /* functions below are I/O callbacks from the connection */
