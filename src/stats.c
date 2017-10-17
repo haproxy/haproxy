@@ -3579,6 +3579,9 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 
 	global.cps_max = 0;
 	global.sps_max = 0;
+	global.ssl_max = 0;
+	global.ssl_fe_keys_max = 0;
+	global.ssl_be_keys_max = 0;
 	return 1;
 }
 
