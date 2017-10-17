@@ -373,6 +373,13 @@ static inline int h2c_mux_busy(const struct h2c *h2c, const struct h2s *h2s)
 	return 1;
 }
 
+/* marks an error on the connection */
+static inline void h2c_error(struct h2c *h2c, enum h2_err err)
+{
+	h2c->errcode = err;
+	h2c->st0 = H2_CS_ERROR;
+}
+
 
 /*********************************************************/
 /* functions below are I/O callbacks from the connection */
