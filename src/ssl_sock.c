@@ -7075,6 +7075,24 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 	return 0;
 }
 
+/* parse the "check-sni" server keyword */
+static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing SNI", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->check.sni = strdup(args[*cur_arg + 1]);
+	if (!newsrv->check.sni) {
+		memprintf(err, "'%s' : failed to allocate memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+
+}
+
 /* parse the "check-ssl" server keyword */
 static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -8031,6 +8049,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ca-file",                 srv_parse_ca_file,            1, 1 }, /* set CAfile to process verify server cert */
+	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1 }, /* select the cipher suite */
 	{ "crl-file",                srv_parse_crl_file,           1, 1 }, /* set certificate revocation list file use on server cert verify */

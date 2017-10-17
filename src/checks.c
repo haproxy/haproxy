@@ -60,6 +60,10 @@
 #include <proto/dns.h>
 #include <proto/proto_udp.h>
 
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif /* USE_OPENSSL */
+
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
@@ -1597,6 +1601,10 @@ static int connect_conn_chk(struct task *t)
 	ret = SF_ERR_INTERNAL;
 	if (proto && proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
+#ifdef USE_OPENSSL
+	if (s->check.sni)
+		ssl_sock_set_servername(conn, s->check.sni);
+#endif
 	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;

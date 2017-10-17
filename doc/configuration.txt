@@ -10970,6 +10970,10 @@ check-send-proxy
   "check-send-proxy" option needs to be used to force the use of the
   protocol. See also the "send-proxy" option for more information.
 
+check-sni
+  This option allows you to specify the SNI to be used when doing health checks
+  over SSL.
+
 check-ssl
   This option forces encryption of all health checks over SSL, regardless of
   whether the server uses SSL or not for the normal traffic. This is generally
