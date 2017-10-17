@@ -739,8 +739,11 @@ static int h2_wake(struct connection *conn)
 	}
 
 	/* adjust output polling */
-	if ((h2c->st0 == H2_CS_ERROR || h2c->mbuf->o) &&
-	    !(conn->flags & CO_FL_SOCK_WR_SH)) {
+	if (!(conn->flags & CO_FL_SOCK_WR_SH) &&
+	    (h2c->st0 == H2_CS_ERROR ||
+	     h2c->mbuf->o ||
+	     (h2c->mws > 0 && !LIST_ISEMPTY(&h2c->fctl_list)) ||
+	     (!(h2c->flags & H2_CF_MUX_BLOCK_ANY) && !LIST_ISEMPTY(&h2c->send_list)))) {
 		/* FIXME: we should (re-)arm a send timeout here */
 		__conn_xprt_want_send(conn);
 	}
