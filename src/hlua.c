@@ -5360,12 +5360,6 @@ static struct task *hlua_process_task(struct task *task)
 	struct hlua *hlua = task->context;
 	enum hlua_exec status;
 
-	/* We need to remove the task from the wait queue before executing
-	 * the Lua code because we don't know if it needs to wait for
-	 * another timer or not in the case of E_AGAIN.
-	 */
-	task_delete(task);
-
 	/* If it is the first call to the task, we must initialize the
 	 * execution timeouts.
 	 */
@@ -5385,7 +5379,7 @@ static struct task *hlua_process_task(struct task *task)
 
 	case HLUA_E_AGAIN: /* co process or timeout wake me later. */
 		if (hlua->wake_time != TICK_ETERNITY)
-			task_schedule(task, hlua->wake_time);
+			task->expire = hlua->wake_time;
 		break;
 
 	/* finished with error. */
@@ -5394,6 +5388,7 @@ static struct task *hlua_process_task(struct task *task)
 		hlua_ctx_destroy(hlua);
 		task_delete(task);
 		task_free(task);
+		task = NULL;
 		break;
 
 	case HLUA_E_ERR:
@@ -5402,9 +5397,10 @@ static struct task *hlua_process_task(struct task *task)
 		hlua_ctx_destroy(hlua);
 		task_delete(task);
 		task_free(task);
+		task = NULL;
 		break;
 	}
-	return NULL;
+	return task;
 }
 
 /* This function is an LUA binding that register LUA function to be
