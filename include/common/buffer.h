@@ -96,10 +96,19 @@ static inline unsigned int b_to_end(const struct buffer *b)
  * The caller is responsible for ensuring that <del> is always smaller than or
  * equal to b->i.
  */
-static inline void b_del(struct buffer *b, unsigned int del)
+static inline void bi_del(struct buffer *b, unsigned int del)
 {
 	b->i -= del;
 	b->p = b_ptr(b, del);
+}
+
+/* Skips <del> bytes from the output of buffer <b> by simply shrinking <o>.
+ * The caller is responsible for ensuring that <del> is always smaller than or
+ * equal to b->o.
+ */
+static inline void bo_del(struct buffer *b, unsigned int del)
+{
+	b->o -= del;
 }
 
 /* Advances the buffer by <adv> bytes, which means that the buffer
