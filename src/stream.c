@@ -2455,9 +2455,6 @@ struct task *process_stream(struct task *t)
 	if (s->flags & SF_BE_ASSIGNED)
 		HA_ATOMIC_SUB(&s->be->beconn, 1);
 
-	if (sess->listener)
-		listener_release(sess->listener);
-
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",

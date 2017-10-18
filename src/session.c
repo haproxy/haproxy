@@ -65,6 +65,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 void session_free(struct session *sess)
 {
 	HA_ATOMIC_SUB(&sess->fe->feconn, 1);
+	if (sess->listener)
+		listener_release(sess->listener);
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
 	pool_free2(pool2_session, sess);
@@ -360,8 +362,6 @@ static void session_kill_embryonic(struct session *sess)
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
 	conn_free(conn);
-
-	listener_release(sess->listener);
 
 	task_delete(task);
 	task_free(task);
