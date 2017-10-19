@@ -98,6 +98,21 @@ static inline struct ist ist2(const void *ptr, size_t len)
 	return (struct ist){ .ptr = (char *)ptr, .len = len };
 }
 
+/* This function MODIFIES the string to add a zero AFTER the end, and returns
+ * the start pointer. The purpose is to use it on strings extracted by parsers
+ * from larger strings cut with delimiters that are not important and can be
+ * destroyed. It allows any such string to be used with regular string
+ * functions. It's also convenient to use with printf() to show data extracted
+ * from writable areas. The caller is obviously responsible for ensuring that
+ * the string is valid and that the first byte past the end is writable. If
+ * these conditions cannot be satisfied, use istpad() below instead.
+ */
+static inline char *ist0(struct ist ist)
+{
+	ist.ptr[ist.len] = 0;
+	return ist.ptr;
+}
+
 /* returns the length of the string */
 static inline size_t istlen(const struct ist ist)
 {
