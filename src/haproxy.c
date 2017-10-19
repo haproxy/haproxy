@@ -2203,6 +2203,26 @@ void deinit(void)
 } /* end deinit() */
 
 
+
+static void sync_poll_loop()
+{
+	if (THREAD_NO_SYNC())
+		return;
+
+	THREAD_ENTER_SYNC();
+
+	if (!THREAD_NEED_SYNC())
+		goto exit;
+
+	/* *** { */
+	/* Put here all sync functions */
+
+
+	/* *** } */
+  exit:
+	THREAD_EXIT_SYNC();
+}
+
 /* Runs the polling loop */
 static void run_poll_loop()
 {
@@ -2234,6 +2254,10 @@ static void run_poll_loop()
 
 		/* Commit server status changes */
 		servers_update_status();
+
+		/* Synchronize all polling loops */
+		sync_poll_loop();
+
 	}
 }
 
@@ -2254,6 +2278,7 @@ static void *run_thread_poll_loop(void *data)
 		}
 	}
 
+	THREAD_SYNC_ENABLE();
 	run_poll_loop();
 
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
@@ -2787,6 +2812,7 @@ int main(int argc, char **argv)
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
 
+		THREAD_SYNC_INIT((1UL << global.nbthread) - 1);
 		for (i = 0; i < global.nbthread; i++) {
 			tids[i] = i;
 			pthread_create(&threads[i], NULL, &run_thread_poll_loop, &tids[i]);
