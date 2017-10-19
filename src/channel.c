@@ -292,8 +292,6 @@ int co_getline(struct channel *chn, char *str, int len)
  */
 int co_getblk(struct channel *chn, char *blk, int len, int offset)
 {
-	int firstblock;
-
 	if (chn->flags & CF_SHUTW)
 		return -1;
 
@@ -303,20 +301,7 @@ int co_getblk(struct channel *chn, char *blk, int len, int offset)
 		return 0;
 	}
 
-	firstblock = chn->buf->data + chn->buf->size - bo_ptr(chn->buf);
-	if (firstblock > offset) {
-		if (firstblock >= len + offset) {
-			memcpy(blk, bo_ptr(chn->buf) + offset, len);
-			return len;
-		}
-
-		memcpy(blk, bo_ptr(chn->buf) + offset, firstblock - offset);
-		memcpy(blk + firstblock - offset, chn->buf->data, len - firstblock + offset);
-		return len;
-	}
-
-	memcpy(blk, chn->buf->data + offset - firstblock, len);
-	return len;
+	return bo_getblk(chn->buf, blk, len, offset);
 }
 
 /* Gets one or two blocks of data at once from a channel's output buffer.
@@ -335,17 +320,7 @@ int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *
 		return 0;
 	}
 
-	if (unlikely(chn->buf->p - chn->buf->o < chn->buf->data)) {
-		*blk1 = chn->buf->p - chn->buf->o + chn->buf->size;
-		*len1 = chn->buf->data + chn->buf->size - *blk1;
-		*blk2 = chn->buf->data;
-		*len2 = chn->buf->p - chn->buf->data;
-		return 2;
-	}
-
-	*blk1 = chn->buf->p - chn->buf->o;
-	*len1 = chn->buf->o;
-	return 1;
+	return bo_getblk_nc(chn->buf, blk1, len1, blk2, len2);
 }
 
 /* Gets one text line out of a channel's output buffer from a stream interface.
