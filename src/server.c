@@ -782,17 +782,53 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
 /* Appends some information to a message string related to a server going UP or
  * DOWN.  If both <forced> and <reason> are null and the server tracks another
  * one, a "via" information will be provided to know where the status came from.
- * If <reason> is non-null, the entire string will be appended after a comma and
- * a space (eg: to report some information from the check that changed the state).
- * If <xferred> is non-negative, some information about requeued streams are
+ * If <check> is non-null, an entire string describing the check result will be
+ * appended after a comma and a space (eg: to report some information from the
+ * check that changed the state). In the other case, the string will be built
+ * using the check results stored into the struct server if present.
+ * If <xferred> is non-negative, some information about requeued sessions are
  * provided.
  */
-void srv_append_status(struct chunk *msg, struct server *s, const char *reason, int xferred, int forced)
+void srv_append_status(struct chunk *msg, struct server *s, struct check *check, int xferred, int forced)
 {
-	if (reason)
-		chunk_appendf(msg, ", %s", reason);
-	else if (!forced && s->track)
+	short status = s->op_st_chg.status;
+	short code = s->op_st_chg.code;
+	long duration = s->op_st_chg.duration;
+	char *desc = s->op_st_chg.reason;
+
+	if (check) {
+		status = check->status;
+		code = check->code;
+		duration = check->duration;
+		desc = check->desc;
+	}
+
+	if (status != -1) {
+		chunk_appendf(msg, ", reason: %s", get_check_status_description(status));
+
+		if (status >= HCHK_STATUS_L57DATA)
+			chunk_appendf(msg, ", code: %d", code);
+
+		if (desc && *desc) {
+			struct chunk src;
+
+			chunk_appendf(msg, ", info: \"");
+
+			chunk_initlen(&src, desc, 0, strlen(desc));
+			chunk_asciiencode(msg, &src, '"');
+
+			chunk_appendf(msg, "\"");
+		}
+
+		if (duration >= 0)
+			chunk_appendf(msg, ", check duration: %ldms", duration);
+	}
+        else if (desc && *desc) {
+                chunk_appendf(msg, ", %s", desc);
+        }
+	else if (!forced && s->track) {
 		chunk_appendf(msg, " via %s/%s", s->track->proxy->id, s->track->id);
+	}
 
 	if (xferred >= 0) {
 		if (s->next_state == SRV_ST_STOPPED)
@@ -810,15 +846,14 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
 	}
 }
 
-/* Marks server <s> down, regardless of its checks' statuses, notifies by all
- * available means, recounts the remaining servers on the proxy and transfers
- * queued streams whenever possible to other servers. It automatically
- * recomputes the number of servers, but not the map. Maintenance servers are
- * ignored. It reports <reason> if non-null as the reason for going down. Note
- * that it makes use of the trash to build the log strings, so <reason> must
- * not be placed there.
+/* Marks server <s> down, regardless of its checks' statuses. The server is
+ * registered in a list to postpone the counting of the remaining servers on
+ * the proxy and transfers queued streams whenever possible to other servers at
+ * a sync point. Maintenance servers are ignored. It stores the <reason> if
+ * non-null as the reason for going down or the available data from the check
+ * struct to recompute this reason later.
  */
-void srv_set_stopped(struct server *s, const char *reason)
+void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 {
 	struct server *srv;
 
@@ -826,26 +861,35 @@ void srv_set_stopped(struct server *s, const char *reason)
 		return;
 
 	s->next_state = SRV_ST_STOPPED;
-	if (reason)
-		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
+	*s->op_st_chg.reason = 0;
+	s->op_st_chg.status = -1;
+	if (reason) {
+		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
+	}
+	else if (check) {
+		if (check->desc)
+			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		s->op_st_chg.code = check->code;
+		s->op_st_chg.status = check->status;
+		s->op_st_chg.duration = check->duration;
+	}
 
 	/* Register changes to be applied asynchronously */
 	if (LIST_ISEMPTY(&s->update_status))
 		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
-		srv_set_stopped(srv, NULL);
+		srv_set_stopped(srv, NULL, NULL);
 }
 
 /* Marks server <s> up regardless of its checks' statuses and provided it isn't
- * in maintenance. Notifies by all available means, recounts the remaining
- * servers on the proxy and tries to grab requests from the proxy. It
- * automatically recomputes the number of servers, but not the map. Maintenance
- * servers are ignored. It reports <reason> if non-null as the reason for going
- * up. Note that it makes use of the trash to build the log strings, so <reason>
- * must not be placed there.
+ * in maintenance. The server is registered in a list to postpone the counting
+ * of the remaining servers on the proxy and tries to grab requests from the
+ * proxy at a sync point. Maintenance servers are ignored. It stores the
+ * <reason> if non-null as the reason for going down or the available data
+ * from the check struct to recompute this reason later.
  */
-void srv_set_running(struct server *s, const char *reason)
+void srv_set_running(struct server *s, const char *reason, struct check *check)
 {
 	struct server *srv;
 
@@ -856,8 +900,18 @@ void srv_set_running(struct server *s, const char *reason)
 		return;
 
 	s->next_state = SRV_ST_STARTING;
-	if (reason)
-		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
+	*s->op_st_chg.reason = 0;
+	s->op_st_chg.status = -1;
+	if (reason) {
+		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
+	}
+	else if (check) {
+		if (check->desc)
+			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		s->op_st_chg.code = check->code;
+		s->op_st_chg.status = check->status;
+		s->op_st_chg.duration = check->duration;
+	}
 
 	if (s->slowstart <= 0)
 		s->next_state = SRV_ST_RUNNING;
@@ -867,18 +921,19 @@ void srv_set_running(struct server *s, const char *reason)
 		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
-		srv_set_running(srv, NULL);
+		srv_set_running(srv, NULL, NULL);
 }
 
 /* Marks server <s> stopping regardless of its checks' statuses and provided it
- * isn't in maintenance. Notifies by all available means, recounts the remaining
- * servers on the proxy and tries to grab requests from the proxy. It
- * automatically recomputes the number of servers, but not the map. Maintenance
- * servers are ignored. It reports <reason> if non-null as the reason for going
+ * isn't in maintenance. The server is registered in a list to postpone the
+ * counting of the remaining servers on the proxy and tries to grab requests
+ * from the proxy. Maintenance servers are ignored. It stores the
+ * <reason> if non-null as the reason for going down or the available data
+ * from the check struct to recompute this reason later.
  * up. Note that it makes use of the trash to build the log strings, so <reason>
  * must not be placed there.
  */
-void srv_set_stopping(struct server *s, const char *reason)
+void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 {
 	struct server *srv;
 
@@ -889,15 +944,25 @@ void srv_set_stopping(struct server *s, const char *reason)
 		return;
 
 	s->next_state = SRV_ST_STOPPING;
-	if (reason)
-		strlcpy2(s->op_st_chg_reason, reason, sizeof(s->op_st_chg_reason));
+	*s->op_st_chg.reason = 0;
+	s->op_st_chg.status = -1;
+	if (reason) {
+		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
+	}
+	else if (check) {
+		if (check->desc)
+			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		s->op_st_chg.code = check->code;
+		s->op_st_chg.status = check->status;
+		s->op_st_chg.duration = check->duration;
+	}
 
 	/* Register changes to be applied asynchronously */
 	if (LIST_ISEMPTY(&s->update_status))
 		LIST_ADDQ(&updated_servers, &s->update_status);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
-		srv_set_stopping(srv, NULL);
+		srv_set_stopping(srv, NULL, NULL);
 }
 
 /* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -2766,18 +2831,18 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			switch (srv_op_state) {
 				case SRV_ST_STOPPED:
 					srv->check.health = 0;
-					srv_set_stopped(srv, "changed from server-state after a reload");
+					srv_set_stopped(srv, "changed from server-state after a reload", NULL);
 					break;
 				case SRV_ST_STARTING:
 					srv->next_state = srv_op_state;
 					break;
 				case SRV_ST_STOPPING:
 					srv->check.health = srv->check.rise + srv->check.fall - 1;
-					srv_set_stopping(srv, "changed from server-state after a reload");
+					srv_set_stopping(srv, "changed from server-state after a reload", NULL);
 					break;
 				case SRV_ST_RUNNING:
 					srv->check.health = srv->check.rise + srv->check.fall - 1;
-					srv_set_running(srv, "");
+					srv_set_running(srv, "", NULL);
 					break;
 			}
 
@@ -4066,15 +4131,15 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		}
 		else if (strcmp(args[4], "up") == 0) {
 			sv->check.health = sv->check.rise + sv->check.fall - 1;
-			srv_set_running(sv, "changed from CLI");
+			srv_set_running(sv, "changed from CLI", NULL);
 		}
 		else if (strcmp(args[4], "stopping") == 0) {
 			sv->check.health = sv->check.rise + sv->check.fall - 1;
-			srv_set_stopping(sv, "changed from CLI");
+			srv_set_stopping(sv, "changed from CLI", NULL);
 		}
 		else if (strcmp(args[4], "down") == 0) {
 			sv->check.health = 0;
-			srv_set_stopped(sv, "changed from CLI");
+			srv_set_stopped(sv, "changed from CLI", NULL);
 		}
 		else {
 			appctx->ctx.cli.severity = LOG_ERR;
@@ -4090,11 +4155,11 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		}
 		else if (strcmp(args[4], "up") == 0) {
 			sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
-			srv_set_running(sv, "changed from CLI");
+			srv_set_running(sv, "changed from CLI", NULL);
 		}
 		else if (strcmp(args[4], "down") == 0) {
 			sv->agent.health = 0;
-			srv_set_stopped(sv, "changed from CLI");
+			srv_set_stopped(sv, "changed from CLI", NULL);
 		}
 		else {
 			appctx->ctx.cli.severity = LOG_ERR;
@@ -4407,7 +4472,6 @@ static void __server_init(void)
 	cli_register_kw(&cli_kws);
 }
 
-
 /*
  * This function applies server's status changes, it is
  * is designed to be called asynchronously.
@@ -4454,7 +4518,7 @@ void srv_update_status(struct server *s)
 				             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+				srv_append_status(tmptrash, s, NULL, xferred, 0);
 				Warning("%s.\n", tmptrash->str);
 
 				/* we don't send an alert if the server was previously paused */
@@ -4486,7 +4550,7 @@ void srv_update_status(struct server *s)
 				             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+				srv_append_status(tmptrash, s, NULL, xferred, 0);
 
 				Warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
@@ -4545,7 +4609,7 @@ void srv_update_status(struct server *s)
 				             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
 
-				srv_append_status(tmptrash, s, *s->op_st_chg_reason ? s->op_st_chg_reason : NULL, xferred, 0);
+				srv_append_status(tmptrash, s, NULL, xferred, 0);
 				Warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
@@ -4576,6 +4640,10 @@ void srv_update_status(struct server *s)
 		s->next_admin = next_admin;
 	}
 
+	/* reset operational state change */
+	*s->op_st_chg.reason = 0;
+	s->op_st_chg.status = s->op_st_chg.code = -1;
+	s->op_st_chg.duration = 0;
 
 	/* Now we try to apply pending admin changes */
 
@@ -4900,7 +4968,6 @@ void srv_update_status(struct server *s)
 	}
 
 	/* Re-set log strings to empty */
-	*s->op_st_chg_reason = 0;
 	*s->adm_st_chg_cause = 0;
 }
 /*

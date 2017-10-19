@@ -152,45 +152,11 @@ void srv_shutdown_streams(struct server *srv, int why);
  */
 void srv_shutdown_backup_streams(struct proxy *px, int why);
 
-/* Appends some information to a message string related to a server going UP or
- * DOWN.  If both <forced> and <reason> are null and the server tracks another
- * one, a "via" information will be provided to know where the status came from.
- * If <reason> is non-null, the entire string will be appended after a comma and
- * a space (eg: to report some information from the check that changed the state).
- * If <xferred> is non-negative, some information about requeued sessions are
- * provided.
- */
-void srv_append_status(struct chunk *msg, struct server *s, const char *reason, int xferred, int forced);
+void srv_append_status(struct chunk *msg, struct server *s, struct check *, int xferred, int forced);
 
-/* Marks server <s> down, regardless of its checks' statuses, notifies by all
- * available means, recounts the remaining servers on the proxy and transfers
- * queued sessions whenever possible to other servers. It automatically
- * recomputes the number of servers, but not the map. Maintenance servers are
- * ignored. It reports <reason> if non-null as the reason for going down. Note
- * that it makes use of the trash to build the log strings, so <reason> must
- * not be placed there.
- */
-void srv_set_stopped(struct server *s, const char *reason);
-
-/* Marks server <s> up regardless of its checks' statuses and provided it isn't
- * in maintenance. Notifies by all available means, recounts the remaining
- * servers on the proxy and tries to grab requests from the proxy. It
- * automatically recomputes the number of servers, but not the map. Maintenance
- * servers are ignored. It reports <reason> if non-null as the reason for going
- * up. Note that it makes use of the trash to build the log strings, so <reason>
- * must not be placed there.
- */
-void srv_set_running(struct server *s, const char *reason);
-
-/* Marks server <s> stopping regardless of its checks' statuses and provided it
- * isn't in maintenance. Notifies by all available means, recounts the remaining
- * servers on the proxy and tries to grab requests from the proxy. It
- * automatically recomputes the number of servers, but not the map. Maintenance
- * servers are ignored. It reports <reason> if non-null as the reason for going
- * up. Note that it makes use of the trash to build the log strings, so <reason>
- * must not be placed there.
- */
-void srv_set_stopping(struct server *s, const char *reason);
+void srv_set_stopped(struct server *s, const char *reason, struct check *check);
+void srv_set_running(struct server *s, const char *reason, struct check *check);
+void srv_set_stopping(struct server *s, const char *reason, struct check *check);
 
 /* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
  * enforce either maint mode or drain mode. It is not allowed to set more than
