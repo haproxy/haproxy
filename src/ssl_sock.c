@@ -7718,7 +7718,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 		else
 			chunk_appendf(&trash, "# id (file)\n");
 
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
@@ -7758,7 +7758,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 					                   sizeof(struct tls_sess_key), t2->str, t2->size);
 					chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1, t2->str);
 
-					if (bi_putchk(si_ic(si), &trash) == -1) {
+					if (ci_putchk(si_ic(si), &trash) == -1) {
 						/* let's try again later from this stream. We add ourselves into
 						 * this stream's users so that it can remove us upon termination.
 						 */
@@ -7769,7 +7769,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				}
 				appctx->ctx.cli.i1 = 0;
 			}
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */

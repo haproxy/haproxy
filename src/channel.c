@@ -75,7 +75,7 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
  * data. Note: this function appends data to the buffer's output and possibly
  * overwrites any pending input data which are assumed not to exist.
  */
-int bo_inject(struct channel *chn, const char *msg, int len)
+int co_inject(struct channel *chn, const char *msg, int len)
 {
 	int max;
 
@@ -109,7 +109,7 @@ int bo_inject(struct channel *chn, const char *msg, int len)
  * buffer, -1 is returned. Otherwise the number of bytes copied is returned
  * (1). Channel flag READ_PARTIAL is updated if some data can be transferred.
  */
-int bi_putchr(struct channel *chn, char c)
+int ci_putchr(struct channel *chn, char c)
 {
 	if (unlikely(channel_input_closed(chn)))
 		return -2;
@@ -140,7 +140,7 @@ int bi_putchr(struct channel *chn, char c)
  * number). Channel flag READ_PARTIAL is updated if some data can be
  * transferred.
  */
-int bi_putblk(struct channel *chn, const char *blk, int len)
+int ci_putblk(struct channel *chn, const char *blk, int len)
 {
 	int max;
 
@@ -198,7 +198,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
  * The chunk's length is updated with the number of bytes sent. On errors, NULL
  * is returned. Note that only buf->i is considered.
  */
-struct buffer *bi_swpbuf(struct channel *chn, struct buffer *buf)
+struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf)
 {
 	struct buffer *old;
 
@@ -236,12 +236,12 @@ struct buffer *bi_swpbuf(struct channel *chn, struct buffer *buf)
  *   >0 : number of bytes read. Includes the \n if present before len or end.
  *   =0 : no '\n' before end found. <str> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The channel status is not changed. The caller must call bo_skip() to
+ * The channel status is not changed. The caller must call co_skip() to
  * update it. The '\n' is waited for as long as neither the buffer nor the
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int bo_getline(struct channel *chn, char *str, int len)
+int co_getline(struct channel *chn, char *str, int len)
 {
 	int ret, max;
 	char *p;
@@ -287,10 +287,10 @@ int bo_getline(struct channel *chn, char *str, int len)
  *   >0 : number of bytes read, equal to requested size.
  *   =0 : not enough data available. <blk> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The channel status is not changed. The caller must call bo_skip() to
+ * The channel status is not changed. The caller must call co_skip() to
  * update it.
  */
-int bo_getblk(struct channel *chn, char *blk, int len, int offset)
+int co_getblk(struct channel *chn, char *blk, int len, int offset)
 {
 	int firstblock;
 
@@ -324,10 +324,10 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset)
  *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
  *   =0 : not enough data available. <blk*> are left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The channel status is not changed. The caller must call bo_skip() to
+ * The channel status is not changed. The caller must call co_skip() to
  * update it. Unused buffers are left in an undefined state.
  */
-int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
+int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
 {
 	if (unlikely(chn->buf->o == 0)) {
 		if (chn->flags & CF_SHUTW)
@@ -357,14 +357,14 @@ int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *
  * full. If either of them is full, the string may be returned as is, without
  * the '\n'. Unused buffers are left in an undefined state.
  */
-int bo_getline_nc(struct channel *chn,
+int co_getline_nc(struct channel *chn,
                   char **blk1, int *len1,
                   char **blk2, int *len2)
 {
 	int retcode;
 	int l;
 
-	retcode = bo_getblk_nc(chn, blk1, len1, blk2, len2);
+	retcode = co_getblk_nc(chn, blk1, len1, blk2, len2);
 	if (unlikely(retcode) <= 0)
 		return retcode;
 
@@ -401,7 +401,7 @@ int bo_getline_nc(struct channel *chn,
  *   =0 : not enough data available.
  *   <0 : no more bytes readable because input is shut.
  */
-int bi_getblk_nc(struct channel *chn,
+int ci_getblk_nc(struct channel *chn,
                  char **blk1, int *len1,
                  char **blk2, int *len2)
 {
@@ -433,14 +433,14 @@ int bi_getblk_nc(struct channel *chn,
  * full. If either of them is full, the string may be returned as is, without
  * the '\n'. Unused buffers are left in an undefined state.
  */
-int bi_getline_nc(struct channel *chn,
+int ci_getline_nc(struct channel *chn,
                   char **blk1, int *len1,
                   char **blk2, int *len2)
 {
 	int retcode;
 	int l;
 
-	retcode = bi_getblk_nc(chn, blk1, len1, blk2, len2);
+	retcode = ci_getblk_nc(chn, blk1, len1, blk2, len2);
 	if (unlikely(retcode <= 0))
 		return retcode;
 

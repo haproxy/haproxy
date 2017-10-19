@@ -485,7 +485,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	struct chunk *tmp;
 
 	if (likely(severity_output == CLI_SEVERITY_NONE))
-		return bi_putblk(chn, msg, strlen(msg));
+		return ci_putblk(chn, msg, strlen(msg));
 
 	tmp = get_trash_chunk();
 	chunk_reset(tmp);
@@ -508,7 +508,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	}
 	chunk_appendf(tmp, "%s", msg);
 
-	return bi_putblk(chn, tmp->str, strlen(tmp->str));
+	return ci_putblk(chn, tmp->str, strlen(tmp->str));
 }
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
@@ -561,7 +561,7 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			}
 
-			reql = bo_getline(si_oc(si), trash.str, trash.size);
+			reql = co_getline(si_oc(si), trash.str, trash.size);
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -642,7 +642,7 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* re-adjust req buffer */
-			bo_skip(si_oc(si), reql);
+			co_skip(si_oc(si), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
@@ -681,7 +681,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (appctx->st0 == CLI_ST_PROMPT) {
-				if (bi_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
+				if (ci_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
 					appctx->st0 = CLI_ST_GETREQ;
 				else
 					si_applet_cant_put(si);
@@ -771,7 +771,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 	while (*var) {
 		chunk_printf(&trash, "%s\n", *var);
 
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
@@ -869,7 +869,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		chunk_appendf(&trash, "\n");
 
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
@@ -899,7 +899,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 	switch (appctx->st2) {
 		case STAT_ST_INIT:
 			chunk_printf(&trash, "# socket lvl processes\n");
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -966,7 +966,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 							chunk_appendf(&trash, "all\n");
 						}
 
-						if (bi_putchk(si_ic(si), &trash) == -1) {
+						if (ci_putchk(si_ic(si), &trash) == -1) {
 							si_applet_cant_put(si);
 							return 0;
 						}

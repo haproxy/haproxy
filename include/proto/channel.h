@@ -45,16 +45,16 @@ int init_channel();
 unsigned long long __channel_forward(struct channel *chn, unsigned long long bytes);
 
 /* SI-to-channel functions working with buffers */
-int bi_putblk(struct channel *chn, const char *str, int len);
-struct buffer *bi_swpbuf(struct channel *chn, struct buffer *buf);
-int bi_putchr(struct channel *chn, char c);
-int bi_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int bi_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int bo_inject(struct channel *chn, const char *msg, int len);
-int bo_getline(struct channel *chn, char *str, int len);
-int bo_getblk(struct channel *chn, char *blk, int len, int offset);
-int bo_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int ci_putblk(struct channel *chn, const char *str, int len);
+struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf);
+int ci_putchr(struct channel *chn, char c);
+int ci_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int ci_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int co_inject(struct channel *chn, const char *msg, int len);
+int co_getline(struct channel *chn, char *str, int len);
+int co_getblk(struct channel *chn, char *blk, int len, int offset);
+int co_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 
 
 /* returns a pointer to the stream the channel belongs to */
@@ -479,7 +479,7 @@ static inline void channel_truncate(struct channel *chn)
  * the caller's responsibility to ensure that <len> is never larger than
  * chn->o. Channel flag WRITE_PARTIAL is set.
  */
-static inline void bo_skip(struct channel *chn, int len)
+static inline void co_skip(struct channel *chn, int len)
 {
 	chn->buf->o -= len;
 
@@ -498,11 +498,11 @@ static inline void bo_skip(struct channel *chn, int len)
  * Channel flag READ_PARTIAL is updated if some data can be transferred. The
  * chunk's length is updated with the number of bytes sent.
  */
-static inline int bi_putchk(struct channel *chn, struct chunk *chunk)
+static inline int ci_putchk(struct channel *chn, struct chunk *chunk)
 {
 	int ret;
 
-	ret = bi_putblk(chn, chunk->str, chunk->len);
+	ret = ci_putblk(chn, chunk->str, chunk->len);
 	if (ret > 0)
 		chunk->len -= ret;
 	return ret;
@@ -516,19 +516,19 @@ static inline int bi_putchk(struct channel *chn, struct chunk *chunk)
  * number).  Channel flag READ_PARTIAL is updated if some data can be
  * transferred.
  */
-static inline int bi_putstr(struct channel *chn, const char *str)
+static inline int ci_putstr(struct channel *chn, const char *str)
 {
-	return bi_putblk(chn, str, strlen(str));
+	return ci_putblk(chn, str, strlen(str));
 }
 
 /*
  * Return one char from the channel's buffer. If the buffer is empty and the
  * channel is closed, return -2. If the buffer is just empty, return -1. The
- * buffer's pointer is not advanced, it's up to the caller to call bo_skip(buf,
+ * buffer's pointer is not advanced, it's up to the caller to call co_skip(buf,
  * 1) when it has consumed the char.  Also note that this function respects the
  * chn->o limit.
  */
-static inline int bo_getchr(struct channel *chn)
+static inline int co_getchr(struct channel *chn)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
 	if (unlikely((chn->flags & CF_SHUTW) || channel_is_empty(chn))) {

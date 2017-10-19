@@ -1662,7 +1662,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	oc = &s->res;
 	if (wanted == HLSR_READ_LINE) {
 		/* Read line. */
-		nblk = bo_getline_nc(oc, &blk1, &len1, &blk2, &len2);
+		nblk = co_getline_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1693,7 +1693,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 	else if (wanted == HLSR_READ_ALL) {
 		/* Read all the available data. */
-		nblk = bo_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
+		nblk = co_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1702,7 +1702,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 	else {
 		/* Read a block of data. */
-		nblk = bo_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
+		nblk = co_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1724,7 +1724,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	/* Consume data. */
-	bo_skip(oc, len + skip_at_end);
+	co_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
 	stream_int_notify(&s->si[0]);
@@ -1904,7 +1904,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* send data */
 	if (len < send_len)
 		send_len = len;
-	len = bi_putblk(&s->req, buf+sent, send_len);
+	len = ci_putblk(&s->req, buf+sent, send_len);
 
 	/* "Not enough space" (-1), "Buffer too little to contain
 	 * the data" (-2) are not expected because the available length
@@ -2551,7 +2551,7 @@ static inline int _hlua_channel_dup(struct channel *chn, lua_State *L)
 	int ret;
 	luaL_Buffer b;
 
-	ret = bi_getblk_nc(chn, &blk1, &len1, &blk2, &len2);
+	ret = ci_getblk_nc(chn, &blk1, &len1, &blk2, &len2);
 	if (unlikely(ret == 0))
 		return 0;
 
@@ -2643,7 +2643,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	ret = bi_getline_nc(chn, &blk1, &len1, &blk2, &len2);
+	ret = ci_getline_nc(chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline_yield, TICK_ETERNITY, 0));
 
@@ -2701,7 +2701,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	if (max > len - l)
 		max = len - l;
 
-	ret = bi_putblk(chn, str + l, max);
+	ret = ci_putblk(chn, str + l, max);
 	if (ret == -2 || ret == -3) {
 		lua_pushinteger(L, -1);
 		return 1;
@@ -3411,7 +3411,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	int len2;
 
 	/* Read the maximum amount of data avalaible. */
-	ret = bo_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+	ret = co_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
@@ -3434,7 +3434,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	luaL_addlstring(&appctx->b, blk2, len2);
 
 	/* Consume input channel output buffer data. */
-	bo_skip(si_oc(si), len1 + len2);
+	co_skip(si_oc(si), len1 + len2);
 	luaL_pushresult(&appctx->b);
 	return 1;
 }
@@ -3466,7 +3466,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	int len2;
 
 	/* Read the maximum amount of data avalaible. */
-	ret = bo_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
@@ -3492,7 +3492,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		 */
 		luaL_addlstring(&appctx->b, blk1, len1);
 		luaL_addlstring(&appctx->b, blk2, len2);
-		bo_skip(si_oc(si), len1 + len2);
+		co_skip(si_oc(si), len1 + len2);
 		si_applet_cant_get(si);
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
 
@@ -3511,7 +3511,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		len -= len2;
 
 		/* Consume input channel output buffer data. */
-		bo_skip(si_oc(si), len1 + len2);
+		co_skip(si_oc(si), len1 + len2);
 
 		/* If we are no other data avalaible, yield waiting for new data. */
 		if (len > 0) {
@@ -3575,7 +3575,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 		max = len - l;
 
 	/* Copy data. */
-	bi_putblk(chn, str + l, max);
+	ci_putblk(chn, str + l, max);
 
 	/* update counters. */
 	l += max;
@@ -3875,7 +3875,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = bi_putblk(chn, HTTP_100C, strlen(HTTP_100C));
+		ret = ci_putblk(chn, HTTP_100C, strlen(HTTP_100C));
 		/* if ret == -2 or -3 the channel closed or the message si too
 		 * big for the buffers. We cant send anything. So, we ignoring
 		 * the error, considers that the 100-continue is sent, and try
@@ -3896,7 +3896,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	}
 
 	/* Read the maximum amount of data avalaible. */
-	ret = bo_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+	ret = co_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
@@ -3927,7 +3927,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	appctx->appctx->ctx.hlua_apphttp.left_bytes -= len2;
 
 	/* Consume input channel output buffer data. */
-	bo_skip(si_oc(si), len1 + len2);
+	co_skip(si_oc(si), len1 + len2);
 	luaL_pushresult(&appctx->b);
 	return 1;
 }
@@ -3961,7 +3961,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = bi_putblk(chn, HTTP_100C, strlen(HTTP_100C));
+		ret = ci_putblk(chn, HTTP_100C, strlen(HTTP_100C));
 		/* if ret == -2 or -3 the channel closed or the message si too
 		 * big for the buffers. We cant send anything. So, we ignoring
 		 * the error, considers that the 100-continue is sent, and try
@@ -3976,7 +3976,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	}
 
 	/* Read the maximum amount of data avalaible. */
-	ret = bo_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
@@ -4007,7 +4007,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	len -= len2;
 
 	/* Consume input channel output buffer data. */
-	bo_skip(si_oc(si), len1 + len2);
+	co_skip(si_oc(si), len1 + len2);
 	if (appctx->appctx->ctx.hlua_apphttp.left_bytes != -1)
 		appctx->appctx->ctx.hlua_apphttp.left_bytes -= len;
 
@@ -4070,7 +4070,7 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 		max = len - l;
 
 	/* Copy data. */
-	bi_putblk(chn, str + l, max);
+	ci_putblk(chn, str + l, max);
 
 	/* update counters. */
 	l += max;
@@ -4209,7 +4209,7 @@ __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status
 	msg = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	/* Send the message at once. */
-	ret = bi_putblk(chn, msg, len);
+	ret = ci_putblk(chn, msg, len);
 
 	/* if ret == -2 or -3 the channel closed or the message si too
 	 * big for the buffers.
@@ -6136,7 +6136,7 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 		strm->logs.tv_request = now;
 
 		/* eat the whole request */
-		bo_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), si_ob(si)->o);
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 		return;
@@ -6352,7 +6352,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		 */
 
 		/* Read the maximum amount of data avalaible. */
-		ret = bo_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
+		ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 		if (ret == -1)
 			return;
 
@@ -6367,7 +6367,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		}
 
 		/* skip the requests bytes. */
-		bo_skip(si_oc(si), strm->txn->req.eoh + 2);
+		co_skip(si_oc(si), strm->txn->req.eoh + 2);
 	}
 
 	/* Executes The applet if it is not done. */
@@ -6412,7 +6412,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		    !(ctx->ctx.hlua_apphttp.flags & APPLET_LAST_CHK)) {
 
 			/* sent last chunk at once. */
-			ret = bi_putblk(res, "0\r\n\r\n", 5);
+			ret = ci_putblk(res, "0\r\n\r\n", 5);
 
 			/* critical error. */
 			if (ret == -2 || ret == -3) {
@@ -6438,7 +6438,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		strm->logs.tv_request = now;
 
 		/* eat the whole request */
-		bo_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), si_ob(si)->o);
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 
@@ -6452,7 +6452,7 @@ error:
 	 * if there are no room avalaible in the buffer,
 	 * just close the connection.
 	 */
-	bi_putblk(res, error_500, strlen(error_500));
+	ci_putblk(res, error_500, strlen(error_500));
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
 	si_shutw(si);

@@ -1110,7 +1110,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	 * length. */
 	netint = htonl(framesz);
 	memcpy(buf, (char *)&netint, 4);
-	ret = bi_putblk(si_ic(si), buf, framesz+4);
+	ret = ci_putblk(si_ic(si), buf, framesz+4);
 
 	if (ret <= 0) {
 		if (ret == -1) {
@@ -1137,14 +1137,14 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 	if (si_oc(si)->buf == &buf_empty)
 		goto retry;
 
-	ret = bo_getblk(si_oc(si), (char *)&netint, 4, 0);
+	ret = co_getblk(si_oc(si), (char *)&netint, 4, 0);
 	if (ret > 0) {
 		framesz = ntohl(netint);
 		if (framesz > SPOE_APPCTX(appctx)->max_frame_size) {
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_TOO_BIG;
 			return -1;
 		}
-		ret = bo_getblk(si_oc(si), buf, framesz, 4);
+		ret = co_getblk(si_oc(si), buf, framesz, 4);
 	}
 	if (ret <= 0) {
 		if (ret == 0) {
@@ -1407,7 +1407,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.len)
-		bo_skip(si_oc(si), trash.len);
+		co_skip(si_oc(si), trash.len);
 
 	SPOE_APPCTX(appctx)->task->expire =
 		tick_add_ifset(now_ms, agent->timeout.idle);
@@ -1583,7 +1583,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.len)
-		bo_skip(si_oc(appctx->owner), trash.len);
+		co_skip(si_oc(appctx->owner), trash.len);
   end:
 	return ret;
 }
@@ -1798,7 +1798,7 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
   next:
 	/* Do not forget to remove processed frame from the output buffer */
 	if (trash.len)
-		bo_skip(si_oc(appctx->owner), trash.len);
+		co_skip(si_oc(appctx->owner), trash.len);
 
 	return 0;
   stop:

@@ -2657,7 +2657,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 		}
 
 		/* display response */
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			/* let's try again later from this session. We add ourselves into
 			 * this session's users so that it can remove us upon termination.
 			 */

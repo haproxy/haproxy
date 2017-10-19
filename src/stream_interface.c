@@ -143,7 +143,7 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	channel_truncate(oc);
 
 	if (likely(msg && msg->len))
-		bo_inject(oc, msg->str, msg->len);
+		co_inject(oc, msg->str, msg->len);
 
 	oc->wex = tick_add_ifset(now_ms, oc->wto);
 	channel_auto_read(oc);

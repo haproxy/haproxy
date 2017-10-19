@@ -2256,7 +2256,7 @@ static int table_dump_head_to_buffer(struct chunk *msg, struct stream_interface 
 	if (target && (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
-	if (bi_putchk(si_ic(si), msg) == -1) {
+	if (ci_putchk(si_ic(si), msg) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}
@@ -2329,7 +2329,7 @@ static int table_dump_entry_to_buffer(struct chunk *msg, struct stream_interface
 	}
 	chunk_appendf(msg, "\n");
 
-	if (bi_putchk(si_ic(si), msg) == -1) {
+	if (ci_putchk(si_ic(si), msg) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}

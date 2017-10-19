@@ -2008,7 +2008,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_TH:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(si, px, uri);
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2020,7 +2020,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_FE:
 		/* print the frontend */
 		if (stats_dump_fe_stats(si, px)) {
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2052,7 +2052,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 
 			/* print the frontend */
 			if (stats_dump_li_stats(si, px, l, flags)) {
-				if (bi_putchk(rep, &trash) == -1) {
+				if (ci_putchk(rep, &trash) == -1) {
 					si_applet_cant_put(si);
 					return 0;
 				}
@@ -2096,7 +2096,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 			}
 
 			if (stats_dump_sv_stats(si, px, flags, sv)) {
-				if (bi_putchk(rep, &trash) == -1) {
+				if (ci_putchk(rep, &trash) == -1) {
 					si_applet_cant_put(si);
 					return 0;
 				}
@@ -2109,7 +2109,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_BE:
 		/* print the backend */
 		if (stats_dump_be_stats(si, px, flags)) {
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2121,7 +2121,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_END:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(si, px);
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2533,7 +2533,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
 			stats_dump_csv_header();
 
-		if (bi_putchk(rep, &trash) == -1) {
+		if (ci_putchk(rep, &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
@@ -2544,7 +2544,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_INFO:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_info(si, uri);
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2583,7 +2583,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 				stats_dump_html_end();
 			else
 				stats_dump_json_end();
-			if (bi_putchk(rep, &trash) == -1) {
+			if (ci_putchk(rep, &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2636,7 +2636,7 @@ static int stats_process_http_post(struct stream_interface *si)
 		goto out;
 	}
 
-	reql = bo_getblk(si_oc(si), temp->str, s->txn->req.body_len, s->txn->req.eoh + 2);
+	reql = co_getblk(si_oc(si), temp->str, s->txn->req.body_len, s->txn->req.eoh + 2);
 	if (reql <= 0) {
 		/* we need more data */
 		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
@@ -2953,7 +2953,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 	s->txn->status = 200;
 	s->logs.tv_request = now;
 
-	if (bi_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}
@@ -3001,7 +3001,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	s->txn->status = 303;
 	s->logs.tv_request = now;
 
-	if (bi_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}
@@ -3060,7 +3060,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			last_fwd = si_ic(si)->to_forward;
 			si_ic(si)->to_forward = 0;
 			chunk_printf(&trash, "\r\n000000\r\n");
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
 				si_ic(si)->to_forward = last_fwd;
 				goto out;
@@ -3086,7 +3086,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
-				if (bi_putchk(si_ic(si), &trash) == -1)
+				if (ci_putchk(si_ic(si), &trash) == -1)
 					si_applet_cant_put(si);
 
 				si_ic(si)->total += (last_len - data_len);
@@ -3112,13 +3112,13 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_DONE) {
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			chunk_printf(&trash, "\r\n0\r\n\r\n");
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
 				goto out;
 			}
 		}
 		/* eat the whole request */
-		bo_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), si_ob(si)->o);
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
@@ -3290,7 +3290,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	else
 		stats_dump_info_fields(&trash, info);
 
-	if (bi_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}
@@ -3518,7 +3518,7 @@ static int stats_dump_json_schema_to_buffer(struct stream_interface *si)
 
 	stats_dump_json_schema(&trash);
 
-	if (bi_putchk(si_ic(si), &trash) == -1) {
+	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}

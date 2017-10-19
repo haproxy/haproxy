@@ -1051,7 +1051,7 @@ static void http_server_error(struct stream *s, struct stream_interface *si,
 	channel_auto_close(si_ic(si));
 	channel_auto_read(si_ic(si));
 	if (msg)
-		bo_inject(si_ic(si), msg->str, msg->len);
+		co_inject(si_ic(si), msg->str, msg->len);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
 	if (!(s->flags & SF_FINST_MASK))
@@ -4225,7 +4225,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		memcpy(chunk->str + chunk->len, "\r\n\r\n", 4);
 		chunk->len += 4;
 		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
-		bo_inject(res->chn, chunk->str, chunk->len);
+		co_inject(res->chn, chunk->str, chunk->len);
 		/* "eat" the request */
 		bi_fast_delete(req->chn->buf, req->sov);
 		req->next -= req->sov;
@@ -4927,7 +4927,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 				/* Expect is allowed in 1.1, look for it */
 				if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
 				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-					bo_inject(&s->res, http_100_chunk.str, http_100_chunk.len);
+					co_inject(&s->res, http_100_chunk.str, http_100_chunk.len);
 					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 				}
 			}
@@ -13157,7 +13157,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
 			     error_snapshot_id);
 
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			/* Socket buffer full. Let's try again later from the same point */
 			si_applet_cant_put(si);
 			return 0;
@@ -13247,7 +13247,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				     es->b_flags, es->b_out, es->b_tot,
 				     es->len, es->b_wrap, es->pos);
 
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				si_applet_cant_put(si);
 				return 0;
@@ -13260,7 +13260,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			/* the snapshot changed while we were dumping it */
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -13277,7 +13277,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			if (newptr == appctx->ctx.errors.ptr)
 				return 0;
 
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				si_applet_cant_put(si);
 				return 0;

@@ -350,7 +350,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				chunk_appendf(&trash, "%p %s\n",
 				              elt, elt->pattern);
 
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
@@ -384,7 +384,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		 */
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
-		if (bi_putchk(si_ic(si), &trash) == -1) {
+		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
 			return 0;
 		}
@@ -411,7 +411,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
 			              appctx->ctx.map.ref->display);
 
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
@@ -530,7 +530,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			chunk_appendf(&trash, "\n");
 
 			/* display response */
-			if (bi_putchk(si_ic(si), &trash) == -1) {
+			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */

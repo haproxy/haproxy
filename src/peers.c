@@ -581,7 +581,7 @@ switchstate:
 				appctx->st0 = PEER_SESS_ST_GETVERSION;
 				/* fall through */
 			case PEER_SESS_ST_GETVERSION:
-				reql = bo_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -597,7 +597,7 @@ switchstate:
 				else
 					trash.str[reql-1] = 0;
 
-				bo_skip(si_oc(si), reql);
+				co_skip(si_oc(si), reql);
 
 				/* test protocol */
 				if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.str, proto_len + 1) != 0) {
@@ -615,7 +615,7 @@ switchstate:
 				appctx->st0 = PEER_SESS_ST_GETHOST;
 				/* fall through */
 			case PEER_SESS_ST_GETHOST:
-				reql = bo_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -631,7 +631,7 @@ switchstate:
 				else
 					trash.str[reql-1] = 0;
 
-				bo_skip(si_oc(si), reql);
+				co_skip(si_oc(si), reql);
 
 				/* test hostname match */
 				if (strcmp(localpeer, trash.str) != 0) {
@@ -645,7 +645,7 @@ switchstate:
 			case PEER_SESS_ST_GETPEER: {
 				struct peer *curpeer;
 				char *p;
-				reql = bo_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -662,7 +662,7 @@ switchstate:
 				else
 					trash.str[reql-1] = 0;
 
-				bo_skip(si_oc(si), reql);
+				co_skip(si_oc(si), reql);
 
 				/* parse line "<peer name> <pid> <relative_pid>" */
 				p = strchr(trash.str, ' ');
@@ -713,7 +713,7 @@ switchstate:
 				struct shared_table *st;
 
 				repl = snprintf(trash.str, trash.size, "%d\n", PEER_SESS_SC_SUCCESSCODE);
-				repl = bi_putblk(si_ic(si), trash.str, repl);
+				repl = ci_putblk(si_ic(si), trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto full;
@@ -781,7 +781,7 @@ switchstate:
 					goto switchstate;
 				}
 
-				repl = bi_putblk(si_ic(si), trash.str, repl);
+				repl = ci_putblk(si_ic(si), trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto full;
@@ -800,7 +800,7 @@ switchstate:
 				if (si_ic(si)->flags & CF_WRITE_PARTIAL)
 					curpeer->statuscode = PEER_SESS_SC_CONNECTEDCODE;
 
-				reql = bo_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -817,7 +817,7 @@ switchstate:
 				else
 					trash.str[reql-1] = 0;
 
-				bo_skip(si_oc(si), reql);
+				co_skip(si_oc(si), reql);
 
 				/* Register status code */
 				curpeer->statuscode = atoi(trash.str);
@@ -876,7 +876,7 @@ switchstate:
 				unsigned char msg_head[7];
 				int totl = 0;
 
-				reql = bo_getblk(si_oc(si), (char *)msg_head, 2*sizeof(unsigned char), totl);
+				reql = co_getblk(si_oc(si), (char *)msg_head, 2*sizeof(unsigned char), totl);
 				if (reql <= 0) /* closed or EOL not found */
 					goto incomplete;
 
@@ -884,7 +884,7 @@ switchstate:
 
 				if (msg_head[1] >= 128) {
 					/* Read and Decode message length */
-					reql = bo_getblk(si_oc(si), (char *)&msg_head[2], sizeof(unsigned char), totl);
+					reql = co_getblk(si_oc(si), (char *)&msg_head[2], sizeof(unsigned char), totl);
 					if (reql <= 0) /* closed */
 						goto incomplete;
 
@@ -899,7 +899,7 @@ switchstate:
 						char *end;
 
 						for (i = 3 ; i < sizeof(msg_head) ; i++) {
-							reql = bo_getblk(si_oc(si), (char *)&msg_head[i], sizeof(char), totl);
+							reql = co_getblk(si_oc(si), (char *)&msg_head[i], sizeof(char), totl);
 							if (reql <= 0) /* closed */
 								goto incomplete;
 
@@ -934,7 +934,7 @@ switchstate:
 							goto switchstate;
 						}
 
-						reql = bo_getblk(si_oc(si), trash.str, msg_len, totl);
+						reql = co_getblk(si_oc(si), trash.str, msg_len, totl);
 						if (reql <= 0) /* closed */
 							goto incomplete;
 						totl += reql;
@@ -1332,12 +1332,12 @@ switchstate:
 
 ignore_msg:
 				/* skip consumed message */
-				bo_skip(si_oc(si), totl);
+				co_skip(si_oc(si), totl);
 				/* loop on that state to peek next message */
 				goto switchstate;
 
 incomplete:
-				/* we get here when a bo_getblk() returns <= 0 in reql */
+				/* we get here when a co_getblk() returns <= 0 in reql */
 
 				if (reql < 0) {
 					/* there was an error */
@@ -1359,7 +1359,7 @@ incomplete:
 					msg[1] = PEER_MSG_CTRL_RESYNCREQ;
 
 					/* message to buffer */
-					repl = bi_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
                                         if (repl <= 0) {
                                                 /* no more write possible */
                                                 if (repl == -1)
@@ -1397,7 +1397,7 @@ incomplete:
 							}
 
 							/* message to buffer */
-							repl = bi_putblk(si_ic(si), trash.str, msglen);
+							repl = ci_putblk(si_ic(si), trash.str, msglen);
 							if (repl <= 0) {
 								/* no more write possible */
 								if (repl == -1) {
@@ -1426,7 +1426,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1468,7 +1468,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1503,7 +1503,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1542,7 +1542,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1574,7 +1574,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1610,7 +1610,7 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = bi_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1642,7 +1642,7 @@ incomplete:
 					msg[0] = PEER_MSG_CLASS_CONTROL;
 					msg[1] = ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED) ? PEER_MSG_CTRL_RESYNCFINISHED : PEER_MSG_CTRL_RESYNCPARTIAL;
 					/* process final lesson message */
-					repl = bi_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
@@ -1663,7 +1663,7 @@ incomplete:
 					msg[1] = PEER_MSG_CTRL_RESYNCCONFIRM;
 
 					/* message to buffer */
-					repl = bi_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
@@ -1679,7 +1679,7 @@ incomplete:
 			}
 			case PEER_SESS_ST_EXIT:
 				repl = snprintf(trash.str, trash.size, "%d\n", appctx->st1);
-				if (bi_putblk(si_ic(si), trash.str, repl) == -1)
+				if (ci_putblk(si_ic(si), trash.str, repl) == -1)
 					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
 				goto switchstate;
@@ -1689,7 +1689,7 @@ incomplete:
 				msg[0] = PEER_MSG_CLASS_ERROR;
 				msg[1] = PEER_MSG_ERR_SIZELIMIT;
 
-				if (bi_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
+				if (ci_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
 					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
 				goto switchstate;
@@ -1700,7 +1700,7 @@ incomplete:
 				msg[0] = PEER_MSG_CLASS_ERROR;
 				msg[1] = PEER_MSG_ERR_PROTOCOL;
 
-				if (bi_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
+				if (ci_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
 					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
 				/* fall through */
