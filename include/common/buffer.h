@@ -492,6 +492,60 @@ static inline int bo_putchk(struct buffer *b, const struct chunk *chk)
 	return bo_putblk(b, chk->str, chk->len);
 }
 
+/* Gets one full block of data at once from a buffer's output, optionally
+ * starting at a specific offset. Return values :
+ *   >0 : number of bytes read, equal to requested size.
+ *   =0 : not enough data available. <blk> is left undefined.
+ * The buffer is left unaffected.
+ */
+static inline int bo_getblk(const struct buffer *buf, char *blk, int len, int offset)
+{
+	int firstblock;
+
+	if (len + offset > buf->o)
+		return 0;
+
+	firstblock = buf->data + buf->size - bo_ptr(buf);
+	if (firstblock > offset) {
+		if (firstblock >= len + offset) {
+			memcpy(blk, bo_ptr(buf) + offset, len);
+			return len;
+		}
+
+		memcpy(blk, bo_ptr(buf) + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
+		return len;
+	}
+
+	memcpy(blk, buf->data + offset - firstblock, len);
+	return len;
+}
+
+/* Gets one or two blocks of data at once from a buffer's output.
+ * Return values :
+ *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available. <blk*> are left undefined.
+ * The buffer is left unaffected. Unused buffers are left in an undefined state.
+ */
+static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char **blk2, int *len2)
+{
+	if (unlikely(buf->o == 0))
+		return 0;
+
+	if (unlikely(buf->p - buf->o < buf->data)) {
+		*blk1 = buf->p - buf->o + buf->size;
+		*len1 = buf->data + buf->size - *blk1;
+		*blk2 = buf->data;
+		*len2 = buf->p - buf->data;
+		return 2;
+	}
+
+	*blk1 = buf->p - buf->o;
+	*len1 = buf->o;
+	return 1;
+}
+
+
 /* Resets a buffer. The size is not touched. */
 static inline void b_reset(struct buffer *buf)
 {
