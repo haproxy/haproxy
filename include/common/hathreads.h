@@ -60,6 +60,15 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 		*(val);							\
 	})
 
+
+#define THREAD_SYNC_INIT(m)  do { /* do nothing */ } while(0)
+#define THREAD_SYNC_ENABLE() do { /* do nothing */ } while(0)
+#define THREAD_WANT_SYNC()   do { /* do nothing */ } while(0)
+#define THREAD_ENTER_SYNC()  do { /* do nothing */ } while(0)
+#define THREAD_EXIT_SYNC()   do { /* do nothing */ } while(0)
+#define THREAD_NO_SYNC()     ({ 0; })
+#define THREAD_NEED_SYNC()   ({ 1; })
+
 #define SPIN_INIT(l)         do { /* do nothing */ } while(0)
 #define SPIN_DESTROY(l)      do { /* do nothing */ } while(0)
 #define SPIN_LOCK(lbl, l)    do { /* do nothing */ } while(0)
@@ -109,10 +118,27 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 		(*val);							\
 	})
 
+#define THREAD_SYNC_INIT(m)   thread_sync_init(m)
+#define THREAD_SYNC_ENABLE()  thread_sync_enable()
+#define THREAD_WANT_SYNC()    thread_want_sync()
+#define THREAD_ENTER_SYNC()   thread_enter_sync()
+#define THREAD_EXIT_SYNC()    thread_exit_sync()
+#define THREAD_NO_SYNC()      thread_no_sync()
+#define THREAD_NEED_SYNC()    thread_need_sync()
+
+int  thread_sync_init(unsigned long mask);
+void thread_sync_enable(void);
+void thread_want_sync(void);
+void thread_enter_sync(void);
+void thread_exit_sync(void);
+int  thread_no_sync(void);
+int  thread_need_sync(void);
+
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 
 enum lock_label {
-	LOCK_LABELS = 0
+	THREAD_SYNC_LOCK = 0,
+	LOCK_LABELS
 };
 struct lock_stat {
 	uint64_t nsec_wait_for_write;
@@ -194,7 +220,7 @@ struct ha_rwlock {
 
 static inline void show_lock_stats()
 {
-	const char *labels[LOCK_LABELS] = {};
+	const char *labels[LOCK_LABELS] = {"THREAD_SYNC" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
