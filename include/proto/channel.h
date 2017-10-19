@@ -48,13 +48,13 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 int ci_putblk(struct channel *chn, const char *str, int len);
 struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf);
 int ci_putchr(struct channel *chn, char c);
-int ci_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int ci_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int ci_getline_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int ci_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 int co_inject(struct channel *chn, const char *msg, int len);
-int co_getline(struct channel *chn, char *str, int len);
-int co_getblk(struct channel *chn, char *blk, int len, int offset);
-int co_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int co_getline(const struct channel *chn, char *str, int len);
+int co_getblk(const struct channel *chn, char *blk, int len, int offset);
+int co_getline_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 
 
 /* returns a pointer to the stream the channel belongs to */
@@ -139,7 +139,7 @@ static inline void channel_forward_forever(struct channel *chn)
  * jump-less and much more efficient on both 32 and 64-bit than
  * the boolean test.
  */
-static inline unsigned int channel_is_empty(struct channel *c)
+static inline unsigned int channel_is_empty(const struct channel *c)
 {
 	return !(c->buf->o | (long)c->pipe);
 }

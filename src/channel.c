@@ -241,7 +241,7 @@ struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf)
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int co_getline(struct channel *chn, char *str, int len)
+int co_getline(const struct channel *chn, char *str, int len)
 {
 	int ret, max;
 	char *p;
@@ -290,7 +290,7 @@ int co_getline(struct channel *chn, char *str, int len)
  * The channel status is not changed. The caller must call co_skip() to
  * update it.
  */
-int co_getblk(struct channel *chn, char *blk, int len, int offset)
+int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 {
 	if (chn->flags & CF_SHUTW)
 		return -1;
@@ -312,7 +312,7 @@ int co_getblk(struct channel *chn, char *blk, int len, int offset)
  * The channel status is not changed. The caller must call co_skip() to
  * update it. Unused buffers are left in an undefined state.
  */
-int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
+int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
 {
 	if (unlikely(chn->buf->o == 0)) {
 		if (chn->flags & CF_SHUTW)
@@ -332,7 +332,7 @@ int co_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *
  * full. If either of them is full, the string may be returned as is, without
  * the '\n'. Unused buffers are left in an undefined state.
  */
-int co_getline_nc(struct channel *chn,
+int co_getline_nc(const struct channel *chn,
                   char **blk1, int *len1,
                   char **blk2, int *len2)
 {
@@ -376,7 +376,7 @@ int co_getline_nc(struct channel *chn,
  *   =0 : not enough data available.
  *   <0 : no more bytes readable because input is shut.
  */
-int ci_getblk_nc(struct channel *chn,
+int ci_getblk_nc(const struct channel *chn,
                  char **blk1, int *len1,
                  char **blk2, int *len2)
 {
@@ -408,7 +408,7 @@ int ci_getblk_nc(struct channel *chn,
  * full. If either of them is full, the string may be returned as is, without
  * the '\n'. Unused buffers are left in an undefined state.
  */
-int ci_getline_nc(struct channel *chn,
+int ci_getline_nc(const struct channel *chn,
                   char **blk1, int *len1,
                   char **blk2, int *len2)
 {
