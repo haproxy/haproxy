@@ -532,7 +532,7 @@ static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char 
 	if (unlikely(buf->o == 0))
 		return 0;
 
-	if (unlikely(buf->p - buf->o < buf->data)) {
+	if (unlikely(buf->p != buf->data && buf->p - buf->o < buf->data)) {
 		*blk1 = buf->p - buf->o + buf->size;
 		*len1 = buf->data + buf->size - *blk1;
 		*blk2 = buf->data;
