@@ -228,6 +228,7 @@ struct error_snapshot {
 struct email_alert {
 	struct list list;
 	struct list tcpcheck_rules;
+	struct server *srv;
 };
 
 struct email_alertq {

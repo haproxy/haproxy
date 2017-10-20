@@ -7948,19 +7948,22 @@ int check_config_validity()
 			struct mailers *curmailers = mailers;
 
 			for (curmailers = mailers; curmailers; curmailers = curmailers->next) {
-				if (strcmp(curmailers->id, curproxy->email_alert.mailers.name) == 0) {
-					free(curproxy->email_alert.mailers.name);
-					curproxy->email_alert.mailers.m = curmailers;
-					curmailers->users++;
+				if (!strcmp(curmailers->id, curproxy->email_alert.mailers.name))
 					break;
-				}
 			}
-
 			if (!curmailers) {
 				Alert("Proxy '%s': unable to find mailers '%s'.\n",
 				      curproxy->id, curproxy->email_alert.mailers.name);
 				free_email_alert(curproxy);
 				cfgerr++;
+			}
+			else {
+				err = NULL;
+				if (init_email_alert(curmailers, curproxy, &err)) {
+					Alert("Proxy '%s': %s.\n", curproxy->id, err);
+					free(err);
+					cfgerr++;
+				}
 			}
 		}
 

@@ -24,6 +24,7 @@
 
 #include <types/task.h>
 #include <common/config.h>
+#include <types/mailers.h>
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
@@ -46,6 +47,7 @@ static inline void health_adjust(struct server *s, short status)
 const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
 
+int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
 void send_email_alert(struct server *s, int priority, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
 int srv_check_healthcheck_port(struct check *chk);
