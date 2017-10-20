@@ -1977,7 +1977,7 @@ static struct task *process_chk_proc(struct task *t)
 				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
-
+			task_set_affinity(t, tid_bit);
 			goto reschedule;
 		}
 
@@ -2040,6 +2040,7 @@ static struct task *process_chk_proc(struct task *t)
 			/* a success was detected */
 			check_notify_success(check);
 		}
+		task_set_affinity(t, MAX_THREADS_MASK);
 		check->state &= ~CHK_ST_INPROGRESS;
 
 		pid_list_del(check->curpid);
@@ -2114,6 +2115,7 @@ static struct task *process_chk_conn(struct task *t)
 			if (check->type)
 				conn_xprt_want_recv(conn);   /* prepare for reading a possible reply */
 
+			task_set_affinity(t, tid_bit);
 			goto reschedule;
 
 		case SF_ERR_SRVTO: /* ETIMEDOUT */
@@ -2205,6 +2207,7 @@ static struct task *process_chk_conn(struct task *t)
 			/* a success was detected */
 			check_notify_success(check);
 		}
+		task_set_affinity(t, MAX_THREADS_MASK);
 		check->state &= ~CHK_ST_INPROGRESS;
 
 		rv = 0;
