@@ -35,6 +35,7 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
+#include <common/hathreads.h>
 
 #include <types/global.h>
 #include <types/dns.h>
@@ -1582,6 +1583,9 @@ static int connect_conn_chk(struct task *t)
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
 static struct pool_head *pool2_pid_list;
+#ifdef USE_THREAD
+HA_SPINLOCK_T pid_list_lock;
+#endif
 
 void block_sigchld(void)
 {
@@ -1612,7 +1616,11 @@ static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 	elem->exited = 0;
 	check->curpid = elem;
 	LIST_INIT(&elem->list);
+
+	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	LIST_ADD(&pid_list, &elem->list);
+	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
+
 	return elem;
 }
 
@@ -1623,7 +1631,10 @@ static void pid_list_del(struct pid_list *elem)
 	if (!elem)
 		return;
 
+	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	LIST_DEL(&elem->list);
+	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
+
 	if (!elem->exited)
 		kill(elem->pid, SIGTERM);
 
@@ -1637,15 +1648,17 @@ static void pid_list_expire(pid_t pid, int status)
 {
 	struct pid_list *elem;
 
+	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	list_for_each_entry(elem, &pid_list, list) {
 		if (elem->pid == pid) {
 			elem->t->expire = now_ms;
 			elem->status = status;
 			elem->exited = 1;
 			task_wakeup(elem->t, TASK_WOKEN_IO);
-			return;
+			break;
 		}
 	}
+	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 }
 
 static void sigchld_handler(struct sig_handler *sh)
@@ -1675,6 +1688,8 @@ static int init_pid_list(void)
 		      strerror(errno));
 		return 1;
 	}
+
+	SPIN_INIT(&pid_list_lock);
 
 	return 0;
 }
