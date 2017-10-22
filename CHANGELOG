@@ -1,6 +1,318 @@
 ChangeLog :
 ===========
 
+2017/10/22 : 1.8-dev3
+    - REORG: ssl: move defines and methodVersions table upper
+    - MEDIUM: ssl: ctx_set_version/ssl_set_version func for methodVersions table
+    - MINOR: ssl: support ssl-min-ver and ssl-max-ver with crt-list
+    - MEDIUM: ssl: disable SSLv3 per default for bind
+    - BUG/MAJOR: ssl: fix segfault on connection close using async engines.
+    - BUG/MAJOR: ssl: buffer overflow using offloaded ciphering on async engine
+    - BUG/MINOR: ssl: do not call directly the conn_fd_handler from async_fd_handler
+    - BUG/MINOR: haproxy/cli : fix for solaris/illumos distros for CMSG* macros
+    - BUG/MEDIUM: build without openssl broken
+    - BUG/MINOR: warning: need_resend may be used uninitialized
+    - BUG/MEDIUM: misplaced exit and wrong exit code
+    - BUG/MINOR: Makefile: fix compile error with USE_LUA=1 in ubuntu16.04
+    - BUILD: scripts: make publish-release support bare repositories
+    - BUILD: scripts: add an automatic mode for publish-release
+    - BUILD: scripts: add a "quiet" mode to publish-release
+    - BUG/MAJOR: http: call manage_client_side_cookies() before erasing the buffer
+    - BUG/MINOR: buffers: Fix bi/bo_contig_space to handle full buffers
+    - CONTRIB: plug qdiscs: Plug queuing disciplines mini HOWTO.
+    - BUG/MINOR: acls: Set the right refflag when patterns are loaded from a map
+    - BUG/MINOR: ssl: Be sure that SSLv3 connection methods exist for openssl < 1.1.0
+    - BUG/MINOR: http/filters: Be sure to wait if a filter loops in HTTP_MSG_ENDING
+    - BUG/MEDIUM: peers: Peers CLOSE_WAIT issue.
+    - BUG/MAJOR: server: Segfault after parsing server state file.
+    - BUG/MEDIUM: unix: never unlink a unix socket from the file system
+    - scripts: create-release pass -n to tail
+    - SCRIPTS: create-release: enforce GIT_COMMITTER_{NAME|EMAIL} validity
+    - BUG/MEDIUM: fix segfault when no argument to -x option
+    - MINOR: warning on multiple -x
+    - MINOR: mworker: don't copy -x argument anymore in copy_argv()
+    - BUG/MEDIUM: mworker: don't reuse PIDs passed to the master
+    - BUG/MINOR: Wrong peer task expiration handling during synchronization processing.
+    - BUG/MINOR: cfgparse: Check if tune.http.maxhdr is in the range 1..32767
+    - BUG/MINOR: log: pin the front connection when front ip/ports are logged
+    - DOC: fix references to the section about the unix socket
+    - BUG/MINOR: stream: flag TASK_WOKEN_RES not set if task in runqueue
+    - MAJOR: task: task scheduler rework.
+    - MINOR: task/stream: tasks related to a stream must be init by the caller.
+    - MINOR: queue: Change pendconn_get_next_strm into private function
+    - MINOR: backends: Change get_server_sh/get_server_uh into private function
+    - MINOR: queue: Change pendconn_from_srv/pendconn_from_px into private functions
+    - MEDIUM: stream: make stream_new() always set the target and analysers
+    - MINOR: frontend: initialize HTTP layer after the debugging code
+    - MINOR: connection: add a .get_alpn() method to xprt_ops
+    - MINOR: ssl: add a get_alpn() method to ssl_sock
+    - MINOR: frontend: retrieve the ALPN name when available
+    - MINOR: frontend: report the connection's ALPN in the debug output
+    - MINOR: stream: don't set backend's nor response analysers on SF_TUNNEL
+    - MINOR: connection: send data before receiving
+    - MAJOR: applet: applet scheduler rework.
+    - BUG/MAJOR: frontend: don't dereference a null conn on outgoing connections
+    - BUG/MAJOR: cli: fix custom io_release was crushed by NULL.
+    - BUG/MAJOR: map: fix segfault during 'show map/acl' on cli.
+    - BUG/MAJOR: compression: Be sure to release the compression state in all cases
+    - MINOR: compression: Use a memory pool to allocate compression states
+    - BUG/MAJOR: applet: fix a freeze if data is immedately forwarded.
+    - DOC: fix references to the section about time format.
+    - BUG/MEDIUM: map/acl: fix unwanted flags inheritance.
+    - BUG/MAJOR: http: fix buffer overflow on loguri buffer.
+    - MINOR: ssl: compare server certificate names to the SNI on outgoing connections
+    - BUG/MINOR: stream: Don't forget to remove CF_WAKE_ONCE flag on response channel
+    - BUG/MINOR: http: Don't reset the transaction if there are still data to send
+    - BUG/MEDIUM: filters: Be sure to call flt_end_analyze for both channels
+    - MINOR: peers: Add additional information to stick-table definition messages.
+    - BUG/MINOR: http: properly handle all 1xx informational responses
+    - OPTIM: ssl: don't consider a small ssl_read() as an indication of end of buffer
+    - BUG/MINOR: peers: peer synchronization issue (with several peers sections).
+    - CLEANUP: hdr_idx: make some function arguments const where possible
+    - BUG/MINOR: Prevent a use-after-free on error scenario on option "-x".
+    - BUG/MINOR: lua: In error case, the safe mode is not removed
+    - BUG/MINOR: lua: executes the function destroying the Lua session in safe mode
+    - BUG/MAJOR: lua/socket: resources not detroyed when the socket is aborted
+    - BUG/MEDIUM: lua: bad memory access
+    - BUG/MINOR: Lua: variable already initialized
+    - DOC: update CONTRIBUTING regarding optional parts and message format
+    - DOC: update the list of OpenSSL versions in the README
+    - BUG/MINOR: http: Set the response error state in http_sync_res_state
+    - MINOR: http: Reorder/rewrite checks in http_resync_states
+    - MINOR: http: Switch requests/responses in TUNNEL mode only by checking txn flags
+    - BUG/MEDIUM: http: Switch HTTP responses in TUNNEL mode when body length is undefined
+    - MINOR: http: Rely on analyzers mask to end processing in forward_body functions
+    - BUG/MINOR: http: Fix bug introduced in previous patch in http_resync_states
+    - BUG/MINOR: contrib/modsecurity: BSD build fix
+    - BUG/MINOR: contrib/mod_defender: build fix
+    - BUG/MINOR: ssl: remove haproxy SSLv3 support when ssl lib have no SSLv3
+    - MINOR: ssl: remove an unecessary SSL_OP_NO_* dependancy
+    - BUILD: ssl: fix compatibility with openssl without TLSEXT_signature_*
+    - MINOR: tools: add a portable timegm() alternative
+    - BUILD: lua: replace timegm() with my_timegm() to fix build on Solaris 10
+    - DOC: Updated 51Degrees git URL to point to a stable version.
+    - BUG/MAJOR: http: Fix possible infinity loop in http_sync_(req|res)_state
+    - MINOR: memory: remove macros
+    - BUG/MINOR: lua: Fix Server.get_addr() port values
+    - BUG/MINOR: lua: Correctly use INET6_ADDRSTRLEN in Server.get_addr()
+    - MINOR: samples: Handle the type SMP_T_METH when we duplicate a sample in smp_dup
+    - MINOR: samples: Handle the type SMP_T_METH in smp_is_safe and smp_is_rw
+    - MINOR: samples: Don't allocate memory for SMP_T_METH sample when method is known
+    - BUG/MINOR: lua: always detach the tcp/http tasks before freeing them
+    - MINOR: task: always preinitialize the task's timeout in task_init()
+    - CLEANUP: task: remove all initializations to TICK_ETERNITY after task_new()
+    - BUG/MAJOR: lua: properly dequeue hlua_applet_wakeup() for new scheduler
+    - MINOR: lua: Add proxy as member of proxy object.
+    - DOC: lua: Proxy class doc update
+    - MINOR: lua: Add lists of frontends and backends
+    - BUG/MINOR: ssl: Fix check against SNI during server certificate verification
+    - BUG/MINOR: ssl: make use of the name in SNI before verifyhost
+    - MINOR: ssl: add a new error codes for wrong server certificates
+    - BUG/MEDIUM: stream: don't retry SSL connections which fail the SNI name check
+    - MINOR: ssl: add "no-ca-names" parameter for bind
+    - BUG/MINOR: lua: Fix bitwise logic for hlua_server_check_* functions.
+    - DOC: fix alphabetical order of "show commands" in management.txt
+    - MINOR: listener: add a function to return a listener's state as a string
+    - MINOR: cli: add a new "show fd" command
+    - BUG/MEDIUM: ssl: Fix regression about certificates generation
+    - MINOR: Add server port field to server state file.
+    - MINOR: ssl: allow to start without certificate if strict-sni is set
+    - MINOR: dns: Cache previous DNS answers.
+    - MINOR: obj: Add a new type of object, OBJ_TYPE_SRVRQ.
+    - Add a few functions to do unaligned access.
+    - MINOR: dns: Handle SRV records.
+    - MINOR: check: Fix checks when using SRV records.
+    - MINOR: doc: Document SRV label usage.
+    - BUILD/MINOR: cli: shut a minor gcc warning in "show fd"
+    - BUILD: ssl: replace SSL_CTX_get0_privatekey for openssl < 1.0.2
+    - BUILD/MINOR: build without openssl still broken
+    - BUG/MAJOR: stream: in stream_free(), close the front endpoint and not the origin
+    - CLEANUP: raw_sock: Use a better name for the constructor than __ssl_sock_deinit()
+    - MINOR: init: Fix CPU affinity setting on FreeBSD.
+    - MINOR: dns: Update analysis of TRUNCATED response for SRV records
+    - MINOR: dns: update record dname matching for SRV query types
+    - MINOR: dns: update dns response buffer reading pointer due to SRV record
+    - MINOR: dns: duplicate entries in resolution wait queue for SRV records
+    - MINOR: dns: make debugging function dump_dns_config() compatible with SRV records
+    - MINOR: dns: ability to use a SRV resolution for multiple backends
+    - MINOR: dns: enable caching of responses for server set by a SRV record
+    - MINOR: dns: new dns record type (RTYPE) for OPT
+    - MINOR: dns: enabled edns0 extension and make accpeted payload size tunable
+    - MINOR: dns: default "hold obsolete" timeout set to 0
+    - MINOR: chunks: add chunk_memcpy() and chunk_memcat()
+    - MINOR: session: add a streams field to the session struct
+    - MINOR: stream: link the stream to its session
+    - MEDIUM: session: do not free a session until no stream references it
+    - MINOR: ist: implement very simple indirect strings
+    - TESTS: ist: add a test file for the functions
+    - MINOR: http: export some of the HTTP parser macros
+    - BUG/MINOR: Wrong type used as argument for spoe_decode_buffer().
+    - BUG/MINOR: dns: server set by SRV records stay in "no resolution" status
+    - MINOR: dns: Maximum DNS udp payload set to 8192
+    - MINOR: dns: automatic reduction of DNS accpeted payload size
+    - MINOR: dns: make SRV record processing more verbose
+    - CLEANUP: dns: remove duplicated code in dns_resolve_recv()
+    - CLEANUP: dns: remove duplicated code in dns_validate_dns_response()
+    - BUG/MINOR: dns: wrong resolution interval lead to 100% CPU
+    - BUG/MEDIUM: dns: fix accepted_payload_size parser to avoid integer overflow
+    - BUG/MAJOR: lua: fix the impact of the scheduler changes again
+    - BUG/MEDIUM: lua: HTTP services must take care of body-less status codes
+    - MINOR: lua: properly process the contents of the content-length field
+    - BUG/MEDIUM: stream: properly set the required HTTP analysers on use-service
+    - OPTIM: lua: don't use expensive functions to parse headers in the HTTP applet
+    - OPTIM: lua: don't add "Connection: close" on the response
+    - REORG/MEDIUM: connection: introduce the notion of connection handle
+    - BUG/MINOR: stream-int: don't check the CO_FL_CURR_WR_ENA flag
+    - MEDIUM: connection: get rid of data->init() which was not for data
+    - MEDIUM: stream: make stream_new() allocate its own task
+    - CLEANUP: listener: remove the unused handler field
+    - MEDIUM: session: add a pointer to a struct task in the session
+    - MINOR: stream: provide a new stream creation function for connections
+    - MEDIUM: connection: remove useless flag CO_FL_DATA_RD_SH
+    - CLEANUP: connection: remove the unused conn_sock_shutw_pending()
+    - MEDIUM: connection: remove useless flag CO_FL_DATA_WR_SH
+    - DOC: add CLI info on privilege levels
+    - DOC: Refer to Mozilla TLS info / config generator
+    - MINOR: ssl: remove duplicate ssl_methods in struct bind_conf
+    - BUG/MEDIUM: http: Fix a regression bug when a HTTP response is in TUNNEL mode
+    - DOC: Add note about "* " prefix in CSV stats
+    - CLEANUP: memory: Remove unused function pool_destroy
+    - MINOR: listeners: Change listener_full and limit_listener into private functions
+    - MINOR: listeners: Change enable_listener and disable_listener into private functions
+    - MINOR: fd: Don't forget to reset fdtab[fd].update when a fd is added/removed
+    - MINOR: fd: Set owner and iocb field before inserting a new fd in the fdtab
+    - MINOR: backends: Make get_server_* functions explicitly static
+    - MINOR: applet: Check applets_active_queue before processing applets queue
+    - MINOR: chunks: Use dedicated function to init/deinit trash buffers
+    - MEDIUM: chunks: Realloc trash buffers only after the config is parsed and checked
+    - MINOR: logs: Use dedicated function to init/deinit log buffers
+    - MINOR: logs: Realloc log buffers only after the config is parsed and checked
+    - MINOR: buffers: Move swap_buffer into buffer.c and add deinit_buffer function
+    - MINOR: stick-tables: Make static_table_key a struct variable instead of a pointer
+    - MINOR: http: Use a trash chunk to store decoded string of the HTTP auth header
+    - MINOR: fd: Add fd_active function
+    - MINOR: fd: Use inlined functions to check fd state in fd_*_send/recv functions
+    - MINOR: fd: Move (de)allocation of fdtab and fdinfo in (de)init_pollers
+    - MINOR: freq_ctr: Return the new value after an update
+    - MEDIUM: check: server states and weight propagation re-work
+    - BUG/MEDIUM: epoll: ensure we always consider HUP and ERR
+    - MINOR: fd: Add fd_update_events function
+    - MINOR: polling: Use fd_update_events to update events seen for a fd
+    - BUG/MINOR: server: Remove FQDN requirement for using init-addr and state file
+    - Revert "BUG/MINOR: server: Remove FQDN requirement for using init-addr and state file"
+    - MINOR: ssl: rework smp_fetch_ssl_fc_cl_str without internal ssl use
+    - BUG/MEDIUM: http: Close streams for connections closed before a redirect
+    - BUG/MINOR: Lua: The socket may be destroyed when we try to access.
+    - MINOR: xref: Add a new xref system
+    - MEDIUM: xref/lua: Use xref for referencing cosocket relation between stream and lua
+    - MINOR: tasks: Move Lua notification from Lua to tasks
+    - MINOR: net_helper: Inline functions meant to be inlined.
+    - MINOR: cli: add socket commands and config to prepend informational messages with severity
+    - MINOR: add severity information to cli feedback messages
+    - BUILD: Makefile: add a function to detect support by the compiler of certain options
+    - BUILD: Makefile: shut certain gcc/clang stupid warnings
+    - BUILD: Makefile: improve detection of support for compiler warnings
+    - MINOR: peers: don't reference the incoming listener on outgoing connections
+    - MINOR: frontend: don't retrieve ALPN on the critical path
+    - MINOR: protocols: always pass a "port" argument to the listener creation
+    - MINOR: protocols: register the ->add function and stop calling them directly
+    - MINOR: unix: remove the now unused proto_uxst.h file
+    - MINOR: listeners: new function create_listeners
+    - MINOR: listeners: make listeners count consistent with reality
+    - MEDIUM: session: take care of incrementing/decrementing jobs
+    - MINOR: listener: new function listener_release
+    - MINOR: session: small cleanup of conn_complete_session()
+    - MEDIUM: session: factor out duplicated code for conn_complete_session
+    - MEDIUM: session: count the frontend's connections at a single place
+    - BUG/MEDIUM: compression: Fix check on txn in smp_fetch_res_comp_algo
+    - BUG/MINOR: compression: Check response headers before http-response rules eval
+    - BUG/MINOR: spoe: Don't rely on SPOE ctx in debug message when its creation failed
+    - BUG/MINOR: dns: Fix check on nameserver in snr_resolution_cb
+    - MINOR: ssl: Remove useless checks on bind_conf or bind_conf->is_ssl
+    - BUG/MINOR: contrib/mod_defender: close the va_list argp before return
+    - BUG/MINOR: contrib/modsecurity: close the va_list ap before return
+    - MINOR: tools: make my_htonll() more efficient on x86_64
+    - MINOR: buffer: add b_del() to delete a number of characters
+    - MINOR: buffer: add b_end() and b_to_end()
+    - MINOR: net_helper: add functions to read from vectors
+    - MINOR: net_helper: add write functions
+    - MINOR: net_helper: add 64-bit read/write functions
+    - MINOR: connection: adjust CO_FL_NOTIFY_DATA after removal of flags
+    - MINOR: ist: add a macro to ease const array initialization
+    - BUG/MEDIUM: server: unwanted behavior leaving maintenance mode on tracked stopping server
+    - BUG/MEDIUM: server: unwanted behavior leaving maintenance mode on tracked stopping server (take2)
+    - BUG/MINOR: log: fixing small memory leak in error code path.
+    - BUG/MINOR: contrib/halog: fixing small memory leak
+    - BUG/MEDIUM: tcp/http: set-dst-port action broken
+    - CLEANUUP: checks: don't set conn->handle.fd to -1
+    - BUG/MEDIUM: tcp-check: properly indicate polling state before performing I/O
+    - BUG/MINOR: tcp-check: don't quit with pending data in the send buffer
+    - BUG/MEDIUM: tcp-check: don't call tcpcheck_main() from the I/O handlers!
+    - BUG/MINOR: unix: properly check for octal digits in the "mode" argument
+    - MINOR: checks: make chk_report_conn_err() take a check, not a connection
+    - CLEANUP: checks: remove misleading comments and statuses for external process
+    - CLEANUP: checks: don't report report the fork() error twice
+    - CLEANUP: checks: do not allocate a connection for process checks
+    - TESTS: checks: add a simple test config for external checks
+    - BUG/MINOR: tcp-check: don't initialize then break a connection starting with a comment
+    - TESTS: checks: add a simple test config for tcp-checks
+    - MINOR: tcp-check: make tcpcheck_main() take a check, not a connection
+    - MINOR: checks: don't create then kill a dummy connection before tcp-checks
+    - MEDIUM: checks: make tcpcheck_main() indicate if it recycled a connection
+    - MEDIUM: checks: do not allocate a permanent connection anymore
+    - BUG/MEDIUM: cli: fix "show fd" crash when dumping closed FDs
+    - BUG/MEDIUM: http: Return an error when url_dec sample converter failed
+    - BUG/MAJOR: stream-int: don't re-arm recv if send fails
+    - BUILD/MINOR: 51d: fix warning when building with 51Degrees release version 3.2.12.12
+    - DOC: 51d: add 51Degrees git URL that points to release version 3.2.12.12
+    - DOC: 51d: Updated git URL and instructions for getting Hash Trie data files.
+    - MINOR: compiler: restore the likely() wrapper for gcc 5.x
+    - MINOR: session: remove the list of streams from struct session
+    - DOC: fix some typos
+    - MINOR: server: add the srv_queue() sample fetch method
+    - MINOR: payload: add new sample fetch functions to process distcc protocol
+    - MAJOR: servers: propagate server status changes asynchronously.
+    - BUG/MEDIUM: ssl: fix OCSP expiry calculation
+    - BUG/MINOR: stream-int: don't set MSG_MORE on SHUTW_NOW without AUTO_CLOSE
+    - MINOR: server: Handle weight increase in consistent hash.
+    - MINOR: checks: Add a new keyword to specify a SNI when doing SSL checks.
+    - BUG/MINOR: tools: fix my_htonll() on x86_64
+    - BUG/MINOR: stats: Clear a bit more counters with in cli_parse_clear_counters().
+    - BUG/MAJOR: lua: scheduled task is freezing.
+    - MINOR: buffer: add bo_del() to delete a number of characters from output
+    - MINOR: buffer: add a function to match against string patterns
+    - MINOR: buffer: add two functions to inject data into buffers
+    - MINOR: buffer: add buffer_space_wraps()
+    - REORG: channel: finally rename the last bi_* / bo_* functions
+    - MINOR: buffer: add bo_getblk() and bo_getblk_nc()
+    - MINOR: channel: make use of bo_getblk{,_nc} for their channel equivalents
+    - MINOR: channel: make the channel be a const in all {ci,co}_get* functions
+    - MINOR: ist: add ist0() to add a trailing zero to a string.
+    - BUG/MEDIUM: log: check result details truncated.
+    - MINOR: buffer: make bo_getblk_nc() not return 2 for a full buffer
+    - REORG: http: move some very http1-specific parts to h1.{c,h}
+    - REORG: http: move the HTTP/1 chunk parser to h1.{c,h}
+    - REORG: http: move the HTTP/1 header block parser to h1.c
+    - MEDIUM: http: make the chunk size parser only depend on the buffer
+    - MEDIUM: http: make the chunk crlf parser only depend on the buffer
+    - MINOR: h1: add struct h1m for basic HTTP/1 messages
+    - MINOR: http: add very simple header management based on double strings
+    - MEDIUM: h1: reimplement the http/1 response parser for the gateway
+    - REORG: connection: rename CO_FL_DATA_* -> CO_FL_XPRT_*
+    - MEDIUM: connection: make conn_sock_shutw() aware of lingering
+    - MINOR: connection: ensure conn_ctrl_close() also resets the fd
+    - MINOR: connection: add conn_stop_tracking() to disable tracking
+    - MINOR: tcp: use conn_full_close() instead of conn_force_close()
+    - MINOR: unix: use conn_full_close() instead of conn_force_close()
+    - MINOR: checks: use conn_full_close() instead of conn_force_close()
+    - MINOR: session: use conn_full_close() instead of conn_force_close()
+    - MINOR: stream: use conn_full_close() instead of conn_force_close()
+    - MINOR: stream: use conn_full_close() instead of conn_force_close()
+    - MINOR: backend: use conn_full_close() instead of conn_force_close()
+    - MINOR: stream-int: use conn_full_close() instead of conn_force_close()
+    - MINOR: connection: remove conn_force_close()
+    - BUG/MINOR: ssl: ocsp response with 'revoked' status is correct
+
 2017/06/02 : 1.8-dev2
     - CLEANUP: server: moving netinet/tcp.h inclusion
     - DOC: changed "block"(deprecated) examples to http-request deny
