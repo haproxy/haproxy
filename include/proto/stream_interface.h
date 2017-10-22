@@ -160,7 +160,8 @@ static inline void si_release_endpoint(struct stream_interface *si)
 
 	if ((conn = objt_conn(si->end))) {
 		LIST_DEL(&conn->list);
-		conn_force_close(conn);
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
 		conn_free(conn);
 	}
 	else if ((appctx = objt_appctx(si->end))) {
