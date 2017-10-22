@@ -1106,7 +1106,7 @@ int connect_server(struct stream *s)
 		/* we may have to release our connection if we couldn't swap it */
 		if (old_conn && !old_conn->owner) {
 			LIST_DEL(&old_conn->list);
-			conn_force_close(old_conn);
+			conn_full_close(old_conn);
 			conn_free(old_conn);
 		}
 	}
