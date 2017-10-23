@@ -650,6 +650,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		}
 	}
 
+	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (check->state & CHK_ST_PORT_MISS) {
 		/* NOTE: this is reported after <fall> tries */
 		chunk_printf(chk, "No port available for the TCP connection");
@@ -692,6 +693,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		else	/* HTTP, SMTP, ... */
 			set_server_check_status(check, HCHK_STATUS_L7TOUT, err_msg);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 
 	return;
 }
@@ -784,15 +786,21 @@ static void event_srv_chk_r(struct connection *conn)
 	int done;
 	unsigned short msglen;
 
+	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 		return;
+	}
 
 	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK)
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 		return;
+	}
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
@@ -896,7 +904,6 @@ static void event_srv_chk_r(struct connection *conn)
 		    !isdigit((unsigned char) *(check->bi->data + 2))) {
 			cut_crlf(check->bi->data);
 			set_server_check_status(check, HCHK_STATUS_L7RSP, check->bi->data);
-
 			goto out_wakeup;
 		}
 
@@ -1163,6 +1170,7 @@ static void event_srv_chk_r(struct connection *conn)
 				else {
 					if (!done)
 						goto wait_more_data;
+
 					/* it seems we have a OK packet but without a valid length,
 					 * it must be a protocol error
 					 */
@@ -1224,6 +1232,7 @@ static void event_srv_chk_r(struct connection *conn)
 			else {
 				if (!done)
 					goto wait_more_data;
+
 				/* it seems we have a Handshake Initialization packet but without a valid length,
 				 * it must be a protocol error
 				 */
@@ -1260,7 +1269,6 @@ static void event_srv_chk_r(struct connection *conn)
 			if ((msglen > 2) ||
 			    (memcmp(check->bi->data + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
 				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
-
 				goto out_wakeup;
 			}
 
@@ -1273,7 +1281,6 @@ static void event_srv_chk_r(struct connection *conn)
 			if ((msglen > 4) ||
 			    (memcmp(check->bi->data + 7 + msglen, "\x0a\x01", 2) != 0)) {
 				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
-
 				goto out_wakeup;
 			}
 
@@ -1314,6 +1321,7 @@ static void event_srv_chk_r(struct connection *conn)
 		break;
 	} /* switch */
 
+	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
  out_wakeup:
 	/* collect possible new errors */
 	if (conn->flags & CO_FL_ERROR)

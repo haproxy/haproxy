@@ -626,7 +626,9 @@ int hlua_server_shut_sess(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_shutdown_streams(srv, SF_ERR_KILLED);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	return 0;
 }
 
@@ -635,7 +637,9 @@ int hlua_server_set_drain(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_drain(srv);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	return 0;
 }
 
@@ -644,7 +648,9 @@ int hlua_server_set_maint(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_maint(srv);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	return 0;
 }
 
@@ -653,7 +659,9 @@ int hlua_server_set_ready(lua_State *L)
 	struct server *srv;
 
 	srv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srv_adm_set_ready(srv);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	return 0;
 }
 
@@ -662,9 +670,11 @@ int hlua_server_check_enable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
 		sv->check.state |= CHK_ST_ENABLED;
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -673,9 +683,11 @@ int hlua_server_check_disable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->check.state & CHK_ST_CONFIGURED) {
 		sv->check.state &= ~CHK_ST_ENABLED;
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -685,8 +697,10 @@ int hlua_server_check_force_up(lua_State *L)
 
 	sv = hlua_check_server(L, 1);
 	if (!(sv->track)) {
+		SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
 		srv_set_running(sv, "changed from Lua script", NULL);
+		SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	return 0;
 }
@@ -697,8 +711,10 @@ int hlua_server_check_force_nolb(lua_State *L)
 
 	sv = hlua_check_server(L, 1);
 	if (!(sv->track)) {
+		SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
 		srv_set_stopping(sv, "changed from Lua script", NULL);
+		SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	return 0;
 }
@@ -708,10 +724,12 @@ int hlua_server_check_force_down(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
 		sv->check.health = 0;
 		srv_set_stopped(sv, "changed from Lua script", NULL);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -720,9 +738,11 @@ int hlua_server_agent_enable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_CONFIGURED) {
 		sv->agent.state |= CHK_ST_ENABLED;
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -731,9 +751,11 @@ int hlua_server_agent_disable(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_CONFIGURED) {
 		sv->agent.state &= ~CHK_ST_ENABLED;
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -742,10 +764,12 @@ int hlua_server_agent_force_up(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_ENABLED) {
 		sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
 		srv_set_running(sv, "changed from Lua script", NULL);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -754,10 +778,12 @@ int hlua_server_agent_force_down(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->agent.state & CHK_ST_ENABLED) {
 		sv->agent.health = 0;
 		srv_set_stopped(sv, "changed from Lua script", NULL);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 

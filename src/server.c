@@ -880,8 +880,11 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 	}
 
 	srv_register_update(s);
-	for (srv = s->trackers; srv; srv = srv->tracknext)
+	for (srv = s->trackers; srv; srv = srv->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopped(srv, NULL, NULL);
+		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	}
 }
 
 /* Marks server <s> up regardless of its checks' statuses and provided it isn't
@@ -919,8 +922,11 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 		s->next_state = SRV_ST_RUNNING;
 
 	srv_register_update(s);
-	for (srv = s->trackers; srv; srv = srv->tracknext)
+	for (srv = s->trackers; srv; srv = srv->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_running(srv, NULL, NULL);
+		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	}
 }
 
 /* Marks server <s> stopping regardless of its checks' statuses and provided it
@@ -957,8 +963,11 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 	}
 
 	srv_register_update(s);
-	for (srv = s->trackers; srv; srv = srv->tracknext)
+	for (srv = s->trackers; srv; srv = srv->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopping(srv, NULL, NULL);
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	}
 }
 
 /* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -997,8 +1006,11 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 	else if (mode & SRV_ADMF_DRAIN)
 		mode = SRV_ADMF_IDRAIN;
 
-	for (srv = s->trackers; srv; srv = srv->tracknext)
+	for (srv = s->trackers; srv; srv = srv->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_admin_flag(srv, mode, cause);
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	}
 }
 
 /* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -1032,8 +1044,11 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 	else if (mode & SRV_ADMF_DRAIN)
 		mode = SRV_ADMF_IDRAIN;
 
-	for (srv = s->trackers; srv; srv = srv->tracknext)
+	for (srv = s->trackers; srv; srv = srv->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_clr_admin_flag(srv, mode);
+		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	}
 }
 
 /* principle: propagate maint and drain to tracking servers. This is useful
@@ -1047,11 +1062,13 @@ static void srv_propagate_admin_state(struct server *srv)
 		return;
 
 	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
+		SPIN_LOCK(SERVER_LOCK, &srv2->lock);
 		if (srv->next_admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
 			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, NULL);
 
 		if (srv->next_admin & SRV_ADMF_DRAIN)
 			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, NULL);
+		SPIN_UNLOCK(SERVER_LOCK, &srv2->lock);
 	}
 }
 
@@ -2772,6 +2789,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			if (msg->len)
 				goto out;
 
+			SPIN_LOCK(SERVER_LOCK, &srv->lock);
 			/* recover operational state and apply it to this server
 			 * and all servers tracking this one */
 			switch (srv_op_state) {
@@ -2901,6 +2919,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			if (port_str)
 				srv->svc_port = port;
+			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 			break;
 		default:
@@ -4013,6 +4032,8 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 	if (!sv)
 		return 1;
 
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
+
 	if (strcmp(args[3], "weight") == 0) {
 		warning = server_parse_weight_change_request(sv, args[4]);
 		if (warning) {
@@ -4126,6 +4147,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "can't unset 'port' since MAPPORTS is in use.\n";
 			appctx->st0 = CLI_ST_PRINT;
+			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 			return 1;
 		}
 		sv->check.port = i;
@@ -4140,6 +4162,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "set server <b>/<s> addr requires an address and optionally a port.\n";
 			appctx->st0 = CLI_ST_PRINT;
+			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 			return 1;
 		}
 		else {
@@ -4174,6 +4197,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr', 'fqdn' and 'check-port'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 

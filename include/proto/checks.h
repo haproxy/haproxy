@@ -37,11 +37,15 @@ extern struct data_cb check_conn_cb;
  */
 static inline void health_adjust(struct server *s, short status)
 {
+	SPIN_LOCK(SERVER_LOCK, &s->lock);
 	/* return now if observing nor health check is not enabled */
-	if (!s->observe || !s->check.task)
+	if (!s->observe || !s->check.task) {
+		SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 		return;
+	}
 
-	return __health_adjust(s, status);
+	__health_adjust(s, status);
+	SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 }
 
 const char *init_check(struct check *check, int type);
