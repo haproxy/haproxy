@@ -351,6 +351,17 @@ static void h2_release(struct connection *conn)
 }
 
 
+/******************************************************/
+/* functions below are for the H2 protocol processing */
+/******************************************************/
+
+/* returns the stream if of stream <h2s> or 0 if <h2s> is NULL */
+static inline int h2s_id(const struct h2s *h2s)
+{
+	return h2s ? h2s->id : 0;
+}
+
+
 /*********************************************************/
 /* functions below are I/O callbacks from the connection */
 /*********************************************************/
