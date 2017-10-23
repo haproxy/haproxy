@@ -134,6 +134,16 @@ struct cfg_section {
  */
 struct list sections = LIST_HEAD_INIT(sections);
 
+/* store post configuration parsing */
+
+struct cfg_postparser {
+	struct list list;
+	char *name;
+	int (*func)();
+};
+
+struct list postparsers = LIST_HEAD_INIT(postparsers);
+
 /* some of the most common options which are also the easiest to handle */
 struct cfg_opt {
 	const char *name;
@@ -7384,6 +7394,7 @@ int check_config_validity()
 	struct bind_conf *bind_conf;
 	char *err;
 	struct dns_resolvers *curr_resolvers;
+	struct cfg_postparser *postparser;
 
 	bind_conf = NULL;
 	/*
@@ -9235,6 +9246,11 @@ out_uri_auth_compat:
 				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),
 				    MEM_F_SHARED);
 
+	list_for_each_entry(postparser, &postparsers, list) {
+		if (postparser->func)
+			cfgerr += postparser->func();
+	}
+
 	if (cfgerr > 0)
 		err_code |= ERR_ALERT | ERR_FATAL;
  out:
@@ -9288,6 +9304,27 @@ int cfg_register_section(char *section_name,
 	cs->post_section_parser = post_section_parser;
 
 	LIST_ADDQ(&sections, &cs->list);
+
+	return 1;
+}
+
+/* this function register a new function which will be called once the haproxy
+ * configuration file has been parsed. It's useful to check dependencies
+ * between sections or to resolve items once everything is parsed.
+ */
+int cfg_register_postparser(char *name, int (*func)())
+{
+	struct cfg_postparser *cp;
+
+	cp = calloc(1, sizeof(*cp));
+	if (!cp) {
+		Alert("register postparser '%s': out of memory.\n", name);
+		return 0;
+	}
+	cp->name = name;
+	cp->func = func;
+
+	LIST_ADDQ(&postparsers, &cp->list);
 
 	return 1;
 }

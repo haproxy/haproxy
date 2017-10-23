@@ -75,6 +75,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 int cfg_register_section(char *section_name,
                          int (*section_parser)(const char *, int, char **, int),
                          int (*post_section_parser)());
+int cfg_register_postparser(char *name, int (*func)());
 void cfg_unregister_sections(void);
 void cfg_backup_sections(struct list *backup_sections);
 void cfg_restore_sections(struct list *backup_sections);
