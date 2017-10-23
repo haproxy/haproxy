@@ -68,6 +68,10 @@ static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
 static int tcpcheck_main(struct check *);
 
+static struct pool_head *pool2_email_alert   = NULL;
+static struct pool_head *pool2_tcpcheck_rule = NULL;
+
+
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { CHK_RES_UNKNOWN,  "UNK",     "Unknown" },
 	[HCHK_STATUS_INI]	= { CHK_RES_UNKNOWN,  "INI",     "Initializing" },
@@ -3043,9 +3047,9 @@ void email_alert_free(struct email_alert *alert)
 		free(rule->string);
 		if (rule->expect_regex)
 			regex_free(rule->expect_regex);
-		free(rule);
+		pool_free2(pool2_tcpcheck_rule, rule);
 	}
-	free(alert);
+	pool_free2(pool2_email_alert, alert);
 }
 
 static struct task *process_email_alert(struct task *t)
@@ -3168,14 +3172,15 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck;
 
-	tcpcheck = calloc(1, sizeof *tcpcheck);
-	if (!tcpcheck)
+	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
 		return 0;
-
-	tcpcheck->action = TCPCHK_ACT_EXPECT;
-	tcpcheck->string = strdup(str);
+	memset(tcpcheck, 0, sizeof(*tcpcheck));
+	tcpcheck->action       = TCPCHK_ACT_EXPECT;
+	tcpcheck->string       = strdup(str);
+	tcpcheck->expect_regex = NULL;
+	tcpcheck->comment      = NULL;
 	if (!tcpcheck->string) {
-		free(tcpcheck);
+		pool_free2(pool2_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
@@ -3190,19 +3195,19 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 	char *dst;
 	int i;
 
-	tcpcheck = calloc(1, sizeof *tcpcheck);
-	if (!tcpcheck)
+	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
 		return 0;
-
-	tcpcheck->action = TCPCHK_ACT_SEND;
-
+	memset(tcpcheck, 0, sizeof(*tcpcheck));
+	tcpcheck->action       = TCPCHK_ACT_SEND;
+	tcpcheck->expect_regex = NULL;
+	tcpcheck->comment      = NULL;
 	tcpcheck->string_len = 0;
 	for (i = 0; strs[i]; i++)
 		tcpcheck->string_len += strlen(strs[i]);
 
 	tcpcheck->string = malloc(tcpcheck->string_len + 1);
 	if (!tcpcheck->string) {
-		free(tcpcheck);
+		pool_free2(pool2_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
@@ -3218,20 +3223,23 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 				   struct email_alertq *q, const char *msg)
 {
-	struct email_alert *alert = NULL;
+	struct email_alert   *alert;
 	struct tcpcheck_rule *tcpcheck;
 	struct check *check = &q->check;
 
-	alert = calloc(1, sizeof *alert);
-	if (!alert) {
+	if ((alert = pool_alloc2(pool2_email_alert)) == NULL)
 		goto error;
-	}
+	LIST_INIT(&alert->list);
 	LIST_INIT(&alert->tcpcheck_rules);
 	alert->srv = s;
-	tcpcheck = calloc(1, sizeof *tcpcheck);
-	if (!tcpcheck)
+
+	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
 		goto error;
-	tcpcheck->action = TCPCHK_ACT_CONNECT;
+	memset(tcpcheck, 0, sizeof(*tcpcheck));
+	tcpcheck->action       = TCPCHK_ACT_CONNECT;
+	tcpcheck->comment      = NULL;
+	tcpcheck->string       = NULL;
+	tcpcheck->expect_regex = NULL;
 	LIST_ADDQ(&alert->tcpcheck_rules, &tcpcheck->list);
 
 	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "220 "))
@@ -3410,6 +3418,9 @@ __attribute__((constructor))
 static void __check_init(void)
 {
 	hap_register_post_check(start_checks);
+
+	pool2_email_alert   = create_pool("email_alert",   sizeof(struct email_alert),   MEM_F_SHARED);
+	pool2_tcpcheck_rule = create_pool("tcpcheck_rule", sizeof(struct tcpcheck_rule), MEM_F_SHARED);
 }
 
 
