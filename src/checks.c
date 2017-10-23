@@ -3038,8 +3038,14 @@ void email_alert_free(struct email_alert *alert)
 	if (!alert)
 		return;
 
-	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list)
+	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list) {
+		LIST_DEL(&rule->list);
+		free(rule->comment);
+		free(rule->string);
+		if (rule->expect_regex)
+			regex_free(rule->expect_regex);
 		free(rule);
+	}
 	free(alert);
 }
 
