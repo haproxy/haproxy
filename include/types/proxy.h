@@ -239,6 +239,9 @@ struct email_alertq {
 					 * code even though they are not checks. This structure
 					 * is as a parameter to the check code.
 					 * Each check corresponds to a mailer */
+#ifdef USE_THREAD
+	HA_SPINLOCK_T lock;
+#endif
 };
 
 struct proxy {

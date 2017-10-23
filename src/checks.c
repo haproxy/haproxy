@@ -851,7 +851,7 @@ static void event_srv_chk_r(struct connection *conn)
 
 		check->code = str2uic(check->bi->data + 9);
 		desc = ltrim(check->bi->data + 12, ' ');
-		
+
 		if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->next_state != SRV_ST_STOPPED) && (check->code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
@@ -3078,13 +3078,14 @@ static struct task *process_email_alert(struct task *t)
 
 	q = container_of(check, typeof(*q), check);
 
+	SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	while (1) {
 		if (!(check->state & CHK_ST_ENABLED)) {
 			if (LIST_ISEMPTY(&q->email_alerts)) {
 				/* All alerts processed, queue the task */
 				t->expire = TICK_ETERNITY;
 				task_queue(t);
-				return t;
+				goto end;
 			}
 
 			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
@@ -3106,6 +3107,8 @@ static struct task *process_email_alert(struct task *t)
 		check->server         = NULL;
 		check->state         &= ~CHK_ST_ENABLED;
 	}
+  end:
+	SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	return t;
 }
 
@@ -3132,7 +3135,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		struct task         *t;
 
 		LIST_INIT(&q->email_alerts);
-
+		SPIN_INIT(&q->lock);
 		check->inter = mls->timeout.mail;
 		check->rise = DEF_AGENT_RISETIME;
 		check->fall = DEF_AGENT_FALLTIME;
@@ -3336,8 +3339,10 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "221 "))
 		goto error;
 
+	SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	task_wakeup(check->task, TASK_WOKEN_MSG);
 	LIST_ADDQ(&q->email_alerts, &alert->list);
+	SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	return 1;
 
 error:
