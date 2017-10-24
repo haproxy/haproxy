@@ -72,7 +72,7 @@ function getptr(ptr)
   }
   getptr($3); caller_loc=loc; caller_name=name
   getptr($5); callee_loc=loc; callee_name=name
-  printf "%s %s  %s %s %s [%s:%s] %s [%s:%s]\n",
-    $1, indents[$4,$2], caller_name, $4, callee_name, caller_loc, $3, $4, callee_loc, $5
+  printf "%s %s  %s %s %s(%s) [%s:%s] %s [%s:%s]\n",
+    $1, indents[$4,$2], caller_name, $4, callee_name, $6, caller_loc, $3, $4, callee_loc, $5
 }
 '

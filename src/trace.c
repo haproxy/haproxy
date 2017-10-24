@@ -171,7 +171,7 @@ static char *emit_hex(unsigned long h, char *out)
 	return out;
 }
 
-static void make_line(void *from, void *to, int level, char dir)
+static void make_line(void *from, void *to, int level, char dir, long ret)
 {
 	char *p = line;
 
@@ -221,6 +221,12 @@ static void make_line(void *from, void *to, int level, char dir)
 	*p++ = ' '; *p++ = '0'; *p++ = 'x';
 	p = emit_hex((unsigned long)to, p);
 
+	if (dir == '<') {
+		/* " %x", ret */
+		*p++ = ' '; *p++ = '0'; *p++ = 'x';
+		p = emit_hex(ret, p);
+	}
+
 	*p++ = '\n';
 
 	fwrite(line, p - line, 1, log);
@@ -230,13 +236,21 @@ static void make_line(void *from, void *to, int level, char dir)
 void __cyg_profile_func_enter(void *to,  void *from)
 {
 	if (!disabled)
-		return make_line(from, to, ++level, '>');
+		return make_line(from, to, ++level, '>', 0);
 }
 
 void __cyg_profile_func_exit(void *to,  void *from)
 {
+	long ret = 0;
+
+#if defined(__x86_64__)
+	/* on x86_64, the return value (eax) is temporarily stored in ebx
+	 * during the call to __cyg_profile_func_exit() so we can snoop it.
+	 */
+	asm volatile("mov %%rbx, %0" : "=r"(ret));
+#endif
 	if (!disabled)
-		return make_line(from, to, level--, '<');
+		return make_line(from, to, level--, '<', ret);
 }
 
 /* the one adds comments in the trace above. The output format is :
