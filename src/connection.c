@@ -952,7 +952,6 @@ int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, str
 	return ret;
 }
 
-#if defined(USE_OPENSSL) || defined(CONFIG_HAP_NS)
 static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const char *value)
 {
 	struct tlv *tlv;
@@ -968,7 +967,6 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 	memcpy(tlv->value, value, length);
 	return length + sizeof(*tlv);
 }
-#endif
 
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote)
 {
@@ -978,13 +976,8 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	struct sockaddr_storage null_addr = { .ss_family = 0 };
 	struct sockaddr_storage *src = &null_addr;
 	struct sockaddr_storage *dst = &null_addr;
-
-#ifdef USE_OPENSSL
-	const char *value = NULL;
-	struct tlv_ssl *tlv;
-	int ssl_tlv_len = 0;
-	struct chunk *cn_trash;
-#endif
+	const char *value;
+	int value_len;
 
 	if (buf_len < PP2_HEADER_LEN)
 		return 0;
@@ -1025,8 +1018,16 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		ret = PP2_HDR_LEN_UNSPEC;
 	}
 
+	if (conn_get_alpn(remote, &value, &value_len)) {
+		if ((buf_len - ret) < sizeof(struct tlv))
+			return 0;
+		ret += make_tlv(&buf[ret], buf_len, PP2_TYPE_ALPN, value_len, value);
+	}
+
 #ifdef USE_OPENSSL
 	if (srv->pp_opts & SRV_PP_V2_SSL) {
+		struct tlv_ssl *tlv;
+		int ssl_tlv_len = 0;
 		if ((buf_len - ret) < sizeof(struct tlv_ssl))
 			return 0;
 		tlv = (struct tlv_ssl *)&buf[ret];
@@ -1046,7 +1047,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 					tlv->client |= PP2_CLIENT_CERT_CONN;
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
-				cn_trash = get_trash_chunk();
+				struct chunk *cn_trash = get_trash_chunk();
 				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
 					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN, cn_trash->len, cn_trash->str);
 				}

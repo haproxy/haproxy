@@ -11458,10 +11458,10 @@ send-proxy-v2
   over any connection established to this server. The PROXY protocol informs
   the other end about the layer 3/4 addresses of the incoming connection, so
   that it can know the client's address or the public address it accessed to,
-  whatever the upper layer protocol. This setting must not be used if the
-  server isn't aware of this version of the protocol. See also the
-  "no-send-proxy-v2" option of this section and send-proxy" option of the
-  "bind" keyword.
+  whatever the upper layer protocol. It also send ALPN information if an alpn
+  have been negotiated. This setting must not be used if the server isn't aware
+  of this version of the protocol. See also the "no-send-proxy-v2" option of
+  this section and send-proxy" option of the "bind" keyword.
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
