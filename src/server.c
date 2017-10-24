@@ -4655,16 +4655,21 @@ void srv_update_status(struct server *s)
 		}
 
 		if (s->cur_state == SRV_ST_STOPPED) {	/* server was already down */
-			chunk_printf(tmptrash,
-			             "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
-			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
-			             *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
+			tmptrash = alloc_trash_chunk();
+			if (tmptrash) {
+				chunk_printf(tmptrash,
+				    "%sServer %s/%s was DOWN and now enters maintenance%s%s%s",
+				    s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id,
+				    *(s->adm_st_chg_cause) ? " (" : "", s->adm_st_chg_cause, *(s->adm_st_chg_cause) ? ")" : "");
 
-			srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
+				srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
-			if (!(global.mode & MODE_STARTING)) {
-				Warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				if (!(global.mode & MODE_STARTING)) {
+					Warning("%s.\n", tmptrash->str);
+					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				}
+				free_trash_chunk(tmptrash);
+				tmptrash = NULL;
 			}
 		}
 		else {	/* server was still running */
