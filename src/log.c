@@ -225,6 +225,10 @@ char *logline = NULL;
  */
 char *logline_rfc5424 = NULL;
 
+/* A global buffer used to store all startup alerts/warnings. It will then be
+ * retrieve on the CLI. */
+static char *startup_logs = NULL;
+
 struct logformat_var_args {
 	char *name;
 	int mask;
@@ -664,6 +668,29 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	return 1;
 }
 
+/* Generic function to display messages prefixed by a label */
+static void print_message(const char *label, const char *fmt, va_list argp)
+{
+	struct tm tm;
+	char *head, *msg;
+
+	head = msg = NULL;
+
+	get_localtime(date.tv_sec, &tm);
+	memprintf(&head, "[%s] %03d/%02d%02d%02d (%d) : ",
+		  label, tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
+	memvprintf(&msg, fmt, argp);
+
+	if (global.mode & MODE_STARTING)
+		memprintf(&startup_logs, "%s%s%s", (startup_logs ? startup_logs : ""), head, msg);
+
+	fprintf(stderr, "%s%s", head, msg);
+	fflush(stderr);
+
+	free(head);
+	free(msg);
+}
+
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
@@ -671,16 +698,10 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 void Alert(const char *fmt, ...)
 {
 	va_list argp;
-	struct tm tm;
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		va_start(argp, fmt);
-
-		get_localtime(date.tv_sec, &tm);
-		fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
-			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
-		vfprintf(stderr, fmt, argp);
-		fflush(stderr);
+		print_message("ALERT", fmt, argp);
 		va_end(argp);
 	}
 }
@@ -692,16 +713,10 @@ void Alert(const char *fmt, ...)
 void Warning(const char *fmt, ...)
 {
 	va_list argp;
-	struct tm tm;
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
-
-		get_localtime(date.tv_sec, &tm);
-		fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
-			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
-		vfprintf(stderr, fmt, argp);
-		fflush(stderr);
+		print_message("WARNING", fmt, argp);
 		va_end(argp);
 	}
 }
@@ -1343,10 +1358,12 @@ void deinit_log_buffers()
 	free(logheader_rfc5424);
 	free(logline);
 	free(logline_rfc5424);
+	free(startup_logs);
 	logheader         = NULL;
 	logheader_rfc5424 = NULL;
 	logline           = NULL;
 	logline_rfc5424   = NULL;
+	startup_logs      = NULL;
 }
 
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
