@@ -2118,6 +2118,10 @@ static struct task *process_chk_conn(struct task *t)
 		}
 
 		/* here, we have seen a synchronous error, no fd was allocated */
+		if (conn) {
+			conn_free(conn);
+			check->conn = conn = NULL;
+		}
 
 		check->state &= ~CHK_ST_INPROGRESS;
 		check_notify_failure(check);
