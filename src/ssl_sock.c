@@ -56,7 +56,7 @@
 #include <openssl/engine.h>
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 #include <openssl/async.h>
 #endif
 
@@ -362,7 +362,7 @@ fail_get:
 }
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 /*
  * openssl async fd handler
  */
@@ -3627,7 +3627,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		options &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
 	SSL_CTX_set_options(ctx, options);
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -4125,7 +4125,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		options |= SSL_OP_NO_TICKET;
 	SSL_CTX_set_options(ctx, options);
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -4638,7 +4638,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				fd_cant_recv(conn->handle.fd);
 				return 0;
 			}
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
 				ssl_async_process_fds(conn, conn->xprt_ctx);
 				return 0;
@@ -4722,7 +4722,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			fd_cant_recv(conn->handle.fd);
 			return 0;
 		}
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
 			ssl_async_process_fds(conn, conn->xprt_ctx);
 			return 0;
@@ -4784,7 +4784,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
 reneg_ok:
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	/* ASYNC engine API doesn't support moving read/write
 	 * buffers. So we disable ASYNC mode right after
 	 * the handshake to avoid buffer oveflows.
@@ -4908,7 +4908,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_send(conn);
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
@@ -4920,7 +4920,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_recv(conn);
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
@@ -5021,7 +5021,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_send(conn);
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
@@ -5036,7 +5036,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_recv(conn);
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(conn->xprt_ctx, SSL_MODE_ASYNC);
@@ -5060,7 +5060,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 static void ssl_sock_close(struct connection *conn) {
 
 	if (conn->xprt_ctx) {
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 		if (global_ssl.async) {
 			OSSL_ASYNC_FD all_fd[32], afd;
 			size_t num_all_fds = 0;
@@ -7407,7 +7407,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
                                        struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	global_ssl.async = 1;
 	return 0;
 #else
