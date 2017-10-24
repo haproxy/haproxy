@@ -1127,6 +1127,7 @@ static void init(int argc, char **argv)
 	struct proxy *px;
 	struct post_check_fct *pcf;
 
+	global.mode = MODE_STARTING;
 	next_argv = copy_argv(argc, argv);
 
 	if (!init_trash_buffers()) {
@@ -1340,9 +1341,8 @@ static void init(int argc, char **argv)
 		argv++; argc--;
 	}
 
-	global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
-		(arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
-			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
+	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
+				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
 	/* Master workers wait mode */
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_WAIT_ONLY") != NULL)) {
@@ -2390,7 +2390,6 @@ int main(int argc, char **argv)
 
 	/* MODE_QUIET can inhibit alerts and warnings below this line */
 
-	global.mode &= ~MODE_STARTING;
 	if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 		/* detach from the tty */
 		fclose(stdin); fclose(stdout); fclose(stderr);
@@ -2694,6 +2693,8 @@ int main(int argc, char **argv)
 		setsid();
 		fork_poller();
 	}
+
+	global.mode &= ~MODE_STARTING;
 
 	if (global.mode & MODE_MWORKER)
 		mworker_pipe_register(mworker_pipe);
