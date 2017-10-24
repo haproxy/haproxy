@@ -33,6 +33,7 @@
 #include <proto/stick_table.h>
 #include <proto/vars.h>
 
+#include <import/sha1.h>
 #include <import/xxhash.h>
 
 /* sample type names */
@@ -1504,6 +1505,24 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, v
 	return 1;
 }
 
+static int sample_conv_sha1(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	blk_SHA_CTX ctx;
+	struct chunk *trash = get_trash_chunk();
+
+	memset(&ctx, 0, sizeof(ctx));
+
+	blk_SHA1_Init(&ctx);
+	blk_SHA1_Update(&ctx, smp->data.u.str.str, smp->data.u.str.len);
+	blk_SHA1_Final((unsigned char *)trash->str, &ctx);
+
+	trash->len = 20;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -2756,6 +2775,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "field",  sample_conv_field,     ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "word",   sample_conv_word,      ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
+	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },

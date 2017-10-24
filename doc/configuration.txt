@@ -12912,6 +12912,10 @@ set-var(<var name>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+sha1
+  Converts a binary input sample to a SHA1 digest. The result is a binary
+  sample with length of 20 bytes.
+
 sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
   the result as an signed integer. Note: in order to subtract the input from
