@@ -1105,6 +1105,10 @@ char *env_expand(char *in);
  */
 void debug_hexdump(FILE *out, const char *pfx, const char *buf, unsigned int baseaddr, int len);
 
+/* this is used to emit traces when building with TRACE=1 */
+__attribute__((format(printf, 1, 2)))
+void trace(char *fmt, ...);
+
 /* used from everywhere just to drain results we don't want to read and which
  * recent versions of gcc increasingly and annoyingly complain about.
  */

@@ -44,6 +44,8 @@ BEGIN {
     indents[">",i-1] = indents[">",i-1] " "
     indents["<",i] = indents["<",i-1] "  "
     indents["<",i-1] = indents["<",i-1] " "
+    indents[" ",i] = indents[" ",i-1] "##"
+    indents[" ",i-1] = indents[" ",i-1] " "
   }
 }
 
@@ -61,7 +63,13 @@ function getptr(ptr)
 }
 
 {
-  # input format: <timestamp> <level> <caller> <dir> <callee>
+  # input format: <timestamp> <level> <caller> <dir> <callee> [<ret>|<args>...]
+  if ($3 == "#") { # this is a trace comment
+    printf "%s %s  ", $1, indents[" ",$2]
+    $1=""; $2=""; $3=""
+    print substr($0,4)
+    next
+  }
   getptr($3); caller_loc=loc; caller_name=name
   getptr($5); callee_loc=loc; callee_name=name
   printf "%s %s  %s %s %s [%s:%s] %s [%s:%s]\n",

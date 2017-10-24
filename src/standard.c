@@ -3880,6 +3880,12 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 	}
 }
 
+/* do nothing, just a placeholder for debugging calls, the real one is in trace.c */
+__attribute__((weak,format(printf, 1, 2)))
+void trace(char *msg, ...)
+{
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -29,11 +29,20 @@
  *
  * where <dir> is '>' when entering a function and '<' when leaving.
  *
+ * It is also possible to emit comments using the trace() function which uses
+ * the printf() format. Such comments are then inserted by replacing the caller
+ * pointer with a sharp ('#') like this :
+ *
+ *   <sec.usec> <level> # <comment>
+ *  or :
+ *   <tsc> <level> # <comment>
+ *
  * The article below is a nice explanation of how this works :
  *   http://balau82.wordpress.com/2010/10/06/trace-and-profile-function-calls-with-gcc/
  */
 
 #include <sys/time.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,4 +237,34 @@ void __cyg_profile_func_exit(void *to,  void *from)
 {
 	if (!disabled)
 		return make_line(from, to, level--, '<');
+}
+
+/* the one adds comments in the trace above. The output format is :
+ * <timestamp> <level> # <string>
+ */
+__attribute__((format(printf, 1, 2)))
+void trace(char *fmt, ...)
+{
+	va_list ap;
+
+	if (unlikely(!log) && !open_trace())
+		return;
+
+	if (unlikely(!fast_time))
+		gettimeofday(now_ptr, NULL);
+
+	if (!use_tsc)
+		fprintf(log, "%u.%06u %d # ",
+			(unsigned int)now_ptr->tv_sec,
+			(unsigned int)now_ptr->tv_usec,
+			level + 1);
+	else
+		fprintf(log, "%llx %d # ",
+			rdtsc(), level + 1);
+
+	va_start(ap, fmt);
+	vfprintf(log, fmt, ap);
+	va_end(ap);
+	fputc('\n', log);
+	fflush(log);
 }
