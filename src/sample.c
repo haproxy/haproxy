@@ -1541,6 +1541,23 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 	return 1;
 }
 
+static int sample_conv_hex2int(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	long long int n = 0;
+	int i, c;
+
+	for (i = 0; i < smp->data.u.str.len; i++) {
+		if ((c = hex2i(smp->data.u.str.str[i])) < 0)
+			return 0;
+		n = (n << 4) + c;
+	}
+
+	smp->data.u.sint = n;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -2761,6 +2778,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
+	{ "hex2i",  sample_conv_hex2int,   0,            NULL, SMP_T_STR,  SMP_T_SINT },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },

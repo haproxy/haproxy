@@ -12617,6 +12617,10 @@ hex
   in a way that can be reliably transferred (eg: an SSL ID can be copied in a
   header).
 
+hex2i
+  Converts a hex string containing two hex digits per input byte to an
+  integer. If the input value can not be converted, then zero is returned.
+
 http_date([<offset>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If
