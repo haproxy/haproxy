@@ -37,7 +37,7 @@ BEGIN {
   if (prog == "")
     prog=ENVIRON["PROG"];
 
-  cmd=cmd " -f -e " prog;
+  cmd=cmd " -f -s -e " prog;
 
   for (i = 1; i < 100; i++) {
     indents[">",i] = indents[">",i-1] "->"
