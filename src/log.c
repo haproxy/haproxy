@@ -29,9 +29,12 @@
 #include <common/standard.h>
 #include <common/time.h>
 
+#include <types/cli.h>
 #include <types/global.h>
 #include <types/log.h>
 
+#include <proto/applet.h>
+#include <proto/cli.h>
 #include <proto/frontend.h>
 #include <proto/proto_http.h>
 #include <proto/log.h>
@@ -2380,6 +2383,31 @@ void strm_log(struct stream *s)
 	}
 }
 
+static int cli_io_handler_show_startup_logs(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	const char *msg = (startup_logs ? startup_logs : "No startup alerts/warnings.\n");
+
+	if (ci_putstr(si_ic(si), msg) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+	return 1;
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "startup-logs",  NULL },
+	  "show startup-logs : report logs emitted during HAProxy startup",
+	  NULL, cli_io_handler_show_startup_logs },
+	{{},}
+}};
+
+__attribute__((constructor))
+static void __log_init(void)
+{
+	cli_register_kw(&cli_kws);
+}
 /*
  * Local variables:
  *  c-indent-level: 8
