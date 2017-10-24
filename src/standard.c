@@ -3309,8 +3309,11 @@ int parse_http_date(const char *date, int len, struct tm *tm)
  *    if (!fct2(err)) report(*err);
  *    if (!fct3(err)) report(*err);
  *    free(*err);
+ *
+ * memprintf relies on memvprintf. This last version can be called from any
+ * function with variadic arguments.
  */
-char *memprintf(char **out, const char *format, ...)
+char *memvprintf(char **out, const char *format, va_list orig_args)
 {
 	va_list args;
 	char *ret = NULL;
@@ -3325,10 +3328,9 @@ char *memprintf(char **out, const char *format, ...)
 		 * target buffer is NULL. We do this in a loop just in case
 		 * intermediate evaluations get wrong.
 		 */
-		va_start(args, format);
+		va_copy(args, orig_args);
 		needed = vsnprintf(ret, allocated, format, args);
 		va_end(args);
-
 		if (needed < allocated) {
 			/* Note: on Solaris 8, the first iteration always
 			 * returns -1 if allocated is zero, so we force a
@@ -3354,6 +3356,18 @@ char *memprintf(char **out, const char *format, ...)
 		free(*out);
 		*out = ret;
 	}
+
+	return ret;
+}
+
+char *memprintf(char **out, const char *format, ...)
+{
+	va_list args;
+	char *ret = NULL;
+
+	va_start(args, format);
+	ret = memvprintf(out, format, args);
+	va_end(args);
 
 	return ret;
 }

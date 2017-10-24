@@ -1072,7 +1072,13 @@ int parse_asctime_date(const char *date, int len, struct tm *tm);
  *    if (!fct2(err)) report(*err);
  *    if (!fct3(err)) report(*err);
  *    free(*err);
+ *
+ * memprintf relies on memvprintf. This last version can be called from any
+ * function with variadic arguments.
  */
+char *memvprintf(char **out, const char *format, va_list args)
+	__attribute__ ((format(printf, 2, 0)));
+
 char *memprintf(char **out, const char *format, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
