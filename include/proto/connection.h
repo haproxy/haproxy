@@ -171,11 +171,10 @@ void conn_update_xprt_polling(struct connection *c);
  */
 static inline void conn_refresh_polling_flags(struct connection *conn)
 {
-	conn->flags &= ~CO_FL_WAIT_ROOM;
-
 	if (conn_ctrl_ready(conn)) {
-		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
+		unsigned int flags = conn->flags;
 
+		flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA | CO_FL_WAIT_ROOM);
 		if (fd_recv_active(conn->handle.fd))
 			flags |= CO_FL_CURR_RD_ENA;
 		if (fd_send_active(conn->handle.fd))
