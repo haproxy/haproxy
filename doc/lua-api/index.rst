@@ -1890,6 +1890,70 @@ Socket class
   :param class_socket socket: Is the manipulated Socket.
   :param integer value: The timeout value.
 
+.. _regex_class:
+
+Regex class
+===========
+
+.. js:class:: Regex
+
+  This class allows the usage of HAProxy regexes because classic lua doesn't
+  provides regexes. This class inherits the HAProxy compilation options, so the
+  regexes can be libc regex, pcre regex or pcre JIT regex.
+
+  The expression matching number is limited to 20 per regex. The only available
+  option is case sensitive.
+
+  Because regexes compilation is a heavy process, it is better to define all
+  your regexes in the **body context** and use it during the runtime.
+
+.. code-block:: lua
+
+  -- Create the regex
+  st, regex = Regex.new("needle (..) (...)", true);
+
+  -- Check compilation errors
+  if st == false then
+    print "error: " .. regex
+  end
+
+  -- Match the regexes
+  print(regex:exec("Looking for a needle in the haystack")) -- true
+  print(regex:exec("Lokking for a cat in the haystack"))    -- false
+
+  -- Extract words
+  st, list = regex:match("Looking for a needle in the haystack")
+  print(st)      -- true
+  print(list[1]) -- needle in the
+  print(list[2]) -- in
+  print(list[3]) -- the
+
+.. js:function:: Regex.new(regex, case_sensitive)
+
+  Create and compile a regex.
+
+  :param string regex: The regular expression according with the libc or pcre
+    standard
+  :param boolean case_sensitive: Match is case sensitive or not.
+  :returns: boolean status and :ref:`regex_class` or string containing fail reason.
+
+.. js:function:: Regex.exec(regex, str)
+
+  Execute the regex.
+
+  :param class_regex regex: A :ref:`regex_class` object.
+  :param string str: The input string will be compared with the compiled regex.
+  :returns: a boolean status according with the match result.
+
+.. js:function:: Regex.match(regex, str)
+
+  Execute the regex and return matched expressions.
+
+  :param class_map map: A :ref:`regex_class` object.
+  :param string str: The input string will be compared with the compiled regex.
+  :returns: a boolean status according with the match result, and
+    a table containing all the string matched in order of declaration.
+
 .. _map_class:
 
 Map class

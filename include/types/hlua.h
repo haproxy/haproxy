@@ -24,6 +24,7 @@
 #define CLASS_PROXY        "Proxy"
 #define CLASS_SERVER       "Server"
 #define CLASS_LISTENER     "Listener"
+#define CLASS_REGEX        "Regex"
 
 struct stream;
 

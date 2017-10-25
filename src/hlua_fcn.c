@@ -36,6 +36,7 @@ static int class_concat_ref;
 static int class_proxy_ref;
 static int class_server_ref;
 static int class_listener_ref;
+static int class_regex_ref;
 
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
@@ -1076,6 +1077,90 @@ int hlua_match_addr(lua_State *L)
 	return 1;
 }
 
+static struct my_regex *hlua_check_regex(lua_State *L, int ud)
+{
+	return (hlua_checkudata(L, ud, class_regex_ref));
+}
+
+static int hlua_regex_comp(struct lua_State *L)
+{
+	struct my_regex *regex;
+	const char *str;
+	int cs;
+	char *err;
+
+	str = luaL_checkstring(L, 1);
+	luaL_argcheck(L, lua_isboolean(L, 2), 2, NULL);
+	cs = lua_toboolean(L, 2);
+
+	regex = lua_newuserdata(L, sizeof(*regex));
+
+	err = NULL;
+	if (!regex_comp(str, regex, cs, 1, &err)) {
+		lua_pushboolean(L, 0); /* status error */
+		lua_pushstring(L, err); /* Reason */
+		free(err);
+		return 2;
+	}
+
+	lua_pushboolean(L, 1); /* Status ok */
+
+	/* Create object */
+	lua_newtable(L);
+	lua_pushvalue(L, -3); /* Get the userdata pointer. */
+	lua_rawseti(L, -2, 0);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_regex_ref);
+	lua_setmetatable(L, -2);
+	return 2;
+}
+
+static int hlua_regex_exec(struct lua_State *L)
+{
+	struct my_regex *regex;
+	const char *str;
+	size_t len;
+
+	regex = hlua_check_regex(L, 1);
+	str = luaL_checklstring(L, 2, &len);
+
+	lua_pushboolean(L, regex_exec2(regex, (char *)str, len));
+
+	return 1;
+}
+
+static int hlua_regex_match(struct lua_State *L)
+{
+	struct my_regex *regex;
+	const char *str;
+	size_t len;
+	regmatch_t pmatch[20];
+	int ret;
+	int i;
+
+	regex = hlua_check_regex(L, 1);
+	str = luaL_checklstring(L, 2, &len);
+
+	ret = regex_exec_match2(regex, (char *)str, len, 20, pmatch, 0);
+	lua_pushboolean(L, ret);
+	lua_newtable(L);
+	if (ret) {
+		for (i = 0; i < 20 && pmatch[i].rm_so != -1; i++) {
+			lua_pushlstring(L, str + pmatch[i].rm_so, pmatch[i].rm_eo - pmatch[i].rm_so);
+			lua_rawseti(L, -2, i + 1);
+		}
+	}
+	return 2;
+}
+
+static int hlua_regex_free(struct lua_State *L)
+{
+	struct my_regex *regex;
+
+	regex = hlua_check_regex(L, 1);
+	regex_free(regex);
+	return 0;
+}
+
 int hlua_fcn_reg_core_fcn(lua_State *L)
 {
 	if (!hlua_concat_init(L))
@@ -1091,6 +1176,24 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	hlua_class_function(L, "parse_addr", hlua_parse_addr);
 	hlua_class_function(L, "match_addr", hlua_match_addr);
 	hlua_class_function(L, "tokenize", hlua_tokenize);
+
+	/* Create regex object. */
+	lua_newtable(L);
+	hlua_class_function(L, "new", hlua_regex_comp);
+
+	lua_newtable(L); /* The metatable. */
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "exec", hlua_regex_exec);
+	hlua_class_function(L, "match", hlua_regex_match);
+	lua_rawset(L, -3); /* -> META["__index"] = TABLE */
+	hlua_class_function(L, "__gc", hlua_regex_free);
+
+	lua_pushvalue(L, -1); /* Duplicate the metatable reference. */
+	class_regex_ref = hlua_register_metatable(L, CLASS_REGEX);
+
+	lua_setmetatable(L, -2);
+	lua_setglobal(L, CLASS_REGEX); /* Create global object called Regex */
 
 	/* Create listener object. */
 	lua_newtable(L);
