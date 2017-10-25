@@ -17,6 +17,7 @@
 #   USE_PCRE2_JIT        : enable JIT for faster regex on libpcre2
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
+#   USE_THREAD           : enable threads support.
 #   USE_PTHREAD_PSHARED  : enable pthread process shared mutex on sslcache.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
@@ -238,6 +239,9 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # passing USE_POLL="" on the make command line.
 USE_POLL   = default
 
+# Always enable threads support by default and let the Makefile detect if
+# HAProxy can be compiled with threads or not.
+
 ifeq ($(TARGET),generic)
   # generic system target has nothing specific
   USE_POLL   = implicit
@@ -298,6 +302,7 @@ ifeq ($(TARGET),linux2628)
   USE_CPU_AFFINITY= implicit
   ASSUME_SPLICE_WORKS= implicit
   USE_DL          = implicit
+  USE_THREAD      = implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -316,6 +321,7 @@ ifeq ($(TARGET),freebsd)
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
   USE_LIBCRYPT   = implicit
+  USE_THREAD     = implicit
 else
 ifeq ($(TARGET),osx)
   # This is for Mac OS/X
