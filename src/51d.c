@@ -547,6 +547,11 @@ static int init_51degrees(void)
 	if (!global_51degrees.data_file_path)
 		return 0;
 
+	if (global.nbthread > 1) {
+		Alert("51Degrees: multithreading is not supported for now.\n");
+		return (ERR_FATAL | ERR_ALERT);
+	}
+
 	if (!LIST_ISEMPTY(&global_51degrees.property_names)) {
 		i = 0;
 		list_for_each_entry(name, &global_51degrees.property_names, list)

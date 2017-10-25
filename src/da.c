@@ -121,6 +121,12 @@ static int init_deviceatlas(void)
 		size_t atlasimglen;
 		da_status_t status;
 
+		if (global.nbthread > 1) {
+			Alert("deviceatlas: multithreading is not supported for now.\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		jsonp = fopen(global_deviceatlas.jsonpath, "r");
 		if (jsonp == 0) {
 			Alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
