@@ -4851,6 +4851,8 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	int ret, done = 0;
 	int try;
 
+	conn_refresh_polling_flags(conn);
+
 	if (!conn->xprt_ctx)
 		goto out_error;
 
@@ -4936,18 +4938,20 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			goto out_error;
 		}
 	}
+ leave:
+	conn_cond_update_sock_polling(conn);
 	return done;
 
  read0:
 	conn_sock_read0(conn);
-	return done;
+	goto leave;
  out_error:
 	/* Clear openssl global errors stack */
 	ssl_sock_dump_errors(conn);
 	ERR_clear_error();
 
 	conn->flags |= CO_FL_ERROR;
-	return done;
+	goto leave;
 }
 
 
@@ -4966,6 +4970,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	int ret, try, done;
 
 	done = 0;
+	conn_refresh_polling_flags(conn);
 
 	if (!conn->xprt_ctx)
 		goto out_error;
@@ -5043,6 +5048,8 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			goto out_error;
 		}
 	}
+ leave:
+	conn_cond_update_sock_polling(conn);
 	return done;
 
  out_error:
@@ -5051,7 +5058,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	ERR_clear_error();
 
 	conn->flags |= CO_FL_ERROR;
-	return done;
+	goto leave;
 }
 
 static void ssl_sock_close(struct connection *conn) {
