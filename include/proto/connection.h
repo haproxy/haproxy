@@ -420,7 +420,9 @@ static inline void conn_sock_stop_both(struct connection *c)
 	conn_cond_update_sock_polling(c);
 }
 
-/* shutdown management */
+/* read shutdown, called from the rcv_buf/rcv_pipe handlers when
+ * detecting an end of connection.
+ */
 static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
@@ -432,10 +434,16 @@ static inline void conn_sock_read0(struct connection *c)
 		fdtab[c->handle.fd].linger_risk = 0;
 }
 
+/* write shutdown, indication that the upper layer is not willing to send
+ * anything anymore and wants to close after pending data are sent.
+ */
 static inline void conn_sock_shutw(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
+	conn_refresh_polling_flags(c);
 	__conn_sock_stop_send(c);
+	conn_cond_update_sock_polling(c);
+
 	/* don't perform a clean shutdown if we're going to reset */
 	if (conn_ctrl_ready(c) && !fdtab[c->handle.fd].linger_risk)
 		shutdown(c->handle.fd, SHUT_WR);
