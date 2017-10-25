@@ -83,7 +83,7 @@ enum {
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
 	CO_FL_XPRT_READY    = 0x00000200, /* xprt_init() done, xprt_close() needed */
 
-	/* unused : 0x00000400 */
+	CO_FL_WILL_UPDATE   = 0x00000400, /* the conn handler will take care of updating the polling */
 
 	/* This flag is used by data layers to indicate they had to stop
 	 * receiving data because a buffer was full. The connection handler

@@ -49,6 +49,8 @@ void conn_fd_handler(int fd)
 		return;
 
 	conn_refresh_polling_flags(conn);
+	conn->flags |= CO_FL_WILL_UPDATE;
+
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
  process_handshake:
@@ -174,6 +176,7 @@ void conn_fd_handler(int fd)
 	fdtab[fd].ev &= FD_POLL_STICKY;
 
 	/* commit polling changes */
+	conn->flags &= ~CO_FL_WILL_UPDATE;
 	conn_cond_update_polling(conn);
 	return;
 }

@@ -167,11 +167,13 @@ void conn_update_sock_polling(struct connection *c);
 void conn_update_xprt_polling(struct connection *c);
 
 /* Refresh the connection's polling flags from its file descriptor status.
- * This should be called at the beginning of a connection handler.
+ * This should be called at the beginning of a connection handler. It does
+ * nothing if CO_FL_WILL_UPDATE is present, indicating that an upper caller
+ * has already done it.
  */
 static inline void conn_refresh_polling_flags(struct connection *conn)
 {
-	if (conn_ctrl_ready(conn)) {
+	if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_WILL_UPDATE)) {
 		unsigned int flags = conn->flags;
 
 		flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA | CO_FL_WAIT_ROOM);
@@ -230,32 +232,38 @@ static inline unsigned int conn_sock_polling_changes(const struct connection *c)
 }
 
 /* Automatically updates polling on connection <c> depending on the XPRT flags
- * if no handshake is in progress.
+ * if no handshake is in progress. It does nothing if CO_FL_WILL_UPDATE is
+ * present, indicating that an upper caller is going to do it again later.
  */
 static inline void conn_cond_update_xprt_polling(struct connection *c)
 {
-	if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
-		conn_update_xprt_polling(c);
+	if (!(c->flags & CO_FL_WILL_UPDATE))
+		if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+			conn_update_xprt_polling(c);
 }
 
 /* Automatically updates polling on connection <c> depending on the SOCK flags
- * if a handshake is in progress.
+ * if a handshake is in progress. It does nothing if CO_FL_WILL_UPDATE is
+ * present, indicating that an upper caller is going to do it again later.
  */
 static inline void conn_cond_update_sock_polling(struct connection *c)
 {
-	if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
-		conn_update_sock_polling(c);
+	if (!(c->flags & CO_FL_WILL_UPDATE))
+		if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
+			conn_update_sock_polling(c);
 }
 
 /* Stop all polling on the fd. This might be used when an error is encountered
- * for example.
+ * for example. It does not propage the change to the fd layer if
+ * CO_FL_WILL_UPDATE is present, indicating that an upper caller is going to do
+ * it later.
  */
 static inline void conn_stop_polling(struct connection *c)
 {
 	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
 		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
 		      CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
-	if (conn_ctrl_ready(c))
+	if (!(c->flags & CO_FL_WILL_UPDATE) && conn_ctrl_ready(c))
 		fd_stop_both(c->handle.fd);
 }
 
@@ -263,15 +271,19 @@ static inline void conn_stop_polling(struct connection *c)
  * SOCK flags, and on whether a handshake is in progress or not. This may be
  * called at any moment when there is a doubt about the effectiveness of the
  * polling state, for instance when entering or leaving the handshake state.
+ * It does nothing if CO_FL_WILL_UPDATE is present, indicating that an upper
+ * caller is going to do it again later.
  */
 static inline void conn_cond_update_polling(struct connection *c)
 {
 	if (unlikely(c->flags & CO_FL_ERROR))
 		conn_stop_polling(c);
-	else if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
-		conn_update_xprt_polling(c);
-	else if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
-		conn_update_sock_polling(c);
+	else if (!(c->flags & CO_FL_WILL_UPDATE)) {
+		if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+			conn_update_xprt_polling(c);
+		else if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
+			conn_update_sock_polling(c);
+	}
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
