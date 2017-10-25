@@ -5009,10 +5009,6 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			if (likely(buffer_empty(buf)))
 				/* optimize data alignment in the buffer */
 				buf->p = buf->data;
-
-			/* if the system buffer is full, don't insist */
-			if (ret < try)
-				break;
 		}
 		else {
 			ret = SSL_get_error(conn->xprt_ctx, ret);
