@@ -969,14 +969,12 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	conn_refresh_polling_flags(conn);
 	__conn_xprt_want_send(conn);
 
-	if (!(conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
-		si_conn_send(conn);
-		if (conn->flags & CO_FL_ERROR) {
-			/* Write error on the file descriptor */
-			__conn_xprt_stop_both(conn);
-			si->flags |= SI_FL_ERR;
-			goto out_wakeup;
-		}
+	si_conn_send(conn);
+	if (conn->flags & CO_FL_ERROR) {
+		/* Write error on the file descriptor */
+		__conn_xprt_stop_both(conn);
+		si->flags |= SI_FL_ERR;
+		goto out_wakeup;
 	}
 
 	/* OK, so now we know that some data might have been sent, and that we may
