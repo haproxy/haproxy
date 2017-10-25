@@ -81,6 +81,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
+	conn_refresh_polling_flags(conn);
 	errno = 0;
 
 	/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
@@ -96,7 +97,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 		if ((fdtab[conn->handle.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			errno = 0; /* let the caller do a getsockopt() if it wants it */
-			return retval;
+			goto leave;
 		}
 	}
 
@@ -156,7 +157,8 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 				 * We can safely return -1 since there is no
 				 * chance that any data has been piped yet.
 				 */
-				return -1;
+				retval = -1;
+				goto leave;
 			}
 			else if (errno == EINTR) {
 				/* try again */
@@ -183,12 +185,15 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && retval)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+ leave:
+	conn_cond_update_sock_polling(conn);
 	return retval;
 
  out_read0:
 	conn_sock_read0(conn);
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
-	return retval;
+	goto leave;
 }
 
 /* Send as many bytes as possible from the pipe to the connection's socket.
@@ -203,6 +208,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
+	conn_refresh_polling_flags(conn);
 	done = 0;
 	while (pipe->data) {
 		ret = splice(pipe->cons, NULL, conn->handle.fd, NULL, pipe->data,
@@ -226,6 +232,8 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 	}
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+	conn_cond_update_sock_polling(conn);
 	return done;
 }
 
@@ -253,6 +261,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
+	conn_refresh_polling_flags(conn);
 	errno = 0;
 
 	if (unlikely(!(fdtab[conn->handle.fd].ev & FD_POLL_IN))) {
@@ -263,7 +272,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->handle.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-			return done;
+			goto leave;
 		}
 	}
 
@@ -329,6 +338,9 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+ leave:
+	conn_cond_update_sock_polling(conn);
 	return done;
 
  read0:
@@ -344,7 +356,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 */
 	if (unlikely(fdtab[conn->handle.fd].ev & FD_POLL_ERR))
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-	return done;
+	goto leave;
 }
 
 
@@ -368,6 +380,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
+	conn_refresh_polling_flags(conn);
 	done = 0;
 	/* send the largest possible block. For this we perform only one call
 	 * to send() unless the buffer wraps and we exactly fill the first hunk,
@@ -409,6 +422,8 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	}
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+	conn_cond_update_sock_polling(conn);
 	return done;
 }
 
