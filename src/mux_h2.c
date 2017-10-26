@@ -139,6 +139,20 @@ enum h2_ss {
 #define H2_SF_BLK_SFCTL         0x00000080 // blocked due to stream fctl
 #define H2_SF_BLK_ANY           0x000000F0 // any of the reasons above
 
+/* stream flags indicating how data is supposed to be sent */
+#define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
+#define H2_SF_DATA_CHNK         0x00000200 // data sent using chunked-encoding
+
+/* step we're currently in when sending chunks. This is needed because we may
+ * have to transfer chunks as large as a full buffer so there's no room left
+ * for size nor crlf around.
+ */
+#define H2_SF_CHNK_SIZE         0x00000000 // trying to send chunk size
+#define H2_SF_CHNK_DATA         0x00000400 // trying to send chunk data
+#define H2_SF_CHNK_CRLF         0x00000800 // trying to send chunk crlf after data
+
+#define H2_SF_CHNK_MASK         0x00000C00 // trying to send chunk size
+
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
  */
@@ -1262,6 +1276,85 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
+/* processes a DATA frame. Returns > 0 on success or zero on missing data.
+ * It may return an error in h2c or h2s. Described in RFC7540#6.1.
+ */
+static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
+{
+	int error;
+
+	/* note that empty DATA frames are perfectly valid and sometimes used
+	 * to signal an end of stream (with the ES flag).
+	 */
+
+	if (!h2c->dbuf->size && h2c->dfl)
+		return 0; // empty buffer
+
+	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+		return 0; // incomplete frame
+
+	/* now either the frame is complete or the buffer is complete */
+
+	if (!h2c->dsi) {
+		/* RFC7540#6.1 */
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2s->st != H2_SS_OPEN && h2s->st != H2_SS_HLOC) {
+		/* RFC7540#6.1 */
+		error = H2_ERR_STREAM_CLOSED;
+		goto strm_err;
+	}
+
+	/* last frame */
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->st = H2_SS_HREM;
+		h2s->flags |= H2_SF_ES_RCVD;
+	}
+
+	/* call the upper layers to process the frame, then let the upper layer
+	 * notify the stream about any change.
+	 */
+	if (!h2s->cs) {
+		error = H2_ERR_STREAM_CLOSED;
+		goto strm_err;
+	}
+
+	h2s->cs->data_cb->recv(h2s->cs);
+	if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
+		/* cs has just been destroyed, we have to kill h2s. */
+		error = H2_ERR_STREAM_CLOSED;
+		goto strm_err;
+	}
+
+	if (h2s->st >= H2_SS_RESET) {
+		/* stream error : send RST_STREAM */
+		h2c->st0 = H2_CS_FRAME_A;
+	}
+
+	/* check for completion : the callee will change this to FRAME_A or
+	 * FRAME_H once done.
+	 */
+	if (h2c->st0 == H2_CS_FRAME_P)
+		return 0;
+
+	return 1;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return 0;
+
+ strm_err:
+	if (h2s) {
+		h2s_error(h2s, error);
+		h2c->st0 = H2_CS_FRAME_A;
+	}
+	else
+		h2c_error(h2c, error);
+	return 0;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
@@ -1385,6 +1478,13 @@ static void h2_process_demux(struct h2c *h2c)
 				ret = h2c_frt_handle_headers(h2c, h2s);
 			break;
 
+		case H2_FT_DATA:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_frt_handle_data(h2c, h2s);
+
+			if (h2c->st0 == H2_CS_FRAME_A)
+				ret = h2c_send_strm_wu(h2c);
+			break;
 			/* FIXME: implement all supported frame types here */
 		default:
 			/* drop frames that we ignore. They may be larger than
@@ -1976,6 +2076,84 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	goto leave;
 }
 
+/* Transfer the payload of a DATA frame to the HTTP/1 side. When content-length
+ * or a tunnel is used, the contents are copied as-is. When chunked encoding is
+ * in use, a new chunk is emitted for each frame. This is supposed to fit
+ * because the smallest chunk takes 1 byte for the size, 2 for CRLF, X for the
+ * data, 2 for the extra CRLF, so that's 5+X, while on the H2 side the smallest
+ * frame will be 9+X bytes based on the same buffer size. The HTTP/2 frame
+ * parser state is automatically updated. Returns the number of bytes emitted
+ * if > 0, or 0 if it couldn't proceed. Stream errors are reported in
+ * h2s->errcode and connection errors in h2c->errcode. The caller must already
+ * have checked the frame header and ensured that the frame was complete or the
+ * buffer full. It changes the frame state to FRAME_A once done.
+ */
+static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
+{
+	struct h2c *h2c = h2s->h2c;
+	int block1, block2;
+	unsigned int flen = h2c->dfl;
+	unsigned int padlen = 0;
+	int offset = 0;
+
+	if (h2c->dbuf->i < flen)
+		return 0;
+
+	/* The padlen is the first byte before data, and the padding appears
+	 * after data. padlen+data+padding are included in flen.
+	 */
+	if (h2c->dff & H2_F_HEADERS_PADDED) {
+		padlen = *(uint8_t *)bi_ptr(h2c->dbuf);
+		if (padlen >= flen) {
+			/* RFC7540#6.1 : pad length = length of frame payload or greater */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			h2c->st0 = H2_SS_ERROR;
+			return 0;
+		}
+		flen -= padlen + 1;
+		offset = 1; // skip Pad Length
+	}
+
+	/* does it fit in output buffer or should we wait ? */
+	if (buf->i + buf->o + flen > buf->size) {
+		h2c->flags |= H2_CF_DEM_SFULL;
+		return 0;
+	}
+
+	/* Block1 is the length of the first block before the buffer wraps,
+	 * block2 is the optional second block to reach the end of the frame.
+	 */
+	block1 = bi_contig_data(h2c->dbuf);
+	if (block1 > offset + flen)
+		block1 = offset + flen;
+	block1 -= offset; // skip Pad Length
+	block2 = flen - block1;
+
+	if (block1)
+		bi_putblk(buf, b_ptr(h2c->dbuf, offset), block1);
+
+	if (block2)
+		bi_putblk(buf, b_ptr(h2c->dbuf, offset + block1), block2);
+
+	/* now mark the input data as consumed (will be deleted from the buffer
+	 * by the caller when seeing FRAME_A after sending the window update).
+	 */
+	h2c->rcvd_c += h2c->dfl;
+	h2c->rcvd_s += h2c->dfl;  // warning, this can also affect the closed streams!
+	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
+
+	/* don't send it before returning data!
+	 * FIXME: should we instead try to send it much later, after the
+	 * response ? This would require that we keep a copy of it in h2s.
+	 */
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->cs->flags |= CS_FL_EOS;
+		h2s->flags |= H2_SF_ES_RCVD;
+	}
+
+	return flen;
+}
+
 /*
  * Called from the upper layer to get more data, up to <count> bytes. The
  * caller is responsible for never asking for more data than what is available
@@ -2002,6 +2180,10 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 	switch (h2c->dft) {
 	case H2_FT_HEADERS:
 		ret = h2_frt_decode_headers(h2s, buf, count);
+		break;
+
+	case H2_FT_DATA:
+		ret = h2_frt_transfer_data(h2s, buf, count);
 		break;
 
 	default:
