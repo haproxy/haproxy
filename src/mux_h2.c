@@ -966,6 +966,87 @@ static int h2c_handle_ping(struct h2c *h2c)
 	return 1;
 }
 
+/* Try to send a window update for stream id <sid> and value <increment>.
+ * Returns > 0 on success or zero on missing room or failure. It may return an
+ * error in h2c.
+ */
+static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
+{
+	struct buffer *res;
+	char str[13];
+	int ret = -1;
+
+	if (h2c_mux_busy(h2c, NULL)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	/* length: 4, type: 8, flags: none */
+	memcpy(str, "\x00\x00\x04\x08\x00", 5);
+	write_n32(str + 5, sid);
+	write_n32(str + 9, increment);
+
+	ret = bo_istput(res, ist2(str, 13));
+
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+	return ret;
+}
+
+/* try to send pending window update for the connection. It's safe to call it
+ * with no pending updates. Returns > 0 on success or zero on missing room or
+ * failure. It may return an error in h2c.
+ */
+static int h2c_send_conn_wu(struct h2c *h2c)
+{
+	int ret = 1;
+
+	if (h2c->rcvd_c <= 0)
+		return 1;
+
+	/* send WU for the connection */
+	ret = h2c_send_window_update(h2c, 0, h2c->rcvd_c);
+	if (ret > 0)
+		h2c->rcvd_c = 0;
+
+	return ret;
+}
+
+/* try to send pending window update for the current dmux stream. It's safe to
+ * call it with no pending updates. Returns > 0 on success or zero on missing
+ * room or failure. It may return an error in h2c.
+ */
+static int h2c_send_strm_wu(struct h2c *h2c)
+{
+	int ret = 1;
+
+	if (h2c->rcvd_s <= 0)
+		return 1;
+
+	/* send WU for the stream */
+	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->rcvd_s);
+	if (ret > 0)
+		h2c->rcvd_s = 0;
+
+	return ret;
+}
+
 /* try to send an ACK for a ping frame on the connection. Returns > 0 on
  * success, 0 on missing data or one of the h2_status values.
  */
@@ -1335,6 +1416,10 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 	}
 
+	if (h2c->rcvd_c > 0 &&
+	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM)))
+		h2c_send_conn_wu(h2c);
+
  fail:
 	/* we can go here on missing data, blocked response or error */
 	return;
@@ -1346,6 +1431,12 @@ static void h2_process_demux(struct h2c *h2c)
 static int h2_process_mux(struct h2c *h2c)
 {
 	struct h2s *h2s, *h2s_back;
+
+	/* start by sending possibly pending window updates */
+	if (h2c->rcvd_c > 0 &&
+	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_MUX_MALLOC)) &&
+	    h2c_send_conn_wu(h2c) < 0)
+		goto fail;
 
 	/* First we always process the flow control list because the streams
 	 * waiting there were already elected for immediate emission but were
@@ -1427,6 +1518,7 @@ static int h2_process_mux(struct h2c *h2c)
 		}
 	}
 
+ fail:
 	if (unlikely(h2c->st0 > H2_CS_ERROR)) {
 		if (h2c->st0 == H2_CS_ERROR) {
 			if (h2c->max_id >= 0) {
