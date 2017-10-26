@@ -823,6 +823,10 @@ Proxy class
 
   Contain the name of the proxy.
 
+.. js:attribute:: Proxy.uuid
+
+  Contain the unique identifier of the proxy.
+
 .. js:attribute:: Proxy.servers
 
   Contain an array with the attached servers. Each server entry is an object of

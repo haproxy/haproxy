@@ -781,6 +781,12 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	lua_pushstring(L, px->id);
 	lua_settable(L, -3);
 
+	/* Add proxy uuid. */
+	lua_pushstring(L, "uuid");
+	snprintf(buffer, sizeof(buffer), "%d", px->uuid);
+	lua_pushstring(L, buffer);
+	lua_settable(L, -3);
+
 	/* Browse and register servers. */
 	lua_pushstring(L, "servers");
 	lua_newtable(L);
