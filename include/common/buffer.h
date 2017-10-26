@@ -545,6 +545,105 @@ static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char 
 	return 1;
 }
 
+/* Tries to write char <c> into input data at buffer <b>. Supports wrapping.
+ * Data are truncated if buffer is full.
+ */
+static inline void bi_putchr(struct buffer *b, char c)
+{
+	if (buffer_len(b) == b->size)
+		return;
+	*bi_end(b) = c;
+	b->i++;
+}
+
+/* Tries to copy block <blk> into input data at buffer <b>. Supports wrapping.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
+ */
+static inline int bi_putblk(struct buffer *b, const char *blk, int len)
+{
+	int cur_len = buffer_len(b);
+	int half;
+
+	if (len > b->size - cur_len)
+		len = (b->size - cur_len);
+	if (!len)
+		return 0;
+
+	half = bi_contig_space(b);
+	if (half > len)
+		half = len;
+
+	memcpy(bi_end(b), blk, half);
+	if (len > half)
+		memcpy(b_ptr(b, b->i + half), blk, len - half);
+	b->i += len;
+	return len;
+}
+
+/* Tries to copy string <str> into input data at buffer <b>. Supports wrapping.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
+ */
+static inline int bi_putstr(struct buffer *b, const char *str)
+{
+	return bi_putblk(b, str, strlen(str));
+}
+
+/* Tries to copy chunk <chk> into input data at buffer <b>. Supports wrapping.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
+ */
+static inline int bi_putchk(struct buffer *b, const struct chunk *chk)
+{
+	return bi_putblk(b, chk->str, chk->len);
+}
+
+/* Gets one full block of data at once from a buffer's input. Return values :
+ *   >0 : number of bytes read, equal to requested size.
+ *   =0 : not enough data available. <blk> is left undefined.
+ * The buffer is left unaffected.
+ */
+static inline int bi_getblk(const struct buffer *buf, char *blk, int len)
+{
+	int firstblock;
+
+	if (len > buf->i)
+		return 0;
+
+	firstblock = bi_contig_data(buf);
+	if (firstblock > len)
+		firstblock = len;
+
+	memcpy(blk, bi_ptr(buf), firstblock);
+	if (len > firstblock)
+		memcpy(blk + firstblock, buf->data, len - firstblock);
+	return len;
+}
+
+/* Gets one or two blocks of data at once from a buffer's input.
+ * Return values :
+ *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available. <blk*> are left undefined.
+ * The buffer is left unaffected. Unused buffers are left in an undefined state.
+ */
+static inline int bi_getblk_nc(struct buffer *buf, char **blk1, int *len1, char **blk2, int *len2)
+{
+	if (unlikely(buf->i == 0))
+		return 0;
+
+	if (unlikely(buf->p + buf->i > buf->data + buf->size)) {
+		*blk1 = buf->p;
+		*len1 = buf->data + buf->size - buf->p;
+		*blk2 = buf->data;
+		*len2 = buf->i - *len1;
+		return 2;
+	}
+
+	*blk1 = buf->p;
+	*len1 = buf->i;
+	return 1;
+}
 
 /* Resets a buffer. The size is not touched. */
 static inline void b_reset(struct buffer *buf)
