@@ -1186,13 +1186,21 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 				 * If we can't resolve the name, or if any error occurs, break
 				 * the loop and fallback to the default backend.
 				 */
-				struct proxy *backend;
+				struct proxy *backend = NULL;
 
 				if (rule->dynamic) {
-					struct chunk *tmp = get_trash_chunk();
-					if (!build_logline(s, tmp->str, tmp->size, &rule->be.expr))
-						break;
-					backend = proxy_be_by_name(tmp->str);
+					struct chunk *tmp;
+
+					tmp = alloc_trash_chunk();
+					if (!tmp)
+						goto sw_failed;
+
+					if (build_logline(s, tmp->str, tmp->size, &rule->be.expr))
+						backend = proxy_be_by_name(tmp->str);
+
+					free_trash_chunk(tmp);
+					tmp = NULL;
+
 					if (!backend)
 						break;
 				}

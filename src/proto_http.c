@@ -2555,19 +2555,25 @@ resume_execution:
 			break;
 
 		case ACT_HTTP_SET_HDR:
-		case ACT_HTTP_ADD_HDR:
+		case ACT_HTTP_ADD_HDR: {
 			/* The scope of the trash buffer must be limited to this function. The
 			 * build_logline() function can execute a lot of other function which
 			 * can use the trash buffer. So for limiting the scope of this global
 			 * buffer, we build first the header value using build_logline, and
 			 * after we store the header name.
 			 */
+			struct chunk *replace;
+
+			replace = alloc_trash_chunk();
+			if (!replace)
+				return HTTP_RULE_RES_BADREQ;
+
 			len = rule->arg.hdr_add.name_len + 2,
-			len += build_logline(s, trash.str + len, trash.size - len, &rule->arg.hdr_add.fmt);
-			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
-			trash.str[rule->arg.hdr_add.name_len] = ':';
-			trash.str[rule->arg.hdr_add.name_len + 1] = ' ';
-			trash.len = len;
+			len += build_logline(s, replace->str + len, replace->size - len, &rule->arg.hdr_add.fmt);
+			memcpy(replace->str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+			replace->str[rule->arg.hdr_add.name_len] = ':';
+			replace->str[rule->arg.hdr_add.name_len + 1] = ' ';
+			replace->len = len;
 
 			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
@@ -2578,90 +2584,105 @@ resume_execution:
 				}
 			}
 
-			http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
+			http_header_add_tail2(&txn->req, &txn->hdr_idx, replace->str, replace->len);
+
+			free_trash_chunk(replace);
 			break;
+			}
 
 		case ACT_HTTP_DEL_ACL:
 		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
-			char *key;
-			int len;
+			struct chunk *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
 			/* collect key */
-			len = build_logline(s, trash.str, trash.size, &rule->arg.map.key);
-			key = trash.str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
-			pat_ref_delete(ref, key);
+			pat_ref_delete(ref, key->str);
 
+			free_trash_chunk(key);
 			break;
 			}
 
 		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
-			char *key;
-			struct chunk *trash_key;
-			int len;
-
-			trash_key = get_trash_chunk();
+			struct chunk *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
 			/* collect key */
-			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
-			key = trash_key->str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* perform update */
 			/* add entry only if it does not already exist */
-			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, NULL);
+			if (pat_ref_find_elt(ref, key->str) == NULL)
+				pat_ref_add(ref, key->str, NULL, NULL);
 
+			free_trash_chunk(key);
 			break;
 			}
 
 		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
-			char *key, *value;
-			struct chunk *trash_key, *trash_value;
-			int len;
-
-			trash_key = get_trash_chunk();
-			trash_value = get_trash_chunk();
+			struct chunk *key, *value;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
+			/* allocate value */
+			value = alloc_trash_chunk();
+			if (!value) {
+				free_trash_chunk(key);
+				return HTTP_RULE_RES_BADREQ;
+			}
+
 			/* collect key */
-			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
-			key = trash_key->str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* collect value */
-			len = build_logline(s, trash_value->str, trash_value->size, &rule->arg.map.value);
-			value = trash_value->str;
-			value[len] = '\0';
+			value->len = build_logline(s, value->str, value->size, &rule->arg.map.value);
+			value->str[value->len] = '\0';
 
 			/* perform update */
-			if (pat_ref_find_elt(ref, key) != NULL)
+			if (pat_ref_find_elt(ref, key->str) != NULL)
 				/* update entry if it exists */
-				pat_ref_set(ref, key, value, NULL);
+				pat_ref_set(ref, key->str, value->str, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, NULL);
+				pat_ref_add(ref, key->str, value->str, NULL);
 
+			free_trash_chunk(key);
+			free_trash_chunk(value);
 			break;
 			}
 
@@ -2824,13 +2845,20 @@ resume_execution:
 			break;
 
 		case ACT_HTTP_SET_HDR:
-		case ACT_HTTP_ADD_HDR:
-			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
-			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
-			trash.len = rule->arg.hdr_add.name_len;
-			trash.str[trash.len++] = ':';
-			trash.str[trash.len++] = ' ';
-			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+		case ACT_HTTP_ADD_HDR: {
+			struct chunk *replace;
+
+			replace = alloc_trash_chunk();
+			if (!replace)
+				return HTTP_RULE_RES_BADREQ;
+
+			chunk_printf(replace, "%s: ", rule->arg.hdr_add.name);
+			memcpy(replace->str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+			replace->len = rule->arg.hdr_add.name_len;
+			replace->str[replace->len++] = ':';
+			replace->str[replace->len++] = ' ';
+			replace->len += build_logline(s, replace->str + replace->len, replace->size - replace->len,
+			                              &rule->arg.hdr_add.fmt);
 
 			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
@@ -2840,90 +2868,105 @@ resume_execution:
 					http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
 				}
 			}
-			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
+			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, replace->str, replace->len);
+
+			free_trash_chunk(replace);
 			break;
+			}
 
 		case ACT_HTTP_DEL_ACL:
 		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
-			char *key;
-			int len;
+			struct chunk *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
 			/* collect key */
-			len = build_logline(s, trash.str, trash.size, &rule->arg.map.key);
-			key = trash.str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
-			pat_ref_delete(ref, key);
+			pat_ref_delete(ref, key->str);
 
+			free_trash_chunk(key);
 			break;
 			}
 
 		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
-			char *key;
-			struct chunk *trash_key;
-			int len;
-
-			trash_key = get_trash_chunk();
+			struct chunk *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
 			/* collect key */
-			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
-			key = trash_key->str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* perform update */
 			/* check if the entry already exists */
-			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, NULL);
+			if (pat_ref_find_elt(ref, key->str) == NULL)
+				pat_ref_add(ref, key->str, NULL, NULL);
 
+			free_trash_chunk(key);
 			break;
 			}
 
 		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
-			char *key, *value;
-			struct chunk *trash_key, *trash_value;
-			int len;
-
-			trash_key = get_trash_chunk();
-			trash_value = get_trash_chunk();
+			struct chunk *key, *value;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
 			if (!ref)
 				continue;
 
+			/* allocate key */
+			key = alloc_trash_chunk();
+			if (!key)
+				return HTTP_RULE_RES_BADREQ;
+
+			/* allocate value */
+			value = alloc_trash_chunk();
+			if (!value) {
+				free_trash_chunk(key);
+				return HTTP_RULE_RES_BADREQ;
+			}
+
 			/* collect key */
-			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
-			key = trash_key->str;
-			key[len] = '\0';
+			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
+			key->str[key->len] = '\0';
 
 			/* collect value */
-			len = build_logline(s, trash_value->str, trash_value->size, &rule->arg.map.value);
-			value = trash_value->str;
-			value[len] = '\0';
+			value->len = build_logline(s, value->str, value->size, &rule->arg.map.value);
+			value->str[value->len] = '\0';
 
 			/* perform update */
-			if (pat_ref_find_elt(ref, key) != NULL)
+			if (pat_ref_find_elt(ref, key->str) != NULL)
 				/* update entry if it exists */
-				pat_ref_set(ref, key, value, NULL);
+				pat_ref_set(ref, key->str, value->str, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, NULL);
+				pat_ref_add(ref, key->str, value->str, NULL);
 
+			free_trash_chunk(key);
+			free_trash_chunk(value);
 			break;
 			}
 
@@ -11678,15 +11721,26 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
-	chunk_reset(&trash);
+	struct chunk *replace;
+	enum act_return ret = ACT_RET_ERR;
+
+	replace = alloc_trash_chunk();
+	if (!replace)
+		goto leave;
 
 	/* If we have to create a query string, prepare a '?'. */
 	if (rule->arg.http.action == 2)
-		trash.str[trash.len++] = '?';
-	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.http.logfmt);
+		replace->str[replace->len++] = '?';
+	replace->len += build_logline(s, replace->str + replace->len, replace->size - replace->len,
+	                              &rule->arg.http.logfmt);
 
-	http_replace_req_line(rule->arg.http.action, trash.str, trash.len, px, s);
-	return ACT_RET_CONT;
+	http_replace_req_line(rule->arg.http.action, replace->str, replace->len, px, s);
+
+	ret = ACT_RET_CONT;
+
+leave:
+	free_trash_chunk(replace);
+	return ret;
 }
 
 /* This function is just a compliant action wrapper for "set-status". */
