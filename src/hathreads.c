@@ -103,7 +103,7 @@ static inline void thread_sync_barrier(volatile unsigned long *barrier)
 	unsigned long old = all_threads_mask;
 
 	HA_ATOMIC_CAS(barrier, &old, 0);
-	HA_ATOMIC_OR(barrier, tid_bit;
+	HA_ATOMIC_OR(barrier, tid_bit);
 	while (*barrier != all_threads_mask)
 		pl_cpu_relax();
 }
