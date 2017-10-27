@@ -847,6 +847,10 @@ resetenv [<name> ...]
   next line in the configuration file sees the new environment. See also
   "setenv", "presetenv", and "unsetenv".
 
+ssl-allow-0rtt
+  Allow using 0RTT on every listener. 0RTT is prone to various attacks, so be
+  sure to know the security implications before activating it.
+
 stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   Limits the stats socket to a certain set of processes numbers. By default the
   stats socket is bound to all processes, causing a warning to be emitted when

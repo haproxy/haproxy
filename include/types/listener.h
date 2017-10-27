@@ -105,7 +105,6 @@ enum li_state {
 #define BC_SSL_O_NONE           0x0000
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
 #define BC_SSL_O_PREF_CLIE_CIPH 0x0200  /* prefer client ciphers */
-#define BC_SSL_O_EARLY_DATA     0x0400  /* Accept early data */
 #endif
 
 /* ssl "bind" settings */

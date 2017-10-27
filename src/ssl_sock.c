@@ -165,6 +165,7 @@ static struct {
 	char *crt_base;             /* base directory path for certificates */
 	char *ca_base;              /* base directory path for CAs and CRLs */
 	int  async;                 /* whether we use ssl async mode */
+	int default_early_data;     /* Shall we default to allow early data */
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
@@ -2009,7 +2010,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	conn = SSL_get_app_data(ssl);
 	s = objt_listener(conn->target)->bind_conf;
 
-	if (s->ssl_options & BC_SSL_O_EARLY_DATA)
+	if (s->ssl_conf.early_data)
 		allow_early = 1;
 #ifdef OPENSSL_IS_BORINGSSL
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_server_name,
@@ -6976,7 +6977,7 @@ static int ssl_bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px,
 
 static int bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->ssl_options |= BC_SSL_O_EARLY_DATA;
+	conf->ssl_conf.early_data = 1;
 	return 0;
 }
 
@@ -7102,6 +7103,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
 	conf->ssl_options |= global_ssl.listen_default_ssloptions;
 	conf->ssl_conf.ssl_methods.flags |= global_ssl.listen_default_sslmethods.flags;
+	conf->ssl_conf.early_data = global_ssl.default_early_data;
 	if (!conf->ssl_conf.ssl_methods.min)
 		conf->ssl_conf.ssl_methods.min = global_ssl.listen_default_sslmethods.min;
 	if (!conf->ssl_conf.ssl_methods.max)
@@ -7519,8 +7521,6 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 	while (*(args[i])) {
 		if (!strcmp(args[i], "no-tls-tickets"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
-		else if (!strcmp(args[i], "allow-0rtt"))
-			global_ssl.listen_default_ssloptions |= BC_SSL_O_EARLY_DATA;
 		else if (!strcmp(args[i], "prefer-client-ciphers"))
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
 		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
@@ -7595,6 +7595,23 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	}
 	*target = strdup(args[1]);
 	return 0;
+}
+
+/* parse the "ssl-allow-0rtt" keyword in global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ssl_allow_0rtt(char **args, int section_type,
+    struct proxy *curpx, struct proxy *defpx, const char *file, int line,
+    char **err)
+{
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+        global_ssl.default_early_data = 1;
+        return 0;
+#else
+        memprintf(err, "'%s': openssl library does not early data", args[0]);
+        return -1;
+#endif
+
 }
 
 /* parse the "ssl-mode-async" keyword in global section.
@@ -8287,6 +8304,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "maxsslconn", ssl_parse_global_int },
+	{ CFG_GLOBAL, "ssl-allow-0rtt", ssl_parse_global_ssl_allow_0rtt },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
 #ifndef OPENSSL_NO_DH
