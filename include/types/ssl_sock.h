@@ -27,11 +27,16 @@
 
 #include <common/hathreads.h>
 
+struct pkey_info {
+	uint8_t sig;          /* TLSEXT_signature_[rsa,ecdsa,...] */
+	uint16_t bits;        /* key size in bits */
+};
+
 struct sni_ctx {
 	SSL_CTX *ctx;             /* context associated to the certificate */
 	int order;                /* load order for the certificate */
 	uint8_t neg;              /* reject if match */
-	uint8_t key_sig;          /* TLSEXT_signature_[rsa,ecdsa,...] */
+	struct pkey_info kinfo;   /* pkey info */
 	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
 	struct ebmb_node name;    /* node holding the servername value */
 };

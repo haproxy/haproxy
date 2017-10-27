@@ -2226,7 +2226,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	/* lookup a not neg filter */
 	for (n = node; n; n = ebmb_next_dup(n)) {
 		if (!container_of(n, struct sni_ctx, name)->neg) {
-			switch(container_of(n, struct sni_ctx, name)->key_sig) {
+			switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
 			case TLSEXT_signature_ecdsa:
 				if (has_ecdsa) {
 					node_ecdsa = n;
@@ -2240,7 +2240,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 						goto find_one;
 				}
 				break;
-			default: /* TLSEXT_signature_anonymous */
+			default: /* TLSEXT_signature_anonymous|dsa */
 				if (!node_anonymous)
 					node_anonymous = n;
 				break;
@@ -2252,7 +2252,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		node = ebst_lookup(&s->sni_w_ctx, wildp);
 		for (n = node; n; n = ebmb_next_dup(n)) {
 			if (!container_of(n, struct sni_ctx, name)->neg) {
-				switch(container_of(n, struct sni_ctx, name)->key_sig) {
+				switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
 				case TLSEXT_signature_ecdsa:
 					if (has_ecdsa) {
 						node_ecdsa = n;
@@ -2266,7 +2266,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 							goto find_one;
 					}
 					break;
-				default: /* TLSEXT_signature_anonymous */
+				default: /* TLSEXT_signature_anonymous|dsa */
 					if (!node_anonymous)
 						node_anonymous = n;
 					break;
@@ -2659,7 +2659,7 @@ end:
 #endif
 
 static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_bind_conf *conf,
-				 uint8_t key_sig, char *name, int order)
+				 struct pkey_info kinfo, char *name, int order)
 {
 	struct sni_ctx *sc;
 	int wild = 0, neg = 0;
@@ -2692,8 +2692,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 			node = ebst_lookup(&s->sni_ctx, trash.str);
 		for (; node; node = ebmb_next_dup(node)) {
 			sc = ebmb_entry(node, struct sni_ctx, name);
-			if (sc->ctx == ctx && sc->conf == conf &&
-			    sc->key_sig == key_sig && sc->neg == neg)
+			if (sc->ctx == ctx && sc->conf == conf && sc->neg == neg)
 				return order;
 		}
 
@@ -2703,7 +2702,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 		memcpy(sc->name.key, trash.str, len + 1);
 		sc->ctx = ctx;
 		sc->conf = conf;
-		sc->key_sig = key_sig;
+		sc->kinfo = kinfo;
 		sc->order = order++;
 		sc->neg = neg;
 		if (wild)
@@ -3073,6 +3072,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 	while (node) {
 		SSL_CTX *cur_ctx;
 		char cur_file[MAXPATHLEN+1];
+		const struct pkey_info kinfo = { .sig = TLSEXT_signature_anonymous, .bits = 0 };
 
 		str = (char *)container_of(node, struct sni_keytype, name)->name.key;
 		i = container_of(node, struct sni_keytype, name)->keytypes;
@@ -3136,7 +3136,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 		/* Update SNI Tree */
 		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, bind_conf, ssl_conf,
-							      TLSEXT_signature_anonymous, str, key_combos[i-1].order);
+							      kinfo, str, key_combos[i-1].order);
 		node = ebmb_next(node);
 	}
 
@@ -3197,7 +3197,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	pem_password_cb *passwd_cb;
 	void *passwd_cb_userdata;
 	EVP_PKEY *pkey;
-	uint8_t key_sig = TLSEXT_signature_anonymous;
+	struct pkey_info kinfo = { .sig = TLSEXT_signature_anonymous, .bits = 0 };
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
@@ -3220,12 +3220,16 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 	pkey = X509_get_pubkey(x);
 	if (pkey) {
+		kinfo.bits = EVP_PKEY_bits(pkey);
 		switch(EVP_PKEY_base_id(pkey)) {
 		case EVP_PKEY_RSA:
-			key_sig = TLSEXT_signature_rsa;
+			kinfo.sig = TLSEXT_signature_rsa;
 			break;
 		case EVP_PKEY_EC:
-			key_sig = TLSEXT_signature_ecdsa;
+			kinfo.sig = TLSEXT_signature_ecdsa;
+			break;
+		case EVP_PKEY_DSA:
+			kinfo.sig = TLSEXT_signature_dsa;
 			break;
 		}
 		EVP_PKEY_free(pkey);
@@ -3233,7 +3237,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 	if (fcount) {
 		while (fcount--)
-			order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, sni_filter[fcount], order);
+			order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, sni_filter[fcount], order);
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -3243,7 +3247,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, str, order);
+						order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, str, order);
 						OPENSSL_free(str);
 					}
 				}
@@ -3259,7 +3263,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-				order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, key_sig, str, order);
+				order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, str, order);
 				OPENSSL_free(str);
 			}
 		}
