@@ -1119,11 +1119,22 @@ static int hlua_regex_exec(struct lua_State *L)
 	struct my_regex *regex;
 	const char *str;
 	size_t len;
+	struct chunk *tmp;
 
 	regex = hlua_check_regex(L, 1);
 	str = luaL_checklstring(L, 2, &len);
 
-	lua_pushboolean(L, regex_exec2(regex, (char *)str, len));
+	/* Copy the string because regex_exec2 require a 'char *'
+	 * and not a 'const char *'.
+	 */
+	tmp = get_trash_chunk();
+	if (len >= tmp->size) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	memcpy(tmp->str, str, len);
+
+	lua_pushboolean(L, regex_exec2(regex, tmp->str, len));
 
 	return 1;
 }
@@ -1136,11 +1147,22 @@ static int hlua_regex_match(struct lua_State *L)
 	regmatch_t pmatch[20];
 	int ret;
 	int i;
+	struct chunk *tmp;
 
 	regex = hlua_check_regex(L, 1);
 	str = luaL_checklstring(L, 2, &len);
 
-	ret = regex_exec_match2(regex, (char *)str, len, 20, pmatch, 0);
+	/* Copy the string because regex_exec2 require a 'char *'
+	 * and not a 'const char *'.
+	 */
+	tmp = get_trash_chunk();
+	if (len >= tmp->size) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	memcpy(tmp->str, str, len);
+
+	ret = regex_exec_match2(regex, tmp->str, len, 20, pmatch, 0);
 	lua_pushboolean(L, ret);
 	lua_newtable(L);
 	if (ret) {
