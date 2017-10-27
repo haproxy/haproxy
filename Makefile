@@ -149,6 +149,7 @@ SPEC_CFLAGS += $(call cc-opt,-fwrapv)
 SPEC_CFLAGS += $(call cc-nowarn,format-truncation)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,null-dereference)
+SPEC_CFLAGS += $(call cc-nowarn,unused-label)
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
