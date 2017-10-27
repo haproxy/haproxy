@@ -68,23 +68,37 @@ struct chunk *get_trash_chunk(void)
  */
 static int alloc_trash_buffers(int bufsize)
 {
+	chunk_init(&trash, my_realloc2(trash.str, bufsize), bufsize);
 	trash_size = bufsize;
 	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
 	trash_buf2 = (char *)my_realloc2(trash_buf2, bufsize);
-	pool2_trash = create_pool("trash", sizeof(struct chunk) + bufsize, MEM_F_EXACT);
-	return trash_buf1 && trash_buf2 && pool2_trash;
+	return trash.str && trash_buf1 && trash_buf2;
+}
+
+static int init_trash_buffers_per_thread()
+{
+	return alloc_trash_buffers(global.tune.bufsize);
+}
+
+static void deinit_trash_buffers_per_thread()
+{
+	chunk_destroy(&trash);
+	free(trash_buf2);
+	free(trash_buf1);
+	trash_buf2 = NULL;
+	trash_buf1 = NULL;
 }
 
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
-int init_trash_buffers()
+int init_trash_buffers(int first)
 {
-	if (global.nbthread > 1 && tid == (unsigned int)(-1)) {
-		hap_register_per_thread_init(init_trash_buffers);
-		hap_register_per_thread_deinit(deinit_trash_buffers);
+	if (!first) {
+		hap_register_per_thread_init(init_trash_buffers_per_thread);
+		hap_register_per_thread_deinit(deinit_trash_buffers_per_thread);
 	}
-
-	chunk_init(&trash, my_realloc2(trash.str, global.tune.bufsize), global.tune.bufsize);
-	if (!trash.str || !alloc_trash_buffers(global.tune.bufsize))
+	pool_destroy2(pool2_trash);
+	pool2_trash = create_pool("trash", sizeof(struct chunk) + global.tune.bufsize, MEM_F_EXACT);
+	if (!pool2_trash || !alloc_trash_buffers(global.tune.bufsize))
 		return 0;
 	return 1;
 }
@@ -94,11 +108,7 @@ int init_trash_buffers()
  */
 void deinit_trash_buffers(void)
 {
-	chunk_destroy(&trash);
-	free(trash_buf2);
-	free(trash_buf1);
-	trash_buf2 = NULL;
-	trash_buf1 = NULL;
+	pool_destroy2(pool2_trash);
 }
 
 /*

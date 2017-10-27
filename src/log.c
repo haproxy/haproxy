@@ -1344,14 +1344,19 @@ void init_log()
 	}
 }
 
+static int init_log_buffers_per_thread()
+{
+	return init_log_buffers();
+}
+
+static void deinit_log_buffers_per_thread()
+{
+	deinit_log_buffers();
+}
+
 /* Initialize log buffers used for syslog messages */
 int init_log_buffers()
 {
-	if (global.nbthread > 1 && tid == (unsigned int)(-1)) {
-		hap_register_per_thread_init(init_log_buffers);
-		hap_register_per_thread_deinit(deinit_log_buffers);
-	}
-
 	logheader = my_realloc2(logheader, global.max_syslog_len + 1);
 	logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
 	logline = my_realloc2(logline, global.max_syslog_len + 1);
@@ -2413,6 +2418,8 @@ static struct cli_kw_list cli_kws = {{ },{
 __attribute__((constructor))
 static void __log_init(void)
 {
+	hap_register_per_thread_init(init_log_buffers_per_thread);
+	hap_register_per_thread_deinit(deinit_log_buffers_per_thread);
 	cli_register_kw(&cli_kws);
 }
 /*

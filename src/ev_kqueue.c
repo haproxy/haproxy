@@ -154,6 +154,7 @@ static int init_kqueue_per_thread()
 static void deinit_kqueue_per_thread()
 {
 	free(kev);
+	kev = NULL;
 }
 
 /*
@@ -169,18 +170,10 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (kqueue_fd < 0)
 		goto fail_fd;
 
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_kqueue_per_thread);
-		hap_register_per_thread_deinit(deinit_kqueue_per_thread);
-	}
-	else if (!init_kqueue_per_thread())
-		goto fail_kev;
-
+	hap_register_per_thread_init(init_kqueue_per_thread);
+	hap_register_per_thread_deinit(deinit_kqueue_per_thread);
 	return 1;
 
- fail_kev:
-	close(kqueue_fd);
-	kqueue_fd = -1;
  fail_fd:
 	p->pref = 0;
 	return 0;
@@ -192,8 +185,6 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	free(kev);
-
 	if (kqueue_fd >= 0) {
 		close(kqueue_fd);
 		kqueue_fd = -1;

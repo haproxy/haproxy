@@ -176,6 +176,7 @@ static int init_epoll_per_thread()
 static void deinit_epoll_per_thread()
 {
 	free(epoll_events);
+	epoll_events = NULL;
 }
 
 /*
@@ -191,18 +192,11 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (epoll_fd < 0)
 		goto fail_fd;
 
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_epoll_per_thread);
-		hap_register_per_thread_deinit(deinit_epoll_per_thread);
-	}
-	else if (!init_epoll_per_thread())
-		goto fail_ee;
+	hap_register_per_thread_init(init_epoll_per_thread);
+	hap_register_per_thread_deinit(deinit_epoll_per_thread);
 
 	return 1;
 
- fail_ee:
-	close(epoll_fd);
-	epoll_fd = -1;
  fail_fd:
 	p->pref = 0;
 	return 0;
@@ -214,14 +208,11 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	free(epoll_events);
-
 	if (epoll_fd >= 0) {
 		close(epoll_fd);
 		epoll_fd = -1;
 	}
 
-	epoll_events = NULL;
 	p->private = NULL;
 	p->pref = 0;
 }

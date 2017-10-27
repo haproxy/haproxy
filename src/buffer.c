@@ -83,19 +83,13 @@ int init_buffer()
 
 	pool_free2(pool2_buffer, buffer);
 
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_buffer_per_thread);
-		hap_register_per_thread_deinit(deinit_buffer_per_thread);
-	}
-	else if (!init_buffer_per_thread())
-		     return 0;
-
+	hap_register_per_thread_init(init_buffer_per_thread);
+	hap_register_per_thread_deinit(deinit_buffer_per_thread);
 	return 1;
 }
 
 void deinit_buffer()
 {
-	deinit_buffer_per_thread();
 	pool_destroy2(pool2_buffer);
 }
 

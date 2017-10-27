@@ -325,17 +325,11 @@ int init_pollers()
 	if ((fd_cache = calloc(global.maxsock, sizeof(*fd_cache))) == NULL)
 		goto fail_cache;
 
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_pollers_per_thread);
-		hap_register_per_thread_deinit(deinit_pollers_per_thread);
-	}
-	else if (!init_pollers_per_thread())
-		goto fail_updt;
+	hap_register_per_thread_init(init_pollers_per_thread);
+	hap_register_per_thread_deinit(deinit_pollers_per_thread);
 
 	for (p = 0; p < global.maxsock; p++)
 		SPIN_INIT(&fdtab[p].lock);
-
-	//memset(fd_cache, -1, global.maxsock);
 
 	SPIN_INIT(&fdtab_lock);
 	RWLOCK_INIT(&fdcache_lock);
@@ -356,8 +350,6 @@ int init_pollers()
 	} while (!bp || bp->pref == 0);
 	return 0;
 
- fail_updt:
-	free(fd_cache);
  fail_cache:
 	free(fdinfo);
  fail_info:
@@ -384,7 +376,6 @@ void deinit_pollers() {
 			bp->term(bp);
 	}
 
-	free(fd_updt);  fd_updt  = NULL;
 	free(fd_cache); fd_cache = NULL;
 	free(fdinfo);   fdinfo   = NULL;
 	free(fdtab);    fdtab    = NULL;

@@ -191,6 +191,7 @@ static int init_poll_per_thread()
 static void deinit_poll_per_thread()
 {
 	free(poll_events);
+	poll_events = NULL;
 }
 
 /*
@@ -200,23 +201,19 @@ static void deinit_poll_per_thread()
  */
 REGPRM1 static int _do_init(struct poller *p)
 {
-	__label__ fail_swevt, fail_srevt, fail_pe;
+	__label__ fail_swevt, fail_srevt;
 	int fd_evts_bytes;
 
 	p->private = NULL;
 	fd_evts_bytes = (global.maxsock + sizeof(**fd_evts) - 1) / sizeof(**fd_evts) * sizeof(**fd_evts);
 
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_poll_per_thread);
-		hap_register_per_thread_deinit(deinit_poll_per_thread);
-	}
-	else if (!init_poll_per_thread())
-		goto fail_pe;
-
 	if ((fd_evts[DIR_RD] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_srevt;
 	if ((fd_evts[DIR_WR] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_swevt;
+
+	hap_register_per_thread_init(init_poll_per_thread);
+	hap_register_per_thread_deinit(deinit_poll_per_thread);
 
 	return 1;
 
@@ -224,7 +221,6 @@ REGPRM1 static int _do_init(struct poller *p)
 	free(fd_evts[DIR_RD]);
  fail_srevt:
 	free(poll_events);
- fail_pe:
 	p->pref = 0;
 	return 0;
 }
@@ -237,7 +233,6 @@ REGPRM1 static void _do_term(struct poller *p)
 {
 	free(fd_evts[DIR_WR]);
 	free(fd_evts[DIR_RD]);
-	free(poll_events);
 	p->private = NULL;
 	p->pref = 0;
 }

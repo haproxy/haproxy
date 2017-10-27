@@ -173,8 +173,8 @@ static int init_select_per_thread()
 
 static void deinit_select_per_thread()
 {
-	free(tmp_evts[DIR_WR]);
-	free(tmp_evts[DIR_RD]);
+	free(tmp_evts[DIR_WR]); tmp_evts[DIR_WR] = NULL;
+	free(tmp_evts[DIR_RD]); tmp_evts[DIR_RD] = NULL;
 }
 
 /*
@@ -193,17 +193,14 @@ REGPRM1 static int _do_init(struct poller *p)
 		goto fail_revt;
 
 	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
-	if (global.nbthread > 1) {
-		hap_register_per_thread_init(init_select_per_thread);
-		hap_register_per_thread_deinit(deinit_select_per_thread);
-	}
-	else if (!init_select_per_thread())
-		goto fail_revt;
 
 	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
 	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
+
+	hap_register_per_thread_init(init_select_per_thread);
+	hap_register_per_thread_deinit(deinit_select_per_thread);
 
 	return 1;
 
@@ -225,8 +222,6 @@ REGPRM1 static void _do_term(struct poller *p)
 {
 	free(fd_evts[DIR_WR]);
 	free(fd_evts[DIR_RD]);
-	free(tmp_evts[DIR_WR]);
-	free(tmp_evts[DIR_RD]);
 	p->private = NULL;
 	p->pref = 0;
 }

@@ -52,7 +52,7 @@ int chunk_strcmp(const struct chunk *chk, const char *str);
 int chunk_strcasecmp(const struct chunk *chk, const char *str);
 struct chunk *get_trash_chunk(void);
 struct chunk *alloc_trash_chunk(void);
-int init_trash_buffers(void);
+int init_trash_buffers(int first);
 void deinit_trash_buffers(void);
 
 /*

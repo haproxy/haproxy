@@ -1179,7 +1179,7 @@ static void init(int argc, char **argv)
 	global.mode = MODE_STARTING;
 	next_argv = copy_argv(argc, argv);
 
-	if (!init_trash_buffers()) {
+	if (!init_trash_buffers(1)) {
 		Alert("failed to initialize trash buffers.\n");
 		exit(1);
 	}
@@ -1196,10 +1196,10 @@ static void init(int argc, char **argv)
 	/*
 	 * Initialize the previously static variables.
 	 */
-    
+
 	totalconn = actconn = maxfd = listeners = stopping = 0;
 	killed = 0;
-    
+
 
 #ifdef HAPROXY_MEMMAX
 	global.rlimit_memmax_all = HAPROXY_MEMMAX;
@@ -1760,13 +1760,8 @@ static void init(int argc, char **argv)
 		global.nbthread = 1;
 
 	/* Realloc trash buffers because global.tune.bufsize may have changed */
-	if (!init_trash_buffers()) {
+	if (!init_trash_buffers(0)) {
 		Alert("failed to initialize trash buffers.\n");
-		exit(1);
-	}
-
-	if (!init_log_buffers()) {
-		Alert("failed to initialize log buffers.\n");
 		exit(1);
 	}
 
@@ -2194,7 +2189,6 @@ void deinit(void)
 	pool_destroy2(pool2_stream);
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_connection);
-	pool_destroy2(pool2_trash);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy2(pool2_capture);
@@ -2291,7 +2285,6 @@ static void run_poll_loop()
 	}
 }
 
-#ifdef USE_THREAD
 static void *run_thread_poll_loop(void *data)
 {
 	struct per_thread_init_fct   *ptif;
@@ -2318,9 +2311,12 @@ static void *run_thread_poll_loop(void *data)
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
 		ptdf->fct();
 
-	pthread_exit(NULL);
-}
+#ifdef USE_THREAD
+	if (tid > 0)
+		pthread_exit(NULL);
 #endif
+	return NULL;
+}
 
 /* This is the global management task for listeners. It enables listeners waiting
  * for global resources when there are enough free resource, or at least once in
@@ -2804,17 +2800,24 @@ int main(int argc, char **argv)
 	/*
 	 * That's it : the central polling loop. Run until we stop.
 	 */
-	if (global.nbthread > 1) {
 #ifdef USE_THREAD
+	{
 		unsigned int *tids    = calloc(global.nbthread, sizeof(unsigned int));
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
 
-		THREAD_SYNC_INIT((1UL << global.nbthread) - 1);
-		for (i = 0; i < global.nbthread; i++) {
+		/* Init tids array */
+		for (i = 0; i < global.nbthread; i++)
 			tids[i] = i;
+
+		/* Create nbthread-1 thread. The first thread is the current process */
+		threads[0] = pthread_self();
+		for (i = 1; i < global.nbthread; i++)
 			pthread_create(&threads[i], NULL, &run_thread_poll_loop, &tids[i]);
+
 #ifdef USE_CPU_AFFINITY
+		/* Now the CPU affinity for all threads */
+		for (i = 0; i < global.nbthread; i++) {
 			if (global.cpu_map[relative_pid-1])
 				global.thread_map[relative_pid-1][i] &= global.cpu_map[relative_pid-1];
 
@@ -2822,9 +2825,14 @@ int main(int argc, char **argv)
 			    global.thread_map[relative_pid-1][i]) /* only do this if the thread has a THREAD map */
 				pthread_setaffinity_np(threads[i],
 						       sizeof(unsigned long), (void *)&global.thread_map[relative_pid-1][i]);
-#endif
 		}
-		for (i = 0; i < global.nbthread; i++)
+#endif /* !USE_CPU_AFFINITY */
+
+		/* Finally, start the poll loop for the first thread */
+		run_thread_poll_loop(&tids[0]);
+
+		/* Wait the end of other threads */
+		for (i = 1; i < global.nbthread; i++)
 			pthread_join(threads[i], NULL);
 
 		free(tids);
@@ -2833,30 +2841,12 @@ int main(int argc, char **argv)
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 		show_lock_stats();
 #endif
-
-#endif /* USE_THREAD */
 	}
-	else {
-		tid = 0;
+#else /* ! USE_THREAD */
 
-#ifdef USE_THREAD
-#ifdef USE_CPU_AFFINITY
-		if (global.cpu_map[relative_pid-1])
-			global.thread_map[relative_pid-1][tid] &= global.cpu_map[relative_pid-1];
+	run_thread_poll_loop((int []){0});
 
-		if (global.thread_map[relative_pid-1][tid]) /* only do this if the thread has a THREAD map */
-			pthread_setaffinity_np(pthread_self(),
-					       sizeof(unsigned long), (void *)&global.thread_map[relative_pid-1][tid]);
 #endif
-#endif
-
-		if (global.mode & MODE_MWORKER)
-			mworker_pipe_register(mworker_pipe);
-
-		protocol_enable_all();
-
-		run_poll_loop();
-	}
 
 	/* Do some cleanup */
 	deinit();
