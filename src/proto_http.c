@@ -267,7 +267,7 @@ struct action_kw_list http_res_keywords = {
 struct chunk http_err_chunks[HTTP_ERR_SIZE];
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
-static struct hdr_ctx static_hdr_ctx;
+static THREAD_LOCAL struct hdr_ctx static_hdr_ctx;
 
 #define FD_SETS_ARE_BITFIELDS
 #ifdef FD_SETS_ARE_BITFIELDS

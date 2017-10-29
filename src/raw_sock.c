@@ -69,7 +69,7 @@
 int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int count)
 {
 #ifndef ASSUME_SPLICE_WORKS
-	static int splice_detects_close;
+	static THREAD_LOCAL int splice_detects_close;
 #endif
 	int ret;
 	int retval = 0;

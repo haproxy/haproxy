@@ -2380,7 +2380,7 @@ static int start_checks()
  */
 static int httpchk_expect(struct server *s, int done)
 {
-	static char status_msg[] = "HTTP status check returned code <000>";
+	static THREAD_LOCAL char status_msg[] = "HTTP status check returned code <000>";
 	char status_code[] = "000";
 	char *contentptr;
 	int crlf;

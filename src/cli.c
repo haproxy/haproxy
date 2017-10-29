@@ -81,7 +81,7 @@ static const char stats_permission_denied_msg[] =
 	"";
 
 
-static char *dynamic_usage_msg = NULL;
+static THREAD_LOCAL char *dynamic_usage_msg = NULL;
 
 /* List head of cli keywords */
 static struct cli_kw_list cli_keywords = {

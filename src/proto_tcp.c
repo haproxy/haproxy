@@ -116,8 +116,8 @@ static struct protocol proto_tcpv6 = {
 
 /* Default TCP parameters, got by opening a temporary TCP socket. */
 #ifdef TCP_MAXSEG
-static int default_tcp_maxseg = -1;
-static int default_tcp6_maxseg = -1;
+static THREAD_LOCAL int default_tcp_maxseg = -1;
+static THREAD_LOCAL int default_tcp6_maxseg = -1;
 #endif
 
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
@@ -138,8 +138,8 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	struct sockaddr_storage bind_addr;
 	int foreign_ok = 0;
 	int ret;
-	static int ip_transp_working = 1;
-	static int ip6_transp_working = 1;
+	static THREAD_LOCAL int ip_transp_working = 1;
+	static THREAD_LOCAL int ip6_transp_working = 1;
 
 	switch (local->ss_family) {
 	case AF_INET:
@@ -433,7 +433,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		}
 		else {
 #ifdef IP_BIND_ADDRESS_NO_PORT
-			static int bind_address_no_port = 1;
+			static THREAD_LOCAL int bind_address_no_port = 1;
 			setsockopt(fd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, (const void *) &bind_address_no_port, sizeof(int));
 #endif
 			ret = tcp_bind_socket(fd, flags, &src->source_addr, &conn->addr.from);

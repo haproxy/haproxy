@@ -218,9 +218,9 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 };
 
 /* one line of info */
-static struct field info[INF_TOTAL_FIELDS];
+static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 /* one line of stats */
-static struct field stats[ST_F_TOTAL_FIELDS];
+static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
 
 

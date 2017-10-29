@@ -837,7 +837,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
 {
-	static struct sockaddr_storage ss;
+	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
 	char *back, *str2;
 	char *port1, *port2;
@@ -2493,7 +2493,7 @@ int buf2ip6(const char *buf, size_t len, struct in6_addr *dst)
  */
 const char *quote_arg(const char *ptr)
 {
-	static char val[32];
+	static THREAD_LOCAL char val[32];
 	int i;
 
 	if (!ptr || !*ptr)
@@ -2764,7 +2764,7 @@ static int my_tm_diff(const struct tm *a, const struct tm *b)
 const char *get_gmt_offset(time_t t, struct tm *tm)
 {
 	/* Cache offsets from GMT (depending on whether DST is active or not) */
-	static char gmt_offsets[2][5+1] = { "", "" };
+	static THREAD_LOCAL char gmt_offsets[2][5+1] = { "", "" };
 
 	char *gmt_offset;
 	struct tm tm_gmt;
