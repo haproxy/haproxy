@@ -828,6 +828,53 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	return ret;
 }
 
+/* try to send an empty DATA frame with the ES flag set to notify about the
+ * end of stream and match a shutdown(write). If an ES was already sent as
+ * indicated by HLOC/ERROR/RESET/CLOSED states, nothing is done. Returns > 0
+ * on success or zero if nothing was done. In case of lack of room to write the
+ * message, it subscribes the requesting stream to future notifications.
+ */
+static int h2_send_empty_data_es(struct h2s *h2s)
+{
+	struct h2c *h2c = h2s->h2c;
+	struct buffer *res;
+	char str[9];
+	int ret;
+
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
+	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+		return 1;
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		h2s->flags |= H2_SF_BLK_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
+	}
+
+	/* len: 0x000000, type: 0(DATA), flags: ES=1 */
+	memcpy(str, "\x00\x00\x00\x00\x01", 5);
+	write_n32(str + 5, h2s->id);
+	ret = bo_istput(res, ist2(str, 9));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2s->flags |= H2_SF_BLK_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+	return ret;
+}
+
 /* Increase all streams' outgoing window size by the difference passed in
  * argument. This is needed upon receipt of the settings frame if the initial
  * window size is different. The difference may be negative and the resulting
@@ -2003,10 +2050,48 @@ static void h2_detach(struct conn_stream *cs)
 
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
+	struct h2s *h2s = cs->ctx;
+
+	if (!mode)
+		return;
+
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
+	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+		return;
+
+	if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
+		return;
+
+	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
+		conn_xprt_want_send(cs->conn);
+
+	h2s->st = H2_SS_CLOSED;
 }
 
 static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
+	struct h2s *h2s = cs->ctx;
+
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
+	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+		return;
+
+	if (h2s->h2c->flags & H2_CF_HEADERS_SENT) {
+		if (h2_send_empty_data_es(h2s) <= 0)
+			return;
+	} else {
+		if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
+			return;
+	}
+
+	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
+		conn_xprt_want_send(cs->conn);
+
+	if (h2s->st == H2_SS_OPEN && !(h2s->flags & H2_SF_RST_SENT))
+		h2s->st = H2_SS_HLOC;
+	else
+		h2s->st = H2_SS_CLOSED;
+
 }
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1
