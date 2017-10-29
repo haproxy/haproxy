@@ -1279,6 +1279,39 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
+/* processes a GOAWAY frame, and signals all streams whose ID is greater than
+ * the last ID. Returns > 0 on success or zero on missing data. It may return
+ * an error in h2c. Described in RFC7540#6.8.
+ */
+static int h2c_handle_goaway(struct h2c *h2c)
+{
+	int error;
+	int last;
+
+	if (h2c->dsi != 0) {
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2c->dfl < 8) {
+		error = H2_ERR_FRAME_SIZE_ERROR;
+		goto conn_err;
+	}
+
+	/* process full frame only */
+	if (h2c->dbuf->i < h2c->dfl)
+		return 0;
+
+	last = h2_get_n32(h2c->dbuf, 0);
+	h2c->errcode = h2_get_n32(h2c->dbuf, 4);
+	h2_wake_some_streams(h2c, last, CS_FL_ERROR);
+	return 1;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return 0;
+}
+
 /* processes an RST_STREAM frame, and sets the 32-bit error code on the stream.
  * Returns > 0 on success or zero on missing data. It may return an error in
  * h2c. Described in RFC7540#6.4.
@@ -1626,6 +1659,11 @@ static void h2_process_demux(struct h2c *h2c)
 		case H2_FT_RST_STREAM:
 			if (h2c->st0 == H2_CS_FRAME_P)
 				ret = h2c_handle_rst_stream(h2c, h2s);
+			break;
+
+		case H2_FT_GOAWAY:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_handle_goaway(h2c);
 			break;
 
 			/* FIXME: implement all supported frame types here */
