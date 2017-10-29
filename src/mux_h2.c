@@ -875,6 +875,45 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	return ret;
 }
 
+/* wake the streams attached to the connection, whose id is greater than <last>,
+ * and assign their conn_stream the CS_FL_* flags <flags> in addition to
+ * CS_FL_ERROR in case of error and CS_FL_EOS in case of closed connection. The
+ * stream's state is automatically updated accordingly.
+ */
+static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
+{
+	struct eb32_node *node;
+	struct h2s *h2s;
+
+	if (h2c->st0 >= H2_CS_ERROR || h2c->conn->flags & CO_FL_ERROR)
+		flags |= CS_FL_ERROR;
+
+	if (conn_xprt_read0_pending(h2c->conn))
+		flags |= CS_FL_EOS;
+
+	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
+	while (node) {
+		h2s = container_of(node, struct h2s, by_id);
+		if (h2s->id <= last)
+			break;
+		node = eb32_next(node);
+		if (h2s->cs) {
+			h2s->cs->flags |= flags;
+			/* recv is used to force to detect CS_FL_EOS that wake()
+			 * doesn't handle in the stream int code.
+			 */
+			h2s->cs->data_cb->recv(h2s->cs);
+			h2s->cs->data_cb->wake(h2s->cs);
+		}
+		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
+			h2s->st = H2_SS_ERROR;
+		else if (flags & CS_FL_EOS && h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HREM;
+		else if (flags & CS_FL_EOS && h2s->st == H2_SS_HLOC)
+			h2s->st = H2_SS_CLOSED;
+	}
+}
+
 /* Increase all streams' outgoing window size by the difference passed in
  * argument. This is needed upon receipt of the settings frame if the initial
  * window size is different. The difference may be negative and the resulting
@@ -1852,34 +1891,6 @@ static void h2_send(struct connection *conn)
 	}
 }
 
-/* call the wake up function of all streams attached to the connection */
-static void h2_wake_all_streams(struct h2c *h2c)
-{
-	struct eb32_node *node;
-	struct h2s *h2s;
-	unsigned int flags = 0;
-
-	if (h2c->st0 >= H2_CS_ERROR || h2c->conn->flags & CO_FL_ERROR)
-		flags |= CS_FL_ERROR;
-
-	if (conn_xprt_read0_pending(h2c->conn))
-		flags |= CS_FL_EOS;
-
-	node = eb32_first(&h2c->streams_by_id);
-	while (node) {
-		h2s = container_of(node, struct h2s, by_id);
-		node = eb32_next(node);
-		if (h2s->cs) {
-			h2s->cs->flags |= flags;
-			/* recv is used to force to detect CS_FL_EOS that wake()
-			 * doesn't handle in the stream int code.
-			 */
-			h2s->cs->data_cb->recv(h2s->cs);
-			h2s->cs->data_cb->wake(h2s->cs);
-		}
-	}
-}
-
 /* callback called on any event by the connection handler.
  * It applies changes and returns zero, or < 0 if it wants immediate
  * destruction of the connection (which normally doesn not happen in h2).
@@ -1892,7 +1903,7 @@ static int h2_wake(struct connection *conn)
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
 	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
 	     h2c->max_id >= h2c->last_sid)) {
-		h2_wake_all_streams(h2c);
+		h2_wake_some_streams(h2c, 0, 0);
 
 		if (eb_is_empty(&h2c->streams_by_id)) {
 			/* no more stream, kill the connection now */
