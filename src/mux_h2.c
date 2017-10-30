@@ -1628,6 +1628,17 @@ static void h2_detach(struct conn_stream *cs)
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
 
+	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
+	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
+		/* unblock the connection if it was blocked on this
+		 * stream.
+		 */
+		h2c->flags &= ~H2_CF_DEM_BLOCK_ANY;
+		h2c->flags &= ~H2_CF_MUX_BLOCK_ANY;
+		conn_xprt_want_recv(cs->conn);
+		conn_xprt_want_send(cs->conn);
+	}
+
 	if (h2s->by_id.node.leaf_p) {
 		/* h2s still attached to the h2c */
 		eb32_delete(&h2s->by_id);
