@@ -49,6 +49,14 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
  * Shared context MUST be firstly initialized */
 void shared_context_set_cache(SSL_CTX *ctx);
 
+
+int shsess_free(struct shared_context *shctx, struct shared_session *shsess);
+
+struct shared_session *shsess_get_next(struct shared_context *shctx, int data_len);
+
+int shsess_store(struct shared_context *shctx, unsigned char *s_id, unsigned char *data, int data_len);
+
+
 /* Lock functions */
 
 #if defined (USE_PRIVATE_CACHE)
@@ -186,6 +194,30 @@ static inline void _shared_context_unlock(struct shared_context *shctx)
 
 #endif
 
+/* List Macros */
+
+#define shblock_unset(s)		(s)->n->p = (s)->p; \
+					(s)->p->n = (s)->n;
+
+static inline void shblock_set_free(struct shared_context *shctx,
+				    struct shared_block *s)
+{
+	shblock_unset(s);
+	(s)->n = &shctx->free;
+	(s)->p = shctx->free.p;
+	shctx->free.p->n = s;
+	shctx->free.p = s;
+}
+
+static inline void shblock_set_active(struct shared_context *shctx,
+				      struct shared_block *s)
+{
+	shblock_unset(s)
+	(s)->n = &shctx->active;
+	(s)->p = shctx->active.p;
+	shctx->active.p->n = s;
+	shctx->active.p = s;
+}
 
 #endif /* SHCTX_H */
 
