@@ -1613,6 +1613,15 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 		}
 
+		if (h2s->st == H2_SS_HREM && h2c->dft != H2_FT_WINDOW_UPDATE &&
+		    h2c->dft != H2_FT_RST_STREAM && h2c->dft != H2_FT_PRIORITY) {
+			/* RFC7540#5.1: any frame other than WU/PRIO/RST in
+			 * this state MUST be treated as a stream error
+			 */
+			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+			goto strm_err;
+		}
+
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
 			if (h2c->st0 == H2_CS_FRAME_P)
@@ -1679,6 +1688,7 @@ static void h2_process_demux(struct h2c *h2c)
 			ret = h2c->dfl == 0;
 		}
 
+	strm_err:
 		/* RST are sent similarly to frame acks */
 		if (h2s->st == H2_SS_ERROR) {
 			if (h2c->st0 == H2_CS_FRAME_P)
