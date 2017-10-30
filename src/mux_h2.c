@@ -1216,10 +1216,6 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2c->dsi != 0) {
 		/* stream window update */
-		if (h2s->st == H2_SS_IDLE) {
-			error = H2_ERR_PROTOCOL_ERROR;
-			goto conn_err;
-		}
 
 		/* it's not an error to receive WU on a closed stream */
 		if (h2s->st == H2_SS_CLOSED)
@@ -1321,11 +1317,6 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	int error;
 
 	if (h2c->dsi == 0) {
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
-	}
-
-	if (h2s->st == H2_SS_IDLE) {
 		error = H2_ERR_PROTOCOL_ERROR;
 		goto conn_err;
 	}
@@ -1611,6 +1602,16 @@ static void h2_process_demux(struct h2c *h2c)
 
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 		h2s = h2c_st_by_id(h2c, h2c->dsi);
+
+		if (h2s->st == H2_SS_IDLE &&
+		    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
+			/* RFC7540#5.1: any frame other than HEADERS or PRIORITY in
+			 * this state MUST be treated as a connection error
+			 */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			h2c->st0 = H2_CS_ERROR;
+			break;
+		}
 
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
