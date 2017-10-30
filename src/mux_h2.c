@@ -1698,7 +1698,13 @@ static void h2_process_demux(struct h2c *h2c)
 				ret = h2c_handle_goaway(h2c);
 			break;
 
-			/* FIXME: implement all supported frame types here */
+		case H2_FT_PUSH_PROMISE:
+			/* not permitted here, RFC7540#5.1 */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			h2c->st0 = H2_SS_ERROR;
+			break;
+
+			/* implement all extra frame types here */
 		default:
 			/* drop frames that we ignore. They may be larger than
 			 * the buffer so we drain all of their contents until
