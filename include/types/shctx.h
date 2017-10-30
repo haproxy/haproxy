@@ -1,8 +1,6 @@
 #ifndef __TYPES_SHCTX
 #define __TYPES_SHCTX
 
-#include <openssl/ssl.h> /* shared session depend of openssl */
-
 #ifndef SHSESS_BLOCK_MIN_SIZE
 #define SHSESS_BLOCK_MIN_SIZE 128
 #endif
@@ -18,20 +16,15 @@
 #define SHCTX_E_ALLOC_CACHE -1
 #define SHCTX_E_INIT_LOCK   -2
 
-struct shared_session {
-	struct ebmb_node key;
-	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
-	unsigned char data[SHSESS_BLOCK_MIN_SIZE];
-};
+#define SHCTX_F_REMOVING 0x1      /* Removing flag, does not accept new */
 
+/* generic shctx struct */
 struct shared_block {
-	union {
-		struct shared_session session;
-		unsigned char data[sizeof(struct shared_session)];
-	} data;
-	short int data_len;
-	struct shared_block *p;
-	struct shared_block *n;
+	struct list list;
+	short int len;          /* data length for the row */
+	short int block_count;  /* number of blocks */
+	unsigned int refcount;
+	unsigned char data[0];
 };
 
 struct shared_context {
@@ -42,10 +35,12 @@ struct shared_context {
 	unsigned int waiters;
 #endif
 #endif
-	struct shared_block active;
-	struct shared_block free;
+	struct list avail;  /* list for active and free blocks */
+	struct list hot;     /* list for locked blocks */
+	unsigned int nbav;  /* number of available blocks */
+	void (*free_block)(struct shared_block *first, struct shared_block *block);
+	short int block_size;
+	unsigned char data[0];
 };
-
-extern struct shared_context *ssl_shctx;
 
 #endif

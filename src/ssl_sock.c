@@ -275,7 +275,16 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 #define SSL_SOCK_NUM_KEYTYPES 1
 #endif
 
-struct shared_context *ssl_shctx = NULL;
+static struct shared_context *ssl_shctx; /* ssl shared session cache */
+static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
+
+#define sh_ssl_sess_tree_delete(s)	ebmb_delete(&(s)->key);
+
+#define sh_ssl_sess_tree_insert(s)	(struct sh_ssl_sess_hdr *)ebmb_insert(sh_ssl_sess_tree, \
+								     &(s)->key, SSL_MAX_SSL_SESSION_ID_LENGTH);
+
+#define sh_ssl_sess_tree_lookup(k)	(struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
+								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
 
 /*
  * This function gives the detail of the SSL error. It is used only
@@ -3718,10 +3727,68 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	return cfgerr;
 }
 
-/* SSL context callbacks */
+
+static inline void sh_ssl_sess_free_blocks(struct shared_block *first, struct shared_block *block)
+{
+	if (first == block) {
+		struct sh_ssl_sess_hdr *sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;
+		if (first->len > 0)
+			sh_ssl_sess_tree_delete(sh_ssl_sess);
+	}
+}
+
+/* return first block from sh_ssl_sess  */
+static inline struct shared_block *sh_ssl_sess_first_block(struct sh_ssl_sess_hdr *sh_ssl_sess)
+{
+	return (struct shared_block *)((unsigned char *)sh_ssl_sess - ((struct shared_block *)NULL)->data);
+
+}
+
+/* store a session into the cache
+ * s_id : session id padded with zero to SSL_MAX_SSL_SESSION_ID_LENGTH
+ * data: asn1 encoded session
+ * data_len: asn1 encoded session length
+ * Returns 1 id session was stored (else 0)
+ */
+static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_len)
+{
+	struct shared_block *first;
+	struct sh_ssl_sess_hdr *sh_ssl_sess, *oldsh_ssl_sess;
+
+	first = shctx_row_reserve_hot(ssl_shctx, data_len + sizeof(struct sh_ssl_sess_hdr));
+	if (!first) {
+		/* Could not retrieve enough free blocks to store that session */
+		return 0;
+	}
+
+	/* STORE the key in the first elem */
+	sh_ssl_sess = (struct sh_ssl_sess_hdr *)first->data;
+	memcpy(sh_ssl_sess->key_data, s_id, SSL_MAX_SSL_SESSION_ID_LENGTH);
+	first->len = sizeof(struct sh_ssl_sess_hdr);
+
+	/* it returns the already existing node
+           or current node if none, never returns null */
+	oldsh_ssl_sess = sh_ssl_sess_tree_insert(sh_ssl_sess);
+	if (oldsh_ssl_sess != sh_ssl_sess) {
+		 /* NOTE: Row couldn't be in use because we lock read & write function */
+		/* release the reserved row */
+		shctx_row_dec_hot(ssl_shctx, first);
+		/* replace the previous session already in the tree */
+		sh_ssl_sess = oldsh_ssl_sess;
+		/* ignore the previous session data, only use the header */
+		first = sh_ssl_sess_first_block(sh_ssl_sess);
+		shctx_row_inc_hot(ssl_shctx, first);
+		first->len = sizeof(struct sh_ssl_sess_hdr);
+	}
+
+	if (shctx_row_data_append(ssl_shctx, first, data, data_len) < 0)
+		return 0;
+
+	return 1;
+}
 
 /* SSL callback used on new session creation */
-int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
+int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 {
 	unsigned char encsess[SHSESS_MAX_DATA_LEN];           /* encoded session  */
 	unsigned char encid[SSL_MAX_SSL_SESSION_ID_LENGTH];   /* encoded id */
@@ -3755,12 +3822,9 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
 	shared_context_lock(ssl_shctx);
-
 	/* store to cache */
-	shsess_store(ssl_shctx, encid, encsess, data_len);
-
+	sh_ssl_sess_store(encid, encsess, data_len);
 	shared_context_unlock(ssl_shctx);
-
 err:
 	/* reset original length values */
 	SSL_SESSION_set1_id(sess, sid_data, sid_length);
@@ -3770,13 +3834,13 @@ err:
 }
 
 /* SSL callback used on lookup an existing session cause none found in internal cache */
-SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, int key_len, int *do_copy)
+SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, int key_len, int *do_copy)
 {
-	struct shared_session *shsess;
+	struct sh_ssl_sess_hdr *sh_ssl_sess;
 	unsigned char data[SHSESS_MAX_DATA_LEN], *p;
 	unsigned char tmpkey[SSL_MAX_SSL_SESSION_ID_LENGTH];
-	int data_len;
 	SSL_SESSION *sess;
+	struct shared_block *first;
 
 	global.shctx_lookups++;
 
@@ -3794,53 +3858,24 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 	shared_context_lock(ssl_shctx);
 
 	/* lookup for session */
-	shsess = shsess_tree_lookup(ssl_shctx, key);
-	if (!shsess) {
+	sh_ssl_sess = sh_ssl_sess_tree_lookup(key);
+	if (!sh_ssl_sess) {
 		/* no session found: unlock cache and exit */
 		shared_context_unlock(ssl_shctx);
 		global.shctx_misses++;
 		return NULL;
 	}
 
-	data_len = ((struct shared_block *)shsess)->data_len;
-	if (data_len <= sizeof(shsess->data)) {
-		/* Session stored on single block */
-		memcpy(data, shsess->data, data_len);
-		shblock_set_active(ssl_shctx, (struct shared_block *)shsess);
-	}
-	else {
-		/* Session stored on multiple blocks */
-		struct shared_block *block;
+	/* sh_ssl_sess (shared_block->data) is at the end of shared_block */
+	first = sh_ssl_sess_first_block(sh_ssl_sess);
 
-		memcpy(data, shsess->data, sizeof(shsess->data));
-		p = data + sizeof(shsess->data);
-		block = ((struct shared_block *)shsess)->n;
-		shblock_set_active(ssl_shctx, (struct shared_block *)shsess);
-		while (1) {
-			/* Retrieve data from next block */
-			struct shared_block *next;
-
-			if (block->data_len <= sizeof(block->data.data)) {
-				/* This is the last block */
-				memcpy(p, block->data.data, block->data_len);
-				p += block->data_len;
-				shblock_set_active(ssl_shctx, block);
-				break;
-			}
-			/* Intermediate block */
-			memcpy(p, block->data.data, sizeof(block->data.data));
-			p += sizeof(block->data.data);
-			next = block->n;
-			shblock_set_active(ssl_shctx, block);
-			block = next;
-		}
-	}
+	shctx_row_data_get(ssl_shctx, first, data, sizeof(struct sh_ssl_sess_hdr), first->len-sizeof(struct sh_ssl_sess_hdr));
 
 	shared_context_unlock(ssl_shctx);
 
 	/* decode ASN1 session */
 	p = data;
-	sess = d2i_SSL_SESSION(NULL, (const unsigned char **)&p, data_len);
+	sess = d2i_SSL_SESSION(NULL, (const unsigned char **)&p, first->len-sizeof(struct sh_ssl_sess_hdr));
 	/* Reset session id and session id contenxt */
 	if (sess) {
 		SSL_SESSION_set1_id(sess, key, key_len);
@@ -3850,10 +3885,11 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, in
 	return sess;
 }
 
+
 /* SSL callback used to signal session is no more used in internal cache */
-void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
+void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 {
-	struct shared_session *shsess;
+	struct sh_ssl_sess_hdr *sh_ssl_sess;
 	unsigned char tmpkey[SSL_MAX_SSL_SESSION_ID_LENGTH];
 	unsigned int sid_length;
 	const unsigned char *sid_data;
@@ -3870,11 +3906,10 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 	shared_context_lock(ssl_shctx);
 
 	/* lookup for session */
-	shsess = shsess_tree_lookup(ssl_shctx, sid_data);
-	if (shsess) {
+	sh_ssl_sess = sh_ssl_sess_tree_lookup(sid_data);
+	if (sh_ssl_sess) {
 		/* free session */
-		shsess_tree_delete(shsess);
-		shsess_free(ssl_shctx, shsess);
+		sh_ssl_sess_tree_delete(sh_ssl_sess);
 	}
 
 	/* unlock cache */
@@ -3884,7 +3919,7 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 /* Set session cache mode to server and disable openssl internal cache.
  * Set shared cache callbacks on an ssl context.
  * Shared context MUST be firstly initialized */
-void shared_context_set_cache(SSL_CTX *ctx)
+void ssl_set_shctx(SSL_CTX *ctx)
 {
 	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 
@@ -3898,9 +3933,9 @@ void shared_context_set_cache(SSL_CTX *ctx)
 	                                    SSL_SESS_CACHE_NO_AUTO_CLEAR);
 
 	/* Set callbacks */
-	SSL_CTX_sess_set_new_cb(ctx, shctx_new_cb);
-	SSL_CTX_sess_set_get_cb(ctx, shctx_get_cb);
-	SSL_CTX_sess_set_remove_cb(ctx, shctx_remove_cb);
+	SSL_CTX_sess_set_new_cb(ctx, sh_ssl_sess_new_cb);
+	SSL_CTX_sess_set_get_cb(ctx, sh_ssl_sess_get_cb);
+	SSL_CTX_sess_set_remove_cb(ctx, sh_ssl_sess_remove_cb);
 }
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx)
@@ -4000,7 +4035,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	}
 #endif
 
-	shared_context_set_cache(ctx);
+	ssl_set_shctx(ctx);
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
@@ -4564,7 +4599,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		}
 	}
 
-	alloc_ctx = shared_context_init(&ssl_shctx, global.tune.sslcachesize, (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
+	alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize, sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE, sizeof(*sh_ssl_sess_tree), (!global_ssl.private_cache && (global.nbproc > 1)) ? 1 : 0);
 	if (alloc_ctx < 0) {
 		if (alloc_ctx == SHCTX_E_INIT_LOCK)
 			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
@@ -4572,6 +4607,11 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			Alert("Unable to allocate SSL session cache.\n");
 		return -1;
 	}
+	/* free block callback */
+	ssl_shctx->free_block = sh_ssl_sess_free_blocks;
+	/* init the root tree within the extra space */
+	sh_ssl_sess_tree = (void *)ssl_shctx + sizeof(struct shared_context);
+	*sh_ssl_sess_tree = EB_ROOT_UNIQUE;
 
 	err = 0;
 	/* initialize all certificate contexts */

@@ -14,170 +14,236 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 #include <ebmbtree.h>
-
-#include <proto/connection.h>
-#include <proto/shctx.h>
-#include <proto/ssl_sock.h>
+#include <types/global.h>
+#include <common/mini-clist.h>
+#include "proto/shctx.h"
 #include <proto/openssl-compat.h>
 
-#include <types/global.h>
-#include <types/shctx.h>
-
-
 #if !defined (USE_PRIVATE_CACHE)
+
 int use_shared_mem = 0;
+
 #endif
 
-/* Tree Macros */
-
-/* shared session functions */
-
-/* Free session blocks, returns number of freed blocks */
-int shsess_free(struct shared_context *shctx, struct shared_session *shsess)
+/*
+ * Reserve a row, put it in the hotlist, set the refcount to 1
+ *
+ * Reserve blocks in the avail list and put them in the hot list
+ * Return the first block put in the hot list or NULL if not enough blocks available
+ */
+struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx, int data_len)
 {
-	struct shared_block *block;
-	int ret = 1;
+	struct shared_block *block, *sblock, *ret = NULL, *first;
+	int enough = 0;
+	int freed = 0;
 
-	if (((struct shared_block *)shsess)->data_len <= sizeof(shsess->data)) {
-		shblock_set_free(shctx, (struct shared_block *)shsess);
-		return ret;
-	}
-	block = ((struct shared_block *)shsess)->n;
-	shblock_set_free(shctx, (struct shared_block *)shsess);
-	while (1) {
-		struct shared_block *next;
+	/* not enough usable blocks */
+	if (data_len > shctx->nbav * shctx->block_size)
+		goto out;
 
-		if (block->data_len <= sizeof(block->data)) {
-			/* last block */
-			shblock_set_free(shctx, block);
-			ret++;
-			break;
+	while (!enough && !LIST_ISEMPTY(&shctx->avail)) {
+		int count = 0;
+		int first_count = 0, first_len = 0;
+
+		first = block = LIST_NEXT(&shctx->avail, struct shared_block *, list);
+		if (ret == NULL)
+			ret = first;
+
+		first_count = first->block_count;
+		first_len = first->len;
+		/*
+		Should never been set to 0.
+		if (first->block_count == 0)
+		first->block_count = 1;
+		*/
+
+		list_for_each_entry_safe_from(block, sblock, &shctx->avail, list) {
+
+			/* release callback */
+			if (first_len && shctx->free_block)
+				shctx->free_block(first, block);
+
+			block->block_count = 1;
+			block->len = 0;
+
+			freed++;
+			data_len -= shctx->block_size;
+
+			if (data_len > 0)
+				shctx_block_set_hot(shctx, block);
+
+			if (data_len <= 0 && !enough) {
+				shctx_block_set_hot(shctx, block);
+				ret->block_count = freed;
+				ret->refcount = 1;
+				enough = 1;
+			}
+
+			count++;
+			if (count >= first_count)
+				break;
 		}
-		next = block->n;
-		shblock_set_free(shctx, block);
-		ret++;
-		block = next;
 	}
+
+out:
 	return ret;
 }
 
-/* This function frees enough blocks to store a new session of data_len.
- * Returns a ptr on a free block if it succeeds, or NULL if there are not
- * enough blocks to store that session.
+/*
+ * if the refcount is 0 move the row to the hot list. Increment the refcount
  */
-struct shared_session *shsess_get_next(struct shared_context *shctx, int data_len)
+void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first)
 {
-	int head = 0;
-	struct shared_block *b;
+	struct shared_block *block, *sblock;
+	int count = 0;
 
-	b = shctx->free.n;
-	while (b != &shctx->free) {
-		if (!head) {
-			data_len -= sizeof(b->data.session.data);
-			head = 1;
-		}
-		else
-			data_len -= sizeof(b->data.data);
-		if (data_len <= 0)
-			return &shctx->free.n->data.session;
-		b = b->n;
-	}
-	b = shctx->active.n;
-	while (b != &shctx->active) {
-		int freed;
+	if (first->refcount <= 0) {
 
-		shsess_tree_delete(&b->data.session);
-		freed = shsess_free(shctx, &b->data.session);
-		if (!head)
-			data_len -= sizeof(b->data.session.data) + (freed-1)*sizeof(b->data.data);
-		else
-			data_len -= freed*sizeof(b->data.data);
-		if (data_len <= 0)
-			return &shctx->free.n->data.session;
-		b = shctx->active.n;
-	}
-	return NULL;
-}
+		block = first;
 
-/* store a session into the cache
- * s_id : session id padded with zero to SSL_MAX_SSL_SESSION_ID_LENGTH
- * data: asn1 encoded session
- * data_len: asn1 encoded session length
- * Returns 1 id session was stored (else 0)
- */
-int shsess_store(struct shared_context *shctx, unsigned char *s_id, unsigned char *data, int data_len)
-{
-	struct shared_session *shsess, *oldshsess;
+		list_for_each_entry_safe_from(block, sblock, &shctx->avail, list) {
 
-	shsess = shsess_get_next(shctx, data_len);
-	if (!shsess) {
-		/* Could not retrieve enough free blocks to store that session */
-		return 0;
-	}
+			shctx_block_set_hot(shctx, block);
 
-	/* prepare key */
-	memcpy(shsess->key_data, s_id, SSL_MAX_SSL_SESSION_ID_LENGTH);
-
-	/* it returns the already existing node
-           or current node if none, never returns null */
-	oldshsess = shsess_tree_insert(shctx, shsess);
-	if (oldshsess != shsess) {
-		/* free all blocks used by old node */
-		shsess_free(shctx, oldshsess);
-		shsess = oldshsess;
-	}
-
-	((struct shared_block *)shsess)->data_len = data_len;
-	if (data_len <= sizeof(shsess->data)) {
-		/* Store on a single block */
-		memcpy(shsess->data, data, data_len);
-		shblock_set_active(shctx, (struct shared_block *)shsess);
-	}
-	else {
-		unsigned char *p;
-		/* Store on multiple blocks */
-		int cur_len;
-
-		memcpy(shsess->data, data, sizeof(shsess->data));
-		p = data + sizeof(shsess->data);
-		cur_len = data_len - sizeof(shsess->data);
-		shblock_set_active(shctx, (struct shared_block *)shsess);
-		while (1) {
-			/* Store next data on free block.
-			 * shsess_get_next guarantees that there are enough
-			 * free blocks in queue.
-			 */
-			struct shared_block *block;
-
-			block = shctx->free.n;
-			if (cur_len <= sizeof(block->data)) {
-				/* This is the last block */
-				block->data_len = cur_len;
-				memcpy(block->data.data, p, cur_len);
-				shblock_set_active(shctx, block);
+			count++;
+			if (count >= first->block_count)
 				break;
-			}
-			/* Intermediate block */
-			block->data_len = cur_len;
-			memcpy(block->data.data, p, sizeof(block->data));
-			p += sizeof(block->data.data);
-			cur_len -= sizeof(block->data.data);
-			shblock_set_active(shctx, block);
 		}
 	}
 
-	return 1;
+	first->refcount++;
+}
+
+/*
+ * decrement the refcount and move the row at the end of the avail list if it reaches 0.
+ */
+void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first)
+{
+	struct shared_block *block, *sblock;
+	int count = 0;
+
+	first->refcount--;
+
+	if (first->refcount <= 0) {
+
+		block = first;
+
+		list_for_each_entry_safe_from(block, sblock, &shctx->hot, list) {
+
+			shctx_block_set_avail(shctx, block);
+
+			count++;
+			if (count >= first->block_count)
+				break;
+		}
+	}
+
 }
 
 
+/*
+ * Append data in the row if there is enough space.
+ * The row should be in the hot list
+ *
+ * Return the amount of appended data if ret >= 0
+ * or how much more space it needs to contains the data if < 0.
+ */
+int shctx_row_data_append(struct shared_context *shctx, struct shared_block *first, unsigned char *data, int len)
+{
+	int remain, start;
+	int count = 0;
+	struct shared_block *block;
+
+
+	/* return -<len> needed to work */
+	if (len > first->block_count * shctx->block_size - first->len)
+		return (first->block_count * shctx->block_size - first->len) - len;
+
+	/* skipping full buffers, stop at the first buffer with remaining space */
+	block = first;
+	list_for_each_entry_from(block, &shctx->hot, list) {
+		count++;
+
+
+		/* break if there is not enough blocks */
+		if (count > first->block_count)
+			break;
+
+		/* end of copy */
+		if (len <= 0)
+			break;
+
+		/* skip full buffers */
+		if (count * shctx->block_size <= first->len)
+			continue;
+
+		/* remaining space in the current block which is not full */
+		remain = (shctx->block_size * count - first->len) % shctx->block_size;
+		/* if remain == 0, previous buffer are full, or first->len == 0 */
+		remain = remain ? remain : shctx->block_size;
+
+		/* start must be calculated before remain is modified */
+		start = shctx->block_size - remain;
+
+		/* must not try to copy more than len */
+		remain = MIN(remain, len);
+
+		memcpy(block->data + start, data, remain);
+		data += remain;
+		len -= remain;
+		first->len += remain; /* update len in the head of the row */
+	}
+
+	return len;
+}
+
+/*
+ * Copy <len> data from a row of blocks, return the remaining data to copy
+ * If 0 is returned, the full data has successfuly be copied
+ *
+ * The row should be in the hot list
+ */
+int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
+                       unsigned char *dst, int offset, int len)
+{
+	int count = 0, size = 0, start = -1;
+	struct shared_block *block;
+
+	block = first;
+	count = 0;
+	/* Pass through the blocks to copy them */
+	list_for_each_entry_from(block, &shctx->hot, list) {
+		if (count >= first->block_count  || len <= 0)
+			break;
+
+		count++;
+		/* continue until we are in right block
+		   corresponding to the offset */
+		if (count < offset / shctx->block_size + 1)
+			continue;
+
+		/* on the first block, data won't possibly began at offset 0 */
+		if (start == -1)
+			start = offset - (count - 1) * shctx->block_size;
+
+		/* size can be lower than a block when copying the last block */
+		size = MIN(shctx->block_size - start, len);
+
+		memcpy(dst, block->data + start, size);
+		dst += size;
+		len -= size;
+		start = 0;
+	}
+	return len;
+}
 
 /* Allocate shared memory context.
- * <size> is maximum cached sessions.
- * If <size> is set to less or equal to 0, ssl cache is disabled.
- * Returns: -1 on alloc failure, <size> if it performs context alloc,
+ * <maxblocks> is maximum blocks.
+ * If <maxblocks> is set to less or equal to 0, ssl cache is disabled.
+ * Returns: -1 on alloc failure, <maxblocks> if it performs context alloc,
  * and 0 if cache is already allocated.
  */
-int shared_context_init(struct shared_context **orig_shctx, int size, int shared)
+int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize, int extra, int shared)
 {
 	int i;
 	struct shared_context *shctx;
@@ -187,23 +253,18 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
 	pthread_mutexattr_t attr;
 #endif
 #endif
-	struct shared_block *prev,*cur;
+	void *cur;
 	int maptype = MAP_PRIVATE;
 
-	if (orig_shctx && *orig_shctx)
+	if (maxblocks <= 0)
 		return 0;
 
-	if (size<=0)
-		return 0;
-
-	/* Increate size by one to reserve one node for lookup */
-	size++;
 #ifndef USE_PRIVATE_CACHE
 	if (shared)
 		maptype = MAP_SHARED;
 #endif
 
-	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context)+(size*sizeof(struct shared_block)),
+	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)),
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
 	if (!shctx || shctx == MAP_FAILED) {
 		shctx = NULL;
@@ -211,11 +272,13 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
 		goto err;
 	}
 
+	shctx->nbav = 0;
+
 #ifndef USE_PRIVATE_CACHE
 	if (maptype == MAP_SHARED) {
 #ifdef USE_PTHREAD_PSHARED
 		if (pthread_mutexattr_init(&attr)) {
-			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
 			shctx = NULL;
 			ret = SHCTX_E_INIT_LOCK;
 			goto err;
@@ -223,7 +286,7 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
 
 		if (pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED)) {
 			pthread_mutexattr_destroy(&attr);
-			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
 			shctx = NULL;
 			ret = SHCTX_E_INIT_LOCK;
 			goto err;
@@ -231,7 +294,7 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
 
 		if (pthread_mutex_init(&shctx->mutex, &attr)) {
 			pthread_mutexattr_destroy(&attr);
-			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
 			shctx = NULL;
 			ret = SHCTX_E_INIT_LOCK;
 			goto err;
@@ -243,26 +306,23 @@ int shared_context_init(struct shared_context **orig_shctx, int size, int shared
 	}
 #endif
 
-	memset(&shctx->active.data.session.key, 0, sizeof(struct ebmb_node));
-	memset(&shctx->free.data.session.key, 0, sizeof(struct ebmb_node));
+	LIST_INIT(&shctx->avail);
+	LIST_INIT(&shctx->hot);
 
-	/* No duplicate authorized in tree: */
-	shctx->active.data.session.key.node.branches = EB_ROOT_UNIQUE;
+	shctx->block_size = blocksize;
 
-	cur = &shctx->active;
-	cur->n = cur->p = cur;
-
-	cur = &shctx->free;
-	for (i = 0 ; i < size ; i++) {
-		prev = cur;
-		cur++;
-		prev->n = cur;
-		cur->p = prev;
+	/* init the free blocks after the shared context struct */
+	cur = (void *)shctx + sizeof(struct shared_context) + extra;
+	for (i = 0; i < maxblocks; i++) {
+		struct shared_block *cur_block = (struct shared_block *)cur;
+		cur_block->len = 0;
+		cur_block->refcount = 0;
+		cur_block->block_count = 1;
+		LIST_ADDQ(&shctx->avail, &cur_block->list);
+		shctx->nbav++;
+		cur += sizeof(struct shared_block) + blocksize;
 	}
-	cur->n = &shctx->free;
-	shctx->free.p = cur;
-
-	ret = size;
+	ret = maxblocks;
 
 err:
 	*orig_shctx = shctx;

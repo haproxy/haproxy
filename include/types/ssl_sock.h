@@ -56,4 +56,10 @@ struct tls_keys_ref {
 	int tls_ticket_enc_index;
 };
 
+/* shared ssl session */
+struct sh_ssl_sess_hdr {
+	struct ebmb_node key;
+	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
+};
+
 #endif /* _TYPES_SSL_SOCK_H */

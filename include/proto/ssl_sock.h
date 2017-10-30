@@ -79,16 +79,13 @@ unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
 
 /* ssl shctx macro */
 
-#define shsess_tree_delete(s)	ebmb_delete(&(s)->key);
+#define sh_ssl_sess_tree_delete(s)     ebmb_delete(&(s)->key);
 
-#define shsess_tree_insert(shctx, s)	(struct shared_session *)ebmb_insert(&shctx->active.data.session.key.node.branches, \
-								     &(s)->key, SSL_MAX_SSL_SESSION_ID_LENGTH);
+#define sh_ssl_sess_tree_insert(s)     (struct sh_ssl_sess_hdr *)ebmb_insert(sh_ssl_sess_tree, \
+                                                                    &(s)->key, SSL_MAX_SSL_SESSION_ID_LENGTH);
 
-#define shsess_tree_lookup(shctx, k)	(struct shared_session *)ebmb_lookup(&shctx->active.data.session.key.node.branches, \
-								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
-
-
-
+#define sh_ssl_sess_tree_lookup(k)     (struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
+                                                                    (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
 #endif /* _PROTO_SSL_SOCK_H */
 
 /*

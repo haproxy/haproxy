@@ -14,9 +14,9 @@
 #ifndef SHCTX_H
 #define SHCTX_H
 
+#include <common/mini-clist.h>
 #include <types/shctx.h>
 
-#include <openssl/ssl.h>
 #include <stdint.h>
 
 #ifndef USE_PRIVATE_CACHE
@@ -31,30 +31,14 @@
 #endif
 #endif
 
-
-/* Allocate shared memory context.
- * <size> is the number of allocated blocks into cache (default 128 bytes)
- * A block is large enough to contain a classic session (without client cert)
- * If <size> is set less or equal to 0, ssl cache is disabled.
- * Set <use_shared_memory> to 1 to use a mapped shared memory instead
- * of private. (ignored if compiled with USE_PRIVATE_CACHE=1).
- * Returns: -1 on alloc failure, <size> if it performs context alloc,
- * and 0 if cache is already allocated.
- */
-
-int shared_context_init(struct shared_context **orig_shctx, int size, int shared);
-
-/* Set shared cache callbacks on an ssl context.
- * Set session cache mode to server and disable openssl internal cache.
- * Shared context MUST be firstly initialized */
-void shared_context_set_cache(SSL_CTX *ctx);
-
-
-int shsess_free(struct shared_context *shctx, struct shared_session *shsess);
-
-struct shared_session *shsess_get_next(struct shared_context *shctx, int data_len);
-
-int shsess_store(struct shared_context *shctx, unsigned char *s_id, unsigned char *data, int data_len);
+int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize, int extra, int shared);
+struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx, int data_len);
+void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first);
+void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first);
+int shctx_row_data_append(struct shared_context *shctx,
+                          struct shared_block *first, unsigned char *data, int len);
+int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
+                       unsigned char *dst, int offset, int len);
 
 
 /* Lock functions */
@@ -196,27 +180,20 @@ static inline void _shared_context_unlock(struct shared_context *shctx)
 
 /* List Macros */
 
-#define shblock_unset(s)		(s)->n->p = (s)->p; \
-					(s)->p->n = (s)->n;
-
-static inline void shblock_set_free(struct shared_context *shctx,
+static inline void shctx_block_set_hot(struct shared_context *shctx,
 				    struct shared_block *s)
 {
-	shblock_unset(s);
-	(s)->n = &shctx->free;
-	(s)->p = shctx->free.p;
-	shctx->free.p->n = s;
-	shctx->free.p = s;
+	shctx->nbav--;
+	LIST_DEL(&s->list);
+	LIST_ADDQ(&shctx->hot, &s->list);
 }
 
-static inline void shblock_set_active(struct shared_context *shctx,
+static inline void shctx_block_set_avail(struct shared_context *shctx,
 				      struct shared_block *s)
 {
-	shblock_unset(s)
-	(s)->n = &shctx->active;
-	(s)->p = shctx->active.p;
-	shctx->active.p->n = s;
-	shctx->active.p = s;
+	shctx->nbav++;
+	LIST_DEL(&s->list);
+	LIST_ADDQ(&shctx->avail, &s->list);
 }
 
 #endif /* SHCTX_H */
