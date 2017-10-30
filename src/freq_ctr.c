@@ -30,18 +30,21 @@
  */
 unsigned int read_freq_ctr(struct freq_ctr *ctr)
 {
-	unsigned int curr, past;
-	unsigned int age, curr_sec;
+	unsigned int curr, past, _curr, _past;
+	unsigned int age, curr_sec, _curr_sec;
 
-	do {
-		curr = ctr->curr_ctr;
-		past = ctr->prev_ctr;
-		curr_sec = ctr->curr_sec;
-
-	} while (curr != ctr->curr_ctr
-		 || past != ctr->prev_ctr
-		 || curr_sec !=  ctr->curr_sec
-		 || (curr_sec & 0x80000000));
+	while(1) {
+		_curr = (volatile unsigned int)ctr->curr_ctr;
+		_past = (volatile unsigned int)ctr->prev_ctr;
+		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr_sec & 0x80000000)
+			continue;
+		curr = (volatile unsigned int)ctr->curr_ctr;
+		past = (volatile unsigned int)ctr->prev_ctr;
+		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr == curr && _past == past && _curr_sec == curr_sec)
+			break;
+	}
 
 	age = now.tv_sec - curr_sec;
 	if (unlikely(age > 1))
@@ -64,18 +67,21 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
  */
 unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
-	unsigned int curr, past;
-	unsigned int age, curr_sec;
+	unsigned int curr, past, _curr, _past;
+	unsigned int age, curr_sec, _curr_sec;
 
-	do {
-		curr = ctr->curr_ctr;
-		past = ctr->prev_ctr;
-		curr_sec = ctr->curr_sec;
-
-	} while (curr != ctr->curr_ctr
-		 || past != ctr->prev_ctr
-		 || curr_sec !=  ctr->curr_sec
-		 || (curr_sec & 0x80000000));
+	while(1) {
+		_curr = (volatile unsigned int)ctr->curr_ctr;
+		_past = (volatile unsigned int)ctr->prev_ctr;
+		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr_sec & 0x80000000)
+			continue;
+		curr = (volatile unsigned int)ctr->curr_ctr;
+		past = (volatile unsigned int)ctr->prev_ctr;
+		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr == curr && _past == past && _curr_sec == curr_sec)
+			break;
+	}
 
 	age = now.tv_sec - curr_sec;
 	if (unlikely(age > 1))
@@ -102,18 +108,21 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
  */
 unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
-	unsigned int curr, past;
-	unsigned int wait, age, curr_sec;
+	unsigned int curr, past, _curr, _past;
+	unsigned int wait, age, curr_sec, _curr_sec;
 
-	do {
-		curr = ctr->curr_ctr;
-		past = ctr->prev_ctr;
-		curr_sec = ctr->curr_sec;
-
-	} while (curr != ctr->curr_ctr
-		 || past != ctr->prev_ctr
-		 || curr_sec !=  ctr->curr_sec
-		 || (curr_sec & 0x80000000));
+	while(1) {
+		_curr = (volatile unsigned int)ctr->curr_ctr;
+		_past = (volatile unsigned int)ctr->prev_ctr;
+		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr_sec & 0x80000000)
+			continue;
+		curr = (volatile unsigned int)ctr->curr_ctr;
+		past = (volatile unsigned int)ctr->prev_ctr;
+		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		if (_curr == curr && _past == past && _curr_sec == curr_sec)
+			break;
+	}
 
 	age = now.tv_sec - curr_sec;
 	if (unlikely(age > 1))
@@ -152,18 +161,21 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
  */
 unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period)
 {
-	unsigned int curr, past;
-	unsigned int remain, curr_tick;
+	unsigned int _curr, _past, curr, past;
+	unsigned int remain, _curr_tick, curr_tick;
 
-	do {
+	while(1) {
+		_curr = ctr->curr_ctr;
+		_past = ctr->prev_ctr;
+		_curr_tick = ctr->curr_tick;
+		if (_curr_tick & 0x1)
+			continue;
 		curr = ctr->curr_ctr;
 		past = ctr->prev_ctr;
 		curr_tick = ctr->curr_tick;
-
-	} while (curr != ctr->curr_ctr
-		 ||  past != ctr->prev_ctr
-		 || curr_tick !=  ctr->curr_tick
-		 || (curr_tick & 0x1));
+		if (_curr == curr && _past == past && _curr_tick == curr_tick)
+			break;
+	};
 
 	remain = curr_tick + period - now_ms;
 	if (unlikely((int)remain < 0)) {
@@ -190,18 +202,21 @@ unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int peri
 unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int period,
 				    unsigned int freq, unsigned int pend)
 {
-	unsigned int curr, past;
-	unsigned int remain, curr_tick;
+	unsigned int _curr, _past, curr, past;
+	unsigned int remain, _curr_tick, curr_tick;
 
-	do {
+	while(1) {
+		_curr = ctr->curr_ctr;
+		_past = ctr->prev_ctr;
+		_curr_tick = ctr->curr_tick;
+		if (_curr_tick & 0x1)
+			continue;
 		curr = ctr->curr_ctr;
 		past = ctr->prev_ctr;
 		curr_tick = ctr->curr_tick;
-
-	} while (curr != ctr->curr_ctr
-		 ||  past != ctr->prev_ctr
-		 || curr_tick !=  ctr->curr_tick
-		 || (curr_tick & 0x1));
+		if (_curr == curr && _past == past && _curr_tick == curr_tick)
+			break;
+	};
 
 	remain = curr_tick + period - now_ms;
 	if (likely((int)remain < 0)) {

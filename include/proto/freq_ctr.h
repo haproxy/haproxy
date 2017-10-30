@@ -34,7 +34,7 @@
  */
 static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
 {
-	unsigned int elapsed;
+	int elapsed;
 	unsigned int tot_inc;
 	unsigned int curr_sec;
 
@@ -42,23 +42,24 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 		/* remove the bit, used for the lock */
 		curr_sec = ctr->curr_sec & 0x7fffffff;
 	}
-	while (!HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x8000000));
+	while (!HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x80000000));
 
 	elapsed = (now.tv_sec & 0x7fffffff)- curr_sec;
-	if (unlikely(elapsed)) {
+	if (unlikely(elapsed > 0)) {
 		ctr->prev_ctr = ctr->curr_ctr;
 		ctr->curr_ctr = 0;
 		if (likely(elapsed != 1)) {
 			/* we missed more than one second */
 			ctr->prev_ctr = 0;
 		}
+		curr_sec = now.tv_sec;
 	}
 
 	ctr->curr_ctr += inc;
 	tot_inc = ctr->curr_ctr;
 
 	/* release the lock and update the time in case of rotate. */
-	HA_ATOMIC_STORE(&ctr->curr_sec, now.tv_sec & 0x7fffffff);
+	HA_ATOMIC_STORE(&ctr->curr_sec, curr_sec & 0x7fffffff);
 	return tot_inc;
 	/* Note: later we may want to propagate the update to other counters */
 }
