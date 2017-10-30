@@ -1127,7 +1127,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (h1m) {
 			long long cl;
 
-			if (isteq(n, ist("transfer-encoding"))) {
+			if (start[st_c] == '1' || /* 100..199 */
+			    isteq(ist2(start + st_c, st_c_l), ist("204")) ||
+			    isteq(ist2(start + st_c, st_c_l), ist("304"))) {
+				/* no contents, claim c-len is present and set to zero */
+				h1m->flags |= H1_MF_CLEN;
+				h1m->curr_len = h1m->body_len = 0;
+			}
+			else if (isteq(n, ist("transfer-encoding"))) {
 				h1m->flags &= ~H1_MF_CLEN;
 				h1m->flags |= H1_MF_CHNK;
 			}
