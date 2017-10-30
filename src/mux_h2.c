@@ -943,6 +943,14 @@ static void h2_update_poll(struct conn_stream *cs)
 	if (!h2s)
 		return;
 
+	/* we may unblock a blocked read */
+
+	if (cs->flags & CS_FL_DATA_RD_ENA &&
+	    h2s->h2c->flags & H2_CF_DEM_SFULL && h2s->h2c->dsi == h2s->id) {
+		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
+		conn_xprt_want_recv(cs->conn);
+	}
+
 	/* Note: the stream and stream-int code doesn't allow us to perform a
 	 * synchronous send() here unfortunately, because this code is called
 	 * as si_update() from the process_stream() context. This means that
