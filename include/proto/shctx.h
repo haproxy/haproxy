@@ -45,25 +45,25 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 
 #if defined (USE_PRIVATE_CACHE)
 
-#define shared_context_lock(shctx)
-#define shared_context_unlock(shctx)
+#define shctx_lock(shctx)
+#define shctx_unlock(shctx)
 
 #elif defined (USE_PTHREAD_PSHARED)
 extern int use_shared_mem;
 
-#define shared_context_lock(shctx)   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
-#define shared_context_unlock(shctx) if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
+#define shctx_lock(shctx)   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
+#define shctx_unlock(shctx) if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
 
 #else
 extern int use_shared_mem;
 
 #ifdef USE_SYSCALL_FUTEX
-static inline void _shared_context_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
+static inline void _shctx_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
 {
 	syscall(SYS_futex, uaddr, FUTEX_WAIT, value, NULL, 0, 0);
 }
 
-static inline void _shared_context_awakelocker(unsigned int *uaddr)
+static inline void _shctx_awakelocker(unsigned int *uaddr)
 {
 	syscall(SYS_futex, uaddr, FUTEX_WAKE, 1, NULL, 0, 0);
 }
@@ -82,7 +82,7 @@ static inline void relax()
 }
 #endif
 
-static inline void _shared_context_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
+static inline void _shctx_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
 {
         int i;
 
@@ -93,7 +93,7 @@ static inline void _shared_context_wait4lock(unsigned int *count, unsigned int *
         *count = *count << 1;
 }
 
-#define _shared_context_awakelocker(a)
+#define _shctx_awakelocker(a)
 
 #endif
 
@@ -147,7 +147,7 @@ static inline unsigned char atomic_dec(unsigned int *ptr)
 
 #endif
 
-static inline void _shared_context_lock(struct shared_context *shctx)
+static inline void _shctx_lock(struct shared_context *shctx)
 {
 	unsigned int x;
 	unsigned int count = 4;
@@ -158,23 +158,23 @@ static inline void _shared_context_lock(struct shared_context *shctx)
 			x = xchg(&shctx->waiters, 2);
 
 		while (x) {
-			_shared_context_wait4lock(&count, &shctx->waiters, 2);
+			_shctx_wait4lock(&count, &shctx->waiters, 2);
 			x = xchg(&shctx->waiters, 2);
 		}
 	}
 }
 
-static inline void _shared_context_unlock(struct shared_context *shctx)
+static inline void _shctx_unlock(struct shared_context *shctx)
 {
 	if (atomic_dec(&shctx->waiters)) {
 		shctx->waiters = 0;
-		_shared_context_awakelocker(&shctx->waiters);
+		_shctx_awakelocker(&shctx->waiters);
 	}
 }
 
-#define shared_context_lock(shctx)   if (use_shared_mem) _shared_context_lock(shctx)
+#define shctx_lock(shctx)   if (use_shared_mem) _shctx_lock(shctx)
 
-#define shared_context_unlock(shctx) if (use_shared_mem) _shared_context_unlock(shctx)
+#define shctx_unlock(shctx) if (use_shared_mem) _shctx_unlock(shctx)
 
 #endif
 

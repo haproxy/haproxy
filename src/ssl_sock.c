@@ -3821,10 +3821,10 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
 		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
-	shared_context_lock(ssl_shctx);
+	shctx_lock(ssl_shctx);
 	/* store to cache */
 	sh_ssl_sess_store(encid, encsess, data_len);
-	shared_context_unlock(ssl_shctx);
+	shctx_unlock(ssl_shctx);
 err:
 	/* reset original length values */
 	SSL_SESSION_set1_id(sess, sid_data, sid_length);
@@ -3855,13 +3855,13 @@ SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *k
 	}
 
 	/* lock cache */
-	shared_context_lock(ssl_shctx);
+	shctx_lock(ssl_shctx);
 
 	/* lookup for session */
 	sh_ssl_sess = sh_ssl_sess_tree_lookup(key);
 	if (!sh_ssl_sess) {
 		/* no session found: unlock cache and exit */
-		shared_context_unlock(ssl_shctx);
+		shctx_unlock(ssl_shctx);
 		global.shctx_misses++;
 		return NULL;
 	}
@@ -3871,7 +3871,7 @@ SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *k
 
 	shctx_row_data_get(ssl_shctx, first, data, sizeof(struct sh_ssl_sess_hdr), first->len-sizeof(struct sh_ssl_sess_hdr));
 
-	shared_context_unlock(ssl_shctx);
+	shctx_unlock(ssl_shctx);
 
 	/* decode ASN1 session */
 	p = data;
@@ -3903,7 +3903,7 @@ void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 		sid_data = tmpkey;
 	}
 
-	shared_context_lock(ssl_shctx);
+	shctx_lock(ssl_shctx);
 
 	/* lookup for session */
 	sh_ssl_sess = sh_ssl_sess_tree_lookup(sid_data);
@@ -3913,7 +3913,7 @@ void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 	}
 
 	/* unlock cache */
-	shared_context_unlock(ssl_shctx);
+	shctx_unlock(ssl_shctx);
 }
 
 /* Set session cache mode to server and disable openssl internal cache.
