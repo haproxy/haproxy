@@ -1622,6 +1622,28 @@ static void h2_process_demux(struct h2c *h2c)
 			goto strm_err;
 		}
 
+#if 0
+		// problem below: it is not possible to completely ignore such
+		// streams as we need to maintain the compression state as well
+		// and for this we need to completely process these frames (eg:
+		// HEADERS frames) as well as counting DATA frames to emit
+		// proper WINDOW UPDATES and ensure the connection doesn't stall.
+		// This is a typical case of layer violation where the
+		// transported contents are critical to the connection's
+		// validity and must be ignored at the same time :-(
+
+		/* graceful shutdown, ignore streams whose ID is higher than
+		 * the one advertised in GOAWAY. RFC7540#6.8.
+		 */
+		if (unlikely(h2c->last_sid >= 0) && h2c->dsi > h2c->last_sid) {
+			ret = MIN(h2c->dbuf->i, h2c->dfl);
+			bi_del(h2c->dbuf, ret);
+			h2c->dfl -= ret;
+			ret = h2c->dfl == 0;
+			goto strm_err;
+		}
+#endif
+
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
 			if (h2c->st0 == H2_CS_FRAME_P)
