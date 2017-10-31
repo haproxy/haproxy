@@ -10,7 +10,6 @@
  * 2 of the License, or (at your option) any later version.
  */
 
-
 #include <eb32tree.h>
 
 #include <proto/channel.h>
@@ -34,6 +33,8 @@
 /* flt_cache_store */
 
 static const char *cache_store_flt_id = "cache store filter";
+
+static struct pool_head *pool2_cache_st = NULL;
 
 struct applet http_cache_applet;
 
@@ -67,11 +68,274 @@ struct cache_entry {
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct cache *tmp_cache_config = NULL;
 
+struct cache_entry *entry_exist(struct cache *cache, struct cache_entry *new_entry)
+{
+	struct eb32_node *node;
+	struct cache_entry *entry;
+
+	node = eb32_lookup(&cache->entries, new_entry->eb.key);
+	if (!node)
+		return NULL;
+
+	entry = eb32_entry(node, struct cache_entry, eb);
+	if (entry->expire > now.tv_sec)
+		return entry;
+	else
+		eb32_delete(node);
+	return NULL;
+
+}
+
+static inline struct shared_context *shctx_ptr(struct cache *cache)
+{
+	return (struct shared_context *)((unsigned char *)cache - ((struct shared_context *)NULL)->data);
+}
+
 static int
 cache_store_init(struct proxy *px, struct flt_conf *f1conf)
 {
 	return 0;
 }
+
+static int
+cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+{
+	if (!(chn->flags & CF_ISRESP))
+		return 1;
+
+	if (filter->ctx == NULL) {
+		struct cache_st *st;
+
+		st = pool_alloc_dirty(pool2_cache_st);
+		if (st == NULL)
+			return -1;
+
+		st->hdrs_len    = 0;
+		st->first_block = NULL;
+		filter->ctx     = st;
+	}
+
+	register_data_filter(s, chn, filter);
+
+	return 1;
+}
+
+static int
+cache_store_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+	struct cache_st *st = filter->ctx;
+
+	/* end of headers, exclude the final \r\n allow to forward the final
+	 * \r\n in the data filter */
+	if (!(msg->chn->flags & CF_ISRESP) || !st)
+		return 1;
+
+	st->hdrs_len = msg->eoh;
+
+	return 1;
+}
+
+static int
+cache_store_http_forward_data(struct stream *s, struct filter *filter,
+		       struct http_msg *msg, unsigned int len)
+{
+	struct cache_st *st = filter->ctx;
+	struct shared_context *shctx = shctx_ptr((struct cache *)filter->config->conf);
+	int ret;
+
+	/*
+	 * We need to skip the HTTP headers first, because we saved them in the
+	 * http-response action.
+	 */
+	if (!(msg->chn->flags & CF_ISRESP) || !st)
+		return len;
+
+	if (!len) {
+		/* Nothing to foward */
+		ret = len;
+	}
+	else if (st->hdrs_len > len) {
+		/* Forward part of headers */
+		ret           = len;
+		st->hdrs_len -= len;
+	}
+	else if (st->hdrs_len > 0) {
+		/* Forward remaining headers */
+		ret          = st->hdrs_len;
+		st->hdrs_len = 0;
+	}
+	else {
+		/* Forward trailers data */
+		if (len) {
+			if (filter->ctx && st->first_block) {
+				/* disable buffering if too much data (never greater than a buffer size */
+				if (len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
+					filter->ctx = NULL; /* disable cache  */
+					shctx_lock(shctx);
+					shctx_row_dec_hot(shctx, st->first_block);
+					shctx_unlock(shctx);
+					pool_free2(pool2_cache_st, st);
+					ret = 0;
+				} else {
+
+					int blen;
+					blen = shctx_row_data_append(shctx,
+								 st->first_block,
+								 (unsigned char *)bi_ptr(msg->chn->buf),
+								 MIN(bi_contig_data(msg->chn->buf), len));
+
+					ret = MIN(bi_contig_data(msg->chn->buf), len) + blen;
+				}
+			} else {
+				ret = len;
+			}
+		}
+	}
+
+	if ((ret != len) ||
+	    (FLT_NXT(filter, msg->chn) != FLT_FWD(filter, msg->chn) + ret))
+		task_wakeup(s->task, TASK_WOKEN_MSG);
+
+	return ret;
+}
+
+static int
+cache_store_http_end(struct stream *s, struct filter *filter,
+                     struct http_msg *msg)
+{
+	struct cache_st *st = filter->ctx;
+	struct cache *cache = filter->config->conf;
+	struct shared_context *shctx = shctx_ptr(cache);
+	struct cache_entry *object;
+
+	if (!(msg->chn->flags & CF_ISRESP))
+		return 1;
+
+	if (st && st->first_block) {
+
+		object = (struct cache_entry *)st->first_block->data;
+
+		/* does not need to test if the insertion worked, if it
+		 * doesn't, the blocks will be reused anyway */
+
+		shctx_lock(shctx);
+		eb32_insert(&cache->entries, &object->eb);
+		shctx_unlock(shctx);
+
+		/* remove from the hotlist */
+		shctx_lock(shctx);
+		shctx_row_dec_hot(shctx, st->first_block);
+		shctx_unlock(shctx);
+
+	}
+	if (st) {
+		pool_free2(pool2_cache_st, st);
+		filter->ctx = NULL;
+	}
+
+	return 1;
+}
+
+ /*
+  * This intends to be used when checking HTTP headers for some
+  * word=value directive. Return a pointer to the first character of value, if
+  * the word was not found or if there wasn't any value assigned ot it return NULL
+  */
+char *directive_value(const char *sample, int slen, const char *word, int wlen)
+{
+	int st = 0;
+
+	if (slen < wlen)
+		return 0;
+
+	while (wlen) {
+		char c = *sample ^ *word;
+		if (c && c != ('A' ^ 'a'))
+			return NULL;
+		sample++;
+		word++;
+		slen--;
+		wlen--;
+	}
+
+	while (slen) {
+		if (st == 0) {
+			if (*sample != '=')
+				return NULL;
+			sample++;
+			slen--;
+			st = 1;
+			continue;
+		} else {
+			return (char *)sample;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Return the maxage in seconds of an HTTP response.
+ * Compute the maxage using either:
+ *  - the assigned max-age of the cache
+ *  - the s-maxage directive
+ *  - the max-age directive
+ *  - (Expires - Data) headers
+ *  - the default-max-age of the cache
+ *
+ */
+int http_calc_maxage(struct stream *s)
+{
+	struct http_txn *txn = s->txn;
+	struct hdr_ctx ctx;
+
+	int smaxage = -1;
+	int maxage = -1;
+
+
+	/* TODO: forced maxage configuration */
+
+	ctx.idx = 0;
+
+	/* loop on the Cache-Control values */
+	while (http_find_header2("Cache-Control", 13, s->res.buf->p, &txn->hdr_idx, &ctx)) {
+		char *directive = ctx.line + ctx.val;
+		char *value;
+
+		value = directive_value(directive, ctx.vlen, "s-maxage", 8);
+		if (value) {
+			struct chunk *chk = get_trash_chunk();
+
+			chunk_strncat(chk, value, ctx.vlen - 8 + 1);
+			chunk_strncat(chk, "", 1);
+			maxage = atoi(chk->str);
+		}
+
+		value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
+		if (value) {
+			struct chunk *chk = get_trash_chunk();
+
+			chunk_strncat(chk, value, ctx.vlen - 7 + 1);
+			chunk_strncat(chk, "", 1);
+			smaxage = atoi(chk->str);
+		}
+	}
+
+	/* TODO: Expires - Data */
+
+
+	if (smaxage > 0)
+		return smaxage;
+
+	if (maxage > 0)
+		return maxage;
+
+	/* TODO: return default value */
+
+	return 60;
+
+}
+
 
 /*
  * This fonction will store the headers of the response in a buffer and then
@@ -80,6 +344,116 @@ cache_store_init(struct proxy *px, struct flt_conf *f1conf)
 enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
+	struct http_txn *txn = s->txn;
+	struct http_msg *msg = &txn->rsp;
+	struct filter *filter;
+	struct hdr_ctx ctx;
+	struct shared_block *first = NULL;
+	struct shared_context *shctx = shctx_ptr((struct cache *)rule->arg.act.p[0]);
+	struct cache_entry *object;
+
+
+	/* Don't cache if the response came from a cache */
+	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
+	    s->target == &http_cache_applet.obj_type) {
+		goto out;
+	}
+
+	/* cache only HTTP/1.1 */
+	if (!(txn->req.flags & HTTP_MSGF_VER_11))
+		goto out;
+
+	/* cache only GET method */
+	if (txn->meth != HTTP_METH_GET)
+		goto out;
+
+	/* cache only 200 status code */
+	if (txn->status != 200)
+		goto out;
+
+	/* Does not manage Vary at the moment. We will need a secondary key later for that */
+	ctx.idx = 0;
+	if (http_find_header2("Vary", 4, txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx))
+		goto out;
+
+	/* we need to put this flag before using check_response_for_cacheability */
+	txn->flags |= TX_CACHEABLE;
+
+	if (txn->status != 101)
+		check_response_for_cacheability(s, &s->res);
+
+	if (!(txn->flags & TX_CACHEABLE))
+		goto out;
+
+	if ((msg->eoh + msg->body_len) > (global.tune.bufsize - global.tune.maxrewrite))
+		goto out;
+
+	shctx_lock(shctx);
+
+	first = shctx_row_reserve_hot(shctx, sizeof(struct cache_entry) + msg->eoh + msg->body_len);
+	if (!first) {
+		shctx_unlock(shctx);
+		goto out;
+	}
+	shctx_unlock(shctx);
+
+	/* reserve space for the cache_entry structure */
+	first->len = sizeof(struct cache_entry);
+
+	/* cache the headers in a http action because it allows to chose what
+	 * to cache, for example you might want to cache a response before
+	 * modifying some HTTP headers, or on the contrary after modifying
+	 * those headers.
+	 */
+
+	/* does not need to be locked because it's in the "hot" list,
+	 * copy the headers */
+	if (shctx_row_data_append(shctx, first, (unsigned char *)s->res.buf->p, msg->eoh) < 0)
+		goto out;
+
+	/* register the buffer in the filter ctx for filling it with data*/
+	if (!LIST_ISEMPTY(&s->strm_flt.filters)) {
+		list_for_each_entry(filter, &s->strm_flt.filters, list) {
+			if (filter->config->id == cache_store_flt_id  &&
+			    filter->config->conf == rule->arg.act.p[0]) {
+				if (filter->ctx) {
+					struct cache_st *cache_ctx = filter->ctx;
+
+					cache_ctx->first_block = first;
+					object = (struct cache_entry *)first->data;
+
+					object->eb.key = hash_djb2(txn->uri, strlen(txn->uri));
+					/* Insert the node later on caching success */
+
+					shctx_lock(shctx);
+					if (entry_exist((struct cache *)rule->arg.act.p[0], object)) {
+						shctx_unlock(shctx);
+						if (filter->ctx) {
+							pool_free2(pool2_cache_st, filter->ctx);
+							filter->ctx = NULL;
+						}
+						goto out;
+					}
+					shctx_unlock(shctx);
+
+					/* store latest value and expiration time */
+					object->latest_validation = now.tv_sec;
+					object->expire = now.tv_sec + http_calc_maxage(s);
+
+				}
+				return ACT_RET_CONT;
+			}
+		}
+	}
+
+out:
+	/* if does not cache */
+	if (first) {
+		shctx_lock(shctx);
+		shctx_row_dec_hot(shctx, first);
+		shctx_unlock(shctx);
+	}
+
 	return ACT_RET_CONT;
 }
 
@@ -244,6 +618,7 @@ int cfg_post_parse_section_cache()
 		}
 
 		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE, sizeof(struct cache), 1);
+
 		if (ret_shctx < 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)
 				Alert("Unable to initialize the lock for the cache.\n");
@@ -253,10 +628,10 @@ int cfg_post_parse_section_cache()
 			err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
 		}
+
 		memcpy(shctx->data, tmp_cache_config, sizeof(struct cache));
 		cache = (struct cache *)shctx->data;
 		cache->entries = EB_ROOT_UNIQUE;
-
 		LIST_ADDQ(&caches, &cache->list);
 	}
 out:
@@ -359,6 +734,15 @@ int cfg_cache_postparser()
 struct flt_ops cache_ops = {
 	.init   = cache_store_init,
 
+	/* Handle channels activity */
+	.channel_start_analyze = cache_store_chn_start_analyze,
+
+	/* Filter HTTP requests and responses */
+	.http_headers        = cache_store_http_headers,
+	.http_end            = cache_store_http_end,
+
+	.http_forward_data   = cache_store_http_forward_data,
+
 };
 
 static struct action_kw_list http_res_actions = {
@@ -389,5 +773,6 @@ static void __cache_init(void)
 	cfg_register_postparser("cache", cfg_cache_postparser);
 	http_res_keywords_register(&http_res_actions);
 	http_req_keywords_register(&http_req_actions);
+	pool2_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
 }
 
