@@ -103,7 +103,9 @@ struct appctx {
 			void *p0, *p1;          /* general purpose pointers and integers for registered commands, initialized */
 			int i0, i1;             /* to 0 by the CLI before first invocation of the keyword parser. */
 		} cli;                          /* context used by the CLI */
-
+		struct {
+			struct cache_entry *entry;
+		} cache;
 		/* all entries below are used by various CLI commands, please
 		 * keep the grouped together and avoid adding new ones.
 		 */

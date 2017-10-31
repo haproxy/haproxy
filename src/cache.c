@@ -91,6 +91,13 @@ static inline struct shared_context *shctx_ptr(struct cache *cache)
 	return (struct shared_context *)((unsigned char *)cache - ((struct shared_context *)NULL)->data);
 }
 
+static inline struct shared_block *block_ptr(struct cache_entry *entry)
+{
+	return (struct shared_block *)((unsigned char *)entry - ((struct shared_block *)NULL)->data);
+}
+
+
+
 static int
 cache_store_init(struct proxy *px, struct flt_conf *f1conf)
 {
@@ -457,6 +464,57 @@ out:
 	return ACT_RET_CONT;
 }
 
+#define 	HTTP_CACHE_INIT 0
+#define 	HTTP_CACHE_FWD 1
+#define 	HTTP_CACHE_END 2
+
+static void http_cache_io_handler(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct channel *res = si_ic(si);
+	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
+	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
+	struct shared_context *shctx = shctx_ptr(cache);
+	struct shared_block *first = block_ptr(cache_ptr);
+
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+		goto out;
+
+	/* Check if the input buffer is avalaible. */
+	if (res->buf->size == 0) {
+		si_applet_cant_put(si);
+		goto out;
+	}
+
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
+		appctx->st0 = HTTP_CACHE_END;
+
+	/* buffer are aligned there, should be fine */
+	if (appctx->st0 == HTTP_CACHE_INIT) {
+		int len = first->len - sizeof(struct cache_entry);
+		if ((shctx_row_data_get(shctx, first, (unsigned char *)bi_end(res->buf), sizeof(struct cache_entry), len)) != 0) {
+			fprintf(stderr, "cache error too big: %d\n", first->len - (int)sizeof(struct cache_entry));
+			si_applet_cant_put(si);
+			goto out;
+		}
+		res->buf->i += len;
+		res->total += len;
+		appctx->st0 = HTTP_CACHE_FWD;
+	}
+
+	if (appctx->st0 == HTTP_CACHE_FWD) {
+		/* eat the whole request */
+		co_skip(si_oc(si), si_ob(si)->o);   // NOTE: when disabled does not repport the  correct status code
+		res->flags |= CF_READ_NULL;
+		si_shutr(si);
+	}
+
+	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
+		si_shutw(si);
+out:
+	;
+}
+
 enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct proxy *proxy,
                                           struct act_rule *rule, char **err)
 {
@@ -512,6 +570,27 @@ err:
 enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
+
+	struct cache_entry search_entry;
+	struct cache_entry *res;
+
+	struct cache *cache = (struct cache *)rule->arg.act.p[0];
+
+	search_entry.eb.key = hash_djb2(s->txn->uri, strlen(s->txn->uri));
+	res = entry_exist(cache, &search_entry);
+	if (res) {
+		struct appctx *appctx;
+
+		s->target = &http_cache_applet.obj_type;
+		if ((appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
+			appctx->st0 = HTTP_CACHE_INIT;
+			appctx->rule = rule;
+			appctx->ctx.cache.entry = res;
+			return ACT_RET_PRS_OK;
+		} else {
+			return ACT_RET_PRS_ERR;
+		}
+	}
 	return ACT_RET_PRS_OK;
 }
 
@@ -762,7 +841,7 @@ static struct action_kw_list http_req_actions = {
 struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CACHE>", /* used for logging */
-	.fct = NULL,
+	.fct = http_cache_io_handler,
 	.release = NULL,
 };
 
