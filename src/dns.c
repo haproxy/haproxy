@@ -545,7 +545,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				if (dns_dn_label_to_str(item->target, item->data_len+1,
 							hostname, DNS_MAX_NAME_SIZE) == -1)
 					continue;
-				msg = update_server_fqdn(srv, hostname, "SRV record");
+				msg = update_server_fqdn(srv, hostname, "SRV record", 1);
 				if (msg)
 					send_log(srv->proxy, LOG_NOTICE, "%s", msg);
 

@@ -53,7 +53,7 @@ HA_SPINLOCK_T updated_servers_lock;
 static void srv_register_update(struct server *srv);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
-static int srv_set_fqdn(struct server *srv, const char *fqdn);
+static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -2911,7 +2911,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					 * from stats socket).
 					 */
 					if (fqdn_set_by_cli) {
-						srv_set_fqdn(srv, fqdn);
+						srv_set_fqdn(srv, fqdn, 0);
 						srv->next_admin |= SRV_ADMF_HMAINT;
 					}
 				}
@@ -3764,13 +3764,14 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 /* Set the server's FDQN (->hostname) from <hostname>.
  * Returns -1 if failed, 0 if not.
  */
-int srv_set_fqdn(struct server *srv, const char *hostname)
+int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 {
 	struct dns_resolution *resolution;
 	char                  *hostname_dn;
 	int                    hostname_len, hostname_dn_len;
 
-	SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
+	if (!dns_locked)
+		SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
 	 */
@@ -3805,11 +3806,13 @@ int srv_set_fqdn(struct server *srv, const char *hostname)
 		goto err;
 
   end:
-	SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+	if (!dns_locked)
+		SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return 0;
 
   err:
-	SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+	if (!dns_locked)
+		SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return -1;
 }
 
@@ -3936,7 +3939,7 @@ int srv_init_addr(void)
 	return return_code;
 }
 
-const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater)
+const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked)
 {
 
 	struct chunk *msg;
@@ -3957,7 +3960,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 	chunk_appendf(msg, "%s/%s changed its FQDN from %s to %s",
 	              server->proxy->id, server->id, server->hostname, fqdn);
 
-	if (srv_set_fqdn(server, fqdn) < 0) {
+	if (srv_set_fqdn(server, fqdn, dns_locked) < 0) {
 		chunk_reset(msg);
 		chunk_appendf(msg, "could not update %s/%s FQDN",
 		              server->proxy->id, server->id);
@@ -4185,7 +4188,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		warning = update_server_fqdn(sv, args[4], "stats socket command");
+		warning = update_server_fqdn(sv, args[4], "stats socket command", 0);
 		if (warning) {
 			appctx->ctx.cli.severity = LOG_WARNING;
 			appctx->ctx.cli.msg = warning;
