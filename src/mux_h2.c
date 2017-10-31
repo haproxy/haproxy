@@ -327,9 +327,18 @@ static int h2c_frt_init(struct connection *conn)
 	if (!h2c)
 		goto fail;
 
-	t = task_new(tid_bit);
-	if (!t)
-		goto fail;
+
+	h2c->timeout = sess->fe->timeout.client;
+	if (tick_isset(h2c->timeout)) {
+		t = task_new(tid_bit);
+		if (!t)
+			goto fail;
+
+		h2c->task = t;
+		t->process = h2_timeout_task;
+		t->context = h2c;
+		t->expire = tick_add(now_ms, h2c->timeout);
+	}
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
 	if (!h2c->ddht)
@@ -360,13 +369,8 @@ static int h2c_frt_init(struct connection *conn)
 	LIST_INIT(&h2c->mbuf_wait.list);
 	conn->mux_ctx = h2c;
 
-	h2c->timeout = sess->fe->timeout.client;
-	h2c->task = t;
-	t->process = h2_timeout_task;
-	t->context = h2c;
-	t->expire = tick_add(now_ms, h2c->timeout);
-	task_queue(t);
-
+	if (t)
+		task_queue(t);
 	conn_xprt_want_recv(conn);
 
 	/* mux->wake will be called soon to complete the operation */
@@ -2048,13 +2052,14 @@ static int h2_wake(struct connection *conn)
 		__conn_xprt_stop_send(conn);
 	}
 
-	if (eb_is_empty(&h2c->streams_by_id)) {
-		h2c->task->expire = tick_add(now_ms, h2c->timeout);
-		task_queue(h2c->task);
+	if (h2c->task) {
+		if (eb_is_empty(&h2c->streams_by_id)) {
+			h2c->task->expire = tick_add(now_ms, h2c->timeout);
+			task_queue(h2c->task);
+		}
+		else
+			h2c->task->expire = TICK_ETERNITY;
 	}
-	else
-		h2c->task->expire = TICK_ETERNITY;
-
 	return 0;
 }
 
@@ -2191,12 +2196,14 @@ static void h2_detach(struct conn_stream *cs)
 		/* h2s still attached to the h2c */
 		eb32_delete(&h2s->by_id);
 
-		if (eb_is_empty(&h2c->streams_by_id)) {
-			h2c->task->expire = tick_add(now_ms, h2c->timeout);
-			task_queue(h2c->task);
+		if (h2c->task) {
+			if (eb_is_empty(&h2c->streams_by_id)) {
+				h2c->task->expire = tick_add(now_ms, h2c->timeout);
+				task_queue(h2c->task);
+			}
+			else
+				h2c->task->expire = TICK_ETERNITY;
 		}
-		else
-			h2c->task->expire = TICK_ETERNITY;
 
 		/* We don't want to close right now unless we're removing the
 		 * last stream, and either the connection is in error, or it
