@@ -209,6 +209,10 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 	int count = 0, size = 0, start = -1;
 	struct shared_block *block;
 
+	/* can't copy more */
+	if (len > first->len)
+		len = first->len;
+
 	block = first;
 	count = 0;
 	/* Pass through the blocks to copy them */
