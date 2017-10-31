@@ -1949,7 +1949,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	memset(appctx->ctx.spoe.ptr, 0, pool2_spoe_appctx->size);
 
 	appctx->st0 = SPOE_APPCTX_ST_CONNECT;
-	if ((SPOE_APPCTX(appctx)->task = task_new(1UL << tid)) == NULL)
+	if ((SPOE_APPCTX(appctx)->task = task_new(tid_bit)) == NULL)
 		goto out_free_spoe_appctx;
 
 	SPOE_APPCTX(appctx)->owner           = appctx;

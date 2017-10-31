@@ -2510,7 +2510,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	lua_setmetatable(L, -2);
 
 	/* Create the applet context */
-	appctx = appctx_new(&update_applet, 1UL << tid);
+	appctx = appctx_new(&update_applet, tid_bit);
 	if (!appctx) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
@@ -6165,7 +6165,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	ctx->ctx.hlua_apptcp.flags = 0;
 
 	/* Create task used by signal to wakeup applets. */
-	task = task_new(1UL << tid);
+	task = task_new(tid_bit);
 	if (!task) {
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
@@ -6366,7 +6366,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 		ctx->ctx.hlua_apphttp.flags |= APPLET_HTTP11;
 
 	/* Create task used by signal to wakeup applets. */
-	task = task_new(1UL << tid);
+	task = task_new(tid_bit);
 	if (!task) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
@@ -6911,7 +6911,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	 * We use the same wakeup fonction than the Lua applet_tcp and
 	 * applet_http. It is absolutely compatible.
 	 */
-	appctx->ctx.hlua_cli.task = task_new(1UL << tid);
+	appctx->ctx.hlua_cli.task = task_new(tid_bit);
 	if (!appctx->ctx.hlua_cli.task) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
 		goto error;
