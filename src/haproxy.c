@@ -2806,6 +2806,8 @@ int main(int argc, char **argv)
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
 
+		THREAD_SYNC_INIT((1UL << global.nbthread) - 1);
+
 		/* Init tids array */
 		for (i = 0; i < global.nbthread; i++)
 			tids[i] = i;
