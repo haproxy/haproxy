@@ -910,7 +910,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case HTTP_MSG_RPCODE:
 	http_msg_rpcode:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			code = (code << 8) + *ptr;
+			code = code * 10 + *ptr - '0';
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode, http_msg_ood, state, HTTP_MSG_RPCODE);
 		}
 
@@ -956,6 +956,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			goto http_output_full;
 		}
 		http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + st_c, st_c_l));
+		if (h1m)
+			h1m->status = code;
 
 		sol = ptr - start;
 		if (likely(*ptr == '\r'))
@@ -1127,9 +1129,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (h1m) {
 			long long cl;
 
-			if (start[st_c] == '1' || /* 100..199 */
-			    isteq(ist2(start + st_c, st_c_l), ist("204")) ||
-			    isteq(ist2(start + st_c, st_c_l), ist("304"))) {
+			if (h1m->status >= 100 && h1m->status < 200)
+				h1m->curr_len = h1m->body_len = 0;
+			else if (h1m->status == 304 || h1m->status == 204) {
 				/* no contents, claim c-len is present and set to zero */
 				h1m->flags |= H1_MF_CLEN;
 				h1m->curr_len = h1m->body_len = 0;

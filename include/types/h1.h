@@ -91,6 +91,8 @@ enum h1_state {
 /* basic HTTP/1 message state for use in parsers */
 struct h1m {
 	enum h1_state state;        // H1 message state (HTTP_MSG_*)
+	/* 8 bits available here */
+	uint16_t status;            // HTTP status code
 	uint32_t flags;             // H1 message flags (H1_MF_*)
 	uint64_t curr_len;          // content-length or last chunk length
 	uint64_t body_len;          // total known size of the body length
