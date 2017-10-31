@@ -704,7 +704,9 @@ static int h2_wake(struct connection *conn)
 	struct h2c *h2c = conn->mux_ctx;
 
 	if (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn) ||
-	    h2c->st0 == H2_CS_ERROR2) {
+	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
+	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
+	     h2c->max_id >= h2c->last_sid)) {
 		h2_wake_all_streams(h2c);
 
 		if (eb_is_empty(&h2c->streams_by_id)) {
