@@ -4,7 +4,7 @@
                          ----------------------
                               version 1.8
                              willy tarreau
-                              2017/10/22
+                              2017/10/31
 
 
 This document covers the configuration language as implemented in the version

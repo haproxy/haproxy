@@ -1,6 +1,251 @@
 ChangeLog :
 ===========
 
+2017/10/31 : 1.8-rc1
+    - BUG/MEDIUM: server: Allocate tmptrash before using it.
+    - CONTRIB: trace: add the possibility to place trace calls in the code
+    - CONTRIB: trace: try to display the function's return value on exit
+    - CONTRIB: trace: report the base name only for file names
+    - BUILD: ssl: support OPENSSL_NO_ASYNC #define
+    - MINOR: ssl: build with recent BoringSSL library
+    - BUG/MINOR: ssl: OCSP_single_get0_status can return -1
+    - BUG/MINOR: cli: restore "set ssl tls-key" command
+    - CLEANUP: cli: remove undocumented "set ssl tls-keys" command
+    - IMPORT: sha1: import SHA1 functions
+    - MINOR: sample: add the sha1 converter
+    - MINOR: sample: add the hex2i converter
+    - MINOR: stream-int: stop checking for useless connection flags in chk_snd_conn
+    - MINOR: ssl: don't abort after sending 16kB
+    - MINOR: connection: move the cleanup of flag CO_FL_WAIT_ROOM
+    - MINOR: connection: add flag CO_FL_WILL_UPDATE to indicate when updates are granted
+    - MEDIUM: connection: make use of CO_FL_WILL_UPDATE in conn_sock_shutw()
+    - MINOR: raw_sock: make use of CO_FL_WILL_UPDATE
+    - MINOR: ssl_sock: make use of CO_FL_WILL_UPDATE
+    - BUG/MINOR: checks: Don't forget to release the connection on error case.
+    - MINOR: buffer: add the buffer input manipulation functions
+    - BUG/MEDIUM: prevent buffers being overwritten during build_logline() execution
+    - MEDIUM: cfgparse: post section callback
+    - MEDIUM: cfgparse: post parsing registration
+    - MINOR: lua: add uuid to the Class Proxy
+    - MINOR: hlua: Add regex class
+    - MINOR: http: Mark the 425 code as "Too Early".
+    - MEDIUM: ssl: convert CBS (BoringSSL api) usage to neutral code
+    - MINOR: ssl: support Openssl 1.1.1 early callback for switchctx
+    - MINOR: ssl: generated certificate is missing in switchctx early callback
+    - MEDIUM: ssl: Handle early data with OpenSSL 1.1.1
+    - BUILD: Makefile: disable -Wunused-label
+    - MINOR: ssl/proto_http: Add keywords to take care of early data.
+    - BUG/MINOR: lua: const attribute of a string is overridden
+    - MINOR: ssl: Don't abuse ssl_options.
+    - MINOR: update proxy-protocol-v2 #define
+    - MINOR: merge ssl_sock_get calls for log and ppv2
+    - MINOR: add ALPN information to send-proxy-v2
+    - MEDIUM: h1: ensure that 1xx, 204 and 304 don't have a payload body
+    - CLEANUP: shctx: get ride of the shsess_packet{_hdr} structures
+    - MEDIUM: lists: list_for_each_entry{_safe}_from functions
+    - REORG: shctx: move lock functions and struct
+    - MEDIUM: shctx: allow the use of multiple shctx
+    - REORG: shctx: move ssl functions to ssl_sock.c
+    - MEDIUM: shctx: separate ssl and shctx
+    - MINOR: shctx: rename lock functions
+    - MINOR: h1: store the status code in the H1 message
+    - BUG/MINOR: spoe: Don't compare engine name and SPOE scope when both are NULL
+    - BUG/MINOR: spoa: Update pointer on the end of the frame when a reply is encoded
+    - MINOR: action: Add trk_idx inline function
+    - MINOR: action: Use trk_idx instead of tcp/http_trk_idx
+    - MINOR: action: Add a function pointer in act_rule struct to check its validity
+    - MINOR: action: Add function to check rules using an action ACT_ACTION_TRK_*
+    - MINOR: action: Add a functions to check http capture rules
+    - MINOR: action: Factorize checks on rules calling check_ptr if defined
+    - MINOR: acl: Pass the ACLs as an explicit parameter of build_acl_cond
+    - MEDIUM: spoe: Add support of ACLS to enable or disable sending of SPOE messages
+    - MINOR: spoe: Check uniqness of SPOE engine names during config parsing
+    - MEDIUM: spoe: Parse new "spoe-group" section in SPOE config file
+    - MEDIUM: spoe/rules: Add "send-spoe-group" action for tcp/http rules
+    - MINOR: spoe: Move message encoding in its own function
+    - MINOR: spoe: Add a type to qualify the message list during encoding
+    - MINOR: spoe: Add a generic function to encode a list of SPOE message
+    - MEDIUM: spoe/rules: Process "send-spoe-group" action
+    - BUG/MINOR: dns: Fix CLI keyword declaration
+    - MAJOR: dns: Refactor the DNS code
+    - BUG/MINOR: mailers: Fix a memory leak when email alerts are released
+    - MEDIUM: mailers: Init alerts during conf parsing and refactor their processing
+    - MINOR: mailers: Use pools to allocate email alerts and its tcpcheck_rules
+    - MINOR: standard: Add memvprintf function
+    - MINOR: log: Save alerts and warnings emitted during HAProxy startup
+    - MINOR: cli: Add "show startup-logs" command
+    - MINOR: startup: Extend the scope the MODE_STARTING flag
+    - MINOR: threads: Prepare makefile to link with pthread
+    - MINOR: threads: Add THREAD_LOCAL macro
+    - MINOR: threads: Add atomic-ops and plock includes in import dir
+    - MEDIUM: threads: Add hathreads header file
+    - MINOR: threads: Add mechanism to register per-thread init/deinit functions
+    - MINOR: threads: Add nbthread parameter
+    - MEDIUM: threads: Adds a set of functions to handle sync-point
+    - MAJOR: threads: Start threads to experiment multithreading
+    - MINOR: threads: Define the sync-point inside run_poll_loop
+    - MEDIUM: threads/buffers: Define and register per-thread init/deinit functions
+    - MEDIUM: threads/chunks: Transform trash chunks in thread-local variables
+    - MEDIUM: threads/time: Many global variables from time.h are now thread-local
+    - MEDIUM: threads/logs: Make logs thread-safe
+    - MEDIUM: threads/pool: Make pool thread-safe by locking all access to a pool
+    - MAJOR: threads/fd: Make fd stuffs thread-safe
+    - MINOR: threads/fd: Add a mask of threads allowed to process on each fd in fdtab array
+    - MEDIUM: threads/fd: Initialize the process mask during the call to fd_insert
+    - MINOR: threads/fd: Process cached events of FDs depending on the process mask
+    - MINOR: threads/polling: pollers now handle FDs depending on the process mask
+    - WIP: SQUASH WITH SYNC POINT
+    - MAJOR: threads/task: handle multithread on task scheduler
+    - MEDIUM: threads/signal: Add a lock to make signals thread-safe
+    - MEDIUM: threads/listeners: Make listeners thread-safe
+    - MEDIUM: threads/proxy: Add a lock per proxy and atomically update proxy vars
+    - MEDIUM: threads/server: Make connection list (priv/idle/safe) thread-safe
+    - MEDIUM: threads/server: Add a lock per server and atomically update server vars
+    - MINOR: threads/server: Add a lock to deal with insert in updates_servers list
+    - MEDIUM: threads/lb: Make LB algorithms (lb_*.c) thread-safe
+    - MEDIUM: threads/stick-tables: handle multithreads on stick tables
+    - MINOR: threads/sample: Change temp_smp into a thread local variable
+    - MEDIUM: threads/http: Make http_capture_bad_message thread-safe
+    - MINOR: threads/regex: Change Regex trash buffer into a thread local variable
+    - MAJOR: threads/applet: Handle multithreading for applets
+    - MAJOR: threads/peers: Make peers thread safe
+    - MAJOR: threads/buffer: Make buffer wait queue thread safe
+    - MEDIUM: threads/stream: Make streams list thread safe
+    - MAJOR: threads/ssl: Make SSL part thread-safe
+    - MEDIUM: threads/queue: Make queues thread-safe
+    - MAJOR: threads/map: Make acls/maps thread safe
+    - MEDIUM: threads/freq_ctr: Make the frequency counters thread-safe
+    - MEDIUM: thread/vars: Make vars thread-safe
+    - MEDIUM: threads/filters: Add init/deinit callback per thread
+    - MINOR: threads/filters: Update trace filter to add _per_thread callbacks
+    - MEDIUM: threads/compression: Make HTTP compression thread-safe
+    - MEDIUM: threads/lua: Makes the jmpbuf and some other buffers local to the current thread.
+    - MEDIUM: threads/lua: Add locks around the Lua execution parts.
+    - MEDIUM: threads/lua: Ensure that the launched tasks runs on the same threads than me
+    - MEDIUM: threads/lua: Cannot acces to the socket if we try to access from another thread.
+    - MEDIUM: threads/xref: Convert xref function to a thread safe model
+    - MEDIUM: threads/tasks: Add lock around notifications
+    - MEDIUM: thread/spoe: Make the SPOE thread-safe
+    - MEDIUM: thread/dns: Make DNS thread-safe
+    - MINOR: threads: Add thread-map config parameter in the global section
+    - MINOR: threads/checks: Add a lock to protect the pid list used by external checks
+    - MINOR: threads/checks: Set the task process_mask when a check is executed
+    - MINOR: threads/mailers: Add a lock to protect queues of email alerts
+    - MEDIUM: threads/server: Use the server lock to protect health check and cli concurrency
+    - MINOR: threads: Don't start when device a detection module is used
+    - BUG/MEDIUM: threads: Run the poll loop on the main thread too
+    - BUG/MINOR: threads: Add missing THREAD_LOCAL on static here and there
+    - MAJOR: threads: Offically enable the threads support in HAProxy
+    - BUG/MAJOR: threads/freq_ctr: fix lock on freq counters.
+    - BUG/MAJOR: threads/time: Store the time deviation in an 64-bits integer
+    - BUILD: stick-tables: silence an uninitialized variable warning
+    - BUG/MINOR: dns: Fix SRV records with the new thread code.
+    - MINOR: ssl: Remove the global allow-0rtt option.
+    - CLEANUP: threads: replace the last few 1UL<<tid with tid_bit
+    - CLEANUP: threads: rename process_mask to thread_mask
+    - MINOR: h1: add a function to measure the trailers length
+    - MINOR: threads: add a portable barrier for threads and non-threads
+    - BUG/MAJOR: threads/freq_ctr: use a memory barrier to detect changes
+    - BUG/MEDIUM: threads: Initialize the sync-point
+    - MEDIUM: connection: start to introduce a mux layer between xprt and data
+    - MINOR: connection: implement alpn registration of muxes
+    - MINOR: mux: register the pass-through mux for any ALPN string
+    - MEDIUM: session: use the ALPN token and proxy mode to select the mux
+    - MINOR: connection: report the major HTTP version from the MUX for logging (fc_http_major)
+    - MINOR: connection: introduce conn_stream
+    - MINOR: mux: add more methods to mux_ops
+    - MINOR: connection: introduce the conn_stream manipulation functions
+    - MINOR: mux_pt: implement remaining mux_ops methods
+    - MAJOR: connection : Split struct connection into struct connection and struct conn_stream.
+    - MINOR: connection: make conn_stream users also check for per-stream error flag
+    - MINOR: conn_stream: new shutr/w status flags
+    - MINOR: conn_stream: modify cs_shut{r,w} API to pass the desired mode
+    - MEDIUM: connection: make conn_sock_shutw() aware of lingering
+    - MINOR: connection: add cs_close() to close a conn_stream
+    - MEDIUM: mux_pt: make cs_shutr() / cs_shutw() properly close the connection
+    - MEDIUM: connection: replace conn_full_close() with cs_close()
+    - MEDIUM: connection: make mux->detach() release the connection
+    - MEDIUM: stream: do not forcefully close the client connection anymore
+    - MEDIUM: checks: exclusively use cs_destroy() to release a connection
+    - MEDIUM: connection: add a destroy callback
+    - MINOR: session: release the listener with the session, not the stream
+    - MEDIUM: session: make use of the connection's destroy callback
+    - CONTRIB: hpack: implement a reverse huffman table generator for hpack
+    - MINOR: hpack: implement the HPACK Huffman table decoder
+    - MINOR: hpack: implement the header tables management
+    - MINOR: hpack: implement the decoder
+    - MEDIUM: hpack: implement basic hpack encoding
+    - MINOR: h2: centralize all HTTP/2 protocol elements and constants
+    - MINOR: h2: create a very minimalistic h2 mux
+    - MINOR: h2: expose tune.h2.header-table-size to configure the table size
+    - MINOR: h2: expose tune.h2.initial-window-size to configure the window size
+    - MINOR: h2: expose tune.h2.max-concurrent-streams to limit the number of streams
+    - MINOR: h2: create the h2c struct and allocate its pool
+    - MINOR: h2: create the h2s struct and the associated pool
+    - MINOR: h2: handle two extra stream states for errors
+    - MINOR: h2: add a frame header descriptor for incoming frames
+    - MEDIUM: h2: allocate and release the h2c context on connection init/end
+    - MEDIUM: h2: implement basic recv/send/wake functions
+    - MEDIUM: h2: dynamically allocate the demux buffer on Rx
+    - MEDIUM: h2: implement the mux buffer allocator
+    - MINOR: h2: add the connection and stream flags listing the causes for blocking
+    - MINOR: h2: add function h2s_id() to report a stream's ID
+    - MINOR: h2: small function to know when the mux is busy
+    - MINOR: h2: new function h2c_error to mark an error on the connection
+    - MINOR: h2: new function h2s_error() to mark an error on a stream
+    - MINOR: h2: add h2_set_frame_size() to update the size in a binary frame
+    - MINOR: h2: new function h2_peek_frame_hdr() to retrieve a new frame header
+    - MINOR: h2: add a few functions to retrieve contents from a wrapping buffer
+    - MINOR: h2: add stream lookup function based on the stream ID
+    - MINOR: h2: create dummy idle and closed streams
+    - MINOR: h2: add the function to create a new stream
+    - MINOR: h2: update the {MUX,DEM}_{M,D}ALLOC flags on buffer availability
+    - MEDIUM: h2: start to consider the H2_CF_{MUX,DEM}_* flags for polling
+    - MINOR: h2: also terminate the connection on shutr
+    - MEDIUM: h2: properly consider all conditions for end of connection
+    - MEDIUM: h2: wake the connection up for send on pending streams
+    - MEDIUM: h2: start to implement the frames processing loop
+    - MINOR: h2: add a function to send a GOAWAY error frame
+    - MINOR: h2: match the H2 connection preface on init
+    - MEDIUM: h2: enable connection polling for send when a cs wants to emit
+    - MEDIUM: h2: enable reading again on the connection if it was blocked on stream buffer full
+    - MEDIUM: h2: process streams pending for sending
+    - MINOR: h2: send a real SETTINGS frame based on the configuration
+    - MEDIUM: h2: detect the presence of the first settings frame
+    - MINOR: h2: create a stream parser for the demuxer
+    - MINOR: h2: implement PING frames
+    - MEDIUM: h2: decode SETTINGS frames and extract relevant settings
+    - MINOR: h2: lookup the stream during demuxing
+    - MEDIUM: h2: honor WINDOW_UPDATE frames
+    - MINOR: h2: implement h2_send_rst_stream() to send RST_STREAM frames
+    - MINOR: h2: handle CONTINUATION frames
+    - MEDIUM: h2: partial implementation of h2_detach()
+    - MEDIUM: h2: unblock a connection when its current stream detaches
+    - MEDIUM: h2: basic processing of HEADERS frame
+    - MEDIUM: h2: don't use trash to decode headers!
+    - MEDIUM: h2: implement the response HEADERS frame to encode the H1 response
+    - MEDIUM: h2: send the H1 response body as DATA frames
+    - MEDIUM: h2: skip the response trailers if any
+    - MEDIUM: h2: properly continue to parse header block when facing a 1xx response
+    - MEDIUM: h2: send WINDOW_UPDATE frames for connection
+    - MEDIUM: h2: handle request body in DATA frames
+    - MINOR: h2: handle RST_STREAM frames
+    - MEDIUM: h2: send DATA+ES or RST_STREAM on shutw/shutr
+    - MINOR: h2: use a common function to signal some and all streams.
+    - MEDIUM: h2: handle GOAWAY frames
+    - MINOR: h2: centralize the check for the idle streams
+    - MINOR: h2: centralize the check for the half-closed(remote) streams
+    - MEDIUM: h2: silently ignore frames higher than last_id after GOAWAY
+    - MINOR: h2: properly reject PUSH_PROMISE frames coming from the client
+    - MEDIUM: h2: perform a graceful shutdown on "Connection: close"
+    - MEDIUM: h2: send a GOAWAY frame when dealing with an empty response
+    - MEDIUM: h2: apply a timeout to h2 connections
+    - BUG/MEDIUM: h2: fix incorrect timeout handling on the connection
+    - MEDIUM: shctx: forbid shctx to read more than expected
+    - MEDIUM: cache: configuration parsing and initialization
+    - MEDIUM: cache: store objects in cache
+    - MEDIUM: cache: deliver objects from cache
+
 2017/10/22 : 1.8-dev3
     - REORG: ssl: move defines and methodVersions table upper
     - MEDIUM: ssl: ctx_set_version/ssl_set_version func for methodVersions table
