@@ -2168,6 +2168,14 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		if (h2_send_empty_data_es(h2s) <= 0)
 			return;
 	} else {
+		/* let's signal a wish to close the connection if no headers
+		 * were seen as this usually means it's a tcp-request rule which
+		 * has aborted the response.
+		 */
+		if (!(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
+		    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
+			return;
+
 		if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
 			return;
 	}
