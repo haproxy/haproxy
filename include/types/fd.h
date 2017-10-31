@@ -94,7 +94,7 @@ enum fd_states {
 struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned long process_mask;          /* mask of thread IDs authorized to process the task */
+	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
 #ifdef USE_THREAD
 	HA_SPINLOCK_T lock;
 #endif

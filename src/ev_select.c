@@ -141,7 +141,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			/* if we specify read first, the accepts and zero reads will be
 			 * seen first. Moreover, system buffers will be flushed faster.
 			 */
-			if (!fdtab[fd].owner || !(fdtab[fd].process_mask & tid_bit))
+			if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
 				continue;
 
 			if (FD_ISSET(fd, tmp_evts[DIR_RD]))

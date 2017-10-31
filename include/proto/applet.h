@@ -50,7 +50,7 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
 	appctx->io_release = NULL;
-	appctx->process_mask = thread_mask;
+	appctx->thread_mask = thread_mask;
 	appctx->state = APPLET_SLEEPING;
 }
 

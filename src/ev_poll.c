@@ -112,7 +112,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		for (count = 0, fd = fds * 8*sizeof(**fd_evts); count < 8*sizeof(**fd_evts) && fd < maxfd; count++, fd++) {
 
-			if (!fdtab[fd].owner || !(fdtab[fd].process_mask & tid_bit))
+			if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
 				continue;
 
 			sr = (rn >> count) & 1;

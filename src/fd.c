@@ -202,7 +202,7 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].owner = NULL;
 	fdtab[fd].updated = 0;
 	fdtab[fd].new = 0;
-	fdtab[fd].process_mask = 0;
+	fdtab[fd].thread_mask = 0;
 	if (do_close)
 		close(fd);
 	SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
@@ -245,7 +245,7 @@ void fd_process_cached_events()
 	for (entry = 0; entry < fd_cache_num; ) {
 		fd = fd_cache[entry];
 
-		if (!(fdtab[fd].process_mask & tid_bit))
+		if (!(fdtab[fd].thread_mask & tid_bit))
 			goto next;
 		if (SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock))
 			goto next;

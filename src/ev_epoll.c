@@ -136,7 +136,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		unsigned int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
-		if (!fdtab[fd].owner || !(fdtab[fd].process_mask & tid_bit))
+		if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
 			continue;
 
 		/* it looks complicated but gcc can optimize it away when constants

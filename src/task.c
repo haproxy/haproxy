@@ -229,7 +229,7 @@ void process_runnable_tasks()
 		while (local_tasks_count < 16) {
 			t = eb32_entry(rq_next, struct task, rq);
 			rq_next = eb32_next(rq_next);
-			if (t->process_mask & tid_bit) {
+			if (t->thread_mask & tid_bit) {
 				/* detach the task from the queue */
 				__task_unlink_rq(t);
 				t->state |= TASK_RUNNING;

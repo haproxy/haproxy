@@ -67,7 +67,7 @@ struct appctx {
 	                                               if the command is terminated or the session released */
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
-	unsigned long process_mask;     /* mask of thread IDs authorized to process the applet */
+	unsigned long thread_mask;      /* mask of thread IDs authorized to process the applet */
 
 	union {
 		struct {

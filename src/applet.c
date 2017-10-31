@@ -43,7 +43,7 @@ void applet_run_active()
 	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
 	while (&curr->runq != &applet_active_queue) {
 		next = LIST_NEXT(&curr->runq, typeof(next), runq);
-		if (curr->process_mask & tid_bit) {
+		if (curr->thread_mask & tid_bit) {
 			LIST_DEL(&curr->runq);
 			curr->state = APPLET_RUNNING;
 			LIST_ADDQ(&applet_cur_queue, &curr->runq);

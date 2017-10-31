@@ -127,11 +127,12 @@ static inline struct task *task_wakeup(struct task *t, unsigned int f)
 	return t;
 }
 
+/* change the thread affinity of a task to <thread_mask> */
 static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 {
-
-	t->process_mask = thread_mask;
+	t->thread_mask = thread_mask;
 }
+
 /*
  * Unlink the task from the wait queue, and possibly update the last_timer
  * pointer. A pointer to the task itself is returned. The task *must* already
@@ -202,7 +203,7 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
 	t->pending_state = t->state = TASK_SLEEPING;
-	t->process_mask = thread_mask;
+	t->thread_mask = thread_mask;
 	t->nice = 0;
 	t->calls = 0;
 	t->expire = TICK_ETERNITY;
