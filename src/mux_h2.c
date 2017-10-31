@@ -21,6 +21,7 @@
 #include <proto/connection.h>
 #include <proto/h1.h>
 #include <proto/stream.h>
+#include <types/session.h>
 #include <eb32tree.h>
 
 
@@ -103,6 +104,8 @@ struct h2c {
 	int32_t mws; /* mux window size. Can be negative. */
 	int32_t mfs; /* mux's max frame size */
 
+	int timeout;        /* idle timeout duration in ticks */
+	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
@@ -198,6 +201,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 	.id        = 0,
 };
 
+static struct task *h2_timeout_task(struct task *t);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -316,9 +320,15 @@ static inline void h2_release_mbuf(struct h2c *h2c)
 static int h2c_frt_init(struct connection *conn)
 {
 	struct h2c *h2c;
+	struct task *t = NULL;
+	struct session *sess = conn->owner;
 
 	h2c = pool_alloc2(pool2_h2c);
 	if (!h2c)
+		goto fail;
+
+	t = task_new(tid_bit);
+	if (!t)
 		goto fail;
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
@@ -350,10 +360,20 @@ static int h2c_frt_init(struct connection *conn)
 	LIST_INIT(&h2c->mbuf_wait.list);
 	conn->mux_ctx = h2c;
 
+	h2c->timeout = sess->fe->timeout.client;
+	h2c->task = t;
+	t->process = h2_timeout_task;
+	t->context = h2c;
+	t->expire = tick_add(now_ms, h2c->timeout);
+	task_queue(t);
+
 	conn_xprt_want_recv(conn);
+
 	/* mux->wake will be called soon to complete the operation */
 	return 0;
  fail:
+	if (t)
+		task_free(t);
 	pool_free2(pool2_h2c, h2c);
 	return -1;
 }
@@ -408,6 +428,12 @@ static void h2_release(struct connection *conn)
 		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&h2c->mbuf_wait.list);
 		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+
+		if (h2c->task) {
+			task_delete(h2c->task);
+			task_free(h2c->task);
+			h2c->task = NULL;
+		}
 
 		pool_free2(pool2_h2c, h2c);
 	}
@@ -2003,11 +2029,9 @@ static int h2_wake(struct connection *conn)
 	/* stop being notified of incoming data if we can't process them */
 	if (h2c->st0 >= H2_CS_ERROR ||
 	    (h2c->flags & H2_CF_DEM_BLOCK_ANY) || conn_xprt_read0_pending(conn)) {
-		/* FIXME: we should clear a read timeout here */
 		__conn_xprt_stop_recv(conn);
 	}
 	else {
-		/* FIXME: we should (re-)arm a read timeout here */
 		__conn_xprt_want_recv(conn);
 	}
 
@@ -2017,17 +2041,66 @@ static int h2_wake(struct connection *conn)
 	     h2c->mbuf->o ||
 	     (h2c->mws > 0 && !LIST_ISEMPTY(&h2c->fctl_list)) ||
 	     (!(h2c->flags & H2_CF_MUX_BLOCK_ANY) && !LIST_ISEMPTY(&h2c->send_list)))) {
-		/* FIXME: we should (re-)arm a send timeout here */
 		__conn_xprt_want_send(conn);
 	}
 	else {
-		/* FIXME: we should clear a send timeout here */
 		h2_release_mbuf(h2c);
 		__conn_xprt_stop_send(conn);
 	}
 
+	if (eb_is_empty(&h2c->streams_by_id)) {
+		h2c->task->expire = tick_add(now_ms, h2c->timeout);
+		task_queue(h2c->task);
+	}
+	else
+		h2c->task->expire = TICK_ETERNITY;
+
 	return 0;
 }
+
+/* Connection timeout management. The principle is that if there's no receipt
+ * nor sending for a certain amount of time, the connection is closed. If the
+ * MUX buffer still has lying data or is not allocatable, the connection is
+ * immediately killed. If it's allocatable and empty, we attempt to send a
+ * GOAWAY frame.
+ */
+static struct task *h2_timeout_task(struct task *t)
+{
+	struct h2c *h2c = t->context;
+	int expired = tick_is_expired(t->expire, now_ms);
+
+	if (!expired)
+		return t;
+
+	h2c_error(h2c, H2_ERR_NO_ERROR);
+	h2_wake_some_streams(h2c, 0, 0);
+
+	if (h2c->mbuf->o) {
+		/* don't even try to send a GOAWAY, the buffer is stuck */
+		h2c->flags |= H2_CF_GOAWAY_FAILED;
+	}
+
+	/* try to send but no need to insist */
+	if (h2c_send_goaway_error(h2c, NULL) <= 0)
+		h2c->flags |= H2_CF_GOAWAY_FAILED;
+
+	if (h2c->mbuf->o && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn))
+		h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, 0);
+
+	if (!eb_is_empty(&h2c->streams_by_id))
+		goto wait;
+
+	h2_release(h2c->conn);
+	return NULL;
+
+ wait:
+	/* the streams have been notified, we must let them finish and close */
+	h2c->task = NULL;
+	task_delete(t);
+	task_free(t);
+	return NULL;
+}
+
 
 /*******************************************/
 /* functions below are used by the streams */
@@ -2117,6 +2190,13 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2s->by_id.node.leaf_p) {
 		/* h2s still attached to the h2c */
 		eb32_delete(&h2s->by_id);
+
+		if (eb_is_empty(&h2c->streams_by_id)) {
+			h2c->task->expire = tick_add(now_ms, h2c->timeout);
+			task_queue(h2c->task);
+		}
+		else
+			h2c->task->expire = TICK_ETERNITY;
 
 		/* We don't want to close right now unless we're removing the
 		 * last stream, and either the connection is in error, or it
