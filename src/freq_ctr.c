@@ -33,15 +33,21 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
 	unsigned int curr, past, _curr, _past;
 	unsigned int age, curr_sec, _curr_sec;
 
-	while(1) {
-		_curr = (volatile unsigned int)ctr->curr_ctr;
-		_past = (volatile unsigned int)ctr->prev_ctr;
-		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+	while (1) {
+		_curr = ctr->curr_ctr;
+		HA_BARRIER();
+		_past = ctr->prev_ctr;
+		HA_BARRIER();
+		_curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr_sec & 0x80000000)
 			continue;
-		curr = (volatile unsigned int)ctr->curr_ctr;
-		past = (volatile unsigned int)ctr->prev_ctr;
-		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		curr = ctr->curr_ctr;
+		HA_BARRIER();
+		past = ctr->prev_ctr;
+		HA_BARRIER();
+		curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
 	}
@@ -70,15 +76,21 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 	unsigned int curr, past, _curr, _past;
 	unsigned int age, curr_sec, _curr_sec;
 
-	while(1) {
-		_curr = (volatile unsigned int)ctr->curr_ctr;
-		_past = (volatile unsigned int)ctr->prev_ctr;
-		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+	while (1) {
+		_curr = ctr->curr_ctr;
+		HA_BARRIER();
+		_past = ctr->prev_ctr;
+		HA_BARRIER();
+		_curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr_sec & 0x80000000)
 			continue;
-		curr = (volatile unsigned int)ctr->curr_ctr;
-		past = (volatile unsigned int)ctr->prev_ctr;
-		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		curr = ctr->curr_ctr;
+		HA_BARRIER();
+		past = ctr->prev_ctr;
+		HA_BARRIER();
+		curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
 	}
@@ -111,15 +123,21 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 	unsigned int curr, past, _curr, _past;
 	unsigned int wait, age, curr_sec, _curr_sec;
 
-	while(1) {
-		_curr = (volatile unsigned int)ctr->curr_ctr;
-		_past = (volatile unsigned int)ctr->prev_ctr;
-		_curr_sec = (volatile unsigned int)ctr->curr_sec;
+	while (1) {
+		_curr = ctr->curr_ctr;
+		HA_BARRIER();
+		_past = ctr->prev_ctr;
+		HA_BARRIER();
+		_curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr_sec & 0x80000000)
 			continue;
-		curr = (volatile unsigned int)ctr->curr_ctr;
-		past = (volatile unsigned int)ctr->prev_ctr;
-		curr_sec = (volatile unsigned int)ctr->curr_sec;
+		curr = ctr->curr_ctr;
+		HA_BARRIER();
+		past = ctr->prev_ctr;
+		HA_BARRIER();
+		curr_sec = ctr->curr_sec;
+		HA_BARRIER();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
 	}
@@ -164,15 +182,21 @@ unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int peri
 	unsigned int _curr, _past, curr, past;
 	unsigned int remain, _curr_tick, curr_tick;
 
-	while(1) {
+	while (1) {
 		_curr = ctr->curr_ctr;
+		HA_BARRIER();
 		_past = ctr->prev_ctr;
+		HA_BARRIER();
 		_curr_tick = ctr->curr_tick;
+		HA_BARRIER();
 		if (_curr_tick & 0x1)
 			continue;
 		curr = ctr->curr_ctr;
+		HA_BARRIER();
 		past = ctr->prev_ctr;
+		HA_BARRIER();
 		curr_tick = ctr->curr_tick;
+		HA_BARRIER();
 		if (_curr == curr && _past == past && _curr_tick == curr_tick)
 			break;
 	};
@@ -205,15 +229,21 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
 	unsigned int _curr, _past, curr, past;
 	unsigned int remain, _curr_tick, curr_tick;
 
-	while(1) {
+	while (1) {
 		_curr = ctr->curr_ctr;
+		HA_BARRIER();
 		_past = ctr->prev_ctr;
+		HA_BARRIER();
 		_curr_tick = ctr->curr_tick;
+		HA_BARRIER();
 		if (_curr_tick & 0x1)
 			continue;
 		curr = ctr->curr_ctr;
+		HA_BARRIER();
 		past = ctr->prev_ctr;
+		HA_BARRIER();
 		curr_tick = ctr->curr_tick;
+		HA_BARRIER();
 		if (_curr == curr && _past == past && _curr_tick == curr_tick)
 			break;
 	};
