@@ -60,6 +60,7 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 		*(val);							\
 	})
 
+#define HA_BARRIER() do { } while (0)
 
 #define THREAD_SYNC_INIT(m)  do { /* do nothing */ } while(0)
 #define THREAD_SYNC_ENABLE() do { /* do nothing */ } while(0)
@@ -117,6 +118,8 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 		while (__old > __new && !HA_ATOMIC_CAS(val, &__old, __new)); \
 		(*val);							\
 	})
+
+#define HA_BARRIER() pl_barrier()
 
 #define THREAD_SYNC_INIT(m)   thread_sync_init(m)
 #define THREAD_SYNC_ENABLE()  thread_sync_enable()
