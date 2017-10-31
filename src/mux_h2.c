@@ -2300,9 +2300,10 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 			h2s->st = H2_SS_HLOC;
 		else
 			h2s->st = H2_SS_CLOSED;
-		/* no trailers for now, we must consume them (whatever remains in the buffer) */
-		bo_del(buf, buf->o);
-		h1m->state = HTTP_MSG_DONE;
+
+		if (!(h1m->flags & H1_MF_CHNK))
+			h1m->state = HTTP_MSG_DONE;
+
 		h2s->flags |= H2_SF_ES_SENT;
 	}
 
@@ -2336,6 +2337,20 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 
 			if (h2s->flags & H2_SF_BLK_ANY)
 				break;
+		}
+		else if (h2s->res.state == HTTP_MSG_TRAILERS) {
+			/* consume the trailers if any (we don't forward them for now) */
+			int count = h1_measure_trailers(buf);
+
+			if (unlikely(count <= 0)) {
+				if (count < 0)
+					h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+				break;
+			}
+			total += count;
+			bo_del(buf, count);
+			h2s->res.state = HTTP_MSG_DONE;
+			break;
 		}
 		else {
 			cs->flags |= CS_FL_ERROR;
