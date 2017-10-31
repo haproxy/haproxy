@@ -1202,6 +1202,67 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	return -2;
 }
 
+/* This function performs a very minimal parsing of the trailers block present
+ * in the output part of <buf>, and returns the number of bytes to delete to
+ * skip the trailers. It may return 0 if it's missing some input data, or < 0
+ * in case of parse error (in which case the caller may have to decide how to
+ * proceed, possibly eating everything).
+ */
+int h1_measure_trailers(const struct buffer *buf)
+{
+	int count = 0;
+
+	while (1) {
+		const char *p1 = NULL, *p2 = NULL;
+		const char *start = b_ptr(buf, (int)(count - buf->o));
+		const char *stop  = bo_end(buf);
+		const char *ptr   = start;
+		int bytes = 0;
+
+		/* scan current line and stop at LF or CRLF */
+		while (1) {
+			if (ptr == stop)
+				return 0;
+
+			if (*ptr == '\n') {
+				if (!p1)
+					p1 = ptr;
+				p2 = ptr;
+				break;
+			}
+
+			if (*ptr == '\r') {
+				if (p1)
+					return -1;
+				p1 = ptr;
+			}
+
+			ptr++;
+			if (ptr >= buf->data + buf->size)
+				ptr = buf->data;
+		}
+
+		/* after LF; point to beginning of next line */
+		p2++;
+		if (p2 >= buf->data + buf->size)
+			p2 = buf->data;
+
+		bytes = p2 - start;
+		if (bytes < 0)
+			bytes += buf->size;
+
+		count += bytes;
+
+		/* LF/CRLF at beginning of line => end of trailers at p2.
+		 * Everything was scheduled for forwarding, there's nothing left
+		 * from this message. */
+		if (p1 == start)
+			break;
+		/* OK, next line then */
+	}
+	return count;
+}
+
 /* This function skips trailers in the buffer associated with HTTP message
  * <msg>. The first visited position is msg->next. If the end of the trailers is
  * found, the function returns >0. So, the caller can automatically schedul it
