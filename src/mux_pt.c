@@ -170,6 +170,7 @@ static int mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 	return (cs->conn->xprt->snd_buf(cs->conn, buf, flags));
 }
 
+#if defined(CONFIG_HAP_LINUX_SPLICE)
 /* Send and get, using splicing */
 static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
 {
@@ -187,6 +188,7 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
 	return (cs->conn->xprt->snd_pipe(cs->conn, pipe));
 }
+#endif
 
 /* The mux operations */
 const struct mux_ops mux_pt_ops = {
