@@ -561,7 +561,7 @@ enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct pr
 	return ACT_RET_PRS_OK;
 
 err:
-	return ACT_RET_ERR;
+	return ACT_RET_PRS_ERR;
 }
 
 
@@ -584,12 +584,12 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			appctx->st0 = HTTP_CACHE_INIT;
 			appctx->rule = rule;
 			appctx->ctx.cache.entry = res;
-			return ACT_RET_PRS_OK;
+			return ACT_RET_CONT;
 		} else {
-			return ACT_RET_PRS_ERR;
+			return ACT_RET_YIELD;
 		}
 	}
-	return ACT_RET_PRS_OK;
+	return ACT_RET_CONT;
 }
 
 
@@ -617,7 +617,7 @@ enum act_parse_ret parse_cache_use(const char **args, int *orig_arg, struct prox
 	return ACT_RET_PRS_OK;
 
 err:
-	return ACT_RET_ERR;
+	return ACT_RET_PRS_ERR;
 
 }
 
