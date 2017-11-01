@@ -173,29 +173,27 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 	}
 	else {
 		/* Forward trailers data */
-		if (len) {
-			if (filter->ctx && st->first_block) {
-				/* disable buffering if too much data (never greater than a buffer size */
-				if (len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
-					filter->ctx = NULL; /* disable cache  */
-					shctx_lock(shctx);
-					shctx_row_dec_hot(shctx, st->first_block);
-					shctx_unlock(shctx);
-					pool_free2(pool2_cache_st, st);
-					ret = 0;
-				} else {
-
-					int blen;
-					blen = shctx_row_data_append(shctx,
-								 st->first_block,
-								 (unsigned char *)bi_ptr(msg->chn->buf),
-								 MIN(bi_contig_data(msg->chn->buf), len));
-
-					ret = MIN(bi_contig_data(msg->chn->buf), len) + blen;
-				}
+		if (filter->ctx && st->first_block) {
+			/* disable buffering if too much data (never greater than a buffer size */
+			if (len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
+				filter->ctx = NULL; /* disable cache  */
+				shctx_lock(shctx);
+				shctx_row_dec_hot(shctx, st->first_block);
+				shctx_unlock(shctx);
+				pool_free2(pool2_cache_st, st);
+				ret = 0;
 			} else {
-				ret = len;
+
+				int blen;
+				blen = shctx_row_data_append(shctx,
+				    st->first_block,
+				    (unsigned char *)bi_ptr(msg->chn->buf),
+				    MIN(bi_contig_data(msg->chn->buf), len));
+
+				ret = MIN(bi_contig_data(msg->chn->buf), len) + blen;
 			}
+		} else {
+			ret = len;
 		}
 	}
 
