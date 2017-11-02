@@ -543,7 +543,7 @@ static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char 
 		return 2;
 	}
 
-	*blk1 = buf->p - buf->o;
+	*blk1 = bo_ptr(buf);
 	*len1 = buf->o;
 	return 1;
 }
