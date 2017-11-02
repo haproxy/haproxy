@@ -5768,6 +5768,21 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct chunk *out)
 	return 1;
 }
 
+/* used for ppv2 cert signature (can be used for logging) */
+const char *ssl_sock_get_cert_sig(struct connection *conn)
+{
+	__OPENSSL_110_CONST__ ASN1_OBJECT *algorithm;
+	X509 *crt;
+
+	if (!ssl_sock_is_ssl(conn))
+		return NULL;
+	crt = SSL_get_certificate(conn->xprt_ctx);
+	if (!crt)
+		return NULL;
+	X509_ALGOR_get0(&algorithm, NULL, NULL, X509_get0_tbs_sigalg(crt));
+	return OBJ_nid2sn(OBJ_obj2nid(algorithm));
+}
+
 /* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_cipher_name(struct connection *conn)
 {
