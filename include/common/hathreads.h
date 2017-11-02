@@ -542,7 +542,7 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	l->info.last_location.file     = file;
 	l->info.last_location.line     = line;
 
-	__RWLOCK_WRUNLOCK(&l->lock);
+	__SPIN_UNLOCK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_unlocked, 1);
 }
 
