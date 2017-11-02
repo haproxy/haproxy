@@ -587,7 +587,9 @@ int hlua_server_set_weight(lua_State *L)
 	srv = hlua_check_server(L, 1);
 	weight = luaL_checkstring(L, 2);
 
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	err = server_parse_weight_change_request(srv, weight);
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (!err)
 		lua_pushnil(L);
 	else
@@ -613,7 +615,9 @@ int hlua_server_set_addr(lua_State *L)
 	srv = hlua_check_server(L, 1);
 	addr = luaL_checkstring(L, 2);
 
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	err = server_parse_addr_change_request(srv, addr, "Lua script");
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (!err)
 		lua_pushnil(L);
 	else
@@ -696,12 +700,12 @@ int hlua_server_check_force_up(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
-		SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
 		srv_set_running(sv, "changed from Lua script", NULL);
-		SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
@@ -710,12 +714,12 @@ int hlua_server_check_force_nolb(lua_State *L)
 	struct server *sv;
 
 	sv = hlua_check_server(L, 1);
+	SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (!(sv->track)) {
-		SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		sv->check.health = sv->check.rise + sv->check.fall - 1;
 		srv_set_stopping(sv, "changed from Lua script", NULL);
-		SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
+	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 0;
 }
 
