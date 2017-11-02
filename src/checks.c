@@ -1586,6 +1586,10 @@ static int connect_conn_chk(struct task *t)
 	ret = SF_ERR_INTERNAL;
 	if (proto && proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
+
+	if (check->type)
+		cs_want_send(cs);
+
 #ifdef USE_OPENSSL
 	if (s->check.sni)
 		ssl_sock_set_servername(conn, s->check.sni);
