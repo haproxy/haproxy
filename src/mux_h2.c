@@ -2552,10 +2552,10 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	ret = h1_headers_to_hdr_list(bo_ptr(buf), bo_ptr(buf) + buf->o,
 	                             list, sizeof(list)/sizeof(list[0]), h1m);
 	if (ret <= 0) {
-		if (!ret)
-			goto end; // missing input
-
-		/* Impossible to index the response.
+		/* incomplete or invalid response, this is abnormal coming from
+		 * haproxy and may only result in a bad errorfile or bad Lua code
+		 * so that won't be fixed, raise an error now.
+		 *
 		 * FIXME: we should instead add the ability to only return a
 		 * 502 bad gateway. But in theory this is not supposed to
 		 * happen.
