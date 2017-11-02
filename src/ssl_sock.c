@@ -2267,11 +2267,13 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		/* switch ctx */
 		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
 		ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
-		methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
-		methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
-		if (conf->early_data)
-			allow_early = 1;
-		goto allow_early;
+			if (conf) {
+				methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
+				methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
+				if (conf->early_data)
+					allow_early = 1;
+			}
+			goto allow_early;
 	}
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 	if (s->generate_certs && ssl_sock_generate_certificate(trash.str, s, ssl)) {
