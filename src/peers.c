@@ -1312,7 +1312,12 @@ switchstate:
 									case STD_T_FRQP: {
 										struct freq_ctr_period data;
 
-										data.curr_tick = tick_add(now_ms, -intdecode(&msg_cur, msg_end));
+										/* First bit is reserved for the freq_ctr_period lock
+										   Note: here we're still protected by the stksess lock
+										   so we don't need to update the update the freq_ctr_period
+										   using its internal lock */
+
+										data.curr_tick = tick_add(now_ms, -intdecode(&msg_cur, msg_end)) & ~0x1;
 										if (!msg_cur) {
 											/* malformed message */
 											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
