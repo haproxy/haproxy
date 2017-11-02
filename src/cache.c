@@ -785,6 +785,9 @@ int cfg_cache_postparser()
 		/* resolve the cache name to a ptr in the filter config */
 		list_for_each_entry(fconf, &curproxy->filter_configs, list) {
 
+			if (fconf->id != cache_store_flt_id)
+				continue;
+
 			cache_ptr = fconf->conf;
 
 			list_for_each_entry(cache, &caches, list) {
