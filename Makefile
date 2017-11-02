@@ -603,7 +603,10 @@ OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
-OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
+OPTIONS_OBJS  += src/ssl_sock.o
+endif
+
+# The private cache option affect the way the shctx is built
 ifneq ($(USE_PRIVATE_CACHE),)
 OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE
 else
@@ -613,7 +616,6 @@ OPTIONS_LDFLAGS += -lpthread
 else
 ifneq ($(USE_FUTEX),)
 OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
-endif
 endif
 endif
 endif
@@ -857,7 +859,7 @@ OBJS = src/cfgparse.o src/proto_http.o src/stats.o src/server.o src/stream.o \
        src/raw_sock.o src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o \
        src/lb_fas.o src/applet.o src/hdr_idx.o src/ev_select.o src/hash.o \
        src/lb_map.o src/base64.o src/sha1.o src/protocol.o src/h1.o \
-       src/action.o src/hathreads.o src/mux_pt.o src/cache.o
+       src/action.o src/hathreads.o src/mux_pt.o src/cache.o src/shctx.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
