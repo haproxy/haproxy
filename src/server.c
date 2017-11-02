@@ -3712,8 +3712,14 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 	if (!srv)
 		return NULL;
 
+	SPIN_LOCK(SERVER_LOCK, &srv->lock);
+
 	be = srv->proxy;
 	for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
+		/* we found the current server is the same, ignore it */
+		if (srv == tmpsrv)
+			continue;
+
 		/* We want to compare the IP in the record with the IP of the servers in the
 		 * same backend, only if:
 		 *   * DNS resolution is enabled on the server
@@ -3721,15 +3727,20 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		 *     one used for the server found in the backend
 		 *   * the server found in the backend is not our current server
 		 */
+		SPIN_LOCK(SERVER_LOCK, &tmpsrv->lock);
 		if ((tmpsrv->hostname_dn == NULL) ||
 		    (srv->hostname_dn_len != tmpsrv->hostname_dn_len) ||
 		    (strcmp(srv->hostname_dn, tmpsrv->hostname_dn) != 0) ||
-		    (srv->puid == tmpsrv->puid))
+		    (srv->puid == tmpsrv->puid)) {
+			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 			continue;
+		}
 
 		/* If the server has been taken down, don't consider it */
-		if (tmpsrv->next_admin & SRV_ADMF_RMAINT)
+		if (tmpsrv->next_admin & SRV_ADMF_RMAINT) {
+			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 			continue;
+		}
 
 		/* At this point, we have 2 different servers using the same DNS hostname
 		 * for their respective resolution.
@@ -3739,9 +3750,14 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		      memcmp(ip, &((struct sockaddr_in *)&tmpsrv->addr)->sin_addr, 4) == 0) ||
 		     (tmpsrv->addr.ss_family == AF_INET6 &&
 		      memcmp(ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
+			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
+			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			return tmpsrv;
 		}
+		SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 	}
+
+	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 	return NULL;
 }

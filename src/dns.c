@@ -486,6 +486,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 				/* Remove any associated server */
 				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+					SPIN_LOCK(SERVER_LOCK, &srv->lock);
 					if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 					    item->data_len == srv->hostname_dn_len &&
 					    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
@@ -497,6 +498,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 						srv->hostname_dn_len = 0;
 						dns_unlink_resolution(srv->dns_requester);
 					}
+					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
 			}
 
@@ -516,6 +518,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 			/* Check if a server already uses that hostname */
 			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+				SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
 				    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
@@ -525,16 +528,20 @@ static void dns_check_dns_response(struct dns_resolution *res)
 						snprintf(weight, sizeof(weight), "%d", item->weight);
 						server_parse_weight_change_request(srv, weight);
 					}
+					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					break;
 				}
+				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 			if (srv)
 				continue;
 
 			/* If not, try to find a server with undefined hostname */
 			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+				SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && !srv->hostname_dn)
 					break;
+				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 			/* And update this server, if found */
 			if (srv) {
@@ -556,6 +563,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 					srv->check.port = item->port;
 				snprintf(weight, sizeof(weight), "%d", item->weight);
 				server_parse_weight_change_request(srv, weight);
+				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 		}
 	}
@@ -1337,6 +1345,7 @@ int dns_link_resolution(void *requester, int requester_type)
 		goto err;
 
 	if (srv) {
+		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		if (srv->dns_requester == NULL) {
 			if ((req = calloc(1, sizeof(*req))) == NULL)
 				goto err;
@@ -1345,6 +1354,7 @@ int dns_link_resolution(void *requester, int requester_type)
 		}
 		else
 			req = srv->dns_requester;
+		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 	else if (srvrq) {
 		if (srvrq->dns_requester == NULL) {
