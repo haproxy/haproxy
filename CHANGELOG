@@ -1,6 +1,27 @@
 ChangeLog :
 ===========
 
+2017/11/03 : 1.8-rc2
+    - BUG/MINOR: send-proxy-v2: fix dest_len in make_tlv call
+    - BUG/MINOR: send-proxy-v2: string size must include ('\0')
+    - MINOR: mux: Only define pipe functions on linux.
+    - MINOR: cache: Remove useless test for nonzero.
+    - MINOR: cache: Don't confuse act_return and act_parse_ret.
+    - BUG/MEDIUM: h2: don't try to parse incomplete H1 responses
+    - BUG/MEDIUM: checks/mux: always enable send-polling after connecting
+    - BUG/MAJOR: fix deadlock on healthchecks.
+    - BUG/MINOR: thread: fix a typo in the debug code
+    - BUILD: shctx: allow to be built without openssl
+    - BUG/MEDIUM: cache: don't try to resolve wrong filters
+    - BUG/MAJOR: buffers: fix get_buffer_nc() for data at end of buffer
+    - BUG/MINOR: freq: fix infinite loop on freq_ctr_period.
+    - BUG/MINOR: stdarg.h inclusion
+    - BUG/MINOR: dns: fix missing lock protection on server.
+    - BUG/MINOR: lua: fix missing lock protection on server.
+    - BUILD: enable USE_THREAD for OpenBSD build.
+    - BUG/MAJOR: mux_pt: don't dereference a connstream after ->wake()
+    - MINOR: thread: report multi-thread support in haproxy -vv
+
 2017/10/31 : 1.8-rc1
     - BUG/MEDIUM: server: Allocate tmptrash before using it.
     - CONTRIB: trace: add the possibility to place trace calls in the code
