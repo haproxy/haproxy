@@ -335,6 +335,7 @@ ifeq ($(TARGET),openbsd)
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
   USE_ACCEPT4    = implicit
+  USE_THREAD     = implicit
 else
 ifeq ($(TARGET),netbsd)
   # This is for NetBSD
