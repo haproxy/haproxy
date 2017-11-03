@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <common/cfgparse.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
 #include <proto/fd.h>
@@ -154,6 +155,7 @@ static void __hathreads_init(void)
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif
+	hap_register_build_opts("Built with multi-threading support.", 1);
 }
 
 #endif
