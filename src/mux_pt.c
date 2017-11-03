@@ -51,8 +51,9 @@ static int mux_pt_wake(struct connection *conn)
 
 	ret = cs->data_cb->wake ? cs->data_cb->wake(cs) : 0;
 
-	cs_update_mux_polling(cs);
-	return (ret);
+	if (ret >= 0)
+		cs_update_mux_polling(cs);
+	return ret;
 }
 
 /* callback used to update the mux's polling flags after changing a cs' status.
