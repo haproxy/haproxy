@@ -3852,6 +3852,23 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 	return 1;
 }
 
+/* SSL callback used when a new session is created while connecting to a server */
+static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
+{
+	struct connection *conn = SSL_get_app_data(ssl);
+
+	/* check if session was reused, if not store current session on server for reuse */
+	if (objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
+		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
+		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
+	}
+
+	if (!(objt_server(conn->target)->ssl_ctx.options & SRV_SSL_O_NO_REUSE))
+		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = SSL_get1_session(conn->xprt_ctx);
+
+	return 1;
+}
+
 /* SSL callback used on new session creation */
 int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 {
@@ -4580,7 +4597,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 #endif
 	}
 
-	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
+	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_CLIENT |
+	    SSL_SESS_CACHE_NO_INTERNAL_STORE);
+	SSL_CTX_sess_set_new_cb(srv->ssl_ctx.ctx, ssl_sess_new_srv_cb);
 	if (srv->ssl_ctx.ciphers &&
 		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphers)) {
 		Alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
@@ -5208,15 +5227,6 @@ reneg_ok:
 			update_freq_ctr(&global.ssl_be_keys_per_sec, 1);
 			if (global.ssl_be_keys_per_sec.curr_ctr > global.ssl_be_keys_max)
 				global.ssl_be_keys_max = global.ssl_be_keys_per_sec.curr_ctr;
-
-			/* check if session was reused, if not store current session on server for reuse */
-			if (objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
-				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
-				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
-			}
-
-			if (!(objt_server(conn->target)->ssl_ctx.options & SRV_SSL_O_NO_REUSE))
-				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = SSL_get1_session(conn->xprt_ctx);
 		}
 		else {
 			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
