@@ -1038,7 +1038,7 @@ static void assign_tproxy_address(struct stream *s)
  */
 int connect_server(struct stream *s)
 {
-	struct connection *cli_conn;
+	struct connection *cli_conn = NULL;
 	struct connection *srv_conn;
 	struct conn_stream *srv_cs;
 	struct conn_stream *old_cs;
@@ -1180,10 +1180,11 @@ int connect_server(struct stream *s)
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
+		cli_conn = objt_conn(strm_orig(s));
+
 		if (srv && srv->pp_opts) {
 			srv_conn->flags |= CO_FL_PRIVATE;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
-			cli_conn = objt_conn(strm_orig(s));
 			if (cli_conn)
 				conn_get_to_addr(cli_conn);
 		}
@@ -1207,6 +1208,15 @@ int connect_server(struct stream *s)
 		s->si[1].flags |= SI_FL_NOLINGER;
 
 	err = si_connect(&s->si[1]);
+
+	if (!reuse && cli_conn && srv &&
+	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
+		    (cli_conn->flags & CO_FL_EARLY_DATA) &&
+		    !channel_is_empty(si_oc(&s->si[1])) &&
+		    srv_conn->flags & CO_FL_SSL_WAIT_HS) {
+		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
+		srv_conn->flags |= CO_FL_EARLY_SSL_HS;
+	}
 
 	if (err != SF_ERR_NONE)
 		return err;

@@ -226,6 +226,7 @@ enum {
 	CO_ER_SSL_HANDSHAKE_HB, /* SSL error during handshake with heartbeat present */
 	CO_ER_SSL_KILLED_HB,    /* Stopped a TLSv1 heartbeat attack (CVE-2014-0160) */
 	CO_ER_SSL_NO_TARGET,    /* unknown target (not client nor server) */
+	CO_ER_SSL_EARLY_FAILED, /* Server refused early data */
 };
 
 /* source address settings for outgoing connections */

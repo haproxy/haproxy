@@ -5147,6 +5147,17 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_auto_close(rep);
 			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 502;
+
+			/* Check to see if the server refused the early data.
+			 * If so, just send a 425
+			 */
+			if (objt_cs(s->si[1].end)) {
+				struct connection *conn = objt_cs(s->si[1].end)->conn;
+
+				if (conn->err_code == CO_ER_SSL_EARLY_FAILED)
+					txn->status = 425;
+			}
+
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
 			http_reply_and_close(s, txn->status, http_error_message(s));

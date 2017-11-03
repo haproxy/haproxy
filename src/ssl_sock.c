@@ -5210,6 +5210,22 @@ check_error:
 			goto out_error;
 		}
 	}
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	else {
+		/*
+		 * If the server refused the early data, we have to send a
+		 * 425 to the client, as we no longer have the data to sent
+		 * them again.
+		 */
+		if ((conn->flags & CO_FL_EARLY_DATA) && (objt_server(conn->target))) {
+			if (SSL_get_early_data_status(conn->xprt_ctx) == SSL_EARLY_DATA_REJECTED) {
+				conn->err_code = CO_ER_SSL_EARLY_FAILED;
+				goto out_error;
+			}
+		}
+	}
+#endif
+
 
 reneg_ok:
 
@@ -5328,7 +5344,8 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 
 			ret = SSL_read_early_data(conn->xprt_ctx,
 			    bi_end(buf), try, &read_length);
-			if (read_length > 0)
+			if (ret == SSL_READ_EARLY_DATA_SUCCESS &&
+			    read_length > 0)
 				conn->flags |= CO_FL_EARLY_DATA;
 			if (ret == SSL_READ_EARLY_DATA_SUCCESS ||
 			    ret == SSL_READ_EARLY_DATA_FINISH) {
@@ -5465,16 +5482,34 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			if (conn->tmp_early_data == -1)
 				conn->tmp_early_data = 0;
 
-			max_early = SSL_get_max_early_data(conn->xprt_ctx);
+			if (objt_listener(conn->target))
+				max_early = SSL_get_max_early_data(conn->xprt_ctx);
+			else {
+				if (SSL_get0_session(conn->xprt_ctx))
+					max_early = SSL_SESSION_get_max_early_data(SSL_get0_session(conn->xprt_ctx));
+				else
+					max_early = 0;
+			}
+
 			if (try + conn->tmp_early_data > max_early) {
 				try -= (try + conn->tmp_early_data) - max_early;
-				if (try <= 0)
+				if (try <= 0) {
+					if (objt_server(conn->target)) {
+						conn->flags &= ~CO_FL_EARLY_SSL_HS;
+						conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+					}
 					break;
+				}
 			}
 			ret = SSL_write_early_data(conn->xprt_ctx, bo_ptr(buf), try, &written_data);
 			if (ret == 1) {
 				ret = written_data;
 				conn->tmp_early_data += ret;
+				if (objt_server(conn->target)) {
+					conn->flags &= ~CO_FL_EARLY_SSL_HS;
+					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_EARLY_DATA;
+				}
+
 			}
 
 		} else
@@ -5600,6 +5635,13 @@ static void ssl_sock_close(struct connection *conn) {
  */
 static void ssl_sock_shutw(struct connection *conn, int clean)
 {
+	/* If we're done with the connection before we did the handshake
+	 * force the handshake anyway, so that the session is in a consistent
+	 * state
+	 */
+	if (conn->flags & CO_FL_EARLY_SSL_HS)
+		SSL_do_handshake(conn->xprt_ctx);
+
 	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 	if (!clean)
@@ -7705,6 +7747,13 @@ static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/* parse the "allow-0rtt" server keyword */
+static int srv_parse_allow_0rtt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_EARLY_DATA;
+	return 0;
+}
+
 /* parse the "no-ssl-reuse" server keyword */
 static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -8558,6 +8607,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
+	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1 }, /* Allow using early data on this server */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
