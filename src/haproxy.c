@@ -968,7 +968,7 @@ static int get_old_sockets(const char *unixsocket)
 		ret = 0;
 		goto out;
 	}
-	tmpbuf = malloc(fd_nb * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int)));
+	tmpbuf = malloc(fd_nb * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
 	if (tmpbuf == NULL) {
 		Warning("Failed to allocate memory while receiving sockets\n");
 		goto out;
@@ -980,7 +980,7 @@ static int get_old_sockets(const char *unixsocket)
 	}
 	msghdr.msg_control = cmsgbuf;
 	msghdr.msg_controllen = CMSG_SPACE(sizeof(int)) * MAX_SEND_FD;
-	iov.iov_len = MAX_SEND_FD * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int));
+	iov.iov_len = MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int));
 	do {
 		int ret3;
 

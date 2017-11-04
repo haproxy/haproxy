@@ -1354,7 +1354,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	/* We will send sockets MAX_SEND_FD per MAX_SEND_FD, allocate a
 	 * buffer big enough to store the socket informations.
 	 */
-	tmpbuf = malloc(MAX_SEND_FD * (1 + NAME_MAX + 1 + IFNAMSIZ + sizeof(int)));
+	tmpbuf = malloc(MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
 	if (tmpbuf == NULL) {
 		Warning("Failed to allocate memory to transfer socket informations\n");
 		goto out;
