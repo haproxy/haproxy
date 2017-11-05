@@ -4202,6 +4202,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		if (!*args[4]) {
 			appctx->ctx.cli.msg = "set server <b>/<s> fqdn requires a FQDN.\n";
 			appctx->st0 = CLI_ST_PRINT;
+			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 			return 1;
 		}
 		warning = update_server_fqdn(sv, args[4], "stats socket command", 0);
