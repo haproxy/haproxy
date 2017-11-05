@@ -4155,23 +4155,20 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "'set server <srv> check-port' expects an integer as argument.\n";
 			appctx->st0 = CLI_ST_PRINT;
-			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-			return 1;
+			goto out_unlock;
 		}
 		if ((i < 0) || (i > 65535)) {
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "provided port is not valid.\n";
 			appctx->st0 = CLI_ST_PRINT;
-			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-			return 1;
+			goto out_unlock;
 		}
 		/* prevent the update of port to 0 if MAPPORTS are in use */
 		if ((sv->flags & SRV_F_MAPPORTS) && (i == 0)) {
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "can't unset 'port' since MAPPORTS is in use.\n";
 			appctx->st0 = CLI_ST_PRINT;
-			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-			return 1;
+			goto out_unlock;
 		}
 		sv->check.port = i;
 		appctx->ctx.cli.severity = LOG_NOTICE;
@@ -4185,8 +4182,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "set server <b>/<s> addr requires an address and optionally a port.\n";
 			appctx->st0 = CLI_ST_PRINT;
-			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-			return 1;
+			goto out_unlock;
 		}
 		else {
 			addr = args[4];
@@ -4207,8 +4203,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "set server <b>/<s> fqdn requires a FQDN.\n";
 			appctx->st0 = CLI_ST_PRINT;
-			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-			return 1;
+			goto out_unlock;
 		}
 		warning = update_server_fqdn(sv, args[4], "stats socket command", 0);
 		if (warning) {
@@ -4222,6 +4217,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight', 'addr', 'fqdn' and 'check-port'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 	}
+ out_unlock:
 	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
