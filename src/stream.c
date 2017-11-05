@@ -3229,6 +3229,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
+				SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
 			}
 
