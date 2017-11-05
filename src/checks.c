@@ -2091,7 +2091,7 @@ static struct task *process_chk_proc(struct task *t)
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
 
