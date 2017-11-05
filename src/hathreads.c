@@ -155,7 +155,7 @@ static void __hathreads_init(void)
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif
-	hap_register_build_opts("Built with multi-threading support.", 1);
+	hap_register_build_opts("Built with multi-threading support.", 0);
 }
 
 #endif
