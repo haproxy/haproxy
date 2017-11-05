@@ -388,9 +388,11 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			node = eb32_first(root);
 
 		p->lbprm.chash.last = node;
-		if (!node)
+		if (!node) {
 			/* no node is available */
-			return NULL;
+			srv = NULL;
+			goto out;
+		}
 
 		/* Note: if we came here after a down/up cycle with no last
 		 * pointer, and after a redispatch (srvtoavoid is set), we
