@@ -32,6 +32,7 @@
 #include <common/ticks.h>
 #include <common/hathreads.h>
 
+#include <eb32sctree.h>
 #include <eb32tree.h>
 
 #include <types/global.h>
@@ -163,7 +164,7 @@ static inline struct task *task_unlink_wq(struct task *t)
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
-	eb32_delete(&t->rq);
+	eb32sc_delete(&t->rq);
 	tasks_run_queue--;
 	if (likely(t->nice))
 		niced_tasks--;

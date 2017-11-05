@@ -26,6 +26,7 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <eb32sctree.h>
 #include <eb32tree.h>
 
 /* values for task->state */
@@ -63,7 +64,7 @@ struct notification {
 
 /* The base for all tasks */
 struct task {
-	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
+	struct eb32sc_node rq;		/* ebtree node used to hold the task in the run queue */
 	unsigned short state;		/* task state : bit field of TASK_* */
 	unsigned short pending_state;	/* pending states for running talk */
 	short nice;			/* the task's current nice value from -1024 to +1024 */

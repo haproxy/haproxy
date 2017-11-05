@@ -17,6 +17,7 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
+#include <eb32sctree.h>
 #include <eb32tree.h>
 
 #include <proto/proxy.h>
@@ -74,7 +75,7 @@ struct task *__task_wakeup(struct task *t)
 	 * if task is running
 	 */
 	t->state = t->pending_state;
-	eb32_insert(&rqueue, &t->rq);
+	eb32sc_insert(&rqueue, &t->rq, t->thread_mask);
 	return t;
 }
 
@@ -188,7 +189,7 @@ void process_runnable_tasks()
 	struct task *t;
 	int i;
 	int max_processed;
-	struct eb32_node *rq_next;
+	struct eb32sc_node *rq_next;
 	int rewind;
 	struct task *local_tasks[16];
 	int local_tasks_count;
@@ -212,13 +213,13 @@ void process_runnable_tasks()
 		 */
 
 		rewind = 0;
-		rq_next = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
+		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 		if (!rq_next) {
 			/* we might have reached the end of the tree, typically because
 			 * <rqueue_ticks> is in the first half and we're first scanning
 			 * the last half. Let's loop back to the beginning of the tree now.
 			 */
-			rq_next = eb32_first(&rqueue);
+			rq_next = eb32sc_first(&rqueue, tid_bit);
 			if (!rq_next) {
 				break;
 			}
@@ -227,8 +228,8 @@ void process_runnable_tasks()
 
 		local_tasks_count = 0;
 		while (local_tasks_count < 16) {
-			t = eb32_entry(rq_next, struct task, rq);
-			rq_next = eb32_next(rq_next);
+			t = eb32sc_entry(rq_next, struct task, rq);
+			rq_next = eb32sc_next(rq_next, tid_bit);
 			if (t->thread_mask & tid_bit) {
 				/* detach the task from the queue */
 				__task_unlink_rq(t);
@@ -238,7 +239,7 @@ void process_runnable_tasks()
 				local_tasks[local_tasks_count++] = t;
 			}
 			if (!rq_next) {
-				if (rewind || !(rq_next = eb32_first(&rqueue))) {
+				if (rewind || !(rq_next = eb32sc_first(&rqueue, tid_bit))) {
 					break;
 				}
 				rewind = 1;
