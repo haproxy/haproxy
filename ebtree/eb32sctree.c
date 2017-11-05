@@ -323,6 +323,97 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 	//}
 }
 
+/*
+ * Find the first occurrence of the lowest key in the tree <root> which is
+ * equal to or greater than <x>, matching scope <scope>. If not found, it loops
+ * back to the beginning of the tree. NULL is returned is no key matches.
+ */
+REGPRM2 struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 x, unsigned long scope)
+{
+	struct eb32sc_node *eb32;
+	eb_troot_t *troot;
+	struct eb_root *curr;
+
+	troot = root->b[EB_LEFT];
+	if (unlikely(troot == NULL))
+		return NULL;
+
+	while (1) {
+		if ((eb_gettag(troot) == EB_LEAF)) {
+			/* We reached a leaf, which means that the whole upper
+			 * parts were common. We will return either the current
+			 * node or its next one if the former is too small.
+			 */
+			eb32 = container_of(eb_untag(troot, EB_LEAF),
+					    struct eb32sc_node, node.branches);
+			if ((eb32->leaf_s & scope) && eb32->key >= x)
+				return eb32;
+			/* return next */
+			troot = eb32->node.leaf_p;
+			break;
+		}
+		eb32 = container_of(eb_untag(troot, EB_NODE),
+				    struct eb32sc_node, node.branches);
+
+		if (eb32->node.bit < 0) {
+			/* We're at the top of a dup tree. Either we got a
+			 * matching value and we return the leftmost node, or
+			 * we don't and we skip the whole subtree to return the
+			 * next node after the subtree. Note that since we're
+			 * at the top of the dup tree, we can simply return the
+			 * next node without first trying to escape from the
+			 * tree.
+			 */
+			if ((eb32->node_s & scope) && eb32->key >= x)
+				troot = eb_dotag(&eb32->node.branches, EB_LEFT);
+			else
+				troot = eb32->node.node_p;
+			break;
+		}
+
+		if (((x ^ eb32->key) >> eb32->node.bit) >= EB_NODE_BRANCHES) {
+			/* No more common bits at all. Either this node is too
+			 * large and we need to get its lowest value, or it is too
+			 * small, and we need to get the next value.
+			 */
+			if ((eb32->node_s & scope) && (eb32->key >> eb32->node.bit) > (x >> eb32->node.bit))
+				troot = eb_dotag(&eb32->node.branches, EB_LEFT);
+			else
+				troot = eb32->node.node_p;
+			break;
+		}
+		troot = eb32->node.branches.b[(x >> eb32->node.bit) & EB_NODE_BRANCH_MASK];
+	}
+
+	/* If we get here, it means we want to report next node after the
+	 * current one which is not below. <troot> is already initialised
+	 * to the parent's branches.
+	 */
+	for (eb32 = NULL; !eb32; troot = eb_root_to_node(curr)->node_p) {
+		if (eb_gettag(troot) != EB_LEFT) {
+			curr = eb_untag(troot, EB_RGHT);
+			continue;
+		}
+
+		/* troot points to the branch location we're attached to by the
+		 * left above, set curr to the corresponding eb_root.
+		 */
+		curr = eb_untag(troot, EB_LEFT);
+
+		/* and go down by the right, but stop at the root */
+		troot = curr->b[EB_RGHT];
+		if (!eb_clrtag(troot))
+			break;
+
+		eb32 = eb32sc_walk_down_left(troot, scope);
+	}
+
+	if (!eb32)
+		eb32 = eb32sc_walk_down_left(root->b[EB_LEFT], scope);
+
+	return eb32;
+}
+
 /* Removes a leaf node from the tree if it was still in it. Marks the node
  * as unlinked.
  */
