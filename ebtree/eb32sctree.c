@@ -28,6 +28,7 @@
  */
 REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_node *new, unsigned long scope)
 {
+	struct eb32sc_node *eb32;
 	struct eb_node *head = sub;
 	eb_troot_t *new_left = eb_dotag(&new->branches, EB_LEFT);
 	eb_troot_t *new_rght = eb_dotag(&new->branches, EB_RGHT);
@@ -36,10 +37,16 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
 	/* first, identify the deepest hole on the right branch */
 	while (eb_gettag(head->branches.b[EB_RGHT]) != EB_LEAF) {
 		struct eb_node *last = head;
+
 		head = container_of(eb_untag(head->branches.b[EB_RGHT], EB_NODE),
 				    struct eb_node, branches);
+		eb32 = container_of(head, struct eb32sc_node, node);
+
 		if (head->bit > last->bit + 1)
 			sub = head;     /* there's a hole here */
+
+		if ((eb32->node_s | scope) != eb32->node_s)
+			eb32->node_s |= scope;
 	}
 
 	/* Here we have a leaf attached to (head)->b[EB_RGHT] */
@@ -55,7 +62,9 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
 		sub->leaf_p = new_left;
 		new->branches.b[EB_LEFT] = eb_dotag(&sub->branches, EB_LEAF);
 		new->branches.b[EB_RGHT] = new_leaf;
-		return container_of(new, struct eb32sc_node, node);
+		eb32 = container_of(new, struct eb32sc_node, node);
+		eb32->node_s = container_of(sub, struct eb32sc_node, node)->leaf_s | scope;
+		return eb32;
 	} else {
 		int side;
 		/* No hole was found before a leaf. We have to insert above
@@ -73,7 +82,9 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
 		sub->node_p = new_left;
 		new->branches.b[EB_LEFT] = eb_dotag(&sub->branches, EB_NODE);
 		new->branches.b[EB_RGHT] = new_leaf;
-		return container_of(new, struct eb32sc_node, node);
+		eb32 = container_of(new, struct eb32sc_node, node);
+		eb32->node_s = container_of(sub, struct eb32sc_node, node)->node_s | scope;
+		return eb32;
 	}
 }
 
@@ -90,6 +101,7 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 	eb_troot_t *new_left, *new_rght;
 	eb_troot_t *new_leaf;
 	int old_node_bit;
+	unsigned long old_scope;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
@@ -98,6 +110,8 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 		root->b[EB_LEFT] = eb_dotag(&new->node.branches, EB_LEAF);
 		new->node.leaf_p = eb_dotag(root, EB_LEFT);
 		new->node.node_p = NULL; /* node part unused */
+		new->node_s = scope;
+		new->leaf_s = scope;
 		return new;
 	}
 
@@ -121,6 +135,7 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 					    struct eb32sc_node, node.branches);
 			new->node.node_p = old->node.leaf_p;
 			up_ptr = &old->node.leaf_p;
+			old_scope = old->leaf_s;
 			break;
 		}
 
@@ -142,10 +157,14 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 			 */
 			new->node.node_p = old->node.node_p;
 			up_ptr = &old->node.node_p;
+			old_scope = old->node_s;
 			break;
 		}
 
 		/* walk down */
+		if ((old->node_s | scope) != old->node_s)
+			old->node_s |= scope;
+
 		root = &old->node.branches;
 		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
 		troot = root->b[side];
@@ -164,6 +183,8 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 
 	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
 	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
+	new->leaf_s = scope;
+	new->node_s = old_scope | scope;
 
 	if (new->key == old->key) {
 		new->node.bit = -1; /* mark as new dup tree, just in case */
