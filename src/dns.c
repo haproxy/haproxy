@@ -1347,8 +1347,10 @@ int dns_link_resolution(void *requester, int requester_type)
 	if (srv) {
 		SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		if (srv->dns_requester == NULL) {
-			if ((req = calloc(1, sizeof(*req))) == NULL)
+			if ((req = calloc(1, sizeof(*req))) == NULL) {
+				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				goto err;
+			}
 			req->owner         = &srv->obj_type;
 			srv->dns_requester = req;
 		}
