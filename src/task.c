@@ -186,12 +186,12 @@ void process_runnable_tasks()
 	int i;
 	int max_processed;
 	struct eb32sc_node *rq_next;
-	int rewind;
 	struct task *local_tasks[16];
 	int local_tasks_count;
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = tasks_run_queue;
+
 	if (!tasks_run_queue)
 		return;
 
@@ -202,44 +202,38 @@ void process_runnable_tasks()
 		max_processed = (max_processed + 3) / 4;
 
 	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	while (max_processed > 0) {
+	rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+
+	do {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
 		 */
-
-		rewind = 0;
-		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
-		if (!rq_next) {
-			/* we might have reached the end of the tree, typically because
-			 * <rqueue_ticks> is in the first half and we're first scanning
-			 * the last half. Let's loop back to the beginning of the tree now.
-			 */
-			rq_next = eb32sc_first(&rqueue, tid_bit);
-			if (!rq_next) {
-				break;
+		for (local_tasks_count = 0; local_tasks_count < 16; local_tasks_count++) {
+			if (unlikely(!rq_next)) {
+				/* either we just started or we reached the end
+				 * of the tree, typically because <rqueue_ticks>
+				 * is in the first half and we're first scanning
+				 * the last half. Let's loop back to the beginning
+				 * of the tree now.
+				 */
+				if (unlikely(!rq_next)) {
+					rq_next = eb32sc_first(&rqueue, tid_bit);
+					if (!rq_next)
+						break;
+				}
 			}
-			rewind = 1;
-		}
 
-		local_tasks_count = 0;
-		while (local_tasks_count < 16) {
 			t = eb32sc_entry(rq_next, struct task, rq);
 			rq_next = eb32sc_next(rq_next, tid_bit);
-			if (t->thread_mask & tid_bit) {
-				/* detach the task from the queue */
-				__task_unlink_rq(t);
-				t->state |= TASK_RUNNING;
-				t->pending_state = 0;
-				t->calls++;
-				local_tasks[local_tasks_count++] = t;
-			}
-			if (!rq_next) {
-				if (rewind || !(rq_next = eb32sc_first(&rqueue, tid_bit))) {
-					break;
-				}
-				rewind = 1;
-			}
+
+			/* detach the task from the queue */
+			__task_unlink_rq(t);
+			local_tasks[local_tasks_count] = t;
+			t->state |= TASK_RUNNING;
+			t->pending_state = 0;
+			t->calls++;
+			max_processed--;
 		}
 
 		if (!local_tasks_count)
@@ -259,7 +253,6 @@ void process_runnable_tasks()
 			local_tasks[i] = t;
 		}
 
-		max_processed -= local_tasks_count;
 		SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		for (i = 0; i < local_tasks_count ; i++) {
 			t = local_tasks[i];
@@ -276,7 +269,8 @@ void process_runnable_tasks()
 					task_queue(t);
 			}
 		}
-	}
+	} while (max_processed > 0);
+
 	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 }
 
