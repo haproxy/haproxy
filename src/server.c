@@ -4204,6 +4204,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 	}
 	else if (strcmp(args[3], "fqdn") == 0) {
 		if (!*args[4]) {
+			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "set server <b>/<s> fqdn requires a FQDN.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
