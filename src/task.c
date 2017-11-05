@@ -202,6 +202,55 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
+	if (unlikely(global.nbthread <= 1)) {
+		/* when no lock is needed, this loop is much faster */
+		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+		while (1) {
+			if (!rq_next) {
+				/* we might have reached the end of the tree, typically because
+				 * <rqueue_ticks> is in the first half and we're first scanning
+				 * the last half. Let's loop back to the beginning of the tree now.
+				 */
+				rq_next = eb32sc_first(&rqueue, tid_bit);
+				if (!rq_next)
+					break;
+			}
+
+			t = eb32sc_entry(rq_next, struct task, rq);
+			rq_next = eb32sc_next(rq_next, tid_bit);
+			__task_unlink_rq(t);
+			t->state |= TASK_RUNNING;
+			t->pending_state = 0;
+
+			t->calls++;
+			/* This is an optimisation to help the processor's branch
+			 * predictor take this most common call.
+			 */
+			if (likely(t->process == process_stream))
+				t = process_stream(t);
+			else
+				t = t->process(t);
+
+			if (likely(t != NULL)) {
+				t->state &= ~TASK_RUNNING;
+				/* If there is a pending state
+				 * we have to wake up the task
+				 * immediatly, else we defer
+				 * it into wait queue
+				 */
+				if (t->pending_state)
+					__task_wakeup(t);
+				else
+					task_queue(t);
+			}
+
+			max_processed--;
+			if (max_processed <= 0)
+				break;
+		}
+		return;
+	}
+
 	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 
