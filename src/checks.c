@@ -704,6 +704,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
  * the connection acknowledgement. If the proxy requires L7 health-checks,
  * it sends the request. In other cases, it calls set_server_check_status()
  * to set check->status, check->duration and check->result.
+ *
+ * Please do NOT place any return statement in this function and only leave
+ * via the out_unlock label.
  */
 static void event_srv_chk_w(struct conn_stream *cs)
 {
@@ -716,10 +719,8 @@ static void event_srv_chk_w(struct conn_stream *cs)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		return;
-	}
+	if (conn->flags & CO_FL_HANDSHAKE)
+		goto out_unlock;
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
@@ -741,10 +742,8 @@ static void event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		return;
-	}
+	if (check->type == PR_O2_TCPCHK_CHK)
+		goto out_unlock;
 
 	if (check->bo->o) {
 		conn->mux->snd_buf(cs, check->bo, 0);
@@ -753,10 +752,8 @@ static void event_srv_chk_w(struct conn_stream *cs)
 			__cs_stop_both(cs);
 			goto out_wakeup;
 		}
-		if (check->bo->o) {
-			SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-			return;
-		}
+		if (check->bo->o)
+			goto out_unlock;
 	}
 
 	/* full request sent, we allow up to <timeout.check> if nonzero for a response */
@@ -769,8 +766,9 @@ static void event_srv_chk_w(struct conn_stream *cs)
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	__cs_stop_send(cs);   /* nothing more to write */
+ out_unlock:
+	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 }
 
 /*
@@ -786,6 +784,9 @@ static void event_srv_chk_w(struct conn_stream *cs)
  * distinguish between an SSL server and a pure TCP relay). All other cases will
  * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
  * etc.
+ *
+ * Please do NOT place any return statement in this function and only leave
+ * via the out_unlock label.
  */
 static void event_srv_chk_r(struct conn_stream *cs)
 {
@@ -802,16 +803,12 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		return;
-	}
+	if (conn->flags & CO_FL_HANDSHAKE)
+		goto out_unlock;
 
 	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		return;
-	}
+	if (check->type == PR_O2_TCPCHK_CHK)
+		goto out_unlock;
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
@@ -1356,12 +1353,13 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		conn->flags |= CO_FL_ERROR;
 
 	task_wakeup(t, TASK_WOKEN_IO);
+ out_unlock:
 	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return;
 
  wait_more_data:
 	__cs_want_recv(cs);
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+        goto out_unlock;
 }
 
 /*
@@ -1969,6 +1967,9 @@ out:
 /*
  * manages a server health-check that uses an external process. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
+ *
+ * Please do NOT place any return statement in this function and only leave
+ * via the out_unlock label.
  */
 static struct task *process_chk_proc(struct task *t)
 {
@@ -1981,10 +1982,8 @@ static struct task *process_chk_proc(struct task *t)
 	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
-		if (!expired) { /* woke up too early */
-			SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-			return t;
-		}
+		if (!expired) /* woke up too early */
+			goto out_unlock;
 
 		/* we don't send any health-checks when the proxy is
 		 * stopped, the server should not be checked or the check
@@ -2091,6 +2090,8 @@ static struct task *process_chk_proc(struct task *t)
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
+
+ out_unlock:
 	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
@@ -2098,6 +2099,9 @@ static struct task *process_chk_proc(struct task *t)
 /*
  * manages a server health-check that uses a connection. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
+ *
+ * Please do NOT place any return statement in this function and only leave
+ * via the out_unlock label.
  */
 static struct task *process_chk_conn(struct task *t)
 {
@@ -2112,10 +2116,8 @@ static struct task *process_chk_conn(struct task *t)
 	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
-		if (!expired) { /* woke up too early */
-			SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-			return t;
-		}
+		if (!expired) /* woke up too early */
+			goto out_unlock;
 
 		/* we don't send any health-checks when the proxy is
 		 * stopped, the server should not be checked or the check
@@ -2140,8 +2142,8 @@ static struct task *process_chk_conn(struct task *t)
 
 		switch (ret) {
 		case SF_ERR_UP:
-			SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-			return t;
+			goto out_unlock;
+
 		case SF_ERR_NONE:
 			/* we allow up to min(inter, timeout.connect) for a connection
 			 * to establish but only when timeout.check is set
@@ -2219,7 +2221,7 @@ static struct task *process_chk_conn(struct task *t)
 				chk_report_conn_err(check, 0, expired);
 			}
 			else
-				goto out_wait; /* timeout not reached, wait again */
+				goto out_unlock; /* timeout not reached, wait again */
 		}
 
 		/* check complete or aborted */
@@ -2265,7 +2267,7 @@ static struct task *process_chk_conn(struct task *t)
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
- out_wait:
+ out_unlock:
 	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
@@ -2579,6 +2581,9 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
  * both from the connection's wake() callback and from the check scheduling task.
  * It returns 0 on normal cases, or <0 if a close() has happened on an existing
  * connection, presenting the risk of an fd replacement.
+ *
+ * Please do NOT place any return statement in this function and only leave
+ * via the out_unlock label after setting retcode.
  */
 static int tcpcheck_main(struct check *check)
 {
@@ -2634,8 +2639,7 @@ static int tcpcheck_main(struct check *check)
 			if (s->proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
-		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		return retcode;
+		goto out_unlock;
 	}
 
 	/* special case: option tcp-check with no rule, a connect is enough */
@@ -2730,8 +2734,7 @@ static int tcpcheck_main(struct check *check)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
 				check->current_step = NULL;
-				SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-				return retcode;
+				goto out_unlock;
 			}
 
 			if (check->cs)
@@ -2853,8 +2856,7 @@ static int tcpcheck_main(struct check *check)
 					if (s->proxy->timeout.check)
 						t->expire = tick_first(t->expire, t_con);
 				}
-				SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-				return retcode;
+				goto out_unlock;
 			}
 
 		} /* end 'connect' */
@@ -3059,8 +3061,7 @@ static int tcpcheck_main(struct check *check)
 	if (&check->current_step->list != head &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__cs_want_recv(cs);
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-	return retcode;
+	goto out_unlock;
 
  out_end_tcpcheck:
 	/* collect possible new errors */
@@ -3074,6 +3075,8 @@ static int tcpcheck_main(struct check *check)
 		conn->flags |= CO_FL_ERROR;
 
 	__cs_stop_both(cs);
+
+ out_unlock:
 	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return retcode;
 }
