@@ -118,7 +118,7 @@ int wake_expired_tasks()
 {
 	struct task *task;
 	struct eb32_node *eb;
-	int ret;
+	int ret = TICK_ETERNITY;
 
 	while (1) {
 		SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
@@ -130,17 +130,14 @@ int wake_expired_tasks()
 			* half. Let's loop back to the beginning of the tree now.
 			*/
 			eb = eb32_first(&timers);
-			if (likely(!eb)) {
-				SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+			if (likely(!eb))
 				break;
-			}
 		}
 
-		if (likely(tick_is_lt(now_ms, eb->key))) {
-			ret = eb->key;
-			SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		if (tick_is_lt(now_ms, eb->key)) {
 			/* timer not expired yet, revisit it later */
-			return ret;
+			ret = eb->key;
+			break;
 		}
 
 		/* timer looks expired, detach it from the queue */
@@ -161,17 +158,16 @@ int wake_expired_tasks()
 		 * expiration time is not set.
 		 */
 		if (!tick_is_expired(task->expire, now_ms)) {
-			if (!tick_isset(task->expire))
-				goto lookup_next;
-			__task_queue(task);
+			if (tick_isset(task->expire))
+				__task_queue(task);
 			goto lookup_next;
 		}
 		SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 		task_wakeup(task, TASK_WOKEN_TIMER);
 	}
 
-	/* No task is expired */
-	return TICK_ETERNITY;
+	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	return ret;
 }
 
 /* The run queue is chronologically sorted in a tree. An insertion counter is
