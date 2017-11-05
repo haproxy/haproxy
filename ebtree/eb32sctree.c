@@ -226,6 +226,7 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope)
 {
 	struct eb32sc_node *node;
+	struct eb_root *curr;
 	eb_troot_t *troot;
 
 	troot = root->b[EB_LEFT];
@@ -240,7 +241,7 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 			 */
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32sc_node, node.branches);
-			if (node->key >= x)
+			if ((node->leaf_s & scope) && node->key >= x)
 				return node;
 			/* return next */
 			troot = node->node.leaf_p;
@@ -258,15 +259,10 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 			 * next node without first trying to escape from the
 			 * tree.
 			 */
-			if (node->key >= x) {
-				troot = node->node.branches.b[EB_LEFT];
-				while (eb_gettag(troot) != EB_LEAF)
-					troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
-				return container_of(eb_untag(troot, EB_LEAF),
-						    struct eb32sc_node, node.branches);
-			}
-			/* return next */
-			troot = node->node.node_p;
+			if ((node->node_s & scope) && node->key >= x)
+				troot = eb_dotag(&node->node.branches, EB_LEFT);
+			else
+				troot = node->node.node_p;
 			break;
 		}
 
@@ -275,15 +271,10 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 			 * large and we need to get its lowest value, or it is too
 			 * small, and we need to get the next value.
 			 */
-			if ((node->key >> node->node.bit) > (x >> node->node.bit)) {
-				troot = node->node.branches.b[EB_LEFT];
-				return eb32sc_walk_down(troot, EB_LEFT, scope);
-			}
-
-			/* Further values will be too low here, so return the next
-			 * unique node (if it exists).
-			 */
-			troot = node->node.node_p;
+			if ((node->node_s & scope) && (node->key >> node->node.bit) > (x >> node->node.bit))
+				troot = eb_dotag(&node->node.branches, EB_LEFT);
+			else
+				troot = node->node.node_p;
 			break;
 		}
 		troot = node->node.branches.b[(x >> node->node.bit) & EB_NODE_BRANCH_MASK];
@@ -293,16 +284,43 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 	 * current one which is not below. <troot> is already initialised
 	 * to the parent's branches.
 	 */
-	while (eb_gettag(troot) != EB_LEFT)
-		/* Walking up from right branch, so we cannot be below root */
-		troot = (eb_root_to_node(eb_untag(troot, EB_RGHT)))->node_p;
+	for (node = NULL; !node; troot = eb_root_to_node(curr)->node_p) {
+		if (eb_gettag(troot) != EB_LEFT) {
+			curr = eb_untag(troot, EB_RGHT);
+			continue;
+		}
 
-	/* Note that <troot> cannot be NULL at this stage */
-	troot = (eb_untag(troot, EB_LEFT))->b[EB_RGHT];
-	if (eb_clrtag(troot) == NULL)
-		return NULL;
+		/* troot points to the branch location we're attached to by the
+		 * left above, set curr to the corresponding eb_root.
+		 */
+		curr = eb_untag(troot, EB_LEFT);
 
-	return eb32sc_walk_down(troot, EB_LEFT, scope);
+		/* and go down by the right, but stop at the root */
+		troot = curr->b[EB_RGHT];
+		if (!eb_clrtag(troot))
+			break;
+
+		node = eb32sc_walk_down_left(troot, scope);
+	}
+	return node;
+	//while (1) {
+	//	while (eb_gettag(troot) != EB_LEFT)
+	//		/* Walking up from right branch, so we cannot be below root */
+	//		troot = (eb_root_to_node(eb_untag(troot, EB_RGHT)))->node_p;
+	//
+	//	/* Note that <t> cannot be NULL at this stage */
+	//	root = eb_untag(troot, EB_LEFT);
+	//	troot = root->b[EB_RGHT];
+	//	if (eb_clrtag(troot) == NULL)
+	//		return NULL;
+	//
+	//	/* we can't be below the root here */
+	//	node = eb32sc_walk_down_left(troot, scope);
+	//	if (node)
+	//		return node;
+	//	/* not found below, this means we have to go up */
+	//	troot = eb_root_to_node(root)->node_p;
+	//}
 }
 
 /* Removes a leaf node from the tree if it was still in it. Marks the node

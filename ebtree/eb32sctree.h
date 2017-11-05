@@ -58,42 +58,67 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_node *new, unsigned long scope);
 void eb32sc_delete(struct eb32sc_node *node);
 
-/* Walks down starting at root pointer <start>, and always walking on side
- * <side>. It either returns the node hosting the first leaf on that side,
- * or NULL if no leaf is found. <start> may either be NULL or a branch pointer.
- * The pointer to the leaf (or NULL) is returned.
+/* Walks down left starting at root pointer <start>, and follow the leftmost
+ * branch whose scope matches <scope>. It either returns the node hosting the
+ * first leaf on that side, or NULL if no leaf is found. <start> may either be
+ * NULL or a branch pointer. The pointer to the leaf (or NULL) is returned.
  */
-static inline struct eb32sc_node *eb32sc_walk_down(eb_troot_t *start, unsigned int side, unsigned long scope)
+static inline struct eb32sc_node *eb32sc_walk_down_left(eb_troot_t *start, unsigned long scope)
 {
-	/* A NULL pointer on an empty tree root will be returned as-is */
-	while (eb_gettag(start) == EB_NODE)
-		start = (eb_untag(start, EB_NODE))->b[side];
-	/* NULL is left untouched (root==eb_node, EB_LEAF==0) */
-	return eb32sc_entry(eb_root_to_node(eb_untag(start, EB_LEAF)), struct eb32sc_node, node);
+	struct eb_root *root;
+	struct eb_node *node;
+
+	if (unlikely(!start))
+		return NULL;
+
+	while (eb_gettag(start) == EB_NODE) {
+		root = eb_untag(start, EB_NODE);
+		node = eb_root_to_node(root);
+
+		start = node->branches.b[EB_LEFT];
+		if (!(container_of(node, struct eb32sc_node, node)->node_s & scope))
+			start = node->branches.b[EB_RGHT];
+	}
+
+	/* now we have a leaf */
+	node = eb_root_to_node(eb_untag(start, EB_LEAF));
+	if (!(eb32sc_entry(node, struct eb32sc_node, node)->leaf_s & scope))
+		return NULL;
+
+	return eb32sc_entry(node, struct eb32sc_node, node);
 }
 
 /* Return next node in the tree, or NULL if none */
 static inline struct eb32sc_node *eb32sc_next(struct eb32sc_node *eb32, unsigned long scope)
 {
+	struct eb_root *root;
 	struct eb_node *node = &eb32->node;
 	eb_troot_t *t = node->leaf_p;
 
-	while (eb_gettag(t) != EB_LEFT)
-		/* Walking up from right branch, so we cannot be below root */
-		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
+	while (1) {
+		while (eb_gettag(t) != EB_LEFT)
+			/* Walking up from right branch, so we cannot be below root */
+			t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
 
-	/* Note that <t> cannot be NULL at this stage */
-	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
-	if (eb_clrtag(t) == NULL)
-		return NULL;
+		/* Note that <t> cannot be NULL at this stage */
+		root = eb_untag(t, EB_LEFT);
+		t = root->b[EB_RGHT];
+		if (eb_clrtag(t) == NULL)
+			return NULL;
 
-	return eb32sc_walk_down(t, EB_LEFT, scope);
+		/* we can't be below the root here */
+		eb32 = eb32sc_walk_down_left(t, scope);
+		if (eb32)
+			return eb32;
+		/* not found below, this means we have to go up */
+		t = eb_root_to_node(root)->node_p;
+	}
 }
 
 /* Return leftmost node in the tree, or NULL if none */
 static inline struct eb32sc_node *eb32sc_first(struct eb_root *root, unsigned long scope)
 {
-	return eb32sc_walk_down(root->b[0], EB_LEFT, scope);
+	return eb32sc_walk_down_left(root->b[0], scope);
 }
 
 #endif /* _EB32SC_TREE_H */
