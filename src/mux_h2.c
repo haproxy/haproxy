@@ -329,6 +329,7 @@ static int h2c_frt_init(struct connection *conn)
 
 
 	h2c->timeout = sess->fe->timeout.client;
+	h2c->task = NULL;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new(tid_bit);
 		if (!t)
