@@ -716,8 +716,10 @@ static void event_srv_chk_w(struct conn_stream *cs)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 		return;
+	}
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
@@ -739,8 +741,10 @@ static void event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK)
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 		return;
+	}
 
 	if (check->bo->o) {
 		conn->mux->snd_buf(cs, check->bo, 0);
@@ -2136,6 +2140,7 @@ static struct task *process_chk_conn(struct task *t)
 
 		switch (ret) {
 		case SF_ERR_UP:
+			SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 			return t;
 		case SF_ERR_NONE:
 			/* we allow up to min(inter, timeout.connect) for a connection
@@ -2848,6 +2853,7 @@ static int tcpcheck_main(struct check *check)
 					if (s->proxy->timeout.check)
 						t->expire = tick_first(t->expire, t_con);
 				}
+				SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 				return retcode;
 			}
 
