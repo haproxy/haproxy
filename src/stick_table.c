@@ -536,8 +536,7 @@ static int stktable_trash_expired(struct stktable *t)
 		if (likely(tick_is_lt(now_ms, eb->key))) {
 			/* timer not expired yet, revisit it later */
 			t->exp_next = eb->key;
-			SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
-			return t->exp_next;
+			goto out_unlock;
 		}
 
 		/* timer looks expired, detach it from the queue */
@@ -567,10 +566,11 @@ static int stktable_trash_expired(struct stktable *t)
 		eb32_delete(&ts->upd);
 		__stksess_free(t, ts);
 	}
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	/* We have found no task to expire in any tree */
 	t->exp_next = TICK_ETERNITY;
+out_unlock:
+	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 	return t->exp_next;
 }
 
