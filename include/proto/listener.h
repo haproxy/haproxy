@@ -62,15 +62,15 @@ void dequeue_all_listeners(struct list *list);
 
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
- * to be used as a generic function for standard protocols.
+ * LI_ASSIGNED state. This function is intended to be used as a generic
+ * function for standard protocols.
  */
-int unbind_listener(struct listener *listener);
+void unbind_listener(struct listener *listener);
 
 /* This function pretends the listener is dead, but keeps the FD opened, so
  * that we can provide it, for conf reloading.
  */
-int unbind_listener_no_close(struct listener *listener);
+void unbind_listener_no_close(struct listener *listener);
 
 /* This function closes all listening sockets bound to the protocol <proto>,
  * and the listeners end in LI_ASSIGNED state if they were higher. It does not

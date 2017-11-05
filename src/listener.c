@@ -50,6 +50,8 @@ static struct bind_kw_list bind_keywords = {
 
 struct xfer_sock_list *xfer_sock_list = NULL;
 
+static void __do_unbind_listener(struct listener *listener, int do_close);
+
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections. In deamon mode, we
@@ -67,9 +69,9 @@ static void enable_listener(struct listener *listener)
 			 * want any fd event to reach it.
 			 */
 			if (!(global.tune.options & GTUNE_SOCKET_TRANSFER))
-				unbind_listener(listener);
+				__do_unbind_listener(listener, 1);
 			else {
-				unbind_listener_no_close(listener);
+				__do_unbind_listener(listener, 0);
 				listener->state = LI_LISTEN;
 			}
 		}
@@ -307,9 +309,9 @@ void dequeue_all_listeners(struct list *list)
 	SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 }
 
-static int do_unbind_listener(struct listener *listener, int do_close)
+/* must be called with the lock held */
+static void __do_unbind_listener(struct listener *listener, int do_close)
 {
-	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->fd);
 
@@ -328,26 +330,31 @@ static int do_unbind_listener(struct listener *listener, int do_close)
 			fd_remove(listener->fd);
 		listener->state = LI_ASSIGNED;
 	}
+}
+
+static void do_unbind_listener(struct listener *listener, int do_close)
+{
+	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	__do_unbind_listener(listener, do_close);
 	SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
-	return ERR_NONE;
 }
 
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
- * to be used as a generic function for standard protocols.
+ * LI_ASSIGNED state. This function is intended to be used as a generic
+ * function for standard protocols.
  */
-int unbind_listener(struct listener *listener)
+void unbind_listener(struct listener *listener)
 {
-	return do_unbind_listener(listener, 1);
+	do_unbind_listener(listener, 1);
 }
 
 /* This function pretends the listener is dead, but keeps the FD opened, so
  * that we can provide it, for conf reloading.
  */
-int unbind_listener_no_close(struct listener *listener)
+void unbind_listener_no_close(struct listener *listener)
 {
-	return do_unbind_listener(listener, 0);
+	do_unbind_listener(listener, 0);
 }
 
 /* This function closes all listening sockets bound to the protocol <proto>,
