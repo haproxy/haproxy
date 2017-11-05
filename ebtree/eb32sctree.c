@@ -370,12 +370,14 @@ void eb32sc_delete(struct eb32sc_node *eb32)
 
 	/* From now on, <node> and <parent> are necessarily different, and the
 	 * <node>'s node part is in use. By definition, <parent> is at least
-	 * below <node>, so keeping its key for the bit string is OK.
+	 * below <node>, so keeping its key for the bit string is OK. However
+	 * its scope must be enlarged to cover the new branch it absorbs.
 	 */
 
 	parent->node_p = node->node_p;
 	parent->branches = node->branches;
 	parent->bit = node->bit;
+	container_of(parent, struct eb32sc_node, node)->node_s |= eb32->node_s;
 
 	/* We must now update the new node's parent... */
 	gpside = eb_gettag(parent->node_p);
