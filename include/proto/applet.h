@@ -147,11 +147,6 @@ static inline int appctx_res_wakeup(struct appctx *appctx)
 		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return 1;
 	}
-
-	if (!LIST_ISEMPTY(&appctx->runq)) {
-		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-		return 0;
-	}
 	__appctx_wakeup(appctx);
 	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 	return 1;
