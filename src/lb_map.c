@@ -224,13 +224,13 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 		srv = px->lbprm.map.srv[newidx++];
 		if (!srv->maxconn || (!srv->nbpend && srv->served < srv_dynamic_maxconn(srv))) {
 			/* make sure it is not the server we are try to exclude... */
+			/* ...but remember that is was selected yet avoided */
+			avoided = srv;
+			avoididx = newidx;
 			if (srv != srvtoavoid) {
 				px->lbprm.map.rr_idx = newidx;
-				return srv;
+				goto out;
 			}
-
-			avoided = srv;	/* ...but remember that is was selected yet avoided */
-			avoididx = newidx;
 		}
 		if (newidx == px->lbprm.tot_weight)
 			newidx = 0;
