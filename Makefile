@@ -862,7 +862,7 @@ OBJS = src/cfgparse.o src/proto_http.o src/stats.o src/server.o src/stream.o \
        src/lb_map.o src/base64.o src/sha1.o src/protocol.o src/h1.o \
        src/action.o src/hathreads.o src/mux_pt.o src/cache.o src/shctx.o
 
-EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
+EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
               $(EBTREE_DIR)/ebmbtree.o $(EBTREE_DIR)/ebsttree.o \
               $(EBTREE_DIR)/ebimtree.o $(EBTREE_DIR)/ebistree.o
