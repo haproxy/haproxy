@@ -550,8 +550,10 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				char hostname[DNS_MAX_NAME_SIZE];
 
 				if (dns_dn_label_to_str(item->target, item->data_len+1,
-							hostname, DNS_MAX_NAME_SIZE) == -1)
+							hostname, DNS_MAX_NAME_SIZE) == -1) {
+					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					continue;
+				}
 				msg = update_server_fqdn(srv, hostname, "SRV record", 1);
 				if (msg)
 					send_log(srv->proxy, LOG_NOTICE, "%s", msg);
@@ -1307,7 +1309,7 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 /* Links a requester (a server or a dns_srvrq) with a resolution. It returns 0
  * on success, -1 otherwise.
  */
-int dns_link_resolution(void *requester, int requester_type)
+int dns_link_resolution(void *requester, int requester_type, int requester_locked)
 {
 	struct dns_resolution *res = NULL;
 	struct dns_requester  *req;
@@ -1345,10 +1347,12 @@ int dns_link_resolution(void *requester, int requester_type)
 		goto err;
 
 	if (srv) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		if (!requester_locked)
+			SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		if (srv->dns_requester == NULL) {
 			if ((req = calloc(1, sizeof(*req))) == NULL) {
-				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+				if (!requester_locked)
+					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				goto err;
 			}
 			req->owner         = &srv->obj_type;
@@ -1356,7 +1360,8 @@ int dns_link_resolution(void *requester, int requester_type)
 		}
 		else
 			req = srv->dns_requester;
-		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+		if (!requester_locked)
+			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 	else if (srvrq) {
 		if (srvrq->dns_requester == NULL) {
@@ -1905,14 +1910,14 @@ static int dns_finalize_config(void)
 
 			if (srv->srvrq && !srv->srvrq->resolvers) {
 				srv->srvrq->resolvers = srv->resolvers;
-				if (dns_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ) == -1) {
+				if (dns_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ, 0) == -1) {
 					Alert("config : %s '%s' : unable to set DNS resolution for server '%s'.\n",
 					      proxy_type_str(px), px->id, srv->id);
 					err_code |= (ERR_ALERT|ERR_ABORT);
 					continue;
 				}
 			}
-			if (dns_link_resolution(srv, OBJ_TYPE_SERVER) == -1) {
+			if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 0) == -1) {
 				Alert("config : %s '%s', unable to set DNS resolution for server '%s'.\n",
 				      proxy_type_str(px), px->id, srv->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);

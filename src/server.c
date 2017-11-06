@@ -3818,7 +3818,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	if (!srv->hostname || !srv->hostname_dn)
 		goto err;
 
-	if (dns_link_resolution(srv, OBJ_TYPE_SERVER) == -1)
+	if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 1) == -1)
 		goto err;
 
   end:
