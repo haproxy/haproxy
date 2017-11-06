@@ -188,6 +188,7 @@ void process_runnable_tasks()
 	struct eb32sc_node *rq_next;
 	struct task *local_tasks[16];
 	int local_tasks_count;
+	int final_tasks_count;
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = tasks_run_queue;
@@ -241,6 +242,7 @@ void process_runnable_tasks()
 
 		SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
+		final_tasks_count = 0;
 		for (i = 0; i < local_tasks_count ; i++) {
 			t = local_tasks[i];
 			/* This is an optimisation to help the processor's branch
@@ -250,24 +252,23 @@ void process_runnable_tasks()
 				t = process_stream(t);
 			else
 				t = t->process(t);
-			local_tasks[i] = t;
+			if (t)
+				local_tasks[final_tasks_count++] = t;
 		}
 
 		SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-		for (i = 0; i < local_tasks_count ; i++) {
+		for (i = 0; i < final_tasks_count ; i++) {
 			t = local_tasks[i];
-			if (likely(t != NULL)) {
-				t->state &= ~TASK_RUNNING;
-				/* If there is a pending state
-				 * we have to wake up the task
-				 * immediatly, else we defer
-				 * it into wait queue
-				 */
-				if (t->pending_state)
-					__task_wakeup(t);
-				else
-					task_queue(t);
-			}
+			t->state &= ~TASK_RUNNING;
+			/* If there is a pending state
+			 * we have to wake up the task
+			 * immediatly, else we defer
+			 * it into wait queue
+			 */
+			if (t->pending_state)
+				__task_wakeup(t);
+			else
+				task_queue(t);
 		}
 	} while (max_processed > 0);
 
