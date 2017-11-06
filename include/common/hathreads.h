@@ -191,9 +191,9 @@ extern struct lock_stat lock_stats[LOCK_LABELS];
 
 #define __SPIN_INIT(l)         ({ (*l) = 0; })
 #define __SPIN_DESTROY(l)      ({ (*l) = 0; })
-#define __SPIN_LOCK(l)         pl_take_w(l)
-#define __SPIN_TRYLOCK(l)      !pl_try_w(l)
-#define __SPIN_UNLOCK(l)       pl_drop_w(l)
+#define __SPIN_LOCK(l)         pl_take_s(l)
+#define __SPIN_TRYLOCK(l)      !pl_try_s(l)
+#define __SPIN_UNLOCK(l)       pl_drop_s(l)
 
 #define __HA_RWLOCK_T		unsigned long
 
@@ -552,9 +552,9 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 
 #define SPIN_INIT(l)         ({ (*l) = 0; })
 #define SPIN_DESTROY(l)      ({ (*l) = 0; })
-#define SPIN_LOCK(lbl, l)    pl_take_w(l)
-#define SPIN_TRYLOCK(lbl, l) !pl_try_w(l)
-#define SPIN_UNLOCK(lbl, l)  pl_drop_w(l)
+#define SPIN_LOCK(lbl, l)    pl_take_s(l)
+#define SPIN_TRYLOCK(lbl, l) !pl_try_s(l)
+#define SPIN_UNLOCK(lbl, l)  pl_drop_s(l)
 
 #define HA_RWLOCK_T		unsigned long
 
