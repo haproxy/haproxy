@@ -1690,11 +1690,20 @@ user <username> [password|insecure-password <password>]
                 [groups <group>,<group>,(...)]
   Adds user <username> to the current userlist. Both secure (encrypted) and
   insecure (unencrypted) passwords can be used. Encrypted passwords are
-  evaluated using the crypt(3) function so depending of the system's
-  capabilities, different algorithms are supported. For example modern Glibc
-  based Linux system supports MD5, SHA-256, SHA-512 and of course classic,
-  DES-based method of encrypting passwords.
+  evaluated using the crypt(3) function, so depending on the system's
+  capabilities, different algorithms are supported. For example, modern Glibc
+  based Linux systems support MD5, SHA-256, SHA-512, and, of course, the
+  classic DES-based method of encrypting passwords.
 
+  Attention: Be aware that using encrypted passwords might cause significantly
+  increased CPU usage, depending on the number of requests, and the algorithm
+  used. For any of the hashed variants, the password for each request must
+  be processed through the chosen algorithm, before it can be compared to the
+  value specified in the config file. Most current algorithms are deliberately
+  designed to be expensive to compute to achieve resistance against brute
+  force attacks. They do not simply salt/hash the clear text password once,
+  but thousands of times. This can quickly become a major factor in haproxy's
+  overall CPU consumption!
 
   Example:
         userlist L1
