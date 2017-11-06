@@ -1614,7 +1614,13 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		 * from the cache */
 		tmpns = ns;
 		list_for_each_entry(req, &res->requesters, list) {
+			struct server *s = objt_server(req->owner);
+
+			if (s)
+				SPIN_LOCK(SERVER_LOCK, &s->lock);
 			req->requester_cb(req, tmpns);
+			if (s)
+				SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 			tmpns = NULL;
 		}
 

@@ -3589,6 +3589,8 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
  * returns:
  *  0 on error
  *  1 when no error or safe ignore
+ *
+ * Must be called with server lock held
  */
 int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver)
 {
@@ -3694,7 +3696,9 @@ int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
 	s = objt_server(requester->owner);
 	if (!s)
 		return 1;
+	SPIN_LOCK(SERVER_LOCK, &s->lock);
 	snr_update_srv_status(s, 0);
+	SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	return 1;
 }
 
@@ -3703,6 +3707,8 @@ int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
  * which owns <srv> and is up.
  * It returns a pointer to the first server found or NULL if <ip> is not yet
  * assigned.
+ *
+ * Must be called with server lock held
  */
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family)
 {
@@ -3711,8 +3717,6 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 
 	if (!srv)
 		return NULL;
-
-	SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 	be = srv->proxy;
 	for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
@@ -3751,13 +3755,11 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		     (tmpsrv->addr.ss_family == AF_INET6 &&
 		      memcmp(ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
 			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
-			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			return tmpsrv;
 		}
 		SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 	}
 
-	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 	return NULL;
 }
