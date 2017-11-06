@@ -1749,7 +1749,7 @@ static void init(int argc, char **argv)
 
 	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_MWORKER))) {
 		if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
-			Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
+			Warning("<nbproc> is only meaningful in daemon mode or master-worker mode. Setting limit to 1 process.\n");
 		global.nbproc = 1;
 	}
 
