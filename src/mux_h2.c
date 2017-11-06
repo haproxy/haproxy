@@ -54,7 +54,6 @@ static struct pool_head *pool2_h2s;
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
 #define H2_CF_GOAWAY_FAILED     0x00000200  // a GOAWAY frame failed to be sent
-#define H2_CF_HEADERS_SENT      0x00000400  // a HEADERS frame was sent
 
 
 /* H2 connection state, in h2c->st0 */
@@ -155,6 +154,8 @@ enum h2_ss {
 #define H2_SF_CHNK_CRLF         0x00000800 // trying to send chunk crlf after data
 
 #define H2_SF_CHNK_MASK         0x00000C00 // trying to send chunk size
+
+#define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
@@ -2252,7 +2253,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
 		return;
 
-	if (h2s->h2c->flags & H2_CF_HEADERS_SENT) {
+	if (h2s->flags & H2_SF_HEADERS_SENT) {
 		if (h2_send_empty_data_es(h2s) <= 0)
 			return;
 	} else {
@@ -2675,7 +2676,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	/* commit the H2 response */
 	h2c->mbuf->o += outbuf.len;
 	h2c->mbuf->p = b_ptr(h2c->mbuf, outbuf.len);
-	h2c->flags |= H2_CF_HEADERS_SENT;
+	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	/* for now we don't implemented CONTINUATION, so we wait for a
 	 * body or directly end in TRL2.
