@@ -2649,7 +2649,7 @@ int main(int argc, char **argv)
 			else if (ret == 0) /* child breaks here */
 				break;
 			children[proc] = ret;
-			if (pidfd >= 0) {
+			if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 				char pidstr[100];
 				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
 				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
