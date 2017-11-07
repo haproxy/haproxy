@@ -185,7 +185,7 @@ HA_SPINLOCK_T poll_lock;        /* global lock to protect poll info */
  */
 static void fd_dodelete(int fd, int do_close)
 {
-	SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
 		setsockopt(fd, SOL_SOCKET, SO_LINGER,
@@ -205,12 +205,12 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].thread_mask = 0;
 	if (do_close)
 		close(fd);
-	SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
-	SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);
+	HA_SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);
 	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
 		maxfd--;
-	SPIN_UNLOCK(FDTAB_LOCK, &fdtab_lock);
+	HA_SPIN_UNLOCK(FDTAB_LOCK, &fdtab_lock);
 }
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
@@ -241,16 +241,16 @@ void fd_process_cached_events()
 	if (!fd_cache_num)
 		return;
 
-	RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
+	HA_RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
 	for (entry = 0; entry < fd_cache_num; ) {
 		fd = fd_cache[entry];
 
 		if (!(fdtab[fd].thread_mask & tid_bit))
 			goto next;
-		if (SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock))
+		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock))
 			goto next;
 
-		RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
+		HA_RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
 
 		e = fdtab[fd].state;
 		fdtab[fd].ev &= FD_POLL_STICKY;
@@ -262,15 +262,15 @@ void fd_process_cached_events()
 			fdtab[fd].ev |= FD_POLL_OUT;
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
-			SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+			HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 			fdtab[fd].iocb(fd);
 		}
 		else {
 			fd_release_cache_entry(fd);
-			SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+			HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 		}
 
-		RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
+		HA_RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
 		/* If the fd was removed from the cache, it has been
 		 * replaced by the next one that we don't want to skip !
 		 */
@@ -279,7 +279,7 @@ void fd_process_cached_events()
 	  next:
 		entry++;
 	}
-	RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
+	HA_RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
 }
 
 /* disable the specified poller */
@@ -329,11 +329,11 @@ int init_pollers()
 	hap_register_per_thread_deinit(deinit_pollers_per_thread);
 
 	for (p = 0; p < global.maxsock; p++)
-		SPIN_INIT(&fdtab[p].lock);
+		HA_SPIN_INIT(&fdtab[p].lock);
 
-	SPIN_INIT(&fdtab_lock);
-	RWLOCK_INIT(&fdcache_lock);
-	SPIN_INIT(&poll_lock);
+	HA_SPIN_INIT(&fdtab_lock);
+	HA_RWLOCK_INIT(&fdcache_lock);
+	HA_SPIN_INIT(&poll_lock);
 	do {
 		bp = NULL;
 		for (p = 0; p < nbpollers; p++)
@@ -367,7 +367,7 @@ void deinit_pollers() {
 	int p;
 
 	for (p = 0; p < global.maxsock; p++)
-		SPIN_DESTROY(&fdtab[p].lock);
+		HA_SPIN_DESTROY(&fdtab[p].lock);
 
 	for (p = 0; p < nbpollers; p++) {
 		bp = &pollers[p];
@@ -380,9 +380,9 @@ void deinit_pollers() {
 	free(fdinfo);   fdinfo   = NULL;
 	free(fdtab);    fdtab    = NULL;
 
-	SPIN_DESTROY(&fdtab_lock);
-	RWLOCK_DESTROY(&fdcache_lock);
-	SPIN_DESTROY(&poll_lock);
+	HA_SPIN_DESTROY(&fdtab_lock);
+	HA_RWLOCK_DESTROY(&fdcache_lock);
+	HA_SPIN_DESTROY(&poll_lock);
 }
 
 /*

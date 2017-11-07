@@ -2075,7 +2075,7 @@ void deinit(void)
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 					xprt_get(XPRT_SSL)->destroy_srv(s);
 			}
-			SPIN_DESTROY(&s->lock);
+			HA_SPIN_DESTROY(&s->lock);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
@@ -2124,8 +2124,8 @@ void deinit(void)
 
 		p0 = p;
 		p = p->next;
-		SPIN_DESTROY(&p0->lbprm.lock);
-		SPIN_DESTROY(&p0->lock);
+		HA_SPIN_DESTROY(&p0->lbprm.lock);
+		HA_SPIN_DESTROY(&p0->lock);
 		free(p0);
 	}/* end while(p) */
 

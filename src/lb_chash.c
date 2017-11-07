@@ -364,7 +364,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	srv = avoided = NULL;
 	avoided_node = NULL;
 
-	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
 	else if (p->lbprm.fbck) {
@@ -423,7 +423,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	}
 
  out:
-	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

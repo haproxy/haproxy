@@ -2108,7 +2108,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->proto = proto;
 		newpeer->xprt  = xprt_get(XPRT_RAW);
 		newpeer->sock_init_arg = NULL;
-		SPIN_INIT(&newpeer->lock);
+		HA_SPIN_INIT(&newpeer->lock);
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
@@ -2251,7 +2251,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curr_resolvers->nameservers);
 		LIST_INIT(&curr_resolvers->resolutions.curr);
 		LIST_INIT(&curr_resolvers->resolutions.wait);
-		SPIN_INIT(&curr_resolvers->lock);
+		HA_SPIN_INIT(&curr_resolvers->lock);
 	}
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct sockaddr_storage *sk;
@@ -8505,7 +8505,7 @@ out_uri_auth_compat:
 			}
 			break;
 		}
-		SPIN_INIT(&curproxy->lbprm.lock);
+		HA_SPIN_INIT(&curproxy->lbprm.lock);
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;

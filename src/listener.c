@@ -60,7 +60,7 @@ static void __do_unbind_listener(struct listener *listener, int do_close);
  */
 static void enable_listener(struct listener *listener)
 {
-	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_LISTEN) {
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    listener->bind_conf->bind_proc &&
@@ -83,7 +83,7 @@ static void enable_listener(struct listener *listener)
 			listener->state = LI_FULL;
 		}
 	}
-	SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function removes the specified listener's file descriptor from the
@@ -92,19 +92,19 @@ static void enable_listener(struct listener *listener)
  */
 static void disable_listener(struct listener *listener)
 {
-	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state < LI_READY)
 		goto end;
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->fd);
 	if (listener->state == LI_LIMITED) {
-		SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		LIST_DEL(&listener->wait_queue);
-		SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	}
 	listener->state = LI_LISTEN;
   end:
-	SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function tries to temporarily disable a listener, depending on the OS
@@ -118,7 +118,7 @@ int pause_listener(struct listener *l)
 {
 	int ret = 1;
 
-	SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
 	if (l->state <= LI_ZOMBIE)
 		goto end;
@@ -138,15 +138,15 @@ int pause_listener(struct listener *l)
 	}
 
 	if (l->state == LI_LIMITED) {
-		SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		LIST_DEL(&l->wait_queue);
-		SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	}
 
 	fd_stop_recv(l->fd);
 	l->state = LI_PAUSED;
   end:
-	SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
 }
 
@@ -164,7 +164,7 @@ static int __resume_listener(struct listener *l)
 {
 	int ret = 1;
 
-	SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 	    l->bind_conf->bind_proc &&
@@ -213,7 +213,7 @@ static int __resume_listener(struct listener *l)
 	fd_want_recv(l->fd);
 	l->state = LI_READY;
   end:
-	SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
 }
 
@@ -221,9 +221,9 @@ int resume_listener(struct listener *l)
 {
 	int ret;
 
-	SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+	HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	ret = __resume_listener(l);
-	SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+	HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	return ret;
 }
 
@@ -237,9 +237,9 @@ static void listener_full(struct listener *l)
 {
 	if (l->state >= LI_READY) {
 		if (l->state == LI_LIMITED) {
-			SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+			HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 			LIST_DEL(&l->wait_queue);
-			SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+			HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		}
 
 		fd_stop_recv(l->fd);
@@ -256,9 +256,9 @@ static void listener_full(struct listener *l)
 static void limit_listener(struct listener *l, struct list *list)
 {
 	if (l->state == LI_READY) {
-		SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		LIST_ADDQ(list, &l->wait_queue);
-		SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		fd_stop_recv(l->fd);
 		l->state = LI_LIMITED;
 	}
@@ -298,7 +298,7 @@ void dequeue_all_listeners(struct list *list)
 {
 	struct listener *listener, *l_back;
 
-	SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+	HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	list_for_each_entry_safe(listener, l_back, list, wait_queue) {
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state. The function also removes the entry
@@ -306,7 +306,7 @@ void dequeue_all_listeners(struct list *list)
 		 */
 		__resume_listener(listener);
 	}
-	SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+	HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 }
 
 /* must be called with the lock held */
@@ -316,9 +316,9 @@ static void __do_unbind_listener(struct listener *listener, int do_close)
 		fd_stop_recv(listener->fd);
 
 	if (listener->state == LI_LIMITED) {
-		SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_LOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 		LIST_DEL(&listener->wait_queue);
-		SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
+		HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 	}
 
 	if (listener->state >= LI_PAUSED) {
@@ -334,9 +334,9 @@ static void __do_unbind_listener(struct listener *listener, int do_close)
 
 static void do_unbind_listener(struct listener *listener, int do_close)
 {
-	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	__do_unbind_listener(listener, do_close);
-	SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function closes the listening socket for the specified listener,
@@ -406,7 +406,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 
 		proto->add(l, port);
 
-		SPIN_INIT(&l->lock);
+		HA_SPIN_INIT(&l->lock);
 		HA_ATOMIC_ADD(&jobs, 1);
 		HA_ATOMIC_ADD(&listeners, 1);
 	}
@@ -424,13 +424,13 @@ void delete_listener(struct listener *listener)
 	if (listener->state != LI_ASSIGNED)
 		return;
 
-	SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	listener->state = LI_INIT;
 	LIST_DEL(&listener->proto_list);
 	listener->proto->nb_listeners--;
 	HA_ATOMIC_SUB(&jobs, 1);
 	HA_ATOMIC_SUB(&listeners, 1);
-	SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function is called on a read event from a listening socket, corresponding
@@ -449,7 +449,7 @@ void listener_accept(int fd)
 	static int accept4_broken;
 #endif
 
-	if (SPIN_TRYLOCK(LISTENER_LOCK, &l->lock))
+	if (HA_SPIN_TRYLOCK(LISTENER_LOCK, &l->lock))
 		return;
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
@@ -657,7 +657,7 @@ void listener_accept(int fd)
 	limit_listener(l, &global_listener_queue);
 	task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
  end:
-	SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 }
 
 /* Notify the listener that a connection initiated from it was released. This
@@ -1019,7 +1019,7 @@ static void __listener_init(void)
 	sample_register_fetches(&smp_kws);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
-	SPIN_INIT(&lq_lock);
+	HA_SPIN_INIT(&lq_lock);
 }
 
 /*

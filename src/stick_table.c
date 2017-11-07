@@ -61,9 +61,9 @@ void __stksess_free(struct stktable *t, struct stksess *ts)
  */
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	__stksess_free(t, ts);
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /*
@@ -90,11 +90,11 @@ int stksess_kill(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int ret;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	if (decrefcnt)
 		ts->ref_cnt--;
 	ret = __stksess_kill(t, ts);
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ret;
 }
@@ -126,7 +126,7 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	ts->exp.node.leaf_p = NULL;
 	ts->upd.node.leaf_p = NULL;
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
-	RWLOCK_INIT(&ts->lock);
+	HA_RWLOCK_INIT(&ts->lock);
 	return ts;
 }
 
@@ -201,9 +201,9 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	int ret;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	ret = __stktable_trash_oldest(t, to_batch);
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ret;
 }
@@ -249,9 +249,9 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	ts = __stksess_new(t, key);
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -287,11 +287,11 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 {
 	struct stksess *ts;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	ts = __stktable_lookup_key(t, key);
 	if (ts)
 		ts->ref_cnt++;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return ts;
 }
@@ -325,11 +325,11 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct stksess *lts;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	lts = __stktable_lookup(t, ts);
 	if (lts)
 		lts->ref_cnt++;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return lts;
 }
@@ -389,11 +389,11 @@ void __stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local
  */
 void stktable_touch_remote(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	__stktable_touch_with_exp(t, ts, 0, ts->expire);
 	if (decrefcnt)
 		ts->ref_cnt--;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
@@ -406,18 +406,18 @@ void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
 	int expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	__stktable_touch_with_exp(t, ts, 1, expire);
 	if (decrefcnt)
 		ts->ref_cnt--;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 /* Just decrease the ref_cnt of the current session */
 void stktable_release(struct stktable *t, struct stksess *ts)
 {
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	ts->ref_cnt--;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
@@ -466,11 +466,11 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 {
 	struct stksess *ts;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
 	ts = __stktable_get_entry(table, key);
 	if (ts)
 		ts->ref_cnt++;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
 }
@@ -498,10 +498,10 @@ struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 {
 	struct stksess *ts;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &table->lock);
 	ts = __stktable_set_entry(table, nts);
 	ts->ref_cnt++;
-	SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &table->lock);
 
 	return ts;
 }
@@ -515,7 +515,7 @@ static int stktable_trash_expired(struct stktable *t)
 	struct eb32_node *eb;
 	int looped = 0;
 
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
 
 	while (1) {
@@ -570,7 +570,7 @@ static int stktable_trash_expired(struct stktable *t)
 	/* We have found no task to expire in any tree */
 	t->exp_next = TICK_ETERNITY;
 out_unlock:
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 	return t->exp_next;
 }
 
@@ -593,7 +593,7 @@ int stktable_init(struct stktable *t)
 		t->keys = EB_ROOT_UNIQUE;
 		memset(&t->exps, 0, sizeof(t->exps));
 		t->updates = EB_ROOT_UNIQUE;
-		SPIN_INIT(&t->lock);
+		HA_SPIN_INIT(&t->lock);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->data_size + t->key_size, MEM_F_SHARED);
 
@@ -1546,7 +1546,7 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 		ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0_RATE);
 		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
 		if (ptr1 || ptr2) {
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			if (ptr1)
 				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
@@ -1555,7 +1555,7 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 			if (ptr2)
 				stktable_data_cast(ptr2, gpc0)++;
 
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
 			stktable_touch_local(stkctr->table, ts, 0);
@@ -1628,11 +1628,11 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
 	if (ptr) {
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
 
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 		stktable_touch_local(stkctr->table, ts, 0);
 	}
@@ -1887,11 +1887,11 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, gpt0);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -1928,11 +1928,11 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -1968,12 +1968,12 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
 		                  stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2012,7 +2012,7 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
 		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (ptr1 || ptr2) {
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			if (ptr1) {
 				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
@@ -2023,7 +2023,7 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			if (ptr2)
 				smp->data.u.sint = ++stktable_data_cast(ptr2, gpc0);
 
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
 			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
@@ -2065,12 +2065,12 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
 
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		/* If data was modified, we need to touch to re-schedule sync */
 		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
@@ -2105,11 +2105,11 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, conn_cnt);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2146,12 +2146,12 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2197,11 +2197,11 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 
 	smp->data.type = SMP_T_SINT;
 
-	RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 	smp->data.u.sint = ++stktable_data_cast(ptr, conn_cnt);
 
-	RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	smp->flags = SMP_F_VOL_TEST;
 
@@ -2238,11 +2238,11 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, conn_cur);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2277,11 +2277,11 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, sess_cnt);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2315,12 +2315,12 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2355,11 +2355,11 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, http_req_cnt);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2394,12 +2394,12 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2434,11 +2434,11 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, http_err_cnt);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2473,12 +2473,12 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2513,11 +2513,11 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2552,12 +2552,12 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2592,11 +2592,11 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2631,12 +2631,12 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 			return 0; /* parameter not stored */
 		}
 
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		if (stkctr == &tmpstkctr)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -2875,13 +2875,13 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			stktable_release(&px->table, ts);
 			return 0;
 		}
-		RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 		if (!table_dump_entry_to_buffer(&trash, si, px, ts)) {
-			RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 			stktable_release(&px->table, ts);
 			return 0;
 		}
-		RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 		stktable_release(&px->table, ts);
 		break;
 
@@ -2910,13 +2910,13 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			return 1;
 		}
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
 			if (strncmp(args[cur_arg], "data.", 5) != 0) {
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
 				appctx->st0 = CLI_ST_PRINT;
-				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
@@ -2926,7 +2926,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Unknown data type\n";
 				appctx->st0 = CLI_ST_PRINT;
-				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
@@ -2935,7 +2935,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Data type not stored in this table\n";
 				appctx->st0 = CLI_ST_PRINT;
-				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
@@ -2944,7 +2944,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				appctx->ctx.cli.severity = LOG_ERR;
 				appctx->ctx.cli.msg = "Require a valid integer value to store\n";
 				appctx->st0 = CLI_ST_PRINT;
-				RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(&px->table, ts, 1);
 				return 1;
 			}
@@ -2978,7 +2978,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				break;
 			}
 		}
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		stktable_touch_local(&px->table, ts, 1);
 		break;
 
@@ -3155,16 +3155,16 @@ static int cli_io_handler_table(struct appctx *appctx)
 				if (appctx->ctx.table.target &&
 				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
-					SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+					HA_SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 					eb = ebmb_first(&appctx->ctx.table.proxy->table.keys);
 					if (eb) {
 						appctx->ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 						appctx->ctx.table.entry->ref_cnt++;
 						appctx->st2 = STAT_ST_LIST;
-						SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+						HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 						break;
 					}
-					SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+					HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 				}
 			}
 			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
@@ -3173,7 +3173,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 		case STAT_ST_LIST:
 			skip_entry = 0;
 
-			RWLOCK_RDLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
 
 			if (appctx->ctx.table.data_type >= 0) {
 				/* we're filtering on some data contents */
@@ -3221,13 +3221,13 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 			if (show && !skip_entry &&
 			    !table_dump_entry_to_buffer(&trash, si, appctx->ctx.table.proxy, appctx->ctx.table.entry)) {
-				RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+				HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
 				return 0;
 			}
 
-			RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
+			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &appctx->ctx.table.entry->lock);
 
-			SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+			HA_SPIN_LOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 			appctx->ctx.table.entry->ref_cnt--;
 
 			eb = ebmb_next(&appctx->ctx.table.entry->key);
@@ -3239,7 +3239,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 				else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
 					__stksess_kill(&appctx->ctx.table.proxy->table, old);
 				appctx->ctx.table.entry->ref_cnt++;
-				SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 				break;
 			}
 
@@ -3249,7 +3249,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 			else if (!skip_entry && !appctx->ctx.table.entry->ref_cnt)
 				__stksess_kill(&appctx->ctx.table.proxy->table, appctx->ctx.table.entry);
 
-			SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
+			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &appctx->ctx.table.proxy->table.lock);
 
 			appctx->ctx.table.proxy = appctx->ctx.table.proxy->next;
 			appctx->st2 = STAT_ST_INFO;

@@ -171,7 +171,7 @@ spoe_release_agent(struct spoe_agent *agent)
 		spoe_release_group(grp);
 	}
 	for (i = 0; i < global.nbthread; ++i)
-		SPIN_DESTROY(&agent->rt[i].lock);
+		HA_SPIN_DESTROY(&agent->rt[i].lock);
 	free(agent->rt);
 	free(agent);
 }
@@ -1426,10 +1426,10 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 			 * add the applet in the list of running applets. */
 			agent->rt[tid].applets_idle++;
 			appctx->st0 = SPOE_APPCTX_ST_IDLE;
-			SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+			HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 			LIST_DEL(&SPOE_APPCTX(appctx)->list);
 			LIST_ADD(&agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
-			SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+			HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 
 			/* Update runtinme agent info */
 			HA_ATOMIC_UPDATE_MIN(&agent->rt[tid].frame_size, SPOE_APPCTX(appctx)->max_frame_size);
@@ -1710,10 +1710,10 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		agent->rt[tid].applets_idle++;
 	}
 	if (fpa || (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_PERSIST)) {
-		SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+		HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 		LIST_DEL(&SPOE_APPCTX(appctx)->list);
 		LIST_ADD(&agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
-		SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+		HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 		if (fpa)
 			SPOE_APPCTX(appctx)->task->expire =
 				tick_add_ifset(now_ms, agent->timeout.idle);
@@ -1985,9 +1985,9 @@ spoe_create_appctx(struct spoe_config *conf)
 	strm->do_log = NULL;
 	strm->res.flags |= CF_READ_DONTWAIT;
 
-	SPIN_LOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
+	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
 	LIST_ADDQ(&conf->agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
-	SPIN_UNLOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
+	HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
 	conf->agent->rt[tid].applets_act++;
 
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
@@ -2096,10 +2096,10 @@ spoe_queue_context(struct spoe_context *ctx)
 		appctx = spoe_appctx->owner;
 		if (appctx->st0 == SPOE_APPCTX_ST_IDLE) {
 			spoe_wakeup_appctx(appctx);
-			SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+			HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 			LIST_DEL(&spoe_appctx->list);
 			LIST_ADDQ(&agent->rt[tid].applets, &spoe_appctx->list);
-			SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
+			HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 			break;
 		}
 	}
@@ -2699,18 +2699,18 @@ spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 		return 1;
 
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&buffer_wait->list);
 		LIST_INIT(&buffer_wait->list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	if (b_alloc_margin(buf, global.tune.reserved_bufs))
 		return 1;
 
-	SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	LIST_ADDQ(&buffer_wq, &buffer_wait->list);
-	SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	return 0;
 }
 
@@ -2718,10 +2718,10 @@ static void
 spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 {
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&buffer_wait->list);
 		LIST_INIT(&buffer_wait->list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	/* Release the buffer if needed */
@@ -2813,10 +2813,10 @@ spoe_sig_stop(struct sig_handler *sh)
 			agent = conf->agent;
 
 			for (i = 0; i < global.nbthread; ++i) {
-				SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[i].lock);
+				HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[i].lock);
 				list_for_each_entry(spoe_appctx, &agent->rt[i].applets, list)
 					spoe_wakeup_appctx(spoe_appctx->owner);
-				SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[i].lock);
+				HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[i].lock);
 			}
 		}
 		p = p->next;
@@ -3221,7 +3221,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			LIST_INIT(&curagent->rt[i].applets);
 			LIST_INIT(&curagent->rt[i].sending_queue);
 			LIST_INIT(&curagent->rt[i].waiting_queue);
-			SPIN_INIT(&curagent->rt[i].lock);
+			HA_SPIN_INIT(&curagent->rt[i].lock);
 		}
 	}
 	else if (!strcmp(args[0], "use-backend")) {

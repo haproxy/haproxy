@@ -486,7 +486,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 				/* Remove any associated server */
 				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-					SPIN_LOCK(SERVER_LOCK, &srv->lock);
+					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 					if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 					    item->data_len == srv->hostname_dn_len &&
 					    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
@@ -498,7 +498,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 						srv->hostname_dn_len = 0;
 						dns_unlink_resolution(srv->dns_requester);
 					}
-					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
 			}
 
@@ -518,7 +518,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 			/* Check if a server already uses that hostname */
 			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-				SPIN_LOCK(SERVER_LOCK, &srv->lock);
+				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
 				    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
@@ -528,20 +528,20 @@ static void dns_check_dns_response(struct dns_resolution *res)
 						snprintf(weight, sizeof(weight), "%d", item->weight);
 						server_parse_weight_change_request(srv, weight);
 					}
-					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					break;
 				}
-				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 			if (srv)
 				continue;
 
 			/* If not, try to find a server with undefined hostname */
 			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-				SPIN_LOCK(SERVER_LOCK, &srv->lock);
+				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && !srv->hostname_dn)
 					break;
-				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 			/* And update this server, if found */
 			if (srv) {
@@ -551,7 +551,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 				if (dns_dn_label_to_str(item->target, item->data_len+1,
 							hostname, DNS_MAX_NAME_SIZE) == -1) {
-					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					continue;
 				}
 				msg = update_server_fqdn(srv, hostname, "SRV record", 1);
@@ -565,7 +565,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 					srv->check.port = item->port;
 				snprintf(weight, sizeof(weight), "%d", item->weight);
 				server_parse_weight_change_request(srv, weight);
-				SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 		}
 	}
@@ -1348,11 +1348,11 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 
 	if (srv) {
 		if (!requester_locked)
-			SPIN_LOCK(SERVER_LOCK, &srv->lock);
+			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		if (srv->dns_requester == NULL) {
 			if ((req = calloc(1, sizeof(*req))) == NULL) {
 				if (!requester_locked)
-					SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				goto err;
 			}
 			req->owner         = &srv->obj_type;
@@ -1361,7 +1361,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 		else
 			req = srv->dns_requester;
 		if (!requester_locked)
-			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 	else if (srvrq) {
 		if (srvrq->dns_requester == NULL) {
@@ -1463,7 +1463,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		return;
 
 	resolvers = ns->resolvers;
-	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* process all pending input messages */
 	while (1) {
@@ -1617,10 +1617,10 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 			struct server *s = objt_server(req->owner);
 
 			if (s)
-				SPIN_LOCK(SERVER_LOCK, &s->lock);
+				HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 			req->requester_cb(req, tmpns);
 			if (s)
-				SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+				HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 			tmpns = NULL;
 		}
 
@@ -1630,7 +1630,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		continue;
 	}
 	dns_update_resolvers_timeout(resolvers);
-	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 }
 
 /* Called when a resolvers network socket is ready to send data */
@@ -1655,7 +1655,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		return;
 
 	resolvers = ns->resolvers;
-	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	list_for_each_entry(res, &resolvers->resolutions.curr, list) {
 		int ret;
@@ -1682,7 +1682,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		ns->counters.snd_error++;
 		res->nb_queries++;
 	}
-	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 }
 
 /* Processes DNS resolution. First, it checks the active list to detect expired
@@ -1695,7 +1695,7 @@ static struct task *dns_process_resolvers(struct task *t)
 	struct dns_resolution *res, *resback;
 	int exp;
 
-	SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* Handle all expired resolutions from the active list */
 	list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
@@ -1765,7 +1765,7 @@ static struct task *dns_process_resolvers(struct task *t)
 	}
 
 	dns_update_resolvers_timeout(resolvers);
-	SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 	return t;
 }
 

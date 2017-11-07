@@ -325,16 +325,16 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		 * this pointer. We know we have reached the end when this
 		 * pointer points back to the head of the streams list.
 		 */
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		LIST_INIT(&appctx->ctx.map.bref.users);
 		appctx->ctx.map.bref.ref = appctx->ctx.map.ref->head.n;
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
 
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 
 		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
 			LIST_DEL(&appctx->ctx.map.bref.users);
@@ -360,7 +360,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				 * this stream's users so that it can remove us upon termination.
 				 */
 				LIST_ADDQ(&elt->back_refs, &appctx->ctx.map.bref.users);
-				SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -368,7 +368,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 			/* get next list entry and check the end of the list */
 			appctx->ctx.map.bref.ref = elt->list.n;
 		}
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
@@ -456,7 +456,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 		/* fall through */
 
 	case STAT_ST_LIST:
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		/* for each lookup type */
 		while (appctx->ctx.map.expr) {
 			/* initialise chunk to build new message */
@@ -542,7 +542,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -551,7 +551,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			appctx->ctx.map.expr = pat_expr_get_next(appctx->ctx.map.expr,
 			                                         &appctx->ctx.map.ref->pat);
 		}
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
@@ -628,10 +628,10 @@ static int cli_parse_get_map(char **args, struct appctx *appctx, void *private)
 static void cli_release_show_map(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST) {
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users))
 			LIST_DEL(&appctx->ctx.map.bref.users);
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
 }
 
@@ -728,32 +728,32 @@ static int cli_parse_set_map(char **args, struct appctx *appctx, void *private)
 
 			/* Try to delete the entry. */
 			err = NULL;
-			SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4], &err)) {
-				SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 				if (err)
 					memprintf(&err, "%s.\n", err);
 				appctx->ctx.cli.err = err;
 				appctx->st0 = CLI_ST_PRINT_FREE;
 				return 1;
 			}
-			SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		}
 		else {
 			/* Else, use the entry identifier as pattern
 			 * string, and update the value.
 			 */
 			err = NULL;
-			SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4], &err)) {
-				SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 				if (err)
 					memprintf(&err, "%s.\n", err);
 				appctx->ctx.cli.err = err;
 				appctx->st0 = CLI_ST_PRINT_FREE;
 				return 1;
 			}
-			SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		}
 
 		/* The set is done, send message. */
@@ -825,12 +825,12 @@ static int cli_parse_add_map(char **args, struct appctx *appctx, void *private)
 
 		/* Add value. */
 		err = NULL;
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (appctx->ctx.map.display_flags == PAT_REF_MAP)
 			ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], &err);
 		else
 			ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!ret) {
 			if (err)
 				memprintf(&err, "%s.\n", err);
@@ -910,31 +910,31 @@ static int cli_parse_del_map(char **args, struct appctx *appctx, void *private)
 		}
 
 		/* Try to delete the entry. */
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!pat_ref_delete_by_id(appctx->ctx.map.ref, ref)) {
-			SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			/* The entry is not found, send message. */
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Key not found.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
 	else {
 		/* Else, use the entry identifier as pattern
 		 * string and try to delete the entry.
 		 */
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!pat_ref_delete(appctx->ctx.map.ref, args[3])) {
-			SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			/* The entry is not found, send message. */
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Key not found.\n";
 			appctx->st0 = CLI_ST_PRINT;
 			return 1;
 		}
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
 
 	/* The deletion is done, send message. */
@@ -983,9 +983,9 @@ static int cli_parse_clear_map(char **args, struct appctx *appctx, void *private
 		}
 
 		/* Clear all. */
-		SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		pat_ref_prune(appctx->ctx.map.ref);
-		SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 
 		/* return response */
 		appctx->st0 = CLI_ST_PROMPT;

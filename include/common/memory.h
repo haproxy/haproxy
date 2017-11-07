@@ -135,9 +135,9 @@ static inline void *pool_get_first(struct pool_head *pool)
 {
 	void *ret;
 
-	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	ret = __pool_get_first(pool);
-	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	return ret;
 }
 /*
@@ -150,10 +150,10 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 {
 	void *p;
 
-	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	if ((p = __pool_get_first(pool)) == NULL)
 		p = __pool_refill_alloc(pool, 0);
-	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	return p;
 }
 
@@ -169,10 +169,10 @@ static inline void *pool_alloc2(struct pool_head *pool)
 	p = pool_alloc_dirty(pool);
 #ifdef DEBUG_MEMORY_POOLS
 	if (p) {
-		SPIN_LOCK(POOL_LOCK, &pool->lock);
+		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		/* keep track of where the element was allocated from */
 		*POOL_LINK(pool, p) = (void *)pool;
-		SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 #endif
 	if (p && mem_poison_byte >= 0) {
@@ -194,7 +194,7 @@ static inline void *pool_alloc2(struct pool_head *pool)
 static inline void pool_free2(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-		SPIN_LOCK(POOL_LOCK, &pool->lock);
+		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
@@ -203,7 +203,7 @@ static inline void pool_free2(struct pool_head *pool, void *ptr)
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
                 pool->free_list = (void *)ptr;
                 pool->used--;
-		SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 }
 #endif /* _COMMON_MEMORY_H */

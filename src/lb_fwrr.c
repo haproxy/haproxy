@@ -470,7 +470,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	struct fwrr_group *grp;
 	int switched;
 
-	SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		grp = &p->lbprm.fwrr.act;
 	else if (p->lbprm.fbck) {
@@ -564,7 +564,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		}
 	}
  out:
-	SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

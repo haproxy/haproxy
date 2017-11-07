@@ -120,7 +120,7 @@ void thread_enter_sync()
 
 	thread_sync_barrier(&barrier);
 	if (threads_want_sync & tid_bit)
-		SPIN_LOCK(THREAD_SYNC_LOCK, &sync_lock);
+		HA_SPIN_LOCK(THREAD_SYNC_LOCK, &sync_lock);
 }
 
 /* Exit from the sync point and unlock it if it was previously locked. If the
@@ -135,7 +135,7 @@ void thread_exit_sync()
 		return;
 
 	if (threads_want_sync & tid_bit)
-		SPIN_UNLOCK(THREAD_SYNC_LOCK, &sync_lock);
+		HA_SPIN_UNLOCK(THREAD_SYNC_LOCK, &sync_lock);
 
 	if (HA_ATOMIC_AND(&threads_want_sync, ~tid_bit) == 0) {
 		char c;
@@ -151,7 +151,7 @@ void thread_exit_sync()
 __attribute__((constructor))
 static void __hathreads_init(void)
 {
-	SPIN_INIT(&sync_lock);
+	HA_SPIN_INIT(&sync_lock);
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif

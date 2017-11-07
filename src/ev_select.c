@@ -31,10 +31,10 @@ static THREAD_LOCAL fd_set *tmp_evts[2];
 /* Immediately remove the entry upon close() */
 REGPRM1 static void __fd_clo(int fd)
 {
-	SPIN_LOCK(POLL_LOCK, &poll_lock);
+	HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 	FD_CLR(fd, fd_evts[DIR_RD]);
 	FD_CLR(fd, fd_evts[DIR_WR]);
-	SPIN_UNLOCK(POLL_LOCK, &poll_lock);
+	HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 }
 
 /*
@@ -58,18 +58,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (!fdtab[fd].owner)
 			continue;
 
-		SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].updated = 0;
 		fdtab[fd].new = 0;
 
 		eo = fdtab[fd].state;
 		en = fd_compute_new_polled_status(eo);
 		fdtab[fd].state = en;
-		SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed, update the lists */
-			SPIN_LOCK(POLL_LOCK, &poll_lock);
+			HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
 				FD_CLR(fd, fd_evts[DIR_RD]);
 			else if ((en & ~eo) & FD_EV_POLLED_R)
@@ -79,7 +79,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				FD_CLR(fd, fd_evts[DIR_WR]);
 			else if ((en & ~eo) & FD_EV_POLLED_W)
 				FD_SET(fd, fd_evts[DIR_WR]);
-			SPIN_UNLOCK(POLL_LOCK, &poll_lock);
+			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
 	fd_nbupdt = 0;

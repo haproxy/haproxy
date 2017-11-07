@@ -93,7 +93,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		LIST_ADDQ(start, &pool->list);
 	}
 	pool->users++;
-	SPIN_INIT(&pool->lock);
+	HA_SPIN_INIT(&pool->lock);
 	return pool;
 }
 
@@ -143,9 +143,9 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 {
 	void *ptr;
 
-	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	ptr = __pool_refill_alloc(pool, avail);
-	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	return ptr;
 }
 /*
@@ -157,7 +157,7 @@ void pool_flush2(struct pool_head *pool)
 	if (!pool)
 		return;
 
-	SPIN_LOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	next = pool->free_list;
 	while (next) {
 		temp = next;
@@ -166,7 +166,7 @@ void pool_flush2(struct pool_head *pool)
 		free(temp);
 	}
 	pool->free_list = next;
-	SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	/* here, we should have pool->allocate == pool->used */
 }
 
@@ -192,7 +192,7 @@ void pool_gc2(struct pool_head *pool_ctx)
 		void *temp, *next;
 		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
 		if (entry != pool_ctx)
-			SPIN_LOCK(POOL_LOCK, &entry->lock);
+			HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 		next = entry->free_list;
 		while (next &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
@@ -203,7 +203,7 @@ void pool_gc2(struct pool_head *pool_ctx)
 		}
 		entry->free_list = next;
 		if (entry != pool_ctx)
-			SPIN_UNLOCK(POOL_LOCK, &entry->lock);
+			HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
 
 	HA_ATOMIC_STORE(&recurse, 0);
@@ -225,7 +225,7 @@ void *pool_destroy2(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DEL(&pool->list);
-			SPIN_DESTROY(&pool->lock);
+			HA_SPIN_DESTROY(&pool->lock);
 			free(pool);
 		}
 	}
@@ -242,7 +242,7 @@ void dump_pools_to_trash()
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-		SPIN_LOCK(POOL_LOCK, &entry->lock);
+		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used, entry->failed,
@@ -251,7 +251,7 @@ void dump_pools_to_trash()
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
-		SPIN_UNLOCK(POOL_LOCK, &entry->lock);
+		HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
 	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);

@@ -110,20 +110,20 @@ static inline int task_in_wq(struct task *t)
 struct task *__task_wakeup(struct task *t);
 static inline struct task *task_wakeup(struct task *t, unsigned int f)
 {
-	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 
 	/* If task is running, we postpone the call
 	 * and backup the state.
 	 */
 	if (unlikely(t->state & TASK_RUNNING)) {
 		t->pending_state |= f;
-		SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 		return t;
 	}
 	if (likely(!task_in_rq(t)))
 		__task_wakeup(t);
 	t->state |= f;
-	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
 	return t;
 }
@@ -148,10 +148,10 @@ static inline struct task *__task_unlink_wq(struct task *t)
 
 static inline struct task *task_unlink_wq(struct task *t)
 {
-	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (likely(task_in_wq(t)))
 		__task_unlink_wq(t);
-	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 	return t;
 }
 
@@ -176,10 +176,10 @@ static inline struct task *__task_unlink_rq(struct task *t)
  */
 static inline struct task *task_unlink_rq(struct task *t)
 {
-	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	if (likely(task_in_rq(t)))
 		__task_unlink_rq(t);
-	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
 }
 
@@ -256,10 +256,10 @@ static inline void task_queue(struct task *task)
 	if (!tick_isset(task->expire))
 		return;
 
-	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
-	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 }
 
 /* Ensure <task> will be woken up at most at <when>. If the task is already in
@@ -272,14 +272,14 @@ static inline void task_schedule(struct task *task, int when)
 	if (task_in_rq(task))
 		return;
 
-	SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 	if (task_in_wq(task))
 		when = tick_first(when, task->expire);
 
 	task->expire = when;
 	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
-	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 }
 
 /* This function register a new signal. "lua" is the current lua
@@ -296,7 +296,7 @@ static inline struct notification *notification_new(struct list *purge, struct l
 		return NULL;
 	LIST_ADDQ(purge, &com->purge_me);
 	LIST_ADDQ(event, &com->wake_me);
-	SPIN_INIT(&com->lock);
+	HA_SPIN_INIT(&com->lock);
 	com->task = wakeup;
 	return com;
 }
@@ -311,15 +311,15 @@ static inline void notification_purge(struct list *purge)
 
 	/* Delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, purge, purge_me) {
-		SPIN_LOCK(NOTIF_LOCK, &com->lock);
+		HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
 		LIST_DEL(&com->purge_me);
 		if (!com->task) {
-			SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 			pool_free2(pool2_notification, com);
 			continue;
 		}
 		com->task = NULL;
-		SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+		HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 	}
 }
 
@@ -333,16 +333,16 @@ static inline void notification_wake(struct list *wake)
 
 	/* Wake task and delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, wake, wake_me) {
-		SPIN_LOCK(NOTIF_LOCK, &com->lock);
+		HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
 		LIST_DEL(&com->wake_me);
 		if (!com->task) {
-			SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 			pool_free2(pool2_notification, com);
 			continue;
 		}
 		task_wakeup(com->task, TASK_WOKEN_MSG);
 		com->task = NULL;
-		SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+		HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 	}
 }
 

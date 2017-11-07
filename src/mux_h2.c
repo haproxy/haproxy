@@ -233,9 +233,9 @@ static inline struct buffer *h2_get_dbuf(struct h2c *h2c)
 	    unlikely((buf = b_alloc_margin(&h2c->dbuf, 0)) == NULL)) {
 		h2c->dbuf_wait.target = h2c->conn;
 		h2c->dbuf_wait.wakeup_cb = h2_dbuf_available;
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &h2c->dbuf_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		__conn_xprt_stop_recv(h2c->conn);
 	}
 	return buf;
@@ -289,9 +289,9 @@ static inline struct buffer *h2_get_mbuf(struct h2c *h2c)
 	    unlikely((buf = b_alloc_margin(&h2c->mbuf, 0)) == NULL)) {
 		h2c->mbuf_wait.target = h2c;
 		h2c->mbuf_wait.wakeup_cb = h2_mbuf_available;
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &h2c->mbuf_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
 		/* FIXME: we should in fact only block the direction being
 		 * currently used. For now it will be enough like this.
@@ -425,14 +425,14 @@ static void h2_release(struct connection *conn)
 	if (h2c) {
 		hpack_dht_free(h2c->ddht);
 		h2_release_dbuf(h2c);
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&h2c->dbuf_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
 		h2_release_mbuf(h2c);
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&h2c->mbuf_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
 		if (h2c->task) {
 			task_delete(h2c->task);

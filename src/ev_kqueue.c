@@ -50,14 +50,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (!fdtab[fd].owner)
 			continue;
 
-		SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].updated = 0;
 		fdtab[fd].new = 0;
 
 		eo = fdtab[fd].state;
 		en = fd_compute_new_polled_status(eo);
 		fdtab[fd].state = en;
-		SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed */

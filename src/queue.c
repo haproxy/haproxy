@@ -142,8 +142,8 @@ void process_srv_queue(struct server *s)
 	struct proxy  *p = s->proxy;
 	int maxconn;
 
-	SPIN_LOCK(PROXY_LOCK,  &p->lock);
-	SPIN_LOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_LOCK(PROXY_LOCK,  &p->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 
 	/* First, check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
@@ -156,8 +156,8 @@ void process_srv_queue(struct server *s)
 			break;
 		task_wakeup(strm->task, TASK_WOKEN_RES);
 	}
-	SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-	SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
 }
 
 /* Adds the stream <strm> to the pending connection list of server <strm>->srv
@@ -182,17 +182,17 @@ struct pendconn *pendconn_add(struct stream *strm)
 
 	if ((strm->flags & SF_ASSIGNED) && srv) {
 		p->srv = srv;
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		LIST_ADDQ(&srv->pendconns, &p->list);
-		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 		count = HA_ATOMIC_ADD(&srv->nbpend, 1);
 		strm->logs.srv_queue_size += count;
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.nbpend_max, count);
 	} else {
 		p->srv = NULL;
-		SPIN_LOCK(PROXY_LOCK, &strm->be->lock);
+		HA_SPIN_LOCK(PROXY_LOCK, &strm->be->lock);
 		LIST_ADDQ(&strm->be->pendconns, &p->list);
-		SPIN_UNLOCK(PROXY_LOCK, &strm->be->lock);
+		HA_SPIN_UNLOCK(PROXY_LOCK, &strm->be->lock);
 		count = HA_ATOMIC_ADD(&strm->be->nbpend, 1);
 		strm->logs.prx_queue_size += count;
 		HA_ATOMIC_UPDATE_MAX(&strm->be->be_counters.nbpend_max, count);
@@ -209,7 +209,7 @@ int pendconn_redistribute(struct server *s)
 	struct pendconn *pc, *pc_bck;
 	int xferred = 0;
 
-	SPIN_LOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	list_for_each_entry_safe(pc, pc_bck, &s->pendconns, list) {
 		struct stream *strm = pc->strm;
 
@@ -227,7 +227,7 @@ int pendconn_redistribute(struct server *s)
 			xferred++;
 		}
 	}
-	SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	return xferred;
 }
 
@@ -243,7 +243,7 @@ int pendconn_grab_from_px(struct server *s)
 	if (!srv_currently_usable(s))
 		return 0;
 
-	SPIN_LOCK(PROXY_LOCK, &s->proxy->lock);
+	HA_SPIN_LOCK(PROXY_LOCK, &s->proxy->lock);
 	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
 		struct stream *strm;
 		struct pendconn *p;
@@ -256,7 +256,7 @@ int pendconn_grab_from_px(struct server *s)
 		__pendconn_free(p);
 		task_wakeup(strm->task, TASK_WOKEN_RES);
 	}
-	SPIN_UNLOCK(PROXY_LOCK, &s->proxy->lock);
+	HA_SPIN_UNLOCK(PROXY_LOCK, &s->proxy->lock);
 	return xferred;
 }
 
@@ -268,15 +268,15 @@ int pendconn_grab_from_px(struct server *s)
 void pendconn_free(struct pendconn *p)
 {
 	if (p->srv) {
-		SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 		LIST_DEL(&p->list);
-		SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 		HA_ATOMIC_SUB(&p->srv->nbpend, 1);
 	}
 	else {
-		SPIN_LOCK(SERVER_LOCK, &p->strm->be->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &p->strm->be->lock);
 		LIST_DEL(&p->list);
-		SPIN_UNLOCK(SERVER_LOCK, &p->strm->be->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->strm->be->lock);
 		HA_ATOMIC_SUB(&p->strm->be->nbpend, 1);
 	}
 	p->strm->pend_pos = NULL;

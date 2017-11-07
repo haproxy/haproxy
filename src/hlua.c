@@ -125,11 +125,11 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define SET_SAFE_LJMP(__L) \
 	({ \
 		int ret; \
-		SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
+		HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
 		if (setjmp(safe_ljmp_env) != 0) { \
 			lua_atpanic(__L, hlua_panic_safe); \
 			ret = 0; \
-			SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
+			HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 		} else { \
 			lua_atpanic(__L, hlua_panic_ljmp); \
 			ret = 1; \
@@ -143,7 +143,7 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define RESET_SAFE_LJMP(__L) \
 	do { \
 		lua_atpanic(__L, hlua_panic_safe); \
-		SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
+		HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 	} while(0)
 
 /* Applet status flags */
@@ -994,7 +994,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	/* Lock the whole Lua execution. This lock must be before the
 	 * label "resume_execution".
 	 */
-	SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
+	HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
 
 resume_execution:
 
@@ -1154,7 +1154,7 @@ resume_execution:
 	}
 
 	/* This is the main exit point, remove the Lua lock. */
-	SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
+	HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
 
 	return ret;
 }
@@ -7370,7 +7370,7 @@ void hlua_init(void)
 	};
 #endif
 
-	SPIN_INIT(&hlua_global_lock);
+	HA_SPIN_INIT(&hlua_global_lock);
 
 	/* Initialise struct hlua and com signals pool */
 	pool2_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);

@@ -441,9 +441,9 @@ static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *
 		return 1;
 
 	if (LIST_ISEMPTY(&wait->list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &wait->list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	return 0;

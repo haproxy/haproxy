@@ -88,10 +88,10 @@ static inline void __appctx_free(struct appctx *appctx)
 	}
 
 	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&appctx->buffer_wait.list);
 		LIST_INIT(&appctx->buffer_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	pool_free2(pool2_connection, appctx);
@@ -99,14 +99,14 @@ static inline void __appctx_free(struct appctx *appctx)
 }
 static inline void appctx_free(struct appctx *appctx)
 {
-	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		appctx->state |= APPLET_WANT_DIE;
-		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return;
 	}
 	__appctx_free(appctx);
-	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 }
 
 /* wakes up an applet when conditions have changed */
@@ -120,14 +120,14 @@ static inline void __appctx_wakeup(struct appctx *appctx)
 
 static inline void appctx_wakeup(struct appctx *appctx)
 {
-	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		appctx->state |= APPLET_WOKEN_UP;
-		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return;
 	}
 	__appctx_wakeup(appctx);
-	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -137,18 +137,18 @@ static inline void appctx_wakeup(struct appctx *appctx)
  * requested */
 static inline int appctx_res_wakeup(struct appctx *appctx)
 {
-	SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (appctx->state & APPLET_RUNNING) {
 		if (appctx->state & APPLET_WOKEN_UP) {
-			SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+			HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 			return 0;
 		}
 		appctx->state |= APPLET_WOKEN_UP;
-		SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return 1;
 	}
 	__appctx_wakeup(appctx);
-	SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 	return 1;
 }
 

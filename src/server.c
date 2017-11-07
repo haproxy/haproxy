@@ -881,9 +881,9 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 
 	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopped(srv, NULL, NULL);
-		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -923,9 +923,9 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 
 	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_running(srv, NULL, NULL);
-		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -964,9 +964,9 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 
 	srv_register_update(s);
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopping(srv, NULL, NULL);
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -1007,9 +1007,9 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		mode = SRV_ADMF_IDRAIN;
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_admin_flag(srv, mode, cause);
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -1045,9 +1045,9 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		mode = SRV_ADMF_IDRAIN;
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_clr_admin_flag(srv, mode);
-		SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -1062,13 +1062,13 @@ static void srv_propagate_admin_state(struct server *srv)
 		return;
 
 	for (srv2 = srv->trackers; srv2; srv2 = srv2->tracknext) {
-		SPIN_LOCK(SERVER_LOCK, &srv2->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &srv2->lock);
 		if (srv->next_admin & (SRV_ADMF_MAINT | SRV_ADMF_CMAINT))
 			srv_set_admin_flag(srv2, SRV_ADMF_IMAINT, NULL);
 
 		if (srv->next_admin & SRV_ADMF_DRAIN)
 			srv_set_admin_flag(srv2, SRV_ADMF_IDRAIN, NULL);
-		SPIN_UNLOCK(SERVER_LOCK, &srv2->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv2->lock);
 	}
 }
 
@@ -2028,7 +2028,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			/* Copy default server settings to new server settings. */
 			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
-			SPIN_INIT(&newsrv->lock);
+			HA_SPIN_INIT(&newsrv->lock);
 			cur_arg++;
 		} else {
 			newsrv = &curproxy->defsrv;
@@ -2600,10 +2600,10 @@ static void srv_register_update(struct server *srv)
 {
 	if (LIST_ISEMPTY(&srv->update_status)) {
 		THREAD_WANT_SYNC();
-		SPIN_LOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
+		HA_SPIN_LOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
 		if (LIST_ISEMPTY(&srv->update_status))
 			LIST_ADDQ(&updated_servers, &srv->update_status);
-		SPIN_UNLOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
+		HA_SPIN_UNLOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
 	}
 }
 
@@ -2789,7 +2789,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			if (msg->len)
 				goto out;
 
-			SPIN_LOCK(SERVER_LOCK, &srv->lock);
+			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 			/* recover operational state and apply it to this server
 			 * and all servers tracking this one */
 			switch (srv_op_state) {
@@ -2919,7 +2919,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			if (port_str)
 				srv->svc_port = port;
-			SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 			break;
 		default:
@@ -3696,9 +3696,9 @@ int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
 	s = objt_server(requester->owner);
 	if (!s)
 		return 1;
-	SPIN_LOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	snr_update_srv_status(s, 0);
-	SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	return 1;
 }
 
@@ -3731,18 +3731,18 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		 *     one used for the server found in the backend
 		 *   * the server found in the backend is not our current server
 		 */
-		SPIN_LOCK(SERVER_LOCK, &tmpsrv->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &tmpsrv->lock);
 		if ((tmpsrv->hostname_dn == NULL) ||
 		    (srv->hostname_dn_len != tmpsrv->hostname_dn_len) ||
 		    (strcmp(srv->hostname_dn, tmpsrv->hostname_dn) != 0) ||
 		    (srv->puid == tmpsrv->puid)) {
-			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 			continue;
 		}
 
 		/* If the server has been taken down, don't consider it */
 		if (tmpsrv->next_admin & SRV_ADMF_RMAINT) {
-			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 			continue;
 		}
 
@@ -3754,10 +3754,10 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		      memcmp(ip, &((struct sockaddr_in *)&tmpsrv->addr)->sin_addr, 4) == 0) ||
 		     (tmpsrv->addr.ss_family == AF_INET6 &&
 		      memcmp(ip, &((struct sockaddr_in6 *)&tmpsrv->addr)->sin6_addr, 16) == 0))) {
-			SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 			return tmpsrv;
 		}
-		SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &tmpsrv->lock);
 	}
 
 
@@ -3789,7 +3789,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	int                    hostname_len, hostname_dn_len;
 
 	if (!dns_locked)
-		SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
+		HA_SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
 	 */
@@ -3825,12 +3825,12 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 
   end:
 	if (!dns_locked)
-		SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+		HA_SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return 0;
 
   err:
 	if (!dns_locked)
-		SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+		HA_SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return -1;
 }
 
@@ -4053,7 +4053,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 	if (!sv)
 		return 1;
 
-	SPIN_LOCK(SERVER_LOCK, &sv->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 
 	if (strcmp(args[3], "weight") == 0) {
 		warning = server_parse_weight_change_request(sv, args[4]);
@@ -4220,7 +4220,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 		appctx->st0 = CLI_ST_PRINT;
 	}
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
@@ -4427,7 +4427,7 @@ static struct cli_kw_list cli_kws = {{ },{
 __attribute__((constructor))
 static void __server_init(void)
 {
-	SPIN_INIT(&updated_servers_lock);
+	HA_SPIN_INIT(&updated_servers_lock);
 	cli_register_kw(&cli_kws);
 }
 

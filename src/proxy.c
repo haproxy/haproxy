@@ -762,7 +762,7 @@ void init_new_proxy(struct proxy *p)
 	/* initial uuid is unassigned (-1) */
 	p->uuid = -1;
 
-	SPIN_INIT(&p->lock);
+	HA_SPIN_INIT(&p->lock);
 }
 
 /*

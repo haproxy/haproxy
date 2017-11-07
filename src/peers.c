@@ -319,7 +319,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, u
 		cursor += st->table->key_size;
 	}
 
-	RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 	/* encode values */
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 
@@ -359,7 +359,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, u
 			}
 		}
 	}
-	RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	/* Compute datalen */
 	datalen = (cursor - datamsg);
@@ -510,7 +510,7 @@ static void peer_session_release(struct appctx *appctx)
 
 	/* peer session identified */
 	if (peer) {
-		SPIN_LOCK(PEER_LOCK, &peer->lock);
+		HA_SPIN_LOCK(PEER_LOCK, &peer->lock);
 		if (peer->appctx == appctx) {
 			/* Re-init current table pointers to force announcement on re-connect */
 			peer->remote_table = peer->last_local_table = NULL;
@@ -527,7 +527,7 @@ static void peer_session_release(struct appctx *appctx)
 			peer->flags &= PEER_TEACH_RESET;
 			peer->flags &= PEER_LEARN_RESET;
 		}
-		SPIN_UNLOCK(PEER_LOCK, &peer->lock);
+		HA_SPIN_UNLOCK(PEER_LOCK, &peer->lock);
 		task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 	}
 }
@@ -692,7 +692,7 @@ switchstate:
 					goto switchstate;
 				}
 
-				SPIN_LOCK(PEER_LOCK, &curpeer->lock);
+				HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 				if (curpeer->appctx && curpeer->appctx != appctx) {
 					if (curpeer->local) {
 						/* Local connection, reply a retry */
@@ -726,7 +726,7 @@ switchstate:
 
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
-					SPIN_LOCK(PEER_LOCK, &curpeer->lock);
+					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
@@ -787,7 +787,7 @@ switchstate:
 
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
-					SPIN_LOCK(PEER_LOCK, &curpeer->lock);
+					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
@@ -826,7 +826,7 @@ switchstate:
 
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
-					SPIN_LOCK(PEER_LOCK, &curpeer->lock);
+					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
@@ -913,7 +913,7 @@ switchstate:
 
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
-					SPIN_LOCK(PEER_LOCK, &curpeer->lock);
+					HA_SPIN_LOCK(PEER_LOCK, &curpeer->lock);
 					if (curpeer->appctx != appctx) {
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
@@ -1252,7 +1252,7 @@ switchstate:
 							newts = NULL;
 						}
 
-						RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 						for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 
@@ -1264,7 +1264,7 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1281,7 +1281,7 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1298,7 +1298,7 @@ switchstate:
 										data = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1320,7 +1320,7 @@ switchstate:
 										data.curr_tick = tick_add(now_ms, -intdecode(&msg_cur, msg_end)) & ~0x1;
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1328,7 +1328,7 @@ switchstate:
 										data.curr_ctr = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1336,7 +1336,7 @@ switchstate:
 										data.prev_ctr = intdecode(&msg_cur, msg_end);
 										if (!msg_cur) {
 											/* malformed message */
-											RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+											HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 											stktable_touch_remote(st->table, ts, 1);
 											appctx->st0 = PEER_SESS_ST_ERRPROTO;
 											goto switchstate;
@@ -1351,7 +1351,7 @@ switchstate:
 							}
 						}
 
-						RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 						stktable_touch_remote(st->table, ts, 1);
 
 					}
@@ -1463,7 +1463,7 @@ incomplete:
 						}
 
 						if (!(curpeer->flags & PEER_F_TEACH_PROCESS)) {
-							SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+							HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 							if (!(curpeer->flags & PEER_F_LEARN_ASSIGN) &&
 							    ((int)(st->last_pushed - st->table->localupdate) < 0)) {
 								struct eb32_node *eb;
@@ -1517,14 +1517,14 @@ incomplete:
 									ts = eb32_entry(eb, struct stksess, upd);
 									updateid = ts->upd.key;
 									ts->ref_cnt++;
-									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, 0);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1533,9 +1533,9 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
@@ -1543,7 +1543,7 @@ incomplete:
 										goto switchstate;
 									}
 
-									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 									ts->ref_cnt--;
 									st->last_pushed = updateid;
 									if ((int)(st->last_pushed - st->table->commitupdate) > 0)
@@ -1552,7 +1552,7 @@ incomplete:
 									new_pushed = 0;
 								}
 							}
-							SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+							HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 						}
 						else {
 							if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
@@ -1584,7 +1584,7 @@ incomplete:
 
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
-								SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+								HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
 									uint32_t msglen;
 									struct stksess *ts;
@@ -1604,15 +1604,15 @@ incomplete:
 									ts = eb32_entry(eb, struct stksess, upd);
 									updateid = ts->upd.key;
 									ts->ref_cnt++;
-									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
 									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1621,22 +1621,22 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
-									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 									ts->ref_cnt--;
 									st->last_pushed = updateid;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
 								}
-								SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+								HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 							}
 
 							if (!(st->flags & SHTABLE_F_TEACH_STAGE2)) {
@@ -1668,7 +1668,7 @@ incomplete:
 
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
-								SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+								HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
 									uint32_t msglen;
 									struct stksess *ts;
@@ -1687,15 +1687,15 @@ incomplete:
 									ts = eb32_entry(eb, struct stksess, upd);
 									updateid = ts->upd.key;
 									ts->ref_cnt++;
-									SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
 									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
 									}
@@ -1704,9 +1704,9 @@ incomplete:
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
 										/* no more write possible */
-										SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
-										SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										if (repl == -1) {
 											goto full;
 										}
@@ -1714,13 +1714,13 @@ incomplete:
 										goto switchstate;
 									}
 
-									SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+									HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 									ts->ref_cnt--;
 									st->last_pushed = updateid;
 									/* identifier may not needed in next update message */
 									new_pushed = 0;
 								}
-								SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
+								HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 							}
 						}
 
@@ -1803,7 +1803,7 @@ incomplete:
 			}
 			case PEER_SESS_ST_END: {
 				if (curpeer) {
-					SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
+					HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 					curpeer = NULL;
 				}
 				si_shutw(si);
@@ -1817,7 +1817,7 @@ out:
 	si_oc(si)->flags |= CF_READ_DONTWAIT;
 
 	if (curpeer)
-		SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
+		HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 	return;
 full:
 	si_applet_cant_put(si);
@@ -1973,7 +1973,7 @@ static struct task *process_peer_sync(struct task * task)
 
 	/* Acquire lock for all peers of the section */
 	for (ps = peers->remote; ps; ps = ps->next)
-		SPIN_LOCK(PEER_LOCK, &ps->lock);
+		HA_SPIN_LOCK(PEER_LOCK, &ps->lock);
 
 	if (!stopping) {
 		/* Normal case (not soft stop)*/
@@ -2147,7 +2147,7 @@ static struct task *process_peer_sync(struct task * task)
 
 	/* Release lock for all peers of the section */
 	for (ps = peers->remote; ps; ps = ps->next)
-		SPIN_UNLOCK(PEER_LOCK, &ps->lock);
+		HA_SPIN_UNLOCK(PEER_LOCK, &ps->lock);
 
 	/* Wakeup for re-connect */
 	return task;

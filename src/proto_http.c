@@ -2621,9 +2621,9 @@ resume_execution:
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
-			SPIN_LOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			pat_ref_delete(ref, key->str);
-			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2649,10 +2649,10 @@ resume_execution:
 
 			/* perform update */
 			/* add entry only if it does not already exist */
-			SPIN_LOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			if (pat_ref_find_elt(ref, key->str) == NULL)
 				pat_ref_add(ref, key->str, NULL, NULL);
-			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2737,7 +2737,7 @@ resume_execution:
 					ptr1 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
 					ptr2 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
 					if (ptr1 || ptr2) {
-						RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 						if (ptr1)
 							stktable_data_cast(ptr1, http_req_cnt)++;
@@ -2746,7 +2746,7 @@ resume_execution:
 							update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
 							                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
-						RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 					}
 
 					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
@@ -2915,9 +2915,9 @@ resume_execution:
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
-			SPIN_LOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			pat_ref_delete(ref, key->str);
-			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
 			break;
@@ -2980,14 +2980,14 @@ resume_execution:
 			value->str[value->len] = '\0';
 
 			/* perform update */
-			SPIN_LOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 			if (pat_ref_find_elt(ref, key->str) != NULL)
 				/* update entry if it exists */
 				pat_ref_set(ref, key->str, value->str, NULL);
 			else
 				/* insert a new entry */
 				pat_ref_add(ref, key->str, value->str, NULL);
-			SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 			free_trash_chunk(key);
 			free_trash_chunk(value);
 			break;
@@ -3015,7 +3015,7 @@ resume_execution:
 				if (key && (ts = stktable_get_entry(t, key))) {
 					stream_track_stkctr(&s->stkctr[trk_idx(rule->action)], t, ts);
 
-					RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+					HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 					/* let's count a new HTTP request as it's the first time we do it */
 					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
@@ -3045,7 +3045,7 @@ resume_execution:
 									       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 					}
 
-					RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+					HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (sess->fe != s->be)
@@ -7755,7 +7755,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	struct channel *chn = msg->chn;
 	int len1, len2;
 
-	SPIN_LOCK(PROXY_LOCK, &proxy->lock);
+	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
 	es->len = MIN(chn->buf->i, global.tune.bufsize);
 	len1 = chn->buf->data + chn->buf->size - chn->buf->p;
 	len1 = MIN(len1, es->len);
@@ -7795,7 +7795,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	es->b_tot = chn->total;
 	es->m_clen = msg->chunk_len;
 	es->m_blen = msg->body_len;
-	SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
+	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
 }
 
 /* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of

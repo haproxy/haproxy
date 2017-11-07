@@ -141,7 +141,7 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
 
 static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts, int decrefcnt)
 {
-	SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 
 	if (decrefcnt)
 		ts->ref_cnt--;
@@ -149,7 +149,7 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms))
 		__stksess_kill_if_expired(t, ts);
 
-	SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
 
 /* sets the stick counter's entry pointer */

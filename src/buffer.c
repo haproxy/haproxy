@@ -75,7 +75,7 @@ int init_buffer()
 	if (global.tune.buf_limit)
 		pool2_buffer->limit = global.tune.buf_limit;
 
-	SPIN_INIT(&buffer_wq_lock);
+	HA_SPIN_INIT(&buffer_wq_lock);
 
 	buffer = pool_refill_alloc(pool2_buffer, pool2_buffer->minavail - 1);
 	if (!buffer)

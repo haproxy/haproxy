@@ -218,15 +218,15 @@ void ssl_locking_function(int mode, int n, const char * file, int line)
 {
 	if (mode & CRYPTO_LOCK) {
 		if (mode & CRYPTO_READ)
-			RWLOCK_RDLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+			HA_RWLOCK_RDLOCK(SSL_LOCK, &ssl_rwlocks[n]);
 		else
-			RWLOCK_WRLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+			HA_RWLOCK_WRLOCK(SSL_LOCK, &ssl_rwlocks[n]);
 	}
 	else {
 		if (mode & CRYPTO_READ)
-			RWLOCK_RDUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+			HA_RWLOCK_RDUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
 		else
-			RWLOCK_WRUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
+			HA_RWLOCK_WRUNLOCK(SSL_LOCK, &ssl_rwlocks[n]);
 	}
 }
 
@@ -239,7 +239,7 @@ static int ssl_locking_init(void)
 		return -1;
 
 	for (i = 0 ; i < CRYPTO_num_locks() ; i++)
-		RWLOCK_INIT(&ssl_rwlocks[i]);
+		HA_RWLOCK_INIT(&ssl_rwlocks[i]);
 
 	CRYPTO_set_id_callback(ssl_id_function);
 	CRYPTO_set_locking_callback(ssl_locking_function);
@@ -1795,15 +1795,15 @@ ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SS
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		RWLOCK_RDLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_RDLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (lru && lru->domain) {
 			if (ssl)
 				SSL_set_SSL_CTX(ssl, (SSL_CTX *)lru->data);
-			RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+			HA_RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return (SSL_CTX *)lru->data;
 		}
-		RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 	}
 	return NULL;
 }
@@ -1826,16 +1826,16 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_conf
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_get(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (!lru) {
-			RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+			HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return -1;
 		}
 		if (lru->domain && lru->data)
 			lru->free((SSL_CTX *)lru->data);
 		lru64_commit(lru, ssl_ctx, bind_conf->ca_sign_cert, 0, (void (*)(void *))SSL_CTX_free);
-		RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 0;
 	}
 	return -1;
@@ -1861,7 +1861,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 
 	key = ssl_sock_generated_cert_key(servername, strlen(servername));
 	if (ssl_ctx_lru_tree) {
-		RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_get(key, ssl_ctx_lru_tree, cacert, 0);
 		if (lru && lru->domain)
 			ssl_ctx = (SSL_CTX *)lru->data;
@@ -1870,7 +1870,7 @@ ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_con
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
-		RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 1;
 	}
 	else {
@@ -4782,7 +4782,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	if (global_ssl.ctx_cache) {
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
-		RWLOCK_INIT(&ssl_ctx_lru_rwlock);
+		HA_RWLOCK_INIT(&ssl_ctx_lru_rwlock);
 	}
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
 	ssl_ctx_serial   = now_ms;
@@ -8803,7 +8803,7 @@ static void __ssl_sock_deinit(void)
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	if (ssl_ctx_lru_tree) {
 		lru64_destroy(ssl_ctx_lru_tree);
-		RWLOCK_DESTROY(&ssl_ctx_lru_rwlock);
+		HA_RWLOCK_DESTROY(&ssl_ctx_lru_rwlock);
 	}
 #endif
 

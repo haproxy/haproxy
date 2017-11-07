@@ -208,7 +208,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 	int newidx, avoididx;
 	struct server *srv, *avoided;
 
-	SPIN_LOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_SPIN_LOCK(LBPRM_LOCK, &px->lbprm.lock);
 	if (px->lbprm.tot_weight == 0) {
 		avoided = NULL;
 		goto out;
@@ -240,7 +240,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 		px->lbprm.map.rr_idx = avoididx;
 
   out:
-	SPIN_UNLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	/* return NULL or srvtoavoid if found */
 	return avoided;
 }

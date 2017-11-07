@@ -160,10 +160,10 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 #endif
 
 	if (unlikely(pool_comp_ctx == NULL)) {
-		SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+		HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 		if (unlikely(pool_comp_ctx == NULL))
 			pool_comp_ctx = create_pool("comp_ctx", sizeof(struct comp_ctx), MEM_F_SHARED);
-		SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+		HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 	}
 
 	*comp_ctx = pool_alloc2(pool_comp_ctx);
@@ -412,10 +412,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 	switch (round) {
 		case 0:
 			if (zlib_pool_deflate_state == NULL) {
-				SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 				if (zlib_pool_deflate_state == NULL)
 					zlib_pool_deflate_state = create_pool("zlib_state", size * items, MEM_F_SHARED);
-				SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_deflate_state;
 			ctx->zlib_deflate_state = buf = pool_alloc2(pool);
@@ -423,10 +423,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 
 		case 1:
 			if (zlib_pool_window == NULL) {
-				SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 				if (zlib_pool_window == NULL)
 					zlib_pool_window = create_pool("zlib_window", size * items, MEM_F_SHARED);
-				SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_window;
 			ctx->zlib_window = buf = pool_alloc2(pool);
@@ -434,10 +434,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 
 		case 2:
 			if (zlib_pool_prev == NULL) {
-				SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 				if (zlib_pool_prev == NULL)
 					zlib_pool_prev = create_pool("zlib_prev", size * items, MEM_F_SHARED);
-				SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_prev;
 			ctx->zlib_prev = buf = pool_alloc2(pool);
@@ -445,10 +445,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 
 		case 3:
 			if (zlib_pool_head == NULL) {
-				SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 				if (zlib_pool_head == NULL)
 					zlib_pool_head = create_pool("zlib_head", size * items, MEM_F_SHARED);
-				SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_head;
 			ctx->zlib_head = buf = pool_alloc2(pool);
@@ -456,10 +456,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 
 		case 4:
 			if (zlib_pool_pending_buf == NULL) {
-				SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
 				if (zlib_pool_pending_buf == NULL)
 					zlib_pool_pending_buf = create_pool("zlib_pending_buf", size * items, MEM_F_SHARED);
-				SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
+				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_pending_buf;
 			ctx->zlib_pending_buf = buf = pool_alloc2(pool);
@@ -721,7 +721,7 @@ static void __comp_fetch_init(void)
 	global.tune.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
 #endif
 #ifdef USE_ZLIB
-	SPIN_INIT(&comp_pool_lock);
+	HA_SPIN_INIT(&comp_pool_lock);
 	memprintf(&ptr, "Built with zlib version : " ZLIB_VERSION);
 	memprintf(&ptr, "%s\nRunning on zlib version : %s", ptr, zlibVersion());
 #elif defined(USE_SLZ)

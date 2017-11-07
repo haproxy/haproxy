@@ -121,7 +121,7 @@ int wake_expired_tasks()
 	int ret = TICK_ETERNITY;
 
 	while (1) {
-		SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
   lookup_next:
 		eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
@@ -162,11 +162,11 @@ int wake_expired_tasks()
 				__task_queue(task);
 			goto lookup_next;
 		}
-		SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 		task_wakeup(task, TASK_WOKEN_TIMER);
 	}
 
-	SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 	return ret;
 }
 
@@ -251,7 +251,7 @@ void process_runnable_tasks()
 		return;
 	}
 
-	SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 
 	do {
@@ -289,7 +289,7 @@ void process_runnable_tasks()
 		if (!local_tasks_count)
 			break;
 
-		SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
 		final_tasks_count = 0;
 		for (i = 0; i < local_tasks_count ; i++) {
@@ -305,7 +305,7 @@ void process_runnable_tasks()
 				local_tasks[final_tasks_count++] = t;
 		}
 
-		SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		for (i = 0; i < final_tasks_count ; i++) {
 			t = local_tasks[i];
 			t->state &= ~TASK_RUNNING;
@@ -321,7 +321,7 @@ void process_runnable_tasks()
 		}
 	} while (max_processed > 0);
 
-	SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -329,8 +329,8 @@ int init_task()
 {
 	memset(&timers, 0, sizeof(timers));
 	memset(&rqueue, 0, sizeof(rqueue));
-	SPIN_INIT(&wq_lock);
-	SPIN_INIT(&rq_lock);
+	HA_SPIN_INIT(&wq_lock);
+	HA_SPIN_INIT(&rq_lock);
 	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
 	if (!pool2_task)
 		return 0;

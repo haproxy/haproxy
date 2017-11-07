@@ -715,7 +715,7 @@ static void event_srv_chk_w(struct conn_stream *cs)
 	struct server *s = check->server;
 	struct task *t = check->task;
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
@@ -768,7 +768,7 @@ static void event_srv_chk_w(struct conn_stream *cs)
  out_nowake:
 	__cs_stop_send(cs);   /* nothing more to write */
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 }
 
 /*
@@ -798,7 +798,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	int done;
 	unsigned short msglen;
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
@@ -1354,7 +1354,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 
 	task_wakeup(t, TASK_WOKEN_IO);
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return;
 
  wait_more_data:
@@ -1374,7 +1374,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	struct check *check = cs->data;
 	int ret = 0;
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 
 	/* we may have to make progress on the TCP checks */
 	if (check->type == PR_O2_TCPCHK_CHK) {
@@ -1411,7 +1411,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = -1;
 	}
 
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 
 	/* if a connection got replaced, we must absolutely prevent the connection
 	 * handler from touching its fd, and perform the FD polling updates ourselves
@@ -1647,9 +1647,9 @@ static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 	check->curpid = elem;
 	LIST_INIT(&elem->list);
 
-	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	LIST_ADD(&pid_list, &elem->list);
-	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 
 	return elem;
 }
@@ -1661,9 +1661,9 @@ static void pid_list_del(struct pid_list *elem)
 	if (!elem)
 		return;
 
-	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	LIST_DEL(&elem->list);
-	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 
 	if (!elem->exited)
 		kill(elem->pid, SIGTERM);
@@ -1678,7 +1678,7 @@ static void pid_list_expire(pid_t pid, int status)
 {
 	struct pid_list *elem;
 
-	SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	list_for_each_entry(elem, &pid_list, list) {
 		if (elem->pid == pid) {
 			elem->t->expire = now_ms;
@@ -1688,7 +1688,7 @@ static void pid_list_expire(pid_t pid, int status)
 			break;
 		}
 	}
-	SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
+	HA_SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 }
 
 static void sigchld_handler(struct sig_handler *sh)
@@ -1719,7 +1719,7 @@ static int init_pid_list(void)
 		return 1;
 	}
 
-	SPIN_INIT(&pid_list_lock);
+	HA_SPIN_INIT(&pid_list_lock);
 
 	return 0;
 }
@@ -1979,7 +1979,7 @@ static struct task *process_chk_proc(struct task *t)
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */
@@ -2092,7 +2092,7 @@ static struct task *process_chk_proc(struct task *t)
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
 
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
 
@@ -2113,7 +2113,7 @@ static struct task *process_chk_conn(struct task *t)
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */
@@ -2268,7 +2268,7 @@ static struct task *process_chk_conn(struct task *t)
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
 
@@ -2597,7 +2597,7 @@ static int tcpcheck_main(struct check *check)
 	struct list *head = check->tcpcheck_rules;
 	int retcode = 0;
 
-	SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
@@ -3077,7 +3077,7 @@ static int tcpcheck_main(struct check *check)
 	__cs_stop_both(cs);
 
  out_unlock:
-	SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return retcode;
 }
 
@@ -3137,7 +3137,7 @@ static struct task *process_email_alert(struct task *t)
 
 	q = container_of(check, typeof(*q), check);
 
-	SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	while (1) {
 		if (!(check->state & CHK_ST_ENABLED)) {
 			if (LIST_ISEMPTY(&q->email_alerts)) {
@@ -3167,7 +3167,7 @@ static struct task *process_email_alert(struct task *t)
 		check->state         &= ~CHK_ST_ENABLED;
 	}
   end:
-	SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	return t;
 }
 
@@ -3194,7 +3194,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		struct task         *t;
 
 		LIST_INIT(&q->email_alerts);
-		SPIN_INIT(&q->lock);
+		HA_SPIN_INIT(&q->lock);
 		check->inter = mls->timeout.mail;
 		check->rise = DEF_AGENT_RISETIME;
 		check->fall = DEF_AGENT_FALLTIME;
@@ -3398,10 +3398,10 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "221 "))
 		goto error;
 
-	SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	task_wakeup(check->task, TASK_WOKEN_MSG);
 	LIST_ADDQ(&q->email_alerts, &alert->list);
-	SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	return 1;
 
 error:

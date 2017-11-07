@@ -57,11 +57,11 @@ static inline void session_store_counters(struct session *sess)
 
 		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_CONN_CUR);
 		if (ptr) {
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			stktable_data_cast(ptr, conn_cur)--;
 
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		}
 
 		stkctr_set_entry(stkctr, NULL);

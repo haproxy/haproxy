@@ -102,11 +102,11 @@ static inline void stream_store_counters(struct stream *s)
 
 		ptr = stktable_data_ptr(s->stkctr[i].table, ts, STKTABLE_DT_CONN_CUR);
 		if (ptr) {
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			stktable_data_cast(ptr, conn_cur)--;
 
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
 		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
@@ -137,11 +137,11 @@ static inline void stream_stop_content_counters(struct stream *s)
 
 		ptr = stktable_data_ptr(s->stkctr[i].table, ts, STKTABLE_DT_CONN_CUR);
 		if (ptr) {
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			stktable_data_cast(ptr, conn_cur)--;
 
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
 		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
@@ -156,7 +156,7 @@ static inline void stream_start_counters(struct stktable *t, struct stksess *ts)
 {
 	void *ptr;
 
-	RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
 	if (ptr)
@@ -173,7 +173,7 @@ static inline void stream_start_counters(struct stktable *t, struct stksess *ts)
 	if (tick_isset(t->expire))
 		ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
-	RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 }
 
 /* Enable tracking of stream counters as <stkctr> on stksess <ts>. The caller is
@@ -209,7 +209,7 @@ static void inline stream_inc_http_req_ctr(struct stream *s)
 				continue;
 		}
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
@@ -220,7 +220,7 @@ static void inline stream_inc_http_req_ctr(struct stream *s)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 	}
 }
 
@@ -243,7 +243,7 @@ static void inline stream_inc_be_http_req_ctr(struct stream *s)
 		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
 			continue;
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
@@ -254,7 +254,7 @@ static void inline stream_inc_be_http_req_ctr(struct stream *s)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 	}
 }
 
@@ -281,7 +281,7 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 				continue;
 		}
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_CNT);
 		if (ptr)
@@ -292,16 +292,16 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 	}
 }
 
 static void inline stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
-	SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	sess->srv_conn = srv;
 	LIST_ADD(&srv->actconns, &sess->by_srv);
-	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 static void inline stream_del_srv_conn(struct stream *sess)
@@ -311,10 +311,10 @@ static void inline stream_del_srv_conn(struct stream *sess)
 	if (!srv)
 		return;
 
-	SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	sess->srv_conn = NULL;
 	LIST_DEL(&sess->by_srv);
-	SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
 static void inline stream_init_srv_conn(struct stream *sess)

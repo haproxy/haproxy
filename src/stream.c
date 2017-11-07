@@ -253,9 +253,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->txn = NULL;
 	s->hlua = NULL;
 
-	SPIN_LOCK(STRMS_LOCK, &streams_lock);
+	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 	LIST_ADDQ(&streams, &s->list);
-	SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -326,10 +326,10 @@ static void stream_free(struct stream *s)
 
 	/* We may still be present in the buffer wait queue */
 	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&s->buffer_wait.list);
 		LIST_INIT(&s->buffer_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 	if (s->req.buf->size || s->res.buf->size) {
 		b_drop(&s->req.buf);
@@ -373,7 +373,7 @@ static void stream_free(struct stream *s)
 
 	stream_store_counters(s);
 
-	SPIN_LOCK(STRMS_LOCK, &streams_lock);
+	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
 		 * this stream was the last one in the list.
@@ -385,7 +385,7 @@ static void stream_free(struct stream *s)
 		bref->ref = s->list.n;
 	}
 	LIST_DEL(&s->list);
-	SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
@@ -423,18 +423,18 @@ static void stream_free(struct stream *s)
 static int stream_alloc_work_buffer(struct stream *s)
 {
 	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
-		SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&s->buffer_wait.list);
 		LIST_INIT(&s->buffer_wait.list);
-		SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
 	if (b_alloc_margin(&s->res.buf, 0))
 		return 1;
 
-	SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	LIST_ADDQ(&buffer_wq, &s->buffer_wait.list);
-	SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	return 0;
 }
 
@@ -468,7 +468,7 @@ void stream_release_buffers(struct stream *s)
 int init_stream()
 {
 	LIST_INIT(&streams);
-	SPIN_INIT(&streams_lock);
+	HA_SPIN_INIT(&streams_lock);
 	pool2_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
 	return pool2_stream != NULL;
 }
@@ -504,7 +504,7 @@ void stream_process_counters(struct stream *s)
 					continue;
 			}
 
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 			ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_CNT);
 			if (ptr1)
 				stktable_data_cast(ptr1, bytes_in_cnt) += bytes;
@@ -513,7 +513,7 @@ void stream_process_counters(struct stream *s)
 			if (ptr2)
 				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_in_rate),
 						       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
 			if (ptr1 || ptr2)
@@ -544,7 +544,7 @@ void stream_process_counters(struct stream *s)
 					continue;
 			}
 
-			RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 			ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
 			if (ptr1)
 				stktable_data_cast(ptr1, bytes_out_cnt) += bytes;
@@ -553,7 +553,7 @@ void stream_process_counters(struct stream *s)
 			if (ptr2)
 				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_out_rate),
 						       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
-			RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
 			if (ptr1 || ptr2)
@@ -1409,10 +1409,10 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 						void *ptr;
 
 						/* srv found in table */
-						RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 						ptr = stktable_data_ptr(rule->table.t, ts, STKTABLE_DT_SERVER_ID);
 						node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
-						RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+						HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 						if (node) {
 							struct server *srv;
 
@@ -1536,10 +1536,10 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		}
 		s->store[i].ts = NULL;
 
-		RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 		ptr = stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
 		stktable_data_cast(ptr, server_id) = objt_server(s->target)->puid;
-		RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		stktable_touch_local(s->store[i].table, ts, 1);
 	}
 	s->store_count = 0; /* everything is stored */
@@ -2536,12 +2536,12 @@ void stream_update_time_stats(struct stream *s)
 		swrate_add(&srv->counters.d_time, TIME_STATS_SAMPLES, t_data);
 		swrate_add(&srv->counters.t_time, TIME_STATS_SAMPLES, t_close);
 	}
-	SPIN_LOCK(PROXY_LOCK, &s->be->lock);
+	HA_SPIN_LOCK(PROXY_LOCK, &s->be->lock);
 	swrate_add(&s->be->be_counters.q_time, TIME_STATS_SAMPLES, t_queue);
 	swrate_add(&s->be->be_counters.c_time, TIME_STATS_SAMPLES, t_connect);
 	swrate_add(&s->be->be_counters.d_time, TIME_STATS_SAMPLES, t_data);
 	swrate_add(&s->be->be_counters.t_time, TIME_STATS_SAMPLES, t_close);
-	SPIN_UNLOCK(PROXY_LOCK, &s->be->lock);
+	HA_SPIN_UNLOCK(PROXY_LOCK, &s->be->lock);
 }
 
 /*
@@ -3056,14 +3056,14 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 * pointer points back to the head of the streams list.
 		 */
 		LIST_INIT(&appctx->ctx.sess.bref.users);
-		SPIN_LOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 		appctx->ctx.sess.bref.ref = streams.n;
-		SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		SPIN_LOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
 			LIST_DEL(&appctx->ctx.sess.bref.users);
@@ -3084,7 +3084,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
 				if (!stats_dump_full_strm_to_buffer(si, curr_strm)) {
-					SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+					HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 					return 0;
 				}
 
@@ -3212,7 +3212,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				 */
 				si_applet_cant_put(si);
 				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
-				SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
 			}
 
@@ -3229,17 +3229,17 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				si_applet_cant_put(si);
-				SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
 			}
 
 			appctx->ctx.sess.target = NULL;
 			appctx->ctx.sess.uid = 0;
-			SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+			HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 			return 1;
 		}
 
-		SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
@@ -3252,10 +3252,10 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 static void cli_release_show_sess(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST) {
-		SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
-		SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 	}
 }
 
@@ -3308,11 +3308,11 @@ static int cli_parse_shutdown_sessions_server(char **args, struct appctx *appctx
 		return 1;
 
 	/* kill all the stream that are on this server */
-	SPIN_LOCK(SERVER_LOCK, &sv->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	list_for_each_entry_safe(strm, strm_bck, &sv->actconns, by_srv)
 		if (strm->srv_conn == sv)
 			stream_shutdown(strm, SF_ERR_KILLED);
-	SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 

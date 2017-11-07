@@ -73,7 +73,7 @@ void __signal_process_queue()
 	struct signal_descriptor *desc;
 	sigset_t old_sig;
 
-	if (SPIN_TRYLOCK(SIGNALS_LOCK, &signals_lock))
+	if (HA_SPIN_TRYLOCK(SIGNALS_LOCK, &signals_lock))
 		return;
 
 	/* block signal delivery during processing */
@@ -102,7 +102,7 @@ void __signal_process_queue()
 
 	/* restore signal delivery */
 	sigprocmask(SIG_SETMASK, &old_sig, NULL);
-	SPIN_UNLOCK(SIGNALS_LOCK, &signals_lock);
+	HA_SPIN_UNLOCK(SIGNALS_LOCK, &signals_lock);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -114,7 +114,7 @@ int signal_init()
 	memset(signal_queue, 0, sizeof(signal_queue));
 	memset(signal_state, 0, sizeof(signal_state));
 
-	SPIN_INIT(&signals_lock);
+	HA_SPIN_INIT(&signals_lock);
 
 	/* Ensure signals are not blocked. Some shells or service managers may
 	 * accidently block all of our signals unfortunately, causing lots of
@@ -150,7 +150,7 @@ void deinit_signals()
 			pool_free2(pool2_sig_handlers, sh);
 		}
 	}
-	SPIN_DESTROY(&signals_lock);
+	HA_SPIN_DESTROY(&signals_lock);
 }
 
 /* Register a function and an integer argument on a signal. A pointer to the

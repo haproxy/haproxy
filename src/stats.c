@@ -2764,7 +2764,7 @@ static int stats_process_http_post(struct stream_interface *si)
 					reprocess = 1;
 				}
 				else if ((sv = findserver(px, value)) != NULL) {
-					SPIN_LOCK(SERVER_LOCK, &sv->lock);
+					HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 					switch (action) {
 					case ST_ADM_ACTION_DISABLE:
 						if (!(sv->cur_admin & SRV_ADMF_FMAINT)) {
@@ -2890,7 +2890,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						}
 						break;
 					}
-					SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 				} else {
 					/* the server name is unknown or ambiguous (duplicate names) */
 					total_servers++;

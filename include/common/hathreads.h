@@ -70,20 +70,20 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 #define THREAD_NO_SYNC()     ({ 0; })
 #define THREAD_NEED_SYNC()   ({ 1; })
 
-#define SPIN_INIT(l)         do { /* do nothing */ } while(0)
-#define SPIN_DESTROY(l)      do { /* do nothing */ } while(0)
-#define SPIN_LOCK(lbl, l)    do { /* do nothing */ } while(0)
-#define SPIN_TRYLOCK(lbl, l) ({ 0; })
-#define SPIN_UNLOCK(lbl, l)  do { /* do nothing */ } while(0)
+#define HA_SPIN_INIT(l)         do { /* do nothing */ } while(0)
+#define HA_SPIN_DESTROY(l)      do { /* do nothing */ } while(0)
+#define HA_SPIN_LOCK(lbl, l)    do { /* do nothing */ } while(0)
+#define HA_SPIN_TRYLOCK(lbl, l) ({ 0; })
+#define HA_SPIN_UNLOCK(lbl, l)  do { /* do nothing */ } while(0)
 
-#define RWLOCK_INIT(l)          do { /* do nothing */ } while(0)
-#define RWLOCK_DESTROY(l)       do { /* do nothing */ } while(0)
-#define RWLOCK_WRLOCK(lbl, l)   do { /* do nothing */ } while(0)
-#define RWLOCK_TRYWRLOCK(lbl, l)   ({ 0; })
-#define RWLOCK_WRUNLOCK(lbl, l) do { /* do nothing */ } while(0)
-#define RWLOCK_RDLOCK(lbl, l)   do { /* do nothing */ } while(0)
-#define RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
-#define RWLOCK_RDUNLOCK(lbl, l) do { /* do nothing */ } while(0)
+#define HA_RWLOCK_INIT(l)          do { /* do nothing */ } while(0)
+#define HA_RWLOCK_DESTROY(l)       do { /* do nothing */ } while(0)
+#define HA_RWLOCK_WRLOCK(lbl, l)   do { /* do nothing */ } while(0)
+#define HA_RWLOCK_TRYWRLOCK(lbl, l)   ({ 0; })
+#define HA_RWLOCK_WRUNLOCK(lbl, l) do { /* do nothing */ } while(0)
+#define HA_RWLOCK_RDLOCK(lbl, l)   do { /* do nothing */ } while(0)
+#define HA_RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
+#define HA_RWLOCK_RDUNLOCK(lbl, l) do { /* do nothing */ } while(0)
 
 #else /* USE_THREAD */
 
@@ -208,23 +208,23 @@ extern struct lock_stat lock_stats[LOCK_LABELS];
 
 #define HA_SPINLOCK_T       struct ha_spinlock
 
-#define SPIN_INIT(l)         __spin_init(l)
-#define SPIN_DESTROY(l)      __spin_destroy(l)
+#define HA_SPIN_INIT(l)        __spin_init(l)
+#define HA_SPIN_DESTROY(l)      __spin_destroy(l)
 
-#define SPIN_LOCK(lbl, l)    __spin_lock(lbl, l, __func__, __FILE__, __LINE__)
-#define SPIN_TRYLOCK(lbl, l) __spin_trylock(lbl, l, __func__, __FILE__, __LINE__)
-#define SPIN_UNLOCK(lbl, l)  __spin_unlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_SPIN_LOCK(lbl, l)    __spin_lock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_SPIN_TRYLOCK(lbl, l) __spin_trylock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_SPIN_UNLOCK(lbl, l)  __spin_unlock(lbl, l, __func__, __FILE__, __LINE__)
 
 #define HA_RWLOCK_T         struct ha_rwlock
 
-#define RWLOCK_INIT(l)          __ha_rwlock_init((l))
-#define RWLOCK_DESTROY(l)       __ha_rwlock_destroy((l))
-#define RWLOCK_WRLOCK(lbl,l)    __ha_rwlock_wrlock(lbl, l, __func__, __FILE__, __LINE__)
-#define RWLOCK_TRYWRLOCK(lbl,l) __ha_rwlock_trywrlock(lbl, l, __func__, __FILE__, __LINE__)
-#define RWLOCK_WRUNLOCK(lbl,l)  __ha_rwlock_wrunlock(lbl, l, __func__, __FILE__, __LINE__)
-#define RWLOCK_RDLOCK(lbl,l)    __ha_rwlock_rdlock(lbl, l)
-#define RWLOCK_TRYRDLOCK(lbl,l) __ha_rwlock_tryrdlock(lbl, l)
-#define RWLOCK_RDUNLOCK(lbl,l)  __ha_rwlock_rdunlock(lbl, l)
+#define HA_RWLOCK_INIT(l)          __ha_rwlock_init((l))
+#define HA_RWLOCK_DESTROY(l)       __ha_rwlock_destroy((l))
+#define HA_RWLOCK_WRLOCK(lbl,l)    __ha_rwlock_wrlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_TRYWRLOCK(lbl,l) __ha_rwlock_trywrlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_WRUNLOCK(lbl,l)  __ha_rwlock_wrunlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_RDLOCK(lbl,l)    __ha_rwlock_rdlock(lbl, l)
+#define HA_RWLOCK_TRYRDLOCK(lbl,l) __ha_rwlock_tryrdlock(lbl, l)
+#define HA_RWLOCK_RDUNLOCK(lbl,l)  __ha_rwlock_rdunlock(lbl, l)
 
 struct ha_spinlock {
 	__HA_SPINLOCK_T lock;
@@ -550,22 +550,22 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 
 #define HA_SPINLOCK_T        unsigned long
 
-#define SPIN_INIT(l)         ({ (*l) = 0; })
-#define SPIN_DESTROY(l)      ({ (*l) = 0; })
-#define SPIN_LOCK(lbl, l)    pl_take_s(l)
-#define SPIN_TRYLOCK(lbl, l) !pl_try_s(l)
-#define SPIN_UNLOCK(lbl, l)  pl_drop_s(l)
+#define HA_SPIN_INIT(l)         ({ (*l) = 0; })
+#define HA_SPIN_DESTROY(l)      ({ (*l) = 0; })
+#define HA_SPIN_LOCK(lbl, l)    pl_take_s(l)
+#define HA_SPIN_TRYLOCK(lbl, l) !pl_try_s(l)
+#define HA_SPIN_UNLOCK(lbl, l)  pl_drop_s(l)
 
 #define HA_RWLOCK_T		unsigned long
 
-#define RWLOCK_INIT(l)          ({ (*l) = 0; })
-#define RWLOCK_DESTROY(l)       ({ (*l) = 0; })
-#define RWLOCK_WRLOCK(lbl,l)    pl_take_w(l)
-#define RWLOCK_TRYWRLOCK(lbl,l) !pl_try_w(l)
-#define RWLOCK_WRUNLOCK(lbl,l)  pl_drop_w(l)
-#define RWLOCK_RDLOCK(lbl,l)    pl_take_r(l)
-#define RWLOCK_TRYRDLOCK(lbl,l) !pl_try_r(l)
-#define RWLOCK_RDUNLOCK(lbl,l)  pl_drop_r(l)
+#define HA_RWLOCK_INIT(l)          ({ (*l) = 0; })
+#define HA_RWLOCK_DESTROY(l)       ({ (*l) = 0; })
+#define HA_RWLOCK_WRLOCK(lbl,l)    pl_take_w(l)
+#define HA_RWLOCK_TRYWRLOCK(lbl,l) !pl_try_w(l)
+#define HA_RWLOCK_WRUNLOCK(lbl,l)  pl_drop_w(l)
+#define HA_RWLOCK_RDLOCK(lbl,l)    pl_take_r(l)
+#define HA_RWLOCK_TRYRDLOCK(lbl,l) !pl_try_r(l)
+#define HA_RWLOCK_RDUNLOCK(lbl,l)  pl_drop_r(l)
 
 #endif  /* DEBUG_THREAD */
 
