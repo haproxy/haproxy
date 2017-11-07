@@ -1987,7 +1987,7 @@ static void h2_send(struct connection *conn)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (conn->xprt->snd_buf(conn, h2c->mbuf, flags) <= 0)
+		if (h2c->mbuf->o && conn->xprt->snd_buf(conn, h2c->mbuf, flags) <= 0)
 			break;
 
 		/* wrote at least one byte, the buffer is not full anymore */
