@@ -2210,11 +2210,12 @@ static void h2_detach(struct conn_stream *cs)
 		 * or sent (as seen by last_sid >= 0). A timer should be armed
 		 * to kill the connection after some idle time though.
 		 */
-		if (eb_is_empty(&h2c->streams_by_id) &&
-		    (conn_xprt_read0_pending(h2c->conn) ||
-		     (h2c->conn->flags & CO_FL_ERROR) ||
+		if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
+		    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
 		     (h2c->flags & H2_CF_GOAWAY_FAILED) ||
-		     (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))) {
+		     (!h2c->mbuf->o &&  /* mux buffer empty, also process clean events below */
+		      (conn_xprt_read0_pending(h2c->conn) ||
+		       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
 			/* no more stream will come, kill it now */
 			h2_release(h2c->conn);
 		}
