@@ -174,6 +174,7 @@ enum lock_label {
 	DNS_LOCK,
 	PID_LIST_LOCK,
 	EMAIL_ALERTS_LOCK,
+	PIPES_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -262,7 +263,8 @@ static inline void show_lock_stats()
 					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
 					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS",
 					   "PATREF", "PATEXP", "PATLRU", "VARS", "COMP_POOL", "LUA",
-					   "NOTIF", "SPOE_APPLET", "DNS", "PID_LIST", "EMAIL_ALERTS" };
+					   "NOTIF", "SPOE_APPLET", "DNS", "PID_LIST", "EMAIL_ALERTS",
+					   "PIPES" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
