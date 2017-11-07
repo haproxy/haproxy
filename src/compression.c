@@ -41,8 +41,10 @@
 #include <proto/stream.h>
 
 
+#if defined(USE_SLZ) || defined(USE_ZLIB)
 #ifdef USE_THREAD
 static HA_SPINLOCK_T comp_pool_lock;
+#endif
 #endif
 
 #ifdef USE_ZLIB
