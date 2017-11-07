@@ -2233,6 +2233,16 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
 		return;
 
+	/* if no outgoing data was seen on this stream, it means it was
+	 * closed with a "tcp-request content" rule that is normally
+	 * used to kill the connection ASAP (eg: limit abuse). In this
+	 * case we send a goaway to close the connection.
+	 */
+	if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
+	    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
+	    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
+		return;
+
 	if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
 		return;
 
@@ -2261,11 +2271,13 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		else
 			h2s->st = H2_SS_HLOC;
 	} else {
-		/* let's signal a wish to close the connection if no headers
-		 * were seen as this usually means it's a tcp-request rule which
-		 * has aborted the response.
+		/* if no outgoing data was seen on this stream, it means it was
+		 * closed with a "tcp-request content" rule that is normally
+		 * used to kill the connection ASAP (eg: limit abuse). In this
+		 * case we send a goaway to close the connection.
 		 */
-		if (!(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
+		if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
+		    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
 		    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
 			return;
 
