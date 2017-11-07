@@ -891,16 +891,17 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	memcpy(str, "\x00\x00\x00\x00\x01", 5);
 	write_n32(str + 5, h2s->id);
 	ret = bo_istput(res, ist2(str, 9));
-	if (unlikely(ret <= 0)) {
-		if (!ret) {
-			h2c->flags |= H2_CF_MUX_MFULL;
-			h2s->flags |= H2_SF_BLK_MROOM;
-			return 0;
-		}
-		else {
-			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
-		}
+	if (likely(ret > 0)) {
+		h2s->flags |= H2_SF_ES_SENT;
+	}
+	else if (!ret) {
+		h2c->flags |= H2_CF_MUX_MFULL;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
+	}
+	else {
+		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+		return 0;
 	}
 	return ret;
 }
