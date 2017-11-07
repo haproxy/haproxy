@@ -1871,7 +1871,7 @@ static int h2_process_mux(struct h2c *h2c)
 	}
 
  fail:
-	if (unlikely(h2c->st0 > H2_CS_ERROR)) {
+	if (unlikely(h2c->st0 >= H2_CS_ERROR)) {
 		if (h2c->st0 == H2_CS_ERROR) {
 			if (h2c->max_id >= 0) {
 				h2c_send_goaway_error(h2c, NULL);
