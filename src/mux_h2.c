@@ -2249,8 +2249,16 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		return;
 
 	if (h2s->flags & H2_SF_HEADERS_SENT) {
-		if (h2_send_empty_data_es(h2s) <= 0)
+		/* we can cleanly close using an empty data frame only after headers */
+
+		if (!(h2s->flags & (H2_SF_ES_SENT|H2_SF_RST_SENT)) &&
+		    h2_send_empty_data_es(h2s) <= 0)
 			return;
+
+		if (h2s->st == H2_SS_HREM)
+			h2s->st = H2_SS_CLOSED;
+		else
+			h2s->st = H2_SS_HLOC;
 	} else {
 		/* let's signal a wish to close the connection if no headers
 		 * were seen as this usually means it's a tcp-request rule which
@@ -2260,18 +2268,15 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
 			return;
 
-		if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
+		if (!(h2s->flags & H2_SF_RST_SENT) &&
+		    h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
 			return;
+
+		h2s->st = H2_SS_CLOSED;
 	}
 
 	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
 		conn_xprt_want_send(cs->conn);
-
-	if (h2s->st == H2_SS_OPEN && !(h2s->flags & H2_SF_RST_SENT))
-		h2s->st = H2_SS_HLOC;
-	else
-		h2s->st = H2_SS_CLOSED;
-
 }
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1
