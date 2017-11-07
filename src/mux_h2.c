@@ -155,6 +155,7 @@ enum h2_ss {
 #define H2_SF_CHNK_MASK         0x00000C00 // trying to send chunk size
 
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
+#define H2_SF_OUTGOING_DATA     0x00002000  // set whenever we've seen outgoing data
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
@@ -2944,7 +2945,9 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 	struct h2s *h2s = cs->ctx;
 	int total = 0;
 
-	//fprintf(stderr, "cs=%p h2s=%p rqst=%d rsst=%d\n", cs, h2s, h2s->req.state, h2s->res.state);
+	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && buf->o)
+		h2s->flags |= H2_SF_OUTGOING_DATA;
+
 	while (h2s->res.state < HTTP_MSG_DONE && buf->o) {
 		if (h2s->res.state < HTTP_MSG_BODY) {
 			total += h2s_frt_make_resp_headers(h2s, buf);
