@@ -1731,7 +1731,6 @@ static void h2_process_demux(struct h2c *h2c)
 		case H2_FT_PUSH_PROMISE:
 			/* not permitted here, RFC7540#5.1 */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			h2c->st0 = H2_SS_ERROR;
 			break;
 
 			/* implement all extra frame types here */
@@ -2316,7 +2315,6 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		if (*hdrs >= flen) {
 			/* RFC7540#6.2 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			h2c->st0 = H2_SS_ERROR;
 			return 0;
 		}
 		flen -= *hdrs + 1;
@@ -2430,7 +2428,6 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 		if (padlen >= flen) {
 			/* RFC7540#6.1 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			h2c->st0 = H2_SS_ERROR;
 			return 0;
 		}
 		flen -= padlen + 1;
