@@ -2195,20 +2195,10 @@ static void h2_detach(struct conn_stream *cs)
 		/* h2s still attached to the h2c */
 		eb32_delete(&h2s->by_id);
 
-		if (h2c->task) {
-			if (eb_is_empty(&h2c->streams_by_id)) {
-				h2c->task->expire = tick_add(now_ms, h2c->timeout);
-				task_queue(h2c->task);
-			}
-			else
-				h2c->task->expire = TICK_ETERNITY;
-		}
-
 		/* We don't want to close right now unless we're removing the
 		 * last stream, and either the connection is in error, or it
 		 * reached the ID already specified in a GOAWAY frame received
-		 * or sent (as seen by last_sid >= 0). A timer should be armed
-		 * to kill the connection after some idle time though.
+		 * or sent (as seen by last_sid >= 0).
 		 */
 		if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
 		    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
@@ -2218,6 +2208,14 @@ static void h2_detach(struct conn_stream *cs)
 		       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
 			/* no more stream will come, kill it now */
 			h2_release(h2c->conn);
+		}
+		else if (h2c->task) {
+			if (eb_is_empty(&h2c->streams_by_id)) {
+				h2c->task->expire = tick_add(now_ms, h2c->timeout);
+				task_queue(h2c->task);
+			}
+			else
+				h2c->task->expire = TICK_ETERNITY;
 		}
 	}
 	pool_free2(pool2_h2s, h2s);
