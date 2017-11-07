@@ -121,7 +121,6 @@ enum h2_ss {
 	H2_SS_HREM,     // half-closed(remote)
 	H2_SS_HLOC,     // half-closed(local)
 	H2_SS_ERROR,    // an error needs to be sent using RST_STREAM
-	H2_SS_RESET,    // closed after sending RST_STREAM
 	H2_SS_CLOSED,   // closed
 	H2_SS_ENTRIES   // must be last
 } __attribute__((packed));
@@ -837,7 +836,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	/* len: 4, type: 3, flags: none */
 	memcpy(str, "\x00\x00\x04\x03\x00", 5);
 	write_n32(str + 5, h2c->dsi);
-	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_RESET) ?
+	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) ?
 		  h2s->errcode : H2_ERR_STREAM_CLOSED);
 	ret = bo_istput(res, ist2(str, 13));
 	if (unlikely(ret <= 0)) {
@@ -873,8 +872,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	char str[9];
 	int ret;
 
-	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
-	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
 		return 1;
 
 	if (h2c_mux_busy(h2c, h2s)) {
@@ -1443,7 +1441,7 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
-	if (h2s->st >= H2_SS_RESET) {
+	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
 		h2c->st0 = H2_CS_FRAME_A;
 	}
@@ -1521,7 +1519,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
-	if (h2s->st >= H2_SS_RESET) {
+	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
 		h2c->st0 = H2_CS_FRAME_A;
 	}
@@ -2232,8 +2230,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (!mode)
 		return;
 
-	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
-	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
 		return;
 
 	if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
@@ -2249,8 +2246,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
 
-	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR ||
-	    h2s->st == H2_SS_RESET || h2s->st == H2_SS_CLOSED)
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
 		return;
 
 	if (h2s->flags & H2_SF_HEADERS_SENT) {
