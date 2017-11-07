@@ -2986,14 +2986,18 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 		}
 	}
 
+	/* RST are sent similarly to frame acks */
+	if (h2s->st == H2_SS_ERROR) {
+		cs->flags |= CS_FL_ERROR;
+		if (h2c_send_rst_stream(h2s->h2c, h2s) > 0)
+			h2s->st = H2_SS_CLOSED;
+	}
+
 	if (h2s->flags & H2_SF_BLK_SFCTL) {
 		/* stream flow control, quit the list */
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
 	}
-
-	if (h2s->st == H2_SS_ERROR)
-		cs->flags |= CS_FL_ERROR;
 
 	return total;
 }
