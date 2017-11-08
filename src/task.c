@@ -252,13 +252,16 @@ void process_runnable_tasks()
 	}
 
 	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 
 	do {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
 		 */
+
+		/* we have to restart looking up after every batch */
+		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+
 		for (local_tasks_count = 0; local_tasks_count < 16; local_tasks_count++) {
 			if (unlikely(!rq_next)) {
 				/* either we just started or we reached the end
