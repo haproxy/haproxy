@@ -368,6 +368,10 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->req.flags & HTTP_MSGF_VER_11))
 		goto out;
 
+	/* does not cache if Content-Length unknown */
+	if (!(msg->flags & HTTP_MSGF_CNT_LEN))
+		goto out;
+
 	/* cache only GET method */
 	if (txn->meth != HTTP_METH_GET)
 		goto out;
