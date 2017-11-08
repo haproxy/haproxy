@@ -1209,6 +1209,7 @@ int connect_server(struct stream *s)
 
 	err = si_connect(&s->si[1]);
 
+#ifdef USE_OPENSSL
 	if (!reuse && cli_conn && srv &&
 	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
 		    (cli_conn->flags & CO_FL_EARLY_DATA) &&
@@ -1217,6 +1218,7 @@ int connect_server(struct stream *s)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 		srv_conn->flags |= CO_FL_EARLY_SSL_HS;
 	}
+#endif
 
 	if (err != SF_ERR_NONE)
 		return err;
