@@ -17,7 +17,6 @@
 #include <types/global.h>
 #include <common/mini-clist.h>
 #include "proto/shctx.h"
-#include <proto/openssl-compat.h>
 
 #if !defined (USE_PRIVATE_CACHE)
 
