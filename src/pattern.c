@@ -2592,7 +2592,7 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 			/* We also duplicate the sample data for
 			   same reason */
 			if (pat->data && (pat->data != &static_sample_data)) {
-				switch(pat->type) {
+				switch(pat->data->type) {
 					case SMP_T_STR:
 						static_sample_data.type = SMP_T_STR;
 						static_sample_data.u.str = *get_trash_chunk();
