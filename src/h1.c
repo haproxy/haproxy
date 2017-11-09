@@ -75,16 +75,16 @@ const unsigned char h1_char_classes[256] = {
 	['-'] = H1_FLG_TOK,
 	['.'] = H1_FLG_TOK | H1_FLG_VER,
 	['/'] = H1_FLG_SEP | H1_FLG_VER,
-	['0'] = H1_FLG_TOK | H1_FLG_VER,
-	['1'] = H1_FLG_TOK | H1_FLG_VER,
-	['2'] = H1_FLG_TOK | H1_FLG_VER,
-	['3'] = H1_FLG_TOK | H1_FLG_VER,
-	['4'] = H1_FLG_TOK | H1_FLG_VER,
-	['5'] = H1_FLG_TOK | H1_FLG_VER,
-	['6'] = H1_FLG_TOK | H1_FLG_VER,
-	['7'] = H1_FLG_TOK | H1_FLG_VER,
-	['8'] = H1_FLG_TOK | H1_FLG_VER,
-	['9'] = H1_FLG_TOK | H1_FLG_VER,
+	['0'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['1'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['2'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['3'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['4'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['5'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['6'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['7'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['8'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
+	['9'] = H1_FLG_TOK | H1_FLG_VER | H1_FLG_DIG,
 	[':'] = H1_FLG_SEP,
 	[';'] = H1_FLG_SEP,
 	['<'] = H1_FLG_SEP,
@@ -909,9 +909,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 	case HTTP_MSG_RPCODE:
 	http_msg_rpcode:
-		if (likely(!HTTP_IS_LWS(*ptr))) {
+		if (likely(HTTP_IS_DIGIT(*ptr))) {
 			code = code * 10 + *ptr - '0';
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode, http_msg_ood, state, HTTP_MSG_RPCODE);
+		}
+
+		if (unlikely(!HTTP_IS_LWS(*ptr))) {
+			state = HTTP_MSG_RPCODE;
+			goto http_msg_invalid;
 		}
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {

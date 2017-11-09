@@ -52,6 +52,7 @@ int h1_measure_trailers(const struct buffer *buf);
 #define H1_FLG_CRLF 0x10
 #define H1_FLG_TOK  0x20
 #define H1_FLG_VER  0x40
+#define H1_FLG_DIG  0x80
 
 #define HTTP_IS_CTL(x)       (h1_char_classes[(uint8_t)(x)] & H1_FLG_CTL)
 #define HTTP_IS_SEP(x)       (h1_char_classes[(uint8_t)(x)] & H1_FLG_SEP)
@@ -60,6 +61,7 @@ int h1_measure_trailers(const struct buffer *buf);
 #define HTTP_IS_CRLF(x)      (h1_char_classes[(uint8_t)(x)] & H1_FLG_CRLF)
 #define HTTP_IS_TOKEN(x)     (h1_char_classes[(uint8_t)(x)] & H1_FLG_TOK)
 #define HTTP_IS_VER_TOKEN(x) (h1_char_classes[(uint8_t)(x)] & H1_FLG_VER)
+#define HTTP_IS_DIGIT(x)     (h1_char_classes[(uint8_t)(x)] & H1_FLG_DIG)
 
 
 /* Macros used in the HTTP/1 parser, to check for the expected presence of
