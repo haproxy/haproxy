@@ -2609,7 +2609,13 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		outbuf.str[outbuf.len++] = 0x88; // indexed field : idx[08]=(":status", "200")
 	else if (outbuf.len < outbuf.size && h1m->status == 304)
 		outbuf.str[outbuf.len++] = 0x8b; // indexed field : idx[11]=(":status", "304")
-	else if (list[0].v.len == 3 && outbuf.len + 2 + 3 <= outbuf.size) {
+	else if (unlikely(list[0].v.len != 3)) {
+		/* this is an unparsable response */
+		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+		ret = 0;
+		goto end;
+	}
+	else if (unlikely(outbuf.len + 2 + 3 <= outbuf.size)) {
 		/* basic encoding of the status code */
 		outbuf.str[outbuf.len++] = 0x48; // indexed name -- name=":status" (idx 8)
 		outbuf.str[outbuf.len++] = 0x03; // 3 bytes status
