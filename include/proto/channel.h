@@ -231,7 +231,7 @@ static inline void channel_check_timeouts(struct channel *chn)
 	    unlikely(tick_is_expired(chn->rex, now_ms)))
 		chn->flags |= CF_READ_TIMEOUT;
 
-	if (likely(!(chn->flags & (CF_SHUTW|CF_WRITE_TIMEOUT|CF_WRITE_ACTIVITY))) &&
+	if (likely(!(chn->flags & (CF_SHUTW|CF_WRITE_TIMEOUT|CF_WRITE_ACTIVITY|CF_WRITE_EVENT))) &&
 	    unlikely(tick_is_expired(chn->wex, now_ms)))
 		chn->flags |= CF_WRITE_TIMEOUT;
 
@@ -491,7 +491,7 @@ static inline void co_skip(struct channel *chn, int len)
 		chn->buf->p = chn->buf->data;
 
 	/* notify that some data was written to the SI from the buffer */
-	chn->flags |= CF_WRITE_PARTIAL;
+	chn->flags |= CF_WRITE_PARTIAL | CF_WRITE_EVENT;
 }
 
 /* Tries to copy chunk <chunk> into the channel's buffer after length controls.

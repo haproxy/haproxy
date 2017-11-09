@@ -546,7 +546,7 @@ void stream_int_notify(struct stream_interface *si)
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
-	    ((oc->flags & CF_WRITE_ACTIVITY) &&
+	    ((oc->flags & (CF_WRITE_ACTIVITY|CF_WRITE_EVENT)) &&
 	     ((oc->flags & CF_SHUTW) ||
 	      ((oc->flags & CF_WAKE_WRITE) &&
 	       (si_opposite(si)->state != SI_ST_EST ||
@@ -636,7 +636,7 @@ static void si_cs_send(struct conn_stream *cs)
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(cs, oc->pipe);
 		if (ret > 0)
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
 		if (!oc->pipe->data) {
 			put_pipe(oc->pipe);
@@ -682,7 +682,7 @@ static void si_cs_send(struct conn_stream *cs)
 
 		ret = conn->mux->snd_buf(cs, oc->buf, send_flag);
 		if (ret > 0) {
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
 			if (!oc->buf->o) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
