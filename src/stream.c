@@ -3252,7 +3252,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 static void cli_release_show_sess(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST) {
-		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
+		HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
 		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
