@@ -191,6 +191,8 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 	.cs        = NULL,
 	.h2c       = NULL,
 	.st        = H2_SS_CLOSED,
+	.errcode   = H2_ERR_STREAM_CLOSED,
+	.flags     = H2_SF_RST_SENT,
 	.id        = 0,
 };
 
@@ -199,6 +201,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 	.cs        = NULL,
 	.h2c       = NULL,
 	.st        = H2_SS_IDLE,
+	.errcode   = H2_ERR_STREAM_CLOSED,
 	.id        = 0,
 };
 
@@ -802,51 +805,46 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 	return ret;
 }
 
-/* try to send an RST_STREAM frame on the connection for the current demuxed
- * stream to report an error, with h2s->errcode as the error code. Returns > 0
- * on success or zero if nothing was done. It uses h2c->dsi as the stream ID
- * and h2s->errcode for the error code. In case of lack of room to write the
- * message, it subscribes the requester (either <h2s> or <h2c>) to future
- * notifications. It's worth mentionning that an RST may even be sent for a
- * closed stream with error 0 in this case.
+/* Try to send an RST_STREAM frame on the connection for the indicated stream
+ * during mux operations. This stream must be valid and cannot be closed
+ * already. h2s->id will be used for the stream ID and h2s->errcode will be
+ * used for the error code. h2s->st will be update to H2_SS_CLOSED if it was
+ * not yet.
+ *
+ * Returns > 0 on success or zero if nothing was done. In case of lack of room
+ * to write the message, it subscribes the stream to future notifications.
  */
-static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
+static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer *res;
 	char str[13];
 	int ret;
 
+	if (!h2s || h2s->st == H2_SS_CLOSED)
+		return 1;
+
 	if (h2c_mux_busy(h2c, h2s)) {
-		if (h2s)
-			h2s->flags |= H2_SF_BLK_MBUSY;
-		else
-			h2c->flags |= H2_CF_DEM_MBUSY;
+		h2s->flags |= H2_SF_BLK_MBUSY;
 		return 0;
 	}
 
 	res = h2_get_mbuf(h2c);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
-		if (h2s)
-			h2s->flags |= H2_SF_BLK_MROOM;
-		else
-			h2c->flags |= H2_CF_DEM_MROOM;
+		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
 	}
 
 	/* len: 4, type: 3, flags: none */
 	memcpy(str, "\x00\x00\x04\x03\x00", 5);
-	write_n32(str + 5, h2c->dsi);
-	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) ?
-		  h2s->errcode : H2_ERR_STREAM_CLOSED);
+	write_n32(str + 5, h2s->id);
+	write_n32(str + 9, h2s->errcode);
 	ret = bo_istput(res, ist2(str, 13));
+
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;
-			if (h2s)
-				h2s->flags |= H2_SF_BLK_MROOM;
-			else
-				h2c->flags |= H2_CF_DEM_MROOM;
+			h2s->flags |= H2_SF_BLK_MROOM;
 			return 0;
 		}
 		else {
@@ -855,8 +853,65 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 
-	if (h2s)
+	h2s->flags |= H2_SF_RST_SENT;
+	h2s->st = H2_SS_CLOSED;
+	return ret;
+}
+
+/* Try to send an RST_STREAM frame on the connection for the stream being
+ * demuxed using h2c->dsi for the stream ID. It will use h2s->errcode as the
+ * error code unless the stream's state already is IDLE or CLOSED in which
+ * case STREAM_CLOSED will be used, and will update h2s->st to H2_SS_CLOSED if
+ * it was not yet.
+ *
+ * Returns > 0 on success or zero if nothing was done. In case of lack of room
+ * to write the message, it blocks the demuxer and subscribes it to future
+ * notifications. It's worth mentionning that an RST may even be sent for a
+ * closed stream.
+ */
+static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
+{
+	struct buffer *res;
+	char str[13];
+	int ret;
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_mbuf(h2c);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	/* len: 4, type: 3, flags: none */
+	memcpy(str, "\x00\x00\x04\x03\x00", 5);
+
+	write_n32(str + 5, h2c->dsi);
+	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) ?
+		  h2s->errcode : H2_ERR_STREAM_CLOSED);
+	ret = bo_istput(res, ist2(str, 13));
+
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2c->flags |= H2_CF_DEM_MROOM;
+			return 0;
+		}
+		else {
+			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+			return 0;
+		}
+	}
+
+	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) {
 		h2s->flags |= H2_SF_RST_SENT;
+		h2s->st = H2_SS_CLOSED;
+	}
+
 	return ret;
 }
 
@@ -1813,7 +1868,7 @@ static int h2_process_mux(struct h2c *h2c)
 			h2s->cs->data_cb->send(h2s->cs);
 			h2s->cs->data_cb->wake(h2s->cs);
 		} else {
-			h2c_send_rst_stream(h2c, h2s);
+			h2s_send_rst_stream(h2c, h2s);
 		}
 
 		/* depending on callee's blocking reasons, we may queue in send
@@ -1851,7 +1906,7 @@ static int h2_process_mux(struct h2c *h2c)
 			h2s->cs->data_cb->send(h2s->cs);
 			h2s->cs->data_cb->wake(h2s->cs);
 		} else {
-			h2c_send_rst_stream(h2c, h2s);
+			h2s_send_rst_stream(h2c, h2s);
 		}
 		/* depending on callee's blocking reasons, we may queue in fctl
 		 * list or completely dequeue.
@@ -2243,7 +2298,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
 		return;
 
-	if (h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
+	if (h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
 		return;
 
 	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
@@ -2282,7 +2337,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 			return;
 
 		if (!(h2s->flags & H2_SF_RST_SENT) &&
-		    h2c_send_rst_stream(h2s->h2c, h2s) <= 0)
+		    h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
 			return;
 
 		h2s->st = H2_SS_CLOSED;
@@ -3008,7 +3063,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 	/* RST are sent similarly to frame acks */
 	if (h2s->st == H2_SS_ERROR) {
 		cs->flags |= CS_FL_ERROR;
-		if (h2c_send_rst_stream(h2s->h2c, h2s) > 0)
+		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s->st = H2_SS_CLOSED;
 	}
 
