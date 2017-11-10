@@ -722,26 +722,44 @@ static inline void b_free(struct buffer **buf)
  * a response buffer could not be allocated anymore, resulting in a deadlock.
  * This means that we sometimes need to try to allocate extra entries even if
  * only one buffer is needed.
+ *
+ * We need to lock the pool here to be sure to have <margin> buffers available
+ * after the allocation, regardless how many threads that doing it in the same
+ * time. So, we use internal and lockless memory functions (prefixed with '__').
  */
 static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 {
-	struct buffer *next;
+	struct buffer *b;
 
 	if ((*buf)->size)
 		return *buf;
 
+	*buf = &buf_wanted;
+	HA_SPIN_LOCK(POOL_LOCK, &pool2_buffer->lock);
+
 	/* fast path */
-	if ((pool2_buffer->allocated - pool2_buffer->used) > margin)
-		return b_alloc_fast(buf);
+	if ((pool2_buffer->allocated - pool2_buffer->used) > margin) {
+		b = __pool_get_first(pool2_buffer);
+		if (likely(b)) {
+			HA_SPIN_UNLOCK(POOL_LOCK, &pool2_buffer->lock);
+			b->size = pool2_buffer->size - sizeof(struct buffer);
+			b_reset(b);
+			*buf = b;
+			return b;
+		}
+	}
 
-	next = pool_refill_alloc(pool2_buffer, margin);
-	if (!next)
-		return next;
+	/* slow path, uses malloc() */
+	b = __pool_refill_alloc(pool2_buffer, margin);
 
-	next->size = pool2_buffer->size - sizeof(struct buffer);
-	b_reset(next);
-	*buf = next;
-	return next;
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool2_buffer->lock);
+
+	if (b) {
+		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b_reset(b);
+		*buf = b;
+	}
+	return b;
 }
 
 
