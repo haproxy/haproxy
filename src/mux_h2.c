@@ -3170,7 +3170,6 @@ const struct mux_ops h2_ops = {
 	.detach = h2_detach,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
-	.release = h2_release,
 	.name = "H2",
 };
 

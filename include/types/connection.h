@@ -296,7 +296,6 @@ struct mux_ops {
 	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */
 	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
 
-	void (*release)(struct connection *conn);     /* release all resources allocated by the mux */
 	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	char name[8];                                 /* mux layer name, zero-terminated */
