@@ -192,8 +192,10 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	const char *ptr = b_ptr(buf, start);
 	const char *ptr_old = ptr;
 	const char *end = buf->data + buf->size;
-	const char *ptr_stop = b_ptr(buf, stop);
 	unsigned int chunk = 0;
+
+	stop -= start; // bytes left
+	start = stop;  // bytes to transfer
 
 	/* The chunk size is in the following form, though we are only
 	 * interested in the size and CRLF :
@@ -201,7 +203,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	 */
 	while (1) {
 		int c;
-		if (ptr == ptr_stop)
+		if (!stop)
 			return 0;
 		c = hex2i(*ptr);
 		if (c < 0) /* not a hex digit anymore */
@@ -211,6 +213,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 		if (unlikely(chunk & 0xF8000000)) /* integer overflow will occur if result >= 2GB */
 			goto error;
 		chunk = (chunk << 4) + c;
+		stop--;
 	}
 
 	/* empty size not allowed */
@@ -220,7 +223,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	while (HTTP_IS_SPHT(*ptr)) {
 		if (++ptr >= end)
 			ptr = buf->data;
-		if (unlikely(ptr == ptr_stop))
+		if (--stop == 0)
 			return 0;
 	}
 
@@ -233,14 +236,15 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			if (likely(*ptr == '\r')) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == ptr_stop)
+				if (--stop == 0)
 					return 0;
 			}
 
-			if (unlikely(*ptr != '\n'))
+			if (*ptr != '\n')
 				goto error;
 			if (++ptr >= end)
 				ptr = buf->data;
+			--stop;
 			/* done */
 			break;
 		}
@@ -248,13 +252,13 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			/* chunk extension, ends at next CRLF */
 			if (++ptr >= end)
 				ptr = buf->data;
-			if (ptr == ptr_stop)
+			if (--stop == 0)
 				return 0;
 
 			while (!HTTP_IS_CRLF(*ptr)) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == ptr_stop)
+				if (--stop == 0)
 					return 0;
 			}
 			/* we have a CRLF now, loop above */
@@ -268,10 +272,10 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	 * or may not be present. Let's return the number of bytes parsed.
 	 */
 	*res = chunk;
-	return (ptr - ptr_old) >= 0 ? (ptr - ptr_old) : (ptr - ptr_old + buf->size);
+	return start - stop;
  error:
 	*res = 0; // just to stop gcc's -Wuninitialized warning :-(
-	return -buffer_count(buf, ptr, ptr_stop);
+	return -stop;
 }
 
 /* initializes an H1 message */
