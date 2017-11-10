@@ -6,8 +6,8 @@ CC = gcc
 LD = $(CC)
 
 CFLAGS  = -g -O2 -Wall -Werror -pthread
-LDFLAGS = -lpthread  -levent -levent_pthreads
-INCS += -I../../include -I../../ebtree
+LDFLAGS = -lpthread -levent -levent_pthreads
+INCS += -I../../ebtree -I./include
 LIBS =
 
 OBJS = spoa.o

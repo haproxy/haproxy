@@ -21,7 +21,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <signal.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <err.h>
 #include <ctype.h>
@@ -33,10 +35,9 @@
 #include <event2/event_struct.h>
 #include <event2/thread.h>
 
-#include <common/mini-clist.h>
-#include <common/chunk.h>
-
-#include <proto/spoe.h>
+#include <mini-clist.h>
+#include <spoe_types.h>
+#include <spop_functions.h>
 
 #define DEFAULT_PORT       12345
 #define CONNECTION_BACKLOG 10
