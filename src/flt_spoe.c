@@ -2695,7 +2695,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 static int
 spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 {
-	if (*buf != &buf_empty)
+	if ((*buf)->size)
 		return 1;
 
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
@@ -2725,7 +2725,7 @@ spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 	}
 
 	/* Release the buffer if needed */
-	if (*buf != &buf_empty) {
+	if ((*buf)->size) {
 		b_free(buf);
 		offer_buffers(buffer_wait->target,
 			      tasks_run_queue + applets_active_queue);
