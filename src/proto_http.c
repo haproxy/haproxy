@@ -1899,6 +1899,12 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		s->flags |= SF_REDIRECTABLE;
+	else if (txn->meth == HTTP_METH_OTHER &&
+		 msg->sl.rq.m_l == 3 && memcmp(req->buf->p, "PRI", 3) == 0) {
+		/* PRI is reserved for the HTTP/2 preface */
+		msg->err_pos = 0;
+		goto return_bad_req;
+	}
 
 	/*
 	 * 2: check if the URI matches the monitor_uri.
