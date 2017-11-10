@@ -64,7 +64,7 @@ static void enable_listener(struct listener *listener)
 	if (listener->state == LI_LISTEN) {
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    listener->bind_conf->bind_proc &&
-		    !(listener->bind_conf->bind_proc & (1UL << (relative_pid - 1)))) {
+		    !(listener->bind_conf->bind_proc & pid_bit)) {
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
@@ -168,7 +168,7 @@ static int __resume_listener(struct listener *l)
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 	    l->bind_conf->bind_proc &&
-	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
+	    !(l->bind_conf->bind_proc & pid_bit))
 		goto end;
 
 	if (l->state == LI_ASSIGNED) {

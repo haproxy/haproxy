@@ -118,6 +118,7 @@
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
+unsigned long pid_bit = 1;      /* bit corresponding to the process id */
 
 /* global options */
 struct global global = {
@@ -2655,6 +2656,7 @@ int main(int argc, char **argv)
 				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
 			}
 			relative_pid++; /* each child will get a different one */
+			pid_bit <<= 1;
 		}
 
 #ifdef USE_CPU_AFFINITY
