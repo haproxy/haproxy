@@ -984,14 +984,21 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		if (h2s->id <= last)
 			break;
 		node = eb32_next(node);
-		if (h2s->cs) {
-			h2s->cs->flags |= flags;
-			/* recv is used to force to detect CS_FL_EOS that wake()
-			 * doesn't handle in the stream int code.
-			 */
-			h2s->cs->data_cb->recv(h2s->cs);
-			h2s->cs->data_cb->wake(h2s->cs);
+
+		if (!h2s->cs) {
+			/* this stream was already orphaned */
+			eb32_delete(&h2s->by_id);
+			pool_free2(pool2_h2s, h2s);
+			continue;
 		}
+
+		h2s->cs->flags |= flags;
+		/* recv is used to force to detect CS_FL_EOS that wake()
+		 * doesn't handle in the stream int code.
+		 */
+		h2s->cs->data_cb->recv(h2s->cs);
+		h2s->cs->data_cb->wake(h2s->cs);
+
 		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
 		else if (flags & CS_FL_EOS && h2s->st == H2_SS_OPEN)
@@ -1884,6 +1891,11 @@ static int h2_process_mux(struct h2c *h2c)
 				LIST_INIT(&h2s->list);
 				if (h2s->cs)
 					h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
+				else {
+					/* just sent the last frame for this orphaned stream */
+					eb32_delete(&h2s->by_id);
+					pool_free2(pool2_h2s, h2s);
+				}
 			}
 		}
 	}
@@ -1921,6 +1933,11 @@ static int h2_process_mux(struct h2c *h2c)
 			LIST_INIT(&h2s->list);
 			if (h2s->cs)
 				h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
+			else {
+				/* just sent the last frame for this orphaned stream */
+				eb32_delete(&h2s->by_id);
+				pool_free2(pool2_h2s, h2s);
+			}
 		}
 	}
 
@@ -2236,6 +2253,12 @@ static void h2_detach(struct conn_stream *cs)
 
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
+
+	/* this stream may be blocked waiting for some data to leave (possibly
+	 * an ES or RST frame), so orphan it in this case.
+	 */
+	if (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))
+		return;
 
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
 	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
