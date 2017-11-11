@@ -14,6 +14,7 @@
 #include <fcntl.h>
 
 #include <common/config.h>
+#include <common/hathreads.h>
 #include <common/memory.h>
 
 #include <types/global.h>
@@ -21,7 +22,9 @@
 
 struct pool_head *pool2_pipe = NULL;
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
+#ifdef USE_THREAD
 HA_SPINLOCK_T pipes_lock;       /* lock used to protect pipes list */
+#endif
 int pipes_used = 0;             /* # of pipes in use (2 fds each) */
 int pipes_free = 0;             /* # of pipes unused */
 
