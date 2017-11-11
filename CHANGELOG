@@ -1,6 +1,81 @@
 ChangeLog :
 ===========
 
+2017/11/11 : 1.8-rc3
+    - BUILD: use MAXPATHLEN instead of NAME_MAX.
+    - BUG/MAJOR: threads/checks: add 4 missing spin_unlock() in various functions
+    - BUG/MAJOR: threads/server: missing unlock in CLI fqdn parser
+    - BUG/MINOR: cli: do not perform an invalid action on "set server check-port"
+    - BUG/MAJOR: threads/checks: wrong use of SPIN_LOCK instead of SPIN_UNLOCK
+    - CLEANUP: checks: remove return statements in locked functions
+    - BUG/MINOR: cli: add severity in "set server addr" parser
+    - CLEANUP: server: get rid of return statements in the CLI parser
+    - BUG/MAJOR: cli/streams: missing unlock on exit "show sess"
+    - BUG/MAJOR: threads/dns: add missing unlock on allocation failure path
+    - BUG/MAJOR: threads/lb: fix missing unlock on consistent hash LB
+    - BUG/MAJOR: threads/lb: fix missing unlock on map-based hash LB
+    - BUG/MEDIUM: threads/stick-tables: close a race condition on stktable_trash_expired()
+    - BUG/MAJOR: h2: set the connection's task to NULL when no client timeout is set
+    - BUG/MAJOR: thread/listeners: enable_listener must not call unbind_listener()
+    - BUG/MEDIUM: threads: don't try to free build option message on exit
+    - MINOR: applets: no need to check for runqueue's emptiness in appctx_res_wakeup()
+    - MINOR: add master-worker in the warning about nbproc
+    - MINOR: mworker: allow pidfile in mworker + foreground
+    - MINOR: mworker: write parent pid in the pidfile
+    - MINOR: mworker: do not store child pid anymore in the pidfile
+    - MINOR: ebtree: implement the scope-aware functions for eb32
+    - MEDIUM: ebtree: specify the scope of every node inserted via eb32sc
+    - MINOR: ebtree: update the eb32sc parent node's scope on delete
+    - MEDIUM: ebtree: only consider the branches matching the scope in lookups
+    - MINOR: ebtree: implement eb32sc_lookup_ge_or_first()
+    - MAJOR: task: make use of the scope-aware ebtree functions
+    - MINOR: task: simplify wake_expired_tasks() to avoid unlocking in the loop
+    - MEDIUM: task: change the construction of the loop in process_runnable_tasks()
+    - MINOR: threads: use faster locks for the spin locks
+    - MINOR: tasks: only visit filled task slots after processing them
+    - MEDIUM: tasks: implement a lockless scheduler for single-thread usage
+    - BUG/MINOR: dns: Don't try to get the server lock if it's already held.
+    - BUG/MINOR: dns: Don't lock the server lock in snr_check_ip_callback().
+    - DOC: Add note about encrypted password CPU usage
+    - BUG/MINOR: h2: set the "HEADERS_SENT" flag on stream, not connection
+    - BUG/MEDIUM: h2: properly send an RST_STREAM on mux stream error
+    - BUG/MEDIUM: h2: properly send the GOAWAY frame in the mux
+    - BUG/MEDIUM: h2: don't try (and fail) to send non-existing data in the mux
+    - MEDIUM: h2: remove the H2_SS_RESET intermediate state
+    - BUG/MEDIUM: h2: fix some wrong error codes on connections
+    - BUILD: threads: Rename SPIN/RWLOCK macros using HA_ prefix
+    - BUILD: enable USE_THREAD for Solaris build.
+    - BUG/MEDIUM: h2: don't close the connection is there are data left
+    - MINOR: h2: don't re-enable the connection's task when we're closing
+    - BUG/MEDIUM: h2: properly set H2_SF_ES_SENT when sending the final frame
+    - BUG/MINOR: h2: correctly check for H2_SF_ES_SENT before closing
+    - MINOR: h2: add new stream flag H2_SF_OUTGOING_DATA
+    - BUG/MINOR: h2: don't send GOAWAY on failed response
+    - BUG/MEDIUM: splice/threads: pipe reuse list was not protected.
+    - BUG/MINOR: comp: fix compilation warning compiling without compression.
+    - BUG/MINOR: stream-int: don't set MSG_MORE on closed request path
+    - BUG/MAJOR: threads/tasks: fix the scheduler again
+    - BUG/MINOR; ssl: Don't assume we have a ssl_bind_conf because a SNI is matched.
+    - MINOR: ssl: Handle session resumption with TLS 1.3
+    - MINOR: ssl: Spell 0x10101000L correctly.
+    - MINOR: ssl: Handle sending early data to server.
+    - BUILD: ssl: fix build of backend without ssl
+    - BUILD: shctx: do not depend on openssl anymore
+    - BUG/MINOR: h1: the HTTP/1 make status code parser check for digits
+    - BUG/MEDIUM: h2: reject non-3-digit status codes
+    - BUG/MEDIUM: stream-int: Don't loss write's notifs when a stream is woken up
+    - BUG/MINOR: pattern: Rely on the sample type to copy it in pattern_exec_match
+    - BUG/MEDIUM: h2: split the function to send RST_STREAM
+    - BUG/MEDIUM: h1: ensure the chunk size parser can deal with full buffers
+    - MINOR: tools: don't use unlikely() in hex2i()
+    - BUG/MEDIUM: h2: support orphaned streams
+    - BUG/MEDIUM: threads/cli: fix "show sess" locking on release
+    - CLEANUP: mux: remove the unused "release()" function
+    - MINOR: cli: make "show fd" report the fd's thread mask
+    - BUG/MEDIUM: stream: don't ignore res.analyse_exp anymore
+    - CLEANUP: global: introduce variable pid_bit to avoid shifts with relative_pid
+    - MEDIUM: http: always reject the "PRI" method
+
 2017/11/03 : 1.8-rc2
     - BUG/MINOR: send-proxy-v2: fix dest_len in make_tlv call
     - BUG/MINOR: send-proxy-v2: string size must include ('\0')
