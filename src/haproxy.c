@@ -650,7 +650,7 @@ static void mworker_reload()
 
 	deinit(); /* we don't want to leak FD there */
 	Warning("Reexecuting Master process\n");
-	execv(next_argv[0], next_argv);
+	execvp(next_argv[0], next_argv);
 
 alloc_error:
 	Warning("Cannot allocate memory\n");
