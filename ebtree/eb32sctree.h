@@ -68,52 +68,62 @@ static inline struct eb32sc_node *eb32sc_walk_down_left(eb_troot_t *start, unsig
 {
 	struct eb_root *root;
 	struct eb_node *node;
+	struct eb32sc_node *eb32;
 
 	if (unlikely(!start))
 		return NULL;
 
-	while (eb_gettag(start) == EB_NODE) {
-		root = eb_untag(start, EB_NODE);
-		node = eb_root_to_node(root);
+	while (1) {
+		if (eb_gettag(start) == EB_NODE) {
+			root = eb_untag(start, EB_NODE);
+			node = eb_root_to_node(root);
+			eb32 = container_of(node, struct eb32sc_node, node);
+			if (eb32->node_s & scope) {
+				start = node->branches.b[EB_LEFT];
+				continue;
+			}
+			start = node->node_p;
+		}
+		else {
+			root = eb_untag(start, EB_LEAF);
+			node = eb_root_to_node(root);
+			eb32 = container_of(node, struct eb32sc_node, node);
+			if (eb32->leaf_s & scope)
+				return eb32;
+			start = node->leaf_p;
+		}
 
-		start = node->branches.b[EB_LEFT];
-		if (!(container_of(node, struct eb32sc_node, node)->node_s & scope))
-			start = node->branches.b[EB_RGHT];
+		/* here we're on a node that doesn't match the scope. We have
+		 * to walk to the closest right location.
+		 */
+		while (eb_gettag(start) != EB_LEFT)
+			/* Walking up from right branch, so we cannot be below root */
+			start = (eb_root_to_node(eb_untag(start, EB_RGHT)))->node_p;
+
+		/* Note that <start> cannot be NULL at this stage */
+		root = eb_untag(start, EB_LEFT);
+		start = root->b[EB_RGHT];
+		if (eb_clrtag(start) == NULL)
+			return NULL;
 	}
-
-	/* now we have a leaf */
-	node = eb_root_to_node(eb_untag(start, EB_LEAF));
-	if (!(eb32sc_entry(node, struct eb32sc_node, node)->leaf_s & scope))
-		return NULL;
-
-	return eb32sc_entry(node, struct eb32sc_node, node);
 }
 
 /* Return next node in the tree, or NULL if none */
 static inline struct eb32sc_node *eb32sc_next(struct eb32sc_node *eb32, unsigned long scope)
 {
-	struct eb_root *root;
 	struct eb_node *node = &eb32->node;
 	eb_troot_t *t = node->leaf_p;
 
-	while (1) {
-		while (eb_gettag(t) != EB_LEFT)
-			/* Walking up from right branch, so we cannot be below root */
-			t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
+	while (eb_gettag(t) != EB_LEFT)
+		/* Walking up from right branch, so we cannot be below root */
+		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
 
-		/* Note that <t> cannot be NULL at this stage */
-		root = eb_untag(t, EB_LEFT);
-		t = root->b[EB_RGHT];
-		if (eb_clrtag(t) == NULL)
-			return NULL;
+	/* Note that <t> cannot be NULL at this stage */
+	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
+	if (eb_clrtag(t) == NULL)
+		return NULL;
 
-		/* we can't be below the root here */
-		eb32 = eb32sc_walk_down_left(t, scope);
-		if (eb32)
-			return eb32;
-		/* not found below, this means we have to go up */
-		t = eb_root_to_node(root)->node_p;
-	}
+	return eb32sc_walk_down_left(t, scope);
 }
 
 /* Return leftmost node in the tree, or NULL if none */
