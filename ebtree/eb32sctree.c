@@ -40,13 +40,23 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
 
 		head = container_of(eb_untag(head->branches.b[EB_RGHT], EB_NODE),
 				    struct eb_node, branches);
+
+		if (unlikely(head->bit > last->bit + 1)) {
+			/* there's a hole here, we must assign the top of the
+			 * following sub-tree to <sub> and mark all intermediate
+			 * nodes with the scope mask.
+			 */
+			do {
+				eb32 = container_of(sub, struct eb32sc_node, node);
+				if (!(eb32->node_s & scope))
+					eb32->node_s |= scope;
+
+				sub = container_of(eb_untag(sub->branches.b[EB_RGHT], EB_NODE),
+				                   struct eb_node, branches);
+			} while (sub != head);
+		}
+
 		eb32 = container_of(head, struct eb32sc_node, node);
-
-		if (head->bit > last->bit + 1)
-			sub = head;     /* there's a hole here */
-
-		if ((eb32->node_s | scope) != eb32->node_s)
-			eb32->node_s |= scope;
 	}
 
 	/* Here we have a leaf attached to (head)->b[EB_RGHT] */
@@ -423,6 +433,7 @@ void eb32sc_delete(struct eb32sc_node *eb32)
 	unsigned int pside, gpside, sibtype;
 	struct eb_node *parent;
 	struct eb_root *gparent;
+	unsigned long scope;
 
 	if (!node->leaf_p)
 		return;
@@ -486,7 +497,6 @@ void eb32sc_delete(struct eb32sc_node *eb32)
 	parent->node_p = node->node_p;
 	parent->branches = node->branches;
 	parent->bit = node->bit;
-	container_of(parent, struct eb32sc_node, node)->node_s |= eb32->node_s;
 
 	/* We must now update the new node's parent... */
 	gpside = eb_gettag(parent->node_p);
@@ -494,15 +504,20 @@ void eb32sc_delete(struct eb32sc_node *eb32)
 	gparent->b[gpside] = eb_dotag(&parent->branches, EB_NODE);
 
 	/* ... and its branches */
+	scope = 0;
 	for (pside = 0; pside <= 1; pside++) {
 		if (eb_gettag(parent->branches.b[pside]) == EB_NODE) {
 			eb_root_to_node(eb_untag(parent->branches.b[pside], EB_NODE))->node_p =
 				eb_dotag(&parent->branches, pside);
+			scope |= container_of(eb_untag(parent->branches.b[pside], EB_NODE), struct eb32sc_node, node.branches)->node_s;
 		} else {
 			eb_root_to_node(eb_untag(parent->branches.b[pside], EB_LEAF))->leaf_p =
 				eb_dotag(&parent->branches, pside);
+			scope |= container_of(eb_untag(parent->branches.b[pside], EB_LEAF), struct eb32sc_node, node.branches)->leaf_s;
 		}
 	}
+	container_of(parent, struct eb32sc_node, node)->node_s = scope;
+
  delete_unlink:
 	/* Now the node has been completely unlinked */
 	node->leaf_p = NULL;
