@@ -108,22 +108,25 @@ static inline struct eb32sc_node *eb32sc_walk_down_left(eb_troot_t *start, unsig
 	}
 }
 
+/* Return next node in the tree, starting with tagged parent <start>, or NULL if none */
+static inline struct eb32sc_node *eb32sc_next_with_parent(eb_troot_t *start, unsigned long scope)
+{
+	while (eb_gettag(start) != EB_LEFT)
+		/* Walking up from right branch, so we cannot be below root */
+		start = (eb_root_to_node(eb_untag(start, EB_RGHT)))->node_p;
+
+	/* Note that <t> cannot be NULL at this stage */
+	start = (eb_untag(start, EB_LEFT))->b[EB_RGHT];
+	if (eb_clrtag(start) == NULL)
+		return NULL;
+
+	return eb32sc_walk_down_left(start, scope);
+}
+
 /* Return next node in the tree, or NULL if none */
 static inline struct eb32sc_node *eb32sc_next(struct eb32sc_node *eb32, unsigned long scope)
 {
-	struct eb_node *node = &eb32->node;
-	eb_troot_t *t = node->leaf_p;
-
-	while (eb_gettag(t) != EB_LEFT)
-		/* Walking up from right branch, so we cannot be below root */
-		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
-
-	/* Note that <t> cannot be NULL at this stage */
-	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
-	if (eb_clrtag(t) == NULL)
-		return NULL;
-
-	return eb32sc_walk_down_left(t, scope);
+	return eb32sc_next_with_parent(eb32->node.leaf_p, scope);
 }
 
 /* Return leftmost node in the tree, or NULL if none */
