@@ -236,7 +236,6 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope)
 {
 	struct eb32sc_node *node;
-	struct eb_root *curr;
 	eb_troot_t *troot;
 
 	troot = root->b[EB_LEFT];
@@ -294,43 +293,7 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
 	 * current one which is not below. <troot> is already initialised
 	 * to the parent's branches.
 	 */
-	for (node = NULL; !node; troot = eb_root_to_node(curr)->node_p) {
-		if (eb_gettag(troot) != EB_LEFT) {
-			curr = eb_untag(troot, EB_RGHT);
-			continue;
-		}
-
-		/* troot points to the branch location we're attached to by the
-		 * left above, set curr to the corresponding eb_root.
-		 */
-		curr = eb_untag(troot, EB_LEFT);
-
-		/* and go down by the right, but stop at the root */
-		troot = curr->b[EB_RGHT];
-		if (!eb_clrtag(troot))
-			break;
-
-		node = eb32sc_walk_down_left(troot, scope);
-	}
-	return node;
-	//while (1) {
-	//	while (eb_gettag(troot) != EB_LEFT)
-	//		/* Walking up from right branch, so we cannot be below root */
-	//		troot = (eb_root_to_node(eb_untag(troot, EB_RGHT)))->node_p;
-	//
-	//	/* Note that <t> cannot be NULL at this stage */
-	//	root = eb_untag(troot, EB_LEFT);
-	//	troot = root->b[EB_RGHT];
-	//	if (eb_clrtag(troot) == NULL)
-	//		return NULL;
-	//
-	//	/* we can't be below the root here */
-	//	node = eb32sc_walk_down_left(troot, scope);
-	//	if (node)
-	//		return node;
-	//	/* not found below, this means we have to go up */
-	//	troot = eb_root_to_node(root)->node_p;
-	//}
+	return eb32sc_next_with_parent(troot, scope);
 }
 
 /*
@@ -342,7 +305,6 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 
 {
 	struct eb32sc_node *eb32;
 	eb_troot_t *troot;
-	struct eb_root *curr;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -399,25 +361,7 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 
 	 * current one which is not below. <troot> is already initialised
 	 * to the parent's branches.
 	 */
-	for (eb32 = NULL; !eb32; troot = eb_root_to_node(curr)->node_p) {
-		if (eb_gettag(troot) != EB_LEFT) {
-			curr = eb_untag(troot, EB_RGHT);
-			continue;
-		}
-
-		/* troot points to the branch location we're attached to by the
-		 * left above, set curr to the corresponding eb_root.
-		 */
-		curr = eb_untag(troot, EB_LEFT);
-
-		/* and go down by the right, but stop at the root */
-		troot = curr->b[EB_RGHT];
-		if (!eb_clrtag(troot))
-			break;
-
-		eb32 = eb32sc_walk_down_left(troot, scope);
-	}
-
+	eb32 = eb32sc_next_with_parent(troot, scope);
 	if (!eb32)
 		eb32 = eb32sc_walk_down_left(root->b[EB_LEFT], scope);
 
