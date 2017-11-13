@@ -62,10 +62,8 @@
 
 struct pool_head *pool2_stream;
 struct list streams;
+__decl_hathreads(HA_SPINLOCK_T streams_lock);
 
-#ifdef USE_THREAD
-HA_SPINLOCK_T streams_lock;
-#endif
 /* List of all use-service keywords. */
 static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 

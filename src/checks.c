@@ -1613,9 +1613,7 @@ static int connect_conn_chk(struct task *t)
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
 static struct pool_head *pool2_pid_list;
-#ifdef USE_THREAD
-HA_SPINLOCK_T pid_list_lock;
-#endif
+__decl_hathreads(HA_SPINLOCK_T pid_list_lock);
 
 void block_sigchld(void)
 {

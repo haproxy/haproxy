@@ -89,10 +89,9 @@ extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 extern struct pool_head *pool2_notification;
-#ifdef USE_THREAD
-extern HA_SPINLOCK_T rq_lock;        /* spin lock related to run queue */
-extern HA_SPINLOCK_T wq_lock;        /* spin lock related to wait queue */
-#endif
+
+__decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
+__decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)

@@ -45,10 +45,7 @@
 #include <netinet/tcp.h>
 
 struct list updated_servers = LIST_HEAD_INIT(updated_servers);
-
-#ifdef USE_THREAD
-HA_SPINLOCK_T updated_servers_lock;
-#endif
+__decl_hathreads(HA_SPINLOCK_T updated_servers_lock);
 
 static void srv_register_update(struct server *srv);
 static void srv_update_state(struct server *srv, int version, char **params);

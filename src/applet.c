@@ -22,10 +22,7 @@
 
 unsigned int nb_applets = 0;
 unsigned int applets_active_queue = 0;
-
-#ifdef USE_THREAD
-HA_SPINLOCK_T applet_active_lock;        /* spin lock related to applet active queue */
-#endif
+__decl_hathreads(HA_SPINLOCK_T applet_active_lock);  /* spin lock related to applet active queue */
 
 struct list applet_active_queue = LIST_HEAD_INIT(applet_active_queue);
 

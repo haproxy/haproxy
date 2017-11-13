@@ -155,9 +155,7 @@ static THREAD_LOCAL struct sample_data static_sample_data;
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
 static struct lru64_head *pat_lru_tree;
-#ifdef USE_THREAD
-HA_SPINLOCK_T pat_lru_tree_lock;
-#endif
+__decl_hathreads(HA_SPINLOCK_T pat_lru_tree_lock);
 static unsigned long long pat_lru_seed;
 
 /*

@@ -115,9 +115,7 @@
  * and RESET_SAFE_LJMP manipulates the Lua stack, so it will be careful
  * to set mutex around these functions.
  */
-#ifdef USE_THREAD
-HA_SPINLOCK_T hlua_global_lock;
-#endif
+__decl_hathreads(HA_SPINLOCK_T hlua_global_lock);
 THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }

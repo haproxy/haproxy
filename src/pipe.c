@@ -22,9 +22,9 @@
 
 struct pool_head *pool2_pipe = NULL;
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
-#ifdef USE_THREAD
-HA_SPINLOCK_T pipes_lock;       /* lock used to protect pipes list */
-#endif
+
+__decl_hathreads(HA_SPINLOCK_T pipes_lock); /* lock used to protect pipes list */
+
 int pipes_used = 0;             /* # of pipes in use (2 fds each) */
 int pipes_free = 0;             /* # of pipes unused */
 

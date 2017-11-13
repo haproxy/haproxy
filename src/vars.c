@@ -32,9 +32,7 @@ static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 
 
-#ifdef USE_THREAD
-HA_RWLOCK_T   var_names_rwlock;
-#endif
+__decl_hathreads(HA_RWLOCK_T var_names_rwlock);
 
 /* This function adds or remove memory size from the accounting. The inner
  * pointers may be null when setting the outer ones only.

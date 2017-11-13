@@ -38,10 +38,8 @@
 #include <proto/stream.h>
 #include <proto/task.h>
 
-#ifdef USE_THREAD
  /* listner_queue lock (same for global and per proxy queues) */
-static HA_SPINLOCK_T lq_lock;
-#endif
+__decl_hathreads(static HA_SPINLOCK_T lq_lock);
 
 /* List head of all known bind keywords */
 static struct bind_kw_list bind_keywords = {

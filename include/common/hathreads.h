@@ -30,6 +30,8 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 
 #ifndef USE_THREAD
 
+#define __decl_hathreads(decl)
+
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
 #define HA_ATOMIC_ADD(val, i)        ({*(val) += (i);})
 #define HA_ATOMIC_SUB(val, i)        ({*(val) -= (i);})
@@ -92,6 +94,8 @@ extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread
 #include <string.h>
 #include <pthread.h>
 #include <import/plock.h>
+
+#define __decl_hathreads(decl) decl
 
 /* TODO: thread: For now, we rely on GCC builtins but it could be a good idea to
  * have a header file regrouping all functions dealing with threads. */

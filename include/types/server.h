@@ -286,10 +286,7 @@ struct server {
 		struct sample_expr *sni;        /* sample expression for SNI */
 	} ssl_ctx;
 #endif
-
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock);
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */

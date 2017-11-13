@@ -239,9 +239,7 @@ struct email_alertq {
 					 * code even though they are not checks. This structure
 					 * is as a parameter to the check code.
 					 * Each check corresponds to a mailer */
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
 struct proxy {
@@ -444,10 +442,7 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
-
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
 struct switching_rule {

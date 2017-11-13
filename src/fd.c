@@ -174,11 +174,9 @@ int fd_cache_num = 0;          // number of events in the cache
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 
-#ifdef USE_THREAD
-HA_SPINLOCK_T fdtab_lock;       /* global lock to protect fdtab array */
-HA_RWLOCK_T   fdcache_lock;     /* global lock to protect fd_cache array */
-HA_SPINLOCK_T poll_lock;        /* global lock to protect poll info */
-#endif
+__decl_hathreads(HA_SPINLOCK_T fdtab_lock);       /* global lock to protect fdtab array */
+__decl_hathreads(HA_RWLOCK_T   fdcache_lock);     /* global lock to protect fd_cache array */
+__decl_hathreads(HA_SPINLOCK_T poll_lock);        /* global lock to protect poll info */
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.

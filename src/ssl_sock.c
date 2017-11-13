@@ -206,6 +206,7 @@ static struct {
 };
 
 #ifdef USE_THREAD
+
 static HA_RWLOCK_T *ssl_rwlocks;
 
 
@@ -246,6 +247,7 @@ static int ssl_locking_init(void)
 
 	return 0;
 }
+
 #endif
 
 
@@ -302,10 +304,7 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
 static unsigned int	  ssl_ctx_serial;
-
-#ifdef USE_THREAD
-static HA_RWLOCK_T ssl_ctx_lru_rwlock;
-#endif
+__decl_hathreads(static HA_RWLOCK_T ssl_ctx_lru_rwlock);
 
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 

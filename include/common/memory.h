@@ -47,9 +47,7 @@
 
 struct pool_head {
 	void **free_list;
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;     /* the spin lock */
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
 	struct list list;	/* list of all known pools */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int allocated;	/* how many chunks have been allocated */

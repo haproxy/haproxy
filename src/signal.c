@@ -31,9 +31,7 @@ struct pool_head *pool2_sig_handlers = NULL;
 sigset_t blocked_sig;
 int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
-#ifdef USE_THREAD
-HA_SPINLOCK_T signals_lock;
-#endif
+__decl_hathreads(HA_SPINLOCK_T signals_lock);
 
 /* Common signal handler, used by all signals. Received signals are queued.
  * Signal number zero has a specific status, as it cannot be delivered by the

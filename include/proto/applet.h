@@ -31,9 +31,7 @@
 
 extern unsigned int nb_applets;
 extern unsigned int applets_active_queue;
-#ifdef USE_THREAD
-extern HA_SPINLOCK_T applet_active_lock;
-#endif
+__decl_hathreads(extern HA_SPINLOCK_T applet_active_lock);
 extern struct list applet_active_queue;
 
 void applet_run_active();

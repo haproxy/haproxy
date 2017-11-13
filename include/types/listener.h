@@ -200,9 +200,7 @@ struct listener {
 	int tcp_ut;                     /* for TCP, user timeout */
 	char *interface;		/* interface name or NULL */
 
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock);
 
 	const struct netns_entry *netns; /* network namespace of the listener*/
 

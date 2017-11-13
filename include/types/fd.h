@@ -95,9 +95,7 @@ struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
-#ifdef USE_THREAD
-	HA_SPINLOCK_T lock;
-#endif
+	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */

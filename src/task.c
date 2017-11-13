@@ -37,10 +37,8 @@ unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
-#ifdef USE_THREAD
-HA_SPINLOCK_T rq_lock;        /* spin lock related to run queue */
-HA_SPINLOCK_T wq_lock;        /* spin lock related to wait queue */
-#endif
+__decl_hathreads(HA_SPINLOCK_T rq_lock); /* spin lock related to run queue */
+__decl_hathreads(HA_SPINLOCK_T wq_lock); /* spin lock related to wait queue */
 
 static struct eb_root timers;      /* sorted timers tree */
 static struct eb_root rqueue;      /* tree constituting the run queue */

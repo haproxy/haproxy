@@ -42,9 +42,7 @@
 
 
 #if defined(USE_SLZ) || defined(USE_ZLIB)
-#ifdef USE_THREAD
-static HA_SPINLOCK_T comp_pool_lock;
-#endif
+__decl_hathreads(static HA_SPINLOCK_T comp_pool_lock);
 #endif
 
 #ifdef USE_ZLIB

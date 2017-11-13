@@ -18,9 +18,7 @@ struct vars {
 	struct list head;
 	enum vars_scope scope;
 	unsigned int size;
-#ifdef USE_THREAD
-	HA_RWLOCK_T rwlock;
-#endif
+	__decl_hathreads(HA_RWLOCK_T rwlock);
 };
 
 /* This struct describes a variable. */
