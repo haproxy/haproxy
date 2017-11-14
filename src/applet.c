@@ -33,10 +33,11 @@ void applet_run_active()
 	struct stream_interface *si;
 	struct list applet_cur_queue = LIST_HEAD_INIT(applet_cur_queue);
 
-	if (!applets_active_queue)
-		return;
-
 	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
+	if (!(active_applets_mask & tid_bit)) {
+		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+		return;
+	}
 
 	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
 	while (&curr->runq != &applet_active_queue) {
