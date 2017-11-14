@@ -268,11 +268,9 @@ void process_runnable_tasks()
 				 * the last half. Let's loop back to the beginning
 				 * of the tree now.
 				 */
-				if (unlikely(!rq_next)) {
-					rq_next = eb32sc_first(&rqueue, tid_bit);
-					if (!rq_next)
-						break;
-				}
+				rq_next = eb32sc_first(&rqueue, tid_bit);
+				if (!rq_next)
+					break;
 			}
 
 			t = eb32sc_entry(rq_next, struct task, rq);
