@@ -137,7 +137,7 @@ cache_store_http_headers(struct stream *s, struct filter *filter, struct http_ms
 	if (!(msg->chn->flags & CF_ISRESP) || !st)
 		return 1;
 
-	st->hdrs_len = msg->eoh;
+	st->hdrs_len = msg->sov;
 
 	return 1;
 }
@@ -394,12 +394,12 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->flags & TX_CACHEABLE))
 		goto out;
 
-	if ((msg->eoh + msg->body_len) > (global.tune.bufsize - global.tune.maxrewrite))
+	if ((msg->sov + msg->body_len) > (global.tune.bufsize - global.tune.maxrewrite))
 		goto out;
 
 	shctx_lock(shctx);
 
-	first = shctx_row_reserve_hot(shctx, sizeof(struct cache_entry) + msg->eoh + msg->body_len);
+	first = shctx_row_reserve_hot(shctx, sizeof(struct cache_entry) + msg->sov + msg->body_len);
 	if (!first) {
 		shctx_unlock(shctx);
 		goto out;
@@ -417,7 +417,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
-	if (shctx_row_data_append(shctx, first, (unsigned char *)s->res.buf->p, msg->eoh) < 0)
+	if (shctx_row_data_append(shctx, first, (unsigned char *)s->res.buf->p, msg->sov) < 0)
 		goto out;
 
 	/* register the buffer in the filter ctx for filling it with data*/
