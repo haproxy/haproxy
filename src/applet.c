@@ -21,6 +21,7 @@
 #include <proto/stream_interface.h>
 
 unsigned int nb_applets = 0;
+unsigned long active_applets_mask = 0;
 unsigned int applets_active_queue = 0;
 __decl_hathreads(HA_SPINLOCK_T applet_active_lock);  /* spin lock related to applet active queue */
 
@@ -48,7 +49,7 @@ void applet_run_active()
 		}
 		curr = next;
 	}
-
+	active_applets_mask &= ~tid_bit;
 	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 
 	/* The list is only scanned from the head. This guarantees that if any

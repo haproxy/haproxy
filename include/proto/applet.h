@@ -30,6 +30,7 @@
 #include <proto/connection.h>
 
 extern unsigned int nb_applets;
+extern unsigned long active_applets_mask;
 extern unsigned int applets_active_queue;
 __decl_hathreads(extern HA_SPINLOCK_T applet_active_lock);
 extern struct list applet_active_queue;
@@ -113,6 +114,7 @@ static inline void __appctx_wakeup(struct appctx *appctx)
 	if (LIST_ISEMPTY(&appctx->runq)) {
 		LIST_ADDQ(&applet_active_queue, &appctx->runq);
 		applets_active_queue++;
+		active_applets_mask |= appctx->thread_mask;
 	}
 }
 
