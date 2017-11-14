@@ -1796,6 +1796,11 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	if (!init_log_buffers()) {
+		Alert("failed to initialize log buffers.\n");
+		exit(1);
+	}
+
 	/*
 	 * Note: we could register external pollers here.
 	 * Built-in pollers have been registered before main().
