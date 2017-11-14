@@ -46,14 +46,14 @@
  * '<span class="rls"></span>' around digits at positions 3N+1 in order
  * to add spacing at up to 6 positions : 18 446 744 073 709 551 615
  */
-char itoa_str[NB_ITOA_STR][171];
-int itoa_idx = 0; /* index of next itoa_str to use */
+THREAD_LOCAL char itoa_str[NB_ITOA_STR][171];
+THREAD_LOCAL int itoa_idx = 0; /* index of next itoa_str to use */
 
 /* sometimes we'll need to quote strings (eg: in stats), and we don't expect
  * to quote strings larger than a max configuration line.
  */
-char quoted_str[NB_QSTR][QSTR_SIZE + 1];
-int quoted_idx = 0;
+THREAD_LOCAL char quoted_str[NB_QSTR][QSTR_SIZE + 1];
+THREAD_LOCAL int quoted_idx = 0;
 
 /*
  * unsigned long long ASCII representation

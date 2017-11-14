@@ -92,7 +92,7 @@ struct split_url {
 	int host_len;
 };
 
-extern int itoa_idx; /* index of next itoa_str to use */
+extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
@@ -107,7 +107,7 @@ extern int strlcpy2(char *dst, const char *src, int size);
  * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal.
  */
-extern char itoa_str[][171];
+extern THREAD_LOCAL char itoa_str[][171];
 extern char *ultoa_r(unsigned long n, char *buffer, int size);
 extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);
