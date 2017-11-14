@@ -174,9 +174,8 @@ int wake_expired_tasks()
  * used to assign a position to each task. This counter may be combined with
  * other variables (eg: nice value) to set the final position in the tree. The
  * counter may wrap without a problem, of course. We then limit the number of
- * tasks processed at once to 1/4 of the number of tasks in the queue, and to
- * 200 max in any case, so that general latency remains low and so that task
- * positions have a chance to be considered.
+ * tasks processed to 200 in any case, so that general latency remains low and
+ * so that task positions have a chance to be considered.
  *
  * The function adjusts <next> if a new event is closer.
  */
@@ -192,19 +191,12 @@ void process_runnable_tasks()
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
-	max_processed = tasks_run_queue;
-
-	if (!tasks_run_queue)
-		return;
-
-	if (max_processed > 200)
-		max_processed = 200;
-
-	if (likely(niced_tasks))
-		max_processed = (max_processed + 3) / 4;
-
+	max_processed = 200;
 	if (unlikely(global.nbthread <= 1)) {
 		/* when no lock is needed, this loop is much faster */
+		if (!(active_tasks_mask & tid_bit))
+			return;
+
 		active_tasks_mask &= ~tid_bit;
 		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 		while (1) {
@@ -256,6 +248,11 @@ void process_runnable_tasks()
 	}
 
 	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	if (!(active_tasks_mask & tid_bit)) {
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		return;
+	}
+
 	active_tasks_mask &= ~tid_bit;
 	while (1) {
 		/* Note: this loop is one of the fastest code path in
