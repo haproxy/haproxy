@@ -18,8 +18,8 @@
 #include <common/standard.h>
 #include <proto/fd.h>
 
-THREAD_LOCAL unsigned int tid     = 0;
-THREAD_LOCAL unsigned int tid_bit = (1UL << 0);
+THREAD_LOCAL unsigned int tid      = 0;
+THREAD_LOCAL unsigned long tid_bit = (1UL << 0);
 
 #ifdef USE_THREAD
 

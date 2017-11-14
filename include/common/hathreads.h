@@ -26,7 +26,7 @@
 
 #define MAX_THREADS_MASK ((unsigned long)-1)
 extern THREAD_LOCAL unsigned int tid;     /* The thread id */
-extern THREAD_LOCAL unsigned int tid_bit; /* The bit corresponding to the thread id */
+extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 
 #ifndef USE_THREAD
 
