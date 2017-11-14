@@ -1320,22 +1320,21 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 		nbargs = *p++;                     /* Get the number of arguments */
 		frame->offset = (p - frame->buf);  /* Save index to handle errors and skip args */
 		if (!memcmp(str, "check-client-ip", sz)) {
-			struct sample smp;
-
-			memset(&smp, 0, sizeof(smp));
+			union spoe_data data;
+			enum spoe_data_type type;
 
 			if (nbargs != 1)
 				goto skip_message;
 
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				goto stop_processing;
-			if (spoe_decode_data(&p, end, &smp) == -1)
+			if (spoe_decode_data(&p, end, &data, &type) == -1)
 				goto skip_message;
 
-			if (smp.data.type == SMP_T_IPV4)
-				check_ipv4_reputation(frame, &smp.data.u.ipv4);
-			if (smp.data.type == SMP_T_IPV6)
-				check_ipv6_reputation(frame, &smp.data.u.ipv6);
+			if (type == SPOE_DATA_T_IPV4)
+				check_ipv4_reputation(frame, &data.ipv4);
+			if (type == SPOE_DATA_T_IPV6)
+				check_ipv6_reputation(frame, &data.ipv6);
 		}
 		else {
 		  skip_message:

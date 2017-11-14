@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <spoe_types.h>
-#include <mini-sample.h>
 
 
 #ifndef MIN
@@ -175,9 +174,9 @@ spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
 	return sz;
 }
 
-/* Encode a typed data using value in <smp>. On success, it returns the number
- * of copied bytes and <*buf> is moved after the encoded value. If an error
- * occured, it returns -1.
+/* Encode a typed data using value in <data> and type <type>. On success, it
+ * returns the number of copied bytes and <*buf> is moved after the encoded
+ * value. If an error occured, it returns -1.
  *
  * If the value is too big to be encoded, depending on its type, then encoding
  * failed or the value is partially encoded. Only strings and binaries can be
@@ -185,7 +184,7 @@ spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
  * many bytes has been encoded. If <*off> is zero at the end, it means that all
  * data has been encoded. */
 static inline int
-spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
+spoe_encode_data(union spoe_data *data, enum spoe_data_type type, unsigned int *off, char **buf, char *end)
 {
 	char *p = *buf;
 	int   ret;
@@ -193,43 +192,53 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 	if (p >= end)
 		return -1;
 
-	if (smp == NULL) {
+	if (data == NULL) {
 		*p++ = SPOE_DATA_T_NULL;
 		goto end;
 	}
 
-	switch (smp->data.type) {
-		case SMP_T_BOOL:
-			*p    = SPOE_DATA_T_BOOL;
-			*p++ |= ((!smp->data.u.sint) ? SPOE_DATA_FL_FALSE : SPOE_DATA_FL_TRUE);
+	*p++ = type;
+	switch (type) {
+		case SPOE_DATA_T_BOOL:
+			p[-1] |= (data->boolean ? SPOE_DATA_FL_TRUE : SPOE_DATA_FL_FALSE);
 			break;
 
-		case SMP_T_SINT:
-			*p++ = SPOE_DATA_T_INT64;
-			if (encode_varint(smp->data.u.sint, &p, end) == -1)
+		case SPOE_DATA_T_INT32:
+			if (encode_varint(data->int32, &p, end) == -1)
 				return -1;
 			break;
 
-		case SMP_T_IPV4:
-			if (p + 5 > end)
+		case SPOE_DATA_T_UINT32:
+			if (encode_varint(data->uint32, &p, end) == -1)
 				return -1;
-			*p++ = SPOE_DATA_T_IPV4;
-			memcpy(p, &smp->data.u.ipv4, 4);
+			break;
+
+		case SPOE_DATA_T_INT64:
+			if (encode_varint(data->int64, &p, end) == -1)
+				return -1;
+			break;
+
+		case SPOE_DATA_T_UINT64:
+			if (encode_varint(data->uint64, &p, end) == -1)
+				return -1;
+			break;
+
+		case SPOE_DATA_T_IPV4:
+			if (p + 4 > end)
+				return -1;
+			memcpy(p, &data->ipv4, 4);
 			p += 4;
 			break;
 
-		case SMP_T_IPV6:
-			if (p + 17 > end)
+		case SPOE_DATA_T_IPV6:
+			if (p + 16 > end)
 				return -1;
-			*p++ = SPOE_DATA_T_IPV6;
-			memcpy(p, &smp->data.u.ipv6, 16);
+			memcpy(p, &data->ipv6, 16);
 			p += 16;
 			break;
 
-		case SMP_T_STR:
-		case SMP_T_BIN: {
-			struct chunk *chk = &smp->data.u.str;
-
+		case SPOE_DATA_T_STR:
+		case SPOE_DATA_T_BIN: {
 			/* Here, we need to know if the sample has already been
 			 * partially encoded. If yes, we only need to encode the
 			 * remaining, <*off> reprensenting the number of bytes
@@ -239,23 +248,18 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 				 * type (string or binary), the buffer length
 				 * (as a varint) and at least 1 byte of the
 				 * buffer. */
-				struct chunk *chk = &smp->data.u.str;
-
-				*p++ = (smp->data.type == SMP_T_STR)
-					? SPOE_DATA_T_STR
-					: SPOE_DATA_T_BIN;
-				ret = spoe_encode_frag_buffer(chk->str, chk->len, &p, end);
+				ret = spoe_encode_frag_buffer(data->chk.ptr, data->chk.len, &p, end);
 				if (ret == -1)
 					return -1;
 			}
 			else {
 				/* The sample has been fragmented, encode remaining data */
-				ret = MIN(chk->len - *off, end - p);
-				memcpy(p, chk->str + *off, ret);
+				ret = MIN(data->chk.len - *off, end - p);
+				memcpy(p, data->chk.ptr + *off, ret);
 				p += ret;
 			}
 			/* Now update <*off> */
-			if (ret + *off != chk->len)
+			if (ret + *off != data->chk.len)
 				*off += ret;
 			else
 				*off = 0;
@@ -288,7 +292,8 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 		*/
 
 		default:
-			*p++ = SPOE_DATA_T_NULL;
+			/* send type NULL for unknown types */
+			p[-1] = SPOE_DATA_T_NULL;
 			break;
 	}
 
@@ -356,41 +361,52 @@ spoe_skip_data(char **buf, char *end)
  * otherwise the number of read bytes is returned and <*buf> is moved after the
  * decoded data. See spoe_skip_data for details. */
 static inline int
-spoe_decode_data(char **buf, char *end, struct sample *smp)
+spoe_decode_data(char **buf, char *end, union spoe_data *data, enum spoe_data_type *type)
 {
 	char  *str, *p = *buf;
-	int    type, r = 0;
+	int       v, r = 0;
 	uint64_t sz;
 
 	if (p >= end)
 		return -1;
 
-	type = *p++;
-	switch (type & SPOE_DATA_T_MASK) {
+	v = *p++;
+	*type = v & SPOE_DATA_T_MASK;
+
+	switch (*type) {
 		case SPOE_DATA_T_BOOL:
-			smp->data.u.sint = ((type & SPOE_DATA_FL_MASK) == SPOE_DATA_FL_TRUE);
-			smp->data.type = SMP_T_BOOL;
+			data->boolean = ((v & SPOE_DATA_FL_MASK) == SPOE_DATA_FL_TRUE);
 			break;
 		case SPOE_DATA_T_INT32:
-		case SPOE_DATA_T_INT64:
-		case SPOE_DATA_T_UINT32:
-		case SPOE_DATA_T_UINT64:
-			if (decode_varint(&p, end, (uint64_t *)&smp->data.u.sint) == -1)
+			if (decode_varint(&p, end, &sz) == -1)
 				return -1;
-			smp->data.type = SMP_T_SINT;
+			data->int32 = sz;
+			break;
+		case SPOE_DATA_T_INT64:
+			if (decode_varint(&p, end, &sz) == -1)
+				return -1;
+			data->int64 = sz;
+			break;
+		case SPOE_DATA_T_UINT32:
+			if (decode_varint(&p, end, &sz) == -1)
+				return -1;
+			data->uint32 = sz;
+			break;
+		case SPOE_DATA_T_UINT64:
+			if (decode_varint(&p, end, &sz) == -1)
+				return -1;
+			data->uint64 = sz;
 			break;
 		case SPOE_DATA_T_IPV4:
 			if (p+4 > end)
 				return -1;
-			smp->data.type = SMP_T_IPV4;
-			memcpy(&smp->data.u.ipv4, p, 4);
+			memcpy(&data->ipv4, p, 4);
 			p += 4;
 			break;
 		case SPOE_DATA_T_IPV6:
 			if (p+16 > end)
 				return -1;
-			memcpy(&smp->data.u.ipv6, p, 16);
-			smp->data.type = SMP_T_IPV6;
+			memcpy(&data->ipv6, p, 16);
 			p += 16;
 			break;
 		case SPOE_DATA_T_STR:
@@ -398,9 +414,10 @@ spoe_decode_data(char **buf, char *end, struct sample *smp)
 			/* All the buffer must be decoded */
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				return -1;
-			smp->data.u.str.str = str;
-			smp->data.u.str.len = sz;
-			smp->data.type = (type == SPOE_DATA_T_STR) ? SMP_T_STR : SMP_T_BIN;
+			data->chk.ptr = str;
+			data->chk.len = sz;
+			break;
+		default: /* SPOE_DATA_T_NULL, unknown */
 			break;
 	}
 

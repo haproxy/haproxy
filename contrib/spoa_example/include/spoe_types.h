@@ -218,6 +218,24 @@ enum spoe_data_type {
 	SPOE_DATA_TYPES
 };
 
+/* a memory block of arbitrary size, or a string */
+struct chunk {
+	char   *ptr;
+	size_t  len;
+};
+
+/* all data types that may be encoded/decoded for each spoe_data_type */
+union spoe_data {
+	bool            boolean;
+	int32_t         int32;
+	uint32_t        uint32;
+	int64_t         int64;
+	uint64_t        uint64;
+	struct in_addr  ipv4;
+	struct in6_addr ipv6;
+	struct chunk    chk;     /* types STR and BIN */
+};
+
 /* Masks to get data type or flags value */
 #define SPOE_DATA_T_MASK  0x0F
 #define SPOE_DATA_FL_MASK 0xF0
