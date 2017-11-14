@@ -161,40 +161,33 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 		/* Nothing to foward */
 		ret = len;
 	}
-	else if (st->hdrs_len > len) {
+	else if (st->hdrs_len >= len) {
 		/* Forward part of headers */
 		ret           = len;
 		st->hdrs_len -= len;
 	}
-	else if (st->hdrs_len > 0) {
-		/* Forward remaining headers */
-		ret          = st->hdrs_len;
-		st->hdrs_len = 0;
-	}
 	else {
-		/* Forward trailers data */
+		/* Forward data */
 		if (filter->ctx && st->first_block) {
 			/* disable buffering if too much data (never greater than a buffer size */
-			if (len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
+			if (len - st->hdrs_len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
 				filter->ctx = NULL; /* disable cache  */
 				shctx_lock(shctx);
 				shctx_row_dec_hot(shctx, st->first_block);
 				shctx_unlock(shctx);
 				pool_free2(pool2_cache_st, st);
-				ret = 0;
 			} else {
-
-				int blen;
-				blen = shctx_row_data_append(shctx,
-				    st->first_block,
-				    (unsigned char *)bi_ptr(msg->chn->buf),
-				    MIN(bi_contig_data(msg->chn->buf), len));
-
-				ret = MIN(bi_contig_data(msg->chn->buf), len) + blen;
+				/* Skip remaining headers to fill the cache */
+				b_adv(msg->chn->buf, st->hdrs_len);
+				ret = shctx_row_data_append(shctx,
+							    st->first_block,
+							    (unsigned char *)bi_ptr(msg->chn->buf),
+							    MIN(bi_contig_data(msg->chn->buf), len - st->hdrs_len));
+				/* Rewind the buffer to forward all data */
+				b_rew(msg->chn->buf, st->hdrs_len);
 			}
-		} else {
-			ret = len;
 		}
+		ret = len;
 	}
 
 	if ((ret != len) ||
