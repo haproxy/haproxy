@@ -32,6 +32,7 @@ struct pool_head *pool2_task;
 struct pool_head *pool2_notification;
 
 unsigned int nb_tasks = 0;
+unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
 unsigned int tasks_run_queue = 0;
 unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
@@ -55,6 +56,7 @@ static unsigned int rqueue_ticks;  /* insertion count */
 struct task *__task_wakeup(struct task *t)
 {
 	tasks_run_queue++;
+	active_tasks_mask |= t->thread_mask;
 	t->rq.key = ++rqueue_ticks;
 
 	if (likely(t->nice)) {
@@ -187,6 +189,7 @@ void process_runnable_tasks()
 	struct task *local_tasks[16];
 	int local_tasks_count;
 	int final_tasks_count;
+
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = tasks_run_queue;
@@ -202,6 +205,7 @@ void process_runnable_tasks()
 
 	if (unlikely(global.nbthread <= 1)) {
 		/* when no lock is needed, this loop is much faster */
+		active_tasks_mask &= ~tid_bit;
 		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 		while (1) {
 			if (!rq_next) {
@@ -243,15 +247,17 @@ void process_runnable_tasks()
 			}
 
 			max_processed--;
-			if (max_processed <= 0)
+			if (max_processed <= 0) {
+				active_tasks_mask |= tid_bit;
 				break;
+			}
 		}
 		return;
 	}
 
 	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-
-	do {
+	active_tasks_mask &= ~tid_bit;
+	while (1) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
@@ -259,7 +265,6 @@ void process_runnable_tasks()
 
 		/* we have to restart looking up after every batch */
 		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
-
 		for (local_tasks_count = 0; local_tasks_count < 16; local_tasks_count++) {
 			if (unlikely(!rq_next)) {
 				/* either we just started or we reached the end
@@ -318,8 +323,12 @@ void process_runnable_tasks()
 			else
 				task_queue(t);
 		}
-	} while (max_processed > 0);
 
+		if (max_processed <= 0) {
+			active_tasks_mask |= tid_bit;
+			break;
+		}
+	}
 	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 }
 
