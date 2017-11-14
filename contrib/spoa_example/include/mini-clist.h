@@ -11,33 +11,6 @@ struct list {
     struct list *p;	/* prev */
 };
 
-/* a back-ref is a pointer to a target list entry. It is used to detect when an
- * element being deleted is currently being tracked by another user. The best
- * example is a user dumping the session table. The table does not fit in the
- * output buffer so we have to set a mark on a session and go on later. But if
- * that marked session gets deleted, we don't want the user's pointer to go in
- * the wild. So we can simply link this user's request to the list of this
- * session's users, and put a pointer to the list element in ref, that will be
- * used as the mark for next iteration.
- */
-struct bref {
-	struct list users;
-	struct list *ref; /* pointer to the target's list entry */
-};
-
-/* a word list is a generic list with a pointer to a string in each element. */
-struct wordlist {
-	struct list list;
-	char *s;
-};
-
-/* this is the same as above with an additional pointer to a condition. */
-struct cond_wordlist {
-	struct list list;
-	void *cond;
-	char *s;
-};
-
 /* First undefine some macros which happen to also be defined on OpenBSD,
  * in sys/queue.h, used by sys/event.h
  */
