@@ -171,6 +171,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 		if (filter->ctx && st->first_block) {
 			/* disable buffering if too much data (never greater than a buffer size */
 			if (len - st->hdrs_len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
+			  disable_cache:
 				filter->ctx = NULL; /* disable cache  */
 				shctx_lock(shctx);
 				shctx_row_dec_hot(shctx, st->first_block);
@@ -185,6 +186,8 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 							    MIN(bi_contig_data(msg->chn->buf), len - st->hdrs_len));
 				/* Rewind the buffer to forward all data */
 				b_rew(msg->chn->buf, st->hdrs_len);
+				if (ret)
+					goto disable_cache;
 			}
 		}
 		ret = len;
