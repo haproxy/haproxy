@@ -652,9 +652,11 @@ static void mworker_reload()
 	Warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
 
+	Warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
+	return;
+
 alloc_error:
-	Warning("Cannot allocate memory\n");
-	Warning("Failed to reexecute the master processs [%d]\n", pid);
+	Warning("Failed to reexecute the master processs [%d]: Cannot allocate memory\n", pid);
 	return;
 }
 
@@ -732,8 +734,6 @@ void reexec_on_failure()
 
 	Warning("Reexecuting Master process in waitpid mode\n");
 	mworker_reload();
-
-	Warning("Failed to reexecute the master processs\n");
 }
 
 
