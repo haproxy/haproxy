@@ -239,6 +239,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 	next = dupstr = strdup(str);
 
 	while (next && *next) {
+		int inherited = 0;
 		struct sockaddr_storage *ss2;
 		int fd = -1;
 
@@ -277,6 +278,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 		else if (ss2->ss_family == AF_UNSPEC) {
 			socklen_t addr_len;
+			inherited = 1;
 
 			/* We want to attach to an already bound fd whose number
 			 * is in the addr part of ss2 when cast to sockaddr_in.
@@ -295,7 +297,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		/* OK the address looks correct */
-		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
+		if (!create_listeners(bind_conf, ss2, port, end, fd, inherited, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
 			goto fail;
 		}

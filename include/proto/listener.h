@@ -83,11 +83,13 @@ int unbind_all_listeners(struct protocol *proto);
  * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
  * allocation). The address family is taken from ss->ss_family. The number of
  * jobs and listeners is automatically increased by the number of listeners
- * created. It returns non-zero on success, zero on error with the error message
+ * created. If the <inherited> argument is set to 1, it specifies that the FD
+ * was obtained from a parent process.
+ * It returns non-zero on success, zero on error with the error message
  * set in <err>.
  */
 int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
-                     int portl, int porth, int fd, char **err);
+                     int portl, int porth, int fd, int inherited, char **err);
 
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's

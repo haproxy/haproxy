@@ -541,6 +541,33 @@ static void mworker_kill(int sig)
 }
 
 /*
+ * Upon a reload, the master worker needs to close all listeners FDs but the mworker_pipe
+ * fd, and the FD provided by fd@
+ */
+static void mworker_cleanlisteners()
+{
+	struct listener *l, *l_next;
+	struct proxy *curproxy;
+
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+
+		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
+			/* does not close if the FD is inherited with fd@
+			 * from the parent process */
+			if (!(l->options & LI_O_INHERITED)) {
+				close(l->fd);
+				LIST_DEL(&l->by_fe);
+				LIST_DEL(&l->by_bind);
+				free(l->name);
+				free(l->counters);
+				free(l);
+			}
+		}
+	}
+}
+
+
+/*
  * remove a pid forom the olpid array and decrease nb_oldpids
  * return 1 pid was found otherwise return 0
  */
@@ -2694,7 +2721,8 @@ int main(int argc, char **argv)
 
 		if (proc == global.nbproc) {
 			if (global.mode & MODE_MWORKER) {
-				protocol_unbind_all();
+				mworker_cleanlisteners();
+				deinit_pollers();
 				mworker_wait();
 				/* should never get there */
 				exit(EXIT_FAILURE);

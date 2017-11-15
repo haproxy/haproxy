@@ -98,6 +98,7 @@ enum li_state {
 #define LI_O_V6ONLY             0x0400  /* bind to IPv6 only on Linux >= 2.4.21 */
 #define LI_O_V4V6               0x0800  /* bind to IPv4/IPv6 on Linux >= 2.4.21 */
 #define LI_O_ACC_CIP            0x1000  /* find the proxied address in the NetScaler Client IP header */
+#define LI_O_INHERITED          0x2000  /* inherited FD from the parent process (fd@) */
 
 /* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.
