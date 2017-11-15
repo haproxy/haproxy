@@ -1,0 +1,460 @@
+                               +----------------+
+                               | Peers protocol |
+                               |  version 2.1   |
+                               +----------------+
+
+
+    Peers protocol has been implemented over TCP. Its aim is to transmit
+    stick-table entries information between several haproxy processes.
+
+    This protocol is symmetrical. This means that at any time, each peer
+    may connect to other peers they have been configured for, so that to send
+    their last stick-table updates. There is no role of client or server in this
+    protocol. As peers may connect to each others at the same time, the protocol
+    ensures that only one peer session may stay opened between a couple of peers
+    before they start sending their stick-table information, possibly in both
+    directions (or not).
+
+
+    Handshake
+    +++++++++
+
+    Just after having connected to another one, a peer must identified itself
+    and identify the remote peer, sending a "hello" message. The remote peer
+    replies with a "status" message.
+
+    A "hello" message is made of three lines terminated by a line feed character
+    as follows:
+
+    <protocol identifier> <version>\n
+    <remote peer identifier>\n
+    <local peer identifier> <process ID> <relative process ID>\n
+
+    protocol identifier   : HAProxyS
+    version               : 2.1
+    remote peer identifier: the peer name this "hello" message is sent to.
+    local peer identifier : the name of the peer which sends this "hello" message.
+    process ID            : the ID of the process handling this peer session.
+    relative process ID   : the haproxy's relative process ID (0 if nbproc == 1).
+
+    The "status" message is made of a unique line terminated by a line feed
+    character as follows:
+
+    <status code>\n
+
+    with these values as status code (a three-digit number):
+
+                 +-------------+---------------------------------+
+                 | status code |         signification           |
+                 +-------------+---------------------------------+
+                 |     200     |      Handshake succeeded        |
+                 +-------------+---------------------------------+
+                 |     300     |        Try again later          |
+                 +-------------+---------------------------------+
+                 |     501     |         Protocol error          |
+                 +-------------+---------------------------------+
+                 |     502     |          Bad version            |
+                 +-------------+---------------------------------+
+                 |     503     | Local peer identifier mismatch  |
+                 +-------------+---------------------------------+
+                 |     504     | Remote peer identifier mismatch |
+                 +-------------+---------------------------------+
+
+    As the protocol is symmetrical, some peers may connect to each others at the
+    same time. For efficiency reasons, the protocol ensures there may be only
+    one TCP session opened after the handshake succeeded and before transmitting
+    any stick-table data information. In fact for each couple of peer, this is
+    the last connected peer which wins. Each time a peer A receives a "hello"
+    message from a peer B, peer A checks if it already managed to open a peer
+    session with peer B, so with a successful handshake. If it is the case,
+    peer A closes its peer session. So, this is the peer session opened by B
+    which stays opened.
+
+
+                           Peer A               Peer B
+                                     hello
+                            ---------------------->
+                                   status 200
+                            <----------------------
+                                hello
+                            <++++++++++++++++++++++
+                                   TCP/FIN-ACK
+                            ---------------------->
+                                   TCP/FIN-ACK
+                            <----------------------
+                                   status 200
+                            ++++++++++++++++++++++>
+                                      data
+                            <++++++++++++++++++++++
+                                      data
+                            ++++++++++++++++++++++>
+                                      data
+                            ++++++++++++++++++++++>
+                                      data
+                            <++++++++++++++++++++++
+                                       .
+                                       .
+                                       .
+
+     As it is still possible that a couple of peers decide to close both their
+     peer sessions at the same time, the protocol ensures peers will not reconnect
+     at the same time, adding a random delay (50 up to 2050 ms) before  any
+     reconnection.
+
+
+     Encoding
+     ++++++++
+
+     As some TCP data may be corrupted, for integrity reason, some data fields
+     are encoded at peer session level.
+
+     The following algorithms explain how to encode/decode the data.
+
+     encode:
+       input : val  (64bits integer)
+       output: bitf (variable-length bitfield)
+
+       if val has no bit set above bit 4 (or if val is less than 0xf0)
+           set the next byte of bitf to the value of val
+           return bitf
+
+       set the next byte of bitf to the value of val OR'ed with 0xf0
+       substract 0xf0 from val
+       right shift val by 4
+
+       while val bit 7 is set (or if val is greater or equal to 0x80):
+           set the next byte of bitf to the value of the byte made of the last
+               7 bits of val OR'ed with 0x80
+           substract 0x80 from val
+           right shift val by 7
+
+       set the next byte of bitf to the value of val
+       return bitf
+
+     decode:
+       input : bitf (variable-length bitfield)
+       output: val  (64bits integer)
+
+       set val to the value of the first byte of bitf
+       if bit 4 up to 7 of val are not set
+           return val
+
+       set loop to 0
+       do
+           add to val the value of the next byte of bitf left shifted by (4 + 7*loop)
+           set loop to (loop + 1)
+       while the bit 7 of the next byte of bitf is set
+       return val
+
+     Example:
+
+     let's say that we must encode 0x1234.
+
+     "set the next byte of bitf to the value of val OR'ed with 0xf0"
+     => bitf[0] = (0x1234 | 0xf0) & 0xff = 0xf4
+
+     "substract 0xf0 from val"
+     => val = 0x1144
+
+     right shift val by 4
+     => val = 0x114
+
+     "set the next byte of bitf to the value of the byte made of the last
+     7 bits of val OR'ed with 0x80"
+     => bitf[1] = (0x114 | 0x80) & 0xff = 0x94
+
+     "substract 0x80 from val"
+     => val= 0x94
+
+     "right shift val by 7"
+     => val = 0x1
+
+     => bitf[2] = 0x1
+
+     So, the encoded value of 0x1234 is 0xf49401.
+
+     To decode this value:
+
+     "set val to the value of the first byte of bitf"
+     => val = 0xf4
+
+     "add to val the value of the next byte of bitf left shifted by 4"
+     => val = 0xf4 + (0x94 << 4) = 0xf4 + 0x940 = 0xa34
+
+     "add to val the value of the next byte of bitf left shifted by (4 + 7)"
+     => val = 0xa34 + (0x01 << 11) = 0xa34 + 0x800 = 0x1234
+
+
+     Messages
+     ++++++++
+
+     *** General ***
+
+     After the handshake has successfully completed, peers are authorized to send
+     some messages to each others, possibly in both direction.
+
+     All the messages are made at least of a two bytes length header.
+
+     The first byte of this header identifies the class of the message. The next
+     byte identifies the type of message in the class.
+
+     Some of these messages are variable-length. Others have a fixed size.
+     Variable-length messages are identified by the value of the message type
+     byte. For such messages, it is greater than or equal to 128.
+
+     All variable-length message headers must be followed by the encoded length
+     of the remaining bytes (so the encoded length of the message minus 2 bytes
+     for the header and minus the length of the encoded length).
+
+     There exist four classes of messages:
+
+                +------------+---------------------+--------------+
+                | class byte |    signification    | message size |
+                +------------+---------------------+--------------+
+                |      0     |      control        |   fixed (2)  |
+                +------------+---------------------+--------------|
+                |      1     |       error         |   fixed (2)  |
+                +------------+---------------------+--------------|
+                |     10     | stick-table updates |   variable   |
+                +------------+---------------------+--------------|
+                |    255     |      reserved       |              |
+                +------------+---------------------+--------------+
+
+     At this time of this writing, only control and error messages have a fixed
+     size of two bytes (header only). The stick-table updates messages are all
+     variable-length (their message type bytes are greater than 128).
+
+
+     *** Control message class ***
+
+     At this time of writing, control messages are fixed-length messages used
+     only to control the synchonrizations between local and/or remote processes.
+
+     There exist four types of such control messages:
+
+       +------------+--------------------------------------------------------+
+       | type byte  |                   signification                        |
+       +------------+--------------------------------------------------------+
+       |      0     | synchronisation request: ask a remote peer for a full  |
+       |            | synchronization                                        |
+       +------------+--------------------------------------------------------+
+       |      1     | synchronization finished: signal a remote peer that    |
+       |            | local updates have been pushed and local is considered |
+       |            | up to date.                                            |
+       +------------+--------------------------------------------------------+
+       |      2     | synchronization partial: signal a remote peer that     |
+       |            | local updates have been pushed and local is not        |
+       |            | considered up to date.                                 |
+       +------------+--------------------------------------------------------+
+       |      3     | synchronization confirmed: acknowledge a finished or   |
+       |            | partial synchronization message.                       |
+       +------------+--------------------------------------------------------+
+
+
+     *** Error message class ***
+
+     There exits two types of such error messages:
+
+                          +-----------+------------------+
+                          | type byte |   signification  |
+                          +-----------+------------------+
+                          |      0    |  protocol error  |
+                          +-----------+------------------+
+                          |      1    | size limit error |
+                          +-----------+------------------+
+
+
+     *** Stick-table update message class ***
+
+     This class is the more important one because it is in relation with the
+     stick-table entries handling between peers which is at the core of peers
+     protocol.
+
+     All the messages of this class are variable-length. Their type bytes are
+     all greater than or equal to 128.
+
+     There exits five types of such stick-table update messages:
+
+                    +-----------+--------------------------------+
+                    | type byte |          signification         |
+                    +-----------+--------------------------------+
+                    |    128    |          Entry update          |
+                    +-----------+--------------------------------+
+                    |    129    |    Incremental entry update    |
+                    +-----------+--------------------------------+
+                    |    130    |     Stick-table definition     |
+                    +-----------+--------------------------------+
+                    |    131    |   Stick-table switch (unused)  |
+                    +-----------+--------------------------------+
+                    |    133    | Update message acknowledgement |
+                    +-----------+--------------------------------+
+
+     Note that entry update messages may be multiplexed. This means that different
+     entry update messages for different stick-tables may be sent over the same
+     peer session.
+
+     To do so, each time entry update messages have to sent, they must be preceeded
+     by a stick-table definition message. This remains true for incremental entry
+     update messages.
+
+     As its name indicate, "Update message acknowledgement" messages are used to
+     acknowledge the entry update messages.
+
+     In this following paragraph, we give some information about the format of
+     each stick-table update messages. This very simple following legend will
+     contribute in understanding it. The unit used is the octet.
+
+                     XX
+          +-----------+
+          |    foo    |  Unique fixed sized "foo" field, made of XX octets.
+          +-----------+
+
+          +===========+
+          |    foo    |  Variable-length "foo" field.
+          +===========+
+
+          +xxxxxxxxxxx+
+          |    foo    |  Encoded variable-length "foo" field.
+          +xxxxxxxxxxx+
+
+          +###########+
+          |    foo    |  hereunder described "foo" field.
+          +###########+
+
+
+     With this legend, all the stick-table update messages have such a header:
+
+                               1                        1
+          +--------------------+------------------------+xxxxxxxxxxxxxxxx+
+          | Message Class (10) | Message type (128-133) | Message length |
+          +--------------------+------------------------+xxxxxxxxxxxxxxxx+
+
+     Note that to help in making communicate different versions of peers protocol,
+     such stick-table update messages may be extended adding non mandatory
+     fields at the end of such messages, announcing a total message length
+     which is greater than the message length of the previous versions of
+     peers protocol. After having parsed such messages, the remaining ones
+     will be skipped to parse the next message.
+
+     - Definition message format:
+
+     Before sending entry update messages, a peer must announce the configuration
+     of the stick-table in relation with these messages thanks to a
+     "Stick-table definition" message with such a following format:
+
+          +xxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxx+==================+
+          | Stick-table ID | Stick-table name length | Stick-table name |
+          +xxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxx+==================+
+
+          +xxxxxxxxxxxx+xxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxx+
+          |  Key type  |  Key length  |  Data types bitfield  |  Expiry |
+          +xxxxxxxxxxxx+xxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxx+
+
+          +xxxxxxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx+
+          |   Frequency counter #1    |   Frequency counter #1 period   |
+          +xxxxxxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx+
+
+          +xxxxxxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx+
+          |   Frequency counter #2    |   Frequency counter #2 period   |
+          +xxxxxxxxxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx+
+                                      .
+                                      .
+                                      .
+
+     Note that "Stick-table ID" field is an encoded integer which is used  to
+     identify the stick-table without using its name (or "Stick-table name"
+     field). It is local to the process handling the stick-table. So we can have
+     two peers attached to processes which generate stick-table updates for
+     the same stick-table (same name) but with different stick-table IDs.
+
+     Also note that the list of "Frequency counter #X" and their associated
+     periods fields exists only if their underlying types are already defined
+     in "Data types bitfield" field.
+
+     "Expiry" field and the remaining ones are not used by all the existing
+     version of haproxy peers. But they are MANDATORY, so that to make a
+     stick-table aggregator peer be able to autoconfigure itself.
+
+
+     - Entry update message format:
+                         4
+                   +-----------------+###########+############+
+                   | Local update ID |    Key    |    Data    |
+                   +-----------------+###########+############+
+
+     with "Key" described as follows:
+
+         +xxxxxxxxxxx+=======+
+         |   length  | value |  if key type is (non null terminated) "string",
+         +xxxxxxxxxxx+=======+
+
+                             4
+                     +-------+
+                     | value |  if key type is "integer",
+                     +-------+
+
+                     +=======+
+                     | value |  for other key types: the size is announced in
+                     +=======+  the previous stick-table definition message.
+
+      "Data" field is basically a list of encoded values for each type announced
+      by the "Data types bitfield" field of the previous "Stick-table definition"
+      message:
+
+       +xxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxx+      +xxxxxxxxxxxxxxxxxxxx+
+       | Data type #1 value | Data type #2 value | .... | Data type #n value |
+       +xxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxx+      +xxxxxxxxxxxxxxxxxxxx+
+
+
+
+     - Update message acknowledgement format:
+
+     These messages are responses to "Entry update" messages only.
+
+     Its format is very basic for efficiency reasons:
+
+                                                      4
+                         +xxxxxxxxxxxxxxxx+-----------+
+                         | Stick-table ID | Update ID |
+                         +xxxxxxxxxxxxxxxx+-----------+
+
+
+     Note that the "Stick-table ID" field value is in relation with the one which
+     has been previously announce by a "Stick-table definition" message.
+
+     The following schema may help in understanding how to handle a stream of
+     stick-table update messages. The handshake step is not represented.
+     Stick-table IDs are preceded by a '#' character.
+
+
+                          Peer A               Peer B
+
+                                 stkt def. #1
+                            ---------------------->
+                                 updates (1-5)
+                            ---------------------->
+                                 stkt def. #3
+                            ---------------------->
+                              updates (1000-1005)
+                            ---------------------->
+
+                                 stkt def. #2
+                            <----------------------
+                                updates (10-15)
+                            <----------------------
+                                 ack 5 for #1
+                            <----------------------
+                                ack 1005 for #3
+                            <----------------------
+                                 stkt def. #4
+                            <----------------------
+                               updates (100-105)
+                            <----------------------
+
+                                 ack  10 for #2
+                            ---------------------->
+                                 ack 105 for #4
+                            ---------------------->
+                (from here, on both sides, all stick-table updates
+                          are considered as received)
+
