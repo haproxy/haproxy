@@ -37,6 +37,7 @@
 #include <common/config.h>
 #include <common/namespace.h>
 #include <eb32tree.h>
+#include <eb32sctree.h>
 
 #ifndef LLONG_MAX
 # define LLONG_MAX 9223372036854775807LL
@@ -823,8 +824,15 @@ const void *my_memmem(const void *, size_t, const void *, size_t);
  */
 unsigned int get_next_id(struct eb_root *root, unsigned int key);
 
-/* dump the full tree to <file> in DOT format for debugging purposes */
-void eb32sc_to_file(FILE *file, struct eb_root *root);
+/* dump the full tree to <file> in DOT format for debugging purposes. Will
+ * optionally highlight node <subj> if found, depending on operation <op> :
+ *    0 : nothing
+ *   >0 : insertion, node/leaf are surrounded in red
+ *   <0 : removal, node/leaf are dashed with no background
+ * Will optionally add "desc" as a label on the graph if set and non-null.
+ */
+void eb32sc_to_file(FILE *file, struct eb_root *root, const struct eb32sc_node *subj,
+                    int op, const char *desc);
 
 /* This function compares a sample word possibly followed by blanks to another
  * clean word. The compare is case-insensitive. 1 is returned if both are equal,
