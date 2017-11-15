@@ -32,13 +32,18 @@ void applet_run_active()
 	struct appctx *curr, *next;
 	struct stream_interface *si;
 	struct list applet_cur_queue = LIST_HEAD_INIT(applet_cur_queue);
+	int max_processed;
+
+	max_processed = applets_active_queue;
+	if (max_processed > 200)
+		max_processed = 200;
 
 	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
 	if (!(active_applets_mask & tid_bit)) {
 		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 		return;
 	}
-
+	active_applets_mask &= ~tid_bit;
 	curr = LIST_NEXT(&applet_active_queue, typeof(curr), runq);
 	while (&curr->runq != &applet_active_queue) {
 		next = LIST_NEXT(&curr->runq, typeof(next), runq);
@@ -47,10 +52,14 @@ void applet_run_active()
 			curr->state = APPLET_RUNNING;
 			LIST_ADDQ(&applet_cur_queue, &curr->runq);
 			applets_active_queue--;
+			max_processed--;
 		}
 		curr = next;
+		if (max_processed <= 0) {
+			active_applets_mask |= tid_bit;
+			break;
+		}
 	}
-	active_applets_mask &= ~tid_bit;
 	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 
 	/* The list is only scanned from the head. This guarantees that if any
