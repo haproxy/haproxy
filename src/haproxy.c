@@ -670,6 +670,8 @@ static void mworker_wait()
 	int exitpid = -1;
 	int status = 0;
 
+restart_wait:
+
 	mworker_register_signals();
 	mworker_unblock_signals();
 
@@ -679,6 +681,8 @@ static void mworker_wait()
 			int sig = caught_signal;
 			if (sig == SIGUSR2 || sig == SIGHUP) {
 				mworker_reload();
+				/* should reach there only if it fail */
+				goto restart_wait;
 			} else {
 				Warning("Exiting Master process...\n");
 				mworker_kill(sig);
