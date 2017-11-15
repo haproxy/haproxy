@@ -2236,49 +2236,46 @@ void eb32sc_to_file(FILE *file, struct eb_root *root)
 
 	fprintf(file,
 		"digraph ebtree {\n"
-		"  node [fontname=\"courier-bold\" shape=\"box\" style=\"filled\" color=\"black\" fillcolor=\"white\"];\n"
-		"  edge [fontname=\"arial\" style=\"solid\" color=\"magenta\" dir=\"forward\"];\n"
+		"  node [fontname=\"fixed\" fontsize=8 shape=\"box\" style=\"filled\" color=\"black\" fillcolor=\"white\"];\n"
+		"  edge [fontname=\"fixed\" fontsize=8 style=\"solid\" color=\"magenta\" dir=\"forward\"];\n"
 		"  \"%lx_n\" [label=\"root\\n%lx\"]\n", (long)eb_root_to_node(root), (long)root
 		);
 
-	fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"l:%c\"];\n",
+	fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"L\"];\n",
 		(long)eb_root_to_node(root),
 		(long)eb_root_to_node(eb_clrtag(root->b[0])),
-		eb_gettag(root->b[0]) == EB_LEAF ? 'l' : 'n',
 		eb_gettag(root->b[0]) == EB_LEAF ? 'l' : 'n');
 
 	node = eb32sc_first(root, scope);
 	while (node) {
 		if (node->node.node_p) {
 			/* node part is used */
-			fprintf(file, "  \"%lx_n\" [label=\"%lx\\nbit=%d\\nscope=%lx\" fillcolor=\"lightskyblue1\"];\n",
-				(long)node, (long)node, node->node.bit, node->node_s);
+			fprintf(file, "  \"%lx_n\" [label=\"%lx\\nkey=%u\\nscope=%lx\\nbit=%d\" fillcolor=\"lightskyblue1\"];\n",
+				(long)node, (long)node, node->key, node->node_s, node->node.bit);
 
-			fprintf(file, "  \"%lx_n\" -> \"%lx_n\" [taillabel=\"np:%c\"];\n",
+			fprintf(file, "  \"%lx_n\" -> \"%lx_n\" [taillabel=\"%c\"];\n",
 				(long)node,
 				(long)eb_root_to_node(eb_clrtag(node->node.node_p)),
-				eb_gettag(node->node.node_p) ? 'r' : 'l');
+				eb_gettag(node->node.node_p) ? 'R' : 'L');
 
-			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"l:%c\"];\n",
+			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"L\"];\n",
 				(long)node,
 				(long)eb_root_to_node(eb_clrtag(node->node.branches.b[0])),
-				eb_gettag(node->node.branches.b[0]) == EB_LEAF ? 'l' : 'n',
 				eb_gettag(node->node.branches.b[0]) == EB_LEAF ? 'l' : 'n');
 
-			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"r:%c\"];\n",
+			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"R\"];\n",
 				(long)node,
 				(long)eb_root_to_node(eb_clrtag(node->node.branches.b[1])),
-				eb_gettag(node->node.branches.b[1]) == EB_LEAF ? 'l' : 'n',
 				eb_gettag(node->node.branches.b[1]) == EB_LEAF ? 'l' : 'n');
 		}
 
 		fprintf(file, "  \"%lx_l\" [label=\"%lx\\nkey=%u\\nscope=%lx\\npfx=%u\" fillcolor=\"yellow\"];\n",
 			(long)node, (long)node, node->key, node->leaf_s, node->node.pfx);
 
-		fprintf(file, "  \"%lx_l\" -> \"%lx_n\" [taillabel=\"lp:%c\"];\n",
+		fprintf(file, "  \"%lx_l\" -> \"%lx_n\" [taillabel=\"%c\"];\n",
 			(long)node,
 			(long)eb_root_to_node(eb_clrtag(node->node.leaf_p)),
-			eb_gettag(node->node.leaf_p) ? 'r' : 'l');
+			eb_gettag(node->node.leaf_p) ? 'R' : 'L');
 		node = eb32sc_next(node, scope);
 	}
 	fprintf(file, "}\n");
