@@ -57,6 +57,8 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
 		}
 
 		eb32 = container_of(head, struct eb32sc_node, node);
+		if (!(eb32->node_s & scope))
+			eb32->node_s |= scope;
 	}
 
 	/* Here we have a leaf attached to (head)->b[EB_RGHT] */
@@ -154,6 +156,10 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 				    struct eb32sc_node, node.branches);
 		old_node_bit = old->node.bit;
 
+		/* our new node will be found through this one, we must mark it */
+		if ((old->node_s | scope) != old->node_s)
+			old->node_s |= scope;
+
 		/* Stop going down when we don't have common bits anymore. We
 		 * also stop in front of a duplicates tree because it means we
 		 * have to insert above.
@@ -172,9 +178,6 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
 		}
 
 		/* walk down */
-		if ((old->node_s | scope) != old->node_s)
-			old->node_s |= scope;
-
 		root = &old->node.branches;
 		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
 		troot = root->b[side];
