@@ -823,6 +823,9 @@ const void *my_memmem(const void *, size_t, const void *, size_t);
  */
 unsigned int get_next_id(struct eb_root *root, unsigned int key);
 
+/* dump the full tree to <file> in DOT format for debugging purposes */
+void eb32sc_to_file(FILE *file, struct eb_root *root);
+
 /* This function compares a sample word possibly followed by blanks to another
  * clean word. The compare is case-insensitive. 1 is returned if both are equal,
  * otherwise zero. This intends to be used when checking HTTP headers for some

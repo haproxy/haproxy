@@ -31,6 +31,7 @@
 #include <types/global.h>
 #include <proto/dns.h>
 #include <eb32tree.h>
+#include <eb32sctree.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing
@@ -2225,6 +2226,62 @@ unsigned int get_next_id(struct eb_root *root, unsigned int key)
 		key++;
 	} while (key);
 	return key;
+}
+
+/* dump the full tree to <file> in DOT format for debugging purposes */
+void eb32sc_to_file(FILE *file, struct eb_root *root)
+{
+	struct eb32sc_node *node;
+	unsigned long scope = -1;
+
+	fprintf(file,
+		"digraph ebtree {\n"
+		"  node [fontname=\"courier-bold\" shape=\"box\" style=\"filled\" color=\"black\" fillcolor=\"white\"];\n"
+		"  edge [fontname=\"arial\" style=\"solid\" color=\"magenta\" dir=\"forward\"];\n"
+		"  \"%lx_n\" [label=\"root\\n%lx\"]\n", (long)eb_root_to_node(root), (long)root
+		);
+
+	fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"l:%c\"];\n",
+		(long)eb_root_to_node(root),
+		(long)eb_root_to_node(eb_clrtag(root->b[0])),
+		eb_gettag(root->b[0]) == EB_LEAF ? 'l' : 'n',
+		eb_gettag(root->b[0]) == EB_LEAF ? 'l' : 'n');
+
+	node = eb32sc_first(root, scope);
+	while (node) {
+		if (node->node.node_p) {
+			/* node part is used */
+			fprintf(file, "  \"%lx_n\" [label=\"%lx\\nbit=%d\\nscope=%lx\" fillcolor=\"lightskyblue1\"];\n",
+				(long)node, (long)node, node->node.bit, node->node_s);
+
+			fprintf(file, "  \"%lx_n\" -> \"%lx_n\" [taillabel=\"np:%c\"];\n",
+				(long)node,
+				(long)eb_root_to_node(eb_clrtag(node->node.node_p)),
+				eb_gettag(node->node.node_p) ? 'r' : 'l');
+
+			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"l:%c\"];\n",
+				(long)node,
+				(long)eb_root_to_node(eb_clrtag(node->node.branches.b[0])),
+				eb_gettag(node->node.branches.b[0]) == EB_LEAF ? 'l' : 'n',
+				eb_gettag(node->node.branches.b[0]) == EB_LEAF ? 'l' : 'n');
+
+			fprintf(file, "  \"%lx_n\" -> \"%lx_%c\" [taillabel=\"r:%c\"];\n",
+				(long)node,
+				(long)eb_root_to_node(eb_clrtag(node->node.branches.b[1])),
+				eb_gettag(node->node.branches.b[1]) == EB_LEAF ? 'l' : 'n',
+				eb_gettag(node->node.branches.b[1]) == EB_LEAF ? 'l' : 'n');
+		}
+
+		fprintf(file, "  \"%lx_l\" [label=\"%lx\\nkey=%u\\nscope=%lx\\npfx=%u\" fillcolor=\"yellow\"];\n",
+			(long)node, (long)node, node->key, node->leaf_s, node->node.pfx);
+
+		fprintf(file, "  \"%lx_l\" -> \"%lx_n\" [taillabel=\"lp:%c\"];\n",
+			(long)node,
+			(long)eb_root_to_node(eb_clrtag(node->node.leaf_p)),
+			eb_gettag(node->node.leaf_p) ? 'r' : 'l');
+		node = eb32sc_next(node, scope);
+	}
+	fprintf(file, "}\n");
 }
 
 /* This function compares a sample word possibly followed by blanks to another
