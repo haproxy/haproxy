@@ -2824,7 +2824,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 
 		chunk_appendf(&trash,
-			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s",
+			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s tmask=0x%lx%s",
 			     strm->task,
 			     strm->task->state,
 			     strm->task->nice, strm->task->calls,
@@ -2832,6 +2832,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			             tick_is_expired(strm->task->expire, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->task->expire - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			     strm->task->thread_mask,
 			     task_in_rq(strm->task) ? ", running" : "");
 
 		chunk_appendf(&trash,
@@ -2884,21 +2885,23 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
+			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
 			              conn->handle.fd,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache : 0,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0);
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0,
+				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 		}
 		else if ((tmpctx = objt_appctx(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app0=%p st0=%d st1=%d st2=%d applet=%s\n",
+			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
-			              tmpctx->applet->name);
+			              tmpctx->applet->name,
+				      tmpctx->thread_mask);
 		}
 
 		if ((cs = objt_cs(strm->si[1].end)) != NULL) {
@@ -2915,21 +2918,23 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d\n",
+			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
 			              conn->handle.fd,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache : 0,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0);
+			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].updated : 0,
+				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 		}
 		else if ((tmpctx = objt_appctx(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app1=%p st0=%d st1=%d st2=%d applet=%s\n",
+			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
-			              tmpctx->applet->name);
+			              tmpctx->applet->name,
+				      tmpctx->thread_mask);
 		}
 
 		chunk_appendf(&trash,
