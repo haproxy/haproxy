@@ -1,0 +1,27 @@
+------------------------------------------------------------------------
+How to build wireshark with HAProxy Peers Protocol dissection support.
+------------------------------------------------------------------------
+
+Please note that at this time, HAProxy Peers Protocol dissection is not supported
+on Windows systems (could not be tested).
+
+1) File list
+-------------
+ - packet-happp.c: source code for HAProxy Peers Procotol (HAPPP) dissection
+   support.
+ - wireshark.happp.dissector.patch: a patch file for wireshark sources to enable HAPPP
+   dissection support. Note that this patch file modifies only two files:
+   (epan/dissectors/CMakeLists.txt and epan/dissectors/Makefile.am) to add
+   packet-happp.c file DISSECTOR_SRC variable which list all wireshark
+ - README: this file.
+
+2) To build wireshark with HAPPP dissection support
+---------------------------------------------------
+ - Download wireshark sources:
+   $ git clone https://code.wireshark.org/review/wireshark
+ - copy packet-happp.c file to epan/dissectors/ directory.
+ - apply wireshark.happp.dissector.patch file to wireshark source directory.
+ - build wireshark (see https://www.wireshark.org/docs/wsdg_html_chunked/):
+   $ ./autogen.sh
+   $ ./configure
+   $ make

@@ -1,0 +1,24 @@
+diff --git a/epan/dissectors/CMakeLists.txt b/epan/dissectors/CMakeLists.txt
+index 38e2149..5f8cd49 100644
+--- a/epan/dissectors/CMakeLists.txt
++++ b/epan/dissectors/CMakeLists.txt
+@@ -665,6 +665,7 @@ set(DISSECTOR_SRC
+ 	packet-h263.c
+ 	packet-h263p.c
+ 	packet-h264.c
++	packet-happp.c
+ 	packet-hartip.c
+ 	packet-hazelcast.c
+ 	packet-hci_h1.c
+diff --git a/epan/dissectors/Makefile.am b/epan/dissectors/Makefile.am
+index 70edc66..bc46235 100644
+--- a/epan/dissectors/Makefile.am
++++ b/epan/dissectors/Makefile.am
+@@ -694,6 +694,7 @@ DISSECTOR_SRC = \
+ 	packet-h263.c		\
+ 	packet-h263p.c		\
+ 	packet-h264.c		\
++	packet-happp.c		\
+ 	packet-hartip.c		\
+ 	packet-hazelcast.c	\
+ 	packet-hci_h1.c		\
