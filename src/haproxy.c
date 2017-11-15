@@ -648,7 +648,6 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
-	deinit(); /* we don't want to leak FD there */
 	Warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
 
