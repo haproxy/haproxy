@@ -3855,18 +3855,34 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 {
 	struct connection *conn = SSL_get_app_data(ssl);
+	struct server *s;
 
-	/* check if session was reused, if not store current session on server for reuse */
-	if (objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
-		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
-		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
+	s = objt_server(conn->target);
+
+	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
+		int len;
+		unsigned char *ptr;
+
+		len = i2d_SSL_SESSION(sess, NULL);
+		if (s->ssl_ctx.reused_sess[tid].ptr && s->ssl_ctx.reused_sess[tid].allocated_size >= len) {
+			ptr = s->ssl_ctx.reused_sess[tid].ptr;
+		} else {
+			free(s->ssl_ctx.reused_sess[tid].ptr);
+			ptr = s->ssl_ctx.reused_sess[tid].ptr = malloc(len);
+			s->ssl_ctx.reused_sess[tid].allocated_size = len;
+		}
+		if (s->ssl_ctx.reused_sess[tid].ptr) {
+			s->ssl_ctx.reused_sess[tid].size = i2d_SSL_SESSION(sess,
+			    &ptr);
+		}
+	} else {
+		free(s->ssl_ctx.reused_sess[tid].ptr);
+		s->ssl_ctx.reused_sess[tid].ptr = NULL;
 	}
 
-	if (!(objt_server(conn->target)->ssl_ctx.options & SRV_SSL_O_NO_REUSE))
-		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = SSL_get1_session(conn->xprt_ctx);
-
-	return 1;
+	return 0;
 }
+
 
 /* SSL callback used on new session creation */
 int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
@@ -4433,7 +4449,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 	/* Initiate SSL context for current server */
 	if (!srv->ssl_ctx.reused_sess) {
-		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(SSL_SESSION*))) == NULL) {
+		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(*srv->ssl_ctx.reused_sess))) == NULL) {
 			Alert("Proxy '%s', server '%s' [%s:%d] out of memory.\n",
 			      curproxy->id, srv->id,
 			      srv->conf.file, srv->conf.line);
@@ -4922,10 +4938,15 @@ static int ssl_sock_init(struct connection *conn)
 		}
 
 		SSL_set_connect_state(conn->xprt_ctx);
-		if (objt_server(conn->target)->ssl_ctx.reused_sess) {
-			if(!SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess[tid])) {
-				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
-				objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
+		if (objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+			const unsigned char *ptr = objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
+			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
+			if(sess && !SSL_set_session(conn->xprt_ctx, sess)) {
+				SSL_SESSION_free(sess);
+				free(objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
+				objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+			} else if (sess) {
+				SSL_SESSION_free(sess);
 			}
 		}
 
@@ -5260,9 +5281,9 @@ reneg_ok:
 	ERR_clear_error();
 
 	/* free resumed session if exists */
-	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess[tid]) {
-		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess[tid]);
-		objt_server(conn->target)->ssl_ctx.reused_sess[tid] = NULL;
+	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+		free(objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
+		objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
 	}
 
 	/* Fail on all other handshake errors */
