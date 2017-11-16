@@ -458,8 +458,10 @@ void stream_int_notify(struct stream_interface *si)
 
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
+		struct connection *conn = objt_cs(si->end) ? objt_cs(si->end)->conn : NULL;
+
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
-		    (si->state == SI_ST_EST))
+		    (si->state == SI_ST_EST) && (!conn || !(conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS))))
 			si_shutw(si);
 		oc->wex = TICK_ETERNITY;
 	}

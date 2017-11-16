@@ -5655,13 +5655,6 @@ static void ssl_sock_close(struct connection *conn) {
  */
 static void ssl_sock_shutw(struct connection *conn, int clean)
 {
-	/* If we're done with the connection before we did the handshake
-	 * force the handshake anyway, so that the session is in a consistent
-	 * state
-	 */
-	if (conn->flags & CO_FL_EARLY_SSL_HS)
-		SSL_do_handshake(conn->xprt_ctx);
-
 	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 	if (!clean)
