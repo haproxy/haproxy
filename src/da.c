@@ -318,7 +318,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 		char hbuf[24] = { 0 };
 
 		/* The HTTP headers used by the DeviceAtlas API are not longer */
-		if (hctx.del >= sizeof(hbuf)) {
+		if (hctx.del >= sizeof(hbuf) || hctx.del <= 0 || hctx.vlen <= 0) {
 			continue;
 		}
 
