@@ -224,8 +224,11 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
-	channel_auto_connect(&s->req);  /* don't wait to establish connection */
-	channel_auto_close(&s->req);    /* let the producer forward close requests */
+
+	if (!sess->fe->fe_req_ana) {
+		channel_auto_connect(&s->req);  /* don't wait to establish connection */
+		channel_auto_close(&s->req);    /* let the producer forward close requests */
+	}
 
 	s->req.rto = sess->fe->timeout.client;
 	s->req.wto = TICK_ETERNITY;
