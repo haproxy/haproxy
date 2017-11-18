@@ -1217,6 +1217,8 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 			 * but we may have lost a worthwhile optimization.
 			 */
 			__cs_stop_recv(cs);
+			si->flags |= SI_FL_WAIT_ROOM;
+			break;
 		}
 
 		/* if too many bytes were missing from last read, it means that
