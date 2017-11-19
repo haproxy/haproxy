@@ -1,6 +1,46 @@
 ChangeLog :
 ===========
 
+2017/11/19 : 1.8-rc4
+    - BUG/MEDIUM: cache: does not cache if no Content-Length
+    - BUILD: thread/pipe: fix build without threads
+    - BUG/MINOR: spoe: check buffer size before acquiring or releasing it
+    - MINOR: debug/flags: Add missing flags
+    - MINOR: threads: Use __decl_hathreads to declare locks
+    - BUG/MINOR: buffers: Fix b_alloc_margin to be "fonctionnaly" thread-safe
+    - BUG/MAJOR: ebtree/scope: fix insertion and removal of duplicates in scope-aware trees
+    - BUG/MAJOR: ebtree/scope: fix lookup of next node in scope-aware trees
+    - MINOR: ebtree/scope: add a function to find next node from a parent
+    - MINOR: ebtree/scope: simplify the lookup functions by using eb32sc_next_with_parent()
+    - BUG/MEDIUM: mworker: Fix re-exec when haproxy is started from PATH
+    - BUG/MEDIUM: cache: use msg->sov to forward header
+    - MINOR: cache: forward data with headers
+    - MINOR: cache: disable cache if shctx_row_data_append fail
+    - BUG/MINOR: threads: tid_bit must be a unsigned long
+    - CLEANUP: tasks: Remove useless double test on rq_next
+    - BUG/MEDIUM: standard: itao_str/idx and quote_str/idx must be thread-local
+    - MINOR: tools: add a function to dump a scope-aware tree to a file
+    - MINOR: tools: improve the DOT dump of the ebtree
+    - MINOR: tools: emphasize the node being worked on in the tree dump
+    - BUG/MAJOR: ebtree/scope: properly tag upper nodes during insertion
+    - DOC: peers: Add a first version of peers protocol v2.1.
+    - CONTRIB: Wireshark dissector for HAProxy Peer Protocol.
+    - MINOR: mworker: display an accurate error when the reexec fail
+    - BUG/MEDIUM: mworker: wait again for signals when execvp fail
+    - BUG/MEDIUM: mworker: does not deinit anymore
+    - BUG/MEDIUM: mworker: does not close inherited FD
+    - MINOR: tests: add a python wrapper to test inherited fd
+    - BUG/MINOR: Allocate the log buffers before the proxies startup
+    - MINOR: tasks: Use a bitfield to track tasks activity per-thread
+    - MAJOR: polling: Use active_tasks_mask instead of tasks_run_queue
+    - MINOR: applets: Use a bitfield to track applets activity per-thread
+    - MAJOR: polling: Use active_appels_mask instead of applets_active_queue
+    - MEDIUM: applets: Don't process more than 200 active applets at once
+    - MINOR: stream: Add thread-mask of tasks/FDs/applets in "show sess all" command
+    - MINOR: SSL: Store the ASN1 representation of client sessions.
+    - MINOR: ssl: Make sure we don't shutw the connection before the handshake.
+    - BUG/MEDIUM: deviceatlas: ignore not valuable HTTP request data
+
 2017/11/11 : 1.8-rc3
     - BUILD: use MAXPATHLEN instead of NAME_MAX.
     - BUG/MAJOR: threads/checks: add 4 missing spin_unlock() in various functions
