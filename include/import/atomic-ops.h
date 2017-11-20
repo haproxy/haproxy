@@ -3,35 +3,42 @@
 
 
 /* compiler-only memory barrier, for use around locks */
-static inline void pl_barrier()
-{
-	asm volatile("" ::: "memory");
-}
+#define pl_barrier() do {			\
+		asm volatile("" ::: "memory");	\
+	} while (0)
 
 #if defined(__i386__) || defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
 
 /* full memory barrier using mfence when SSE2 is supported, falling back to
  * "lock add %esp" (gcc uses "lock add" or "lock or").
  */
-static inline void pl_mb()
-{
 #if defined(__SSE2__)
-	asm volatile("mfence" ::: "memory");
+
+#define pl_mb() do {                                 \
+		asm volatile("mfence" ::: "memory"); \
+	} while (0)
+
 #elif defined(__x86_64__)
-	asm volatile("lock addl $0,0 (%%rsp)" ::: "memory", "cc");
-#else
-	asm volatile("lock addl $0,0 (%%esp)" ::: "memory", "cc");
-#endif
-}
+
+#define pl_mb() do {                                                       \
+		asm volatile("lock addl $0,0 (%%rsp)" ::: "memory", "cc"); \
+	} while (0)
+
+#else /* ix86 */
+
+#define pl_mb() do {                                                       \
+		asm volatile("lock addl $0,0 (%%esp)" ::: "memory", "cc"); \
+	} while (0)
+
+#endif /* end of pl_mb() case for sse2/x86_64/x86 */
 
 /*
  * Generic functions common to the x86 family
  */
 
-static inline void pl_cpu_relax()
-{
-	asm volatile("rep;nop\n");
-}
+#define pl_cpu_relax() do {                   \
+		asm volatile("rep;nop\n");    \
+	} while (0)
 
 /* increment integer value pointed to by pointer <ptr>, and return non-zero if
  * result is non-null.
@@ -491,16 +498,14 @@ static inline void pl_cpu_relax()
 #else
 /* generic implementations */
 
-static inline void pl_cpu_relax()
-{
-	asm volatile("");
-}
+#define pl_cpu_relax() do {             \
+		asm volatile("");       \
+	} while (0)
 
 /* full memory barrier */
-static inline void pl_mb()
-{
-	__sync_synchronize();
-}
+#define pl_mb() do {                    \
+		__sync_synchronize();   \
+	} while (0)
 
 #define pl_inc_noret(ptr)     ({ __sync_add_and_fetch((ptr), 1);   })
 #define pl_dec_noret(ptr)     ({ __sync_sub_and_fetch((ptr), 1);   })
