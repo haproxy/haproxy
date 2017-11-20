@@ -1828,6 +1828,7 @@ struct task *process_stream(struct task *t)
 	/* Analyse request */
 	if (((req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
 	    ((req->flags ^ rqf_last) & CF_MASK_STATIC) ||
+	    (req->analysers && (req->flags & CF_SHUTW)) ||
 	    si_f->state != rq_prod_last ||
 	    si_b->state != rq_cons_last ||
 	    s->pending_events & TASK_WOKEN_MSG) {
@@ -1927,6 +1928,7 @@ struct task *process_stream(struct task *t)
 
 	if (((res->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
 		 (res->flags ^ rpf_last) & CF_MASK_STATIC ||
+		 (res->analysers && (res->flags & CF_SHUTW)) ||
 		 si_f->state != rp_cons_last ||
 		 si_b->state != rp_prod_last ||
 		 s->pending_events & TASK_WOKEN_MSG) {
