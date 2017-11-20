@@ -338,6 +338,14 @@ int http_calc_maxage(struct stream *s)
 }
 
 
+static void cache_free_blocks(struct shared_block *first, struct shared_block *block)
+{
+	if (first == block) {
+		struct cache_entry *object = (struct cache_entry *)first->data;
+		eb32_delete(&object->eb);
+	}
+}
+
 /*
  * This fonction will store the headers of the response in a buffer and then
  * register a filter to store the data
@@ -575,10 +583,12 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache *cache = (struct cache *)rule->arg.act.p[0];
 
 	search_entry.eb.key = hash_djb2(s->txn->uri, strlen(s->txn->uri));
+	shctx_lock(shctx_ptr(cache));
 	res = entry_exist(cache, &search_entry);
 	if (res) {
 		struct appctx *appctx;
-
+		shctx_row_inc_hot(shctx_ptr(cache), block_ptr(res));
+		shctx_unlock(shctx_ptr(cache));
 		s->target = &http_cache_applet.obj_type;
 		if ((appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
 			appctx->st0 = HTTP_CACHE_INIT;
@@ -589,6 +599,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_YIELD;
 		}
 	}
+	shctx_unlock(shctx_ptr(cache));
 	return ACT_RET_CONT;
 }
 
@@ -705,7 +716,7 @@ int cfg_post_parse_section_cache()
 			err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
 		}
-
+		shctx->free_block = cache_free_blocks;
 		memcpy(shctx->data, tmp_cache_config, sizeof(struct cache));
 		cache = (struct cache *)shctx->data;
 		cache->entries = EB_ROOT_UNIQUE;
