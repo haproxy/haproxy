@@ -132,8 +132,6 @@ cache_store_http_headers(struct stream *s, struct filter *filter, struct http_ms
 {
 	struct cache_st *st = filter->ctx;
 
-	/* end of headers, exclude the final \r\n allow to forward the final
-	 * \r\n in the data filter */
 	if (!(msg->chn->flags & CF_ISRESP) || !st)
 		return 1;
 
