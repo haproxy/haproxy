@@ -69,7 +69,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_r__(char *,int);                   \
-		__unsupported_argument_size_for_pl_try_r__(__FILE__,__LINE__);                 \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_r__(__FILE__,__LINE__);         \
 		0;                                                                             \
 	})                                                                                     \
 )
@@ -89,7 +90,8 @@
 		pl_sub(lock, PLOCK32_RL_1);                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_drop_r__(char *,int);                  \
-		__unsupported_argument_size_for_pl_drop_r__(__FILE__,__LINE__);                \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_drop_r__(__FILE__,__LINE__);        \
 	})                                                                                     \
 )
 
@@ -117,7 +119,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_s__(char *,int);                   \
-		__unsupported_argument_size_for_pl_try_s__(__FILE__,__LINE__);                 \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_s__(__FILE__,__LINE__);         \
 		0;                                                                             \
 	})                                                                                     \
 )
@@ -137,7 +140,8 @@
 		pl_sub(lock, PLOCK32_SL_1 + PLOCK32_RL_1);                                     \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_drop_s__(char *,int);                  \
-		__unsupported_argument_size_for_pl_drop_s__(__FILE__,__LINE__);                \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_drop_s__(__FILE__,__LINE__);        \
 	})                                                                                     \
 )
 
@@ -149,7 +153,8 @@
 		pl_sub(lock, PLOCK32_SL_1);                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_stor__(char *,int);                    \
-		__unsupported_argument_size_for_pl_stor__(__FILE__,__LINE__);                  \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_stor__(__FILE__,__LINE__);          \
 	})                                                                                     \
 )
 
@@ -167,7 +172,8 @@
 			__pl_r = pl_deref_int(lock);                                           \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_stow__(char *,int);                    \
-		__unsupported_argument_size_for_pl_stow__(__FILE__,__LINE__);                  \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_stow__(__FILE__,__LINE__);          \
 	})                                                                                     \
 )
 
@@ -179,7 +185,8 @@
 		pl_sub(lock, PLOCK32_WL_1);                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_wtos__(char *,int);                    \
-		__unsupported_argument_size_for_pl_wtos__(__FILE__,__LINE__);                  \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_wtos__(__FILE__,__LINE__);          \
 	})                                                                                     \
 )
 
@@ -191,7 +198,8 @@
 		pl_sub(lock, PLOCK32_WL_1 | PLOCK32_SL_1);                                     \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_wtor__(char *,int);                    \
-		__unsupported_argument_size_for_pl_wtor__(__FILE__,__LINE__);                  \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_wtor__(__FILE__,__LINE__);          \
 	})                                                                                     \
 )
 
@@ -249,7 +257,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_w__(char *,int);                   \
-		__unsupported_argument_size_for_pl_try_w__(__FILE__,__LINE__);                 \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_w__(__FILE__,__LINE__);         \
 		0;                                                                             \
 	})                                                                                     \
 )
@@ -269,7 +278,8 @@
 		pl_sub(lock, PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);                      \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_drop_w__(char *,int);                  \
-		__unsupported_argument_size_for_pl_drop_w__(__FILE__,__LINE__);                \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_drop_w__(__FILE__,__LINE__);        \
 	})                                                                                     \
 )
 
@@ -301,7 +311,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_rtos__(char *,int);                \
-		__unsupported_argument_size_for_pl_try_rtos__(__FILE__,__LINE__);              \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_rtos__(__FILE__,__LINE__);      \
 		0;                                                                             \
 	})                                                                                     \
 )
@@ -352,7 +363,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_a__(char *,int);                   \
-		__unsupported_argument_size_for_pl_try_a__(__FILE__,__LINE__);                 \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_a__(__FILE__,__LINE__);         \
 		0;                                                                             \
 	})                                                                                     \
 )
@@ -372,7 +384,8 @@
 		pl_sub(lock, PLOCK32_WL_1);                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_drop_a__(char *,int);                  \
-		__unsupported_argument_size_for_pl_drop_a__(__FILE__,__LINE__);                \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_drop_a__(__FILE__,__LINE__);        \
 	})                                                                                     \
 )
 
@@ -421,7 +434,8 @@
 		!__pl_r; /* return value */                                                    \
 	}) : ({                                                                                \
 		void __unsupported_argument_size_for_pl_try_rtoa__(char *,int);                \
-		__unsupported_argument_size_for_pl_try_rtoa__(__FILE__,__LINE__);              \
+		if (sizeof(*(lock)) != 4 && (sizeof(long) != 8 || sizeof(*(lock)) != 8))       \
+			__unsupported_argument_size_for_pl_try_rtoa__(__FILE__,__LINE__);      \
 		0;                                                                             \
 	})                                                                                     \
 )

@@ -78,7 +78,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_inc__(char *,int);    \
-		__unsupported_argument_size_for_pl_inc__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                      \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8)) \
+			__unsupported_argument_size_for_pl_inc__(__FILE__,__LINE__);   \
 		0;                                                            \
 	})                                                                    \
 )
@@ -121,7 +123,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_dec__(char *,int);    \
-		__unsupported_argument_size_for_pl_dec__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                      \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8)) \
+			__unsupported_argument_size_for_pl_dec__(__FILE__,__LINE__);   \
 		0;                                                            \
 	})                                                                    \
 )
@@ -150,7 +154,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_inc_noret__(char *,int);   \
-		__unsupported_argument_size_for_pl_inc_noret__(__FILE__,__LINE__); \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                          \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))     \
+			__unsupported_argument_size_for_pl_inc_noret__(__FILE__,__LINE__); \
 	}                                                                     \
 })
 
@@ -178,7 +184,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_dec_noret__(char *,int);   \
-		__unsupported_argument_size_for_pl_dec_noret__(__FILE__,__LINE__); \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                          \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))     \
+			__unsupported_argument_size_for_pl_dec_noret__(__FILE__,__LINE__); \
 	}                                                                     \
 })
 
@@ -208,7 +216,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_add__(char *,int);    \
-		__unsupported_argument_size_for_pl_add__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                          \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))     \
+			__unsupported_argument_size_for_pl_add__(__FILE__,__LINE__);       \
 	}                                                                     \
 })
 
@@ -238,7 +248,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_sub__(char *,int);    \
-		__unsupported_argument_size_for_pl_sub__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                      \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8)) \
+			__unsupported_argument_size_for_pl_sub__(__FILE__,__LINE__);   \
 	}                                                                     \
 })
 
@@ -268,7 +280,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_and__(char *,int);    \
-		__unsupported_argument_size_for_pl_and__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                       \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))  \
+			__unsupported_argument_size_for_pl_and__(__FILE__,__LINE__);    \
 	}                                                                     \
 })
 
@@ -298,7 +312,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_or__(char *,int);     \
-		__unsupported_argument_size_for_pl_or__(__FILE__,__LINE__);   \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                       \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))  \
+			__unsupported_argument_size_for_pl_or__(__FILE__,__LINE__);     \
 	}                                                                     \
 })
 
@@ -328,7 +344,9 @@
 			     : "cc");                                         \
 	} else {                                                              \
 		void __unsupported_argument_size_for_pl_xor__(char *,int);    \
-		__unsupported_argument_size_for_pl_xor__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                       \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))  \
+		__unsupported_argument_size_for_pl_xor__(__FILE__,__LINE__);            \
 	}                                                                     \
 })
 
@@ -363,7 +381,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_bts__(char *,int);    \
-		__unsupported_argument_size_for_pl_bts__(__FILE__,__LINE__);  \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                      \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8)) \
+			__unsupported_argument_size_for_pl_bts__(__FILE__,__LINE__);   \
 		0;                                                            \
 	})                                                                    \
 )
@@ -407,7 +427,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_xadd__(char *,int);   \
-		__unsupported_argument_size_for_pl_xadd__(__FILE__,__LINE__); \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                       \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))  \
+			__unsupported_argument_size_for_pl_xadd__(__FILE__,__LINE__);   \
 		0;                                                            \
 	})                                                                    \
 )
@@ -446,7 +468,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_xchg__(char *,int);   \
-		__unsupported_argument_size_for_pl_xchg__(__FILE__,__LINE__); \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                       \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8))  \
+		__unsupported_argument_size_for_pl_xchg__(__FILE__,__LINE__);           \
 		0;                                                            \
 	})                                                                    \
 )
@@ -490,7 +514,9 @@
 		ret; /* return value */                                       \
 	}) : ({                                                               \
 		void __unsupported_argument_size_for_pl_cmpxchg__(char *,int);   \
-		__unsupported_argument_size_for_pl_cmpxchg__(__FILE__,__LINE__); \
+		if (sizeof(*(ptr)) != 1 && sizeof(*(ptr)) != 2 &&                      \
+		    sizeof(*(ptr)) != 4 && (sizeof(long) != 8 || sizeof(*(ptr)) != 8)) \
+		__unsupported_argument_size_for_pl_cmpxchg__(__FILE__,__LINE__);       \
 		0;                                                            \
 	})                                                                    \
 )
