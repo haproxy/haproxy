@@ -61,6 +61,9 @@
 #ifdef DEBUG_FULL
 #include <assert.h>
 #endif
+#if defined(USE_SYSTEMD)
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <common/base64.h>
 #include <common/cfgparse.h>
@@ -404,6 +407,9 @@ static void usage(char *name)
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -W master-worker mode.\n"
+#if defined(USE_SYSTEMD)
+		"        -Ws master-worker mode with systemd notify support.\n"
+#endif
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
 		"        -n sets the maximum total # of connections (%d)\n"
@@ -635,6 +641,10 @@ static void mworker_reload()
 
 	mworker_block_signals();
 	mworker_unregister_signals();
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notify(0, "RELOADING=1");
+#endif
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
 
 	/* compute length  */
@@ -698,6 +708,11 @@ static void mworker_wait()
 
 restart_wait:
 
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
+#endif
+
 	mworker_register_signals();
 	mworker_unblock_signals();
 
@@ -710,6 +725,11 @@ restart_wait:
 				/* should reach there only if it fail */
 				goto restart_wait;
 			} else {
+#if defined(USE_SYSTEMD)
+				if ((global.tune.options & GTUNE_USE_SYSTEMD) && (sig == SIGUSR1 || sig == SIGTERM)) {
+					sd_notify(0, "STOPPING=1");
+				}
+#endif
 				Warning("Exiting Master process...\n");
 				mworker_kill(sig);
 				mworker_unregister_signals();
@@ -1342,6 +1362,15 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_CHECK;
 			else if (*flag == 'D')
 				arg_mode |= MODE_DAEMON;
+			else if (*flag == 'W' && flag[1] == 's') {
+				arg_mode |= MODE_MWORKER;
+#if defined(USE_SYSTEMD)
+				global.tune.options |= GTUNE_USE_SYSTEMD;
+#else
+				Alert("master-worker mode with systemd support (-Ws) requested, but not compiled. Use master-worker mode (-W) if you are not using Type=notify in your unit file or recompile with USE_SYSTEMD=1.\n\n");
+				usage(progname);
+#endif
+			}
 			else if (*flag == 'W')
 				arg_mode |= MODE_MWORKER;
 			else if (*flag == 'q')

@@ -43,6 +43,7 @@
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
 #   USE_WURFL            : enable WURFL detection library from Scientiamobile
+#   USE_SYSTEMD          : enable sd_notify() support.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -698,6 +699,12 @@ OPTIONS_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
 endif
 BUILD_OPTIONS   += $(call ignore_implicit,USE_WURFL)
 OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
+endif
+
+ifneq ($(USE_SYSTEMD),)
+BUILD_OPTIONS   += $(call ignore_implicit,USE_SYSTEMD)
+OPTIONS_CFLAGS  += -DUSE_SYSTEMD
+OPTIONS_LDFLAGS += -lsystemd
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)

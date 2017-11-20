@@ -7,12 +7,12 @@ After=network.target
 # socket if you want seamless reloads.
 Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid"
 ExecStartPre=@SBINDIR@/haproxy -f $CONFIG -c -q
-ExecStart=@SBINDIR@/haproxy -W -f $CONFIG -p $PIDFILE
+ExecStart=@SBINDIR@/haproxy -Ws -f $CONFIG -p $PIDFILE
 ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
-Type=forking
+Type=notify
 
 [Install]
 WantedBy=multi-user.target
