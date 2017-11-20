@@ -869,8 +869,7 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
 	}
 	else if (check) {
-		if (check->desc)
-			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
 		s->op_st_chg.code = check->code;
 		s->op_st_chg.status = check->status;
 		s->op_st_chg.duration = check->duration;
@@ -908,8 +907,7 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
 	}
 	else if (check) {
-		if (check->desc)
-			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
 		s->op_st_chg.code = check->code;
 		s->op_st_chg.status = check->status;
 		s->op_st_chg.duration = check->duration;
@@ -952,8 +950,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 		strlcpy2(s->op_st_chg.reason, reason, sizeof(s->op_st_chg.reason));
 	}
 	else if (check) {
-		if (check->desc)
-			strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
+		strlcpy2(s->op_st_chg.reason, check->desc, sizeof(s->op_st_chg.reason));
 		s->op_st_chg.code = check->code;
 		s->op_st_chg.status = check->status;
 		s->op_st_chg.duration = check->duration;
