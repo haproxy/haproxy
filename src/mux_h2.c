@@ -463,13 +463,13 @@ static void h2_release(struct connection *conn)
 /******************************************************/
 
 /* returns the stream if of stream <h2s> or 0 if <h2s> is NULL */
-static inline int h2s_id(const struct h2s *h2s)
+static inline __maybe_unused int h2s_id(const struct h2s *h2s)
 {
 	return h2s ? h2s->id : 0;
 }
 
 /* returns true of the mux is currently busy as seen from stream <h2s> */
-static inline int h2c_mux_busy(const struct h2c *h2c, const struct h2s *h2s)
+static inline __maybe_unused int h2c_mux_busy(const struct h2c *h2c, const struct h2s *h2s)
 {
 	if (h2c->msi < 0)
 		return 0;
@@ -481,14 +481,14 @@ static inline int h2c_mux_busy(const struct h2c *h2c, const struct h2s *h2s)
 }
 
 /* marks an error on the connection */
-static inline void h2c_error(struct h2c *h2c, enum h2_err err)
+static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 {
 	h2c->errcode = err;
 	h2c->st0 = H2_CS_ERROR;
 }
 
 /* marks an error on the stream */
-static inline void h2s_error(struct h2s *h2s, enum h2_err err)
+static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 {
 	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_ERROR) {
 		h2s->errcode = err;
@@ -499,7 +499,7 @@ static inline void h2s_error(struct h2s *h2s, enum h2_err err)
 }
 
 /* writes the 24-bit frame size <len> at address <frame> */
-static inline void h2_set_frame_size(void *frame, uint32_t len)
+static inline __maybe_unused void h2_set_frame_size(void *frame, uint32_t len)
 {
 	uint8_t *out = frame;
 
@@ -512,23 +512,23 @@ static inline void h2_set_frame_size(void *frame, uint32_t len)
  * the caller's responsibility to verify that there are at least <bytes> bytes
  * available in the buffer's input prior to calling this function.
  */
-static inline void h2_get_buf_bytes(void *dst, size_t bytes,
+static inline __maybe_unused void h2_get_buf_bytes(void *dst, size_t bytes,
                                     const struct buffer *b, int o)
 {
 	readv_bytes(dst, bytes, b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
 }
 
-static inline uint16_t h2_get_n16(const struct buffer *b, int o)
+static inline __maybe_unused uint16_t h2_get_n16(const struct buffer *b, int o)
 {
 	return readv_n16(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
 }
 
-static inline uint32_t h2_get_n32(const struct buffer *b, int o)
+static inline __maybe_unused uint32_t h2_get_n32(const struct buffer *b, int o)
 {
 	return readv_n32(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
 }
 
-static inline uint64_t h2_get_n64(const struct buffer *b, int o)
+static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
 {
 	return readv_n64(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
 }
@@ -550,7 +550,7 @@ static inline uint64_t h2_get_n64(const struct buffer *b, int o)
  * the word, and only one extra read is needed to fetch len[16:23].
  * Returns zero if some bytes are missing, otherwise non-zero on success.
  */
-static int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
+static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
 {
 	uint64_t w;
 
@@ -569,13 +569,13 @@ static int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
 /* skip the next 9 bytes corresponding to the frame header possibly parsed by
  * h2_peek_frame_hdr() above.
  */
-static inline void h2_skip_frame_hdr(struct buffer *b)
+static inline __maybe_unused void h2_skip_frame_hdr(struct buffer *b)
 {
 	bi_del(b, 9);
 }
 
 /* same as above, automatically advances the buffer on success */
-static inline int h2_get_frame_hdr(struct buffer *b, struct h2_fh *h)
+static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh *h)
 {
 	int ret;
 
