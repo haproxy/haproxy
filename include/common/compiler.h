@@ -77,6 +77,10 @@
 #endif
 #endif
 
+/* silence the "unused" warnings without having to place painful #ifdefs.
+ * For use with variables or functions.
+ */
+#define __maybe_unused __attribute__((unused))
 
 /*
  * Gcc >= 3 provides the ability for the programme to give hints to the
