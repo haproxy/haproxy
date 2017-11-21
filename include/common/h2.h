@@ -5,26 +5,66 @@
  * Copyright (C) 2000-2017 Willy Tarreau - w@1wt.eu
  * Copyright (C) 2017 HAProxy Technologies
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation, version 2.1
- * exclusively.
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #ifndef _COMMON_H2_H
 #define _COMMON_H2_H
 
 #include <common/config.h>
+#include <common/http-hdr.h>
+#include <common/ist.h>
 
+
+/* indexes of most important pseudo headers can be simplified to an almost
+ * linear array by dividing the index by 2 for all values from 1 to 9, and
+ * caping to 4 for values up to 14 ; thus it fits in a single 24-bit array
+ * shifted by 3 times the index value/2, or a 32-bit array shifted by 4x.
+ * Don't change these values, they are assumed by hpack_idx_to_phdr(). There
+ * is an entry for the Host header field which is not a pseudo-header but
+ * needs to be tracked as we should only use :authority if it's absent.
+ */
+enum {
+	H2_PHDR_IDX_NONE = 0,
+	H2_PHDR_IDX_AUTH = 1, /* :authority = 1     */
+	H2_PHDR_IDX_METH = 2, /* :method    = 2..3  */
+	H2_PHDR_IDX_PATH = 3, /* :path      = 4..5  */
+	H2_PHDR_IDX_SCHM = 4, /* :scheme    = 6..7  */
+	H2_PHDR_IDX_STAT = 5, /* :status    = 8..14 */
+	H2_PHDR_IDX_HOST = 6, /* Host, never returned, just a place-holder */
+	H2_PHDR_NUM_ENTRIES   /* must be last */
+};
+
+/* bit fields indicating the pseudo-headers found. It also covers the HOST
+ * header field as well as any non-pseudo-header field (NONE).
+ */
+enum {
+	H2_PHDR_FND_NONE = 1 << H2_PHDR_IDX_NONE, /* found a regular header */
+	H2_PHDR_FND_AUTH = 1 << H2_PHDR_IDX_AUTH,
+	H2_PHDR_FND_METH = 1 << H2_PHDR_IDX_METH,
+	H2_PHDR_FND_PATH = 1 << H2_PHDR_IDX_PATH,
+	H2_PHDR_FND_SCHM = 1 << H2_PHDR_IDX_SCHM,
+	H2_PHDR_FND_STAT = 1 << H2_PHDR_IDX_STAT,
+	H2_PHDR_FND_HOST = 1 << H2_PHDR_IDX_HOST,
+};
 
 /* frame types, from the standard */
 enum h2_ft {
@@ -104,6 +144,11 @@ enum h2_err {
 	"\x54\x50\x2f\x32\x2e\x30\x0d\x0a"  \
 	"\x0d\x0a\x53\x4d\x0d\x0a\x0d\x0a"
 
+
+/* various protocol processing functions */
+
+int h2_make_h1_request(struct http_hdr *list, char *out, int osize);
+
 /*
  * Some helpful debugging functions.
  */
@@ -124,6 +169,27 @@ static inline const char *h2_ft_str(int type)
 	default                  : return "_UNKNOWN_";
 	}
 }
+
+/* returns the pseudo-header <str> corresponds to among H2_PHDR_IDX_*, 0 if not a
+ * pseudo-header, or -1 if not a valid pseudo-header.
+ */
+static inline int h2_str_to_phdr(const struct ist str)
+{
+	if (*str.ptr == ':') {
+		if (isteq(str, ist(":path")))           return H2_PHDR_IDX_PATH;
+		else if (isteq(str, ist(":method")))    return H2_PHDR_IDX_METH;
+		else if (isteq(str, ist(":scheme")))    return H2_PHDR_IDX_SCHM;
+		else if (isteq(str, ist(":status")))    return H2_PHDR_IDX_STAT;
+		else if (isteq(str, ist(":authority"))) return H2_PHDR_IDX_AUTH;
+
+		/* all other names starting with ':' */
+		return -1;
+	}
+
+	/* not a pseudo header */
+	return 0;
+}
+
 
 #endif /* _COMMON_H2_H */
 
