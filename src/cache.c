@@ -81,10 +81,12 @@ struct cache_entry *entry_exist(struct cache *cache, struct cache_entry *new_ent
 		return NULL;
 
 	entry = eb32_entry(node, struct cache_entry, eb);
-	if (entry->expire > now.tv_sec)
+	if (entry->expire > now.tv_sec) {
 		return entry;
-	else
+	} else {
 		eb32_delete(node);
+		entry->eb.key = 0;
+	}
 	return NULL;
 
 }
@@ -149,6 +151,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 {
 	struct cache_st *st = filter->ctx;
 	struct shared_context *shctx = shctx_ptr((struct cache *)filter->config->conf);
+	struct cache_entry *object;
 	int ret;
 
 	/*
@@ -173,9 +176,11 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 			/* disable buffering if too much data (never greater than a buffer size */
 			if (len - st->hdrs_len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
 			  disable_cache:
+				object = (struct cache_entry *)st->first_block->data;
 				filter->ctx = NULL; /* disable cache  */
 				shctx_lock(shctx);
 				shctx_row_dec_hot(shctx, st->first_block);
+				object->eb.key = 0;
 				shctx_unlock(shctx);
 				pool_free2(pool2_cache_st, st);
 			} else {
@@ -221,11 +226,10 @@ cache_store_http_end(struct stream *s, struct filter *filter,
 		 * doesn't, the blocks will be reused anyway */
 
 		shctx_lock(shctx);
-		eb32_insert(&cache->entries, &object->eb);
-		shctx_unlock(shctx);
-
+		if (eb32_insert(&cache->entries, &object->eb) != &object->eb) {
+			object->eb.key = 0;
+		}
 		/* remove from the hotlist */
-		shctx_lock(shctx);
 		shctx_row_dec_hot(shctx, st->first_block);
 		shctx_unlock(shctx);
 
@@ -343,7 +347,10 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 {
 	if (first == block) {
 		struct cache_entry *object = (struct cache_entry *)first->data;
-		eb32_delete(&object->eb);
+		if (object->eb.key) {
+			eb32_delete(&object->eb);
+			object->eb.key = 0;
+		}
 	}
 }
 
@@ -443,6 +450,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					if (entry_exist((struct cache *)rule->arg.act.p[0], object)) {
 						shctx_unlock(shctx);
 						if (filter->ctx) {
+							object->eb.key = 0;
 							pool_free2(pool2_cache_st, filter->ctx);
 							filter->ctx = NULL;
 						}
@@ -463,7 +471,11 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 out:
 	/* if does not cache */
 	if (first) {
+		object = (struct cache_entry *)first->data;
+
 		shctx_lock(shctx);
+		first->len = 0;
+		object->eb.key = 0;
 		shctx_row_dec_hot(shctx, first);
 		shctx_unlock(shctx);
 	}
