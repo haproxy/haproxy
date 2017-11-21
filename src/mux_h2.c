@@ -1505,6 +1505,9 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
+	if (h2c->st0 >= H2_CS_ERROR)
+		return 0;
+
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
 		h2c->st0 = H2_CS_FRAME_A;
@@ -1577,11 +1580,15 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	h2s->cs->data_cb->recv(h2s->cs);
+
 	if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
 		/* cs has just been destroyed, we have to kill h2s. */
 		error = H2_ERR_STREAM_CLOSED;
 		goto strm_err;
 	}
+
+	if (h2c->st0 >= H2_CS_ERROR)
+		return 0;
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
