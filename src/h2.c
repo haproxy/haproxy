@@ -116,6 +116,9 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
  *   - n.name ignored, n.len == 0 : end of list
  *   - in all cases except the end of list, v.name and v.len must designate a
  *     valid value.
+ *
+ * The Cookie header will be reassembled at the end, and for this, the <list>
+ * will be used to create a linked list, so its contents may be destroyed.
  */
 int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 {
@@ -123,9 +126,11 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 	char *out_end = out + osize;
 	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
 	uint32_t idx;
+	int ck, lck; /* cookie index and last cookie index */
 	int phdr;
 	int ret;
 
+	lck = ck = -1; // no cookie for now
 	fields = 0;
 	for (idx = 0; list[idx].n.len != 0; idx++) {
 		if (!list[idx].n.ptr) {
@@ -170,6 +175,19 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		if (isteq(list[idx].n, ist("host")))
 			fields |= H2_PHDR_FND_HOST;
 
+		/* cookie requires special processing at the end */
+		if (isteq(list[idx].n, ist("cookie"))) {
+			list[idx].n.len = -1;
+
+			if (ck < 0)
+				ck = idx;
+			else
+				list[lck].n.len = idx;
+
+			lck = idx;
+			continue;
+		}
+
 		if (out + list[idx].n.len + 2 + list[idx].v.len + 2 > out_end) {
 			/* too large */
 			goto fail;
@@ -205,6 +223,40 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		memcpy(out, "host: ", 6);
 		memcpy(out + 6, phdr_val[H2_PHDR_IDX_AUTH].ptr, phdr_val[H2_PHDR_IDX_AUTH].len);
 		out += 6 + phdr_val[H2_PHDR_IDX_AUTH].len;
+		*(out++) = '\r';
+		*(out++) = '\n';
+	}
+
+	/* now we may have to build a cookie list. We'll dump the values of all
+	 * visited headers.
+	 */
+	if (ck >= 0) {
+		if (out + 8 > out_end) {
+			/* too large */
+			goto fail;
+		}
+		memcpy(out, "cookie: ", 8);
+		out += 8;
+
+		do {
+			if (out + list[ck].v.len + 2 > out_end) {
+				/* too large */
+				goto fail;
+			}
+			memcpy(out, list[ck].v.ptr, list[ck].v.len);
+			out += list[ck].v.len;
+			ck = list[ck].n.len;
+
+			if (ck >= 0) {
+				*(out++) = ';';
+				*(out++) = ' ';
+			}
+		} while (ck >= 0);
+
+		if (out + 2 > out_end) {
+			/* too large */
+			goto fail;
+		}
 		*(out++) = '\r';
 		*(out++) = '\n';
 	}
