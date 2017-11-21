@@ -513,12 +513,19 @@ static void http_cache_io_handler(struct appctx *appctx)
 		int len = first->len - sizeof(struct cache_entry);
 		if ((shctx_row_data_get(shctx, first, (unsigned char *)bi_end(res->buf), sizeof(struct cache_entry), len)) != 0) {
 			fprintf(stderr, "cache error too big: %d\n", first->len - (int)sizeof(struct cache_entry));
+
+			shctx_lock(shctx_ptr(cache));
+			shctx_row_dec_hot(shctx_ptr(cache), first);
+			shctx_unlock(shctx_ptr(cache));
 			si_applet_cant_put(si);
 			goto out;
 		}
 		res->buf->i += len;
 		res->total += len;
 		appctx->st0 = HTTP_CACHE_FWD;
+		shctx_lock(shctx_ptr(cache));
+		shctx_row_dec_hot(shctx_ptr(cache), first);
+		shctx_unlock(shctx_ptr(cache));
 	}
 
 	if (appctx->st0 == HTTP_CACHE_FWD) {
@@ -609,6 +616,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			appctx->ctx.cache.entry = res;
 			return ACT_RET_CONT;
 		} else {
+			shctx_lock(shctx_ptr(cache));
+			shctx_row_dec_hot(shctx_ptr(cache), block_ptr(res));
+			shctx_unlock(shctx_ptr(cache));
 			return ACT_RET_YIELD;
 		}
 	}
