@@ -21,8 +21,8 @@
 /* generic shctx struct */
 struct shared_block {
 	struct list list;
-	short int len;          /* data length for the row */
-	short int block_count;  /* number of blocks */
+	unsigned int len;          /* data length for the row */
+	unsigned int block_count;  /* number of blocks */
 	unsigned int refcount;
 	unsigned char data[0];
 };
