@@ -13,11 +13,13 @@
 #include <eb32tree.h>
 
 #include <types/action.h>
+#include <types/cli.h>
 #include <types/filters.h>
 #include <types/proxy.h>
 #include <types/shctx.h>
 
 #include <proto/channel.h>
+#include <proto/cli.h>
 #include <proto/proxy.h>
 #include <proto/hdr_idx.h>
 #include <proto/filters.h>
@@ -835,6 +837,74 @@ struct flt_ops cache_ops = {
 
 };
 
+static int cli_parse_show_cache(char **args, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	return 0;
+}
+
+static int cli_io_handler_show_cache(struct appctx *appctx)
+{
+	struct cache* cache = appctx->ctx.cli.p0;
+	struct stream_interface *si = appctx->owner;
+
+	chunk_reset(&trash);
+
+
+	if (cache == NULL) {
+		cache = LIST_ELEM((caches).n, typeof(struct cache *), list);
+	}
+
+	list_for_each_entry_from(cache, &caches, list) {
+		struct eb32_node *node = NULL;
+		unsigned int next_key;
+		struct cache_entry *entry;
+
+		chunk_appendf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
+
+		next_key = appctx->ctx.cli.i0;
+
+		appctx->ctx.cli.p0 = cache;
+
+		while (1) {
+
+			shctx_lock(shctx_ptr(cache));
+			node = eb32_lookup_ge(&cache->entries, next_key);
+			if (!node) {
+				shctx_unlock(shctx_ptr(cache));
+				break;
+			}
+
+			entry = container_of(node, struct cache_entry, eb);
+			chunk_appendf(&trash, "%p (size: %u (%u blocks), refcount:%u, expire: %d)\n", entry, block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+
+			next_key = node->key + 1;
+			appctx->ctx.cli.i0 = next_key;
+
+			shctx_unlock(shctx_ptr(cache));
+
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				si_applet_cant_put(si);
+				return 0;
+			}
+		}
+
+	}
+
+	return 1;
+
+}
+
+static struct cli_kw_list cli_kws = {{},{
+	{ { "show", "cache", NULL },
+	   "show cache     : show cache status",
+	   cli_parse_show_cache, cli_io_handler_show_cache, NULL,
+	},
+}};
+
+
 static struct action_kw_list http_res_actions = {
 	.kw = {
 		{ "cache-store", parse_cache_store },
@@ -861,6 +931,7 @@ static void __cache_init(void)
 {
 	cfg_register_section("cache", cfg_parse_cache, cfg_post_parse_section_cache);
 	cfg_register_postparser("cache", cfg_cache_postparser);
+	cli_register_kw(&cli_kws);
 	http_res_keywords_register(&http_res_actions);
 	http_req_keywords_register(&http_req_actions);
 	pool2_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
