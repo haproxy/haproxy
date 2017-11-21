@@ -12,6 +12,11 @@
 
 #include <eb32tree.h>
 
+#include <types/action.h>
+#include <types/filters.h>
+#include <types/proxy.h>
+#include <types/shctx.h>
+
 #include <proto/channel.h>
 #include <proto/proxy.h>
 #include <proto/hdr_idx.h>
@@ -22,10 +27,6 @@
 #include <proto/stream_interface.h>
 #include <proto/shctx.h>
 
-#include <types/action.h>
-#include <types/filters.h>
-#include <types/proxy.h>
-#include <types/shctx.h>
 
 #include <common/cfgparse.h>
 #include <common/hash.h>
