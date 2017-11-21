@@ -1363,7 +1363,7 @@ static void init(int argc, char **argv)
 			else if (*flag == 'D')
 				arg_mode |= MODE_DAEMON;
 			else if (*flag == 'W' && flag[1] == 's') {
-				arg_mode |= MODE_MWORKER;
+				arg_mode |= MODE_MWORKER | MODE_FOREGROUND;
 #if defined(USE_SYSTEMD)
 				global.tune.options |= GTUNE_USE_SYSTEMD;
 #else

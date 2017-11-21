@@ -680,7 +680,8 @@ crt-base <dir>
 daemon
   Makes the process fork into background. This is the recommended mode of
   operation. It is equivalent to the command line "-D" argument. It can be
-  disabled by the command line "-db" argument.
+  disabled by the command line "-db" argument. This option is ignored in
+  systemd mode.
 
 deviceatlas-json-file <path>
   Sets the path of the DeviceAtlas JSON data file to be loaded by the API.
