@@ -13559,6 +13559,11 @@ table_cnt([<table>]) : integer
   stick-table or in the designated stick-table. See also src_conn_cnt and
   table_avl for other entry counting methods.
 
+thread : integer
+  Returns an integer value corresponding to the position of the thread calling
+  the function, between 0 and (global.nbthread-1). This is useful for logging
+  and debugging purposes.
+
 var(<var-name>) : undefined
   Returns a variable with the stored type. If the variable is not set, the
   sample fetch fails. The name of the variable starts with an indication

@@ -2595,6 +2595,15 @@ smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void 
 	return 1;
 }
 
+/* returns the number of the current thread (between 1 and nbthread */
+static int
+smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = tid;
+	return 1;
+}
+
 /* generate a random 32-bit integer for whatever purpose, with an optional
  * range specified in argument.
  */
@@ -2753,6 +2762,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_INTRN },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "thread",       smp_fetch_thread,  0,          NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 
