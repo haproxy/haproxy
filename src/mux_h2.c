@@ -2387,6 +2387,8 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)h2c->dbuf->p;
+	struct chunk *tmp = get_trash_chunk();
+	struct http_hdr list[MAX_HTTP_HDR * 2];
 	struct chunk *copy = NULL;
 	int flen = h2c->dfl;
 	int outlen = 0;
@@ -2439,44 +2441,51 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		goto fail;
 	}
 
-	do {
-		/* first check if we have some room after p+i */
-		try = buf->data + buf->size - (buf->p + buf->i);
+	/* we can't retry a failed decompression operation so we must be very
+	 * careful not to take any risks. In practice the output buffer is
+	 * always empty except maybe for trailers, so these operations almost
+	 * never happen.
+	 */
+	if (unlikely(buf->o)) {
+		/* need to let the output buffer flush and
+		 * mark the buffer for later wake up.
+		 */
+		goto fail;
+	}
 
-		/* otherwise continue between data and p-o */
-		if (try <= 0) {
-			try = buf->p - (buf->data + buf->o);
-			if (try <= 0)
-				goto fail;
-		}
-		if (try > count)
-			try = count;
+	if (unlikely(buffer_space_wraps(buf))) {
+		/* it doesn't fit and the buffer is fragmented,
+		 * so let's defragment it and try again.
+		 */
+		buffer_slow_realign(buf);
+	}
 
-		outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, bi_end(buf), try);
-		if (outlen == -HPACK_ERR_TOO_LARGE) {
-			if (buffer_space_wraps(buf)) {
-				/* it doesn't fit and the buffer is fragmented,
-				 * so let's defragment it and try again.
-				 */
-				buffer_slow_realign(buf);
-			}
-			else if (buf->o) {
-				/* need to let the output buffer flush and
-				 * mark the buffer for later wake up.
-				 */
-				goto fail;
-			}
-			else {
-				/* no other way around */
-				h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
-				goto fail;
-			}
-		}
-		else if (outlen < 0) {
-			h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+	/* first check if we have some room after p+i */
+	try = buf->data + buf->size - (buf->p + buf->i);
+
+	/* otherwise continue between data and p-o */
+	if (try <= 0) {
+		try = buf->p - (buf->data + buf->o);
+		if (try <= 0)
 			goto fail;
-		}
-	} while (outlen < 0);
+	}
+	if (try > count)
+		try = count;
+
+	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
+	                            sizeof(list)/sizeof(list[0]), tmp);
+	if (outlen < 0) {
+		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+		goto fail;
+	}
+
+	/* OK now we have our header list in <list> */
+	outlen = h2_make_h1_request(list, bi_end(buf), try);
+
+	if (outlen < 0) {
+		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+		goto fail;
+	}
 
 	/* now consume the input data */
 	bi_del(h2c->dbuf, h2c->dfl);

@@ -33,51 +33,10 @@
 #include <common/hpack-dec.h>
 #include <common/hpack-huff.h>
 #include <common/hpack-tbl.h>
+#include <common/chunk.h>
 #include <common/ist.h>
 
 #include <types/global.h>
-
-/* indexes of most important pseudo headers can be simplified to an almost
- * linear array by dividing the index by 2 for all values from 1 to 9, and
- * caping to 4 for values up to 14 ; thus it fits in a single 24-bit array
- * shifted by 3 times the index value/2, or a 32-bit array shifted by 4x.
- * Don't change these values, they are assumed by get_pseudo_hdr(). There
- * is an entry for the Host header field which is not a pseudo-header but
- * need to be tracked as we should only use :authority if it's absent.
- */
-enum {
-	PHDR_IDX_NONE = 0,
-	PHDR_IDX_AUTH = 1, /* :authority = 1     */
-	PHDR_IDX_METH = 2, /* :method    = 2..3  */
-	PHDR_IDX_PATH = 3, /* :path      = 4..5  */
-	PHDR_IDX_SCHM = 4, /* :scheme    = 6..7  */
-	PHDR_IDX_STAT = 5, /* :status    = 8..14 */
-	PHDR_IDX_HOST = 6, /* Host, never returned, just a place-holder */
-	PHDR_NUM_ENTRIES   /* must be last */
-};
-
-/* bit fields indicating the pseudo-headers found. It also covers the HOST
- * header field ad well as any non-pseudo-header field (NONE).
- */
-enum {
-	PHDR_FND_NONE = 1 << PHDR_IDX_NONE, /* found a regular header */
-	PHDR_FND_AUTH = 1 << PHDR_IDX_AUTH,
-	PHDR_FND_METH = 1 << PHDR_IDX_METH,
-	PHDR_FND_PATH = 1 << PHDR_IDX_PATH,
-	PHDR_FND_SCHM = 1 << PHDR_IDX_SCHM,
-	PHDR_FND_STAT = 1 << PHDR_IDX_STAT,
-	PHDR_FND_HOST = 1 << PHDR_IDX_HOST,
-};
-
-static const struct ist phdr_names[PHDR_NUM_ENTRIES] = {
-	{ "", 0},
-	{ ":authority", 10},
-	{ ":method", 7},
-	{ ":path", 5},
-	{ ":scheme", 7},
-	{ ":status", 7},
-	{ "Host", 4},
-};
 
 
 #if defined(DEBUG_HPACK)
@@ -128,29 +87,13 @@ static uint32_t get_var_int(const uint8_t **raw_in, uint32_t *len_in, int b)
 	return 0;
 }
 
-/* returns the pseudo-header <str> corresponds to among PHDR_IDX_*, 0 if not a
- * pseudo-header, or -1 if not a valid pseudo-header.
- */
-static inline int hpack_str_to_phdr(const struct ist str)
-{
-	if (*str.ptr == ':') {
-		if (isteq(str, ist(":path")))           return PHDR_IDX_PATH;
-		else if (isteq(str, ist(":method")))    return PHDR_IDX_METH;
-		else if (isteq(str, ist(":scheme")))    return PHDR_IDX_SCHM;
-		else if (isteq(str, ist(":status")))    return PHDR_IDX_STAT;
-		else if (isteq(str, ist(":authority"))) return PHDR_IDX_AUTH;
-
-		/* all other names starting with ':' */
-		return -1;
-	}
-
-	/* not a pseudo header */
-	return 0;
-}
-
-/* returns the pseudo-header <idx> corresponds to among PHDR_IDX_*, or 0 the
- * header's string has to be parsed. The magic value at the end comes from
- * PHDR_IDX_* values.
+/* returns the pseudo-header <idx> corresponds to among the following values :
+ *   -  0 = unknown, the header's string needs to be used instead
+ *   -  1 = ":authority"
+ *   -  2 = ":method"
+ *   -  3 = ":path"
+ *   -  4 = ":scheme"
+ *   -  5 = ":status"
  */
 static inline int hpack_idx_to_phdr(uint32_t idx)
 {
@@ -162,104 +105,60 @@ static inline int hpack_idx_to_phdr(uint32_t idx)
 	return (0x55554321U >> idx) & 0xF;
 }
 
-/* Prepare the request line into <*ptr> (stopping at <end>) from pseudo headers
- * stored in <phdr[]>. <fields> indicates what was found so far. This should be
- * called once at the detection of the first general header field or at the end
- * of the request if no general header field was found yet. Returns 0 on success
- * or a negative HPACK_ERR_* error code.
+/* If <idx> designates a static header, returns <in>. Otherwise allocates some
+ * room from chunk <store> to duplicate <in> into it and returns the string
+ * allocated there. In case of allocation failure, returns a string whose
+ * pointer is NULL.
  */
-static int hpack_prepare_reqline(uint32_t fields, struct ist *phdr, char **ptr, char *end)
+static inline struct ist hpack_alloc_string(struct chunk *store, int idx, struct ist in)
 {
-	char *out = *ptr;
-	int uri_idx = PHDR_IDX_PATH;
+	struct ist out;
 
-	if ((fields & PHDR_FND_METH) && isteq(phdr[PHDR_IDX_METH], ist("CONNECT"))) {
-		/* RFC 7540 #8.2.6 regarding CONNECT: ":scheme" and ":path"
-		 * MUST be omitted ; ":authority" contains the host and port
-		 * to connect to.
-		 */
-		if (fields & PHDR_FND_SCHM) {
-			hpack_debug_printf("--:scheme not allowed with CONNECT--\n");
-			return -HPACK_ERR_SCHEME_NOT_ALLOWED;
-		}
-		else if (fields & PHDR_FND_PATH) {
-			hpack_debug_printf("--:path not allowed with CONNECT--\n");
-			return -HPACK_ERR_PATH_NOT_ALLOWED;
-		}
-		else if (!(fields & PHDR_FND_AUTH)) {
-			hpack_debug_printf("--CONNECT: missing :authority--\n");
-			return -HPACK_ERR_MISSING_AUTHORITY;
-		}
-		// otherwise OK ; let's use the authority instead of the URI
-		uri_idx = PHDR_IDX_AUTH;
-	}
-	else if ((fields & (PHDR_FND_METH|PHDR_FND_SCHM|PHDR_FND_PATH)) !=
-	         (PHDR_FND_METH|PHDR_FND_SCHM|PHDR_FND_PATH)) {
-		/* RFC 7540 #8.1.2.3 : all requests MUST include exactly one
-		 * valid value for the ":method", ":scheme" and ":path" phdr
-		 * unless it is a CONNECT request.
-		 */
-		if (!(fields & PHDR_FND_METH)) {
-			hpack_debug_printf("--missing :method--\n");
-			return -HPACK_ERR_MISSING_METHOD;
-		}
-		else if (!(fields & PHDR_FND_SCHM)) {
-			hpack_debug_printf("--missing :scheme--\n");
-			return -HPACK_ERR_MISSING_SCHEME;
-		}
-		else {
-			hpack_debug_printf("--missing :path--\n");
-			return -HPACK_ERR_MISSING_PATH;
-		}
+	if (idx < HPACK_SHT_SIZE)
+		return in;
+
+	out.len = in.len;
+	out.ptr = chunk_newstr(store);
+	if (unlikely(!out.ptr))
+		return out;
+
+	if (unlikely(store->len + out.len > store->size)) {
+		out.ptr = NULL;
+		return out;
 	}
 
-	hpack_debug_printf("%s ", istpad(trash.str, phdr[PHDR_IDX_METH]).ptr);
-	hpack_debug_printf("%s HTTP/1.1\r\n", istpad(trash.str, phdr[uri_idx]).ptr);
-
-	if (out + phdr[uri_idx].len + 1 + phdr[uri_idx].len + 11 > end) {
-		hpack_debug_printf("too large request\n");
-		return -HPACK_ERR_TOO_LARGE;
-	}
-
-	memcpy(out, phdr[PHDR_IDX_METH].ptr, phdr[PHDR_IDX_METH].len);
-	out += phdr[PHDR_IDX_METH].len;
-	*(out++) = ' ';
-
-	memcpy(out, phdr[uri_idx].ptr, phdr[uri_idx].len);
-	out += phdr[uri_idx].len;
-	memcpy(out, " HTTP/1.1\r\n", 11);
-	out += 11;
-
-	*ptr = out;
-	return 0;
+	store->len += out.len;
+	memcpy(out.ptr, in.ptr, out.len);
+	return out;
 }
 
-/* only takes care of frames affecting the dynamic table for now and directly
- * prints the output on stdout. Writes the output to <out> for at most <osize>
- * bytes. Returns the number of bytes written, or < 0 on error, in which case
- * the value is the negative of HPACK_ERR_*.
+/* decode an HPACK frame starting at <raw> for <len> bytes, using the dynamic
+ * headers table <dht>, produces the output into list <list> of <list_size>
+ * entries max, and uses pre-allocated buffer <tmp> for temporary storage (some
+ * list elements will point to it). Some <list> name entries may be made of a
+ * NULL pointer and a len, in which case they will designate a pseudo header
+ * index according to the values returned by hpack_idx_to_phdr() above. The
+ * number of <list> entries used is returned on success, or <0 on failure, with
+ * the opposite one of the HPACK_ERR_* codes. A last element is always zeroed
+ * and is not counted in the number of returned entries. This way the caller
+ * can use list[].n.len == 0 as a marker for the end of list.
  */
-int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, char *out, int osize)
+int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
+                       struct http_hdr *list, int list_size, struct chunk *tmp)
 {
 	uint32_t idx;
 	uint32_t nlen;
 	uint32_t vlen;
 	uint8_t huff;
-	uint32_t fields; /* bit mask of PHDR_FND_* */
 	struct ist name;
 	struct ist value;
-	struct ist phdr_str[PHDR_NUM_ENTRIES];
-	struct chunk *phdr_trash = get_trash_chunk();
-	struct chunk *tmp = get_trash_chunk();
-	char *phdr_next = phdr_trash->str;
-	int phdr;
 	int must_index;
 	int ret;
-	char *out_end = out + osize;
 
-	fields = 0;
+	chunk_reset(tmp);
+	ret = 0;
 	while (len) {
-		int code __attribute__((unused)) = *raw; /* first byte, only for debugging */
+		int __maybe_unused code = *raw; /* first byte, only for debugging */
 
 		must_index = 0;
 		if (*raw >= 0x80) {
@@ -278,20 +177,23 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, 
 				goto leave;
 			}
 
-			value = hpack_idx_to_value(dht, idx);
-			phdr = hpack_idx_to_phdr(idx);
-			if (phdr > 0)
-				goto phdr_by_idx;
+			value = hpack_alloc_string(tmp, idx, hpack_idx_to_value(dht, idx));
+			if (!value.ptr) {
+				ret = -HPACK_ERR_TOO_LARGE;
+				goto leave;
+			}
 
-			name = hpack_idx_to_name(dht, idx);
-			phdr = hpack_str_to_phdr(name);
-			if (phdr > 0)
-				goto phdr_by_idx;
-			if (phdr == 0)
-				goto regular_hdr;
+			/* here we don't index so we can always keep the pseudo header number */
+			name = ist2(NULL, hpack_idx_to_phdr(idx));
 
-			/* invalid pseudo header -- should never happen here */
-			goto bad_phdr;
+			if (!name.len) {
+				name = hpack_alloc_string(tmp, idx, hpack_idx_to_name(dht, idx));
+				if (!name.ptr) {
+					ret = -HPACK_ERR_TOO_LARGE;
+					goto leave;
+				}
+			}
+			/* <name> and <value> are now set and point to stable values */
 		}
 		else if (*raw >= 0x20 && *raw <= 0x3f) {
 			/* max dyn table size change */
@@ -335,17 +237,22 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, 
 
 			raw += nlen;
 			len -= nlen;
-			chunk_reset(tmp);
 
 			if (huff) {
-				nlen = huff_dec((const uint8_t *)name.ptr, name.len, tmp->str, tmp->size);
+				char *ntrash = chunk_newstr(tmp);
+				if (!ntrash) {
+					ret = -HPACK_ERR_TOO_LARGE;
+					goto leave;
+				}
+
+				nlen = huff_dec((const uint8_t *)name.ptr, name.len, ntrash, tmp->size - tmp->len);
 				if (nlen == (uint32_t)-1) {
 					hpack_debug_printf("2: can't decode huffman.\n");
 					ret = -HPACK_ERR_HUFFMAN;
 					goto leave;
 				}
 				tmp->len += nlen; // make room for the value
-				name = ist2(tmp->str, nlen);
+				name = ist2(ntrash, nlen);
 			}
 
 			/* retrieve value */
@@ -368,27 +275,21 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, 
 			if (huff) {
 				char *vtrash = chunk_newstr(tmp);
 				if (!vtrash) {
-					ret = HPACK_ERR_TOO_LARGE;
+					ret = -HPACK_ERR_TOO_LARGE;
 					goto leave;
 				}
 
-				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash, tmp->str + tmp->size - vtrash);
+				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash, tmp->size - tmp->len);
 				if (vlen == (uint32_t)-1) {
 					hpack_debug_printf("3: can't decode huffman.\n");
 					ret = -HPACK_ERR_HUFFMAN;
 					goto leave;
 				}
+				tmp->len += vlen; // make room for the value
 				value = ist2(vtrash, vlen);
 			}
 
-			phdr = hpack_str_to_phdr(name);
-			if (phdr > 0)
-				goto phdr_by_idx;
-			if (phdr == 0)
-				goto regular_hdr;
-
-			/* invalid pseudo header -- should never happen here */
-			goto bad_phdr;
+			/* <name> and <value> are correctly filled here */
 		}
 		else {
 			/* 0x01..0x0f : literal header field without indexing -- indexed name */
@@ -428,79 +329,45 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, 
 			len -= vlen;
 
 			if (huff) {
-				vlen = huff_dec((const uint8_t *)value.ptr, value.len, tmp->str, tmp->size);
+				char *vtrash = chunk_newstr(tmp);
+				if (!vtrash) {
+					ret = -HPACK_ERR_TOO_LARGE;
+					goto leave;
+				}
+
+				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash, tmp->size - tmp->len);
 				if (vlen == (uint32_t)-1) {
 					hpack_debug_printf("1: can't decode huffman.\n");
 					ret = -HPACK_ERR_HUFFMAN;
 					goto leave;
 				}
-				value = ist2(tmp->str, vlen);
+				tmp->len += vlen; // make room for the value
+				value = ist2(vtrash, vlen);
 			}
 
-			phdr = hpack_idx_to_phdr(idx);
-			if (phdr > 0)
-				goto phdr_by_idx;
+			name = ist2(NULL, 0);
+			if (!must_index)
+				name.len = hpack_idx_to_phdr(idx);
 
-			name = hpack_idx_to_name(dht, idx);
-			phdr = hpack_str_to_phdr(name);
-			if (phdr > 0)
-				goto phdr_by_idx;
-			if (phdr == 0)
-				goto regular_hdr;
-
-			/* invalid pseudo header -- should never happen here */
-			goto bad_phdr;
+			if (!name.len)
+				name = hpack_idx_to_name(dht, idx);
+			/* <name> and <value> are correctly filled here */
 		}
 
-	phdr_by_idx:
-		/* insert a pseudo header by its index (in phdr) and value (in value) */
-		if (fields & ((1 << phdr) | PHDR_FND_NONE)) {
-			if (fields & PHDR_FND_NONE) {
-				hpack_debug_printf("%02x: pseudo header field after regular headers : %d\n", code, phdr);
-				ret = -HPACK_ERR_MISPLACED_PHDR;
-				goto leave;
-			}
-			else {
-				hpack_debug_printf("%02x: repeated pseudo header field %d\n", code, phdr);
-				ret = -HPACK_ERR_DUPLICATE_PHDR;
-				goto leave;
-			}
-		}
-		fields |= 1 << phdr;
-
-		if (phdr_next + value.len > phdr_trash->str + phdr_trash->size) {
-			hpack_debug_printf("too large request\n");
+		/* here's what we have here :
+		 *   - name.len > 0
+		 *   - value is filled with either const data or data allocated from tmp
+		 *   - name.ptr == NULL && !must_index : known pseudo-header #name.len
+		 *   - name.ptr != NULL || must_index : general header, unknown pseudo-header or index needed
+		 */
+		if (ret >= list_size) {
 			ret = -HPACK_ERR_TOO_LARGE;
 			goto leave;
 		}
 
-		memcpy(phdr_next, value.ptr, value.len);
-		phdr_str[phdr].ptr = phdr_next;
-		phdr_str[phdr].len = value.len;
-		phdr_next += value.len;
-
-		if (must_index && hpack_dht_insert(dht, phdr_names[phdr], value) < 0) {
-			hpack_debug_printf("failed to find some room in the dynamic table\n");
-			ret = -HPACK_ERR_DHT_INSERT_FAIL;
-			goto leave;
-		}
-
-		hpack_debug_printf("phdr=%d(\e[1;34m%s\e[0m) ptr=%d len=%d (\e[1;35m%s\e[0m) [idx=%d, used=%d]\n",
-		       phdr, phdr_names[phdr].ptr,
-		       (int)(phdr_str[phdr].ptr - phdr_trash->str), (int)phdr_str[phdr].len,
-		       istpad(trash.str, phdr_str[phdr]).ptr, must_index, dht->used);
-		continue;
-
-	regular_hdr:
-		/* regular header field in (name,value) */
-
-		if (!(fields & PHDR_FND_NONE)) {
-			hpack_debug_printf("--end of pseudo-headers--\n");
-			ret = hpack_prepare_reqline(fields, phdr_str, &out, out_end);
-			if (ret)
-				goto leave;
-			fields |= PHDR_FND_NONE;
-		}
+		list[ret].n = name;
+		list[ret].v = value;
+		ret++;
 
 		if (must_index && hpack_dht_insert(dht, name, value) < 0) {
 			hpack_debug_printf("failed to find some room in the dynamic table\n");
@@ -508,78 +375,23 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len, 
 			goto leave;
 		}
 
-		if (isteq(name, ist("host")))
-			fields |= PHDR_FND_HOST;
-
-		if (out + name.len + 2 + value.len + 2 > out_end) {
-			hpack_debug_printf("too large request\n");
-			ret = -HPACK_ERR_TOO_LARGE;
-			goto leave;
-		}
-
-		memcpy(out, name.ptr, name.len);
-		out += name.len;
-		*(out++) = ':';
-		*(out++) = ' ';
-
-		memcpy(out, value.ptr, value.len);
-		out += value.len;
-		*(out++) = '\r';
-		*(out++) = '\n';
-
 		hpack_debug_printf("\e[1;34m%s\e[0m: ",
 		                   istpad(trash.str, name).ptr);
 
 		hpack_debug_printf("\e[1;35m%s\e[0m [idx=%d, used=%d]\n",
 		                   istpad(trash.str, value).ptr,
 		                   must_index, dht->used);
-
-		continue;
-
-	bad_phdr:
-		hpack_debug_printf("%02x: invalid pseudo header field %d\n", code, phdr);
-		ret = -HPACK_ERR_INVALID_PHDR;
-		goto leave;
 	}
 
-	/* Let's dump the request now if not yet emitted. */
-	if (!(fields & PHDR_FND_NONE)) {
-		ret = hpack_prepare_reqline(fields, phdr_str, &out, out_end);
-		if (ret)
-			goto leave;
-	}
-
-	/* complete with missing Host if needed */
-	if ((fields & (PHDR_FND_HOST|PHDR_FND_AUTH)) == PHDR_FND_AUTH) {
-		/* missing Host field, use :authority instead */
-		hpack_debug_printf("\e[1;34m%s\e[0m: \e[1;35m%s\e[0m\n", "Host", istpad(trash.str, phdr_str[PHDR_IDX_AUTH]).ptr);
-
-		if (out + 6 + phdr_str[PHDR_IDX_AUTH].len + 2 > out_end) {
-			hpack_debug_printf("too large request\n");
-			ret = -HPACK_ERR_TOO_LARGE;
-			goto leave;
-		}
-
-		memcpy(out, "host: ", 6);
-		memcpy(out + 6, phdr_str[PHDR_IDX_AUTH].ptr, phdr_str[PHDR_IDX_AUTH].len);
-		out += 6 + phdr_str[PHDR_IDX_AUTH].len;
-		*(out++) = '\r';
-		*(out++) = '\n';
-	}
-
-	/* And finish */
-	if (out + 2 > out_end) {
-		hpack_debug_printf("too large request\n");
+	if (ret >= list_size) {
 		ret = -HPACK_ERR_TOO_LARGE;
 		goto leave;
 	}
 
-	*(out++) = '\r';
-	*(out++) = '\n';
+	/* put an end marker */
+	list[ret].n = list[ret].v = ist2(NULL, 0);
+	ret++;
 
-	hpack_debug_printf("done : %d bytes emitted\n", (int)(out + osize - out_end));
-
-	ret = out + osize - out_end;
  leave:
 	return ret;
 }
