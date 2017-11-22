@@ -793,6 +793,46 @@ static inline unsigned int my_popcountl(unsigned long a)
 	return cnt;
 }
 
+/* Simple ffs implementation. It returns the position of the lowest bit set to
+ * one. */
+static inline unsigned int my_ffsl(unsigned long a)
+{
+	unsigned int cnt;
+
+	if (!a)
+		return 0;
+
+	cnt = 1;
+#if LONG_MAX > 0x7FFFFFFFL /* 64bits */
+	if (!(a & 0xFFFFFFFFUL)) {
+		a >>= 32;
+		cnt += 32;
+	}
+#endif
+	if (!(a & 0XFFFFU)) {
+		a >>= 16;
+		cnt += 16;
+	}
+	if (!(a & 0XFF)) {
+		a >>= 8;
+		cnt += 8;
+	}
+	if (!(a & 0xf)) {
+		a >>= 4;
+		cnt += 4;
+	}
+	if (!(a & 0x3)) {
+		a >>= 2;
+		cnt += 2;
+	}
+	if (!(a & 0x1)) {
+		a >>= 1;
+		cnt += 1;
+	}
+
+	return cnt;
+}
+
 /* Build a word with the <bits> lower bits set (reverse of my_popcountl) */
 static inline unsigned long nbits(int bits)
 {
