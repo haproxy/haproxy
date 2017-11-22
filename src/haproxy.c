@@ -2181,7 +2181,7 @@ void deinit(void)
 
 		free_http_req_rules(&p->http_req_rules);
 		free_http_res_rules(&p->http_res_rules);
-		free(p->task);
+		task_free(p->task);
 
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
@@ -2228,7 +2228,7 @@ void deinit(void)
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
 	free(oldpids);        oldpids = NULL;
-	free(global_listener_queue_task); global_listener_queue_task = NULL;
+	task_free(global_listener_queue_task); global_listener_queue_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
 			LIST_DEL(&log->list);
