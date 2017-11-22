@@ -86,6 +86,7 @@ int too_many_args_idx(int maxarg, int index, char **args, char **msg, int *err_c
 int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
+int parse_process_number(const char *arg, unsigned long *proc, char **err);
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the

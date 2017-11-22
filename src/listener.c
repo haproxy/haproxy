@@ -19,6 +19,7 @@
 #include <fcntl.h>
 
 #include <common/accept4.h>
+#include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>
 #include <common/mini-clist.h>
@@ -941,39 +942,9 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	unsigned long set = 0;
-	unsigned int low, high;
 
-	if (strcmp(args[cur_arg + 1], "all") == 0) {
-		set |= ~0UL;
-	}
-	else if (strcmp(args[cur_arg + 1], "odd") == 0) {
-		set |= ~0UL/3UL; /* 0x555....555 */
-	}
-	else if (strcmp(args[cur_arg + 1], "even") == 0) {
-		set |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
-	}
-	else if (isdigit((int)*args[cur_arg + 1])) {
-		char *dash = strchr(args[cur_arg + 1], '-');
-
-		low = high = str2uic(args[cur_arg + 1]);
-		if (dash)
-			high = str2uic(dash + 1);
-
-		if (high < low) {
-			unsigned int swap = low;
-			low = high;
-			high = swap;
-		}
-
-		if (low < 1 || high > LONGBITS) {
-			memprintf(err, "'%s' : invalid range %d-%d, allowed range is 1..%d", args[cur_arg], low, high, LONGBITS);
-			return ERR_ALERT | ERR_FATAL;
-		}
-		while (low <= high)
-			set |= 1UL << (low++ - 1);
-	}
-	else {
-		memprintf(err, "'%s' expects 'all', 'odd', 'even', or a process range with numbers from 1 to %d.", args[cur_arg], LONGBITS);
+	if (parse_process_number(args[cur_arg + 1], &set, err)) {
+		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

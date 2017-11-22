@@ -323,43 +323,12 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 
 		while (*args[cur_arg]) {
-			unsigned int low, high;
-
 			if (strcmp(args[cur_arg], "all") == 0) {
 				set = 0;
 				break;
 			}
-			else if (strcmp(args[cur_arg], "odd") == 0) {
-				set |= ~0UL/3UL; /* 0x555....555 */
-			}
-			else if (strcmp(args[cur_arg], "even") == 0) {
-				set |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
-			}
-			else if (isdigit((int)*args[cur_arg])) {
-				char *dash = strchr(args[cur_arg], '-');
-
-				low = high = str2uic(args[cur_arg]);
-				if (dash)
-					high = str2uic(dash + 1);
-
-				if (high < low) {
-					unsigned int swap = low;
-					low = high;
-					high = swap;
-				}
-
-				if (low < 1 || high > LONGBITS) {
-					memprintf(err, "'%s %s' supports process numbers from 1 to %d.\n",
-					          args[0], args[1], LONGBITS);
-					return -1;
-				}
-				while (low <= high)
-					set |= 1UL << (low++ - 1);
-			}
-			else {
-				memprintf(err,
-				          "'%s %s' expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to %d.\n",
-				          args[0], args[1], LONGBITS);
+			if (parse_process_number(args[cur_arg], &set, err)) {
+				memprintf(err, "'%s %s' : %s", args[0], args[1], *err);
 				return -1;
 			}
 			cur_arg++;

@@ -596,7 +596,7 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
  * Note: this function can also be used to parse a thread number or a set of
  * threads.
  */
-static int parse_process_number(const char *arg, unsigned long *proc, char **err)
+int parse_process_number(const char *arg, unsigned long *proc, char **err)
 {
 	if (strcmp(arg, "all") == 0)
 		*proc |= ~0UL;
@@ -3283,43 +3283,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		unsigned long set = 0;
 
 		while (*args[cur_arg]) {
-			unsigned int low, high;
-
 			if (strcmp(args[cur_arg], "all") == 0) {
 				set = 0;
 				break;
 			}
-			else if (strcmp(args[cur_arg], "odd") == 0) {
-				set |= ~0UL/3UL; /* 0x555....555 */
-			}
-			else if (strcmp(args[cur_arg], "even") == 0) {
-				set |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
-			}
-			else if (isdigit((int)*args[cur_arg])) {
-				char *dash = strchr(args[cur_arg], '-');
-
-				low = high = str2uic(args[cur_arg]);
-				if (dash)
-					high = str2uic(dash + 1);
-
-				if (high < low) {
-					unsigned int swap = low;
-					low = high;
-					high = swap;
-				}
-
-				if (low < 1 || high > LONGBITS) {
-					Alert("parsing [%s:%d]: %s supports process numbers from 1 to %d.\n",
-					      file, linenum, args[0], LONGBITS);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				while (low <= high)
-					set |= 1UL << (low++ - 1);
-			}
-			else {
-				Alert("parsing [%s:%d]: %s expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to %d.\n",
-				      file, linenum, args[0], LONGBITS);
+			if (parse_process_number(args[cur_arg], &set, &errmsg)) {
+				Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
