@@ -1753,58 +1753,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif /* ! USE_CPU_AFFINITY */
 	}
-	else if (strcmp(args[0], "thread-map") == 0) {
-		/* map a thread list to a CPU set */
-#ifdef USE_CPU_AFFINITY
-#ifdef USE_THREAD
-		unsigned long proc = 0, thread = 0, cpus;
-		int i, j;
-
-		if (!*args[1] || !*args[2] || !*args[3]) {
-			Alert("parsing [%s:%d]: %s expects a process number "
-			      "('all', 'odd', 'even', or a number from 1 to %d), "
-			      " followed by a thread number using the same format, "
-			      " followed by a list of CPU ranges with numbers from 0 to %d.\n",
-			      file, linenum, args[0], LONGBITS, LONGBITS - 1);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (parse_process_number(args[1], &proc, NULL, &errmsg)) {
-			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (parse_process_number(args[2], &thread, NULL, &errmsg)) {
-			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (parse_cpu_set((const char **)args+3, &cpus, &errmsg)) {
-			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		for (i = 0; i < LONGBITS; i++)
-			if (proc & (1UL << i)) {
-				for (j = 0; j < LONGBITS; j++)
-					if (thread & (1UL << j))
-						global.thread_map[i][j] = cpus;
-			}
-#else
-		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_THREAD.\n",
-		      file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-#endif /* ! USE_THREAD*/
-#else
-		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
-		      file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-#endif /* ! USE_CPU_AFFINITY */
-	}
 	else if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
 		if (alertif_too_many_args(3, file, linenum, args, &err_code))
 			goto out;
