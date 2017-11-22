@@ -5514,7 +5514,6 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			if (try + conn->tmp_early_data > max_early) {
 				try -= (try + conn->tmp_early_data) - max_early;
 				if (try <= 0) {
-					conn->flags &= ~CO_FL_EARLY_SSL_HS;
 					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 					break;
 				}
