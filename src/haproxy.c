@@ -2726,12 +2726,12 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		if (proc < global.nbproc &&  /* child */
 		    proc < LONGBITS &&       /* only the first 32/64 processes may be pinned */
-		    global.cpu_map[proc])    /* only do this if the process has a CPU map */
+		    global.cpu_map.proc[proc])    /* only do this if the process has a CPU map */
 #ifdef __FreeBSD__
 		{
 			cpuset_t cpuset;
 			int i;
-			unsigned long cpu_map = global.cpu_map[proc];
+			unsigned long cpu_map = global.cpu_map.proc[proc];
 
 			CPU_ZERO(&cpuset);
 			while ((i = ffsl(cpu_map)) > 0) {
@@ -2741,7 +2741,7 @@ int main(int argc, char **argv)
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset), &cpuset);
 		}
 #else
-			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map[proc]);
+			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map.proc[proc]);
 #endif
 #endif
 		/* close the pidfile both in children and father */
@@ -2895,13 +2895,14 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
 		for (i = 0; i < global.nbthread; i++) {
-			if (global.cpu_map[relative_pid-1])
-				global.thread_map[relative_pid-1][i] &= global.cpu_map[relative_pid-1];
+			if (global.cpu_map.proc[relative_pid-1])
+				global.cpu_map.thread[relative_pid-1][i] &= global.cpu_map.proc[relative_pid-1];
 
 			if (i < LONGBITS &&       /* only the first 32/64 threads may be pinned */
-			    global.thread_map[relative_pid-1][i]) /* only do this if the thread has a THREAD map */
+			    global.cpu_map.thread[relative_pid-1][i]) /* only do this if the thread has a THREAD map */
 				pthread_setaffinity_np(threads[i],
-						       sizeof(unsigned long), (void *)&global.thread_map[relative_pid-1][i]);
+						       sizeof(unsigned long),
+						       (void *)&global.cpu_map.thread[relative_pid-1][i]);
 		}
 #endif /* !USE_CPU_AFFINITY */
 

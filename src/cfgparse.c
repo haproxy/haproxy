@@ -617,7 +617,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 		unsigned int low, high;
 
 		if (!isdigit((int)*arg)) {
-			memprintf(err, "'%s' is not a valid PROC number.\n", arg);
+			memprintf(err, "'%s' is not a valid number.\n", arg);
 			return -1;
 		}
 
@@ -632,8 +632,8 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 		}
 
 		if (low < 1 || low > LONGBITS || high > LONGBITS) {
-			memprintf(err, "'%s' is not a valid PROC number/range."
-				  " It supports PROC numbers from 1 to %d.\n",
+			memprintf(err, "'%s' is not a valid number/range."
+				  " It supports numbers from 1 to %d.\n",
 				  arg, LONGBITS);
 			return 1;
 		}
@@ -1706,8 +1706,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "cpu-map") == 0) {
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
-		unsigned long proc = 0, cpus;
-		int i, n, autoinc;
+		char *slash;
+		unsigned long proc = 0, thread = 0, cpus;
+		int i, j, n, autoinc;
 
 		if (!*args[1] || !*args[2]) {
 			Alert("parsing [%s:%d] : %s expects a process number "
@@ -1718,10 +1719,30 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if ((slash = strchr(args[1], '/')) != NULL)
+			*slash = 0;
+
 		if (parse_process_number(args[1], &proc, &autoinc, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+
+		if (slash) {
+			if (parse_process_number(slash+1, &thread, NULL, &errmsg)) {
+				Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			*slash = '/';
+
+			if (autoinc && my_popcountl(proc) != 1 && my_popcountl(thread) != 1) {
+				Alert("parsing [%s:%d] : %s : '%s' : unable to automatically bind "
+				      "a process range _AND_ a thread range\n",
+				      file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 
 		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
@@ -1730,20 +1751,44 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (autoinc && my_popcountl(proc) != my_popcountl(cpus)) {
-			Alert("parsing [%s:%d] : %s : PROC range and CPU sets must have the same size to be auto-assigned\n",
+		if (autoinc &&
+		    my_popcountl(proc)  != my_popcountl(cpus) &&
+		    my_popcountl(thread) != my_popcountl(cpus)) {
+			Alert("parsing [%s:%d] : %s : PROC/THREAD range and CPU sets "
+			      "must have the same size to be automatically bound\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
 		for (i = n = 0; i < LONGBITS; i++) {
-			if (proc & (1UL << i)) {
-				if (autoinc) {
+			/* No mapping for this process */
+			if (!(proc & (1UL << i)))
+				continue;
+
+			/* Mapping at the process level */
+			if (!thread) {
+				if (!autoinc)
+					global.cpu_map.proc[i] = cpus;
+				else {
 					n += my_ffsl(cpus >> n);
-					global.cpu_map[i] = (1UL << (n-1));
+					global.cpu_map.proc[i] = (1UL << (n-1));
 				}
-				else
-					global.cpu_map[i] = cpus;
+				continue;
+			}
+
+			/* Mapping at the thread level */
+			for (j = 0; j < LONGBITS; j++) {
+				/* Np mapping for this thread */
+				if (!(thread & (1UL << j)))
+					continue;
+
+				if (!autoinc)
+					global.cpu_map.thread[i][j] = cpus;
+				else {
+					n += my_ffsl(cpus >> n);
+					global.cpu_map.thread[i][j] = (1UL << (n-1));
+				}
 			}
 		}
 #else

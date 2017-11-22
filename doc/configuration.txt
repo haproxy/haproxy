@@ -656,43 +656,63 @@ chroot <jail dir>
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and unwritable to anyone.
 
-cpu-map [auto:]<"all"|"odd"|"even"|process_num[-[process_num]]> <cpu-set>...
-  On Linux 2.6 and above, it is possible to bind a process to a specific CPU
-  set. This means that the process will never run on other CPUs. The "cpu-map"
-  directive specifies CPU sets for process sets. The first argument is the
-  process number to bind. This process must have a number between 1 and 32 or
-  64, depending on the machine's word size, and any process IDs above nbproc
-  are ignored. It is possible to specify a range with two such number delimited
-  by a dash ('-'). It also is possible to specify all processes at once using
+cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
+  On Linux 2.6 and above, it is possible to bind a process or a thread to a
+  specific CPU set. This means that the process or the thread will never run on
+  other CPUs. The "cpu-map" directive specifies CPU sets for process or thread
+  sets. The first argument is a process set, eventually followed by a thread
+  set. These sets have the format
+
+      all | odd | even | number[-[number]]
+
+  <number>> must be a number between 1 and 32 or 64, depending on the machine's
+  word size. any process IDs above nbrpoc and any thread IDs above nbthread are
+  ignored. It is possible to specify a range with two such number delimited by
+  a dash ('-'). It also is possible to specify all processes at once using
   "all", only odd numbers using "odd" or even numbers using "even", just like
   with the "bind-process" directive. The second and forthcoming arguments are
   CPU sets.  Each CPU set is either a unique number between 0 and 31 or 63 or a
   range with two such numbers delimited by a dash ('-'). Multiple CPU numbers
-  or ranges may be specified, and the processes will be allowed to bind to all
-  of them.  Obviously, multiple "cpu-map" directives may be specified. Each
-  "cpu-map" directive will replace the previous ones when they overlap.
+  or ranges may be specified, and the processes or threads will be allowed to
+  bind to all of them.  Obviously, multiple "cpu-map" directives may be
+  specified. Each "cpu-map" directive will replace the previous ones when they
+  overlap. A thread will be bound on the intersection of its mapping and the
+  one of the process on which it is attached. If the intersection is null, no
+  specific binding will be set for the thread.
 
   Ranges can be partially defined. The higher bound can be omitted. In such
   case, it is replaced by the corresponding maximum value, 32 or 64 depending
   on the machine's word size.
 
-  Examples:
-      cpu-map 1- 0-   # will be replaced by "cpu-map 1-64 0-63"
-                      # or "cpu-map 1-32 0-31" depending on the machine's
-		      # word size.
-
   The prefix "auto:" can be added before the process set to let HAProxy
-  automatically bind a process to a CPU by incrementing process and CPU
-  sets. To be valid, both sets must have the same size. No matter the
-  declaration order of the CPU sets, it will be bound from the lower to the
-  higher bound.
+  automatically bind a process or a thread to a CPU by incrementing
+  process/thread and CPU sets. To be valid, both sets must have the same
+  size. No matter the declaration order of the CPU sets, it will be bound from
+  the lowest to the highest bound. Having a process and a thread range with the
+  "auto:" prefix is not supported. Only one range is supported, the other one
+  must be a fixed number.
 
   Examples:
+      cpu-map 1-4 0-3   # bind processes 1 to 4 on the first 4 CPUs
+
+      cpu-map 1/all 0-3 # bind all threads of the first process on the
+                        # first 4 CPUs
+
+      cpu-map 1- 0-     # will be replaced by "cpu-map 1-64 0-63"
+                        # or "cpu-map 1-32 0-31" depending on the machine's
+                        # word size.
+
       # all these lines bind the process 1 to the cpu 0, the process 2 to cpu 1
-      #  and so on.
+      # and so on.
       cpu-map auto:1-4   0-3
       cpu-map auto:1-4   0-1 2-3
       cpu-map auto:1-4   3 2 1 0
+
+      # all these lines bind the thread 1 to the cpu 0, the thread 2 to cpu 1
+      # and so on.
+      cpu-map auto:1/1-4   0-3
+      cpu-map auto:1/1-4   0-1 2-3
+      cpu-map auto:1/1-4   3 2 1 0
 
       # bind each process to exaclty one CPU using all/odd/even keyword
       cpu-map auto:all   0-63
@@ -702,6 +722,12 @@ cpu-map [auto:]<"all"|"odd"|"even"|process_num[-[process_num]]> <cpu-set>...
       # invalid cpu-map because process and CPU sets have different sizes.
       cpu-map auto:1-4   0    # invalid
       cpu-map auto:1     0-3  # invalid
+
+      # invalid cpu-map because automatic binding is used with a process range
+      # and a thread range.
+      cpu-map auto:all/all   0 # invalid
+      cpu-map auto:all/1-4   0 # invalid
+      cpu-map auto:1-4/all   0 # invalid
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative

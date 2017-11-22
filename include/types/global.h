@@ -163,8 +163,10 @@ struct global {
 		} ux;
 	} unix_bind;
 #ifdef USE_CPU_AFFINITY
-	unsigned long cpu_map[LONGBITS];              /* list of CPU masks for the 32/64 first processes */
-	__decl_hathreads(unsigned long thread_map[LONGBITS][LONGBITS]); /* list of CPU masks for the 32/64 first threads per process */
+	struct {
+		unsigned long proc[LONGBITS];             /* list of CPU masks for the 32/64 first processes */
+		unsigned long thread[LONGBITS][LONGBITS]; /* list of CPU masks for the 32/64 first threads per process */
+	} cpu_map;
 #endif
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 	struct vars   vars;         /* list of variables for the process scope. */
