@@ -590,28 +590,28 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
 
 /* Parse a string representing a process number or a set of processes. It must
  * be "all", "odd", "even", a number between 1 and <LONGBITS> or a range with
- * two such numbers delimited by a dash ('-'). It returns a mask where bits are
- * set for corresponding processes or 0 if an error occured.
+ * two such numbers delimited by a dash ('-'). On success, it returns
+ * 0. otherwise it returns 1 with an error message in <err>.
  *
  * Note: this function can also be used to parse a thread number or a set of
  * threads.
  */
-static unsigned long parse_process_number(const char *arg)
+static int parse_process_number(const char *arg, unsigned long *proc, char **err)
 {
-	unsigned long proc = 0;
-
 	if (strcmp(arg, "all") == 0)
-		proc = ~0UL;
+		*proc |= ~0UL;
 	else if (strcmp(arg, "odd") == 0)
-		proc = ~0UL/3UL; /* 0x555....555 */
+		*proc |= ~0UL/3UL; /* 0x555....555 */
 	else if (strcmp(arg, "even") == 0)
-		proc = (~0UL/3UL) << 1; /* 0xAAA...AAA */
+		*proc |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
 	else {
 		char *dash;
 		unsigned int low, high;
 
-		if (!isdigit((int)*arg))
-			goto end;
+		if (!isdigit((int)*arg)) {
+			memprintf(err, "'%s' is not a valid PROC number.\n", arg);
+			return -1;
+		}
 
 		low = high = str2uic(arg);
 		if ((dash = strchr(arg, '-')) != NULL)
@@ -622,15 +622,19 @@ static unsigned long parse_process_number(const char *arg)
 			high = swap;
 		}
 
-		if (low < 1 || low >= LONGBITS || high >= LONGBITS)
-			goto end;
+		if (low < 1 || low > LONGBITS || high > LONGBITS) {
+			memprintf(err, "'%s' is not a valid PROC number/range."
+				  " It supports PROC numbers from 1 to %d.\n",
+				  arg, LONGBITS);
+			return 1;
+		}
 
 		for (;low <= high; low++)
-			proc |= 1UL << (low-1);
+			*proc |= 1UL << (low-1);
 	}
 
   end:
-	return proc;
+	return 0;
 }
 
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
@@ -1693,7 +1697,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "cpu-map") == 0) {
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
-		unsigned long proc, cpus;
+		unsigned long proc = 0, cpus;
 		int i;
 
 		if (!*args[1] || !*args[2]) {
@@ -1705,11 +1709,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		proc = parse_process_number(args[1]);
-		if (!proc) {
-			Alert("parsing [%s:%d] : %s : '%s' is not a valid PROC number "
-			      " ('all', 'odd', 'even', a number from 1 to %d or a range).\n",
-			      file, linenum, args[0], args[1], LONGBITS);
+		if (parse_process_number(args[1], &proc, &errmsg)) {
+			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1733,12 +1734,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		/* map a thread list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 #ifdef USE_THREAD
-		unsigned long proc, thread, cpus;
+		unsigned long proc = 0, thread = 0, cpus;
 		int i, j;
 
-		proc    = parse_process_number(args[1]);
-		thread  = parse_process_number(args[2]);
-		if (!proc || !thread || !*args[3]) {
+		if (!*args[1] || !*args[2] || !*args[3]) {
 			Alert("parsing [%s:%d]: %s expects a process number "
 			      "('all', 'odd', 'even', or a number from 1 to %d), "
 			      " followed by a thread number using the same format, "
@@ -1747,11 +1746,23 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (parse_process_number(args[1], &proc, &errmsg)) {
+			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (parse_process_number(args[2], &thread, &errmsg)) {
+			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 		if (parse_cpu_set((const char **)args+3, &cpus, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
 		for (i = 0; i < LONGBITS; i++)
 			if (proc & (1UL << i)) {
 				for (j = 0; j < LONGBITS; j++)
