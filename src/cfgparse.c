@@ -589,8 +589,9 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
 }
 
 /* Parse a string representing a process number or a set of processes. It must
- * be "all", "odd", "even" or a number between 1 and <LONGBITS>. It returns a
- * mask where bits are set for corresponding processes or 0 if an error occured.
+ * be "all", "odd", "even", a number between 1 and <LONGBITS> or a range with
+ * two such numbers delimited by a dash ('-'). It returns a mask where bits are
+ * set for corresponding processes or 0 if an error occured.
  *
  * Note: this function can also be used to parse a thread number or a set of
  * threads.
@@ -606,10 +607,29 @@ static unsigned long parse_process_number(const char *arg)
 	else if (strcmp(arg, "even") == 0)
 		proc = (~0UL/3UL) << 1; /* 0xAAA...AAA */
 	else {
-		proc = atol(arg);
-		if (proc >= 1 && proc <= LONGBITS)
-			proc = 1UL << (proc - 1);
+		char *dash;
+		unsigned int low, high;
+
+		if (!isdigit((int)*arg))
+			goto end;
+
+		low = high = str2uic(arg);
+		if ((dash = strchr(arg, '-')) != NULL)
+			high = str2uic(dash + 1);
+		if (high < low) {
+			unsigned int swap = low;
+			low  = high;
+			high = swap;
+		}
+
+		if (low < 1 || low >= LONGBITS || high >= LONGBITS)
+			goto end;
+
+		for (;low <= high; low++)
+			proc |= 1UL << (low-1);
 	}
+
+  end:
 	return proc;
 }
 
@@ -1676,15 +1696,24 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		unsigned long proc, cpus;
 		int i;
 
-		proc = parse_process_number(args[1]);
-		if (!proc || !*args[2]) {
-			Alert("parsing [%s:%d]: %s expects a process number "
-			      " ('all', 'odd', 'even', or a number from 1 to %d), "
+		if (!*args[1] || !*args[2]) {
+			Alert("parsing [%s:%d] : %s expects a process number "
+			      " ('all', 'odd', 'even', a number from 1 to %d or a range), "
 			      " followed by a list of CPU ranges with numbers from 0 to %d.\n",
 			      file, linenum, args[0], LONGBITS, LONGBITS - 1);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		proc = parse_process_number(args[1]);
+		if (!proc) {
+			Alert("parsing [%s:%d] : %s : '%s' is not a valid PROC number "
+			      " ('all', 'odd', 'even', a number from 1 to %d or a range).\n",
+			      file, linenum, args[0], args[1], LONGBITS);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

@@ -657,20 +657,21 @@ chroot <jail dir>
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and unwritable to anyone.
 
-cpu-map <"all"|"odd"|"even"|process_num> <cpu-set>...
+cpu-map <"all"|"odd"|"even"|process_num[-process_num]> <cpu-set>...
   On Linux 2.6 and above, it is possible to bind a process to a specific CPU
   set. This means that the process will never run on other CPUs. The "cpu-map"
   directive specifies CPU sets for process sets. The first argument is the
   process number to bind. This process must have a number between 1 and 32 or
   64, depending on the machine's word size, and any process IDs above nbproc
-  are ignored. It is possible to specify all processes at once using "all",
-  only odd numbers using "odd" or even numbers using "even", just like with the
-  "bind-process" directive. The second and forthcoming arguments are CPU sets.
-  Each CPU set is either a unique number between 0 and 31 or 63 or a range with
-  two such numbers delimited by a dash ('-'). Multiple CPU numbers or ranges
-  may be specified, and the processes will be allowed to bind to all of them.
-  Obviously, multiple "cpu-map" directives may be specified. Each "cpu-map"
-  directive will replace the previous ones when they overlap.
+  are ignored. It is possible to specify a range with two such number delimited
+  by a dash ('-'). It also is possible to specify all processes at once using
+  "all", only odd numbers using "odd" or even numbers using "even", just like
+  with the "bind-process" directive. The second and forthcoming arguments are
+  CPU sets.  Each CPU set is either a unique number between 0 and 31 or 63 or a
+  range with two such numbers delimited by a dash ('-'). Multiple CPU numbers
+  or ranges may be specified, and the processes will be allowed to bind to all
+  of them.  Obviously, multiple "cpu-map" directives may be specified. Each
+  "cpu-map" directive will replace the previous ones when they overlap.
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
