@@ -920,10 +920,8 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 }
 
 static struct cli_kw_list cli_kws = {{},{
-	{ { "show", "cache", NULL },
-	   "show cache     : show cache status",
-	   cli_parse_show_cache, cli_io_handler_show_cache, NULL,
-	},
+	{ { "show", "cache", NULL }, "show cache     : show cache status", cli_parse_show_cache, cli_io_handler_show_cache, NULL, NULL },
+	{{},}
 }};
 
 
