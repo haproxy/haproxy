@@ -657,7 +657,7 @@ chroot <jail dir>
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and unwritable to anyone.
 
-cpu-map [auto:]<"all"|"odd"|"even"|process_num[-process_num]> <cpu-set>...
+cpu-map [auto:]<"all"|"odd"|"even"|process_num[-[process_num]]> <cpu-set>...
   On Linux 2.6 and above, it is possible to bind a process to a specific CPU
   set. This means that the process will never run on other CPUs. The "cpu-map"
   directive specifies CPU sets for process sets. The first argument is the
@@ -672,6 +672,15 @@ cpu-map [auto:]<"all"|"odd"|"even"|process_num[-process_num]> <cpu-set>...
   or ranges may be specified, and the processes will be allowed to bind to all
   of them.  Obviously, multiple "cpu-map" directives may be specified. Each
   "cpu-map" directive will replace the previous ones when they overlap.
+
+  Ranges can be partially defined. The higher bound can be omitted. In such
+  case, it is replaced by the corresponding maximum value, 32 or 64 depending
+  on the machine's word size.
+
+  Examples:
+      cpu-map 1- 0-   # will be replaced by "cpu-map 1-64 0-63"
+                      # or "cpu-map 1-32 0-31" depending on the machine's
+		      # word size.
 
   The prefix "auto:" can be added before the process set to let HAProxy
   automatically bind a process to a CPU by incrementing process and CPU
@@ -883,7 +892,7 @@ resetenv [<name> ...]
   next line in the configuration file sees the new environment. See also
   "setenv", "presetenv", and "unsetenv".
 
-stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
+stats bind-process [ all | odd | even | <process_num>[-[process_num>]] ] ...
   Limits the stats socket to a certain set of processes numbers. By default the
   stats socket is bound to all processes, causing a warning to be emitted when
   nbproc is greater than 1 because there is no way to select the target process
@@ -891,8 +900,10 @@ stats bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   the stats socket to a specific set of processes, typically the first one. The
   warning will automatically be disabled when this setting is used, whatever
   the number of processes used. The maximum process ID depends on the machine's
-  word size (32 or 64). A better option consists in using the "process" setting
-  of the "stats socket" line to force the process on each line.
+  word size (32 or 64). Ranges can be partially defined. The higher bound can
+  be omitted. In such case, it is replaced by the corresponding maximum
+  value. A better option consists in using the "process" setting of the "stats
+  socket" line to force the process on each line.
 
 server-state-base <directory>
   Specifies the directory prefix to be prepended in front of all servers state
@@ -2559,7 +2570,7 @@ bind /<path> [, ...] [param*]
              documentation, and section 5 about bind options.
 
 
-bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
+bind-process [ all | odd | even | <process_num>[-[<process_num>]] ] ...
   Limit visibility of an instance to a certain set of processes numbers.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -2575,11 +2586,13 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
                   with less than 2 processes otherwise some instances might be
                   missing from all processes.
 
-    number        The instance will be enabled on this process number or range,
+    process_num   The instance will be enabled on this process number or range,
                   whose values must all be between 1 and 32 or 64 depending on
-                  the machine's word size. If a proxy is bound to process
-                  numbers greater than the configured global.nbproc, it will
-                  either be forced to process #1 if a single process was
+                  the machine's word size. Ranges can be partially defined. The
+                  higher bound can be omitted. In such case, it is replaced by
+                  the corresponding maximum value. If a proxy is bound to
+                  process numbers greater than the configured global.nbproc, it
+                  will either be forced to process #1 if a single process was
                   specified, or to all processes otherwise.
 
   This keyword limits binding of certain instances to certain processes. This
@@ -10829,7 +10842,7 @@ prefer-client-ciphers
   the server's preference is enforced. This option is also available on
   global statement "ssl-default-bind-options".
 
-process [ all | odd | even | <number 1-64>[-<number 1-64>] ]
+process [ all | odd | even | <process_num>[-[<process_num>]] ]
   This restricts the list of processes on which this listener is allowed to
   run. It does not enforce any process but eliminates those which do not match.
   If the frontend uses a "bind-process" setting, the intersection between the
@@ -10837,13 +10850,15 @@ process [ all | odd | even | <number 1-64>[-<number 1-64>] ]
   remaining process, a warning is emitted, and the listener will either run on
   the first process of the listener if a single process was specified, or on
   all of its processes if multiple processes were specified. For the unlikely
-  case where several ranges are needed, this directive may be repeated. The
-  main purpose of this directive is to be used with the stats sockets and have
-  one different socket per process. The second purpose is to have multiple bind
-  lines sharing the same IP:port but not the same process in a listener, so
-  that the system can distribute the incoming connections into multiple queues
-  and allow a smoother inter-process load balancing. Currently Linux 3.9 and
-  above is known for supporting this. See also "bind-process" and "nbproc".
+  case where several ranges are needed, this directive may be repeated. Ranges
+  can be partially defined. The higher bound can be omitted. In such case, it
+  is replaced by the corresponding maximum value. The main purpose of this
+  directive is to be used with the stats sockets and have one different socket
+  per process. The second purpose is to have multiple bind lines sharing the
+  same IP:port but not the same process in a listener, so that the system can
+  distribute the incoming connections into multiple queues and allow a smoother
+  inter-process load balancing. Currently Linux 3.9 and above is known for
+  supporting this. See also "bind-process" and "nbproc".
 
 ssl
   This setting is only available when support for OpenSSL was built in. It

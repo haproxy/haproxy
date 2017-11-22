@@ -623,7 +623,8 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 
 		low = high = str2uic(arg);
 		if ((dash = strchr(arg, '-')) != NULL)
-			high = str2uic(dash + 1);
+			high = ((!*(dash+1)) ? LONGBITS : str2uic(dash + 1));
+
 		if (high < low) {
 			unsigned int swap = low;
 			low  = high;
@@ -666,7 +667,7 @@ static unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, ch
 
 		low = high = str2uic(args[cur_arg]);
 		if ((dash = strchr(args[cur_arg], '-')) != NULL)
-			high = str2uic(dash + 1);
+			high = ((!*(dash+1)) ? LONGBITS-1 : str2uic(dash + 1));
 
 		if (high < low) {
 			unsigned int swap = low;
