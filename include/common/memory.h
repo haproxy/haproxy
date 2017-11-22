@@ -22,6 +22,8 @@
 #ifndef _COMMON_MEMORY_H
 #define _COMMON_MEMORY_H
 
+#include <sys/mman.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -155,6 +157,8 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 	return p;
 }
 
+#ifndef DEBUG_UAF /* normal allocator */
+
 /* allocates an area of size <size> and returns it. The semantics are similar
  * to those of malloc().
  */
@@ -171,6 +175,34 @@ static inline void pool_free_area(void *area, size_t __maybe_unused size)
 {
 	free(area);
 }
+
+#else  /* use-after-free detector */
+
+/* allocates an area of size <size> and returns it. The semantics are similar
+ * to those of malloc(). However the allocation is rounded up to 4kB so that a
+ * full page is allocated. This ensures the object can be freed alone so that
+ * future dereferences are easily detected. The returned object is always
+ * 16-bytes aligned to avoid issues with unaligned structure objects.
+ */
+static inline void *pool_alloc_area(size_t size)
+{
+	size_t pad = (4096 - size) & 0xFF0;
+
+	return mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0) + pad;
+}
+
+/* frees an area <area> of size <size> allocated by pool_alloc_area(). The
+ * semantics are identical to free() except that the size must absolutely match
+ * the one passed to pool_alloc_area().
+ */
+static inline void pool_free_area(void *area, size_t size)
+{
+	size_t pad = (4096 - size) & 0xFF0;
+
+	munmap(area - pad, (size + 4095) & -4096);
+}
+
+#endif /* DEBUG_UAF */
 
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
@@ -215,8 +247,16 @@ static inline void pool_free2(struct pool_head *pool, void *ptr)
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
 			*(int *)0 = 0;
 #endif
+
+#ifndef DEBUG_UAF /* normal pool behaviour */
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
                 pool->free_list = (void *)ptr;
+#else  /* release the entry for real to detect use after free */
+		/* ensure we crash on double free or free of a const area*/
+		*(uint32_t *)ptr = 0xDEADADD4;
+		pool_free_area(ptr, pool->size + POOL_EXTRA);
+		pool->allocated--;
+#endif /* DEBUG_UAF */
                 pool->used--;
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
