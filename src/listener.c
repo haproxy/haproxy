@@ -943,7 +943,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 {
 	unsigned long set = 0;
 
-	if (parse_process_number(args[cur_arg + 1], &set, err)) {
+	if (parse_process_number(args[cur_arg + 1], &set, NULL, err)) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}

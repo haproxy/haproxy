@@ -596,8 +596,16 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
  * Note: this function can also be used to parse a thread number or a set of
  * threads.
  */
-int parse_process_number(const char *arg, unsigned long *proc, char **err)
+int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, char **err)
 {
+	if (autoinc) {
+		*autoinc = 0;
+		if (strncmp(arg, "auto:", 5) == 0) {
+			arg += 5;
+			*autoinc = 1;
+		}
+	}
+
 	if (strcmp(arg, "all") == 0)
 		*proc |= ~0UL;
 	else if (strcmp(arg, "odd") == 0)
@@ -1698,7 +1706,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 		unsigned long proc = 0, cpus;
-		int i;
+		int i, n, autoinc;
 
 		if (!*args[1] || !*args[2]) {
 			Alert("parsing [%s:%d] : %s expects a process number "
@@ -1709,7 +1717,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (parse_process_number(args[1], &proc, &errmsg)) {
+		if (parse_process_number(args[1], &proc, &autoinc, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1720,9 +1728,23 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		for (i = 0; i < LONGBITS; i++)
-			if (proc & (1UL << i))
-				global.cpu_map[i] = cpus;
+
+		if (autoinc && my_popcountl(proc) != my_popcountl(cpus)) {
+			Alert("parsing [%s:%d] : %s : PROC range and CPU sets must have the same size to be auto-assigned\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		for (i = n = 0; i < LONGBITS; i++) {
+			if (proc & (1UL << i)) {
+				if (autoinc) {
+					n += my_ffsl(cpus >> n);
+					global.cpu_map[i] = (1UL << (n-1));
+				}
+				else
+					global.cpu_map[i] = cpus;
+			}
+		}
 #else
 		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
 		      file, linenum, args[0]);
@@ -1747,12 +1769,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (parse_process_number(args[1], &proc, &errmsg)) {
+		if (parse_process_number(args[1], &proc, NULL, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (parse_process_number(args[2], &thread, &errmsg)) {
+		if (parse_process_number(args[2], &thread, NULL, &errmsg)) {
 			Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -3287,7 +3309,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				set = 0;
 				break;
 			}
-			if (parse_process_number(args[cur_arg], &set, &errmsg)) {
+			if (parse_process_number(args[cur_arg], &set, NULL, &errmsg)) {
 				Alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

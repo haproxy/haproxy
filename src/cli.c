@@ -327,7 +327,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				set = 0;
 				break;
 			}
-			if (parse_process_number(args[cur_arg], &set, err)) {
+			if (parse_process_number(args[cur_arg], &set, NULL, err)) {
 				memprintf(err, "'%s %s' : %s", args[0], args[1], *err);
 				return -1;
 			}
