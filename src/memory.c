@@ -117,7 +117,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		if (pool->limit && pool->allocated >= pool->limit)
 			return NULL;
 
-		ptr = malloc(pool->size + POOL_EXTRA);
+		ptr = pool_alloc_area(pool->size + POOL_EXTRA);
 		if (!ptr) {
 			pool->failed++;
 			if (failed)
@@ -163,7 +163,7 @@ void pool_flush2(struct pool_head *pool)
 		temp = next;
 		next = *POOL_LINK(pool, temp);
 		pool->allocated--;
-		free(temp);
+		pool_free_area(temp, pool->size + POOL_EXTRA);
 	}
 	pool->free_list = next;
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
@@ -199,7 +199,7 @@ void pool_gc2(struct pool_head *pool_ctx)
 			temp = next;
 			next = *POOL_LINK(entry, temp);
 			entry->allocated--;
-			free(temp);
+			pool_free_area(temp, entry->size + POOL_EXTRA);
 		}
 		entry->free_list = next;
 		if (entry != pool_ctx)

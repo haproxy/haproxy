@@ -155,6 +155,23 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 	return p;
 }
 
+/* allocates an area of size <size> and returns it. The semantics are similar
+ * to those of malloc().
+ */
+static inline void *pool_alloc_area(size_t size)
+{
+	return malloc(size);
+}
+
+/* frees an area <area> of size <size> allocated by pool_alloc_area(). The
+ * semantics are identical to free() except that the size is specified and
+ * may be ignored.
+ */
+static inline void pool_free_area(void *area, size_t __maybe_unused size)
+{
+	free(area);
+}
+
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
