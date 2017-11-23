@@ -319,6 +319,7 @@ struct http_txn {
 	/* 1 unused byte here */
 	short status;                   /* HTTP status from the server, negative if from proxy */
 
+	char cache_hash[20];               /* Store the cache hash  */
 	char *uri;                      /* first line if log needed, NULL otherwise */
 	char *cli_cookie;               /* cookie presented by the client, in capture mode */
 	char *srv_cookie;               /* cookie presented by the server, in capture mode */

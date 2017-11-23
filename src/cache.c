@@ -11,6 +11,7 @@
  */
 
 #include <eb32tree.h>
+#include <import/sha1.h>
 
 #include <types/action.h>
 #include <types/cli.h>
@@ -63,6 +64,7 @@ struct cache_entry {
 	unsigned int latest_validation;     /* latest validation date */
 	unsigned int expire;      /* expiration date */
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
+	char hash[20];
 	unsigned char data[0];
 };
 
@@ -71,16 +73,21 @@ struct cache_entry {
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct cache *tmp_cache_config = NULL;
 
-struct cache_entry *entry_exist(struct cache *cache, struct cache_entry *new_entry)
+struct cache_entry *entry_exist(struct cache *cache, char *hash)
 {
 	struct eb32_node *node;
 	struct cache_entry *entry;
 
-	node = eb32_lookup(&cache->entries, new_entry->eb.key);
+	node = eb32_lookup(&cache->entries, (*(unsigned int *)hash));
 	if (!node)
 		return NULL;
 
 	entry = eb32_entry(node, struct cache_entry, eb);
+
+	/* if that's not the right node */
+	if (memcmp(entry->hash, hash, sizeof(entry->hash)))
+		return NULL;
+
 	if (entry->expire > now.tv_sec) {
 		return entry;
 	} else {
@@ -443,11 +450,12 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					cache_ctx->first_block = first;
 					object = (struct cache_entry *)first->data;
 
-					object->eb.key = hash_djb2(txn->uri, strlen(txn->uri));
+					object->eb.key = (*(unsigned int *)&txn->cache_hash);
+					memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
 					/* Insert the node later on caching success */
 
 					shctx_lock(shctx);
-					if (entry_exist((struct cache *)rule->arg.act.p[0], object)) {
+					if (entry_exist((struct cache *)rule->arg.act.p[0], txn->cache_hash)) {
 						shctx_unlock(shctx);
 						if (filter->ctx) {
 							object->eb.key = 0;
@@ -592,19 +600,53 @@ err:
 	return ACT_RET_PRS_ERR;
 }
 
+/* This produces a sha1 hash of the concatenation of the first
+ * occurrence of the Host header followed by the path component if it
+ * begins with a slash ('/'). */
+int sha1_hosturi(struct http_txn *txn)
+{
+	struct hdr_ctx ctx;
+
+	blk_SHA_CTX sha1_ctx;
+	struct chunk *trash;
+	char *path;
+	char *end;
+	trash = get_trash_chunk();
+
+	/* retrive the host */
+	ctx.idx = 0;
+	if (!http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx))
+		return 0;
+	chunk_strncat(trash, ctx.line + ctx.val, ctx.vlen);
+
+	/* now retrieve the path */
+	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	path = http_get_path(txn);
+	if (!path)
+		return 0;
+	chunk_strncat(trash, path, end - path);
+
+	/* hash everything */
+	blk_SHA1_Init(&sha1_ctx);
+	blk_SHA1_Update(&sha1_ctx, trash->str, trash->len);
+	blk_SHA1_Final((unsigned char *)txn->cache_hash, &sha1_ctx);
+
+	return 1;
+}
+
+
 
 enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
 
-	struct cache_entry search_entry;
 	struct cache_entry *res;
-
 	struct cache *cache = (struct cache *)rule->arg.act.p[0];
 
-	search_entry.eb.key = hash_djb2(s->txn->uri, strlen(s->txn->uri));
+	sha1_hosturi(s->txn);
+
 	shctx_lock(shctx_ptr(cache));
-	res = entry_exist(cache, &search_entry);
+	res = entry_exist(cache, s->txn->cache_hash);
 	if (res) {
 		struct appctx *appctx;
 		shctx_row_inc_hot(shctx_ptr(cache), block_ptr(res));
@@ -900,7 +942,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			}
 
 			entry = container_of(node, struct cache_entry, eb);
-			chunk_appendf(&trash, "%p (size: %u (%u blocks), refcount:%u, expire: %d)\n", entry, block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+			chunk_appendf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, (*(unsigned int *)entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
 
 			next_key = node->key + 1;
 			appctx->ctx.cli.i0 = next_key;
