@@ -162,8 +162,8 @@ int wake_expired_tasks()
 				__task_queue(task);
 			goto lookup_next;
 		}
-		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 		task_wakeup(task, TASK_WOKEN_TIMER);
+		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 
 	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
@@ -306,21 +306,27 @@ void process_runnable_tasks()
 				local_tasks[final_tasks_count++] = t;
 		}
 
-		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		for (i = 0; i < final_tasks_count ; i++) {
 			t = local_tasks[i];
-			t->state &= ~TASK_RUNNING;
 			/* If there is a pending state
 			 * we have to wake up the task
 			 * immediatly, else we defer
 			 * it into wait queue
 			 */
-			if (t->pending_state)
+			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+			t->state &= ~TASK_RUNNING;
+			if (t->pending_state) {
 				__task_wakeup(t);
-			else
+				HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+			}
+			else {
+				/* we must never hold the RQ lock before the WQ lock */
+				HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 				task_queue(t);
+			}
 		}
 
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		if (max_processed <= 0) {
 			active_tasks_mask |= tid_bit;
 			break;
