@@ -151,7 +151,7 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 	return __tv_isgt(tv1, tv2);
 }
 
-/* tv_udpate_date: sets <date> to system time, and sets <now> to something as
+/* tv_update_date: sets <date> to system time, and sets <now> to something as
  * close as possible to real time, following a monotonic function. The main
  * principle consists in detecting backwards and forwards time jumps and adjust
  * an offset to correct them. This function should be called once after each
@@ -161,51 +161,39 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  * sets both <date> and <now> to current date, and calling it with (0,1) simply
  * updates the values.
  *
- * tv_offset is used to adjust the current time (date), to have a monotonic time
+ * An offset is used to adjust the current time (date), to have a monotonic time
  * (now). It must be global and thread-safe. But a timeval cannot be atomically
- * updated. So instead, we store it in a 64-bits integer (offset). And in
- * tv_update_date, we convert this integer into a timeval (tv_offset). Once
- * updated, it is converted back into an integer to be atomically stored.
- *
- * To store a tv_offset into an integer, we use 32 bits from tv_sec and 32 bits
- * tv_usec to avoid shift operations.
+ * updated. So instead, we store it in a 64-bits integer (offset) whose 32 MSB
+ * contain the signed seconds adjustment andthe 32 LSB contain the unsigned
+ * microsecond adjustment. We cannot use a timeval for this since it's never
+ * clearly specified whether a timeval may hold negative values or not.
  */
-#define OFFSET_TO_TIMEVAL(off, tv)				\
-	do {							\
-		unsigned long long __i = (off);			\
-		(tv)->tv_sec  = (__i << 32);			\
-		(tv)->tv_usec = (__i & 0xFFFFFFFFU);		\
-	} while (0)
-
-#define TIMEVAL_TO_OFFSET(tv, off)					\
-	do {								\
-		unsigned long long __i = (((tv).tv_sec & 0xFFFFFFFFULL) << 32) + (unsigned int)(tv).tv_usec; \
-		HA_ATOMIC_STORE((off), __i);				\
-	} while (0)
-
-#define RESET_OFFSET(off)			\
-	do {					\
-		HA_ATOMIC_STORE((off), 0);	\
-	} while (0)
-
 REGPRM2 void tv_update_date(int max_wait, int interrupted)
 {
-	static long long offset = 0;  /* warning: signed offset! */
-	struct timeval tv_offset; /* offset converted into a timeval */
+	volatile static long long offset = 0;
 	struct timeval adjusted, deadline;
 	unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
+	long long new_ofs;
 
 	gettimeofday(&date, NULL);
 	if (unlikely(max_wait < 0)) {
-		RESET_OFFSET(&offset);
+		HA_ATOMIC_STORE(&offset, 0);
 		adjusted = date;
 		after_poll = date;
 		samp_time = idle_time = 0;
 		idle_pct = 100;
 		goto to_ms;
 	}
-	OFFSET_TO_TIMEVAL(offset, &tv_offset);
-	__tv_add(&adjusted, &date, &tv_offset);
+
+	new_ofs = offset;
+
+	adjusted.tv_sec  = date.tv_sec  + (int)(new_ofs >> 32);
+	adjusted.tv_usec = date.tv_usec + (int)(new_ofs & 0xFFFFFFFFU);
+	if (adjusted.tv_usec > 999999) {
+		adjusted.tv_usec -= 1000000;
+		adjusted.tv_sec  += 1;
+	}
+
 	if (unlikely(__tv_islt(&adjusted, &now))) {
 		goto fixup; /* jump in the past */
 	}
@@ -224,13 +212,13 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	 */
 	_tv_ms_add(&adjusted, &now, interrupted ? 0 : max_wait);
 
-	tv_offset.tv_sec  = adjusted.tv_sec  - date.tv_sec;
-	tv_offset.tv_usec = adjusted.tv_usec - date.tv_usec;
-	if (tv_offset.tv_usec < 0) {
-		tv_offset.tv_usec += 1000000;
-		tv_offset.tv_sec--;
-	}
-	TIMEVAL_TO_OFFSET(tv_offset, &offset);
+	new_ofs = (((long)(adjusted.tv_sec  - date.tv_sec)) << 32) +
+	          (unsigned int)(adjusted.tv_usec - date.tv_usec);
+
+	if ((int)(new_ofs & 0xFFFFFFFFU) < 0)
+		new_ofs = new_ofs + 1000000 - 0x100000000UL;
+
+	HA_ATOMIC_STORE(&offset, new_ofs);
  to_ms:
 	now = adjusted;
 	curr_sec_ms = now.tv_usec / 1000;            /* ms of current second */
