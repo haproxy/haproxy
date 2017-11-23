@@ -1072,6 +1072,8 @@ static void sess_prepare_conn_req(struct stream *s)
 			return;
 		}
 
+		if (tv_iszero(&s->logs.tv_request))
+			s->logs.tv_request = now;
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		si->state         = SI_ST_EST;
 		si->err_type      = SI_ET_NONE;
