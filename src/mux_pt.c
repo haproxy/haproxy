@@ -51,6 +51,12 @@ static int mux_pt_wake(struct connection *conn)
 
 	ret = cs->data_cb->wake ? cs->data_cb->wake(cs) : 0;
 
+	/* If we had early data, and we're done with the handshake
+	 * then whe know the data are safe, and we can remove the flag.
+	 */
+	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE)) ==
+	    CO_FL_EARLY_DATA)
+		conn->flags &= ~CO_FL_EARLY_DATA;
 	if (ret >= 0)
 		cs_update_mux_polling(cs);
 	return ret;

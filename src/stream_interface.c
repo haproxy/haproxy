@@ -585,7 +585,6 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	 * the handshake.
 	 */
 	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS)) == CO_FL_EARLY_DATA) {
-		conn->flags &= ~CO_FL_EARLY_DATA;
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 
