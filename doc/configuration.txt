@@ -10858,23 +10858,29 @@ prefer-client-ciphers
   the server's preference is enforced. This option is also available on
   global statement "ssl-default-bind-options".
 
-process [ all | odd | even | <process_num>[-[<process_num>]] ]
-  This restricts the list of processes on which this listener is allowed to
-  run. It does not enforce any process but eliminates those which do not match.
-  If the frontend uses a "bind-process" setting, the intersection between the
-  two is applied. If in the end the listener is not allowed to run on any
-  remaining process, a warning is emitted, and the listener will either run on
-  the first process of the listener if a single process was specified, or on
-  all of its processes if multiple processes were specified. For the unlikely
-  case where several ranges are needed, this directive may be repeated. Ranges
-  can be partially defined. The higher bound can be omitted. In such case, it
-  is replaced by the corresponding maximum value. The main purpose of this
-  directive is to be used with the stats sockets and have one different socket
-  per process. The second purpose is to have multiple bind lines sharing the
-  same IP:port but not the same process in a listener, so that the system can
-  distribute the incoming connections into multiple queues and allow a smoother
-  inter-process load balancing. Currently Linux 3.9 and above is known for
-  supporting this. See also "bind-process" and "nbproc".
+process <process-set>[/<thread-set>]
+  This restricts the list of processes and/or threads on which this listener is
+  allowed to run. It does not enforce any process but eliminates those which do
+  not match.  If the frontend uses a "bind-process" setting, the intersection
+  between the two is applied. If in the end the listener is not allowed to run
+  on any remaining process, a warning is emitted, and the listener will either
+  run on the first process of the listener if a single process was specified,
+  or on all of its processes if multiple processes were specified. If a thread
+  set is specified, it limits the threads allowed to process inoming
+  connections for this listener, for the corresponding process set. For the
+  unlikely case where several ranges are needed, this directive may be
+  repeated. <process-set> and <thread-set> must use the format
+
+      all | odd | even | number[-[number]]
+
+  Ranges can be partially defined. The higher bound can be omitted. In such
+  case, it is replaced by the corresponding maximum value. The main purpose of
+  this directive is to be used with the stats sockets and have one different
+  socket per process. The second purpose is to have multiple bind lines sharing
+  the same IP:port but not the same process in a listener, so that the system
+  can distribute the incoming connections into multiple queues and allow a
+  smoother inter-process load balancing. Currently Linux 3.9 and above is known
+  for supporting this. See also "bind-process" and "nbproc".
 
 ssl
   This setting is only available when support for OpenSSL was built in. It

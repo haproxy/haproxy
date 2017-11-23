@@ -941,14 +941,32 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 /* parse the "process" bind keyword */
 static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	unsigned long set = 0;
+	char *slash;
+	unsigned long proc = 0, thread = 0;
+	int i;
 
-	if (parse_process_number(args[cur_arg + 1], &set, NULL, err)) {
+	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
+		*slash = 0;
+
+	if (parse_process_number(args[cur_arg + 1], &proc, NULL, err)) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->bind_proc |= set;
+	if (slash) {
+		if (parse_process_number(slash+1, &thread, NULL, err)) {
+			memprintf(err, "'%s' : %s", args[cur_arg], *err);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		*slash = '/';
+	}
+
+	conf->bind_proc |= proc;
+	if (thread) {
+		for (i = 0; i < LONGBITS; i++)
+			if (!proc || (proc & (1UL << i)))
+				conf->bind_thread[i] |= thread;
+	}
 	return 0;
 }
 
