@@ -373,6 +373,7 @@ struct connection {
 	void *owner;                  /* pointer to the owner session for incoming connections, or NULL */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	int tmp_early_data;           /* 1st byte of early data, if any */
+	int sent_early_data;          /* Amount of early data we sent so far */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct list list;             /* attach point to various connection lists (idle, ...) */

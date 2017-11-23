@@ -1377,7 +1377,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
-		if ((conn->flags & (CO_FL_CONNECTED | CO_FL_EARLY_SSL_HS)) == CO_FL_CONNECTED) {
+		if ((conn->flags & (CO_FL_CONNECTED | CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_CONNECTED) {
 			conn->flags |= CO_FL_ERROR;
 			conn->err_code = CO_ER_SSL_RENEG;
 		}
@@ -5318,15 +5318,6 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	/* let's realign the buffer to optimize I/O */
 	if (buffer_empty(buf)) {
 		buf->p = buf->data;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
-		/*
-		 * If we're done reading the early data, and we're using
-		 * a new buffer, then we know for sure we're not tainted
-		 * with early data anymore
-		 */
-		if ((conn->flags & (CO_FL_EARLY_SSL_HS |CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA)
-			conn->flags &= ~CO_FL_EARLY_DATA;
-#endif
 	}
 
 	/* read the largest possible block. For this, we perform only one call
@@ -5499,9 +5490,6 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		if (!SSL_is_init_finished(conn->xprt_ctx)) {
 			unsigned int max_early;
 
-			if (conn->tmp_early_data == -1)
-				conn->tmp_early_data = 0;
-
 			if (objt_listener(conn->target))
 				max_early = SSL_get_max_early_data(conn->xprt_ctx);
 			else {
@@ -5511,17 +5499,18 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					max_early = 0;
 			}
 
-			if (try + conn->tmp_early_data > max_early) {
-				try -= (try + conn->tmp_early_data) - max_early;
+			if (try + conn->sent_early_data > max_early) {
+				try -= (try + conn->sent_early_data) - max_early;
 				if (try <= 0) {
-					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+					if (!(conn->flags & CO_FL_EARLY_SSL_HS))
+						conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 					break;
 				}
 			}
 			ret = SSL_write_early_data(conn->xprt_ctx, bo_ptr(buf), try, &written_data);
 			if (ret == 1) {
 				ret = written_data;
-				conn->tmp_early_data += ret;
+				conn->sent_early_data += ret;
 				if (objt_server(conn->target)) {
 					conn->flags &= ~CO_FL_EARLY_SSL_HS;
 					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_EARLY_DATA;

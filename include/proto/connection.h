@@ -607,6 +607,7 @@ static inline void conn_init(struct connection *conn)
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
 	conn->tmp_early_data = -1;
+	conn->sent_early_data = 0;
 	conn->mux = NULL;
 	conn->mux_ctx = NULL;
 	conn->owner = NULL;
