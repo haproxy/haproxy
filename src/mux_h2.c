@@ -2267,6 +2267,9 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))
 		return;
 
+	/* the stream could be in the send list */
+	LIST_DEL(&h2s->list);
+
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
 	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
 		/* unblock the connection if it was blocked on this
