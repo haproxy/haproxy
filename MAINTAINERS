@@ -61,3 +61,11 @@ Files: src/da.c, include/*/da.h
 51Degrees device identification
 Maintainer: Ben Shillito <ben@51degrees.com>
 Files: src/51d.c
+
+Cache
+Maintainer: William Lallemand <wlallemand@haproxy.com>
+Files: src/cache.c, include/*/cache.h
+
+Master-worker
+Maintainer: William Lallemand <wlallemand@haproxy.com>
+Note: Please CC William when touching src/haproxy.c and contrib/systemd
