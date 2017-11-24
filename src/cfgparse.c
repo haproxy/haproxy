@@ -7583,6 +7583,30 @@ int check_config_validity()
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
 
+			/* HTTP frontends with "h2" as ALPN/NPN will work in
+			 * HTTP/2 and absolutely require buffers 16kB or larger.
+			 */
+#ifdef USE_OPENSSL
+			if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
+#ifdef OPENSSL_NPN_NEGOTIATED
+				/* check NPN */
+				if (bind_conf->ssl_conf.npn_str && strcmp(bind_conf->ssl_conf.npn_str, "\002h2") == 0) {
+					Alert("config : HTTP frontend '%s' enables HTTP/2 via NPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+					      curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
+					cfgerr++;
+				}
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+				/* check ALPN */
+				if (bind_conf->ssl_conf.alpn_str && strcmp(bind_conf->ssl_conf.alpn_str, "\002h2") == 0) {
+					Alert("config : HTTP frontend '%s' enables HTTP/2 via ALPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+					      curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
+					cfgerr++;
+				}
+#endif
+			} /* HTTP && bufsize < 16384 */
+#endif
+
 			if (!bind_conf->bind_proc)
 				continue;
 
