@@ -524,6 +524,17 @@ out:
 #define 	HTTP_CACHE_FWD 1
 #define 	HTTP_CACHE_END 2
 
+static void http_cache_applet_release(struct appctx *appctx)
+{
+	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
+	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
+	struct shared_block *first = block_ptr(cache_ptr);
+
+	shctx_lock(shctx_ptr(cache));
+	shctx_row_dec_hot(shctx_ptr(cache), first);
+	shctx_unlock(shctx_ptr(cache));
+}
+
 static void http_cache_io_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
@@ -551,18 +562,12 @@ static void http_cache_io_handler(struct appctx *appctx)
 		if ((shctx_row_data_get(shctx, first, (unsigned char *)bi_end(res->buf), sizeof(struct cache_entry), len)) != 0) {
 			fprintf(stderr, "cache error too big: %d\n", first->len - (int)sizeof(struct cache_entry));
 
-			shctx_lock(shctx_ptr(cache));
-			shctx_row_dec_hot(shctx_ptr(cache), first);
-			shctx_unlock(shctx_ptr(cache));
 			si_applet_cant_put(si);
 			goto out;
 		}
 		res->buf->i += len;
 		res->total += len;
 		appctx->st0 = HTTP_CACHE_FWD;
-		shctx_lock(shctx_ptr(cache));
-		shctx_row_dec_hot(shctx_ptr(cache), first);
-		shctx_unlock(shctx_ptr(cache));
 	}
 
 	if (appctx->st0 == HTTP_CACHE_FWD) {
@@ -1015,7 +1020,7 @@ struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CACHE>", /* used for logging */
 	.fct = http_cache_io_handler,
-	.release = NULL,
+	.release = http_cache_applet_release,
 };
 
 __attribute__((constructor))
