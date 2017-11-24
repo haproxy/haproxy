@@ -1,7 +1,6 @@
-                               +----------------+
-                               | Peers protocol |
-                               |  version 1.8
-                               +----------------+
+                            +--------------------+
+                            | Peers protocol 2.1 |
+                            +--------------------+
 
 
     Peers protocol has been implemented over TCP. Its aim is to transmit
