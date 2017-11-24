@@ -2742,31 +2742,12 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 
 	/* encode all headers, stop at empty name */
 	for (hdr = 1; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
-		/* these ones do not exist in H2 and must be dropped. But if we
-		 * see "connection: close", we also perform a graceful shutdown
-		 * on the connection. Note that the match is not perfect but it
-		 * is sufficient for dealing with some deny rules.
-		 */
-		if (isteq(list[hdr].n, ist("connection"))) {
-			if (!(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
-			    word_match(list[hdr].v.ptr, list[hdr].v.len, "close", 5)) {
-				if (h2c->last_sid < 0)
-					h2c->last_sid = (1U << 31) - 1;
-				if (h2c_send_goaway_error(h2c, h2s) <= 0) {
-					ret = 0;
-					goto end;
-				}
-				/* OK sent, but this changed the output buffer's
-				 * contents hence the write position.
-				 */
-				goto try_again;
-			}
-			continue;
-		}
-		else if (isteq(list[hdr].n, ist("proxy-connection")) ||
-		         isteq(list[hdr].n, ist("keep-alive")) ||
-		         isteq(list[hdr].n, ist("upgrade")) ||
-		         isteq(list[hdr].n, ist("transfer-encoding")))
+		/* these ones do not exist in H2 and must be dropped. */
+		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding")))
 			continue;
 
 		if (isteq(list[hdr].n, ist("")))
