@@ -3805,7 +3805,7 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | auth [realm <realm>] | redirect <rule> |
+http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
               tarpit [deny_status <status>] | deny [deny_status <status>] |
               add-header <name> <fmt> | set-header <name> <fmt> |
               capture <sample> [ len <length> | id <id> ] |
@@ -3847,6 +3847,11 @@ http-request { allow | auth [realm <realm>] | redirect <rule> |
       specified as an argument to "deny_status". The list of permitted status
       codes is limited to those that can be overridden by the "errorfile"
       directive. No further "http-request" rules are evaluated.
+
+    - "reject" : this stops the evaluation of the rules and immediately closes
+      the connection without sending any response. It acts similarly to the
+      "tcp-request content reject" rules. It can be useful to force an
+      immediate connection closure on HTTP/2 connections.
 
     - "tarpit" : this stops the evaluation of the rules and immediately blocks
       the request without responding for a delay specified by "timeout tarpit"

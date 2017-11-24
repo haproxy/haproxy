@@ -11923,6 +11923,46 @@ enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg, struc
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes the "reject" HTTP action. It clears the request and
+ * response buffer without sending any response. It can be useful as an HTTP
+ * alternative to the silent-drop action to defend against DoS attacks, and may
+ * also be used with HTTP/2 to close a connection instead of just a stream.
+ * The txn status is unchanged, indicating no response was sent. The termination
+ * flags will indicate "PR". It always returns ACT_RET_STOP.
+ */
+enum act_return http_action_reject(struct act_rule *rule, struct proxy *px,
+                                   struct session *sess, struct stream *s, int flags)
+{
+	channel_abort(&s->req);
+	channel_abort(&s->res);
+	s->req.analysers = 0;
+	s->res.analysers = 0;
+
+	HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
+	HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	if (sess->listener && sess->listener->counters)
+		HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+
+	return ACT_RET_CONT;
+}
+
+/* parse the "reject" action:
+ * This action takes no argument and returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+enum act_parse_ret parse_http_action_reject(const char **args, int *orig_arg, struct proxy *px,
+                                            struct act_rule *rule, char **err)
+{
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = http_action_reject;
+	return ACT_RET_PRS_OK;
+}
+
 /* This function executes the "capture" action. It executes a fetch expression,
  * turns the result into a string and puts it in a capture slot. It always
  * returns 1. If an error occurs the action is cancelled, but the rule
@@ -12734,6 +12774,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 struct action_kw_list http_req_actions = {
 	.kw = {
 		{ "capture",    parse_http_req_capture },
+		{ "reject",     parse_http_action_reject },
 		{ "set-method", parse_set_req_line },
 		{ "set-path",   parse_set_req_line },
 		{ "set-query",  parse_set_req_line },
