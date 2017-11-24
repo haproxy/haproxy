@@ -560,7 +560,9 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (appctx->st0 == HTTP_CACHE_INIT) {
 		int len = first->len - sizeof(struct cache_entry);
 		if ((shctx_row_data_get(shctx, first, (unsigned char *)bi_end(res->buf), sizeof(struct cache_entry), len)) != 0) {
-			fprintf(stderr, "cache error too big: %d\n", first->len - (int)sizeof(struct cache_entry));
+			/* should never get there, because at the moment, a
+			 * cache object can never be bigger than a buffer */
+			 abort();
 
 			si_applet_cant_put(si);
 			goto out;
