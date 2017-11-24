@@ -2335,12 +2335,13 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	 * used to kill the connection ASAP (eg: limit abuse). In this
 	 * case we send a goaway to close the connection.
 	 */
+	if (!(h2s->flags & H2_SF_RST_SENT) &&
+	    h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
+		return;
+
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
 	    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
 	    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
-		return;
-
-	if (h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
 		return;
 
 	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
@@ -2373,13 +2374,13 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		 * used to kill the connection ASAP (eg: limit abuse). In this
 		 * case we send a goaway to close the connection.
 		 */
+		if (!(h2s->flags & H2_SF_RST_SENT) &&
+		    h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
+			return;
+
 		if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
 		    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
 		    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
-			return;
-
-		if (!(h2s->flags & H2_SF_RST_SENT) &&
-		    h2s_send_rst_stream(h2s->h2c, h2s) <= 0)
 			return;
 
 		h2s->st = H2_SS_CLOSED;
