@@ -2180,6 +2180,7 @@ struct task *process_stream(struct task *t)
 			}
 		}
 		else {
+			si_release_endpoint(si_b);
 			si_b->state = SI_ST_CLO; /* shutw+ini = abort */
 			channel_shutw_now(req);        /* fix buffer flags upon abort */
 			channel_shutr_now(res);
