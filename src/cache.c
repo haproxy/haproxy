@@ -140,6 +140,35 @@ cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct ch
 }
 
 static int
+cache_store_chn_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+{
+	struct cache_st *st = filter->ctx;
+	struct cache *cache = filter->config->conf;
+	struct shared_context *shctx = shctx_ptr(cache);
+
+	if (!(chn->flags & CF_ISRESP))
+		return 1;
+
+	/* Everything should be released in the http_end filter, but we need to do it
+	 * there too, in case of errors */
+
+	if (st && st->first_block) {
+
+		shctx_lock(shctx);
+		shctx_row_dec_hot(shctx, st->first_block);
+		shctx_unlock(shctx);
+
+	}
+	if (st) {
+		pool_free2(pool2_cache_st, st);
+		filter->ctx = NULL;
+	}
+
+	return 1;
+}
+
+
+static int
 cache_store_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct cache_st *st = filter->ctx;
@@ -892,6 +921,7 @@ struct flt_ops cache_ops = {
 
 	/* Handle channels activity */
 	.channel_start_analyze = cache_store_chn_start_analyze,
+	.channel_end_analyze = cache_store_chn_end_analyze,
 
 	/* Filter HTTP requests and responses */
 	.http_headers        = cache_store_http_headers,
