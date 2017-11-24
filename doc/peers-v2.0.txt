@@ -1,0 +1,286 @@
+	Haproxy's peers v2.0 protocol 08/18/2016
+
+Author: Emeric Brun ebrun@haproxy.com
+
+
+I) Encoded Integer and Bitfield.
+
+
+       0  <= X < 240        : 1 byte  (7.875 bits)  [ XXXX XXXX ]
+      240 <= X < 2288       : 2 bytes (11 bits)     [ 1111 XXXX ] [ 0XXX XXXX ]
+     2288 <= X < 264432     : 3 bytes (18 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]   [ 0XXX XXXX ]
+   264432 <= X < 33818864   : 4 bytes (25 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*2 [ 0XXX XXXX ]
+ 33818864 <= X < 4328786160 : 5 bytes (32 bits)     [ 1111 XXXX ] [ 1XXX XXXX ]*3 [ 0XXX XXXX ]
+
+
+
+
+I) Handshake
+
+Each peer try to connect to each others, and each peer is listening
+for a connect from other peers.
+
+
+Client                             Server
+	    Hello Message
+         ------------------------>
+
+	    Status Message
+         <------------------------
+
+1) Hello Message
+
+Hello message is composed of 3 lines:
+
+<protocol> <version>
+<remotepeerid>
+<localpeerid> <processpid> <relativepid>
+
+protocol: current value is "HaproxyS"
+version: current value is "2.0"
+remotepeerid: is the name of the target peer as defined in the configuration peers section.
+localpeerid: is the name of the local peer as defined on cmdline or using hostname.
+processid: is the system process id of the local process.
+relativepid: is the haproxy's relative pid (0 if nbproc == 1)
+
+2) Status Message
+
+Status message is a code followed by a LF.
+
+200: Handshake succeeded
+300: Try again later
+501: Protocol error
+502: Bad version
+503: Local peer name mismatch
+504: Remote peer name mismatch
+
+
+IV) Messages
+
+Messages:
+
+0 - - - - - - - 8 - - - - - - - 16
+  Message Class| Message Type
+
+if Message Type >= 128
+
+0 - - - - - - - 8 - - - - - - - 16 .....
+  Message Class|  Message Type  | encoded data length | data
+
+Message Classes:
+0:   control
+1:   error
+10:  related to stick table updates
+255: reserved
+
+
+1) Control Messages Class
+
+Available message Types for class control:
+0: resync request
+1: resync finished
+2: resync partial
+3: resync confirm
+
+
+a) Resync Request Message
+
+This message is used to request a full resync from a peer
+
+b) Resync Finished Message
+
+This message is used to signal remote peer that locally known updates have been pushed, and local peer was considered up to date.
+
+c) Resync Partial Message
+
+This message is used to signal remote peer that locally known updates have been pushed, and but the local peer is not considered up to date.
+
+d) Resync Confirm Message
+
+This message is an ack for Resync Partial or Finished Messages.
+
+It's allow the remote peer to go back to "on the fly" update process.
+
+
+2) Messages Class
+
+Available message Types for this class are:
+0: protocol error
+1: size limit reached
+
+a) Protocol Message
+
+To signal that a protocol error occured. Connection will be shutdown just after sending this message.
+
+b) Size Limit Error Message
+
+To signal that a message is outsized and can not be correctly handled. Connection will be broken.
+
+
+
+3) Stick Table Updates Messages Class
+
+Available message Types for this class are:
+0: Entry update
+1: Incremental entry update
+2: table definition
+3: table switch
+4: updates ack message.
+
+
+a) Update Message
+
+0 - - - - - - - 8 - - - - - - - 16 .....
+ Message class  | Message Type  | encoded data length | data
+
+
+data is composed like this
+
+0 - - - - - - - 32 .............................
+Local Update ID |  Key value | data values ....
+
+Update ID in a 32bits identifier of the local update.
+
+Key value format depends of the table key type:
+
+- for keytype string
+
+0 .................................
+encoded string length | string value
+
+- for keytype integer
+0 - - - - - - - - - - 32
+encoded integer value |
+
+- for other key type
+
+The value length is annonced in table definition message
+0 ....................
+value
+
+
+b) Incremental Update Message
+
+Same format than update message  except the Update ID is not present, the receiver should
+consider that the update ID is an increment of 1 of the previous considered update message (partial or not)
+
+
+c) Table Definition Message
+
+This message is used by the receiver to identify the stick table concerned by next update messages and
+to know which data is pushed in these updates.
+
+0 - - - - - - - 8 - - - - - - - 16 .....
+ Message class  | Message Type  | encoded data length | data
+
+
+data is composed like this
+
+0 ...................................................................
+Encoded Sender Table Id | Encoded Local Table Name Length | Table Name | Encoded Table Type | Encoded Table Keylen | Encoded Table Data Types Bitfield
+
+
+Encoded Sender Table ID present a the id numerical ID affected to that table by the sender
+It will be used by "Updates Aknowlegement Messages" and "Table Switch Messages".
+
+Encoded Local Table Name Length present the length to read the table name.
+
+"Table Name" is the shared identifier of the table (name of the current table in the configuration)
+It permits the receiver to identify the concerned table. The receiver should keep in memory the matching
+between the "Sender Table ID" to identify it directly in case of "Table Switch Message".
+
+Table Type present the numeric type of key used to store stick table entries:
+integer
+ 0: signed integer
+ 1: IPv4 address
+ 2: IPv6 address
+ 3: string
+ 4: binary
+
+Table Keylen present the key length or max length in case of strings or binary (padded with 0).
+
+Data Types Bitfield present the types of data linearly pushed in next updates message (they will be linearly pushed in the update message)
+Known types are
+bit
+  0: server id
+  1: gpt0
+  2: gpc0
+  3: gpc0 rate
+  4: connections counter
+  5: connection rate
+  6: number of current connections
+  7: sessions counter
+  8: session rate
+  9: http requests counter
+ 10: http requests rate
+ 11: errors counter
+ 12: errors rate
+ 13: bytes in counter
+ 14: bytes in rate
+ 15: bytes out rate
+ 16: bytes out rate
+
+d) Table Switch Message
+
+After a Table Message Define, this message can be used by the receiver to identify the stick table concerned by next update messages.
+
+0 - - - - - - - 8 - - - - - - - 16 .....
+ Message class  | Message Type  | encoded data length | data
+
+
+data is composed like this
+
+
+0 .....................
+encoded Sender Table Id
+
+c) Update Ack Message
+
+0 - - - - - - - 8 - - - - - - - 16 .....
+ Message class  | Message Type  | encoded data length | data
+
+data is composed like this
+
+0 ....................... - - - - - - - - 32
+Encoded Remote Table Id | Update Id
+
+
+Remote Table Id is the numeric identifier of the table on the remote side.
+Update Id is the id of the last update locally commited.
+
+If a re-connection occured, the sender should know he will have to restart the push of updates from this point.
+
+III) Initial full resync process.
+
+
+a) Resync from local old process
+
+An old soft-stopped process will close all established sessions with remote peers and will try to connect to a new
+local process to push all known ending with a Resync Finished Message or a Resync Partial Message (if it it does not consider itself as full updated).
+
+A new process will wait for a an incoming connection from a local process during 5 seconds. It will learn the updates from this
+process until he will receive a Resync Finished Message or a Resync Partial Message. If it receive a  Resync Finished Message it will consider itself
+as fully updated and stops to ask for resync. If it receive a Resync Partial Message it will wait once again for 5 seconds for an other incoming connection from a local process.
+Same thing if the session was broken before receiving any "Resync Partial Message" or "Resync Finished Message".
+
+If one of these 5 seconds timeout expire, the process will try to request resync from a remote connected peer (see b). The process will wait until 5seconds
+if no available remote peers are found.
+
+If the timeout expire, the process will consider itself ass fully updated
+
+b) Resync from remote peers
+
+The process will randomly choose a remote connected peer and ask for a full resync using a Resync Request Message. The process will wait until 5seconds
+if no available remote peers are found.
+
+The chosen remote peer will push its all known data ending with a Resync Finished Message or a Resync Partial Message (if it it does not consider itself as full updated).
+
+If it receive a Resync Finished Message it will consider itself as fully updated and stops to ask for resync.
+
+If it receive a Resync Partial Message, the current peer will be flagged to anymore be requested and any other connected peer will be randomly chosen for a resync request (5s).
+
+If the session is broken before receiving any ot these messages any other connected peer will be randomly chosen for a resync request (5s).
+
+If the timeout expire, the process will consider itself as fully updated
+
+
