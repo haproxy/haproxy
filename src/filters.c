@@ -288,7 +288,7 @@ flt_init_all()
 	struct proxy *px;
 	int err_code = 0;
 
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		err_code |= flt_init(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to initialize filters for proxy '%s'.\n",
@@ -307,7 +307,7 @@ flt_init_all_per_thread()
 	struct proxy *px;
 	int err_code = 0;
 
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		err_code = flt_init_per_thread(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to initialize filters for proxy '%s' for thread %u.\n",
@@ -376,7 +376,7 @@ flt_deinit_all_per_thread()
 {
 	struct proxy *px;
 
-	for (px = proxy; px; px = px->next)
+	for (px = proxies_list; px; px = px->next)
 		flt_deinit_per_thread(px);
 }
 

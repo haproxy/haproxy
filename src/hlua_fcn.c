@@ -943,7 +943,7 @@ int hlua_fcn_post_init(lua_State *L)
 	lua_newtable(L);
 
 	/* List all proxies. */
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		lua_pushstring(L, px->id);
 		hlua_fcn_new_proxy(L, px);
 		lua_settable(L, -3);
@@ -957,7 +957,7 @@ int hlua_fcn_post_init(lua_State *L)
 	lua_newtable(L);
 
 	/* List all proxies. */
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		if (!(px->cap & PR_CAP_FE))
 			continue;
 		lua_pushstring(L, px->id);
@@ -973,7 +973,7 @@ int hlua_fcn_post_init(lua_State *L)
 	lua_newtable(L);
 
 	/* List all proxies. */
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		if (!(px->cap & PR_CAP_BE))
 			continue;
 		lua_pushstring(L, px->id);

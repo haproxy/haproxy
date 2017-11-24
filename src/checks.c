@@ -2332,7 +2332,7 @@ static int start_checks()
 	 * a shorter interval will start independently and will not dictate
 	 * too short an interval for all others.
 	 */
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			if (s->slowstart) {
 				if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
@@ -2376,7 +2376,7 @@ static int start_checks()
 	 * start them after their interval set to the min interval divided by
 	 * the number of servers, weighted by the server's position in the list.
 	 */
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
 			if (init_pid_list()) {
 				ha_alert("Starting [%s] check: out of memory.\n", px->id);

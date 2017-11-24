@@ -1398,9 +1398,9 @@ enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg, struc
 		return ACT_RET_PRS_ERR;
 
 	where = 0;
-	if (proxy->cap & PR_CAP_FE)
+	if (px->cap & PR_CAP_FE)
 		where |= SMP_VAL_FE_HRQ_HDR;
-	if (proxy->cap & PR_CAP_BE)
+	if (px->cap & PR_CAP_BE)
 		where |= SMP_VAL_BE_HRQ_HDR;
 
 	if (!(expr->fetch->val & where)) {

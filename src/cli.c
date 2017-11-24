@@ -170,8 +170,8 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 		return NULL;
 
 	init_new_proxy(fe);
-	fe->next = proxy;
-	proxy = fe;
+	fe->next = proxies_list;
+	proxies_list = fe;
 	fe->last_change = now.tv_sec;
 	fe->id = strdup("GLOBAL");
 	fe->cap = PR_CAP_FE;
@@ -1276,7 +1276,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	 * First, calculates the total number of FD, so that we can let
 	 * the caller know how much he should expects.
 	 */
-	px = proxy;
+	px = proxies_list;
 	while (px) {
 		struct listener *l;
 
@@ -1313,7 +1313,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	cmsg->cmsg_type = SCM_RIGHTS;
 	tmpfd = (int *)CMSG_DATA(cmsg);
 
-	px = proxy;
+	px = proxies_list;
 	/* For each socket, e message is sent, containing the following :
 	 *  Size of the namespace name (or 0 if none), as an unsigned char.
 	 *  The namespace name, if any

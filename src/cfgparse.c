@@ -2747,8 +2747,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		init_new_proxy(curproxy);
-		curproxy->next = proxy;
-		proxy = curproxy;
+		curproxy->next = proxies_list;
+		proxies_list = curproxy;
 		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
 		curproxy->conf.args.line = curproxy->conf.line = linenum;
 		curproxy->last_change = now.tv_sec;
@@ -7546,18 +7546,18 @@ int check_config_validity()
 
 	/* first, we will invert the proxy list order */
 	curproxy = NULL;
-	while (proxy) {
+	while (proxies_list) {
 		struct proxy *next;
 
-		next = proxy->next;
-		proxy->next = curproxy;
-		curproxy = proxy;
+		next = proxies_list->next;
+		proxies_list->next = curproxy;
+		curproxy = proxies_list;
 		if (!next)
 			break;
-		proxy = next;
+		proxies_list = next;
 	}
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
@@ -8819,7 +8819,7 @@ out_uri_auth_compat:
 	}
 
 	/* Make each frontend inherit bind-process from its listeners when not specified. */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		if (curproxy->bind_proc)
 			continue;
 
@@ -8849,14 +8849,14 @@ out_uri_auth_compat:
 	 * are any fatal errors as we must not call it with unresolved proxies.
 	 */
 	if (!cfgerr) {
-		for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 			if (curproxy->cap & PR_CAP_FE)
 				propagate_processes(curproxy, NULL);
 		}
 	}
 
 	/* Bind each unbound backend to all processes when not specified. */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		if (curproxy->bind_proc)
 			continue;
 		curproxy->bind_proc = nbits(global.nbproc);
@@ -8868,7 +8868,7 @@ out_uri_auth_compat:
 
 	/* perform the final checks before creating tasks */
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		struct listener *listener;
 		unsigned int next_id;
 
@@ -9000,7 +9000,7 @@ out_uri_auth_compat:
 	/* automatically compute fullconn if not set. We must not do it in the
 	 * loop above because cross-references are not yet fully resolved.
 	 */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		/* If <fullconn> is not set, let's set it to 10% of the sum of
 		 * the possible incoming frontend's maxconns.
 		 */
@@ -9019,7 +9019,7 @@ out_uri_auth_compat:
 	 * Recount currently required checks.
 	 */
 
-	for (curproxy=proxy; curproxy; curproxy=curproxy->next) {
+	for (curproxy=proxies_list; curproxy; curproxy=curproxy->next) {
 		int optnum;
 
 		for (optnum = 0; cfg_opts[optnum].name; optnum++)
@@ -9032,7 +9032,7 @@ out_uri_auth_compat:
 	}
 
 	/* compute the required process bindings for the peers */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next)
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next)
 		if (curproxy->table.peers.p)
 			curproxy->table.peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
 
@@ -9099,7 +9099,7 @@ out_uri_auth_compat:
 	 * be done earlier because the data size may be discovered while parsing
 	 * other proxies.
 	 */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		if (curproxy->state == PR_STSTOPPED)
 			continue;
 
@@ -9147,7 +9147,7 @@ out_uri_auth_compat:
 
 	/* Update server_state_file_name to backend name if backend is supposed to use
 	 * a server-state file locally defined and none has been provided */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_LOCAL &&
 		    curproxy->server_state_file_name == NULL)
 			curproxy->server_state_file_name = strdup(curproxy->id);

@@ -3134,7 +3134,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 		case STAT_ST_INIT:
 			appctx->ctx.table.proxy = appctx->ctx.table.target;
 			if (!appctx->ctx.table.proxy)
-				appctx->ctx.table.proxy = proxy;
+				appctx->ctx.table.proxy = proxies_list;
 
 			appctx->ctx.table.entry = NULL;
 			appctx->st2 = STAT_ST_INFO;

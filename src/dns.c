@@ -1897,7 +1897,7 @@ static int dns_finalize_config(void)
 		task_wakeup(t, TASK_WOKEN_INIT);
 	}
 
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;
 
 		for (srv = px->srv; srv; srv = srv->next) {

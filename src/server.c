@@ -2953,7 +2953,6 @@ void apply_server_state(void)
 	char globalfilepath[MAXPATHLEN + 1];
 	char localfilepath[MAXPATHLEN + 1];
 	int len, fileopenerr, globalfilepathlen, localfilepathlen;
-	extern struct proxy *proxy;
 	struct proxy *curproxy, *bk;
 	struct server *srv;
 
@@ -3006,7 +3005,7 @@ void apply_server_state(void)
 		globalfilepath[0] = '\0';
 
 	/* read servers state from local file */
-	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		/* servers are only in backends */
 		if (!(curproxy->cap & PR_CAP_BE))
 			continue;
@@ -3932,7 +3931,7 @@ int srv_init_addr(void)
 	struct proxy *curproxy;
 	int return_code = 0;
 
-	curproxy = proxy;
+	curproxy = proxies_list;
 	while (curproxy) {
 		struct server *srv;
 

@@ -2796,7 +2796,7 @@ spoe_sig_stop(struct sig_handler *sh)
 {
 	struct proxy *p;
 
-	p = proxy;
+	p = proxies_list;
 	while (p) {
 		struct flt_conf *fconf;
 

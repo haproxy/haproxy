@@ -555,7 +555,7 @@ static void mworker_cleanlisteners()
 	struct listener *l, *l_next;
 	struct proxy *curproxy;
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 			/* does not close if the FD is inherited with fd@
@@ -821,7 +821,7 @@ static void sig_listen(struct sig_handler *sh)
  */
 static void sig_dump_state(struct sig_handler *sh)
 {
-	struct proxy *p = proxy;
+	struct proxy *p = proxies_list;
 
 	ha_warning("SIGHUP received, dumping servers states.\n");
 	while (p) {
@@ -1540,7 +1540,7 @@ static void init(int argc, char **argv)
 	/* Apply server states */
 	apply_server_state();
 
-	for (px = proxy; px; px = px->next)
+	for (px = proxies_list; px; px = px->next)
 		srv_compute_all_admin_states(px);
 
 	/* Apply servers' configured address */
@@ -1558,7 +1558,7 @@ static void init(int argc, char **argv)
 			if (pr->peers_fe)
 				break;
 
-		for (px = proxy; px; px = px->next)
+		for (px = proxies_list; px; px = px->next)
 			if (px->state == PR_STNEW && !LIST_ISEMPTY(&px->conf.listeners))
 				break;
 
@@ -1745,7 +1745,7 @@ static void init(int argc, char **argv)
 		struct proxy *cur;
 		int nbfe = 0, nbbe = 0;
 
-		for (cur = proxy; cur; cur = cur->next) {
+		for (cur = proxies_list; cur; cur = cur->next) {
 			if (cur->options2 & (PR_O2_SPLIC_ANY)) {
 				if (cur->cap & PR_CAP_FE)
 					nbfe += cur->maxconn;
@@ -1926,7 +1926,7 @@ static void deinit_stick_rules(struct list *rules)
 
 void deinit(void)
 {
-	struct proxy *p = proxy, *p0;
+	struct proxy *p = proxies_list, *p0;
 	struct cap_hdr *h,*h_next;
 	struct server *s,*s_next;
 	struct listener *l,*l_next;
@@ -2823,7 +2823,7 @@ int main(int argc, char **argv)
 		}
 
 		/* we might have to unbind some proxies from some processes */
-		px = proxy;
+		px = proxies_list;
 		while (px != NULL) {
 			if (px->bind_proc && px->state != PR_STSTOPPED) {
 				if (!(px->bind_proc & (1UL << proc))) {

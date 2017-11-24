@@ -9184,7 +9184,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		}
 		else if (strcmp(args[cur_arg], "if") == 0 ||
 			 strcmp(args[cur_arg], "unless") == 0) {
-			cond = build_acl_cond(file, linenum, &proxy->acl, curproxy, (const char **)args + cur_arg, errmsg);
+			cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + cur_arg, errmsg);
 			if (!cond) {
 				memprintf(errmsg, "error in condition: %s", *errmsg);
 				return NULL;
@@ -11873,9 +11873,9 @@ enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct p
 	}
 
 	LIST_INIT(&rule->arg.http.logfmt);
-	proxy->conf.args.ctx = ARGC_HRQ;
-	if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.http.logfmt, LOG_OPT_HTTP,
-	                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
+	px->conf.args.ctx = ARGC_HRQ;
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.logfmt, LOG_OPT_HTTP,
+	                            (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -12102,7 +12102,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 			return ACT_RET_PRS_ERR;
 		}
 
-		proxy->conf.args.ctx = ARGC_CAP;
+		px->conf.args.ctx = ARGC_CAP;
 
 		if (!args[cur_arg]) {
 			memprintf(err, "missing length value");
@@ -12162,7 +12162,7 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 		}
 		cur_arg++;
 
-		proxy->conf.args.ctx = ARGC_CAP;
+		px->conf.args.ctx = ARGC_CAP;
 
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture_by_id;
@@ -12302,7 +12302,7 @@ enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, stru
 	}
 	cur_arg++;
 
-	proxy->conf.args.ctx = ARGC_CAP;
+	px->conf.args.ctx = ARGC_CAP;
 
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_res_capture_by_id;
@@ -12399,7 +12399,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			return 0;
 		}
 
-		appctx->ctx.errors.px = proxy;
+		appctx->ctx.errors.px = proxies_list;
 		appctx->ctx.errors.bol = 0;
 		appctx->ctx.errors.ptr = -1;
 	}

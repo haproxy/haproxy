@@ -840,7 +840,7 @@ int cfg_cache_postparser()
 	int err = 0;
 	struct flt_conf *fconf;
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 
 		/* resolve the http response cache name to a ptr in the action rule */
 		list_for_each_entry(hresrule, &curproxy->http_res_rules, list) {

@@ -2550,7 +2550,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 			}
 		}
 
-		appctx->ctx.stats.px = proxy;
+		appctx->ctx.stats.px = proxies_list;
 		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
@@ -3537,7 +3537,7 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 	    (clrall && !cli_has_level(appctx, ACCESS_LVL_ADMIN)))
 		return 1;
 
-	for (px = proxy; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		if (clrall) {
 			memset(&px->be_counters, 0, sizeof(px->be_counters));
 			memset(&px->fe_counters, 0, sizeof(px->fe_counters));

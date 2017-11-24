@@ -54,7 +54,7 @@
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
-struct proxy *proxy  = NULL;	/* list of all existing proxies */
+struct proxy *proxies_list  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
 struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
@@ -783,7 +783,7 @@ int start_proxies(int verbose)
 	int pxerr;
 	char msg[100];
 
-	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		if (curproxy->state != PR_STNEW)
 			continue; /* already initialized */
 
@@ -949,7 +949,7 @@ struct task *hard_stop(struct task *t)
 
 	ha_warning("soft-stop running for too long, performing a hard-stop.\n");
 	send_log(NULL, LOG_WARNING, "soft-stop running for too long, performing a hard-stop.\n");
-	p = proxy;
+	p = proxies_list;
 	while (p) {
 		if ((p->cap & PR_CAP_FE) && (p->feconn > 0)) {
 			ha_warning("Proxy %s hard-stopped (%d remaining conns will be closed).\n",
@@ -990,7 +990,7 @@ void soft_stop(void)
 			ha_alert("out of memory trying to allocate the hard-stop task.\n");
 		}
 	}
-	p = proxy;
+	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		/* Zombie proxy, let's close the file descriptors */
@@ -1186,7 +1186,7 @@ void pause_proxies(void)
 	struct peers *prs;
 
 	err = 0;
-	p = proxy;
+	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		err |= !pause_proxy(p);
@@ -1220,7 +1220,7 @@ void resume_proxies(void)
 	struct peers *prs;
 
 	err = 0;
-	p = proxy;
+	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		err |= !resume_proxy(p);
@@ -1482,14 +1482,13 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
-	extern struct proxy *proxy;
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
 
 	if (appctx->st2 == STAT_ST_INIT) {
 		if (!appctx->ctx.cli.p0)
-			appctx->ctx.cli.p0 = proxy;
+			appctx->ctx.cli.p0 = proxies_list;
 		appctx->st2 = STAT_ST_HEAD;
 	}
 
@@ -1523,7 +1522,6 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
-	extern struct proxy *proxy;
 	struct stream_interface *si = appctx->owner;
 	struct proxy *curproxy;
 
@@ -1535,7 +1533,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 			si_applet_cant_put(si);
 			return 0;
 		}
-		appctx->ctx.cli.p0 = proxy;
+		appctx->ctx.cli.p0 = proxies_list;
 	}
 
 	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
