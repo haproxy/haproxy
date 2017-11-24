@@ -104,6 +104,7 @@ struct h2c {
 	int32_t mfs; /* mux's max frame size */
 
 	int timeout;        /* idle timeout duration in ticks */
+	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
@@ -332,7 +333,10 @@ static int h2c_frt_init(struct connection *conn)
 		goto fail;
 
 
-	h2c->timeout = sess->fe->timeout.client;
+	h2c->shut_timeout = h2c->timeout = sess->fe->timeout.client;
+	if (tick_isset(sess->fe->timeout.clientfin))
+		h2c->shut_timeout = sess->fe->timeout.clientfin;
+
 	h2c->task = NULL;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new(tid_bit);
@@ -2143,7 +2147,7 @@ static int h2_wake(struct connection *conn)
 
 	if (h2c->task) {
 		if (eb_is_empty(&h2c->streams_by_id)) {
-			h2c->task->expire = tick_add(now_ms, h2c->timeout);
+			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
 		else
@@ -2175,6 +2179,7 @@ static struct task *h2_timeout_task(struct task *t)
 	}
 
 	/* try to send but no need to insist */
+	h2c->last_sid = h2c->max_id;
 	if (h2c_send_goaway_error(h2c, NULL) <= 0)
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
@@ -2310,7 +2315,7 @@ static void h2_detach(struct conn_stream *cs)
 		}
 		else if (h2c->task) {
 			if (eb_is_empty(&h2c->streams_by_id)) {
-				h2c->task->expire = tick_add(now_ms, h2c->timeout);
+				h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 				task_queue(h2c->task);
 			}
 			else

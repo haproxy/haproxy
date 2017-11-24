@@ -9826,7 +9826,9 @@ timeout client-fin <timeout>
   FIN_WAIT state for too long when clients do not disconnect cleanly. This
   problem is particularly common long connections such as RDP or WebSocket.
   Note that this timeout can override "timeout tunnel" when a connection shuts
-  down in one direction.
+  down in one direction. It is applied to idle HTTP/2 connections once a GOAWAY
+  frame was sent, often indicating an expectation that the connection quickly
+  ends.
 
   This parameter is specific to frontends, but can be specified once for all in
   "defaults" sections. By default it is not set, so half-closed connections
