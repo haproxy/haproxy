@@ -2441,13 +2441,11 @@ struct task *process_stream(struct task *t)
 		if (si_b->exp)
 			t->expire = tick_first(t->expire, si_b->exp);
 
-#ifdef DEBUG_FULL
-		fprintf(stderr,
+		DPRINTF(stderr,
 			"[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u"
 			" rep->rex=%u rep->wex=%u, si[0].exp=%u, si[1].exp=%u, cs=%d, ss=%d\n",
 			now_ms, t->expire, req->rex, req->wex, req->analyse_exp,
 			res->rex, res->wex, si_f->exp, si_b->exp, si_f->state, si_b->state);
-#endif
 
 #ifdef DEBUG_DEV
 		/* this may only happen when no timeout is set or in case of an FSM bug */

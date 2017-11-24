@@ -770,9 +770,7 @@ int assign_server_address(struct stream *s)
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = cs_conn(objt_cs(s->si[1].end));
 
-#ifdef DEBUG_FULL
-	fprintf(stderr,"assign_server_address : s=%p\n",s);
-#endif
+	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
