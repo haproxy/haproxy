@@ -9855,6 +9855,8 @@ timeout clitimeout <timeout> (deprecated)
   during startup because it may results in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
+  This also applies to HTTP2 connections, which will be closed with GOAWAY.
+
   This parameter replaces the old, deprecated "clitimeout". It is recommended
   to use it to write new configurations. The form "timeout clitimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
@@ -9959,6 +9961,10 @@ timeout http-keep-alive <timeout>
   are not set, "timeout client" still applies at the lower level. It should be
   set in the frontend to take effect, unless the frontend is in TCP mode, in
   which case the HTTP backend's timeout will be used.
+
+  When using HTTP2 "timeout client" is applied instead. This is so we can keep
+  using short keep-alive timeouts in HTTP/1.1 while using longer ones in HTTP2
+  (where we only have one connection per client and a connection setup).
 
   See also : "timeout http-request", "timeout client".
 
