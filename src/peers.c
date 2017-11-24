@@ -1891,12 +1891,12 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	sess = session_new(p, NULL, &appctx->obj_type);
 	if (!sess) {
-		Alert("out of memory in peer_session_create().\n");
+		ha_alert("out of memory in peer_session_create().\n");
 		goto out_free_appctx;
 	}
 
 	if ((s = stream_new(sess, &appctx->obj_type)) == NULL) {
-		Alert("Failed to initialize stream in peer_session_create().\n");
+		ha_alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_sess;
 	}
 

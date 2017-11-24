@@ -460,7 +460,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	chunk_reset(tmp);
 
 	if (severity < 0 || severity > 7) {
-		Warning("socket command feedback with invalid severity %d", severity);
+		ha_warning("socket command feedback with invalid severity %d", severity);
 		chunk_printf(tmp, "[%d]: ", severity);
 	}
 	else {
@@ -472,7 +472,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 				chunk_printf(tmp, "[%s]: ", log_levels[severity]);
 				break;
 			default:
-				Warning("Unrecognized severity output %d", severity_output);
+				ha_warning("Unrecognized severity output %d", severity_output);
 		}
 	}
 	chunk_appendf(tmp, "%s", msg);
@@ -1254,16 +1254,16 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	/* Temporary set the FD in blocking mode, that will make our life easier */
 	old_fcntl = fcntl(fd, F_GETFL);
 	if (old_fcntl < 0) {
-		Warning("Couldn't get the flags for the unix socket\n");
+		ha_warning("Couldn't get the flags for the unix socket\n");
 		goto out;
 	}
 	cmsgbuf = malloc(CMSG_SPACE(sizeof(int) * MAX_SEND_FD));
 	if (!cmsgbuf) {
-		Warning("Failed to allocate memory to send sockets\n");
+		ha_warning("Failed to allocate memory to send sockets\n");
 		goto out;
 	}
 	if (fcntl(fd, F_SETFL, old_fcntl &~ O_NONBLOCK) == -1) {
-		Warning("Cannot make the unix socket blocking\n");
+		ha_warning("Cannot make the unix socket blocking\n");
 		goto out;
 	}
 	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv));
@@ -1300,7 +1300,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	msghdr.msg_iovlen = 1;
 	ret = sendmsg(fd, &msghdr, 0);
 	if (ret != sizeof(tot_fd_nb)) {
-		Warning("Failed to send the number of sockets to send\n");
+		ha_warning("Failed to send the number of sockets to send\n");
 		goto out;
 	}
 
@@ -1326,7 +1326,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 	 */
 	tmpbuf = malloc(MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
 	if (tmpbuf == NULL) {
-		Warning("Failed to allocate memory to transfer socket informations\n");
+		ha_warning("Failed to allocate memory to transfer socket informations\n");
 		goto out;
 	}
 	iov.iov_base = tmpbuf;
@@ -1370,7 +1370,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 			if ((!(i % MAX_SEND_FD))) {
 				iov.iov_len = curoff;
 				if (sendmsg(fd, &msghdr, 0) != curoff) {
-					Warning("Failed to transfer sockets\n");
+					ha_warning("Failed to transfer sockets\n");
 					printf("errno %d\n", errno);
 					goto out;
 				}
@@ -1380,7 +1380,7 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 					    sizeof(tot_fd_nb), 0);
 				} while (ret == -1 && errno == EINTR);
 				if (ret <= 0) {
-					Warning("Unexpected error while transferring sockets\n");
+					ha_warning("Unexpected error while transferring sockets\n");
 					goto out;
 				}
 				curoff = 0;
@@ -1394,14 +1394,14 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 		cmsg->cmsg_len = CMSG_LEN((i % MAX_SEND_FD) * sizeof(int));
 		msghdr.msg_controllen = CMSG_SPACE(sizeof(int) *  (i % MAX_SEND_FD));
 		if (sendmsg(fd, &msghdr, 0) != curoff) {
-			Warning("Failed to transfer sockets\n");
+			ha_warning("Failed to transfer sockets\n");
 			goto out;
 		}
 	}
 
 out:
 	if (old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1) {
-		Warning("Cannot make the unix socket non-blocking\n");
+		ha_warning("Cannot make the unix socket non-blocking\n");
 		goto out;
 	}
 	appctx->st0 = CLI_ST_END;

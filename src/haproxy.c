@@ -685,14 +685,14 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
-	Warning("Reexecuting Master process\n");
+	ha_warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
 
-	Warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
+	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
 	return;
 
 alloc_error:
-	Warning("Failed to reexecute the master processs [%d]: Cannot allocate memory\n", pid);
+	ha_warning("Failed to reexecute the master processs [%d]: Cannot allocate memory\n", pid);
 	return;
 }
 
@@ -730,7 +730,7 @@ restart_wait:
 					sd_notify(0, "STOPPING=1");
 				}
 #endif
-				Warning("Exiting Master process...\n");
+				ha_warning("Exiting Master process...\n");
 				mworker_kill(sig);
 				mworker_unregister_signals();
 			}
@@ -738,7 +738,7 @@ restart_wait:
 		}
 
 		if (exitpid == -1 && errno == ECHILD) {
-			Warning("All workers are left. Leaving... (%d)\n", status);
+			ha_warning("All workers are left. Leaving... (%d)\n", status);
 			atexit_flag = 0;
 			exit(status); /* parent must leave using the latest status code known */
 		}
@@ -753,18 +753,18 @@ restart_wait:
 			status = 255;
 
 		if (!children) {
-			Warning("Worker %d left with exit code %d\n", exitpid, status);
+			ha_warning("Worker %d left with exit code %d\n", exitpid, status);
 		} else {
 			/* check if exited child was in the current children list */
 			if (current_child(exitpid)) {
-				Alert("Current worker %d left with exit code %d\n", exitpid, status);
+				ha_alert("Current worker %d left with exit code %d\n", exitpid, status);
 				if (status != 0 && status != 130 && status != 143
 				    && global.tune.options & GTUNE_EXIT_ONFAILURE) {
-					Alert("exit-on-failure: killing every workers with SIGTERM\n");
+					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
 					mworker_kill(SIGTERM);
 				}
 			} else {
-				Warning("Former worker %d left with exit code %d\n", exitpid, status);
+				ha_warning("Former worker %d left with exit code %d\n", exitpid, status);
 				delete_oldpid(exitpid);
 			}
 		}
@@ -782,7 +782,7 @@ void reexec_on_failure()
 
 	setenv("HAPROXY_MWORKER_WAIT_ONLY", "1", 1);
 
-	Warning("Reexecuting Master process in waitpid mode\n");
+	ha_warning("Reexecuting Master process in waitpid mode\n");
 	mworker_reload();
 }
 
@@ -823,7 +823,7 @@ static void sig_dump_state(struct sig_handler *sh)
 {
 	struct proxy *p = proxy;
 
-	Warning("SIGHUP received, dumping servers states.\n");
+	ha_warning("SIGHUP received, dumping servers states.\n");
 	while (p) {
 		struct server *s = p->srv;
 
@@ -834,7 +834,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
 			             s->cur_sess, s->nbpend, s->counters.cum_sess);
-			Warning("%s\n", trash.str);
+			ha_warning("%s\n", trash.str);
 			send_log(p, LOG_NOTICE, "%s\n", trash.str);
 			s = s->next;
 		}
@@ -858,7 +858,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             p->id, p->srv_act, p->srv_bck,
 			             p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		}
-		Warning("%s\n", trash.str);
+		ha_warning("%s\n", trash.str);
 		send_log(p, LOG_NOTICE, "%s\n", trash.str);
 
 		p = p->next;
@@ -891,9 +891,9 @@ static void cfgfiles_expand_directories(void)
 		int dir_entries_it;
 
 		if (stat(wl->s, &file_stat)) {
-			Alert("Cannot open configuration file/directory %s : %s\n",
-			      wl->s,
-			      strerror(errno));
+			ha_alert("Cannot open configuration file/directory %s : %s\n",
+				 wl->s,
+				 strerror(errno));
 			exit(1);
 		}
 
@@ -904,9 +904,9 @@ static void cfgfiles_expand_directories(void)
 
 		dir_entries_nb = scandir(wl->s, &dir_entries, NULL, alphasort);
 		if (dir_entries_nb < 0) {
-			Alert("Cannot open configuration directory %s : %s\n",
-			      wl->s,
-			      strerror(errno));
+			ha_alert("Cannot open configuration directory %s : %s\n",
+				 wl->s,
+				 strerror(errno));
 			exit(1);
 		}
 
@@ -924,15 +924,15 @@ static void cfgfiles_expand_directories(void)
 				goto next_dir_entry;
 
 			if (!memprintf(&filename, "%s/%s", wl->s, dir_entry->d_name)) {
-				Alert("Cannot load configuration files %s : out of memory.\n",
-				      filename);
+				ha_alert("Cannot load configuration files %s : out of memory.\n",
+					 filename);
 				exit(1);
 			}
 
 			if (stat(filename, &file_stat)) {
-				Alert("Cannot open configuration file %s : %s\n",
-				      wl->s,
-				      strerror(errno));
+				ha_alert("Cannot open configuration file %s : %s\n",
+					 wl->s,
+					 strerror(errno));
 				exit(1);
 			}
 
@@ -943,9 +943,9 @@ static void cfgfiles_expand_directories(void)
 				goto next_dir_entry;
 
 			if (!list_append_word(&wl->list, filename, &err)) {
-				Alert("Cannot load configuration files %s : %s\n",
-				      filename,
-				      err);
+				ha_alert("Cannot load configuration files %s : %s\n",
+					 filename,
+					 err);
 				exit(1);
 			}
 
@@ -986,13 +986,13 @@ static int get_old_sockets(const char *unixsocket)
 	memset(&msghdr, 0, sizeof(msghdr));
 	cmsgbuf = malloc(CMSG_SPACE(sizeof(int)) * MAX_SEND_FD);
 	if (!cmsgbuf) {
-		Warning("Failed to allocate memory to send sockets\n");
+		ha_warning("Failed to allocate memory to send sockets\n");
 		goto out;
 	}
 	sock = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0) {
-		Warning("Failed to connect to the old process socket '%s'\n",
-		    unixsocket);
+		ha_warning("Failed to connect to the old process socket '%s'\n",
+			   unixsocket);
 		goto out;
 	}
 	strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path));
@@ -1000,8 +1000,8 @@ static int get_old_sockets(const char *unixsocket)
 	addr.sun_family = PF_UNIX;
 	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
-		Warning("Failed to connect to the old process socket '%s'\n",
-		    unixsocket);
+		ha_warning("Failed to connect to the old process socket '%s'\n",
+			   unixsocket);
 		goto out;
 	}
 	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv));
@@ -1012,7 +1012,7 @@ static int get_old_sockets(const char *unixsocket)
 	send(sock, "_getsocks\n", strlen("_getsocks\n"), 0);
 	/* First, get the number of file descriptors to be received */
 	if (recvmsg(sock, &msghdr, MSG_WAITALL) != sizeof(fd_nb)) {
-		Warning("Failed to get the number of sockets to be transferred !\n");
+		ha_warning("Failed to get the number of sockets to be transferred !\n");
 		goto out;
 	}
 	if (fd_nb == 0) {
@@ -1021,12 +1021,12 @@ static int get_old_sockets(const char *unixsocket)
 	}
 	tmpbuf = malloc(fd_nb * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
 	if (tmpbuf == NULL) {
-		Warning("Failed to allocate memory while receiving sockets\n");
+		ha_warning("Failed to allocate memory while receiving sockets\n");
 		goto out;
 	}
 	tmpfd = malloc(fd_nb * sizeof(int));
 	if (tmpfd == NULL) {
-		Warning("Failed to allocate memory while receiving sockets\n");
+		ha_warning("Failed to allocate memory while receiving sockets\n");
 		goto out;
 	}
 	msghdr.msg_control = cmsgbuf;
@@ -1054,7 +1054,7 @@ static int get_old_sockets(const char *unixsocket)
 				size_t totlen = cmsg->cmsg_len -
 				    CMSG_LEN(0);
 				if (totlen / sizeof(int) + got_fd > fd_nb) {
-					Warning("Got to many sockets !\n");
+					ha_warning("Got to many sockets !\n");
 					goto out;
 				}
 				/*
@@ -1069,8 +1069,8 @@ static int get_old_sockets(const char *unixsocket)
 	} while (got_fd < fd_nb);
 
 	if (got_fd != fd_nb) {
-		Warning("We didn't get the expected number of sockets (expecting %d got %d)\n",
-		    fd_nb, got_fd);
+		ha_warning("We didn't get the expected number of sockets (expecting %d got %d)\n",
+			   fd_nb, got_fd);
 		goto out;
 	}
 	maxoff = curoff;
@@ -1082,32 +1082,32 @@ static int get_old_sockets(const char *unixsocket)
 
 		xfer_sock = calloc(1, sizeof(*xfer_sock));
 		if (!xfer_sock) {
-			Warning("Failed to allocate memory in get_old_sockets() !\n");
+			ha_warning("Failed to allocate memory in get_old_sockets() !\n");
 			break;
 		}
 		xfer_sock->fd = -1;
 
 		socklen = sizeof(xfer_sock->addr);
 		if (getsockname(fd, (struct sockaddr *)&xfer_sock->addr, &socklen) != 0) {
-			Warning("Failed to get socket address\n");
+			ha_warning("Failed to get socket address\n");
 			free(xfer_sock);
 			xfer_sock = NULL;
 			continue;
 		}
 		if (curoff >= maxoff) {
-			Warning("Inconsistency while transferring sockets\n");
+			ha_warning("Inconsistency while transferring sockets\n");
 			goto out;
 		}
 		len = tmpbuf[curoff++];
 		if (len > 0) {
 			/* We have a namespace */
 			if (curoff + len > maxoff) {
-				Warning("Inconsistency while transferring sockets\n");
+				ha_warning("Inconsistency while transferring sockets\n");
 				goto out;
 			}
 			xfer_sock->namespace = malloc(len + 1);
 			if (!xfer_sock->namespace) {
-				Warning("Failed to allocate memory while transferring sockets\n");
+				ha_warning("Failed to allocate memory while transferring sockets\n");
 				goto out;
 			}
 			memcpy(xfer_sock->namespace, &tmpbuf[curoff], len);
@@ -1115,19 +1115,19 @@ static int get_old_sockets(const char *unixsocket)
 			curoff += len;
 		}
 		if (curoff >= maxoff) {
-			Warning("Inconsistency while transferring sockets\n");
+			ha_warning("Inconsistency while transferring sockets\n");
 			goto out;
 		}
 		len = tmpbuf[curoff++];
 		if (len > 0) {
 			/* We have an interface */
 			if (curoff + len > maxoff) {
-				Warning("Inconsistency while transferring sockets\n");
+				ha_warning("Inconsistency while transferring sockets\n");
 				goto out;
 			}
 			xfer_sock->iface = malloc(len + 1);
 			if (!xfer_sock->iface) {
-				Warning("Failed to allocate memory while transferring sockets\n");
+				ha_warning("Failed to allocate memory while transferring sockets\n");
 				goto out;
 			}
 			memcpy(xfer_sock->iface, &tmpbuf[curoff], len);
@@ -1135,7 +1135,7 @@ static int get_old_sockets(const char *unixsocket)
 			curoff += len;
 		}
 		if (curoff + sizeof(int) > maxoff) {
-			Warning("Inconsistency while transferring sockets\n");
+			ha_warning("Inconsistency while transferring sockets\n");
 			goto out;
 		}
 		memcpy(&xfer_sock->options, &tmpbuf[curoff],
@@ -1189,7 +1189,7 @@ static char **copy_argv(int argc, char **argv)
 
 	newargv = calloc(argc + 2, sizeof(char *));
 	if (newargv == NULL) {
-		Warning("Cannot allocate memory\n");
+		ha_warning("Cannot allocate memory\n");
 		return NULL;
 	}
 
@@ -1231,7 +1231,7 @@ static void init(int argc, char **argv)
 	next_argv = copy_argv(argc, argv);
 
 	if (!init_trash_buffers(1)) {
-		Alert("failed to initialize trash buffers.\n");
+		ha_alert("failed to initialize trash buffers.\n");
 		exit(1);
 	}
 
@@ -1367,7 +1367,7 @@ static void init(int argc, char **argv)
 #if defined(USE_SYSTEMD)
 				global.tune.options |= GTUNE_USE_SYSTEMD;
 #else
-				Alert("master-worker mode with systemd support (-Ws) requested, but not compiled. Use master-worker mode (-W) if you are not using Type=notify in your unit file or recompile with USE_SYSTEMD=1.\n\n");
+				ha_alert("master-worker mode with systemd support (-Ws) requested, but not compiled. Use master-worker mode (-W) if you are not using Type=notify in your unit file or recompile with USE_SYSTEMD=1.\n\n");
 				usage(progname);
 #endif
 			}
@@ -1377,11 +1377,11 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_QUIET;
 			else if (*flag == 'x') {
 				if (argc <= 1 || argv[1][0] == '-') {
-					Alert("Unix socket path expected with the -x flag\n\n");
+					ha_alert("Unix socket path expected with the -x flag\n\n");
 					usage(progname);
 				}
 				if (old_unixsocket)
-					Warning("-x option already set, overwriting the value\n");
+					ha_warning("-x option already set, overwriting the value\n");
 				old_unixsocket = argv[1];
 
 				argv++;
@@ -1397,7 +1397,7 @@ static void init(int argc, char **argv)
 				while (argc > 1 && argv[1][0] != '-') {
 					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
 					if (!oldpids) {
-						Alert("Cannot allocate old pid : out of memory.\n");
+						ha_alert("Cannot allocate old pid : out of memory.\n");
 						exit(1);
 					}
 					argc--; argv++;
@@ -1412,9 +1412,9 @@ static void init(int argc, char **argv)
 				argv++; argc--;
 				while (argc > 0) {
 					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {
-						Alert("Cannot load configuration file/directory %s : %s\n",
-						      *argv,
-						      err_msg);
+						ha_alert("Cannot load configuration file/directory %s : %s\n",
+							 *argv,
+							 err_msg);
 						exit(1);
 					}
 					argv++; argc--;
@@ -1434,9 +1434,9 @@ static void init(int argc, char **argv)
 				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
 				case 'f' :
 					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {
-						Alert("Cannot load configuration file/directory %s : %s\n",
-						      *argv,
-						      err_msg);
+						ha_alert("Cannot load configuration file/directory %s : %s\n",
+							 *argv,
+							 err_msg);
 						exit(1);
 					}
 					break;
@@ -1466,7 +1466,7 @@ static void init(int argc, char **argv)
 	}
 
 	if (change_dir && chdir(change_dir) < 0) {
-		Alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
+		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
 		exit(1);
 	}
 
@@ -1485,12 +1485,12 @@ static void init(int argc, char **argv)
 
 		ret = readcfgfile(wl->s);
 		if (ret == -1) {
-			Alert("Could not open configuration file %s : %s\n",
-			      wl->s, strerror(errno));
+			ha_alert("Could not open configuration file %s : %s\n",
+				 wl->s, strerror(errno));
 			exit(1);
 		}
 		if (ret & (ERR_ABORT|ERR_FATAL))
-			Alert("Error(s) found in configuration file : %s\n", wl->s);
+			ha_alert("Error(s) found in configuration file : %s\n", wl->s);
 		err_code |= ret;
 		if (err_code & ERR_ABORT)
 			exit(1);
@@ -1501,7 +1501,7 @@ static void init(int argc, char **argv)
 	 * or failed memory allocations.
 	 */
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		Alert("Fatal errors found in configuration.\n");
+		ha_alert("Fatal errors found in configuration.\n");
 		exit(1);
 	}
 
@@ -1509,7 +1509,7 @@ static void init(int argc, char **argv)
 
 	err_code |= check_config_validity();
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		Alert("Fatal errors found in configuration.\n");
+		ha_alert("Fatal errors found in configuration.\n");
 		exit(1);
 	}
 
@@ -1532,7 +1532,7 @@ static void init(int argc, char **argv)
 #ifdef CONFIG_HAP_NS
         err_code |= netns_init();
         if (err_code & (ERR_ABORT|ERR_FATAL)) {
-                Alert("Failed to initialize namespace support.\n");
+                ha_alert("Failed to initialize namespace support.\n");
                 exit(1);
         }
 #endif
@@ -1546,7 +1546,7 @@ static void init(int argc, char **argv)
 	/* Apply servers' configured address */
 	err_code |= srv_init_addr();
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		Alert("Failed to initialize server(s) addr.\n");
+		ha_alert("Failed to initialize server(s) addr.\n");
 		exit(1);
 	}
 
@@ -1573,7 +1573,7 @@ static void init(int argc, char **argv)
 
 	global_listener_queue_task = task_new(MAX_THREADS_MASK);
 	if (!global_listener_queue_task) {
-		Alert("Out of memory when initializing global task\n");
+		ha_alert("Out of memory when initializing global task\n");
 		exit(1);
 	}
 	/* very simple initialization, users will queue the task if needed */
@@ -1679,12 +1679,12 @@ static void init(int argc, char **argv)
 		global.maxsslconn = round_2dig(global.maxsslconn);
 
 		if (sslmem <= 0 || global.maxsslconn < sides) {
-			Alert("Cannot compute the automatic maxsslconn because global.maxconn is already too "
-			      "high for the global.memmax value (%d MB). The absolute maximum possible value "
-			      "without SSL is %d, but %d was found and SSL is in use.\n",
-			      global.rlimit_memmax,
-			      (int)(mem / (STREAM_MAX_COST + 2 * global.tune.bufsize)),
-			      global.maxconn);
+			ha_alert("Cannot compute the automatic maxsslconn because global.maxconn is already too "
+				 "high for the global.memmax value (%d MB). The absolute maximum possible value "
+				 "without SSL is %d, but %d was found and SSL is in use.\n",
+				 global.rlimit_memmax,
+				 (int)(mem / (STREAM_MAX_COST + 2 * global.tune.bufsize)),
+				 global.maxconn);
 			exit(1);
 		}
 
@@ -1719,12 +1719,12 @@ static void init(int argc, char **argv)
 #endif /* SYSTEM_MAXCONN */
 
 		if (clearmem <= 0 || !global.maxconn) {
-			Alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
-			      "high for the global.memmax value (%d MB). The absolute maximum possible value "
-			      "is %d, but %d was found.\n",
-			      global.rlimit_memmax,
-			      (int)(mem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost)),
-			      global.maxsslconn);
+			ha_alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
+				 "high for the global.memmax value (%d MB). The absolute maximum possible value "
+				 "is %d, but %d was found.\n",
+				 global.rlimit_memmax,
+				 (int)(mem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost)),
+				 global.maxsslconn);
 			exit(1);
 		}
 
@@ -1803,13 +1803,13 @@ static void init(int argc, char **argv)
 	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
 
 	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
-		Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
+		ha_warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
 	}
 
 	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_MWORKER))) {
 		if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
-			Warning("<nbproc> is only meaningful in daemon mode or master-worker mode. Setting limit to 1 process.\n");
+			ha_warning("<nbproc> is only meaningful in daemon mode or master-worker mode. Setting limit to 1 process.\n");
 		global.nbproc = 1;
 	}
 
@@ -1821,12 +1821,12 @@ static void init(int argc, char **argv)
 
 	/* Realloc trash buffers because global.tune.bufsize may have changed */
 	if (!init_trash_buffers(0)) {
-		Alert("failed to initialize trash buffers.\n");
+		ha_alert("failed to initialize trash buffers.\n");
 		exit(1);
 	}
 
 	if (!init_log_buffers()) {
-		Alert("failed to initialize log buffers.\n");
+		ha_alert("failed to initialize log buffers.\n");
 		exit(1);
 	}
 
@@ -1856,16 +1856,16 @@ static void init(int argc, char **argv)
 	}
 
 	if (!init_pollers()) {
-		Alert("No polling mechanism available.\n"
-		      "  It is likely that haproxy was built with TARGET=generic and that FD_SETSIZE\n"
-		      "  is too low on this platform to support maxconn and the number of listeners\n"
-		      "  and servers. You should rebuild haproxy specifying your system using TARGET=\n"
-		      "  in order to support other polling systems (poll, epoll, kqueue) or reduce the\n"
-		      "  global maxconn setting to accommodate the system's limitation. For reference,\n"
-		      "  FD_SETSIZE=%d on this system, global.maxconn=%d resulting in a maximum of\n"
-		      "  %d file descriptors. You should thus reduce global.maxconn by %d. Also,\n"
-		      "  check build settings using 'haproxy -vv'.\n\n",
-		      FD_SETSIZE, global.maxconn, global.maxsock, (global.maxsock + 1 - FD_SETSIZE) / 2);
+		ha_alert("No polling mechanism available.\n"
+			 "  It is likely that haproxy was built with TARGET=generic and that FD_SETSIZE\n"
+			 "  is too low on this platform to support maxconn and the number of listeners\n"
+			 "  and servers. You should rebuild haproxy specifying your system using TARGET=\n"
+			 "  in order to support other polling systems (poll, epoll, kqueue) or reduce the\n"
+			 "  global maxconn setting to accommodate the system's limitation. For reference,\n"
+			 "  FD_SETSIZE=%d on this system, global.maxconn=%d resulting in a maximum of\n"
+			 "  %d file descriptors. You should thus reduce global.maxconn by %d. Also,\n"
+			 "  check build settings using 'haproxy -vv'.\n\n",
+			 FD_SETSIZE, global.maxconn, global.maxsock, (global.maxsock + 1 - FD_SETSIZE) / 2);
 		exit(1);
 	}
 	if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
@@ -2362,7 +2362,7 @@ static void *run_thread_poll_loop(void *data)
 
 	list_for_each_entry(ptif, &per_thread_init_list, list) {
 		if (!ptif->fct()) {
-			Alert("failed to initialize thread %u.\n", tid);
+			ha_alert("failed to initialize thread %u.\n", tid);
 			exit(1);
 		}
 	}
@@ -2448,7 +2448,7 @@ int main(int argc, char **argv)
 			if (setrlimit(RLIMIT_NOFILE, &limit) != -1)
 				getrlimit(RLIMIT_NOFILE, &limit);
 
-			Warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n", argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
+			ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n", argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
 			global.rlimit_nofile = limit.rlim_cur;
 		}
 	}
@@ -2458,13 +2458,13 @@ int main(int argc, char **argv)
 			global.rlimit_memmax * 1048576ULL;
 #ifdef RLIMIT_AS
 		if (setrlimit(RLIMIT_AS, &limit) == -1) {
-			Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-				argv[0], global.rlimit_memmax);
+			ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+				   argv[0], global.rlimit_memmax);
 		}
 #else
 		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
-			Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-				argv[0], global.rlimit_memmax);
+			ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+				   argv[0], global.rlimit_memmax);
 		}
 #endif
 	}
@@ -2472,7 +2472,7 @@ int main(int argc, char **argv)
 	if (old_unixsocket) {
 		if (strcmp("/dev/null", old_unixsocket) != 0) {
 			if (get_old_sockets(old_unixsocket) != 0) {
-				Alert("Failed to get the sockets from the old process!\n");
+				ha_alert("Failed to get the sockets from the old process!\n");
 				if (!(global.mode & MODE_MWORKER))
 					exit(1);
 			}
@@ -2521,7 +2521,7 @@ int main(int argc, char **argv)
 	}
 
 	if (listeners == 0) {
-		Alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
+		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
 		/* Note: we don't have to send anything to the old pids because we
 		 * never stopped them. */
 		exit(1);
@@ -2530,15 +2530,15 @@ int main(int argc, char **argv)
 	err = protocol_bind_all(errmsg, sizeof(errmsg));
 	if ((err & ~ERR_WARN) != ERR_NONE) {
 		if ((err & ERR_ALERT) || (err & ERR_WARN))
-			Alert("[%s.main()] %s.\n", argv[0], errmsg);
+			ha_alert("[%s.main()] %s.\n", argv[0], errmsg);
 
-		Alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
+		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
 		protocol_unbind_all(); /* cleanup everything we can */
 		if (nb_oldpids)
 			tell_old_pids(SIGTTIN);
 		exit(1);
 	} else if (err & ERR_WARN) {
-		Alert("[%s.main()] %s.\n", argv[0], errmsg);
+		ha_alert("[%s.main()] %s.\n", argv[0], errmsg);
 	}
 	/* Ok, all listener should now be bound, close any leftover sockets
 	 * the previous process gave us, we don't need them anymore
@@ -2568,7 +2568,7 @@ int main(int argc, char **argv)
 		unlink(global.pidfile);
 		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (pidfd < 0) {
-			Alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
+			ha_alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
 			if (nb_oldpids)
 				tell_old_pids(SIGTTIN);
 			protocol_unbind_all();
@@ -2577,8 +2577,8 @@ int main(int argc, char **argv)
 	}
 
 	if ((global.last_checks & LSTCHK_NETADM) && global.uid) {
-		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
-		      "", argv[0]);
+		ha_alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
+			 "", argv[0]);
 		protocol_unbind_all();
 		exit(1);
 	}
@@ -2587,16 +2587,16 @@ int main(int argc, char **argv)
 	 * but we inform him that unexpected behaviour may occur.
 	 */
 	if ((global.last_checks & LSTCHK_NETADM) && getuid())
-		Warning("[%s.main()] Some options which require full privileges"
-			" might not work well.\n"
-			"", argv[0]);
+		ha_warning("[%s.main()] Some options which require full privileges"
+			   " might not work well.\n"
+			   "", argv[0]);
 
 	if ((global.mode & (MODE_MWORKER|MODE_DAEMON)) == 0) {
 
 		/* chroot if needed */
 		if (global.chroot != NULL) {
 			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-				Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
+				ha_alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
 				if (nb_oldpids)
 					tell_old_pids(SIGTTIN);
 				protocol_unbind_all();
@@ -2623,18 +2623,18 @@ int main(int argc, char **argv)
 		/* setgid / setuid */
 		if (global.gid) {
 			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
-				Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
-					" without 'uid'/'user' is generally useless.\n", argv[0]);
+				ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+					   " without 'uid'/'user' is generally useless.\n", argv[0]);
 
 			if (setgid(global.gid) == -1) {
-				Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+				ha_alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
 				protocol_unbind_all();
 				exit(1);
 			}
 		}
 
 		if (global.uid && setuid(global.uid) == -1) {
-			Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
+			ha_alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
 			protocol_unbind_all();
 			exit(1);
 		}
@@ -2643,8 +2643,8 @@ int main(int argc, char **argv)
 	limit.rlim_cur = limit.rlim_max = 0;
 	getrlimit(RLIMIT_NOFILE, &limit);
 	if (limit.rlim_cur < global.maxsock) {
-		Warning("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
+		ha_warning("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
+			   argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
 	}
 
 	if (global.mode & (MODE_DAEMON | MODE_MWORKER)) {
@@ -2664,7 +2664,7 @@ int main(int argc, char **argv)
 		    && (global.mode & MODE_DAEMON)) {
 			ret = fork();
 			if (ret < 0) {
-				Alert("[%s.main()] Cannot fork.\n", argv[0]);
+				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
 				protocol_unbind_all();
 				exit(1); /* there has been an error */
 			}
@@ -2679,7 +2679,7 @@ int main(int argc, char **argv)
 				/* master pipe to ensure the master is still alive  */
 				ret = pipe(mworker_pipe);
 				if (ret < 0) {
-					Warning("[%s.main()] Cannot create master pipe.\n", argv[0]);
+					ha_warning("[%s.main()] Cannot create master pipe.\n", argv[0]);
 				} else {
 					memprintf(&msg, "%d", mworker_pipe[0]);
 					setenv("HAPROXY_MWORKER_PIPE_RD", msg, 1);
@@ -2691,7 +2691,7 @@ int main(int argc, char **argv)
 				mworker_pipe[0] = atol(getenv("HAPROXY_MWORKER_PIPE_RD"));
 				mworker_pipe[1] = atol(getenv("HAPROXY_MWORKER_PIPE_WR"));
 				if (mworker_pipe[0] <= 0 || mworker_pipe[1] <= 0) {
-					Warning("[%s.main()] Cannot get master pipe FDs.\n", argv[0]);
+					ha_warning("[%s.main()] Cannot get master pipe FDs.\n", argv[0]);
 				}
 			}
 		}
@@ -2707,7 +2707,7 @@ int main(int argc, char **argv)
 		for (proc = 0; proc < global.nbproc; proc++) {
 			ret = fork();
 			if (ret < 0) {
-				Alert("[%s.main()] Cannot fork.\n", argv[0]);
+				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
 				protocol_unbind_all();
 				exit(1); /* there has been an error */
 			}
@@ -2774,7 +2774,7 @@ int main(int argc, char **argv)
 		/* chroot if needed */
 		if (global.chroot != NULL) {
 			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-				Alert("[%s.main()] Cannot chroot1(%s).\n", argv[0], global.chroot);
+				ha_alert("[%s.main()] Cannot chroot1(%s).\n", argv[0], global.chroot);
 				if (nb_oldpids)
 					tell_old_pids(SIGTTIN);
 				protocol_unbind_all();
@@ -2788,18 +2788,18 @@ int main(int argc, char **argv)
 		/* setgid / setuid */
 		if (global.gid) {
 			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
-				Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
-					" without 'uid'/'user' is generally useless.\n", argv[0]);
+				ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+					   " without 'uid'/'user' is generally useless.\n", argv[0]);
 
 			if (setgid(global.gid) == -1) {
-				Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+				ha_alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
 				protocol_unbind_all();
 				exit(1);
 			}
 		}
 
 		if (global.uid && setuid(global.uid) == -1) {
-			Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
+			ha_alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
 			protocol_unbind_all();
 			exit(1);
 		}

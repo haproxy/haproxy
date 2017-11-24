@@ -344,7 +344,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		/* do not log anything there, it's a normal condition when this option
 		 * is used to serialize connections to a server !
 		 */
-		Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		ha_alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
 		close(fd);
 		conn->err_code = CO_ER_CONF_FDLIM;
 		conn->flags |= CO_FL_ERROR;
@@ -447,14 +447,14 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			close(fd);
 
 			if (ret == 1) {
-				Alert("Cannot bind to source address before connect() for backend %s. Aborting.\n",
-				      be->id);
+				ha_alert("Cannot bind to source address before connect() for backend %s. Aborting.\n",
+					 be->id);
 				send_log(be, LOG_EMERG,
 					 "Cannot bind to source address before connect() for backend %s.\n",
 					 be->id);
 			} else {
-				Alert("Cannot bind to tproxy source address before connect() for backend %s. Aborting.\n",
-				      be->id);
+				ha_alert("Cannot bind to tproxy source address before connect() for backend %s. Aborting.\n",
+					 be->id);
 				send_log(be, LOG_EMERG,
 					 "Cannot bind to tproxy source address before connect() for backend %s.\n",
 					 be->id);
@@ -851,11 +851,11 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		default_tcp_maxseg = -2;
 		fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (fd < 0)
-			Warning("Failed to create a temporary socket!\n");
+			ha_warning("Failed to create a temporary socket!\n");
 		else {
 			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp_maxseg,
 			    &ready_len) == -1)
-				Warning("Failed to get the default value of TCP_MAXSEG\n");
+				ha_warning("Failed to get the default value of TCP_MAXSEG\n");
 		}
 		close(fd);
 	}
@@ -865,7 +865,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		if (fd >= 0) {
 			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp6_maxseg,
 			    &ready_len) == -1)
-				Warning("Failed ot get the default value of TCP_MAXSEG for IPv6\n");
+				ha_warning("Failed ot get the default value of TCP_MAXSEG for IPv6\n");
 			close(fd);
 		}
 	}
@@ -1898,7 +1898,7 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 			l->netns = netns_store_insert(namespace);
 
 		if (l->netns == NULL) {
-			Alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
+			ha_alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
 			return ERR_ALERT | ERR_FATAL;
 		}
 	}

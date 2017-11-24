@@ -176,9 +176,9 @@ static int __resume_listener(struct listener *l)
 
 		err = l->proto->bind(l, msg, sizeof(msg));
 		if (err & ERR_ALERT)
-			Alert("Resuming listener: %s\n", msg);
+			ha_alert("Resuming listener: %s\n", msg);
 		else if (err & ERR_WARN)
-			Warning("Resuming listener: %s\n", msg);
+			ha_warning("Resuming listener: %s\n", msg);
 
 		if (err & (ERR_FATAL | ERR_ABORT)) {
 			ret = 0;

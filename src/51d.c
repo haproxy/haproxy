@@ -548,7 +548,7 @@ static int init_51degrees(void)
 		return 0;
 
 	if (global.nbthread > 1) {
-		Alert("51Degrees: multithreading is not supported for now.\n");
+		ha_alert("51Degrees: multithreading is not supported for now.\n");
 		return (ERR_FATAL | ERR_ALERT);
 	}
 
@@ -616,9 +616,9 @@ static int init_51degrees(void)
 	}
 	if (_51d_dataset_status != DATA_SET_INIT_STATUS_SUCCESS) {
 		if (temp->len)
-			Alert("51Degrees Setup - Error reading 51Degrees data file. %s\n", temp->str);
+			ha_alert("51Degrees Setup - Error reading 51Degrees data file. %s\n", temp->str);
 		else
-			Alert("51Degrees Setup - Error reading 51Degrees data file.\n");
+			ha_alert("51Degrees Setup - Error reading 51Degrees data file.\n");
 		return ERR_ALERT | ERR_FATAL;
 	}
 	free(_51d_property_list);

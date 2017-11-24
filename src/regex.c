@@ -114,7 +114,7 @@ const char *check_replace_string(const char *str)
 				err = NULL;
 			}
 			else {
-				Warning("'\\%c' : deprecated use of a backslash before something not '\\','x' or a digit.\n", *str);
+				ha_warning("'\\%c' : deprecated use of a backslash before something not '\\','x' or a digit.\n", *str);
 				err = NULL;
 			}
 		}

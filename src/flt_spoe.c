@@ -2893,25 +2893,25 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 
 		/* Check engine Id. It should be uniq */
 		if (!strcmp(conf->id, c->id)) {
-			Alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
-			      px->id, conf->id);
+			ha_alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
+				 px->id, conf->id);
 			return 1;
 		}
 	}
 
 	target = proxy_be_by_name(conf->agent->b.name);
 	if (target == NULL) {
-		Alert("Proxy %s : unknown backend '%s' used by SPOE agent '%s'"
-		      " declared at %s:%d.\n",
-		      px->id, conf->agent->b.name, conf->agent->id,
-		      conf->agent->conf.file, conf->agent->conf.line);
+		ha_alert("Proxy %s : unknown backend '%s' used by SPOE agent '%s'"
+			 " declared at %s:%d.\n",
+			 px->id, conf->agent->b.name, conf->agent->id,
+			 conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
 	}
 	if (target->mode != PR_MODE_TCP) {
-		Alert("Proxy %s : backend '%s' used by SPOE agent '%s' declared"
-		      " at %s:%d does not support HTTP mode.\n",
-		      px->id, target->id, conf->agent->id,
-		      conf->agent->conf.file, conf->agent->conf.line);
+		ha_alert("Proxy %s : backend '%s' used by SPOE agent '%s' declared"
+			 " at %s:%d does not support HTTP mode.\n",
+			 px->id, target->id, conf->agent->id,
+			 conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
 	}
 
@@ -3152,8 +3152,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 	if (!strcmp(args[0], "spoe-agent")) { /* new spoe-agent section */
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : missing name for spoe-agent section.\n",
-			      file, linenum);
+			ha_alert("parsing [%s:%d] : missing name for spoe-agent section.\n",
+				 file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3164,20 +3164,20 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 		err = invalid_char(args[1]);
 		if (err) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
-			      file, linenum, *err, args[0], args[1]);
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		if (curagent != NULL) {
-			Alert("parsing [%s:%d] : another spoe-agent section previously defined.\n",
-			      file, linenum);
+			ha_alert("parsing [%s:%d] : another spoe-agent section previously defined.\n",
+				 file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 		if ((curagent = calloc(1, sizeof(*curagent))) == NULL) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3209,7 +3209,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curagent->messages);
 
 		if ((curagent->rt = calloc(global.nbthread, sizeof(*curagent->rt))) == NULL) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3226,8 +3226,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "use-backend")) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects a backend name.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' expects a backend name.\n",
+				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3243,15 +3243,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 			list_for_each_entry(ph, &curmphs, list) {
 				if (!strcmp(ph->id, args[cur_arg])) {
-					Alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
-					      file, linenum, args[cur_arg]);
+					ha_alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
+						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3267,15 +3267,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 			list_for_each_entry(ph, &curgphs, list) {
 				if (!strcmp(ph->id, args[cur_arg])) {
-					Alert("parsing [%s:%d]: spoe-group '%s' already used.\n",
-					      file, linenum, args[cur_arg]);
+					ha_alert("parsing [%s:%d]: spoe-group '%s' already used.\n",
+						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3290,8 +3290,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		unsigned      timeout;
 
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : 'timeout' expects 'hello', 'idle' and 'processing'.\n",
-			      file, linenum);
+			ha_alert("parsing [%s:%d] : 'timeout' expects 'hello', 'idle' and 'processing'.\n",
+				 file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3304,21 +3304,21 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		else if (!strcmp(args[1], "processing"))
 			tv = &curagent->timeout.processing;
 		else {
-			Alert("parsing [%s:%d] : 'timeout' supports 'hello', 'idle' or 'processing' (got %s).\n",
-			      file, linenum, args[1]);
+			ha_alert("parsing [%s:%d] : 'timeout' supports 'hello', 'idle' or 'processing' (got %s).\n",
+				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 		if (!*args[2]) {
-			Alert("parsing [%s:%d] : 'timeout %s' expects an integer value (in milliseconds).\n",
-			      file, linenum, args[1]);
+			ha_alert("parsing [%s:%d] : 'timeout %s' expects an integer value (in milliseconds).\n",
+				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 		res = parse_time_err(args[2], &timeout, TIME_UNIT_MS);
 		if (res) {
-			Alert("parsing [%s:%d] : unexpected character '%c' in 'timeout %s'.\n",
-			      file, linenum, *res, args[1]);
+			ha_alert("parsing [%s:%d] : unexpected character '%c' in 'timeout %s'.\n",
+				 file, linenum, *res, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3326,8 +3326,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "option")) {
 		if (!*args[1]) {
-                        Alert("parsing [%s:%d]: '%s' expects an option name.\n",
-                              file, linenum, args[0]);
+                        ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
+				 file, linenum, args[0]);
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
@@ -3350,8 +3350,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				if (global.nbthread == 1)
 					curagent->flags |= SPOE_FL_ASYNC;
 				else {
-					Warning("parsing [%s:%d] Async option is not supported with threads.\n",
-						file, linenum);
+					ha_warning("parsing [%s:%d] Async option is not supported with threads.\n",
+						   file, linenum);
 					err_code |= ERR_WARN;
 				}
 			}
@@ -3369,8 +3369,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 		/* Following options does not support negation */
 		if (kwm == 1) {
-			Alert("parsing [%s:%d]: negation is not supported for option '%s'.\n",
-			      file, linenum, args[1]);
+			ha_alert("parsing [%s:%d]: negation is not supported for option '%s'.\n",
+				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3379,9 +3379,9 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			char *tmp;
 
 			if (!*args[2]) {
-				Alert("parsing [%s:%d]: '%s %s' expects a value.\n",
-				      file, linenum, args[0],
-				      args[1]);
+				ha_alert("parsing [%s:%d]: '%s %s' expects a value.\n",
+					 file, linenum, args[0],
+					 args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -3390,8 +3390,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			tmp = args[2];
 			while (*tmp) {
 				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
-					Alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
-					      file, linenum, args[0], args[1]);
+					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
+						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -3408,9 +3408,9 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			char *tmp;
 
 			if (!*args[2]) {
-				Alert("parsing [%s:%d]: '%s %s' expects a value.\n",
-				      file, linenum, args[0],
-				      args[1]);
+				ha_alert("parsing [%s:%d]: '%s %s' expects a value.\n",
+					 file, linenum, args[0],
+					 args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -3419,8 +3419,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			tmp = args[2];
 			while (*tmp) {
 				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
-					Alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
-					      file, linenum, args[0], args[1]);
+					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
+						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -3429,16 +3429,16 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			curagent->var_on_error = strdup(args[2]);
 		}
 		else {
-			Alert("parsing [%s:%d]: option '%s' is not supported.\n",
-			      file, linenum, args[1]);
+			ha_alert("parsing [%s:%d]: option '%s' is not supported.\n",
+				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
 	else if (!strcmp(args[0], "maxconnrate")) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
-                              file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+				 file, linenum, args[0]);
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
@@ -3448,8 +3448,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "maxerrrate")) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
-                              file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+				 file, linenum, args[0]);
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
@@ -3459,8 +3459,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "max-frame-size")) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
-                              file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+				 file, linenum, args[0]);
                         err_code |= ERR_ALERT | ERR_FATAL;
                         goto out;
                 }
@@ -3469,15 +3469,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->max_frame_size = atol(args[1]);
 		if (curagent->max_frame_size < MIN_FRAME_SIZE ||
 		    curagent->max_frame_size > MAX_FRAME_SIZE) {
-			Alert("parsing [%s:%d] : '%s' expects a positive integer argument in the range [%d, %d].\n",
-			      file, linenum, args[0], MIN_FRAME_SIZE, MAX_FRAME_SIZE);
+			ha_alert("parsing [%s:%d] : '%s' expects a positive integer argument in the range [%d, %d].\n",
+				 file, linenum, args[0], MIN_FRAME_SIZE, MAX_FRAME_SIZE);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
 	else if (*args[0]) {
-		Alert("parsing [%s:%d] : unknown keyword '%s' in spoe-agent section.\n",
-		      file, linenum, args[0]);
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in spoe-agent section.\n",
+			 file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -3498,8 +3498,8 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 
 	if (!strcmp(args[0], "spoe-group")) { /* new spoe-group section */
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : missing name for spoe-group section.\n",
-			      file, linenum);
+			ha_alert("parsing [%s:%d] : missing name for spoe-group section.\n",
+				 file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3510,24 +3510,24 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 
 		err = invalid_char(args[1]);
 		if (err) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
-			      file, linenum, *err, args[0], args[1]);
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		list_for_each_entry(grp, &curgrps, list) {
 			if (!strcmp(grp->id, args[1])) {
-				Alert("parsing [%s:%d]: spoe-group section '%s' has the same"
-				      " name as another one declared at %s:%d.\n",
-				      file, linenum, args[1], grp->conf.file, grp->conf.line);
+				ha_alert("parsing [%s:%d]: spoe-group section '%s' has the same"
+					 " name as another one declared at %s:%d.\n",
+					 file, linenum, args[1], grp->conf.file, grp->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 		}
 
 		if ((curgrp = calloc(1, sizeof(*curgrp))) == NULL) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3546,15 +3546,15 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 
 			list_for_each_entry(ph, &curgrp->phs, list) {
 				if (!strcmp(ph->id, args[cur_arg])) {
-					Alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
-					      file, linenum, args[cur_arg]);
+					ha_alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
+						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
 
 			if ((ph = calloc(1, sizeof(*ph))) == NULL) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3564,8 +3564,8 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (*args[0]) {
-		Alert("parsing [%s:%d] : unknown keyword '%s' in spoe-group section.\n",
-		      file, linenum, args[0]);
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in spoe-group section.\n",
+			 file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -3589,8 +3589,8 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 
 	if (!strcmp(args[0], "spoe-message")) { /* new spoe-message section */
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : missing name for spoe-message section.\n",
-			      file, linenum);
+			ha_alert("parsing [%s:%d] : missing name for spoe-message section.\n",
+				 file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3601,24 +3601,24 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 
 		err = invalid_char(args[1]);
 		if (err) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
-			      file, linenum, *err, args[0], args[1]);
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
 		list_for_each_entry(msg, &curmsgs, list) {
 			if (!strcmp(msg->id, args[1])) {
-				Alert("parsing [%s:%d]: spoe-message section '%s' has the same"
-				      " name as another one declared at %s:%d.\n",
-				      file, linenum, args[1], msg->conf.file, msg->conf.line);
+				ha_alert("parsing [%s:%d]: spoe-message section '%s' has the same"
+					 " name as another one declared at %s:%d.\n",
+					 file, linenum, args[1], msg->conf.file, msg->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 		}
 
 		if ((curmsg = calloc(1, sizeof(*curmsg))) == NULL) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -3646,7 +3646,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 			int   idx = 0;
 
 			if ((arg = calloc(1, sizeof(*arg))) == NULL) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -3665,7 +3665,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 						      &idx, file, linenum, &errmsg,
 						      &curproxy->conf.args);
 			if (arg->expr == NULL) {
-				Alert("parsing [%s:%d] : '%s': %s.\n", file, linenum, args[0], errmsg);
+				ha_alert("parsing [%s:%d] : '%s': %s.\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(arg->name);
 				free(arg);
@@ -3681,21 +3681,21 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "acl")) {
 		err = invalid_char(args[1]);
 		if (err) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
-			      file, linenum, *err, args[1]);
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
+				 file, linenum, *err, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 		if (parse_acl((const char **)args + 1, &curmsg->acls, &errmsg, &curproxy->conf.args, file, linenum) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
-			      file, linenum, args[1], errmsg);
+			ha_alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
+				 file, linenum, args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
 	else if (!strcmp(args[0], "event")) {
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : missing event name.\n", file, linenum);
+			ha_alert("parsing [%s:%d] : missing event name.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3721,8 +3721,8 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_RSP]))
 			curmsg->event = SPOE_EV_ON_HTTP_RSP;
 		else {
-			Alert("parsing [%s:%d] : unkown event '%s'.\n",
-			      file, linenum, args[1]);
+			ha_alert("parsing [%s:%d] : unkown event '%s'.\n",
+				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3734,25 +3734,25 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 					      curproxy, (const char **)args+2,
 					      &errmsg);
 			if (cond == NULL) {
-				Alert("parsing [%s:%d] : error detected while "
-				      "parsing an 'event %s' condition : %s.\n",
-				      file, linenum, args[1], errmsg);
+				ha_alert("parsing [%s:%d] : error detected while "
+					 "parsing an 'event %s' condition : %s.\n",
+					 file, linenum, args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 			curmsg->cond = cond;
 		}
 		else if (*args[2]) {
-			Alert("parsing [%s:%d]: 'event %s' expects either 'if' "
-			      "or 'unless' followed by a condition but found '%s'.\n",
-			      file, linenum, args[1], args[2]);
+			ha_alert("parsing [%s:%d]: 'event %s' expects either 'if' "
+				 "or 'unless' followed by a condition but found '%s'.\n",
+				 file, linenum, args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
 	else if (!*args[0]) {
-		Alert("parsing [%s:%d] : unknown keyword '%s' in spoe-message section.\n",
-		      file, linenum, args[0]);
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in spoe-message section.\n",
+			 file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -3856,11 +3856,11 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->timeout.hello      == TICK_ETERNITY ||
 	    curagent->timeout.idle       == TICK_ETERNITY ||
 	    curagent->timeout.processing == TICK_ETERNITY) {
-		Warning("Proxy '%s': missing timeouts for SPOE agent '%s' declare at %s:%d.\n"
-			"   | While not properly invalid, you will certainly encounter various problems\n"
-			"   | with such a configuration. To fix this, please ensure that all following\n"
-			"   | timeouts are set to a non-zero value: 'hello', 'idle', 'processing'.\n",
-			px->id, curagent->id, curagent->conf.file, curagent->conf.line);
+		ha_warning("Proxy '%s': missing timeouts for SPOE agent '%s' declare at %s:%d.\n"
+			   "   | While not properly invalid, you will certainly encounter various problems\n"
+			   "   | with such a configuration. To fix this, please ensure that all following\n"
+			   "   | timeouts are set to a non-zero value: 'hello', 'idle', 'processing'.\n",
+			   px->id, curagent->id, curagent->conf.file, curagent->conf.line);
 	}
 	if (curagent->var_pfx == NULL) {
 		char *tmp = curagent->id;
@@ -3880,8 +3880,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		curagent->engine_id = generate_pseudo_uuid();
 
 	if (LIST_ISEMPTY(&curmphs) && LIST_ISEMPTY(&curgphs)) {
-		Warning("Proxy '%s': No message/group used by SPOE agent '%s' declared at %s:%d.\n",
-			px->id, curagent->id, curagent->conf.file, curagent->conf.line);
+		ha_warning("Proxy '%s': No message/group used by SPOE agent '%s' declared at %s:%d.\n",
+			   px->id, curagent->id, curagent->conf.file, curagent->conf.line);
 		goto finish;
 	}
 
@@ -3902,13 +3902,13 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 				if (!(px->cap & PR_CAP_FE) && (msg->event == SPOE_EV_ON_CLIENT_SESS ||
 							       msg->event == SPOE_EV_ON_TCP_REQ_FE ||
 							       msg->event == SPOE_EV_ON_HTTP_REQ_FE)) {
-					Warning("Proxy '%s': frontend event used on a backend proxy at %s:%d.\n",
-						px->id, msg->conf.file, msg->conf.line);
+					ha_warning("Proxy '%s': frontend event used on a backend proxy at %s:%d.\n",
+						   px->id, msg->conf.file, msg->conf.line);
 					goto next_mph;
 				}
 				if (msg->event == SPOE_EV_NONE) {
-					Warning("Proxy '%s': Ignore SPOE message '%s' without event at %s:%d.\n",
-						px->id, msg->id, msg->conf.file, msg->conf.line);
+					ha_warning("Proxy '%s': Ignore SPOE message '%s' without event at %s:%d.\n",
+						   px->id, msg->id, msg->conf.file, msg->conf.line);
 					goto next_mph;
 				}
 

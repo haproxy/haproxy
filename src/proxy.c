@@ -661,8 +661,8 @@ struct server *findserver(const struct proxy *px, const char *name) {
 			continue;
 		}
 
-		Alert("Refusing to use duplicated server '%s' found in proxy: %s!\n",
-			name, px->id);
+		ha_alert("Refusing to use duplicated server '%s' found in proxy: %s!\n",
+			 name, px->id);
 
 		return NULL;
 	}
@@ -679,40 +679,40 @@ struct server *findserver(const struct proxy *px, const char *name) {
 int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 {
 	if (curproxy->cookie_name != NULL) {
-		Warning("config : cookie will be ignored for %s '%s' (needs 'mode http').\n",
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("config : cookie will be ignored for %s '%s' (needs 'mode http').\n",
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->rsp_exp != NULL) {
-		Warning("config : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("config : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->req_exp != NULL) {
-		Warning("config : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("config : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->monitor_uri != NULL) {
-		Warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->lbprm.algo & BE_LB_NEED_HTTP) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-		Warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->to_log & (LW_REQ | LW_RESP)) {
 		curproxy->to_log &= ~(LW_REQ | LW_RESP);
-		Warning("parsing [%s:%d] : HTTP log/header format not usable with %s '%s' (needs 'mode http').\n",
-			curproxy->conf.lfs_file, curproxy->conf.lfs_line,
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("parsing [%s:%d] : HTTP log/header format not usable with %s '%s' (needs 'mode http').\n",
+			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->conf.logformat_string == default_http_log_format ||
 	    curproxy->conf.logformat_string == clf_http_log_format) {
 		/* Note: we don't change the directive's file:line number */
 		curproxy->conf.logformat_string = default_tcp_log_format;
-		Warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
-			curproxy->conf.lfs_file, curproxy->conf.lfs_line,
-			proxy_type_str(curproxy), curproxy->id);
+		ha_warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
+			   proxy_type_str(curproxy), curproxy->id);
 	}
 
 	return 0;
@@ -797,11 +797,11 @@ int start_proxies(int verbose)
 			/* errors are reported if <verbose> is set or if they are fatal */
 			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
 				if (lerr & ERR_ALERT)
-					Alert("Starting %s %s: %s\n",
-					      proxy_type_str(curproxy), curproxy->id, msg);
+					ha_alert("Starting %s %s: %s\n",
+						 proxy_type_str(curproxy), curproxy->id, msg);
 				else if (lerr & ERR_WARN)
-					Warning("Starting %s %s: %s\n",
-						proxy_type_str(curproxy), curproxy->id, msg);
+					ha_warning("Starting %s %s: %s\n",
+						   proxy_type_str(curproxy), curproxy->id, msg);
 			}
 
 			err |= lerr;
@@ -849,8 +849,8 @@ struct task *manage_proxy(struct task *t)
 		int t;
 		t = tick_remain(now_ms, p->stop_time);
 		if (t == 0) {
-			Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-				p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			ha_warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+				   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 			send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
 				 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 			stop_proxy(p);
@@ -940,20 +940,20 @@ struct task *hard_stop(struct task *t)
 	struct stream *s;
 
 	if (killed) {
-		Warning("Some tasks resisted to hard-stop, exiting now.\n");
+		ha_warning("Some tasks resisted to hard-stop, exiting now.\n");
 		send_log(NULL, LOG_WARNING, "Some tasks resisted to hard-stop, exiting now.\n");
 		/* Do some cleanup and explicitely quit */
 		deinit();
 		exit(0);
 	}
 
-	Warning("soft-stop running for too long, performing a hard-stop.\n");
+	ha_warning("soft-stop running for too long, performing a hard-stop.\n");
 	send_log(NULL, LOG_WARNING, "soft-stop running for too long, performing a hard-stop.\n");
 	p = proxy;
 	while (p) {
 		if ((p->cap & PR_CAP_FE) && (p->feconn > 0)) {
-			Warning("Proxy %s hard-stopped (%d remaining conns will be closed).\n",
-				p->id, p->feconn);
+			ha_warning("Proxy %s hard-stopped (%d remaining conns will be closed).\n",
+				   p->id, p->feconn);
 			send_log(p, LOG_WARNING, "Proxy %s hard-stopped (%d remaining conns will be closed).\n",
 				p->id, p->feconn);
 		}
@@ -987,7 +987,7 @@ void soft_stop(void)
 			task_schedule(task, tick_add(now_ms, global.hard_stop_after));
 		}
 		else {
-			Alert("out of memory trying to allocate the hard-stop task.\n");
+			ha_alert("out of memory trying to allocate the hard-stop task.\n");
 		}
 	}
 	p = proxy;
@@ -1007,7 +1007,7 @@ void soft_stop(void)
 		}
 
 		if (p->state != PR_STSTOPPED) {
-			Warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
+			ha_warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			p->stop_time = tick_add(now_ms, p->grace);
 
@@ -1048,7 +1048,7 @@ int pause_proxy(struct proxy *p)
 	    p->state == PR_STSTOPPED || p->state == PR_STPAUSED)
 		return 1;
 
-	Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+	ha_warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
 	send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
@@ -1057,7 +1057,7 @@ int pause_proxy(struct proxy *p)
 	}
 
 	if (p->state == PR_STERROR) {
-		Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+		ha_warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		return 0;
 	}
@@ -1137,7 +1137,7 @@ int resume_proxy(struct proxy *p)
 	if (p->state != PR_STPAUSED)
 		return 1;
 
-	Warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
+	ha_warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 	send_log(p, LOG_WARNING, "Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 
 	fail = 0;
@@ -1147,14 +1147,14 @@ int resume_proxy(struct proxy *p)
 
 			port = get_host_port(&l->addr);
 			if (port) {
-				Warning("Port %d busy while trying to enable %s %s.\n",
-					port, proxy_cap_str(p->cap), p->id);
+				ha_warning("Port %d busy while trying to enable %s %s.\n",
+					   port, proxy_cap_str(p->cap), p->id);
 				send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
 					 port, proxy_cap_str(p->cap), p->id);
 			}
 			else {
-				Warning("Bind on socket %d busy while trying to enable %s %s.\n",
-					l->luid, proxy_cap_str(p->cap), p->id);
+				ha_warning("Bind on socket %d busy while trying to enable %s %s.\n",
+					   l->luid, proxy_cap_str(p->cap), p->id);
 				send_log(p, LOG_WARNING, "Bind on socket %d busy while trying to enable %s %s.\n",
 					 l->luid, proxy_cap_str(p->cap), p->id);
 			}
@@ -1201,7 +1201,7 @@ void pause_proxies(void)
         }
 
 	if (err) {
-		Warning("Some proxies refused to pause, performing soft stop now.\n");
+		ha_warning("Some proxies refused to pause, performing soft stop now.\n");
 		send_log(p, LOG_WARNING, "Some proxies refused to pause, performing soft stop now.\n");
 		soft_stop();
 	}
@@ -1235,7 +1235,7 @@ void resume_proxies(void)
         }
 
 	if (err) {
-		Warning("Some proxies refused to resume, a restart is probably needed to resume safe operations.\n");
+		ha_warning("Some proxies refused to resume, a restart is probably needed to resume safe operations.\n");
 		send_log(p, LOG_WARNING, "Some proxies refused to resume, a restart is probably needed to resume safe operations.\n");
 	}
 }
@@ -1706,8 +1706,8 @@ static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void 
 		return 1;
 	}
 
-	Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-	        px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
+	ha_warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+		   px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
 	send_log(px, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
 	         px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
 	stop_proxy(px);

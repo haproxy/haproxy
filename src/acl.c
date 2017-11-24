@@ -422,13 +422,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	/* Additional check to protect against common mistakes */
 	if (expr->pat.parse && cur_type != SMP_T_BOOL && !*args[1]) {
-		Warning("parsing acl keyword '%s' :\n"
-		        "  no pattern to match against were provided, so this ACL will never match.\n"
-		        "  If this is what you intended, please add '--' to get rid of this warning.\n"
-		        "  If you intended to match only for existence, please use '-m found'.\n"
-		        "  If you wanted to force an int to match as a bool, please use '-m bool'.\n"
-		        "\n",
-		        args[0]);
+		ha_warning("parsing acl keyword '%s' :\n"
+			   "  no pattern to match against were provided, so this ACL will never match.\n"
+			   "  If this is what you intended, please add '--' to get rid of this warning.\n"
+			   "  If you intended to match only for existence, please use '-m found'.\n"
+			   "  If you wanted to force an int to match as a bool, please use '-m bool'.\n"
+			   "\n",
+			   args[0]);
 	}
 
 	args++;
@@ -733,12 +733,12 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 	 * emit a warning, so let's do so.
 	 */
 	if (!strchr(args[1], '(') && *args[2] == '(')
-		Warning("parsing acl '%s' :\n"
-			"  matching '%s' for pattern '%s' is likely a mistake and probably\n"
-			"  not what you want. Maybe you need to remove the extraneous space before '('.\n"
-			"  If you are really sure this is not an error, please insert '--' between the\n"
-			"  match and the pattern to make this warning message disappear.\n",
-			args[0], args[1], args[2]);
+		ha_warning("parsing acl '%s' :\n"
+			   "  matching '%s' for pattern '%s' is likely a mistake and probably\n"
+			   "  not what you want. Maybe you need to remove the extraneous space before '('.\n"
+			   "  If you are really sure this is not an error, please insert '--' between the\n"
+			   "  match and the pattern to make this warning message disappear.\n",
+			   args[0], args[1], args[2]);
 
 	if (*args[0])
 		cur_acl = find_acl_by_name(args[0], known_acl);
@@ -1271,15 +1271,15 @@ int acl_find_targets(struct proxy *p)
 				 * by smp_resolve_args().
 				 */
 				if (expr->smp->arg_p->unresolved) {
-					Alert("Internal bug in proxy %s: %sacl %s %s() makes use of unresolved userlist '%s'. Please report this.\n",
-					      p->id, *acl->name ? "" : "anonymous ", acl->name, expr->kw, expr->smp->arg_p->data.str.str);
+					ha_alert("Internal bug in proxy %s: %sacl %s %s() makes use of unresolved userlist '%s'. Please report this.\n",
+						 p->id, *acl->name ? "" : "anonymous ", acl->name, expr->kw, expr->smp->arg_p->data.str.str);
 					cfgerr++;
 					continue;
 				}
 
 				if (LIST_ISEMPTY(&expr->pat.head)) {
-					Alert("proxy %s: acl %s %s(): no groups specified.\n",
-						p->id, acl->name, expr->kw);
+					ha_alert("proxy %s: acl %s %s(): no groups specified.\n",
+						 p->id, acl->name, expr->kw);
 					cfgerr++;
 					continue;
 				}
@@ -1287,8 +1287,8 @@ int acl_find_targets(struct proxy *p)
 				/* For each pattern, check if the group exists. */
 				list_for_each_entry(pexp, &expr->pat.head, list) {
 					if (LIST_ISEMPTY(&pexp->expr->patterns)) {
-						Alert("proxy %s: acl %s %s(): no groups specified.\n",
-							p->id, acl->name, expr->kw);
+						ha_alert("proxy %s: acl %s %s(): no groups specified.\n",
+							 p->id, acl->name, expr->kw);
 						cfgerr++;
 						continue;
 					}
@@ -1296,8 +1296,8 @@ int acl_find_targets(struct proxy *p)
 					list_for_each_entry(pattern, &pexp->expr->patterns, list) {
 						/* this keyword only has one argument */
 						if (!check_group(expr->smp->arg_p->data.usr, pattern->pat.ptr.str)) {
-							Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
-							      p->id, acl->name, expr->kw, pattern->pat.ptr.str);
+							ha_alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
+								 p->id, acl->name, expr->kw, pattern->pat.ptr.str);
 							cfgerr++;
 						}
 					}
@@ -1328,8 +1328,8 @@ int init_acl()
 
 			smp = find_sample_fetch(name, strlen(name));
 			if (!smp) {
-				Alert("Critical internal error: ACL keyword '%s' relies on sample fetch '%s' which was not registered!\n",
-				      kwl->kw[index].kw, name);
+				ha_alert("Critical internal error: ACL keyword '%s' relies on sample fetch '%s' which was not registered!\n",
+					 kwl->kw[index].kw, name);
 				err++;
 				continue;
 			}

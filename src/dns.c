@@ -89,14 +89,14 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 	fqdn_len = strlen(fqdn);
 	hostname_dn_len = dns_str_to_dn_label(fqdn, fqdn_len + 1, trash.str, trash.size);
 	if (hostname_dn_len == -1) {
-		Alert("config : %s '%s', server '%s': failed to parse FQDN '%s'\n",
-		      proxy_type_str(px), px->id, srv->id, fqdn);
+		ha_alert("config : %s '%s', server '%s': failed to parse FQDN '%s'\n",
+			 proxy_type_str(px), px->id, srv->id, fqdn);
 		goto err;
 	}
 
 	if ((srvrq = calloc(1, sizeof(*srvrq))) == NULL) {
-		Alert("config : %s '%s', server '%s': out of memory\n",
-		      proxy_type_str(px), px->id, srv->id);
+		ha_alert("config : %s '%s', server '%s': out of memory\n",
+			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
 	srvrq->obj_type        = OBJ_TYPE_SRVRQ;
@@ -105,8 +105,8 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 	srvrq->hostname_dn     = strdup(trash.str);
 	srvrq->hostname_dn_len = hostname_dn_len;
 	if (!srvrq->name || !srvrq->hostname_dn) {
-		Alert("config : %s '%s', server '%s': out of memory\n",
-		      proxy_type_str(px), px->id, srv->id);
+		ha_alert("config : %s '%s', server '%s': out of memory\n",
+			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
 	LIST_ADDQ(&dns_srvrq_list, &srvrq->list);
@@ -1852,14 +1852,14 @@ static int dns_finalize_config(void)
 
 			/* Check nameserver info */
 			if ((fd = socket(ns->addr.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-				Alert("config : resolvers '%s': can't create socket for nameserver '%s'.\n",
-				      resolvers->id, ns->id);
+				ha_alert("config : resolvers '%s': can't create socket for nameserver '%s'.\n",
+					 resolvers->id, ns->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
 			}
 			if (connect(fd, (struct sockaddr*)&ns->addr, get_addr_len(&ns->addr)) == -1) {
-				Alert("config : resolvers '%s': can't connect socket for nameserver '%s'.\n",
-				      resolvers->id, ns->id);
+				ha_alert("config : resolvers '%s': can't connect socket for nameserver '%s'.\n",
+					 resolvers->id, ns->id);
 				close(fd);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
@@ -1869,8 +1869,8 @@ static int dns_finalize_config(void)
 			/* Create dgram structure that will hold the UPD socket
 			 * and attach it on the current nameserver */
 			if ((dgram = calloc(1, sizeof(*dgram))) == NULL) {
-				Alert("config: resolvers '%s' : out of memory.\n",
-				      resolvers->id);
+				ha_alert("config: resolvers '%s' : out of memory.\n",
+					 resolvers->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				goto err;
 			}
@@ -1885,7 +1885,7 @@ static int dns_finalize_config(void)
 
 		/* Create the task associated to the resolvers section */
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-			Alert("config : resolvers '%s' : out of memory.\n", resolvers->id);
+			ha_alert("config : resolvers '%s' : out of memory.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;
 		}
@@ -1907,8 +1907,8 @@ static int dns_finalize_config(void)
 				continue;
 
 			if ((resolvers = find_resolvers_by_id(srv->resolvers_id)) == NULL) {
-				Alert("config : %s '%s', server '%s': unable to find required resolvers '%s'\n",
-				      proxy_type_str(px), px->id, srv->id, srv->resolvers_id);
+				ha_alert("config : %s '%s', server '%s': unable to find required resolvers '%s'\n",
+					 proxy_type_str(px), px->id, srv->id, srv->resolvers_id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
 			}
@@ -1917,15 +1917,15 @@ static int dns_finalize_config(void)
 			if (srv->srvrq && !srv->srvrq->resolvers) {
 				srv->srvrq->resolvers = srv->resolvers;
 				if (dns_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ, 0) == -1) {
-					Alert("config : %s '%s' : unable to set DNS resolution for server '%s'.\n",
-					      proxy_type_str(px), px->id, srv->id);
+					ha_alert("config : %s '%s' : unable to set DNS resolution for server '%s'.\n",
+						 proxy_type_str(px), px->id, srv->id);
 					err_code |= (ERR_ALERT|ERR_ABORT);
 					continue;
 				}
 			}
 			if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 0) == -1) {
-				Alert("config : %s '%s', unable to set DNS resolution for server '%s'.\n",
-				      proxy_type_str(px), px->id, srv->id);
+				ha_alert("config : %s '%s', unable to set DNS resolution for server '%s'.\n",
+					 proxy_type_str(px), px->id, srv->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
 			}

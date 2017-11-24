@@ -291,8 +291,8 @@ flt_init_all()
 	for (px = proxy; px; px = px->next) {
 		err_code |= flt_init(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
-			Alert("Failed to initialize filters for proxy '%s'.\n",
-			      px->id);
+			ha_alert("Failed to initialize filters for proxy '%s'.\n",
+				 px->id);
 			return err_code;
 		}
 	}
@@ -310,8 +310,8 @@ flt_init_all_per_thread()
 	for (px = proxy; px; px = px->next) {
 		err_code = flt_init_per_thread(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
-			Alert("Failed to initialize filters for proxy '%s' for thread %u.\n",
-			      px->id, tid);
+			ha_alert("Failed to initialize filters for proxy '%s' for thread %u.\n",
+				 px->id, tid);
 			return 0;
 		}
 	}

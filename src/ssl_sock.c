@@ -393,18 +393,18 @@ static int ssl_init_single_engine(const char *engine_id, const char *def_algorit
 	/* grab the structural reference to the engine */
 	engine = ENGINE_by_id(engine_id);
 	if (engine  == NULL) {
-		Alert("ssl-engine %s: failed to get structural reference\n", engine_id);
+		ha_alert("ssl-engine %s: failed to get structural reference\n", engine_id);
 		goto fail_get;
 	}
 
 	if (!ENGINE_init(engine)) {
 		/* the engine couldn't initialise, release it */
-		Alert("ssl-engine %s: failed to initialize\n", engine_id);
+		ha_alert("ssl-engine %s: failed to initialize\n", engine_id);
 		goto fail_init;
 	}
 
 	if (ENGINE_set_default_string(engine, def_algorithms) == 0) {
-		Alert("ssl-engine %s: failed on ENGINE_set_default_string\n", engine_id);
+		ha_alert("ssl-engine %s: failed on ENGINE_set_default_string\n", engine_id);
 		goto fail_set_method;
 	}
 
@@ -1169,7 +1169,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	warn = NULL;
 	if (ssl_sock_load_ocsp_response_from_file(ocsp_path, iocsp, cid, &warn)) {
 		memprintf(&warn, "Loading '%s': %s. Content will be ignored", ocsp_path, warn ? warn : "failure");
-		Warning("%s.\n", warn);
+		ha_warning("%s.\n", warn);
 	}
 
 out:
@@ -1210,7 +1210,7 @@ static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_p
 
 	fd = open(ocsp_path, O_RDONLY);
 	if (fd == -1) {
-		Warning("Error opening OCSP response file %s.\n", ocsp_path);
+		ha_warning("Error opening OCSP response file %s.\n", ocsp_path);
 		return -1;
 	}
 
@@ -1220,7 +1220,7 @@ static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_p
 		if (r < 0) {
 			if (errno == EINTR)
 				continue;
-			Warning("Error reading OCSP response from file %s.\n", ocsp_path);
+			ha_warning("Error reading OCSP response from file %s.\n", ocsp_path);
 			close(fd);
 			return -1;
 		}
@@ -3698,9 +3698,9 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	bind_conf->initial_ctx = ctx;
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
-		Warning("Proxy '%s': no-sslv3/no-tlsv1x are ignored for bind '%s' at [%s:%d]. "
-			"Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
-			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		ha_warning("Proxy '%s': no-sslv3/no-tlsv1x are ignored for bind '%s' at [%s:%d]. "
+			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+			   bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 	else
 		flags = conf_ssl_methods->flags;
 
@@ -3722,10 +3722,10 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
 			if (min) {
 				if (hole) {
-					Warning("Proxy '%s': SSL/TLS versions range not contiguous for bind '%s' at [%s:%d]. "
-						"Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
-						bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line,
-						methodVersions[hole].name);
+					ha_warning("Proxy '%s': SSL/TLS versions range not contiguous for bind '%s' at [%s:%d]. "
+						   "Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+						   bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line,
+						   methodVersions[hole].name);
 					hole = 0;
 				}
 				max = i;
@@ -3739,8 +3739,8 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 				hole = i;
 		}
 	if (!min) {
-		Alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
-			bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+			 bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr += 1;
 	}
 	/* save real min/max in bind_conf */
@@ -4068,8 +4068,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		conf_ssl_methods->min = min;
 		conf_ssl_methods->max = max;
 		if (!min) {
-			Alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
-			      bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+				 bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr += 1;
 		}
 	}
@@ -4092,8 +4092,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		if (ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(ctx, ca_file, NULL)) {
-				Alert("Proxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
-				      curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				ha_alert("Proxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
+					 curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
 			if (!((ssl_conf && ssl_conf->no_ca_names) || bind_conf->ssl_conf.no_ca_names)) {
@@ -4102,8 +4102,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			}
 		}
 		else {
-			Alert("Proxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
-			      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
+				 curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
@@ -4111,8 +4111,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 			if (!store || !X509_STORE_load_locations(store, crl_file, NULL)) {
-				Alert("Proxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
-				      curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				ha_alert("Proxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
+					 curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
 			else {
@@ -4125,8 +4125,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	if(bind_conf->keys_ref) {
 		if (!SSL_CTX_set_tlsext_ticket_key_cb(ctx, ssl_tlsext_ticket_key_cb)) {
-			Alert("Proxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
-				curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
+				 curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
 	}
@@ -4136,8 +4136,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
-		Alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
-		curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
+			 curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr++;
 	}
 
@@ -4183,7 +4183,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		}
 
 		if (dhe_found) {
-			Warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
+			ha_warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
 		}
 
 		global_ssl.default_dh_param = 1024;
@@ -4233,8 +4233,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
 	if (conf_curves) {
 		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
-			Alert("Proxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
-			      curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
+				 curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
 #if defined(SSL_CTX_set_ecdh_auto)
@@ -4263,8 +4263,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 
 		i = OBJ_sn2nid(ecdhe);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
-			Alert("Proxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
-			      curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
+				 curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
 		else {
@@ -4440,7 +4440,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
-		Alert("OpenSSL random data generator initialization failed.\n");
+		ha_alert("OpenSSL random data generator initialization failed.\n");
 		cfgerr++;
 	}
 
@@ -4450,9 +4450,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	/* Initiate SSL context for current server */
 	if (!srv->ssl_ctx.reused_sess) {
 		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(*srv->ssl_ctx.reused_sess))) == NULL) {
-			Alert("Proxy '%s', server '%s' [%s:%d] out of memory.\n",
-			      curproxy->id, srv->id,
-			      srv->conf.file, srv->conf.line);
+			ha_alert("Proxy '%s', server '%s' [%s:%d] out of memory.\n",
+				 curproxy->id, srv->id,
+				 srv->conf.file, srv->conf.line);
 			cfgerr++;
 			return cfgerr;
 		}
@@ -4464,17 +4464,17 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 	ctx = SSL_CTX_new(SSLv23_client_method());
 	if (!ctx) {
-		Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
-		      proxy_type_str(curproxy), curproxy->id,
-		      srv->id);
+		ha_alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
+			 proxy_type_str(curproxy), curproxy->id,
+			 srv->id);
 		cfgerr++;
 		return cfgerr;
 	}
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
-		Warning("config : %s '%s': no-sslv3/no-tlsv1x are ignored for server '%s'. "
-			"Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
-			proxy_type_str(curproxy), curproxy->id, srv->id);
+		ha_warning("config : %s '%s': no-sslv3/no-tlsv1x are ignored for server '%s'. "
+			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+			   proxy_type_str(curproxy), curproxy->id, srv->id);
 	else
 		flags = conf_ssl_methods->flags;
 
@@ -4492,10 +4492,10 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
 			if (min) {
 				if (hole) {
-					Warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
-						"Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
-						proxy_type_str(curproxy), curproxy->id, srv->id,
-						methodVersions[hole].name);
+					ha_warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
+						   "Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
+						   proxy_type_str(curproxy), curproxy->id, srv->id,
+						   methodVersions[hole].name);
 					hole = 0;
 				}
 				max = i;
@@ -4509,8 +4509,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 				hole = i;
 		}
 	if (!min) {
-		Alert("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
-		      proxy_type_str(curproxy), curproxy->id, srv->id);
+		ha_alert("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
+			 proxy_type_str(curproxy), curproxy->id, srv->id);
 		cfgerr += 1;
 	}
 
@@ -4542,21 +4542,21 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 	if (srv->ssl_ctx.client_crt) {
 		if (SSL_CTX_use_PrivateKey_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt, SSL_FILETYPE_PEM) <= 0) {
-			Alert("config : %s '%s', server '%s': unable to load SSL private key from PEM file '%s'.\n",
-			      proxy_type_str(curproxy), curproxy->id,
-			      srv->id, srv->ssl_ctx.client_crt);
+			ha_alert("config : %s '%s', server '%s': unable to load SSL private key from PEM file '%s'.\n",
+				 proxy_type_str(curproxy), curproxy->id,
+				 srv->id, srv->ssl_ctx.client_crt);
 			cfgerr++;
 		}
 		else if (SSL_CTX_use_certificate_chain_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt) <= 0) {
-			Alert("config : %s '%s', server '%s': unable to load ssl certificate from PEM file '%s'.\n",
-			      proxy_type_str(curproxy), curproxy->id,
-			      srv->id, srv->ssl_ctx.client_crt);
+			ha_alert("config : %s '%s', server '%s': unable to load ssl certificate from PEM file '%s'.\n",
+				 proxy_type_str(curproxy), curproxy->id,
+				 srv->id, srv->ssl_ctx.client_crt);
 			cfgerr++;
 		}
 		else if (SSL_CTX_check_private_key(srv->ssl_ctx.ctx) <= 0) {
-			Alert("config : %s '%s', server '%s': inconsistencies between private key and certificate loaded from PEM file '%s'.\n",
-			      proxy_type_str(curproxy), curproxy->id,
-			      srv->id, srv->ssl_ctx.client_crt);
+			ha_alert("config : %s '%s', server '%s': inconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+				 proxy_type_str(curproxy), curproxy->id,
+				 srv->id, srv->ssl_ctx.client_crt);
 			cfgerr++;
 		}
 	}
@@ -4578,21 +4578,21 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		if (srv->ssl_ctx.ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file, NULL)) {
-				Alert("Proxy '%s', server '%s' [%s:%d] unable to load CA file '%s'.\n",
-				      curproxy->id, srv->id,
-				      srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
+				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to load CA file '%s'.\n",
+					 curproxy->id, srv->id,
+					 srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
 				cfgerr++;
 			}
 		}
 		else {
 			if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
-				Alert("Proxy '%s', server '%s' [%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
-				      curproxy->id, srv->id,
-				      srv->conf.file, srv->conf.line);
+				ha_alert("Proxy '%s', server '%s' [%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
+					 curproxy->id, srv->id,
+					 srv->conf.file, srv->conf.line);
 			else
-				Alert("Proxy '%s', server '%s' [%s:%d] verify is enabled but no CA file specified.\n",
-				      curproxy->id, srv->id,
-				      srv->conf.file, srv->conf.line);
+				ha_alert("Proxy '%s', server '%s' [%s:%d] verify is enabled but no CA file specified.\n",
+					 curproxy->id, srv->id,
+					 srv->conf.file, srv->conf.line);
 			cfgerr++;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
@@ -4600,9 +4600,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			X509_STORE *store = SSL_CTX_get_cert_store(srv->ssl_ctx.ctx);
 
 			if (!store || !X509_STORE_load_locations(store, srv->ssl_ctx.crl_file, NULL)) {
-				Alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
-				      curproxy->id, srv->id,
-				      srv->conf.file, srv->conf.line, srv->ssl_ctx.crl_file);
+				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
+					 curproxy->id, srv->id,
+					 srv->conf.file, srv->conf.line, srv->ssl_ctx.crl_file);
 				cfgerr++;
 			}
 			else {
@@ -4617,9 +4617,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	SSL_CTX_sess_set_new_cb(srv->ssl_ctx.ctx, ssl_sess_new_srv_cb);
 	if (srv->ssl_ctx.ciphers &&
 		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphers)) {
-		Alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
-		      curproxy->id, srv->id,
-		      srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
+		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
+			 curproxy->id, srv->id,
+			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
 		cfgerr++;
 	}
 
@@ -4641,7 +4641,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
-		Alert("OpenSSL random data generator initialization failed.\n");
+		ha_alert("OpenSSL random data generator initialization failed.\n");
 		err++;
 	}
 	/* Create initial_ctx used to start the ssl connection before do switchctx */
@@ -4689,19 +4689,19 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 
 	if (!bind_conf->is_ssl) {
 		if (bind_conf->default_ctx) {
-			Warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
-				px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
+				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
 		return 0;
 	}
 	if (!bind_conf->default_ctx) {
 		if (bind_conf->strict_sni && !bind_conf->generate_certs) {
-			Warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
-				px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
+				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
 		else {
-			Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
-			      px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			ha_alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
+				 px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			return -1;
 		}
 	}
@@ -4712,9 +4712,9 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			       ((global.nbthread > 1) || (!global_ssl.private_cache && (global.nbproc > 1))) ? 1 : 0);
 	if (alloc_ctx < 0) {
 		if (alloc_ctx == SHCTX_E_INIT_LOCK)
-			Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
+			ha_alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
 		else
-			Alert("Unable to allocate SSL session cache.\n");
+			ha_alert("Unable to allocate SSL session cache.\n");
 		return -1;
 	}
 	/* free block callback */
@@ -4825,27 +4825,27 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 #endif
 
 	if (!bind_conf->ca_sign_file) {
-		Alert("Proxy '%s': cannot enable certificate generation, "
-		      "no CA certificate File configured at [%s:%d].\n",
-		      px->id, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': cannot enable certificate generation, "
+			 "no CA certificate File configured at [%s:%d].\n",
+			 px->id, bind_conf->file, bind_conf->line);
 		goto load_error;
 	}
 
 	/* read in the CA certificate */
 	if (!(fp = fopen(bind_conf->ca_sign_file, "r"))) {
-		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
-		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
+			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
 		goto load_error;
 	}
 	if (!(cacert = PEM_read_X509(fp, NULL, NULL, NULL))) {
-		Alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
-		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
+			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
 		goto read_error;
 	}
 	rewind(fp);
 	if (!(capkey = PEM_read_PrivateKey(fp, NULL, NULL, bind_conf->ca_sign_pass))) {
-		Alert("Proxy '%s': Failed to read CA private key file '%s' at [%s:%d].\n",
-		      px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		ha_alert("Proxy '%s': Failed to read CA private key file '%s' at [%s:%d].\n",
+			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
 		goto read_error;
 	}
 
@@ -7312,7 +7312,7 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10101000L) || !defined(OPENSSL_IS_BORINGSSL)
-	Warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
+	ha_warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
 #endif
 	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
 }
@@ -7990,7 +7990,7 @@ static int ssl_check_async_engine_count(void) {
 	int err_code = 0;
 
 	if (global_ssl.async && (openssl_engines_initialized > 32)) {
-		Alert("ssl-mode-async only supports a maximum of 32 engines.\n");
+		ha_alert("ssl-mode-async only supports a maximum of 32 engines.\n");
 		err_code = ERR_ABORT;
 	}
 	return err_code;

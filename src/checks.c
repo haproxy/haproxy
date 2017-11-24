@@ -289,7 +289,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		             (check->health >= check->rise) ? check->fall : check->rise,
 			     (check->health >= check->rise) ? (s->uweight ? "UP" : "DRAIN") : "DOWN");
 
-		Warning("%s.\n", trash.str);
+		ha_warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 		send_email_alert(s, LOG_INFO, "%s", trash.str);
 	}
@@ -1209,7 +1209,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 					* an error message is attached, so we can display it
 					*/
 					desc = &check->bi->data[7];
-					//Warning("onlyoneERR: %s\n", desc);
+					//ha_warning("onlyoneERR: %s\n", desc);
 					set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 				}
 			} else if (check->bi->i > first_packet_len + 4) {
@@ -1224,7 +1224,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 						/* No error packet */
 						/* We set the MySQL Version in description for information purpose */
 						desc = &check->bi->data[5];
-						//Warning("2packetOK: %s\n", desc);
+						//ha_warning("2packetOK: %s\n", desc);
 						set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 					}
 					else {
@@ -1232,7 +1232,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 						* so we can display it ! :)
 						*/
 						desc = &check->bi->data[first_packet_len+11];
-						//Warning("2packetERR: %s\n", desc);
+						//ha_warning("2packetERR: %s\n", desc);
 						set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 					}
 				}
@@ -1245,7 +1245,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 				 * it must be a protocol error
 				 */
 				desc = &check->bi->data[5];
-				//Warning("protoerr: %s\n", desc);
+				//ha_warning("protoerr: %s\n", desc);
 				set_server_check_status(check, HCHK_STATUS_L7RSP, desc);
 			}
 		}
@@ -1705,15 +1705,15 @@ static int init_pid_list(void)
 		return 0;
 
 	if (!signal_register_fct(SIGCHLD, sigchld_handler, SIGCHLD)) {
-		Alert("Failed to set signal handler for external health checks: %s. Aborting.\n",
-		      strerror(errno));
+		ha_alert("Failed to set signal handler for external health checks: %s. Aborting.\n",
+			 strerror(errno));
 		return 1;
 	}
 
 	pool2_pid_list = create_pool("pid_list", sizeof(struct pid_list), MEM_F_SHARED);
 	if (pool2_pid_list == NULL) {
-		Alert("Failed to allocate memory pool for external health checks: %s. Aborting.\n",
-		      strerror(errno));
+		ha_alert("Failed to allocate memory pool for external health checks: %s. Aborting.\n",
+			 strerror(errno));
 		return 1;
 	}
 
@@ -1737,7 +1737,7 @@ static int extchk_setenv(struct check *check, int idx, const char *value)
 	int vmaxlen;
 
 	if (idx < 0 || idx >= EXTCHK_SIZE) {
-		Alert("Illegal environment variable index %d. Aborting.\n", idx);
+		ha_alert("Illegal environment variable index %d. Aborting.\n", idx);
 		return 1;
 	}
 
@@ -1764,16 +1764,16 @@ static int extchk_setenv(struct check *check, int idx, const char *value)
 		check->envp[idx] = malloc(len + 1);
 
 	if (!check->envp[idx]) {
-		Alert("Failed to allocate memory for the environment variable '%s'. Aborting.\n", envname);
+		ha_alert("Failed to allocate memory for the environment variable '%s'. Aborting.\n", envname);
 		return 1;
 	}
 	ret = snprintf(check->envp[idx], len + 1, "%s=%s", envname, value);
 	if (ret < 0) {
-		Alert("Failed to store the environment variable '%s'. Reason : %s. Aborting.\n", envname, strerror(errno));
+		ha_alert("Failed to store the environment variable '%s'. Reason : %s. Aborting.\n", envname, strerror(errno));
 		return 1;
 	}
 	else if (ret > len) {
-		Alert("Environment variable '%s' was truncated. Aborting.\n", envname);
+		ha_alert("Environment variable '%s' was truncated. Aborting.\n", envname);
 		return 1;
 	}
 	return 0;
@@ -1800,13 +1800,13 @@ static int prepare_external_check(struct check *check)
 	check->curpid = NULL;
 	check->envp = calloc((EXTCHK_SIZE + 1), sizeof(char *));
 	if (!check->envp) {
-		Alert("Failed to allocate memory for environment variables. Aborting\n");
+		ha_alert("Failed to allocate memory for environment variables. Aborting\n");
 		goto err;
 	}
 
 	check->argv = calloc(6, sizeof(char *));
 	if (!check->argv) {
-		Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 		goto err;
 	}
 
@@ -1831,7 +1831,7 @@ static int prepare_external_check(struct check *check)
 		check->argv[2] = strdup("NOT_USED");
 	}
 	else {
-		Alert("Starting [%s:%s] check: unsupported address family.\n", px->id, s->id);
+		ha_alert("Starting [%s:%s] check: unsupported address family.\n", px->id, s->id);
 		goto err;
 	}
 
@@ -1846,7 +1846,7 @@ static int prepare_external_check(struct check *check)
 
 	for (i = 0; i < 5; i++) {
 		if (!check->argv[i]) {
-			Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+			ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 			goto err;
 		}
 	}
@@ -1913,8 +1913,8 @@ static int connect_proc_chk(struct task *t)
 
 	pid = fork();
 	if (pid < 0) {
-		Alert("Failed to fork process for external health check: %s. Aborting.\n",
-		      strerror(errno));
+		ha_alert("Failed to fork process for external health check: %s. Aborting.\n",
+			 strerror(errno));
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, strerror(errno));
 		goto out;
 	}
@@ -1932,8 +1932,8 @@ static int connect_proc_chk(struct task *t)
 		environ = check->envp;
 		extchk_setenv(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)));
 		execvp(px->check_command, check->argv);
-		Alert("Failed to exec process for external health check: %s. Aborting.\n",
-		      strerror(errno));
+		ha_alert("Failed to exec process for external health check: %s. Aborting.\n",
+			 strerror(errno));
 		exit(-1);
 	}
 
@@ -2054,7 +2054,7 @@ static struct task *process_chk_proc(struct task *t)
 					status = HCHK_STATUS_PROCOK;
 			} else if (expired) {
 				status = HCHK_STATUS_PROCTOUT;
-				Warning("kill %d\n", (int)elem->pid);
+				ha_warning("kill %d\n", (int)elem->pid);
 				kill(elem->pid, SIGTERM);
 			}
 			set_server_check_status(check, status, NULL);
@@ -2290,8 +2290,8 @@ static int start_check_task(struct check *check, int mininter,
 	struct task *t;
 	/* task for the check */
 	if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-		Alert("Starting [%s:%s] check: out of memory.\n",
-		      check->server->proxy->id, check->server->id);
+		ha_alert("Starting [%s:%s] check: out of memory.\n",
+			 check->server->proxy->id, check->server->id);
 		return 0;
 	}
 
@@ -2336,7 +2336,7 @@ static int start_checks()
 		for (s = px->srv; s; s = s->next) {
 			if (s->slowstart) {
 				if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+					ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 					return ERR_ALERT | ERR_FATAL;
 				}
 				/* We need a warmup task that will be called when the server
@@ -2379,7 +2379,7 @@ static int start_checks()
 	for (px = proxy; px; px = px->next) {
 		if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
 			if (init_pid_list()) {
-				Alert("Starting [%s] check: out of memory.\n", px->id);
+				ha_alert("Starting [%s] check: out of memory.\n", px->id);
 				return ERR_ALERT | ERR_FATAL;
 			}
 		}
@@ -3415,7 +3415,7 @@ static void enqueue_email_alert(struct proxy *p, struct server *s, const char *m
 	for (i = 0, mailer = p->email_alert.mailers.m->mailer_list;
 	     i < p->email_alert.mailers.m->count; i++, mailer = mailer->next) {
 		if (!enqueue_one_email_alert(p, s, &p->email_alert.queues[i], msg)) {
-			Alert("Email alert [%s] could not be enqueued: out of memory\n", p->id);
+			ha_alert("Email alert [%s] could not be enqueued: out of memory\n", p->id);
 			return;
 		}
 	}
@@ -3441,7 +3441,7 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 	va_end(argp);
 
 	if (len < 0 || len >= sizeof(buf)) {
-		Alert("Email alert [%s] could not format message\n", p->id);
+		ha_alert("Email alert [%s] could not format message\n", p->id);
 		return;
 	}
 

@@ -52,7 +52,7 @@ int netns_init(void)
 	 * is not needed either */
 	if (!eb_is_empty(&namespace_tree_root)) {
 		if (init_default_namespace() < 0) {
-			Alert("Failed to open the default namespace.\n");
+			ha_alert("Failed to open the default namespace.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}

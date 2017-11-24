@@ -146,9 +146,9 @@ void srv_set_dyncookie(struct server *s)
 			continue;
 		if (tmpserv->cookie &&
 		    strcmp(tmpserv->cookie, s->cookie) == 0) {
-			Warning("We generated two equal cookies for two different servers.\n"
-			    "Please change the secret key for '%s'.\n",
-			    s->proxy->id);
+			ha_warning("We generated two equal cookies for two different servers.\n"
+				   "Please change the secret key for '%s'.\n",
+				   s->proxy->id);
 		}
 	}
 }
@@ -581,8 +581,8 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 	proto = protocol_by_family(sk->ss_family);
 	if (!proto || !proto->connect) {
-		Alert("'%s %s' : connect() not supported for this address family.\n",
-		      args[*cur_arg], args[*cur_arg + 1]);
+		ha_alert("'%s %s' : connect() not supported for this address family.\n",
+			 args[*cur_arg], args[*cur_arg + 1]);
 		goto err;
 	}
 
@@ -593,15 +593,15 @@ static int srv_parse_source(char **args, int *cur_arg,
 		int i;
 
 		if (!port_low || !port_high) {
-			Alert("'%s' does not support port offsets (found '%s').\n",
-			      args[*cur_arg], args[*cur_arg + 1]);
+			ha_alert("'%s' does not support port offsets (found '%s').\n",
+				 args[*cur_arg], args[*cur_arg + 1]);
 			goto err;
 		}
 
 		if (port_low  <= 0 || port_low  > 65535 ||
 			port_high <= 0 || port_high > 65535 ||
 			port_low > port_high) {
-			Alert("'%s': invalid source port range %d-%d.\n", args[*cur_arg], port_low, port_high);
+			ha_alert("'%s': invalid source port range %d-%d.\n", args[*cur_arg], port_low, port_high);
 			goto err;
 		}
 		newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
@@ -614,8 +614,8 @@ static int srv_parse_source(char **args, int *cur_arg,
 		if (!strcmp(args[*cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_TRANSPARENT)
 			if (!*args[*cur_arg + 1]) {
-				Alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', "
-				      "or 'hdr_ip(name,#)' as argument.\n");
+				ha_alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', "
+					 "or 'hdr_ip(name,#)' as argument.\n");
 				goto err;
 			}
 			if (!strcmp(args[*cur_arg + 1], "client")) {
@@ -660,8 +660,8 @@ static int srv_parse_source(char **args, int *cur_arg,
 				}
 
 				if (newsrv->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
-					Alert("usesrc hdr_ip(name,num) does not support negative"
-					      " occurrences values smaller than %d.\n", MAX_HDR_HISTORY);
+					ha_alert("usesrc hdr_ip(name,num) does not support negative"
+						 " occurrences values smaller than %d.\n", MAX_HDR_HISTORY);
 					goto err;
 				}
 			}
@@ -672,20 +672,20 @@ static int srv_parse_source(char **args, int *cur_arg,
 				/* 'sk' is statically allocated (no need to be freed). */
 				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
 				if (!sk) {
-					Alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
+					ha_alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 					goto err;
 				}
 
 				proto = protocol_by_family(sk->ss_family);
 				if (!proto || !proto->connect) {
-					Alert("'%s %s' : connect() not supported for this address family.\n",
-					      args[*cur_arg], args[*cur_arg + 1]);
+					ha_alert("'%s %s' : connect() not supported for this address family.\n",
+						 args[*cur_arg], args[*cur_arg + 1]);
 					goto err;
 				}
 
 				if (port1 != port2) {
-					Alert("'%s' : port ranges and offsets are not allowed in '%s'\n",
-					      args[*cur_arg], args[*cur_arg + 1]);
+					ha_alert("'%s' : port ranges and offsets are not allowed in '%s'\n",
+						 args[*cur_arg], args[*cur_arg + 1]);
 					goto err;
 				}
 				newsrv->conn_src.tproxy_addr = *sk;
@@ -695,7 +695,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 			*cur_arg += 2;
 			continue;
 #else	/* no TPROXY support */
-			Alert("'usesrc' not allowed here because support for TPROXY was not compiled in.\n");
+			ha_alert("'usesrc' not allowed here because support for TPROXY was not compiled in.\n");
 			goto err;
 #endif /* defined(CONFIG_HAP_TRANSPARENT) */
 		} /* "usesrc" */
@@ -703,7 +703,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 		if (!strcmp(args[*cur_arg], "interface")) { /* specifically bind to this interface */
 #ifdef SO_BINDTODEVICE
 			if (!*args[*cur_arg + 1]) {
-				Alert("'%s' : missing interface name.\n", args[0]);
+				ha_alert("'%s' : missing interface name.\n", args[0]);
 				goto err;
 			}
 			free(newsrv->conn_src.iface_name);
@@ -711,7 +711,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 			newsrv->conn_src.iface_len  = strlen(newsrv->conn_src.iface_name);
 			global.last_checks |= LSTCHK_NETADM;
 #else
-			Alert("'%s' : '%s' option not implemented.\n", args[0], args[*cur_arg]);
+			ha_alert("'%s' : '%s' option not implemented.\n", args[0], args[*cur_arg]);
 			goto err;
 #endif
 			*cur_arg += 2;
@@ -1294,11 +1294,11 @@ static void display_parser_err(const char *file, int linenum, char **args, int c
 {
 	if (err && *err) {
 		indent_msg(err, 2);
-		Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], *err);
+		ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], *err);
 	}
 	else
-		Alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
-		      file, linenum, args[0], args[1], args[cur_arg]);
+		ha_alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
+			 file, linenum, args[0], args[1], args[cur_arg]);
 }
 
 static void srv_conn_src_sport_range_cpy(struct server *srv,
@@ -1579,9 +1579,9 @@ static int server_healthcheck_validate(const char *file, int linenum, struct ser
 
 	r = (struct tcpcheck_rule *)srv->proxy->tcpcheck_rules.n;
 	if (!r) {
-		Alert("parsing [%s:%d] : server %s has neither service port nor check port. "
-			  "Check has been disabled.\n",
-			  file, linenum, srv->id);
+		ha_alert("parsing [%s:%d] : server %s has neither service port nor check port. "
+			 "Check has been disabled.\n",
+			 file, linenum, srv->id);
 		return -1;
 	}
 
@@ -1593,9 +1593,9 @@ static int server_healthcheck_validate(const char *file, int linenum, struct ser
 	}
 
 	if ((r->action != TCPCHK_ACT_CONNECT) || !r->port) {
-		Alert("parsing [%s:%d] : server %s has neither service port nor check port "
-			  "nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
-			  file, linenum, srv->id);
+		ha_alert("parsing [%s:%d] : server %s has neither service port nor check port "
+			 "nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
+			 file, linenum, srv->id);
 		return -1;
 	}
 
@@ -1603,9 +1603,9 @@ static int server_healthcheck_validate(const char *file, int linenum, struct ser
 	l = &srv->proxy->tcpcheck_rules;
 	list_for_each_entry(r, l, list) {
 		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
-			Alert("parsing [%s:%d] : server %s has neither service port nor check port, "
-				  "and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
-				  file, linenum, srv->id);
+			ha_alert("parsing [%s:%d] : server %s has neither service port nor check port, "
+				 "and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
+				 file, linenum, srv->id);
 			return -1;
 		}
 	}
@@ -1643,8 +1643,8 @@ static int server_health_check_init(const char *file, int linenum,
 		return 0;
 
 	if (srv->trackit) {
-		Alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
-			file, linenum);
+		ha_alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
+			 file, linenum);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1654,7 +1654,7 @@ static int server_health_check_init(const char *file, int linenum,
 	/* note: check type will be set during the config review phase */
 	ret = do_health_check_init(srv, 0, CHK_ST_CONFIGURED | CHK_ST_ENABLED);
 	if (ret) {
-		Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+		ha_alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
 		return ERR_ALERT | ERR_ABORT;
 	}
 
@@ -1694,14 +1694,14 @@ static int server_agent_check_init(const char *file, int linenum,
 		return 0;
 
 	if (!srv->agent.port) {
-		Alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
+		ha_alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
 			  file, linenum, srv->id);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	ret = do_server_agent_check_init(srv, CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT);
 	if (ret) {
-		Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+		ha_alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
 		return ERR_ALERT | ERR_ABORT;
 	}
 
@@ -1876,7 +1876,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		int tmpl_range_low = 0, tmpl_range_high = 0;
 
 		if (!defsrv && curproxy == defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1887,7 +1887,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		if (srv) {
 			if (!*args[2]) {
 				/* 'server' line number of argument check. */
-				Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+				ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
 					  file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1898,7 +1898,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		else if (srv_tmpl) {
 			if (!*args[3]) {
 				/* 'server-template' line number of argument check. */
-				Alert("parsing [%s:%d] : '%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.\n",
+				ha_alert("parsing [%s:%d] : '%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.\n",
 					  file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1908,7 +1908,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (err) {
-			Alert("parsing [%s:%d] : character '%c' is not permitted in %s %s '%s'.\n",
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in %s %s '%s'.\n",
 			      file, linenum, *err, args[0], srv ? "name" : "prefix", args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1918,7 +1918,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		if (srv_tmpl) {
 			/* Parse server-template <nb | range> arg. */
 			if (srv_tmpl_parse_range(newsrv, args[cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
-				Alert("parsing [%s:%d] : Wrong %s number or range arg '%s'.\n",
+				ha_alert("parsing [%s:%d] : Wrong %s number or range arg '%s'.\n",
 					  file, linenum, args[0], args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1933,7 +1933,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			newsrv = new_server(curproxy);
 			if (!newsrv) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -1966,14 +1966,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 */
 			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
 			if (!sk) {
-				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 
 			proto = protocol_by_family(sk->ss_family);
 			if (!fqdn && (!proto || !proto->connect)) {
-				Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+				ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
 				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1985,7 +1985,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (port1 != port2) {
 				/* port range */
-				Alert("parsing [%s:%d] : '%s %s' : port ranges are not allowed in '%s'\n",
+				ha_alert("parsing [%s:%d] : '%s %s' : port ranges are not allowed in '%s'\n",
 				      file, linenum, args[0], args[1], args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -2003,7 +2003,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					}
 				}
 				else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-					Alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
+					ha_alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
 					      file, linenum, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2014,7 +2014,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->svc_port = port;
 
 			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
-				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
+				ha_alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 				      file, linenum, newsrv->addr.ss_family, args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -2034,13 +2034,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!strcmp(args[cur_arg], "agent-inter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
-					Alert("parsing [%s:%d] : unexpected character '%c' in 'agent-inter' argument of server %s.\n",
+					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'agent-inter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				if (val <= 0) {
-					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
 					      file, linenum, val, args[cur_arg], newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2050,7 +2050,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "agent-addr")) {
 				if(str2ip(args[cur_arg + 1], &newsrv->agent.addr) == NULL) {
-					Alert("parsing agent-addr failed. Check if %s is correct address.\n", args[cur_arg + 1]);
+					ha_alert("parsing agent-addr failed. Check if %s is correct address.\n", args[cur_arg + 1]);
 					goto out;
 				}
 
@@ -2095,7 +2095,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					}
 					else if (str2ip2(p, &sa, 0)) {
 						if (is_addr(&newsrv->init_addr)) {
-							Alert("parsing [%s:%d]: '%s' : initial address already specified, cannot add '%s'.\n",
+							ha_alert("parsing [%s:%d]: '%s' : initial address already specified, cannot add '%s'.\n",
 							      file, linenum, args[cur_arg], p);
 							err_code |= ERR_ALERT | ERR_FATAL;
 							goto out;
@@ -2104,13 +2104,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_IP);
 					}
 					else {
-						Alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.\n",
+						ha_alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.\n",
 							file, linenum, args[cur_arg], p);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
 					if (!done) {
-						Alert("parsing [%s:%d]: '%s' : too many init-addr methods when trying to add '%s'\n",
+						ha_alert("parsing [%s:%d]: '%s' : too many init-addr methods when trying to add '%s'\n",
 							file, linenum, args[cur_arg], p);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -2129,7 +2129,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				else if (!strcmp(args[cur_arg + 1], "ipv6"))
 					newsrv->dns_opts.family_prio = AF_INET6;
 				else {
-					Alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
+					ha_alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2142,7 +2142,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				struct dns_options *opt;
 
 				if (!args[cur_arg + 1] || args[cur_arg + 1][0] == '\0') {
-					Alert("parsing [%s:%d]: '%s' expects a list of networks.\n",
+					ha_alert("parsing [%s:%d]: '%s' expects a list of networks.\n",
 					      file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2158,7 +2158,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				while (*p != '\0') {
 					/* If no room avalaible, return error. */
 					if (opt->pref_net_nb >= SRV_MAX_PREF_NET) {
-						Alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
+						ha_alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
 						      file, linenum, args[cur_arg], SRV_MAX_PREF_NET);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -2181,7 +2181,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						opt->pref_net[opt->pref_net_nb].family = AF_INET6;
 					} else {
 						/* All network conversions fail, retrun error. */
-						Alert("parsing [%s:%d]: '%s': invalid network '%s'.\n",
+						ha_alert("parsing [%s:%d]: '%s': invalid network '%s'.\n",
 						      file, linenum, args[cur_arg], p);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -2194,7 +2194,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "rise")) {
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2202,7 +2202,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				newsrv->check.rise = atol(args[cur_arg + 1]);
 				if (newsrv->check.rise <= 0) {
-					Alert("parsing [%s:%d]: '%s' has to be > 0.\n",
+					ha_alert("parsing [%s:%d]: '%s' has to be > 0.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2216,14 +2216,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->check.fall = atol(args[cur_arg + 1]);
 
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
 				if (newsrv->check.fall <= 0) {
-					Alert("parsing [%s:%d]: '%s' has to be > 0.\n",
+					ha_alert("parsing [%s:%d]: '%s' has to be > 0.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2234,13 +2234,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "inter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
-					Alert("parsing [%s:%d] : unexpected character '%c' in 'inter' argument of server %s.\n",
+					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'inter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				if (val <= 0) {
-					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
 					      file, linenum, val, args[cur_arg], newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2251,13 +2251,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "fastinter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
-					Alert("parsing [%s:%d]: unexpected character '%c' in 'fastinter' argument of server %s.\n",
+					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'fastinter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				if (val <= 0) {
-					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
 					      file, linenum, val, args[cur_arg], newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2268,13 +2268,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "downinter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
-					Alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
+					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				if (val <= 0) {
-					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
 					      file, linenum, val, args[cur_arg], newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2291,7 +2291,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				int w;
 				w = atol(args[cur_arg + 1]);
 				if (w < 0 || w > SRV_UWGHT_MAX) {
-					Alert("parsing [%s:%d] : weight of server %s is not within 0 and %d (%d).\n",
+					ha_alert("parsing [%s:%d] : weight of server %s is not within 0 and %d (%d).\n",
 					      file, linenum, newsrv->id, SRV_UWGHT_MAX, w);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2315,7 +2315,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				/* slowstart is stored in seconds */
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
-					Alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
+					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2333,7 +2333,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				else if (!strcmp(args[cur_arg + 1], "mark-down"))
 					newsrv->onerror = HANA_ONERR_MARKDWN;
 				else {
-					Alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
+					ha_alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
 						"'fail-check', 'sudden-death' or 'mark-down' but got '%s'\n",
 						file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2346,7 +2346,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				if (!strcmp(args[cur_arg + 1], "shutdown-sessions"))
 					newsrv->onmarkeddown = HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS;
 				else {
-					Alert("parsing [%s:%d]: '%s' expects 'shutdown-sessions' but got '%s'\n",
+					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-sessions' but got '%s'\n",
 						file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2358,7 +2358,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				if (!strcmp(args[cur_arg + 1], "shutdown-backup-sessions"))
 					newsrv->onmarkedup = HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS;
 				else {
-					Alert("parsing [%s:%d]: '%s' expects 'shutdown-backup-sessions' but got '%s'\n",
+					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-backup-sessions' but got '%s'\n",
 						file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2368,7 +2368,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "error-limit")) {
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2377,7 +2377,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->consecutive_errors_limit = atoi(args[cur_arg + 1]);
 
 				if (newsrv->consecutive_errors_limit <= 0) {
-					Alert("parsing [%s:%d]: %s has to be > 0.\n",
+					ha_alert("parsing [%s:%d]: %s has to be > 0.\n",
 						file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2385,7 +2385,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
-				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
+				ha_alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -2401,7 +2401,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					int code;
 
 					if (!kw->parse) {
-						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
+						ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
 						if (kw->skip != -1)
 							cur_arg += 1 + kw->skip ;
@@ -2410,7 +2410,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					}
 
 					if (defsrv && !kw->default_ok) {
-						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
+						ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
 						if (kw->skip != -1)
 							cur_arg += 1 + kw->skip ;
@@ -2443,7 +2443,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					srv_dumped = 1;
 				}
 
-				Alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
+				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
 				      file, linenum, args[0], args[1], args[cur_arg],
 				      err ? " Registered keywords :" : "", err ? err : "");
 				free(err);
@@ -2923,8 +2923,8 @@ static void srv_update_state(struct server *srv, int version, char **params)
  out:
 	if (msg->len) {
 		chunk_appendf(msg, "\n");
-		Warning("server-state application failed for server '%s/%s'%s",
-		        srv->proxy->id, srv->id, msg->str);
+		ha_warning("server-state application failed for server '%s/%s'%s",
+			   srv->proxy->id, srv->id, msg->str);
 	}
 }
 
@@ -3084,7 +3084,7 @@ void apply_server_state(void)
 		errno = 0;
 		f = fopen(filepath, "r");
 		if (errno && fileopenerr)
-			Warning("Can't open server state file '%s': %s\n", filepath, strerror(errno));
+			ha_warning("Can't open server state file '%s': %s\n", filepath, strerror(errno));
 		if (!f)
 			continue;
 
@@ -3094,7 +3094,7 @@ void apply_server_state(void)
 
 		/* first character of first line of the file must contain the version of the export */
 		if (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f) == NULL) {
-			Warning("Can't read first line of the server state file '%s'\n", filepath);
+			ha_warning("Can't read first line of the server state file '%s'\n", filepath);
 			goto fileclose;
 		}
 
@@ -3130,7 +3130,7 @@ void apply_server_state(void)
 
 			/* truncated lines */
 			if (mybuf[mybuflen - 1] != '\n') {
-				Warning("server-state file '%s': truncated line\n", filepath);
+				ha_warning("server-state file '%s': truncated line\n", filepath);
 				continue;
 			}
 
@@ -3200,11 +3200,11 @@ void apply_server_state(void)
 			if (!check_id && !check_name)
 				continue;
 			else if (!check_id && check_name) {
-				Warning("backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
+				ha_warning("backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
 				send_log(bk, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
 			}
 			else if (check_id && !check_name) {
-				Warning("backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
+				ha_warning("backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
 				send_log(bk, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
 				/* if name doesn't match, we still want to update curproxy if the backend id
 				 * was forced in previous the previous configuration */
@@ -3219,19 +3219,19 @@ void apply_server_state(void)
 
 			if (!srv) {
 				/* if no server found, then warning and continue with next line */
-				Warning("can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
-					params[3], params[2], params[0], params[1]);
+				ha_warning("can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
+					   params[3], params[2], params[0], params[1]);
 				send_log(bk, LOG_NOTICE, "can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
 					 params[3], params[2], params[0], params[1]);
 				continue;
 			}
 			else if (diff & PR_FBM_MISMATCH_ID) {
-				Warning("In backend '%s' (id: '%d'): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
+				ha_warning("In backend '%s' (id: '%d'): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
 				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
 				continue;
 			}
 			else if (diff & PR_FBM_MISMATCH_NAME) {
-				Warning("In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
+				ha_warning("In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
 				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
 				continue;
 			}
@@ -3289,7 +3289,7 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 				s->proxy->id, s->id, oldip, newip, updater);
 
 		/* write the buffer on stderr */
-		Warning("%s.\n", trash.str);
+		ha_warning("%s.\n", trash.str);
 
 		/* send a log */
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -3519,7 +3519,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 			chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer",
 			             s->proxy->id, s->id);
 
-			Warning("%s.\n", trash.str);
+			ha_warning("%s.\n", trash.str);
 			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 			return 0;
 
@@ -3885,16 +3885,16 @@ static int srv_iterate_initaddr(struct server *srv)
 		case SRV_IADDR_NONE:
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
 			if (return_code) {
-				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
-					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
+					   srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 			}
 			return return_code;
 
 		case SRV_IADDR_IP:
 			ipcpy(&srv->init_addr, &srv->addr);
 			if (return_code) {
-				Warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
-					srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
+					   srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 			}
 			goto out;
 
@@ -3904,11 +3904,11 @@ static int srv_iterate_initaddr(struct server *srv)
 	}
 
 	if (!return_code) {
-		Alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
+		ha_alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
 		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 	}
 	else {
-		Alert("parsing [%s:%d] : 'server %s' : could not resolve address '%s'.\n",
+		ha_alert("parsing [%s:%d] : 'server %s' : could not resolve address '%s'.\n",
 		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
 	}
 
@@ -4472,7 +4472,7 @@ void srv_update_status(struct server *s)
 				             s->proxy->id, s->id);
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 
 				/* we don't send an alert if the server was previously paused */
 				log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
@@ -4505,7 +4505,7 @@ void srv_update_status(struct server *s)
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
 
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4563,7 +4563,7 @@ void srv_update_status(struct server *s)
 				             s->proxy->id, s->id);
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
 				free_trash_chunk(tmptrash);
@@ -4618,7 +4618,7 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
-					Warning("%s.\n", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->str);
 					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				}
 				free_trash_chunk(tmptrash);
@@ -4652,7 +4652,7 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
-					Warning("%s.\n", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->str);
 					send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", tmptrash->str);
 				}
 				free_trash_chunk(tmptrash);
@@ -4728,7 +4728,7 @@ void srv_update_status(struct server *s)
 					     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
 					     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 			}
-			Warning("%s.\n", tmptrash->str);
+			ha_warning("%s.\n", tmptrash->str);
 			send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 			free_trash_chunk(tmptrash);
 			tmptrash = NULL;
@@ -4766,7 +4766,7 @@ void srv_update_status(struct server *s)
 				if (s->track) /* normally it's mandatory here */
 					chunk_appendf(tmptrash, " via %s/%s",
 				              s->track->proxy->id, s->track->id);
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4783,7 +4783,7 @@ void srv_update_status(struct server *s)
 				if (s->track) /* normally it's mandatory here */
 					chunk_appendf(tmptrash, " via %s/%s",
 				              s->track->proxy->id, s->track->id);
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4796,7 +4796,7 @@ void srv_update_status(struct server *s)
 				             "%sServer %s/%s remains in forced maintenance",
 				             s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4830,7 +4830,7 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
 
 				if (!(global.mode & MODE_STARTING)) {
-					Warning("%s.\n", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->str);
 					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 					send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
 				}
@@ -4874,7 +4874,7 @@ void srv_update_status(struct server *s)
 					s->track->proxy->id, s->track->id);
 				}
 
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4913,7 +4913,7 @@ void srv_update_status(struct server *s)
 					             s->flags & SRV_F_BACKUP ? "Backup " : "",
 					             s->proxy->id, s->id);
 				}
-				Warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->str);
 				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;

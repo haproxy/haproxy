@@ -1359,7 +1359,7 @@ void set_backend_down(struct proxy *be)
 	HA_ATOMIC_ADD(&be->down_trans, 1);
 
 	if (!(global.mode & MODE_STARTING)) {
-		Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
+		ha_alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
 		send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
 	}
 }

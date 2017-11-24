@@ -482,7 +482,7 @@ static int uxst_connect_server(struct connection *conn, int data, int delack)
 		/* do not log anything there, it's a normal condition when this option
 		 * is used to serialize connections to a server !
 		 */
-		Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		ha_alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
 		close(fd);
 		conn->err_code = CO_ER_CONF_FDLIM;
 		conn->flags |= CO_FL_ERROR;

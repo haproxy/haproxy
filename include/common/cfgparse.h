@@ -106,8 +106,8 @@ static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, i
 	}
 
 	if (!(proxy->cap & cap)) {
-		Warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
-			file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
+		ha_warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
+			   file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
 		return 1;
 	}
 	return 0;

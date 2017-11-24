@@ -86,13 +86,13 @@ int parse_logformat_string(const char *str, struct proxy *curproxy, struct list 
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
  */
-void Alert(const char *fmt, ...)
+void ha_alert(const char *fmt, ...)
 	__attribute__ ((format(printf, 1, 2)));
 
 /*
  * Displays the message on stderr with the date and pid.
  */
-void Warning(const char *fmt, ...)
+void ha_warning(const char *fmt, ...)
 	__attribute__ ((format(printf, 1, 2)));
 
 /*

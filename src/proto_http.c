@@ -406,7 +406,7 @@ void init_proto_http()
 
 	for (msg = 0; msg < HTTP_ERR_SIZE; msg++) {
 		if (!http_err_msgs[msg]) {
-			Alert("Internal error: no message defined for HTTP return code %d. Aborting.\n", msg);
+			ha_alert("Internal error: no message defined for HTTP return code %d. Aborting.\n", msg);
 			abort();
 		}
 
@@ -1227,7 +1227,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 						pool_alloc2(h->pool);
 
 				if (cap[h->index] == NULL) {
-					Alert("HTTP capture : out of memory.\n");
+					ha_alert("HTTP capture : out of memory.\n");
 					continue;
 				}
 							
@@ -1969,7 +1969,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (!(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
 				s->do_log(s);
 		} else {
-			Alert("HTTP logging : out of memory.\n");
+			ha_alert("HTTP logging : out of memory.\n");
 		}
 	}
 
@@ -5897,8 +5897,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		if (sess->listener->counters)
 			HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
-		Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
-		      s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
+		ha_alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
+			 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
 		send_log(s->be, LOG_ALERT,
 			 "Blocking cacheable cookie in response from instance %s, server %s.\n",
 			 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
@@ -6891,7 +6891,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				int log_len = val_end - att_beg;
 
 				if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
-					Alert("HTTP logging : out of memory.\n");
+					ha_alert("HTTP logging : out of memory.\n");
 				} else {
 					if (log_len > sess->fe->capture_len)
 						log_len = sess->fe->capture_len;
@@ -7543,7 +7543,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
-					Alert("HTTP logging : out of memory.\n");
+					ha_alert("HTTP logging : out of memory.\n");
 				}
 				else {
 					if (log_len > sess->fe->capture_len)
@@ -8185,7 +8185,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
 	}
 
@@ -8208,8 +8208,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
                 if (strcmp(args[cur_arg], "deny_status") == 0) {
                         cur_arg++;
                         if (!args[cur_arg]) {
-                                Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing status code.\n",
-                                      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+                                ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing status code.\n",
+					 file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
                                 goto out_err;
                         }
 
@@ -8223,8 +8223,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
                         }
 
                         if (hc >= HTTP_ERR_SIZE) {
-                                Warning("parsing [%s:%d] : status code %d not handled, using default code %d.\n",
-                                        file, linenum, code, http_err_codes[rule->deny_status]);
+                                ha_warning("parsing [%s:%d] : status code %d not handled, using default code %d.\n",
+					   file, linenum, code, http_err_codes[rule->deny_status]);
                         }
                 }
 	} else if (!strcmp(args[0], "auth")) {
@@ -8245,8 +8245,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 		rule->arg.nice = atoi(args[cur_arg]);
@@ -8263,20 +8263,20 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
 		rule->arg.tos = strtol(args[cur_arg], &err, 0);
 		if (err && *err != '\0') {
-			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
-			      file, linenum, err, args[0]);
+			ha_alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
+				 file, linenum, err, args[0]);
 			goto out_err;
 		}
 		cur_arg++;
 #else
-		Alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
+		ha_alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-mark")) {
@@ -8287,21 +8287,21 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
 		rule->arg.mark = strtoul(args[cur_arg], &err, 0);
 		if (err && *err != '\0') {
-			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
-			      file, linenum, err, args[0]);
+			ha_alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
+				 file, linenum, err, args[0]);
 			goto out_err;
 		}
 		cur_arg++;
 		global.last_checks |= LSTCHK_NETADM;
 #else
-		Alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
+		ha_alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-log-level")) {
@@ -8311,8 +8311,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
 		bad_log_level:
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (log level name or 'silent').\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (log level name or 'silent').\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 		if (strcmp(args[cur_arg], "silent") == 0)
@@ -8326,8 +8326,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
 		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8339,8 +8339,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8354,8 +8354,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
 		    (*args[cur_arg+3] && strcmp(args[cur_arg+3], "if") != 0 && strcmp(args[cur_arg+3], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 3 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 3 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8365,8 +8365,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		error = NULL;
 		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
-			Alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
-			      args[cur_arg + 1], error);
+			ha_alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
+				 args[cur_arg + 1], error);
 			free(error);
 			goto out_err;
 		}
@@ -8375,8 +8375,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8391,8 +8391,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8416,8 +8416,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		expr = sample_parse_expr((char **)args, &cur_arg, file, linenum, &err, &proxy->conf.args);
 		if (!expr) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
 			free(err);
 			goto out_err;
 		}
@@ -8429,10 +8429,10 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			where |= SMP_VAL_BE_HRQ_HDR;
 
 		if (!(expr->fetch->val & where)) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule :"
-			      " fetch method '%s' extracts information from '%s', none of which is available here.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0],
-			      args[cur_arg-1], sample_src_names(expr->fetch->use));
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule :"
+				 " fetch method '%s' extracts information from '%s', none of which is available here.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0],
+				 args[cur_arg-1], sample_src_names(expr->fetch->use));
 			free(expr);
 			goto out_err;
 		}
@@ -8440,8 +8440,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		if (strcmp(args[cur_arg], "table") == 0) {
 			cur_arg++;
 			if (!args[cur_arg]) {
-				Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing table name.\n",
-				      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+				ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing table name.\n",
+					 file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
 				free(expr);
 				goto out_err;
 			}
@@ -8457,8 +8457,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 
 		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1, 0)) == NULL) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			goto out_err;
 		}
 
@@ -8484,8 +8484,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8494,8 +8494,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8516,8 +8516,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8526,8 +8526,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8548,8 +8548,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8558,8 +8558,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8580,8 +8580,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
 		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8593,8 +8593,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s' key: %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s' key: %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8603,8 +8603,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-request %s' pattern: %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-request %s' pattern: %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8620,18 +8620,18 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		rule->from = ACT_F_HTTP_REQ;
 		rule->kw = custom;
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			free(errmsg);
 			goto out_err;
 		}
 	} else {
 		action_build_list(&http_req_keywords.list, &trash);
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', "
-		      "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
-		      "%s%s, but got '%s'%s.\n",
-		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
+		ha_alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', "
+			 "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
+			 "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
+			 "%s%s, but got '%s'%s.\n",
+			 file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
@@ -8640,17 +8640,17 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 
 		if ((cond = build_acl_cond(file, linenum, &proxy->acl, proxy, args+cur_arg, &errmsg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition : %s.\n",
-			      file, linenum, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition : %s.\n",
+				 file, linenum, args[0], errmsg);
 			free(errmsg);
 			goto out_err;
 		}
 		rule->cond = cond;
 	}
 	else if (*args[cur_arg]) {
-		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
-		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
-		      file, linenum, args[0], args[cur_arg]);
+		ha_alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
+			 " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+			 file, linenum, args[0], args[cur_arg]);
 		goto out_err;
 	}
 
@@ -8670,7 +8670,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
-		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 		goto out_err;
 	}
 
@@ -8686,8 +8686,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 		rule->arg.nice = atoi(args[cur_arg]);
@@ -8704,20 +8704,20 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
 		rule->arg.tos = strtol(args[cur_arg], &err, 0);
 		if (err && *err != '\0') {
-			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
-			      file, linenum, err, args[0]);
+			ha_alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
+				 file, linenum, err, args[0]);
 			goto out_err;
 		}
 		cur_arg++;
 #else
-		Alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
+		ha_alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-mark")) {
@@ -8728,21 +8728,21 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
 		rule->arg.mark = strtoul(args[cur_arg], &err, 0);
 		if (err && *err != '\0') {
-			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
-			      file, linenum, err, args[0]);
+			ha_alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
+				 file, linenum, err, args[0]);
 			goto out_err;
 		}
 		cur_arg++;
 		global.last_checks |= LSTCHK_NETADM;
 #else
-		Alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
+		ha_alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
 	} else if (!strcmp(args[0], "set-log-level")) {
@@ -8752,8 +8752,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
 		bad_log_level:
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (log level name or 'silent').\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (log level name or 'silent').\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 		if (strcmp(args[cur_arg], "silent") == 0)
@@ -8767,8 +8767,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
 		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8780,8 +8780,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8795,8 +8795,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
 		    (*args[cur_arg+3] && strcmp(args[cur_arg+3], "if") != 0 && strcmp(args[cur_arg+3], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 3 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 3 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8806,8 +8806,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		error = NULL;
 		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
-			Alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
-			      args[cur_arg + 1], error);
+			ha_alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
+				 args[cur_arg + 1], error);
 			free(error);
 			goto out_err;
 		}
@@ -8816,8 +8816,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8832,8 +8832,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8858,8 +8858,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8868,8 +8868,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8891,8 +8891,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8901,8 +8901,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s': %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s': %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8923,8 +8923,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] ||
 		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8933,8 +8933,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s' %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s' %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8955,8 +8955,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
 		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
+				 file, linenum, args[0]);
 			goto out_err;
 		}
 
@@ -8969,8 +8969,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s' name: %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s' name: %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8979,8 +8979,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		error = NULL;
 		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR, &error)) {
-			Alert("parsing [%s:%d]: 'http-response %s' value: %s.\n",
-			      file, linenum, args[0], error);
+			ha_alert("parsing [%s:%d]: 'http-response %s' value: %s.\n",
+				 file, linenum, args[0], error);
 			free(error);
 			goto out_err;
 		}
@@ -8995,8 +8995,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 
 		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1, 1)) == NULL) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			goto out_err;
 		}
 
@@ -9021,8 +9021,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 
 		expr = sample_parse_expr((char **)args, &cur_arg, file, linenum, &err, &proxy->conf.args);
 		if (!expr) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
 			free(err);
 			goto out_err;
 		}
@@ -9034,10 +9034,10 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 			where |= SMP_VAL_BE_HRS_HDR;
 
 		if (!(expr->fetch->val & where)) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule :"
-			      " fetch method '%s' extracts information from '%s', none of which is available here.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0],
-			      args[cur_arg-1], sample_src_names(expr->fetch->use));
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule :"
+				 " fetch method '%s' extracts information from '%s', none of which is available here.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0],
+				 args[cur_arg-1], sample_src_names(expr->fetch->use));
 			free(expr);
 			goto out_err;
 		}
@@ -9045,8 +9045,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		if (strcmp(args[cur_arg], "table") == 0) {
 			cur_arg++;
 			if (!args[cur_arg]) {
-				Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : missing table name.\n",
-				      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+				ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : missing table name.\n",
+					 file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
 				free(expr);
 				goto out_err;
 			}
@@ -9064,18 +9064,18 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		rule->from = ACT_F_HTTP_RES;
 		rule->kw = custom;
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
-			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
-			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			free(errmsg);
 			goto out_err;
 		}
 	} else {
 		action_build_list(&http_res_keywords.list, &trash);
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', "
-		      "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
-		      "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
-		      "%s%s, but got '%s'%s.\n",
-		      file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
+		ha_alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', "
+			 "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
+			 "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
+			 "%s%s, but got '%s'%s.\n",
+			 file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
@@ -9084,17 +9084,17 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		char *errmsg = NULL;
 
 		if ((cond = build_acl_cond(file, linenum, &proxy->acl, proxy, args+cur_arg, &errmsg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing an 'http-response %s' condition : %s.\n",
-			      file, linenum, args[0], errmsg);
+			ha_alert("parsing [%s:%d] : error detected while parsing an 'http-response %s' condition : %s.\n",
+				 file, linenum, args[0], errmsg);
 			free(errmsg);
 			goto out_err;
 		}
 		rule->cond = cond;
 	}
 	else if (*args[cur_arg]) {
-		Alert("parsing [%s:%d]: 'http-response %s' expects"
-		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
-		      file, linenum, args[0], args[cur_arg]);
+		ha_alert("parsing [%s:%d]: 'http-response %s' expects"
+			 " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+			 file, linenum, args[0], args[cur_arg]);
 		goto out_err;
 	}
 

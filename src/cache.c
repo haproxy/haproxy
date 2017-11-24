@@ -609,15 +609,15 @@ enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct pr
 
 	rule->arg.act.p[0] = strdup(args[cur_arg]);
 	if (!rule->arg.act.p[0]) {
-		Alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
+		ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
 		err++;
 		goto err;
 	}
 	/* register a filter to fill the cache buffer */
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
-		Alert("config: %s '%s': out of memory\n",
-		      proxy_type_str(proxy), proxy->id);
+		ha_alert("config: %s '%s': out of memory\n",
+			 proxy_type_str(proxy), proxy->id);
 		err++;
 		goto err;
 	}
@@ -718,7 +718,7 @@ enum act_parse_ret parse_cache_use(const char **args, int *orig_arg, struct prox
 
 	rule->arg.act.p[0] = strdup(args[cur_arg]);
 	if (!rule->arg.act.p[0]) {
-		Alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
+		ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
 		err++;
 		goto err;
 	}
@@ -738,8 +738,8 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 	if (strcmp(args[0], "cache") == 0) { /* new cache section */
 
 		if (!*args[1]) {
-			Alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
-			      file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
+				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -752,15 +752,15 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		if (tmp_cache_config == NULL) {
 			tmp_cache_config = calloc(1, sizeof(*tmp_cache_config));
 			if (!tmp_cache_config) {
-				Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
 			strlcpy2(tmp_cache_config->id, args[1], 33);
 			if (strlen(args[1]) > 32) {
-				Warning("parsing [%s:%d]: cache id is limited to 32 characters, truncate to '%s'.\n",
-				        file, linenum, tmp_cache_config->id);
+				ha_warning("parsing [%s:%d]: cache id is limited to 32 characters, truncate to '%s'.\n",
+					   file, linenum, tmp_cache_config->id);
 				err_code |= ERR_WARN;
 			}
 
@@ -779,7 +779,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		tmp_cache_config->maxblocks = maxsize;
 
 	} else if (*args[0] != 0) {
-		Alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -799,7 +799,7 @@ int cfg_post_parse_section_cache()
 		struct cache *cache;
 
 		if (tmp_cache_config->maxblocks <= 0) {
-			Alert("Size not specified for cache '%s'\n", tmp_cache_config->id);
+			ha_alert("Size not specified for cache '%s'\n", tmp_cache_config->id);
 			err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
 		}
@@ -808,9 +808,9 @@ int cfg_post_parse_section_cache()
 
 		if (ret_shctx < 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)
-				Alert("Unable to initialize the lock for the cache.\n");
+				ha_alert("Unable to initialize the lock for the cache.\n");
 			else
-				Alert("Unable to allocate cache.\n");
+				ha_alert("Unable to allocate cache.\n");
 
 			err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
@@ -859,8 +859,8 @@ int cfg_cache_postparser()
 			}
 
 			if (cache_ptr == hresrule->arg.act.p[0]) {
-				Alert("Proxy '%s': unable to find the cache '%s' referenced by http-response cache-store rule.\n",
-				      curproxy->id, (char *)hresrule->arg.act.p[0]);
+				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by http-response cache-store rule.\n",
+					 curproxy->id, (char *)hresrule->arg.act.p[0]);
 				err++;
 			}
 
@@ -884,8 +884,8 @@ int cfg_cache_postparser()
 			}
 
 			if (cache_ptr == hrqrule->arg.act.p[0]) {
-				Alert("Proxy '%s': unable to find the cache '%s' referenced by http-request cache-use rule.\n",
-				      curproxy->id, (char *)hrqrule->arg.act.p[0]);
+				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by http-request cache-use rule.\n",
+					 curproxy->id, (char *)hrqrule->arg.act.p[0]);
 				err++;
 			}
 
@@ -910,8 +910,8 @@ int cfg_cache_postparser()
 			}
 
 			if (cache_ptr == fconf->conf) {
-				Alert("Proxy '%s': unable to find the cache '%s' referenced by the filter 'cache'.\n",
-				      curproxy->id, (char *)fconf->conf);
+				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by the filter 'cache'.\n",
+					 curproxy->id, (char *)fconf->conf);
 				err++;
 			}
 			fconf->conf = cache_ptr;

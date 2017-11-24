@@ -259,7 +259,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 	do { \
 		send_log(__be, LOG_ERR, __fmt, ## __args); \
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) \
-			Alert(__fmt, ## __args); \
+			ha_alert(__fmt, ## __args); \
 	} while (0)
 
 /* Used to check an Lua function type in the stack. It creates and
@@ -7291,15 +7291,15 @@ int hlua_post_init()
 			lua_pop(gL.T, -1);
 			return 1;
 		case HLUA_E_AGAIN:
-			Alert("lua init: yield not allowed.\n");
+			ha_alert("lua init: yield not allowed.\n");
 			return 0;
 		case HLUA_E_ERRMSG:
 			msg = lua_tostring(gL.T, -1);
-			Alert("lua init: %s.\n", msg);
+			ha_alert("lua init: %s.\n", msg);
 			return 0;
 		case HLUA_E_ERR:
 		default:
-			Alert("lua init: unknown runtime error.\n");
+			ha_alert("lua init: unknown runtime error.\n");
 			return 0;
 		}
 	}

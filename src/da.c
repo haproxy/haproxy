@@ -102,7 +102,7 @@ static void da_haproxy_log(da_severity_t severity, da_status_t status,
 	if (global_deviceatlas.loglevel && severity <= global_deviceatlas.loglevel) {
 		char logbuf[256];
 		vsnprintf(logbuf, sizeof(logbuf), fmt, args);
-		Warning("deviceatlas : %s.\n", logbuf);
+		ha_warning("deviceatlas : %s.\n", logbuf);
 	}
 }
 
@@ -122,15 +122,15 @@ static int init_deviceatlas(void)
 		da_status_t status;
 
 		if (global.nbthread > 1) {
-			Alert("deviceatlas: multithreading is not supported for now.\n");
+			ha_alert("deviceatlas: multithreading is not supported for now.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
 		jsonp = fopen(global_deviceatlas.jsonpath, "r");
 		if (jsonp == 0) {
-			Alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
-				global_deviceatlas.jsonpath);
+			ha_alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
+				 global_deviceatlas.jsonpath);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -141,8 +141,8 @@ static int init_deviceatlas(void)
 			&global_deviceatlas.atlasimgptr, &atlasimglen);
 		fclose(jsonp);
 		if (status != DA_OK) {
-			Alert("deviceatlas : '%s' json file is invalid.\n",
-				global_deviceatlas.jsonpath);
+			ha_alert("deviceatlas : '%s' json file is invalid.\n",
+				 global_deviceatlas.jsonpath);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -151,7 +151,7 @@ static int init_deviceatlas(void)
 			global_deviceatlas.atlasimgptr, atlasimglen);
 
 		if (status != DA_OK) {
-			Alert("deviceatlas : data could not be compiled.\n");
+			ha_alert("deviceatlas : data could not be compiled.\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

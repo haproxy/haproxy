@@ -662,7 +662,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	default:
 		send_log(px, LOG_ERR, "Vars: internal error while execute action store.");
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Vars: internal error while execute action store.\n");
+			ha_alert("Vars: internal error while execute action store.\n");
 		return ACT_RET_CONT;
 	}
 

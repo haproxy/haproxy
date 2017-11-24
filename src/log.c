@@ -388,9 +388,9 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					LIST_ADDQ(list_format, &node->list);
 				}
 				if (logformat_keywords[j].replace_by)
-					Warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
-					        curproxy->conf.args.file, curproxy->conf.args.line,
-					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
+					ha_warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
+						   curproxy->conf.args.file, curproxy->conf.args.line,
+						   logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 1;
 			} else {
 				memprintf(err, "format variable '%s' is reserved for HTTP mode",
@@ -698,7 +698,7 @@ static void print_message(const char *label, const char *fmt, va_list argp)
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
  */
-void Alert(const char *fmt, ...)
+void ha_alert(const char *fmt, ...)
 {
 	va_list argp;
 
@@ -713,7 +713,7 @@ void Alert(const char *fmt, ...)
 /*
  * Displays the message on stderr with the date and pid.
  */
-void Warning(const char *fmt, ...)
+void ha_warning(const char *fmt, ...)
 {
 	va_list argp;
 
@@ -1168,8 +1168,8 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			int proto = logsrv->addr.ss_family == AF_UNIX ? 0 : IPPROTO_UDP;
 
 			if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM, proto)) < 0) {
-				Alert("socket for logger #%d failed: %s (errno=%d)\n",
-				      nblogger, strerror(errno), errno);
+				ha_alert("socket for logger #%d failed: %s (errno=%d)\n",
+					 nblogger, strerror(errno), errno);
 				continue;
 			}
 			/* we don't want to receive anything on this socket */
@@ -1296,8 +1296,8 @@ send:
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
 
 		if (sent < 0) {
-			Alert("sendmsg logger #%d failed: %s (errno=%d)\n",
-				nblogger, strerror(errno), errno);
+			ha_alert("sendmsg logger #%d failed: %s (errno=%d)\n",
+				 nblogger, strerror(errno), errno);
 		}
 	}
 }

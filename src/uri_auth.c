@@ -237,8 +237,8 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 
 	for (newuser = u->userlist->users; newuser; newuser = newuser->next)
 		if (!strcmp(newuser->user, user)) {
-			Warning("uri auth: ignoring duplicated user '%s'.\n",
-				user);
+			ha_warning("uri auth: ignoring duplicated user '%s'.\n",
+				   user);
 			return u;
 		}
 

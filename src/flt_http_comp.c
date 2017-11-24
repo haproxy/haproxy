@@ -261,7 +261,7 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 
 	/* To work, previous filters MUST forward all data */
 	if (flt_rsp_fwd(filter) + len != flt_rsp_nxt(filter)) {
-		Warning("HTTP compression failed: unexpected behavior of previous filters\n");
+		ha_warning("HTTP compression failed: unexpected behavior of previous filters\n");
 		return -1;
 	}
 
@@ -298,8 +298,8 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 	if (msg->flags & HTTP_MSGF_TE_CHNK) {
 		ret = http_compression_buffer_add_data(st, tmpbuf, zbuf, tmpbuf->i);
 		if (ret != tmpbuf->i) {
-			Warning("HTTP compression failed: Must consume %d bytes but only %d bytes consumed\n",
-				tmpbuf->i, ret);
+			ha_warning("HTTP compression failed: Must consume %d bytes but only %d bytes consumed\n",
+				   tmpbuf->i, ret);
 			return -1;
 		}
 	}
@@ -903,16 +903,16 @@ check_legacy_http_comp_flt(struct proxy *proxy)
 			if (fconf->id == http_comp_flt_id)
 				goto end;
 		}
-		Alert("config: %s '%s': require an explicit filter declaration to use HTTP compression\n",
-		      proxy_type_str(proxy), proxy->id);
+		ha_alert("config: %s '%s': require an explicit filter declaration to use HTTP compression\n",
+			 proxy_type_str(proxy), proxy->id);
 		err++;
 		goto end;
 	}
 
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
-		Alert("config: %s '%s': out of memory\n",
-		      proxy_type_str(proxy), proxy->id);
+		ha_alert("config: %s '%s': out of memory\n",
+			 proxy_type_str(proxy), proxy->id);
 		err++;
 		goto end;
 	}
