@@ -326,7 +326,7 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  *  - the default-max-age of the cache
  *
  */
-int http_calc_maxage(struct stream *s)
+int http_calc_maxage(struct stream *s, struct cache *cache)
 {
 	struct http_txn *txn = s->txn;
 	struct hdr_ctx ctx;
@@ -334,8 +334,6 @@ int http_calc_maxage(struct stream *s)
 	int smaxage = -1;
 	int maxage = -1;
 
-
-	/* TODO: forced maxage configuration */
 
 	ctx.idx = 0;
 
@@ -367,14 +365,12 @@ int http_calc_maxage(struct stream *s)
 
 
 	if (smaxage > 0)
-		return smaxage;
+		return MIN(smaxage, cache->maxage);
 
 	if (maxage > 0)
-		return maxage;
+		return MIN(maxage, cache->maxage);
 
-	/* TODO: return default value */
-
-	return 60;
+	return cache->maxage;
 
 }
 
@@ -402,7 +398,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct filter *filter;
 	struct hdr_ctx ctx;
 	struct shared_block *first = NULL;
-	struct shared_context *shctx = shctx_ptr((struct cache *)rule->arg.act.p[0]);
+	struct cache *cache = (struct cache *)rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cache);
 	struct cache_entry *object;
 
 
@@ -484,7 +481,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					/* Insert the node later on caching success */
 
 					shctx_lock(shctx);
-					if (entry_exist((struct cache *)rule->arg.act.p[0], txn->cache_hash)) {
+					if (entry_exist(cache, txn->cache_hash)) {
 						shctx_unlock(shctx);
 						if (filter->ctx) {
 							object->eb.key = 0;
@@ -497,8 +494,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 					/* store latest value and expiration time */
 					object->latest_validation = now.tv_sec;
-					object->expire = now.tv_sec + http_calc_maxage(s);
-
+					object->expire = now.tv_sec + http_calc_maxage(s, cache);
 				}
 				return ACT_RET_CONT;
 			}
@@ -765,7 +761,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 					   file, linenum, tmp_cache_config->id);
 				err_code |= ERR_WARN;
 			}
-
+			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
@@ -780,6 +776,19 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		maxsize = atoi(args[1]) * 1024 * 1024 / CACHE_BLOCKSIZE;
 		tmp_cache_config->maxblocks = maxsize;
 
+	} else if (strcmp(args[0], "max-age") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		if (!*args[1]) {
+			ha_warning("parsing [%s:%d]: '%s' expects an age parameter in seconds.\n",
+			        file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		tmp_cache_config->maxage = atoi(args[1]);
 	} else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
