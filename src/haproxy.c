@@ -759,7 +759,7 @@ restart_wait:
 			if (current_child(exitpid)) {
 				ha_alert("Current worker %d left with exit code %d\n", exitpid, status);
 				if (status != 0 && status != 130 && status != 143
-				    && global.tune.options & GTUNE_EXIT_ONFAILURE) {
+				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
 					mworker_kill(SIGTERM);
 				}

@@ -716,8 +716,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*args[1]) {
-			if (!strcmp(args[1], "exit-on-failure")) {
-				global.tune.options |= GTUNE_EXIT_ONFAILURE;
+			if (!strcmp(args[1], "no-exit-on-failure")) {
+				global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
 			} else {
 				ha_alert("parsing [%s:%d] : '%s' only supports 'exit-on-failure' option.\n", file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;

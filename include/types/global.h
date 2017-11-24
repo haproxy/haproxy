@@ -65,7 +65,7 @@
 #define GTUNE_RESOLVE_DONTFAIL   (1<<7)
 
 #define GTUNE_SOCKET_TRANSFER	 (1<<8)
-#define GTUNE_EXIT_ONFAILURE     (1<<9)
+#define GTUNE_NOEXIT_ONFAILURE   (1<<9)
 #define GTUNE_USE_SYSTEMD        (1<<10)
 
 /* Access level for a stats socket */
