@@ -1754,6 +1754,28 @@ show cli sockets
      127.0.0.2:9969 user 2
      [::1]:9999 operator 2
 
+show cache
+  List the configurated caches and the objects stored in each cache tree.
+
+  $ echo 'show cache' | socat stdio /tmp/sock1
+  0x7f6ac6c5b03a: foobar (shctx:0x7f6ac6c5b000, available blocks:3918)
+         1          2             3                             4
+
+  1. pointer to the cache structure
+  2. cache name
+  3. pointer to the mmap area (shctx)
+  4. number of blocks available for reuse in the shctx
+
+  0x7f6ac6c5b4cc hash:286881868 size:39114 (39 blocks), refcount:9, expire:237
+           1               2            3        4            5           6
+
+  1. pointer to the cache entry
+  2. first 32 bits of the hash
+  3. size of the object in bytes
+  4. number of blocks used for the object
+  5. number of transactions using the entry
+  6. expiration time, can be negative if already expired
+
 show env [<name>]
   Dump one or all environment variables known by the process. Without any
   argument, all variables are dumped. With an argument, only the specified

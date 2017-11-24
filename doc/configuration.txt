@@ -108,6 +108,7 @@ Summary
 9.2.      HTTP compression
 9.3.      Stream Processing Offload Engine (SPOE)
 
+10.   Cache
 
 1. Quick reminder about HTTP
 ----------------------------
@@ -3877,7 +3878,8 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
               sc-inc-gpc0(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
               silent-drop |
-	      send-spoe-group
+              send-spoe-group |
+              cache-use
              }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -4111,6 +4113,9 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
       directive "http-request capture" or with the "declare capture" keyword.
       If the slot <id> doesn't exist, then HAProxy fails parsing the
       configuration to prevent unexpected behavior at run time.
+
+    - cache-use <name> :
+      See section 10.2 about cache setup.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current request. These rules
@@ -4373,7 +4378,8 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 sc-inc-gpc0(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 silent-drop |
-		send-spoe-group
+                send-spoe-group |
+                cache-store
               }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
@@ -4549,6 +4555,9 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       keyword.
       If the slot <id> doesn't exist, then HAProxy fails parsing the
       configuration to prevent unexpected behavior at run time.
+
+    - cache-store <name> :
+      See section 10.2 about cache setup.
 
     - "redirect" : this performs an HTTP redirection based on a redirect rule.
       This supports a format string similarly to "http-request redirect" rules,
@@ -16937,6 +16946,101 @@ For all information about the SPOE configuration and the SPOP specification, see
 Important note:
     The SPOE filter is highly experimental for now and was not heavily
     tested. It is really not production ready. So use it carefully.
+
+10. Cache
+---------
+
+HAProxy provides a cache, which was designed to perform cache on small objects
+(favicon, css...). This is a minimalist low-maintenance cache which runs in
+RAM.
+
+The cache is based on a memory which is shared between processes and threads,
+this memory is splitted in blocks of 1k.
+
+If an object is not used anymore, it can be deleted to store a new object
+independently of its expiration date. The oldest objects are deleted first
+when we try to allocate a new one.
+
+The cache use a hash of the host header and the URI as the key.
+
+It's possible to view the status of a cache using the Unix socket command
+"show cache" consult section 9.3 "Unix Socket commands" of Management Guide
+for more details.
+
+When an object is delivered from the cache, the server name in the log is
+replaced by "<CACHE>".
+
+10.1 Limitation
+---------------
+
+The cache won't store and won't deliver objects in these cases:
+
+- If the response is not a 200
+- If the response contains a Vary header
+- If the response does not contain a Content-Length header or if the
+  Content-Length + the headers size is greater than a buffer size - the
+  reserve.
+- If the response is not cacheable
+
+- If the request is not a GET
+- If the HTTP version of the request is smaller than 1.1
+
+Caution!: Due to the current limitation of the filters, it is not recommended
+to use the cache with other filters. Using them can cause undefined behavior
+if they modify the response (compression for exemple).
+
+10.2 Setup
+----------
+
+To setup a cache, you must define a cache section and use it in a proxy with
+the corresponding http-request and response actions.
+
+10.2.1 Cache section
+--------------------
+
+cache <name>
+  Declare a cache section, allocate a shared cache memory named <name>, the
+  size of cache is mandatory.
+
+total-max-size <megabytes>
+  Define the size in RAM of the cache in megabytes. this size is splitted in
+  blocks of 1kb which are used by the cache entries.
+
+max-age <seconds>
+  Define the maximum expiration duration. The expiration is set has the lowest
+  value between the s-maxage or max-age (in this order) directive in the
+  Cache-Control response header and this value. The default value is 60
+  seconds, which means that you can't cache an object more than 60 seconds by
+  default.
+
+10.2.2 Proxy section
+--------------------
+
+http-request cache-use <name>
+  Try to deliver a cached object from the cache <name>. This directive is also
+  mandatory to store the cache as it calculates the cache hash. If you want to
+  use a condition for both storage and delivering that's a good idea to put it
+  after this one.
+
+http-response cache-store <name>
+  Store an http-response within the cache. The storage of the response headers
+  is done at this step, which means you can use others http-response actions
+  to modify headers before or after the storage of the response. This action
+  is responsible for the setup of the cache storage filter.
+
+
+Example:
+
+    backend bck1
+      mode http
+
+      http-request cache-use foobar
+      http-response cache-store foobar
+      server srv1 127.0.0.1:80
+
+    cache foobar
+      total-max-size 4
+      max-age 240
 
 /*
  * Local variables:
