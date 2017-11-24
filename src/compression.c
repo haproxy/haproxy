@@ -166,7 +166,7 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 		HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 	}
 
-	*comp_ctx = pool_alloc2(pool_comp_ctx);
+	*comp_ctx = pool_alloc(pool_comp_ctx);
 	if (*comp_ctx == NULL)
 		return -1;
 #if defined(USE_SLZ)
@@ -192,7 +192,7 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 	if (!*comp_ctx)
 		return 0;
 
-	pool_free2(pool_comp_ctx, *comp_ctx);
+	pool_free(pool_comp_ctx, *comp_ctx);
 	*comp_ctx = NULL;
 
 #ifdef USE_ZLIB
@@ -418,7 +418,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_deflate_state;
-			ctx->zlib_deflate_state = buf = pool_alloc2(pool);
+			ctx->zlib_deflate_state = buf = pool_alloc(pool);
 		break;
 
 		case 1:
@@ -429,7 +429,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_window;
-			ctx->zlib_window = buf = pool_alloc2(pool);
+			ctx->zlib_window = buf = pool_alloc(pool);
 		break;
 
 		case 2:
@@ -440,7 +440,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_prev;
-			ctx->zlib_prev = buf = pool_alloc2(pool);
+			ctx->zlib_prev = buf = pool_alloc(pool);
 		break;
 
 		case 3:
@@ -451,7 +451,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_head;
-			ctx->zlib_head = buf = pool_alloc2(pool);
+			ctx->zlib_head = buf = pool_alloc(pool);
 		break;
 
 		case 4:
@@ -462,7 +462,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 				HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
 			}
 			pool = zlib_pool_pending_buf;
-			ctx->zlib_pending_buf = buf = pool_alloc2(pool);
+			ctx->zlib_pending_buf = buf = pool_alloc(pool);
 		break;
 	}
 	if (buf != NULL)
@@ -496,7 +496,7 @@ static void free_zlib(void *opaque, void *ptr)
 	else if (ptr == ctx->zlib_pending_buf)
 		pool = zlib_pool_pending_buf;
 
-	pool_free2(pool, ptr);
+	pool_free(pool, ptr);
 	HA_ATOMIC_SUB(&zlib_used_memory, pool->size);
 }
 

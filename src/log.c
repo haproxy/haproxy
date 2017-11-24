@@ -2378,7 +2378,7 @@ void strm_log(struct stream *s)
 
 	/* if unique-id was not generated */
 	if (!s->unique_id && !LIST_ISEMPTY(&sess->fe->format_unique_id)) {
-		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) != NULL)
+		if ((s->unique_id = pool_alloc(pool_head_uniqueid)) != NULL)
 			build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
 

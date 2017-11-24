@@ -30,9 +30,9 @@ static const struct h2s *h2_closed_stream;
 static const struct h2s *h2_idle_stream;
 
 /* the h2c connection pool */
-static struct pool_head *pool2_h2c;
+static struct pool_head *pool_head_h2c;
 /* the h2s stream pool */
-static struct pool_head *pool2_h2s;
+static struct pool_head *pool_head_h2s;
 
 /* Connection flags (32 bit), in h2c->flags */
 #define H2_CF_NONE              0x00000000
@@ -328,7 +328,7 @@ static int h2c_frt_init(struct connection *conn)
 	struct task *t = NULL;
 	struct session *sess = conn->owner;
 
-	h2c = pool_alloc2(pool2_h2c);
+	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
 		goto fail;
 
@@ -387,7 +387,7 @@ static int h2c_frt_init(struct connection *conn)
  fail:
 	if (t)
 		task_free(t);
-	pool_free2(pool2_h2c, h2c);
+	pool_free(pool_head_h2c, h2c);
 	return -1;
 }
 
@@ -448,7 +448,7 @@ static void h2_release(struct connection *conn)
 			h2c->task = NULL;
 		}
 
-		pool_free2(pool2_h2c, h2c);
+		pool_free(pool_head_h2c, h2c);
 	}
 
 	conn->mux = NULL;
@@ -597,7 +597,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	struct conn_stream *cs;
 	struct h2s *h2s;
 
-	h2s = pool_alloc2(pool2_h2s);
+	h2s = pool_alloc(pool_head_h2s);
 	if (!h2s)
 		goto out;
 
@@ -631,7 +631,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	cs_free(cs);
  out_close:
 	eb32_delete(&h2s->by_id);
-	pool_free2(pool2_h2s, h2s);
+	pool_free(pool_head_h2s, h2s);
 	h2s = NULL;
  out:
 	return h2s;
@@ -992,7 +992,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		if (!h2s->cs) {
 			/* this stream was already orphaned */
 			eb32_delete(&h2s->by_id);
-			pool_free2(pool2_h2s, h2s);
+			pool_free(pool_head_h2s, h2s);
 			continue;
 		}
 
@@ -1905,7 +1905,7 @@ static int h2_process_mux(struct h2c *h2c)
 				else {
 					/* just sent the last frame for this orphaned stream */
 					eb32_delete(&h2s->by_id);
-					pool_free2(pool2_h2s, h2s);
+					pool_free(pool_head_h2s, h2s);
 				}
 			}
 		}
@@ -1947,7 +1947,7 @@ static int h2_process_mux(struct h2c *h2c)
 			else {
 				/* just sent the last frame for this orphaned stream */
 				eb32_delete(&h2s->by_id);
-				pool_free2(pool2_h2s, h2s);
+				pool_free(pool_head_h2s, h2s);
 			}
 		}
 	}
@@ -2322,7 +2322,7 @@ static void h2_detach(struct conn_stream *cs)
 				h2c->task->expire = TICK_ETERNITY;
 		}
 	}
-	pool_free2(pool2_h2s, h2s);
+	pool_free(pool_head_h2s, h2s);
 }
 
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
@@ -3202,8 +3202,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 static void __h2_deinit(void)
 {
-	pool_destroy2(pool2_h2s);
-	pool_destroy2(pool2_h2c);
+	pool_destroy(pool_head_h2s);
+	pool_destroy(pool_head_h2c);
 }
 
 __attribute__((constructor))
@@ -3212,6 +3212,6 @@ static void __h2_init(void)
 	alpn_register_mux(&alpn_mux_h2);
 	cfg_register_keywords(&cfg_kws);
 	hap_register_post_deinit(__h2_deinit);
-	pool2_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
-	pool2_h2s = create_pool("h2s", sizeof(struct h2s), MEM_F_SHARED);
+	pool_head_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
+	pool_head_h2s = create_pool("h2s", sizeof(struct h2s), MEM_F_SHARED);
 }

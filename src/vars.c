@@ -103,7 +103,7 @@ unsigned int var_clear(struct var *var)
 		size += var->data.u.meth.str.len;
 	}
 	LIST_DEL(&var->l);
-	pool_free2(var_pool, var);
+	pool_free(var_pool, var);
 	size += sizeof(struct var);
 	return size;
 }
@@ -359,7 +359,7 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 			return 0;
 
 		/* Create new entry. */
-		var = pool_alloc2(var_pool);
+		var = pool_alloc(var_pool);
 		if (!var)
 			return 0;
 		LIST_ADDQ(&vars->head, &var->l);

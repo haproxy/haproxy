@@ -214,7 +214,7 @@ resume_execution:
 					goto missing_data;
 
 				if (cap[h->index] == NULL)
-					cap[h->index] = pool_alloc2(h->pool);
+					cap[h->index] = pool_alloc(h->pool);
 
 				if (cap[h->index] == NULL) /* no more capture memory */
 					continue;

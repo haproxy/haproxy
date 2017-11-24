@@ -38,7 +38,7 @@
 
 static const char *cache_store_flt_id = "cache store filter";
 
-static struct pool_head *pool2_cache_st = NULL;
+static struct pool_head *pool_head_cache_st = NULL;
 
 struct applet http_cache_applet;
 
@@ -125,7 +125,7 @@ cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct ch
 	if (filter->ctx == NULL) {
 		struct cache_st *st;
 
-		st = pool_alloc_dirty(pool2_cache_st);
+		st = pool_alloc_dirty(pool_head_cache_st);
 		if (st == NULL)
 			return -1;
 
@@ -160,7 +160,7 @@ cache_store_chn_end_analyze(struct stream *s, struct filter *filter, struct chan
 
 	}
 	if (st) {
-		pool_free2(pool2_cache_st, st);
+		pool_free(pool_head_cache_st, st);
 		filter->ctx = NULL;
 	}
 
@@ -218,7 +218,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 				shctx_row_dec_hot(shctx, st->first_block);
 				object->eb.key = 0;
 				shctx_unlock(shctx);
-				pool_free2(pool2_cache_st, st);
+				pool_free(pool_head_cache_st, st);
 			} else {
 				/* Skip remaining headers to fill the cache */
 				b_adv(msg->chn->buf, st->hdrs_len);
@@ -271,7 +271,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
 
 	}
 	if (st) {
-		pool_free2(pool2_cache_st, st);
+		pool_free(pool_head_cache_st, st);
 		filter->ctx = NULL;
 	}
 
@@ -488,7 +488,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 						shctx_unlock(shctx);
 						if (filter->ctx) {
 							object->eb.key = 0;
-							pool_free2(pool2_cache_st, filter->ctx);
+							pool_free(pool_head_cache_st, filter->ctx);
 							filter->ctx = NULL;
 						}
 						goto out;
@@ -1031,6 +1031,6 @@ static void __cache_init(void)
 	cli_register_kw(&cli_kws);
 	http_res_keywords_register(&http_res_actions);
 	http_req_keywords_register(&http_req_actions);
-	pool2_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
+	pool_head_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
 }
 

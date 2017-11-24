@@ -258,7 +258,7 @@ struct ssl_capture {
 	unsigned char ciphersuite_len;
 	char ciphersuite[0];
 };
-struct pool_head *pool2_ssl_capture = NULL;
+struct pool_head *pool_head_ssl_capture = NULL;
 static int ssl_capture_ptr_index = -1;
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
@@ -1536,7 +1536,7 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 	if (msg + rec_len > end || msg + rec_len < msg)
 		return;
 
-	capture = pool_alloc_dirty(pool2_ssl_capture);
+	capture = pool_alloc_dirty(pool_head_ssl_capture);
 	if (!capture)
 		return;
 	/* Compute the xxh64 of the ciphersuite. */
@@ -4906,7 +4906,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->xprt_ctx = SSL_new(objt_server(conn->target)->ssl_ctx.ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4918,7 +4918,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4930,7 +4930,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_connect;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4965,7 +4965,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->initial_ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4977,7 +4977,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -4989,7 +4989,7 @@ static int ssl_sock_init(struct connection *conn)
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
 			if (may_retry--) {
-				pool_gc2(NULL);
+				pool_gc(NULL);
 				goto retry_accept;
 			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
@@ -8113,13 +8113,13 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 	if (ret != 0)
 		return ret;
 
-	if (pool2_ssl_capture) {
+	if (pool_head_ssl_capture) {
 		memprintf(err, "'%s' is already configured.", args[0]);
 		return -1;
 	}
 
-	pool2_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_cipherlist, MEM_F_SHARED);
-	if (!pool2_ssl_capture) {
+	pool_head_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_cipherlist, MEM_F_SHARED);
+	if (!pool_head_ssl_capture) {
 		memprintf(err, "Out of memory error.");
 		return -1;
 	}
@@ -8742,7 +8742,7 @@ static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
 #endif
 static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
-	pool_free2(pool2_ssl_capture, ptr);
+	pool_free(pool_head_ssl_capture, ptr);
 }
 
 __attribute__((constructor))

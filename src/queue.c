@@ -22,15 +22,15 @@
 #include <proto/task.h>
 
 
-struct pool_head *pool2_pendconn;
+struct pool_head *pool_head_pendconn;
 
 static void __pendconn_free(struct pendconn *p);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_pendconn()
 {
-	pool2_pendconn = create_pool("pendconn", sizeof(struct pendconn), MEM_F_SHARED);
-	return pool2_pendconn != NULL;
+	pool_head_pendconn = create_pool("pendconn", sizeof(struct pendconn), MEM_F_SHARED);
+	return pool_head_pendconn != NULL;
 }
 
 /* returns the effective dynamic maxconn for a server, considering the minconn
@@ -172,7 +172,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	struct server *srv;
 	int count;
 
-	p = pool_alloc2(pool2_pendconn);
+	p = pool_alloc(pool_head_pendconn);
 	if (!p)
 		return NULL;
 
@@ -281,7 +281,7 @@ void pendconn_free(struct pendconn *p)
 	}
 	p->strm->pend_pos = NULL;
 	HA_ATOMIC_SUB(&p->strm->be->totpend, 1);
-	pool_free2(pool2_pendconn, p);
+	pool_free(pool_head_pendconn, p);
 }
 
 /* Lock-free version of pendconn_free. */
@@ -297,7 +297,7 @@ static void __pendconn_free(struct pendconn *p)
 	}
 	p->strm->pend_pos = NULL;
 	HA_ATOMIC_SUB(&p->strm->be->totpend, 1);
-	pool_free2(pool2_pendconn, p);
+	pool_free(pool_head_pendconn, p);
 }
 
 /*

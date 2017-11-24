@@ -36,7 +36,7 @@ struct chunk {
 	int len;	/* current size of the string from first to last char. <0 = uninit. */
 };
 
-struct pool_head *pool2_trash;
+struct pool_head *pool_head_trash;
 
 /* function prototypes */
 
@@ -60,7 +60,7 @@ void deinit_trash_buffers(void);
  */
 static inline void free_trash_chunk(struct chunk *chunk)
 {
-	pool_free2(pool2_trash, chunk);
+	pool_free(pool_head_trash, chunk);
 }
 
 

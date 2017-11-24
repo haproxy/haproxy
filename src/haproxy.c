@@ -796,7 +796,7 @@ static void sig_soft_stop(struct sig_handler *sh)
 {
 	soft_stop();
 	signal_unregister_handler(sh);
-	pool_gc2(NULL);
+	pool_gc(NULL);
 }
 
 /*
@@ -805,7 +805,7 @@ static void sig_soft_stop(struct sig_handler *sh)
 static void sig_pause(struct sig_handler *sh)
 {
 	pause_proxies();
-	pool_gc2(NULL);
+	pool_gc(NULL);
 }
 
 /*
@@ -869,7 +869,7 @@ static void dump(struct sig_handler *sh)
 {
 	/* dump memory usage then free everything possible */
 	dump_pools();
-	pool_gc2(NULL);
+	pool_gc(NULL);
 }
 
 /* This function check if cfg_cfgfiles containes directories.
@@ -2094,7 +2094,7 @@ void deinit(void)
 		while (h) {
 			h_next = h->next;
 			free(h->name);
-			pool_destroy2(h->pool);
+			pool_destroy(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -2103,7 +2103,7 @@ void deinit(void)
 		while (h) {
 			h_next = h->next;
 			free(h->name);
-			pool_destroy2(h->pool);
+			pool_destroy(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -2183,9 +2183,9 @@ void deinit(void)
 		free_http_res_rules(&p->http_res_rules);
 		task_free(p->task);
 
-		pool_destroy2(p->req_cap_pool);
-		pool_destroy2(p->rsp_cap_pool);
-		pool_destroy2(p->table.pool);
+		pool_destroy(p->req_cap_pool);
+		pool_destroy(p->rsp_cap_pool);
+		pool_destroy(p->table.pool);
 
 		p0 = p;
 		p = p->next;
@@ -2251,17 +2251,17 @@ void deinit(void)
 
 	deinit_buffer();
 
-	pool_destroy2(pool2_stream);
-	pool_destroy2(pool2_session);
-	pool_destroy2(pool2_connection);
-	pool_destroy2(pool2_connstream);
-	pool_destroy2(pool2_requri);
-	pool_destroy2(pool2_task);
-	pool_destroy2(pool2_capture);
-	pool_destroy2(pool2_pendconn);
-	pool_destroy2(pool2_sig_handlers);
-	pool_destroy2(pool2_hdr_idx);
-	pool_destroy2(pool2_http_txn);
+	pool_destroy(pool_head_stream);
+	pool_destroy(pool_head_session);
+	pool_destroy(pool_head_connection);
+	pool_destroy(pool_head_connstream);
+	pool_destroy(pool_head_requri);
+	pool_destroy(pool_head_task);
+	pool_destroy(pool_head_capture);
+	pool_destroy(pool_head_pendconn);
+	pool_destroy(pool_head_sig_handlers);
+	pool_destroy(pool_head_hdr_idx);
+	pool_destroy(pool_head_http_txn);
 	deinit_pollers();
 } /* end deinit() */
 

@@ -1941,7 +1941,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	conn_free(conn);
  out_free_strm:
 	LIST_DEL(&s->list);
-	pool_free2(pool2_stream, s);
+	pool_free(pool_head_stream, s);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:

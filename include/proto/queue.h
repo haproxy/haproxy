@@ -34,7 +34,7 @@
 
 #include <proto/backend.h>
 
-extern struct pool_head *pool2_pendconn;
+extern struct pool_head *pool_head_pendconn;
 
 int init_pendconn();
 struct pendconn *pendconn_add(struct stream *strm);

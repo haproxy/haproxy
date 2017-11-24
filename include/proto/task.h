@@ -88,8 +88,8 @@ extern unsigned int tasks_run_queue;    /* run queue size */
 extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
-extern struct pool_head *pool2_task;
-extern struct pool_head *pool2_notification;
+extern struct pool_head *pool_head_task;
+extern struct pool_head *pool_head_notification;
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
@@ -218,7 +218,7 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
  */
 static inline struct task *task_new(unsigned long thread_mask)
 {
-	struct task *t = pool_alloc2(pool2_task);
+	struct task *t = pool_alloc(pool_head_task);
 	if (t) {
 		HA_ATOMIC_ADD(&nb_tasks, 1);
 		task_init(t, thread_mask);
@@ -232,9 +232,9 @@ static inline struct task *task_new(unsigned long thread_mask)
  */
 static inline void task_free(struct task *t)
 {
-	pool_free2(pool2_task, t);
+	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
-		pool_flush2(pool2_task);
+		pool_flush(pool_head_task);
 	HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
@@ -291,7 +291,7 @@ static inline void task_schedule(struct task *task, int when)
  */
 static inline struct notification *notification_new(struct list *purge, struct list *event, struct task *wakeup)
 {
-	struct notification *com = pool_alloc2(pool2_notification);
+	struct notification *com = pool_alloc(pool_head_notification);
 	if (!com)
 		return NULL;
 	LIST_ADDQ(purge, &com->purge_me);
@@ -315,7 +315,7 @@ static inline void notification_purge(struct list *purge)
 		LIST_DEL(&com->purge_me);
 		if (!com->task) {
 			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
-			pool_free2(pool2_notification, com);
+			pool_free(pool_head_notification, com);
 			continue;
 		}
 		com->task = NULL;
@@ -337,7 +337,7 @@ static inline void notification_wake(struct list *wake)
 		LIST_DEL(&com->wake_me);
 		if (!com->task) {
 			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
-			pool_free2(pool2_notification, com);
+			pool_free(pool_head_notification, com);
 			continue;
 		}
 		task_wakeup(com->task, TASK_WOKEN_MSG);

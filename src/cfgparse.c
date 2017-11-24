@@ -7535,9 +7535,9 @@ int check_config_validity()
 	if (!global.tune.requri_len)
 		global.tune.requri_len = REQURI_LEN;
 
-	pool2_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
+	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 
-	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
+	pool_head_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
 
 	/* Post initialisation of the users and groups lists. */
 	err_code = userlist_postinit();
@@ -9153,7 +9153,7 @@ out_uri_auth_compat:
 			curproxy->server_state_file_name = strdup(curproxy->id);
 	}
 
-	pool2_hdr_idx = create_pool("hdr_idx",
+	pool_head_hdr_idx = create_pool("hdr_idx",
 				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),
 				    MEM_F_SHARED);
 

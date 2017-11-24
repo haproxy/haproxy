@@ -470,8 +470,8 @@ void init_proto_http()
 	FD_SET(0x7f, http_encode_map);
 
 	/* memory allocations */
-	pool2_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
-	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
+	pool_head_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
+	pool_head_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
 
 /*
@@ -1188,10 +1188,10 @@ void http_return_srv_error(struct stream *s, struct stream_interface *si)
 extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
-struct pool_head *pool2_http_txn;
-struct pool_head *pool2_requri;
-struct pool_head *pool2_capture = NULL;
-struct pool_head *pool2_uniqueid;
+struct pool_head *pool_head_http_txn;
+struct pool_head *pool_head_requri;
+struct pool_head *pool_head_capture = NULL;
+struct pool_head *pool_head_uniqueid;
 
 /*
  * Capture headers from message starting at <som> according to header list
@@ -1224,7 +1224,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 			    (strncasecmp(sol, h->name, h->namelen) == 0)) {
 				if (cap[h->index] == NULL)
 					cap[h->index] =
-						pool_alloc2(h->pool);
+						pool_alloc(h->pool);
 
 				if (cap[h->index] == NULL) {
 					ha_alert("HTTP capture : out of memory.\n");
@@ -1958,7 +1958,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if (unlikely(s->logs.logwait & LW_REQ)) {
 		/* we have a complete HTTP request that we must log */
-		if ((txn->uri = pool_alloc2(pool2_requri)) != NULL) {
+		if ((txn->uri = pool_alloc(pool_head_requri)) != NULL) {
 			int urilen = msg->sl.rq.l;
 
 			if (urilen >= global.tune.requri_len )
@@ -3731,7 +3731,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	/* add unique-id if "header-unique-id" is specified */
 
 	if (!LIST_ISEMPTY(&sess->fe->format_unique_id) && !s->unique_id) {
-		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
+		if ((s->unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
 			goto return_bad_req;
 		s->unique_id[0] = '\0';
 		build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
@@ -6890,7 +6890,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 
-				if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
+				if ((txn->cli_cookie = pool_alloc(pool_head_capture)) == NULL) {
 					ha_alert("HTTP logging : out of memory.\n");
 				} else {
 					if (log_len > sess->fe->capture_len)
@@ -7542,7 +7542,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 			    (val_end - att_beg >= sess->fe->capture_namelen) &&
 			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
-				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
+				if ((txn->srv_cookie = pool_alloc(pool_head_capture)) == NULL) {
 					ha_alert("HTTP logging : out of memory.\n");
 				}
 				else {
@@ -7988,14 +7988,14 @@ struct http_txn *http_alloc_txn(struct stream *s)
 	if (txn)
 		return txn;
 
-	txn = pool_alloc2(pool2_http_txn);
+	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)
 		return txn;
 
 	txn->hdr_idx.size = global.tune.max_http_hdr;
-	txn->hdr_idx.v    = pool_alloc2(pool2_hdr_idx);
+	txn->hdr_idx.v    = pool_alloc(pool_head_hdr_idx);
 	if (!txn->hdr_idx.v) {
-		pool_free2(pool2_http_txn, txn);
+		pool_free(pool_head_http_txn, txn);
 		return NULL;
 	}
 
@@ -8069,10 +8069,10 @@ void http_end_txn(struct stream *s)
 	struct proxy *fe = strm_fe(s);
 
 	/* these ones will have been dynamically allocated */
-	pool_free2(pool2_requri, txn->uri);
-	pool_free2(pool2_capture, txn->cli_cookie);
-	pool_free2(pool2_capture, txn->srv_cookie);
-	pool_free2(pool2_uniqueid, s->unique_id);
+	pool_free(pool_head_requri, txn->uri);
+	pool_free(pool_head_capture, txn->cli_cookie);
+	pool_free(pool_head_capture, txn->srv_cookie);
+	pool_free(pool_head_uniqueid, s->unique_id);
 
 	s->unique_id = NULL;
 	txn->uri = NULL;
@@ -8082,14 +8082,14 @@ void http_end_txn(struct stream *s)
 	if (s->req_cap) {
 		struct cap_hdr *h;
 		for (h = fe->req_cap; h; h = h->next)
-			pool_free2(h->pool, s->req_cap[h->index]);
+			pool_free(h->pool, s->req_cap[h->index]);
 		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
 	if (s->res_cap) {
 		struct cap_hdr *h;
 		for (h = fe->rsp_cap; h; h = h->next)
-			pool_free2(h->pool, s->res_cap[h->index]);
+			pool_free(h->pool, s->res_cap[h->index]);
 		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
@@ -9550,7 +9550,7 @@ smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, v
 		return 0;
 
 	if (!smp->strm->unique_id) {
-		if ((smp->strm->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
+		if ((smp->strm->unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
 			return 0;
 		smp->strm->unique_id[0] = '\0';
 	}
@@ -11592,7 +11592,7 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 
 	/* check for the memory allocation */
 	if (smp->strm->req_cap[hdr->index] == NULL)
-		smp->strm->req_cap[hdr->index] = pool_alloc2(hdr->pool);
+		smp->strm->req_cap[hdr->index] = pool_alloc(hdr->pool);
 	if (smp->strm->req_cap[hdr->index] == NULL)
 		return 0;
 
@@ -11633,7 +11633,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 
 	/* check for the memory allocation */
 	if (smp->strm->res_cap[hdr->index] == NULL)
-		smp->strm->res_cap[hdr->index] = pool_alloc2(hdr->pool);
+		smp->strm->res_cap[hdr->index] = pool_alloc(hdr->pool);
 	if (smp->strm->res_cap[hdr->index] == NULL)
 		return 0;
 
@@ -11981,7 +11981,7 @@ enum act_return http_action_req_capture(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
-		cap[h->index] = pool_alloc2(h->pool);
+		cap[h->index] = pool_alloc(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;
@@ -12022,7 +12022,7 @@ enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct prox
 		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
-		cap[h->index] = pool_alloc2(h->pool);
+		cap[h->index] = pool_alloc(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;
@@ -12208,7 +12208,7 @@ enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct prox
 		return ACT_RET_CONT;
 
 	if (cap[h->index] == NULL)
-		cap[h->index] = pool_alloc2(h->pool);
+		cap[h->index] = pool_alloc(h->pool);
 
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;

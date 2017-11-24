@@ -60,7 +60,7 @@
 #include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
-struct pool_head *pool2_stream;
+struct pool_head *pool_head_stream;
 struct list streams;
 __decl_hathreads(HA_SPINLOCK_T streams_lock);
 
@@ -100,7 +100,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	struct conn_stream *cs  = objt_cs(origin);
 	struct appctx *appctx   = objt_appctx(origin);
 
-	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
+	if (unlikely((s = pool_alloc(pool_head_stream)) == NULL))
 		goto out_fail_alloc;
 
 	/* minimum stream initialization required for an embryonic stream is
@@ -284,7 +284,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	task_free(t);
  out_fail_alloc:
 	LIST_DEL(&s->list);
-	pool_free2(pool2_stream, s);
+	pool_free(pool_head_stream, s);
 	return NULL;
 }
 
@@ -355,8 +355,8 @@ static void stream_free(struct stream *s)
 	}
 
 	if (s->txn) {
-		pool_free2(pool2_hdr_idx, s->txn->hdr_idx.v);
-		pool_free2(pool2_http_txn, s->txn);
+		pool_free(pool_head_hdr_idx, s->txn->hdr_idx.v);
+		pool_free(pool_head_http_txn, s->txn);
 		s->txn = NULL;
 	}
 
@@ -364,8 +364,8 @@ static void stream_free(struct stream *s)
 	flt_stream_release(s, 0);
 
 	if (fe) {
-		pool_free2(fe->rsp_cap_pool, s->res_cap);
-		pool_free2(fe->req_cap_pool, s->req_cap);
+		pool_free(fe->rsp_cap_pool, s->res_cap);
+		pool_free(fe->req_cap_pool, s->req_cap);
 	}
 
 	/* Cleanup all variable contexts. */
@@ -394,21 +394,21 @@ static void stream_free(struct stream *s)
 	/* FIXME: for now we have a 1:1 relation between stream and session so
 	 * the stream must free the session.
 	 */
-	pool_free2(pool2_stream, s);
+	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
-		pool_flush2(pool2_buffer);
-		pool_flush2(pool2_http_txn);
-		pool_flush2(pool2_hdr_idx);
-		pool_flush2(pool2_requri);
-		pool_flush2(pool2_capture);
-		pool_flush2(pool2_stream);
-		pool_flush2(pool2_session);
-		pool_flush2(pool2_connection);
-		pool_flush2(pool2_pendconn);
-		pool_flush2(fe->req_cap_pool);
-		pool_flush2(fe->rsp_cap_pool);
+		pool_flush(pool_head_buffer);
+		pool_flush(pool_head_http_txn);
+		pool_flush(pool_head_hdr_idx);
+		pool_flush(pool_head_requri);
+		pool_flush(pool_head_capture);
+		pool_flush(pool_head_stream);
+		pool_flush(pool_head_session);
+		pool_flush(pool_head_connection);
+		pool_flush(pool_head_pendconn);
+		pool_flush(fe->req_cap_pool);
+		pool_flush(fe->rsp_cap_pool);
 	}
 }
 
@@ -470,8 +470,8 @@ int init_stream()
 {
 	LIST_INIT(&streams);
 	HA_SPIN_INIT(&streams_lock);
-	pool2_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
-	return pool2_stream != NULL;
+	pool_head_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
+	return pool_head_stream != NULL;
 }
 
 void stream_process_counters(struct stream *s)

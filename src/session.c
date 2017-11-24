@@ -28,7 +28,7 @@
 #include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
-struct pool_head *pool2_session;
+struct pool_head *pool_head_session;
 
 static int conn_complete_session(struct connection *conn);
 static struct task *session_expire_embryonic(struct task *t);
@@ -42,7 +42,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 {
 	struct session *sess;
 
-	sess = pool_alloc2(pool2_session);
+	sess = pool_alloc(pool_head_session);
 	if (sess) {
 		sess->listener = li;
 		sess->fe = fe;
@@ -69,7 +69,7 @@ void session_free(struct session *sess)
 		listener_release(sess->listener);
 	session_store_counters(sess);
 	vars_prune_per_sess(&sess->vars);
-	pool_free2(pool2_session, sess);
+	pool_free(pool_head_session, sess);
 	HA_ATOMIC_SUB(&jobs, 1);
 }
 
@@ -84,8 +84,8 @@ void conn_session_free(struct connection *conn)
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session()
 {
-	pool2_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
-	return pool2_session != NULL;
+	pool_head_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
+	return pool_head_session != NULL;
 }
 
 /* count a new session to keep frontend, listener and track stats up to date */

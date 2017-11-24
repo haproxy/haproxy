@@ -93,23 +93,23 @@ unsigned long pool_total_used();
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
-void pool_flush2(struct pool_head *pool);
+void pool_flush(struct pool_head *pool);
 
 /*
  * This function frees whatever can be freed in all pools, but respecting
  * the minimum thresholds imposed by owners.
  *
- * <pool_ctx> is used when pool_gc2 is called to release resources to allocate
+ * <pool_ctx> is used when pool_gc is called to release resources to allocate
  * an element in __pool_refill_alloc. It is important because <pool_ctx> is
  * already locked, so we need to skip the lock here.
  */
-void pool_gc2(struct pool_head *pool_ctx);
+void pool_gc(struct pool_head *pool_ctx);
 
 /*
  * This function destroys a pull by freeing it completely.
  * This should be called only under extreme circumstances.
  */
-void *pool_destroy2(struct pool_head *pool);
+void *pool_destroy(struct pool_head *pool);
 
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
@@ -209,7 +209,7 @@ static inline void pool_free_area(void *area, size_t size)
  * dynamically allocated. In the first case, <pool_type> is updated to point to
  * the next element in the list. Memory poisonning is performed if enabled.
  */
-static inline void *pool_alloc2(struct pool_head *pool)
+static inline void *pool_alloc(struct pool_head *pool)
 {
 	void *p;
 
@@ -238,7 +238,7 @@ static inline void *pool_alloc2(struct pool_head *pool)
  * pointer. Just like with the libc's free(), nothing
  * is done if <ptr> is NULL.
  */
-static inline void pool_free2(struct pool_head *pool, void *ptr)
+static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
 		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);

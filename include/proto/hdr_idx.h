@@ -25,7 +25,7 @@
 #include <common/config.h>
 #include <types/hdr_idx.h>
 
-extern struct pool_head *pool2_hdr_idx;
+extern struct pool_head *pool_head_hdr_idx;
 
 /*
  * Initialize the list pointers.

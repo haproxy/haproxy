@@ -34,8 +34,8 @@
 #include <types/proxy.h>
 #include <types/stream.h>
 
-extern struct pool_head *pool2_requri;
-extern struct pool_head *pool2_uniqueid;
+extern struct pool_head *pool_head_requri;
+extern struct pool_head *pool_head_uniqueid;
 
 extern char *log_format;
 extern char default_tcp_log_format[];

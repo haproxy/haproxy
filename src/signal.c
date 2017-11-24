@@ -27,7 +27,7 @@
 int signal_queue_len; /* length of signal queue, <= MAX_SIGNAL (1 entry per signal max) */
 int signal_queue[MAX_SIGNAL];                     /* in-order queue of received signals */
 struct signal_descriptor signal_state[MAX_SIGNAL];
-struct pool_head *pool2_sig_handlers = NULL;
+struct pool_head *pool_head_sig_handlers = NULL;
 sigset_t blocked_sig;
 int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
@@ -130,8 +130,8 @@ int signal_init()
 	for (sig = 0; sig < MAX_SIGNAL; sig++)
 		LIST_INIT(&signal_state[sig].handlers);
 
-	pool2_sig_handlers = create_pool("sig_handlers", sizeof(struct sig_handler), MEM_F_SHARED);
-	return pool2_sig_handlers != NULL;
+	pool_head_sig_handlers = create_pool("sig_handlers", sizeof(struct sig_handler), MEM_F_SHARED);
+	return pool_head_sig_handlers != NULL;
 }
 
 /* releases all registered signal handlers */
@@ -145,7 +145,7 @@ void deinit_signals()
 			signal(sig, SIG_DFL);
 		list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
 			LIST_DEL(&sh->list);
-			pool_free2(pool2_sig_handlers, sh);
+			pool_free(pool_head_sig_handlers, sh);
 		}
 	}
 	HA_SPIN_DESTROY(&signals_lock);
@@ -172,7 +172,7 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 	if (!fct)
 		return NULL;
 
-	sh = pool_alloc2(pool2_sig_handlers);
+	sh = pool_alloc(pool_head_sig_handlers);
 	if (!sh)
 		return NULL;
 
@@ -204,7 +204,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 	if (!task)
 		return NULL;
 
-	sh = pool_alloc2(pool2_sig_handlers);
+	sh = pool_alloc(pool_head_sig_handlers);
 	if (!sh)
 		return NULL;
 
@@ -221,7 +221,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 void signal_unregister_handler(struct sig_handler *handler)
 {
 	LIST_DEL(&handler->list);
-	pool_free2(pool2_sig_handlers, handler);
+	pool_free(pool_head_sig_handlers, handler);
 }
 
 /* Immediately unregister a handler so that no further signals may be delivered
@@ -243,7 +243,7 @@ void signal_unregister_target(int sig, void *target)
 	list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
 		if (sh->handler == target) {
 			LIST_DEL(&sh->list);
-			pool_free2(pool2_sig_handlers, sh);
+			pool_free(pool_head_sig_handlers, sh);
 			break;
 		}
 	}

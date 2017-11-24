@@ -123,7 +123,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 			if (failed)
 				return NULL;
 			failed++;
-			pool_gc2(pool);
+			pool_gc(pool);
 			continue;
 		}
 		if (++pool->allocated > avail)
@@ -151,7 +151,7 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
-void pool_flush2(struct pool_head *pool)
+void pool_flush(struct pool_head *pool)
 {
 	void *temp, *next;
 	if (!pool)
@@ -175,11 +175,11 @@ void pool_flush2(struct pool_head *pool)
  * the minimum thresholds imposed by owners. It takes care of avoiding
  * recursion because it may be called from a signal handler.
  *
- * <pool_ctx> is used when pool_gc2 is called to release resources to allocate
+ * <pool_ctx> is used when pool_gc is called to release resources to allocate
  * an element in __pool_refill_alloc. It is important because <pool_ctx> is
  * already locked, so we need to skip the lock here.
  */
-void pool_gc2(struct pool_head *pool_ctx)
+void pool_gc(struct pool_head *pool_ctx)
 {
 	static int recurse;
 	int cur_recurse = 0;
@@ -216,10 +216,10 @@ void pool_gc2(struct pool_head *pool_ctx)
  * pointer, otherwise it returns the pool.
  * .
  */
-void *pool_destroy2(struct pool_head *pool)
+void *pool_destroy(struct pool_head *pool)
 {
 	if (pool) {
-		pool_flush2(pool);
+		pool_flush(pool);
 		if (pool->used)
 			return pool;
 		pool->users--;

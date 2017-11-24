@@ -51,7 +51,7 @@ static THREAD_LOCAL struct stktable_key static_table_key;
 void __stksess_free(struct stktable *t, struct stksess *ts)
 {
 	t->current--;
-	pool_free2(t->pool, (void *)ts - t->data_size);
+	pool_free(t->pool, (void *)ts - t->data_size);
 }
 
 /*
@@ -226,7 +226,7 @@ struct stksess *__stksess_new(struct stktable *t, struct stktable_key *key)
 			return NULL;
 	}
 
-	ts = pool_alloc2(t->pool);
+	ts = pool_alloc(t->pool);
 	if (ts) {
 		t->current++;
 		ts = (void *)ts + t->data_size;

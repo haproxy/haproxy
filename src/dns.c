@@ -504,7 +504,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 		  rm_obselete_item:
 			LIST_DEL(&item->list);
-			pool_free2(dns_answer_item_pool, item);
+			pool_free(dns_answer_item_pool, item);
 			continue;
 		}
 
@@ -713,7 +713,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
 
-		dns_answer_record = pool_alloc2(dns_answer_item_pool);
+		dns_answer_record = pool_alloc(dns_answer_item_pool);
 		if (dns_answer_record == NULL)
 			return (DNS_RESP_INVALID);
 
@@ -721,14 +721,14 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
 
 		if (len == 0) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 
 		/* Check if the current record dname is valid.  previous_dname
 		 * points either to queried dname or last CNAME target */
 		if (dns_query->type != DNS_RTYPE_SRV && memcmp(previous_dname, tmpname, len) != 0) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			if (i == 0) {
 				/* First record, means a mismatch issue between
 				 * queried dname and dname found in the first
@@ -748,13 +748,13 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		reader += offset;
 		if (reader >= bufend) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 
 		/* 2 bytes for record type (A, AAAA, CNAME, etc...) */
 		if (reader + 2 > bufend) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 		dns_answer_record->type = reader[0] * 256 + reader[1];
@@ -762,7 +762,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		/* 2 bytes for class (2) */
 		if (reader + 2 > bufend) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 		dns_answer_record->class = reader[0] * 256 + reader[1];
@@ -770,7 +770,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		/* 4 bytes for ttl (4) */
 		if (reader + 4 > bufend) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 		dns_answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
@@ -779,7 +779,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		/* Now reading data len */
 		if (reader + 2 > bufend) {
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
 		dns_answer_record->data_len = reader[0] * 256 + reader[1];
@@ -792,7 +792,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			case DNS_RTYPE_A:
 				/* ipv4 is stored on 4 bytes */
 				if (dns_answer_record->data_len != 4) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
 				dns_answer_record->address.sa_family = AF_INET;
@@ -810,14 +810,14 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				 * starts at 1.
 				 */
 				if (i + 1 == dns_p->header.ancount) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_CNAME_ERROR;
 				}
 
 				offset = 0;
 				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
 				if (len == 0) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
 
@@ -835,7 +835,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				 * - the target hostname
 				 */
 				if (dns_answer_record->data_len <= 6) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
 				dns_answer_record->priority = read_n16(reader);
@@ -847,7 +847,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				offset = 0;
 				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
 				if (len == 0) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
 				dns_answer_record->data_len = len;
@@ -858,7 +858,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			case DNS_RTYPE_AAAA:
 				/* ipv6 is stored on 16 bytes */
 				if (dns_answer_record->data_len != 16) {
-					pool_free2(dns_answer_item_pool, dns_answer_record);
+					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
 				}
 				dns_answer_record->address.sa_family = AF_INET6;
@@ -918,7 +918,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		if (found == 1) {
 			tmp_record->last_seen = now.tv_sec;
-			pool_free2(dns_answer_item_pool, dns_answer_record);
+			pool_free(dns_answer_item_pool, dns_answer_record);
 		}
 		else {
 			dns_answer_record->last_seen = now.tv_sec;
@@ -1262,7 +1262,7 @@ static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolver
 
   from_pool:
 	/* No resolution could be found, so let's allocate a new one */
-	res = pool_alloc2(dns_resolution_pool);
+	res = pool_alloc(dns_resolution_pool);
 	if (res) {
 		memset(res, 0, sizeof(*res));
 		res->resolvers  = resolvers;
@@ -1303,7 +1303,7 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 	}
 
 	LIST_DEL(&resolution->list);
-	pool_free2(dns_resolution_pool, resolution);
+	pool_free(dns_resolution_pool, resolution);
 }
 
 /* Links a requester (a server or a dns_srvrq) with a resolution. It returns 0
@@ -1826,8 +1826,8 @@ static void dns_deinit(void)
 		free(srvrq);
 	}
 
-	pool_destroy2(dns_answer_item_pool);
-	pool_destroy2(dns_resolution_pool);
+	pool_destroy(dns_answer_item_pool);
+	pool_destroy(dns_resolution_pool);
 }
 
 /* Finalizes the DNS configuration by allocating required resources and checking

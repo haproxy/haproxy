@@ -34,7 +34,7 @@ struct cap_hdr {
     struct pool_head *pool;		/* pool of pre-allocated memory area of (len+1) bytes */
 };
 
-extern struct pool_head *pool2_capture;
+extern struct pool_head *pool_head_capture;
 
 #endif /* _TYPES_CAPTURE_H */
 

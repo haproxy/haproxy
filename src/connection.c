@@ -27,8 +27,8 @@
 #include <proto/ssl_sock.h>
 #endif
 
-struct pool_head *pool2_connection;
-struct pool_head *pool2_connstream;
+struct pool_head *pool_head_connection;
+struct pool_head *pool_head_connstream;
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
 /* List head of all known muxes for ALPN */
@@ -39,18 +39,18 @@ struct alpn_mux_list alpn_mux_list = {
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection()
 {
-	pool2_connection = create_pool("connection", sizeof (struct connection), MEM_F_SHARED);
-	if (!pool2_connection)
+	pool_head_connection = create_pool("connection", sizeof (struct connection), MEM_F_SHARED);
+	if (!pool_head_connection)
 		goto fail_conn;
 
-	pool2_connstream = create_pool("conn_stream", sizeof(struct conn_stream), MEM_F_SHARED);
-	if (!pool2_connstream)
+	pool_head_connstream = create_pool("conn_stream", sizeof(struct conn_stream), MEM_F_SHARED);
+	if (!pool_head_connstream)
 		goto fail_cs;
 
 	return 1;
  fail_cs:
-	pool_destroy2(pool2_connection);
-	pool2_connection = NULL;
+	pool_destroy(pool_head_connection);
+	pool_head_connection = NULL;
  fail_conn:
 	return 0;
 }

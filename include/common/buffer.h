@@ -48,7 +48,7 @@ struct buffer_wait {
 	struct list list;          /* Next element in the <buffer_wq> list */
 };
 
-extern struct pool_head *pool2_buffer;
+extern struct pool_head *pool_head_buffer;
 extern struct buffer buf_empty;
 extern struct buffer buf_wanted;
 extern struct list buffer_wq;
@@ -665,9 +665,9 @@ static inline struct buffer *b_alloc(struct buffer **buf)
 	struct buffer *b;
 
 	*buf = &buf_wanted;
-	b = pool_alloc_dirty(pool2_buffer);
+	b = pool_alloc_dirty(pool_head_buffer);
 	if (likely(b)) {
-		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b->size = pool_head_buffer->size - sizeof(struct buffer);
 		b_reset(b);
 		*buf = b;
 	}
@@ -686,9 +686,9 @@ static inline struct buffer *b_alloc_fast(struct buffer **buf)
 	struct buffer *b;
 
 	*buf = &buf_wanted;
-	b = pool_get_first(pool2_buffer);
+	b = pool_get_first(pool_head_buffer);
 	if (likely(b)) {
-		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b->size = pool_head_buffer->size - sizeof(struct buffer);
 		b_reset(b);
 		*buf = b;
 	}
@@ -698,7 +698,7 @@ static inline struct buffer *b_alloc_fast(struct buffer **buf)
 /* Releases buffer *buf (no check of emptiness) */
 static inline void __b_drop(struct buffer **buf)
 {
-	pool_free2(pool2_buffer, *buf);
+	pool_free(pool_head_buffer, *buf);
 }
 
 /* Releases buffer *buf if allocated. */
@@ -735,14 +735,14 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 		return *buf;
 
 	*buf = &buf_wanted;
-	HA_SPIN_LOCK(POOL_LOCK, &pool2_buffer->lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool_head_buffer->lock);
 
 	/* fast path */
-	if ((pool2_buffer->allocated - pool2_buffer->used) > margin) {
-		b = __pool_get_first(pool2_buffer);
+	if ((pool_head_buffer->allocated - pool_head_buffer->used) > margin) {
+		b = __pool_get_first(pool_head_buffer);
 		if (likely(b)) {
-			HA_SPIN_UNLOCK(POOL_LOCK, &pool2_buffer->lock);
-			b->size = pool2_buffer->size - sizeof(struct buffer);
+			HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
+			b->size = pool_head_buffer->size - sizeof(struct buffer);
 			b_reset(b);
 			*buf = b;
 			return b;
@@ -750,12 +750,12 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 	}
 
 	/* slow path, uses malloc() */
-	b = __pool_refill_alloc(pool2_buffer, margin);
+	b = __pool_refill_alloc(pool_head_buffer, margin);
 
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool2_buffer->lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
 
 	if (b) {
-		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b->size = pool_head_buffer->size - sizeof(struct buffer);
 		b_reset(b);
 		*buf = b;
 	}

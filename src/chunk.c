@@ -32,7 +32,7 @@ static THREAD_LOCAL char *trash_buf1;
 static THREAD_LOCAL char *trash_buf2;
 
 /* the trash pool for reentrant allocations */
-struct pool_head *pool2_trash = NULL;
+struct pool_head *pool_head_trash = NULL;
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 THREAD_LOCAL struct chunk trash = { .str = NULL };
@@ -96,9 +96,9 @@ int init_trash_buffers(int first)
 		hap_register_per_thread_init(init_trash_buffers_per_thread);
 		hap_register_per_thread_deinit(deinit_trash_buffers_per_thread);
 	}
-	pool_destroy2(pool2_trash);
-	pool2_trash = create_pool("trash", sizeof(struct chunk) + global.tune.bufsize, MEM_F_EXACT);
-	if (!pool2_trash || !alloc_trash_buffers(global.tune.bufsize))
+	pool_destroy(pool_head_trash);
+	pool_head_trash = create_pool("trash", sizeof(struct chunk) + global.tune.bufsize, MEM_F_EXACT);
+	if (!pool_head_trash || !alloc_trash_buffers(global.tune.bufsize))
 		return 0;
 	return 1;
 }
@@ -108,7 +108,7 @@ int init_trash_buffers(int first)
  */
 void deinit_trash_buffers(void)
 {
-	pool_destroy2(pool2_trash);
+	pool_destroy(pool_head_trash);
 }
 
 /*
@@ -121,11 +121,11 @@ struct chunk *alloc_trash_chunk(void)
 {
 	struct chunk *chunk;
 
-	chunk = pool_alloc2(pool2_trash);
+	chunk = pool_alloc(pool_head_trash);
 	if (chunk) {
 		char *buf = (char *)chunk + sizeof(struct chunk);
 		*buf = 0;
-		chunk_init(chunk, buf, pool2_trash->size - sizeof(struct chunk));
+		chunk_init(chunk, buf, pool_head_trash->size - sizeof(struct chunk));
 	}
 	return chunk;
 }

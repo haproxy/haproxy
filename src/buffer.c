@@ -20,7 +20,7 @@
 
 #include <types/global.h>
 
-struct pool_head *pool2_buffer;
+struct pool_head *pool_head_buffer;
 
 /* These buffers are used to always have a valid pointer to an empty buffer in
  * channels. The first buffer is set once a buffer is empty. The second one is
@@ -58,8 +58,8 @@ int init_buffer()
 {
 	void *buffer;
 
-	pool2_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
-	if (!pool2_buffer)
+	pool_head_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
+	if (!pool_head_buffer)
 		return 0;
 
 	/* The reserved buffer is what we leave behind us. Thus we always need
@@ -69,17 +69,17 @@ int init_buffer()
 	 * (2 for current session, one for next session that might be needed to
 	 * release a server connection).
 	 */
-	pool2_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
+	pool_head_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
 	if (global.tune.buf_limit)
-		pool2_buffer->limit = global.tune.buf_limit;
+		pool_head_buffer->limit = global.tune.buf_limit;
 
 	HA_SPIN_INIT(&buffer_wq_lock);
 
-	buffer = pool_refill_alloc(pool2_buffer, pool2_buffer->minavail - 1);
+	buffer = pool_refill_alloc(pool_head_buffer, pool_head_buffer->minavail - 1);
 	if (!buffer)
 		return 0;
 
-	pool_free2(pool2_buffer, buffer);
+	pool_free(pool_head_buffer, buffer);
 
 	hap_register_per_thread_init(init_buffer_per_thread);
 	hap_register_per_thread_deinit(deinit_buffer_per_thread);
@@ -88,7 +88,7 @@ int init_buffer()
 
 void deinit_buffer()
 {
-	pool_destroy2(pool2_buffer);
+	pool_destroy(pool_head_buffer);
 }
 
 /* This function writes the string <str> at position <pos> which must be in
@@ -261,7 +261,7 @@ void __offer_buffer(void *from, unsigned int threshold)
 	 * allocated, and in any case at least one task per two reserved
 	 * buffers.
 	 */
-	avail = pool2_buffer->allocated - pool2_buffer->used - global.tune.reserved_bufs / 2;
+	avail = pool_head_buffer->allocated - pool_head_buffer->used - global.tune.reserved_bufs / 2;
 
 	list_for_each_entry_safe(wait, bak, &buffer_wq, list) {
 		if (avail <= threshold)

@@ -32,7 +32,7 @@
 
 #include <proto/stick_table.h>
 
-extern struct pool_head *pool2_session;
+extern struct pool_head *pool_head_session;
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin);
 void session_free(struct session *sess);
 int init_session();

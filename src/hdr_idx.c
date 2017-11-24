@@ -14,7 +14,7 @@
 #include <common/memory.h>
 #include <proto/hdr_idx.h>
 
-struct pool_head *pool2_hdr_idx = NULL;
+struct pool_head *pool_head_hdr_idx = NULL;
 
 /*
  * Add a header entry to <list> after element <after>. <after> is ignored when

@@ -160,7 +160,7 @@ struct hlua gL;
 /* This is the memory pool containing struct lua for applets
  * (including cli).
  */
-struct pool_head *pool2_hlua;
+struct pool_head *pool_head_hlua;
 
 /* Used for Socket connection. */
 static struct proxy socket_proxy;
@@ -876,7 +876,7 @@ void hlua_ctx_destroy(struct hlua *lua)
 	lua->T = NULL;
 
 end:
-	pool_free2(pool2_hlua, lua);
+	pool_free(pool_head_hlua, lua);
 }
 
 /* This function is used to restore the Lua context when a coroutine
@@ -2498,7 +2498,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->tid = tid;
 
 	/* Check if the various memory pools are intialized. */
-	if (!pool2_stream || !pool2_buffer) {
+	if (!pool_head_stream || !pool_head_buffer) {
 		hlua_pusherror(L, "socket: uninitialized pools.");
 		goto out_fail_conf;
 	}
@@ -5578,7 +5578,7 @@ static int hlua_register_task(lua_State *L)
 
 	ref = MAY_LJMP(hlua_checkfunction(L, 1));
 
-	hlua = pool_alloc2(pool2_hlua);
+	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua)
 		WILL_LJMP(luaL_error(L, "lua out of memory error."));
 
@@ -5618,7 +5618,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua) {
-		stream->hlua = pool_alloc2(pool2_hlua);
+		stream->hlua = pool_alloc(pool_head_hlua);
 		if (!stream->hlua) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
@@ -5738,7 +5738,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua) {
-		stream->hlua = pool_alloc2(pool2_hlua);
+		stream->hlua = pool_alloc(pool_head_hlua);
 		if (!stream->hlua) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
@@ -5996,7 +5996,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!s->hlua) {
-		s->hlua = pool_alloc2(pool2_hlua);
+		s->hlua = pool_alloc(pool_head_hlua);
 		if (!s->hlua) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn.name);
@@ -6152,7 +6152,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	char **arg;
 	const char *error;
 
-	hlua = pool_alloc2(pool2_hlua);
+	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
@@ -6349,7 +6349,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
 
-	hlua = pool_alloc2(pool2_hlua);
+	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
@@ -6897,7 +6897,7 @@ static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
 	fcn = private;
 	appctx->ctx.hlua_cli.fcn = private;
 
-	hlua = pool_alloc2(pool2_hlua);
+	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(NULL, "Lua cli '%s': out of memory.\n", fcn->name);
 		return 1;
@@ -7371,7 +7371,7 @@ void hlua_init(void)
 	HA_SPIN_INIT(&hlua_global_lock);
 
 	/* Initialise struct hlua and com signals pool */
-	pool2_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
+	pool_head_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
 
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);

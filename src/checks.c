@@ -70,8 +70,8 @@ static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
 static int tcpcheck_main(struct check *);
 
-static struct pool_head *pool2_email_alert   = NULL;
-static struct pool_head *pool2_tcpcheck_rule = NULL;
+static struct pool_head *pool_head_email_alert   = NULL;
+static struct pool_head *pool_head_tcpcheck_rule = NULL;
 
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
@@ -1612,7 +1612,7 @@ static int connect_conn_chk(struct task *t)
 }
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
-static struct pool_head *pool2_pid_list;
+static struct pool_head *pool_head_pid_list;
 __decl_hathreads(HA_SPINLOCK_T pid_list_lock);
 
 void block_sigchld(void)
@@ -1636,7 +1636,7 @@ static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 	struct pid_list *elem;
 	struct check *check = t->context;
 
-	elem = pool_alloc2(pool2_pid_list);
+	elem = pool_alloc(pool_head_pid_list);
 	if (!elem)
 		return NULL;
 	elem->pid = pid;
@@ -1668,7 +1668,7 @@ static void pid_list_del(struct pid_list *elem)
 
 	check = elem->t->context;
 	check->curpid = NULL;
-	pool_free2(pool2_pid_list, elem);
+	pool_free(pool_head_pid_list, elem);
 }
 
 /* Called from inside SIGCHLD handler, SIGCHLD is blocked */
@@ -1700,7 +1700,7 @@ static void sigchld_handler(struct sig_handler *sh)
 
 static int init_pid_list(void)
 {
-	if (pool2_pid_list != NULL)
+	if (pool_head_pid_list != NULL)
 		/* Nothing to do */
 		return 0;
 
@@ -1710,8 +1710,8 @@ static int init_pid_list(void)
 		return 1;
 	}
 
-	pool2_pid_list = create_pool("pid_list", sizeof(struct pid_list), MEM_F_SHARED);
-	if (pool2_pid_list == NULL) {
+	pool_head_pid_list = create_pool("pid_list", sizeof(struct pid_list), MEM_F_SHARED);
+	if (pool_head_pid_list == NULL) {
 		ha_alert("Failed to allocate memory pool for external health checks: %s. Aborting.\n",
 			 strerror(errno));
 		return 1;
@@ -3122,9 +3122,9 @@ void email_alert_free(struct email_alert *alert)
 		free(rule->string);
 		if (rule->expect_regex)
 			regex_free(rule->expect_regex);
-		pool_free2(pool2_tcpcheck_rule, rule);
+		pool_free(pool_head_tcpcheck_rule, rule);
 	}
-	pool_free2(pool2_email_alert, alert);
+	pool_free(pool_head_email_alert, alert);
 }
 
 static struct task *process_email_alert(struct task *t)
@@ -3250,7 +3250,7 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck;
 
-	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_EXPECT;
@@ -3258,7 +3258,7 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 	tcpcheck->expect_regex = NULL;
 	tcpcheck->comment      = NULL;
 	if (!tcpcheck->string) {
-		pool_free2(pool2_tcpcheck_rule, tcpcheck);
+		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
@@ -3273,7 +3273,7 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 	char *dst;
 	int i;
 
-	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_SEND;
@@ -3285,7 +3285,7 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 
 	tcpcheck->string = malloc(tcpcheck->string_len + 1);
 	if (!tcpcheck->string) {
-		pool_free2(pool2_tcpcheck_rule, tcpcheck);
+		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
@@ -3305,13 +3305,13 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	struct tcpcheck_rule *tcpcheck;
 	struct check *check = &q->check;
 
-	if ((alert = pool_alloc2(pool2_email_alert)) == NULL)
+	if ((alert = pool_alloc(pool_head_email_alert)) == NULL)
 		goto error;
 	LIST_INIT(&alert->list);
 	LIST_INIT(&alert->tcpcheck_rules);
 	alert->srv = s;
 
-	if ((tcpcheck = pool_alloc2(pool2_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
 		goto error;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
@@ -3499,8 +3499,8 @@ static void __check_init(void)
 {
 	hap_register_post_check(start_checks);
 
-	pool2_email_alert   = create_pool("email_alert",   sizeof(struct email_alert),   MEM_F_SHARED);
-	pool2_tcpcheck_rule = create_pool("tcpcheck_rule", sizeof(struct tcpcheck_rule), MEM_F_SHARED);
+	pool_head_email_alert   = create_pool("email_alert",   sizeof(struct email_alert),   MEM_F_SHARED);
+	pool_head_tcpcheck_rule = create_pool("tcpcheck_rule", sizeof(struct tcpcheck_rule), MEM_F_SHARED);
 }
 
 

@@ -31,7 +31,7 @@
 #include <proto/stream_interface.h>
 
 /* Pool used to allocate filters */
-struct pool_head *pool2_filter = NULL;
+struct pool_head *pool_head_filter = NULL;
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
@@ -384,7 +384,7 @@ flt_deinit_all_per_thread()
 static int
 flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags)
 {
-	struct filter *f = pool_alloc2(pool2_filter);
+	struct filter *f = pool_alloc(pool_head_filter);
 
 	if (!f) /* not enough memory */
 		return -1;
@@ -395,7 +395,7 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 	if (FLT_OPS(f)->attach) {
 		int ret = FLT_OPS(f)->attach(s, f);
 		if (ret <= 0) {
-			pool_free2(pool2_filter, f);
+			pool_free(pool_head_filter, f);
 			return ret;
 		}
 	}
@@ -439,7 +439,7 @@ flt_stream_release(struct stream *s, int only_backend)
 			if (FLT_OPS(filter)->detach)
 				FLT_OPS(filter)->detach(s, filter);
 			LIST_DEL(&filter->list);
-			pool_free2(pool2_filter, filter);
+			pool_free(pool_head_filter, filter);
 		}
 	}
 	if (LIST_ISEMPTY(&strm_flt(s)->filters))
@@ -1184,7 +1184,7 @@ __attribute__((constructor))
 static void
 __filters_init(void)
 {
-        pool2_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
+        pool_head_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
 	cfg_register_keywords(&cfg_kws);
 	hap_register_post_check(flt_init_all);
 	hap_register_per_thread_init(flt_init_all_per_thread);
@@ -1195,7 +1195,7 @@ __attribute__((destructor))
 static void
 __filters_deinit(void)
 {
-	pool_destroy2(pool2_filter);
+	pool_destroy(pool_head_filter);
 }
 
 /*

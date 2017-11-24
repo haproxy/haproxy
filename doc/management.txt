@@ -192,7 +192,7 @@ list of options is :
     difficult to troubleshoot.
 
   -dM[<byte>] : forces memory poisoning, which means that each and every
-    memory region allocated with malloc() or pool_alloc2() will be filled with
+    memory region allocated with malloc() or pool_alloc() will be filled with
     <byte> before being passed to the caller. When <byte> is not specified, it
     defaults to 0x50 ('P'). While this slightly slows down operations, it is
     useful to reliably trigger issues resulting from missing initializations in

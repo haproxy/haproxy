@@ -55,14 +55,14 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
- * pool_free2(connection) or appctx_free(), since it's allocated from the
+ * pool_free(connection) or appctx_free(), since it's allocated from the
  * connection pool. <applet> is assigned as the applet, but it can be NULL.
  */
 static inline struct appctx *appctx_new(struct applet *applet, unsigned long thread_mask)
 {
 	struct appctx *appctx;
 
-	appctx = pool_alloc2(pool2_connection);
+	appctx = pool_alloc(pool_head_connection);
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
@@ -93,7 +93,7 @@ static inline void __appctx_free(struct appctx *appctx)
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
-	pool_free2(pool2_connection, appctx);
+	pool_free(pool_head_connection, appctx);
 	HA_ATOMIC_SUB(&nb_applets, 1);
 }
 static inline void appctx_free(struct appctx *appctx)

@@ -24,12 +24,12 @@
 #include <proto/stream.h>
 #include <proto/task.h>
 
-struct pool_head *pool2_task;
+struct pool_head *pool_head_task;
 
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each requiered signal between two tasks.
  */
-struct pool_head *pool2_notification;
+struct pool_head *pool_head_notification;
 
 unsigned int nb_tasks = 0;
 unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
@@ -342,11 +342,11 @@ int init_task()
 	memset(&rqueue, 0, sizeof(rqueue));
 	HA_SPIN_INIT(&wq_lock);
 	HA_SPIN_INIT(&rq_lock);
-	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
-	if (!pool2_task)
+	pool_head_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
+	if (!pool_head_task)
 		return 0;
-	pool2_notification = create_pool("notification", sizeof(struct notification), MEM_F_SHARED);
-	if (!pool2_notification)
+	pool_head_notification = create_pool("notification", sizeof(struct notification), MEM_F_SHARED);
+	if (!pool_head_notification)
 		return 0;
 	return 1;
 }

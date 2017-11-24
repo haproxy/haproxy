@@ -30,8 +30,8 @@
 #include <proto/fd.h>
 #include <proto/obj_type.h>
 
-extern struct pool_head *pool2_connection;
-extern struct pool_head *pool2_connstream;
+extern struct pool_head *pool_head_connection;
+extern struct pool_head *pool_head_connstream;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct alpn_mux_list alpn_mux_list;
 
@@ -642,13 +642,13 @@ static inline void conn_clear_xprt_done_cb(struct connection *conn)
 
 /* Tries to allocate a new connection and initialized its main fields. The
  * connection is returned on success, NULL on failure. The connection must
- * be released using pool_free2() or conn_free().
+ * be released using pool_free() or conn_free().
  */
 static inline struct connection *conn_new()
 {
 	struct connection *conn;
 
-	conn = pool_alloc2(pool2_connection);
+	conn = pool_alloc(pool_head_connection);
 	if (likely(conn != NULL))
 		conn_init(conn);
 	return conn;
@@ -657,13 +657,13 @@ static inline struct connection *conn_new()
 /* Releases a conn_stream previously allocated by cs_new() */
 static inline void cs_free(struct conn_stream *cs)
 {
-	pool_free2(pool2_connstream, cs);
+	pool_free(pool_head_connstream, cs);
 }
 
 /* Tries to allocate a new conn_stream and initialize its main fields. If
  * <conn> is NULL, then a new connection is allocated on the fly, initialized,
  * and assigned to cs->conn ; this connection will then have to be released
- * using pool_free2() or conn_free(). The conn_stream is initialized and added
+ * using pool_free() or conn_free(). The conn_stream is initialized and added
  * to the mux's stream list on success, then returned. On failure, nothing is
  * allocated and NULL is returned.
  */
@@ -671,7 +671,7 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 {
 	struct conn_stream *cs;
 
-	cs = pool_alloc2(pool2_connstream);
+	cs = pool_alloc(pool_head_connstream);
 	if (!likely(cs))
 		return NULL;
 
@@ -691,7 +691,7 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	pool_free2(pool2_connection, conn);
+	pool_free(pool_head_connection, conn);
 }
 
 /* Release a conn_stream, and kill the connection if it was the last one */

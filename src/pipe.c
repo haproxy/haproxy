@@ -20,7 +20,7 @@
 #include <types/global.h>
 #include <types/pipe.h>
 
-struct pool_head *pool2_pipe = NULL;
+struct pool_head *pool_head_pipe = NULL;
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
 
 __decl_hathreads(HA_SPINLOCK_T pipes_lock); /* lock used to protect pipes list */
@@ -31,7 +31,7 @@ int pipes_free = 0;             /* # of pipes unused */
 /* allocate memory for the pipes */
 static void init_pipe()
 {
-	pool2_pipe = create_pool("pipe", sizeof(struct pipe), MEM_F_SHARED);
+	pool_head_pipe = create_pool("pipe", sizeof(struct pipe), MEM_F_SHARED);
 	pipes_used = 0;
 	pipes_free = 0;
 	HA_SPIN_INIT(&pipes_lock);
@@ -57,12 +57,12 @@ struct pipe *get_pipe()
 	if (pipes_used >= global.maxpipes)
 		goto out;
 
-	ret = pool_alloc2(pool2_pipe);
+	ret = pool_alloc(pool_head_pipe);
 	if (!ret)
 		goto out;
 
 	if (pipe(pipefd) < 0) {
-		pool_free2(pool2_pipe, ret);
+		pool_free(pool_head_pipe, ret);
 		goto out;
 	}
 #ifdef F_SETPIPE_SZ
@@ -83,7 +83,7 @@ static void inline __kill_pipe(struct pipe *p)
 {
 	close(p->prod);
 	close(p->cons);
-	pool_free2(pool2_pipe, p);
+	pool_free(pool_head_pipe, p);
 	pipes_used--;
 	return;
 }

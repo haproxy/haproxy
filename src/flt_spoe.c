@@ -89,8 +89,8 @@ struct list curmphs;
 struct list curgphs;
 
 /* Pools used to allocate SPOE structs */
-static struct pool_head *pool2_spoe_ctx = NULL;
-static struct pool_head *pool2_spoe_appctx = NULL;
+static struct pool_head *pool_head_spoe_ctx = NULL;
+static struct pool_head *pool_head_spoe_appctx = NULL;
 
 struct flt_ops spoe_ops;
 
@@ -1286,7 +1286,7 @@ spoe_release_appctx(struct appctx *appctx)
 	/* Release allocated memory */
 	spoe_release_buffer(&spoe_appctx->buffer,
 			    &spoe_appctx->buffer_wait);
-	pool_free2(pool2_spoe_appctx, spoe_appctx);
+	pool_free(pool_head_spoe_appctx, spoe_appctx);
 
 	if (!LIST_ISEMPTY(&agent->rt[tid].applets))
 		goto end;
@@ -1943,10 +1943,10 @@ spoe_create_appctx(struct spoe_config *conf)
 	if ((appctx = appctx_new(&spoe_applet, tid_bit)) == NULL)
 		goto out_error;
 
-	appctx->ctx.spoe.ptr = pool_alloc_dirty(pool2_spoe_appctx);
+	appctx->ctx.spoe.ptr = pool_alloc_dirty(pool_head_spoe_appctx);
 	if (SPOE_APPCTX(appctx) == NULL)
 		goto out_free_appctx;
-	memset(appctx->ctx.spoe.ptr, 0, pool2_spoe_appctx->size);
+	memset(appctx->ctx.spoe.ptr, 0, pool_head_spoe_appctx->size);
 
 	appctx->st0 = SPOE_APPCTX_ST_CONNECT;
 	if ((SPOE_APPCTX(appctx)->task = task_new(tid_bit)) == NULL)
@@ -2000,7 +2000,7 @@ spoe_create_appctx(struct spoe_config *conf)
  out_free_spoe:
 	task_free(SPOE_APPCTX(appctx)->task);
  out_free_spoe_appctx:
-	pool_free2(pool2_spoe_appctx, SPOE_APPCTX(appctx));
+	pool_free(pool_head_spoe_appctx, SPOE_APPCTX(appctx));
  out_free_appctx:
 	appctx_free(appctx);
  out_error:
@@ -2745,7 +2745,7 @@ spoe_create_context(struct filter *filter)
 	struct spoe_config  *conf = FLT_CONF(filter);
 	struct spoe_context *ctx;
 
-	ctx = pool_alloc_dirty(pool2_spoe_ctx);
+	ctx = pool_alloc_dirty(pool_head_spoe_ctx);
 	if (ctx == NULL) {
 		return NULL;
 	}
@@ -2776,7 +2776,7 @@ spoe_destroy_context(struct spoe_context *ctx)
 		return;
 
 	spoe_stop_processing(ctx);
-	pool_free2(pool2_spoe_ctx, ctx);
+	pool_free(pool_head_spoe_ctx, ctx);
 }
 
 static void
@@ -4321,14 +4321,14 @@ static void __spoe_init(void)
 	http_req_keywords_register(&http_req_action_kws);
 	http_res_keywords_register(&http_res_action_kws);
 
-	pool2_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
-	pool2_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);
+	pool_head_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
+	pool_head_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);
 }
 
 __attribute__((destructor))
 static void
 __spoe_deinit(void)
 {
-	pool_destroy2(pool2_spoe_ctx);
-	pool_destroy2(pool2_spoe_appctx);
+	pool_destroy(pool_head_spoe_ctx);
+	pool_destroy(pool_head_spoe_appctx);
 }

@@ -30,7 +30,7 @@
 #include <proto/stick_table.h>
 #include <proto/task.h>
 
-extern struct pool_head *pool2_stream;
+extern struct pool_head *pool_head_stream;
 extern struct list streams;
 
 extern struct data_cb sess_conn_cb;
