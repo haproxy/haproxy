@@ -1755,7 +1755,7 @@ show cli sockets
      [::1]:9999 operator 2
 
 show cache
-  List the configurated caches and the objects stored in each cache tree.
+  List the configured caches and the objects stored in each cache tree.
 
   $ echo 'show cache' | socat stdio /tmp/sock1
   0x7f6ac6c5b03a: foobar (shctx:0x7f6ac6c5b000, available blocks:3918)

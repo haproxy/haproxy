@@ -109,6 +109,10 @@ Summary
 9.3.      Stream Processing Offload Engine (SPOE)
 
 10.   Cache
+10.1. Limitation
+10.2. Setup
+10.2.1. Cache section
+10.2.2. Proxy section
 
 1. Quick reminder about HTTP
 ----------------------------
@@ -16990,13 +16994,13 @@ HAProxy provides a cache, which was designed to perform cache on small objects
 RAM.
 
 The cache is based on a memory which is shared between processes and threads,
-this memory is splitted in blocks of 1k.
+this memory is split in blocks of 1k.
 
 If an object is not used anymore, it can be deleted to store a new object
 independently of its expiration date. The oldest objects are deleted first
 when we try to allocate a new one.
 
-The cache use a hash of the host header and the URI as the key.
+The cache uses a hash of the host header and the URI as the key.
 
 It's possible to view the status of a cache using the Unix socket command
 "show cache" consult section 9.3 "Unix Socket commands" of Management Guide
@@ -17005,8 +17009,8 @@ for more details.
 When an object is delivered from the cache, the server name in the log is
 replaced by "<CACHE>".
 
-10.1 Limitation
----------------
+10.1. Limitation
+----------------
 
 The cache won't store and won't deliver objects in these cases:
 
@@ -17022,16 +17026,16 @@ The cache won't store and won't deliver objects in these cases:
 
 Caution!: Due to the current limitation of the filters, it is not recommended
 to use the cache with other filters. Using them can cause undefined behavior
-if they modify the response (compression for exemple).
+if they modify the response (compression for example).
 
-10.2 Setup
-----------
+10.2. Setup
+-----------
 
 To setup a cache, you must define a cache section and use it in a proxy with
 the corresponding http-request and response actions.
 
-10.2.1 Cache section
---------------------
+10.2.1. Cache section
+---------------------
 
 cache <name>
   Declare a cache section, allocate a shared cache memory named <name>, the
@@ -17048,8 +17052,8 @@ max-age <seconds>
   seconds, which means that you can't cache an object more than 60 seconds by
   default.
 
-10.2.2 Proxy section
---------------------
+10.2.2. Proxy section
+---------------------
 
 http-request cache-use <name>
   Try to deliver a cached object from the cache <name>. This directive is also
