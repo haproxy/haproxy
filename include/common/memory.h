@@ -48,8 +48,8 @@
 #endif
 
 struct pool_head {
-	void **free_list;
 	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
+	void **free_list;
 	struct list list;	/* list of all known pools */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int allocated;	/* how many chunks have been allocated */
@@ -60,7 +60,7 @@ struct pool_head {
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int failed;	/* failed allocations */
 	char name[12];		/* name of the pool */
-};
+} __attribute__((aligned(64)));
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
