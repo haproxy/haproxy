@@ -853,22 +853,25 @@ else
 all: haproxy $(EXTRA)
 endif
 
-OBJS = src/cfgparse.o src/proto_http.o src/stats.o src/server.o src/stream.o \
-       src/checks.o src/standard.o src/log.o src/flt_spoe.o src/stick_table.o \
-       src/peers.o src/pattern.o src/sample.o src/proto_tcp.o src/backend.o \
-       src/haproxy.o src/stream_interface.o src/tcp_rules.o src/proxy.o \
-       src/listener.o src/acl.o src/flt_http_comp.o src/filters.o src/dns.o \
-       src/cli.o src/flt_trace.o src/connection.o src/session.o src/vars.o \
-       src/hpack-dec.o src/hpack-enc.o src/hpack-tbl.o src/hpack-huff.o \
-       src/mux_h2.o src/map.o src/payload.o src/namespace.o src/compression.o \
-       src/mailers.o src/auth.o src/proto_udp.o src/memory.o src/freq_ctr.o \
-       src/signal.o src/uri_auth.o src/buffer.o src/task.o src/chunk.o \
-       src/channel.o src/lru.o src/xxhash.o src/time.o src/fd.o src/pipe.o \
-       src/regex.o src/queue.o src/frontend.o src/arg.o src/proto_uxst.o \
-       src/raw_sock.o src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o \
-       src/lb_fas.o src/applet.o src/hdr_idx.o src/ev_select.o src/hash.o \
-       src/lb_map.o src/base64.o src/sha1.o src/protocol.o src/h1.o src/h2.o \
-       src/action.o src/hathreads.o src/mux_pt.o src/cache.o src/shctx.o
+OBJS = src/proto_http.o src/cfgparse.o src/server.o src/stream.o        \
+       src/flt_spoe.o src/stick_table.o src/stats.o src/mux_h2.o        \
+       src/checks.o src/haproxy.o src/log.o src/dns.o src/peers.o       \
+       src/standard.o src/sample.o src/cli.o src/stream_interface.o     \
+       src/proto_tcp.o src/backend.o src/proxy.o src/tcp_rules.o        \
+       src/listener.o src/flt_http_comp.o src/pattern.o src/cache.o     \
+       src/filters.o src/vars.o src/acl.o src/payload.o                 \
+       src/connection.o src/raw_sock.o src/proto_uxst.o                 \
+       src/flt_trace.o src/session.o src/ev_select.o src/channel.o      \
+       src/task.o src/queue.o src/applet.o src/map.o src/frontend.o     \
+       src/freq_ctr.o src/lb_fwlc.o src/mux_pt.o src/auth.o src/fd.o    \
+       src/hpack-dec.o src/memory.o src/lb_fwrr.o src/lb_chash.o        \
+       src/lb_fas.o src/hathreads.o src/chunk.o src/lb_map.o            \
+       src/xxhash.o src/regex.o src/shctx.o src/buffer.o src/action.o   \
+       src/h1.o src/compression.o src/pipe.o src/namespace.o            \
+       src/sha1.o src/hpack-tbl.o src/hpack-enc.o src/uri_auth.o        \
+       src/time.o src/proto_udp.o src/arg.o src/signal.o                \
+       src/protocol.o src/lru.o src/hdr_idx.o src/hpack-huff.o          \
+       src/mailers.o src/h2.o src/base64.o src/hash.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
