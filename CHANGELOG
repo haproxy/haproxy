@@ -1,6 +1,104 @@
 ChangeLog :
 ===========
 
+2017/11/26 : 1.8.0
+    - BUG/MEDIUM: stream: don't automatically forward connect nor close
+    - BUG/MAJOR: stream: ensure analysers are always called upon close
+    - BUG/MINOR: stream-int: don't try to read again when CF_READ_DONTWAIT is set
+    - MEDIUM: mworker: Add systemd `Type=notify` support
+    - BUG/MEDIUM: cache: free callback to remove from tree
+    - CLEANUP: cache: remove unused struct
+    - MEDIUM: cache: enable the HTTP analysers
+    - CLEANUP: cache: remove wrong comment
+    - MINOR: threads/atomic: rename local variables in macros to avoid conflicts
+    - MINOR: threads/plock: rename local variables in macros to avoid conflicts
+    - MINOR: threads/atomic: implement pl_mb() in asm on x86
+    - MINOR: threads/atomic: implement pl_bts() on non-x86
+    - MINOR: threads/build: atomic: replace the few inlines with macros
+    - BUILD: threads/plock: fix a build issue on Clang without optimization
+    - BUILD: ebtree: don't redefine types u32/s32 in scope-aware trees
+    - BUILD: compiler: add a new type modifier __maybe_unused
+    - BUILD: h2: mark some inlined functions "unused"
+    - BUILD: server: check->desc always exists
+    - BUG/MEDIUM: h2: properly report connection errors in headers and data handlers
+    - MEDIUM: h2: add a function to emit an HTTP/1 request from a headers list
+    - MEDIUM: h2: change hpack_decode_headers() to only provide a list of headers
+    - BUG/MEDIUM: h2: always reassemble the Cookie request header field
+    - BUG/MINOR: systemd: ignore daemon mode
+    - CONTRIB: spoa_example: allow to compile outside HAProxy.
+    - CONTRIB: spoa_example: remove bref, wordlist, cond_wordlist
+    - CONTRIB: spoa_example: remove last dependencies on type "sample"
+    - CONTRIB: spoa_example: remove SPOE enums that are useless for clients
+    - CLEANUP: cache: reorder includes
+    - MEDIUM: shctx: use unsigned int for len and block_count
+    - MEDIUM: cache: "show cache" on the cli
+    - BUG/MEDIUM: cache: use key=0 as a condition for freeing
+    - BUG/MEDIUM: cache: refcount forbids to free the objects
+    - BUG/MEDIUM: cache fix cli_kws structure
+    - BUG/MEDIUM: deinit: correctly deinitialize the proxy and global listener tasks
+    - BUG/MINOR: ssl: Always start the handshake if we can't send early data.
+    - MINOR: ssl: Don't disable early data handling if we could not write.
+    - MINOR: pools: prepare functions to override malloc/free in pools
+    - MINOR: pools: implement DEBUG_UAF to detect use after free
+    - BUG/MEDIUM: threads/time: fix time drift correction
+    - BUG/MEDIUM: threads/time: maintain a common time reference between all threads
+    - MINOR: sample: Add "thread" sample fetch
+    - BUG/MINOR: Use crt_base instead of ca_base when crt is parsed on a server line
+    - BUG/MINOR: stream: fix tv_request calculation for applets
+    - BUG/MAJOR: h2: always remove a stream from the send list before freeing it
+    - BUG/MAJOR: threads/task: dequeue expired tasks under the WQ lock
+    - MINOR: ssl: Handle reading early data after writing better.
+    - MINOR: mux: Make sure every string is woken up after the handshake.
+    - MEDIUM: cache: store sha1 for hashing the cache key
+    - MINOR: http: implement the "http-request reject" rule
+    - MINOR: h2: send RST_STREAM before GOAWAY on reject
+    - MEDIUM: h2: don't gracefully close the connection anymore on Connection: close
+    - MINOR: h2: make use of client-fin timeout after GOAWAY
+    - MEDIUM: config: ensure that tune.bufsize is at least 16384 when using HTTP/2
+    - MINOR: ssl: Handle early data with BoringSSL
+    - BUG/MEDIUM: stream: always release the stream-interface on abort
+    - BUG/MEDIUM: cache: free ressources in chn_end_analyze
+    - MINOR: cache: move the refcount decrease in the applet release
+    - BUG/MINOR: listener: Allow multiple "process" options on "bind" lines
+    - MINOR: config: Support a range to specify processes in "cpu-map" parameter
+    - MINOR: config: Slightly change how parse_process_number works
+    - MINOR: config: Export parse_process_number and use it wherever it's applicable
+    - MINOR: standard: Add my_ffsl function to get the position of the bit set to one
+    - MINOR: config: Add auto-increment feature for cpu-map
+    - MINOR: config: Support partial ranges in cpu-map directive
+    - MINOR:: config: Remove thread-map directive
+    - MINOR: config: Add the threads support in cpu-map directive
+    - MINOR: config: Add threads support for "process" option on "bind" lines
+    - MEDIUM: listener: Bind listeners on a thread subset if specified
+    - CLEANUP: debug: Use DPRINTF instead of fprintf into #ifdef DEBUG_FULL/#endif
+    - CLEANUP: log: Rename Alert/Warning in ha_alert/ha_warning
+    - MINOR/CLEANUP: proxy: rename "proxy" to "proxies_list"
+    - CLEANUP: pools: rename all pool functions and pointers to remove this "2"
+    - DOC: update the roadmap file with the latest changes merged in 1.8
+    - DOC: fix mangled version in peers protocol documentation
+    - DOC: add initial peers protovol v2.0 documentation.
+    - DOC: mention William as maintainer of the cache and master-worker
+    - DOC: add Christopher and Emeric as maintainers of the threads
+    - MINOR: cache: replace a fprint() by an abort()
+    - MEDIUM: cache: max-age configuration keyword
+    - DOC: explain HTTP2 timeout behavior
+    - DOC: cache: configuration and management
+    - MAJOR: mworker: exits the master on failure
+    - BUG/MINOR: threads: don't drop "extern" on the lock in include files
+    - MINOR: task: keep a pointer to the currently running task
+    - MINOR: task: align the rq and wq locks
+    - MINOR: fd: cache-align fdtab and fdcache locks
+    - MINOR: buffers: cache-align buffer_wq_lock
+    - CLEANUP: server: reorder some fields in struct server to save 40 bytes
+    - CLEANUP: proxy: slightly reorder the struct proxy to reduce holes
+    - CLEANUP: checks: remove 16 bytes of holes in struct check
+    - CLEANUP: cache: more efficiently pack the struct cache
+    - CLEANUP: fd: place the lock at the beginning of struct fdtab
+    - CLEANUP: pools: align pools on a cache line
+    - DOC: config: add a few bits about how to configure HTTP/2
+    - BUG/MAJOR: threads/queue: avoid recursive locking in pendconn_get_next_strm()
+    - BUILD: Makefile: reorder object files by size
+
 2017/11/19 : 1.8-rc4
     - BUG/MEDIUM: cache: does not cache if no Content-Length
     - BUILD: thread/pipe: fix build without threads
