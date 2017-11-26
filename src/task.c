@@ -40,8 +40,8 @@ unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
 
-__decl_hathreads(HA_SPINLOCK_T rq_lock); /* spin lock related to run queue */
-__decl_hathreads(HA_SPINLOCK_T wq_lock); /* spin lock related to wait queue */
+__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) rq_lock); /* spin lock related to run queue */
+__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lock related to wait queue */
 
 static struct eb_root timers;      /* sorted timers tree */
 static struct eb_root rqueue;      /* tree constituting the run queue */
