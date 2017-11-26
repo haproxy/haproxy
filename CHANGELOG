@@ -1,6 +1,8 @@
 ChangeLog :
 ===========
 
+2017/11/26 : 1.9-dev0
+
 2017/11/26 : 1.8.0
     - BUG/MEDIUM: stream: don't automatically forward connect nor close
     - BUG/MAJOR: stream: ensure analysers are always called upon close
