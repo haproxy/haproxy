@@ -52,7 +52,7 @@ extern struct pool_head *pool_head_buffer;
 extern struct buffer buf_empty;
 extern struct buffer buf_wanted;
 extern struct list buffer_wq;
-__decl_hathreads(HA_SPINLOCK_T buffer_wq_lock);
+__decl_hathreads(extern HA_SPINLOCK_T buffer_wq_lock);
 
 int init_buffer();
 void deinit_buffer();
