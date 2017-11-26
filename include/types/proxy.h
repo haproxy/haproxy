@@ -281,17 +281,17 @@ struct proxy {
 		struct list inspect_rules;      /* inspection rules */
 	} tcp_rep;
 	struct server *srv, defsrv;		/* known servers; default server configuration */
+	struct lbprm lbprm;			/* load-balancing parameters */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 	int served;				/* # of active sessions currently being served */
-	struct lbprm lbprm;			/* load-balancing parameters */
+	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
-	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *dyncookie_key;			/* Secret key used to generate dynamic persistent cookies */
 	unsigned int cookie_maxidle;		/* max idle time for this cookie */
 	unsigned int cookie_maxlife;		/* max life time for this cookie */
-	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
 	char *rdp_cookie_name;			/* name of the RDP cookie to look for */
+	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */
 	int  url_param_len;			/* strlen(url_param_name), computed only once */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
@@ -346,13 +346,13 @@ struct proxy {
 	int redispatch_after;			/* number of retries before redispatch */
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */
+	unsigned int log_count;			/* number of logs produced by the frontend */
 	time_t last_change;			/* last time, when the state was changed */
 	int (*accept)(struct stream *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
 	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */
 	struct proxy *next;
 
-	unsigned int log_count;			/* number of logs produced by the frontend */
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
 	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
@@ -399,8 +399,8 @@ struct proxy {
 
 	struct {
 		char *file;			/* file where the section appears */
-		int line;			/* line where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
+		int line;			/* line where the section appears */
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
 		struct list bind;		/* list of bind settings */
