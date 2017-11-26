@@ -151,7 +151,7 @@ power required on the server side. It is generally better than the close mode,
 but not always because the clients often limit their concurrent connections to
 a smaller value.
 
-A last improvement in the communications is the pipelining mode. It still uses
+Another improvement in the communications is the pipelining mode. It still uses
 keep-alive, but the client does not wait for the first response to send the
 second request. This is useful for fetching large number of images composing a
 page :
@@ -164,10 +164,18 @@ correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
 server to reply in the exact same order as the requests were received.
 
+The next improvement is the multiplexed mode, as implemented in HTTP/2. This
+time, each transaction is assigned a single stream identifier, and all streams
+are multiplexed over an existing connection. Many requests can be sent in
+parallel by the client, and responses can arrive in any order since they also
+carry the stream identifier.
+
 By default HAProxy operates in keep-alive mode with regards to persistent
 connections: for each connection it processes each request and response, and
 leaves the connection idle on both sides between the end of a response and the
-start of a new request.
+start of a new request. When it receives HTTP/2 connections from a client, it
+processes all the requests in parallel and leaves the connection idling,
+waiting for new requests, just as if it was a keep-alive HTTP connection.
 
 HAProxy supports 5 connection modes :
   - keep alive    : all requests and responses are processed (default)
@@ -176,6 +184,12 @@ HAProxy supports 5 connection modes :
   - passive close : tunnel with "Connection: close" added in both directions.
   - server close  : the server-facing connection is closed after the response.
   - forced close  : the connection is actively closed after end of response.
+
+For HTTP/2, the connection mode ressembles more the "server close" mode : given
+the independance of all streams, there is currently no place to hook the idle
+server connection after a response, so it is closed after the response. HTTP/2
+is only supported for incoming connections, not on connections going to
+servers.
 
 
 1.2. HTTP request
@@ -242,6 +256,13 @@ on the server. The part after the question mark is called the "query string".
 It is mostly used with GET requests sent to dynamic scripts and is very
 specific to the language, framework or application in use.
 
+HTTP/2 doesn't convey a version information with the request, so the version is
+assumed to be the same as the one of the underlying protocol (ie: "HTTP/2").
+However, haproxy natively processes HTTP/1.x requests and headers, so requests
+received over an HTTP/2 connection are transcoded to HTTP/1.1 before being
+processed. This explains why they still appear as "HTTP/1.1" in haproxy's logs
+as well as in server logs.
+
 
 1.2.2. The request headers
 --------------------------
@@ -257,7 +278,8 @@ define a total of 3 values for the "Accept:" header.
 
 Contrary to a common mis-conception, header names are not case-sensitive, and
 their values are not either if they refer to other header names (such as the
-"Connection:" header).
+"Connection:" header). In HTTP/2, header names are always sent in lower case,
+as can be seen when running in debug mode.
 
 The end of the headers is indicated by the first empty line. People often say
 that it's a double line feed, which is not exact, even if a double line feed
@@ -9865,7 +9887,7 @@ timeout clitimeout <timeout> (deprecated)
   during startup because it may results in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
-  This also applies to HTTP2 connections, which will be closed with GOAWAY.
+  This also applies to HTTP/2 connections, which will be closed with GOAWAY.
 
   This parameter replaces the old, deprecated "clitimeout". It is recommended
   to use it to write new configurations. The form "timeout clitimeout" is
@@ -9972,8 +9994,8 @@ timeout http-keep-alive <timeout>
   set in the frontend to take effect, unless the frontend is in TCP mode, in
   which case the HTTP backend's timeout will be used.
 
-  When using HTTP2 "timeout client" is applied instead. This is so we can keep
-  using short keep-alive timeouts in HTTP/1.1 while using longer ones in HTTP2
+  When using HTTP/2 "timeout client" is applied instead. This is so we can keep
+  using short keep-alive timeouts in HTTP/1.1 while using longer ones in HTTP/2
   (where we only have one connection per client and a connection setup).
 
   See also : "timeout http-request", "timeout client".
@@ -10435,7 +10457,15 @@ alpn <protocols>
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
   quotes). This requires that the SSL library is build with support for TLS
   extensions enabled (check with haproxy -vv). The ALPN extension replaces the
-  initial NPN extension.
+  initial NPN extension. ALPN is required to enable HTTP/2 on an HTTP frontend.
+  Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
+  now obsolete NPN extension. At the time of writing this, most browsers still
+  support both ALPN and NPN for HTTP/2 so a fallback to NPN may still work for
+  a while. But ALPN must be used whenever possible. If both HTTP/2 and HTTP/1.1
+  are expected to be supported, both versions can be advertised, in order of
+  preference, like below :
+
+       bind :443 ssl crt pub.pem alpn h2,http/1.1
 
 backlog <backlog>
   Sets the socket's backlog to this value. If unspecified, the frontend's
@@ -10867,7 +10897,11 @@ npn <protocols>
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
   This requires that the SSL library is build with support for TLS extensions
   enabled (check with haproxy -vv). Note that the NPN extension has been
-  replaced with the ALPN extension (see the "alpn" keyword).
+  replaced with the ALPN extension (see the "alpn" keyword), though this one is
+  only available starting with OpenSSL 1.0.2. If HTTP/2 is desired on an older
+  version of OpenSSL, NPN might still be used as most clients still support it
+  at the time of writing this. It is possible to enable both NPN and ALPN
+  though it probably doesn't make any sense out of testing.
 
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
