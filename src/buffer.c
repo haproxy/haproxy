@@ -33,7 +33,7 @@ struct buffer buf_wanted = { .p = buf_wanted.data };
 
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
-__decl_hathreads(HA_SPINLOCK_T buffer_wq_lock);
+__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) buffer_wq_lock);
 
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
