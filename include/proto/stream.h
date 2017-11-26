@@ -296,11 +296,16 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 	}
 }
 
+static void inline __stream_add_srv_conn(struct stream *sess, struct server *srv)
+{
+	sess->srv_conn = srv;
+	LIST_ADD(&srv->actconns, &sess->by_srv);
+}
+
 static void inline stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	sess->srv_conn = srv;
-	LIST_ADD(&srv->actconns, &sess->by_srv);
+	__stream_add_srv_conn(sess, srv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
