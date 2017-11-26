@@ -92,10 +92,10 @@ enum fd_states {
 
 /* info about one given fd */
 struct fdtab {
+	__decl_hathreads(HA_SPINLOCK_T lock);
+	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
-	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
