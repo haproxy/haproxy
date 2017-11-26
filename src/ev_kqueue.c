@@ -216,8 +216,6 @@ REGPRM1 static int _do_test(struct poller *p)
  */
 REGPRM1 static int _do_fork(struct poller *p)
 {
-	if (kqueue_fd >= 0)
-		close(kqueue_fd);
 	kqueue_fd = kqueue();
 	if (kqueue_fd < 0)
 		return 0;
