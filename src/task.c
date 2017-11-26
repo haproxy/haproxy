@@ -38,6 +38,8 @@ unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
+THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
+
 __decl_hathreads(HA_SPINLOCK_T rq_lock); /* spin lock related to run queue */
 __decl_hathreads(HA_SPINLOCK_T wq_lock); /* spin lock related to wait queue */
 
@@ -217,6 +219,7 @@ void process_runnable_tasks()
 			t->pending_state = 0;
 
 			t->calls++;
+			curr_task = t;
 			/* This is an optimisation to help the processor's branch
 			 * predictor take this most common call.
 			 */
@@ -224,6 +227,7 @@ void process_runnable_tasks()
 				t = process_stream(t);
 			else
 				t = t->process(t);
+			curr_task = NULL;
 
 			if (likely(t != NULL)) {
 				t->state &= ~TASK_RUNNING;
@@ -298,10 +302,12 @@ void process_runnable_tasks()
 			/* This is an optimisation to help the processor's branch
 			 * predictor take this most common call.
 			 */
+			curr_task = t;
 			if (likely(t->process == process_stream))
 				t = process_stream(t);
 			else
 				t = t->process(t);
+			curr_task = NULL;
 			if (t)
 				local_tasks[final_tasks_count++] = t;
 		}
