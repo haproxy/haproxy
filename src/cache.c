@@ -45,11 +45,11 @@ struct applet http_cache_applet;
 struct flt_ops cache_ops;
 
 struct cache {
-	char id[33];             /* cache name */
-	unsigned int maxage;  /* max-age */
-	unsigned int maxblocks;
-	struct list list;     /* cache linked list */
+	struct list list;        /* cache linked list */
 	struct eb_root entries;  /* head of cache entries based on keys */
+	unsigned int maxage;     /* max-age */
+	unsigned int maxblocks;
+	char id[33];             /* cache name */
 };
 
 /*
