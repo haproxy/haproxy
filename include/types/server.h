@@ -53,7 +53,7 @@ enum srv_state {
 	SRV_ST_STARTING,                 /* the server is warming up (up but throttled) */
 	SRV_ST_RUNNING,                  /* the server is fully up */
 	SRV_ST_STOPPING,                 /* the server is up but soft-stopping (eg: 404) */
-};
+} __attribute__((packed));
 
 /* Administrative status : a server runs in one of these 3 stats :
  *   - READY : normal mode
@@ -86,7 +86,7 @@ enum srv_admin {
 	SRV_ADMF_DRAIN     = 0x18,        /* mask to check if any drain flag is present */
 	SRV_ADMF_RMAINT    = 0x20,        /* the server is down because of an IP address resolution failure */
 	SRV_ADMF_HMAINT    = 0x40,        /* the server FQDN has been set from socket stats */
-};
+} __attribute__((packed));
 
 /* options for servers' "init-addr" parameter
  * this parameter may be used to drive HAProxy's behavior when parsing a server
@@ -101,7 +101,7 @@ enum srv_initaddr {
 	SRV_IADDR_LIBC     = 2,           /* address set using the libc DNS resolver */
 	SRV_IADDR_LAST     = 3,           /* we set the IP address found in state-file for this server */
 	SRV_IADDR_IP       = 4,           /* we set an arbitrary IP address to the server */
-};
+} __attribute__((packed));
 
 /* server-state-file version */
 #define SRV_STATE_FILE_VERSION 1
@@ -192,7 +192,6 @@ struct server {
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
 	unsigned char pp_opts;                  /* proxy protocol options (SRV_PP_*) */
-	unsigned int flags;                     /* server flags (SRV_F_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
@@ -226,6 +225,7 @@ struct server {
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
+	unsigned int flags;                     /* server flags (SRV_F_*) */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 
 	char *id;				/* just for identification */
@@ -245,8 +245,8 @@ struct server {
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	/* warning, these structs are huge, keep them at the bottom */
 	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
-	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
+	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
 
@@ -261,11 +261,11 @@ struct server {
 	struct dns_requester *dns_requester;	/* used to link a server to its DNS resolution */
 	char *resolvers_id;			/* resolvers section used by this server */
 	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used by this server */
-	char *hostname;				/* server hostname */
-	char *hostname_dn;			/* server hostname in Domain Name format */
-	int hostname_dn_len;			/* sting lenght of the server hostname in Domain Name format */
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_options dns_opts;
+	int hostname_dn_len;			/* sting lenght of the server hostname in Domain Name format */
+	char *hostname_dn;			/* server hostname in Domain Name format */
+	char *hostname;				/* server hostname */
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
 
@@ -281,8 +281,8 @@ struct server {
 		} * reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
 		int options;			/* ssl options */
-		struct tls_version_filter methods;	/* ssl methods */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
+		struct tls_version_filter methods;	/* ssl methods */
 		char *verify_host;              /* hostname of certificate must match this host */
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
@@ -290,11 +290,12 @@ struct server {
 		struct sample_expr *sni;        /* sample expression for SNI */
 	} ssl_ctx;
 #endif
+	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	__decl_hathreads(HA_SPINLOCK_T lock);
 	struct {
 		const char *file;		/* file where the section appears */
-		int line;			/* line where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
+		int line;			/* line where the section appears */
 	} conf;					/* config information */
 	/* Template information used only for server objects which
 	 * serve as template filled at parsing time and used during
@@ -305,12 +306,11 @@ struct server {
 		int nb_low;
 		int nb_high;
 	} tmpl_info;
-	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct list update_status;		/* to attach to list of servers chnaging status */
 	struct {
-		char reason[128];
-		short status, code;
 		long duration;
+		short status, code;
+		char reason[128];
 	} op_st_chg;				/* operational status change's reason */
 	char adm_st_chg_cause[48];		/* adminstrative status change's cause */
 };
