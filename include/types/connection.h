@@ -70,6 +70,7 @@ enum {
 	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
 	CS_FL_RCV_MORE      = 0x00000200,  /* more bytes to receive but not enough room */
 	CS_FL_EOS           = 0x00001000,  /* End of stream */
+	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
 };
 
 /* cs_shutr() modes */

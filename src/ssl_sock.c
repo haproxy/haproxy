@@ -8711,11 +8711,14 @@ enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
 	struct connection *conn;
+	struct conn_stream *cs;
 
 	conn = objt_conn(sess->origin);
+	cs = objt_cs(s->si[0].end);
 
-	if (conn) {
+	if (conn && cs) {
 		if (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_SSL_WAIT_HS)) {
+			cs->flags |= CS_FL_WAIT_FOR_HS;
 			s->req.flags |= CF_READ_NULL;
 			return ACT_RET_YIELD;
 		}

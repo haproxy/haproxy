@@ -584,7 +584,9 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	 * in the event there's an analyser waiting for the end of
 	 * the handshake.
 	 */
-	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS)) == CO_FL_EARLY_DATA) {
+	if (!(conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS)) &&
+	    (cs->flags & CS_FL_WAIT_FOR_HS)) {
+		cs->flags &= ~CS_FL_WAIT_FOR_HS;
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 

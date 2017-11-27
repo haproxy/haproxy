@@ -59,6 +59,7 @@ static struct pool_head *pool_head_h2s;
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
 #define H2_CF_GOAWAY_FAILED     0x00000200  // a GOAWAY frame failed to be sent
+#define H2_CF_WAIT_FOR_HS       0x00000400  // We did check that at least a stream was waiting for handshake
 
 
 /* H2 connection state, in h2c->st0 */
@@ -2275,14 +2276,25 @@ static int h2_wake(struct connection *conn)
 	}
 
 	/*
-	 * If we received early data, try to wake any stream, just in case
-	 * at least one of them was waiting for the handshake
+	 * If we received early data, and the handshake is done, wake
+	 * any stream that was waiting for it.
 	 */
-	if ((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA | CO_FL_HANDSHAKE)) ==
-	    CO_FL_EARLY_DATA) {
-		h2_wake_some_streams(h2c, 0, 0);
-		conn->flags &= ~CO_FL_EARLY_DATA;
+	if (!(h2c->flags & H2_CF_WAIT_FOR_HS) &&
+	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE | CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA) {
+		struct eb32_node *node;
+		struct h2s *h2s;
+
+		h2c->flags |= H2_CF_WAIT_FOR_HS;
+		node = eb32_lookup_ge(&h2c->streams_by_id, 1);
+
+		while (node) {
+			h2s = container_of(node, struct h2s, by_id);
+			if (h2s->cs->flags & CS_FL_WAIT_FOR_HS)
+				h2s->cs->data_cb->wake(h2s->cs);
+			node = eb32_next(node);
+		}
 	}
+
 	if (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn) ||
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
 	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
