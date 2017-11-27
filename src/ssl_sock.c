@@ -5386,7 +5386,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				if (ret > 0)
 					conn->flags |= CO_FL_EARLY_DATA;
 			} else {
-				conn->flags &= ~(CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA);
+				conn->flags &= ~(CO_FL_EARLY_SSL_HS);
 			}
 		}
 #endif
