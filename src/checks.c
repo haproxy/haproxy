@@ -2595,8 +2595,6 @@ static int tcpcheck_main(struct check *check)
 	struct list *head = check->tcpcheck_rules;
 	int retcode = 0;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
 		goto out_end_tcpcheck;
@@ -2637,7 +2635,7 @@ static int tcpcheck_main(struct check *check)
 			if (s->proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
-		goto out_unlock;
+		goto out;
 	}
 
 	/* special case: option tcp-check with no rule, a connect is enough */
@@ -2732,7 +2730,7 @@ static int tcpcheck_main(struct check *check)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
 				check->current_step = NULL;
-				goto out_unlock;
+				goto out;
 			}
 
 			if (check->cs)
@@ -2854,7 +2852,7 @@ static int tcpcheck_main(struct check *check)
 					if (s->proxy->timeout.check)
 						t->expire = tick_first(t->expire, t_con);
 				}
-				goto out_unlock;
+				goto out;
 			}
 
 		} /* end 'connect' */
@@ -3059,7 +3057,7 @@ static int tcpcheck_main(struct check *check)
 	if (&check->current_step->list != head &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__cs_want_recv(cs);
-	goto out_unlock;
+	goto out;
 
  out_end_tcpcheck:
 	/* collect possible new errors */
@@ -3074,8 +3072,7 @@ static int tcpcheck_main(struct check *check)
 
 	__cs_stop_both(cs);
 
- out_unlock:
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+ out:
 	return retcode;
 }
 
