@@ -2680,7 +2680,8 @@ int main(int argc, char **argv)
 				/* master pipe to ensure the master is still alive  */
 				ret = pipe(mworker_pipe);
 				if (ret < 0) {
-					ha_warning("[%s.main()] Cannot create master pipe.\n", argv[0]);
+					ha_alert("[%s.main()] Cannot create master pipe.\n", argv[0]);
+					exit(EXIT_FAILURE);
 				} else {
 					memprintf(&msg, "%d", mworker_pipe[0]);
 					setenv("HAPROXY_MWORKER_PIPE_RD", msg, 1);
@@ -2689,11 +2690,15 @@ int main(int argc, char **argv)
 					free(msg);
 				}
 			} else {
-				mworker_pipe[0] = atol(getenv("HAPROXY_MWORKER_PIPE_RD"));
-				mworker_pipe[1] = atol(getenv("HAPROXY_MWORKER_PIPE_WR"));
-				if (mworker_pipe[0] <= 0 || mworker_pipe[1] <= 0) {
-					ha_warning("[%s.main()] Cannot get master pipe FDs.\n", argv[0]);
+				char* rd = getenv("HAPROXY_MWORKER_PIPE_RD");
+				char* wr = getenv("HAPROXY_MWORKER_PIPE_WR");
+				if (!rd || !wr) {
+					ha_alert("[%s.main()] Cannot get master pipe FDs.\n", argv[0]);
+					atexit_flag = 0;// dont reexecute master process
+					exit(EXIT_FAILURE);
 				}
+				mworker_pipe[0] = atoi(rd);
+				mworker_pipe[1] = atoi(wr);
 			}
 		}
 
