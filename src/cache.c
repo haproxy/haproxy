@@ -228,6 +228,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 							    MIN(bi_contig_data(msg->chn->buf), len - st->hdrs_len));
 				/* Rewind the buffer to forward all data */
 				b_rew(msg->chn->buf, st->hdrs_len);
+				st->hdrs_len = 0;
 				if (ret)
 					goto disable_cache;
 			}
