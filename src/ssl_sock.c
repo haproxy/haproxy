@@ -324,7 +324,7 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 #define SSL_SOCK_NUM_KEYTYPES 1
 #endif
 
-static struct shared_context *ssl_shctx; /* ssl shared session cache */
+static struct shared_context *ssl_shctx = NULL; /* ssl shared session cache */
 static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
 
 #define sh_ssl_sess_tree_delete(s)	ebmb_delete(&(s)->key);
@@ -4705,24 +4705,24 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			return -1;
 		}
 	}
-
-	alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
-			       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE,
-			       sizeof(*sh_ssl_sess_tree),
-			       ((global.nbthread > 1) || (!global_ssl.private_cache && (global.nbproc > 1))) ? 1 : 0);
-	if (alloc_ctx < 0) {
-		if (alloc_ctx == SHCTX_E_INIT_LOCK)
-			ha_alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
-		else
-			ha_alert("Unable to allocate SSL session cache.\n");
-		return -1;
+	if (!ssl_shctx) {
+		alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
+		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE,
+		                       sizeof(*sh_ssl_sess_tree),
+		                       ((global.nbthread > 1) || (!global_ssl.private_cache && (global.nbproc > 1))) ? 1 : 0);
+		if (alloc_ctx < 0) {
+			if (alloc_ctx == SHCTX_E_INIT_LOCK)
+				ha_alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
+			else
+				ha_alert("Unable to allocate SSL session cache.\n");
+			return -1;
+		}
+		/* free block callback */
+		ssl_shctx->free_block = sh_ssl_sess_free_blocks;
+		/* init the root tree within the extra space */
+		sh_ssl_sess_tree = (void *)ssl_shctx + sizeof(struct shared_context);
+		*sh_ssl_sess_tree = EB_ROOT_UNIQUE;
 	}
-	/* free block callback */
-	ssl_shctx->free_block = sh_ssl_sess_free_blocks;
-	/* init the root tree within the extra space */
-	sh_ssl_sess_tree = (void *)ssl_shctx + sizeof(struct shared_context);
-	*sh_ssl_sess_tree = EB_ROOT_UNIQUE;
-
 	err = 0;
 	/* initialize all certificate contexts */
 	err += ssl_sock_prepare_all_ctx(bind_conf);
