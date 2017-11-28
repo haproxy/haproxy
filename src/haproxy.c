@@ -2763,6 +2763,16 @@ int main(int argc, char **argv)
 			if (global.mode & MODE_MWORKER) {
 				mworker_cleanlisteners();
 				deinit_pollers();
+
+				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+					(global.mode & MODE_DAEMON)) {
+					/* detach from the tty, this is required to properly daemonize. */
+					fclose(stdin); fclose(stdout); fclose(stderr);
+					global.mode &= ~MODE_VERBOSE;
+					global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+					setsid();
+				}
+
 				mworker_wait();
 				/* should never get there */
 				exit(EXIT_FAILURE);
