@@ -55,6 +55,7 @@
 #ifdef __FreeBSD__
 #include <sys/param.h>
 #include <sys/cpuset.h>
+#include <pthread_np.h>
 #endif
 #endif
 
