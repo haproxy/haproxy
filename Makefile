@@ -324,6 +324,7 @@ ifeq ($(TARGET),freebsd)
   USE_TPROXY     = implicit
   USE_LIBCRYPT   = implicit
   USE_THREAD     = implicit
+  USE_CPU_AFFINITY= implicit
 else
 ifeq ($(TARGET),osx)
   # This is for Mac OS/X
