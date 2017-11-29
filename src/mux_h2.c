@@ -2800,10 +2800,11 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 			h2s->st = H2_SS_CLOSED;
 	}
 	else if (h1m->status >= 100 && h1m->status < 200) {
+		/* we'll let the caller check if it has more headers to send */
 		h1m->state = HTTP_MSG_RPBEFORE;
 		h1m->status = 0;
 		h1m->flags = 0;
-		goto next_header_block;
+		goto end;
 	}
 	else
 		h1m->state = (h1m->flags & H1_MF_CLEN) ? HTTP_MSG_BODY : HTTP_MSG_CHUNK_SIZE;
