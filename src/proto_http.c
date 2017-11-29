@@ -2754,6 +2754,9 @@ resume_execution:
 							                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 						HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+						/* If data was modified, we need to touch to re-schedule sync */
+						stktable_touch_local(t, ts, 0);
 					}
 
 					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
@@ -3053,6 +3056,9 @@ resume_execution:
 					}
 
 					HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+					/* If data was modified, we need to touch to re-schedule sync */
+					stktable_touch_local(t, ts, 0);
 
 					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (sess->fe != s->be)

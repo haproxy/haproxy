@@ -107,6 +107,9 @@ static inline void stream_store_counters(struct stream *s)
 			stktable_data_cast(ptr, conn_cur)--;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			stktable_touch_local(s->stkctr[i].table, ts, 0);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
 		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
@@ -142,6 +145,9 @@ static inline void stream_stop_content_counters(struct stream *s)
 			stktable_data_cast(ptr, conn_cur)--;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+			/* If data was modified, we need to touch to re-schedule sync */
+			stktable_touch_local(s->stkctr[i].table, ts, 0);
 		}
 		stkctr_set_entry(&s->stkctr[i], NULL);
 		stksess_kill_if_expired(s->stkctr[i].table, ts, 1);
@@ -174,6 +180,9 @@ static inline void stream_start_counters(struct stktable *t, struct stksess *ts)
 		ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	stktable_touch_local(t, ts, 0);
 }
 
 /* Enable tracking of stream counters as <stkctr> on stksess <ts>. The caller is
@@ -221,6 +230,9 @@ static void inline stream_inc_http_req_ctr(struct stream *s)
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch_local(stkctr->table, ts, 0);
 	}
 }
 
@@ -255,6 +267,9 @@ static void inline stream_inc_be_http_req_ctr(struct stream *s)
 			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch_local(stkctr->table, ts, 0);
 	}
 }
 
@@ -293,6 +308,9 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch_local(stkctr->table, ts, 0);
 	}
 }
 
