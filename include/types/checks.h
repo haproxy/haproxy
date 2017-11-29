@@ -22,7 +22,6 @@
 #include <types/connection.h>
 #include <types/obj_type.h>
 #include <types/task.h>
-#include <types/server.h>
 
 /* enum used by check->result. Must remain in this order, as some code uses
  * result >= CHK_RES_PASSED to declare success.
