@@ -3446,7 +3446,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		}
 	}
 
-	if (conn && conn->flags & CO_FL_EARLY_DATA) {
+	if (conn && (conn->flags & CO_FL_EARLY_DATA) &&
+	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE))) {
 		struct hdr_ctx ctx;
 
 		ctx.idx = 0;
