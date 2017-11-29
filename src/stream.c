@@ -297,6 +297,7 @@ static void stream_free(struct stream *s)
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
 	struct conn_stream *cli_cs = objt_cs(s->si[0].end);
+	int must_free_sess;
 	int i;
 
 	if (s->pend_pos)
@@ -388,12 +389,15 @@ static void stream_free(struct stream *s)
 	LIST_DEL(&s->list);
 	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 
+	/* applets do not release session yet */
+	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].end;
+
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
 
-	/* FIXME: for now we have a 1:1 relation between stream and session so
-	 * the stream must free the session.
-	 */
+	if (must_free_sess)
+		session_free(sess);
+
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
