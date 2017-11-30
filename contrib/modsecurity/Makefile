@@ -34,14 +34,13 @@ EVENT_INC := /usr/include
 endif
 
 CFLAGS  += -g -Wall -pthread
-LDFLAGS += -lpthread  $(EVENT_LIB) -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
 INCS += -I../../include -I../../ebtree -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC) -I$(EVENT_INC)
-LIBS =
+LIBS += -lpthread  $(EVENT_LIB) -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
 
 OBJS = spoa.o modsec_wrapper.o
 
 modsecurity: $(OBJS)
-	$(LD) $(LDFLAGS) $(LIBS) -o $@ $^ $(MODSEC_LIB)/standalone.a
+	$(LD) $(LDFLAGS) -o $@ $^ $(MODSEC_LIB)/standalone.a $(LIBS)
 
 install: modsecurity
 	install modsecurity $(DESTDIR)$(BINDIR)

@@ -28,9 +28,8 @@ EVENT_INC := /usr/include
 endif
 
 CFLAGS  += -g -Wall -pthread
-LDFLAGS += -lpthread  $(EVENT_LIB) -levent_pthreads -lapr-1 -laprutil-1 -lstdc++ -lm
 INCS += -I../../include -I../../ebtree -I$(MOD_DEFENDER_SRC) -I$(APACHE2_INC) -I$(APR_INC) -I$(EVENT_INC)
-LIBS =
+LIBS += -lpthread  $(EVENT_LIB) -levent_pthreads -lapr-1 -laprutil-1 -lstdc++ -lm
 
 CXXFLAGS = -g -std=gnu++11
 CXXINCS += -I$(MOD_DEFENDER_SRC) -I$(MOD_DEFENDER_SRC)/deps -I$(APACHE2_INC) -I$(APR_INC)
@@ -43,7 +42,7 @@ CXXSRCS = $(wildcard $(MOD_DEFENDER_SRC)/*.cpp)
 CXXOBJS = $(patsubst %.cpp, %.o, $(CXXSRCS))
 
 defender: $(OBJS) $(CXXOBJS)
-	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 install: defender
 	install defender $(DESTDIR)$(BINDIR)
