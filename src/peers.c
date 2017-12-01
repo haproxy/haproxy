@@ -1474,6 +1474,7 @@ incomplete:
 
 									msglen = peer_prepare_switchmsg(st, trash.str, trash.size);
 									if (!msglen) {
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										/* internal error: message does not fit in trash */
 										appctx->st0 = PEER_SESS_ST_END;
 										goto switchstate;
@@ -1482,6 +1483,7 @@ incomplete:
 									/* message to buffer */
 									repl = ci_putblk(si_ic(si), trash.str, msglen);
 									if (repl <= 0) {
+										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										/* no more write possible */
 										if (repl == -1) {
 											goto full;
