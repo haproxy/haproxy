@@ -5255,12 +5255,14 @@ monitor-uri <uri>
   version and all headers are ignored, but the request must at least be valid
   at the HTTP level. This keyword may only be used with an HTTP-mode frontend.
 
-  Monitor requests are processed very early. It is not possible to block nor
-  divert them using ACLs. They cannot be logged either, and it is the intended
-  purpose. They are only used to report HAProxy's health to an upper component,
-  nothing more. However, it is possible to add any number of conditions using
-  "monitor fail" and ACLs so that the result can be adjusted to whatever check
-  can be imagined (most often the number of available servers in a backend).
+  Monitor requests are processed very early, just after the request is parsed
+  and even before any "http-request" or "block" rulesets. The only rulesets
+  applied before are the tcp-request ones. They cannot be logged either, and it
+  is the intended purpose. They are only used to report HAProxy's health to an
+  upper component, nothing more. However, it is possible to add any number of
+  conditions using "monitor fail" and ACLs so that the result can be adjusted
+  to whatever check can be imagined (most often the number of available servers
+  in a backend).
 
   Example :
     # Use /haproxy_test to report haproxy's status
