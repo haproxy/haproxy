@@ -646,6 +646,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 	return 0;
 }
 
+#ifdef USE_CPU_AFFINITY
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * <LONGBITS> or a range with two such numbers delimited by a dash
  * ('-'). Multiple CPU numbers or ranges may be specified. On success, it
@@ -687,6 +688,8 @@ static unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, ch
 	}
 	return 0;
 }
+#endif
+
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
  * any combination of :
