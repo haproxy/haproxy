@@ -2915,10 +2915,24 @@ int main(int argc, char **argv)
 				global.cpu_map.thread[relative_pid-1][i] &= global.cpu_map.proc[relative_pid-1];
 
 			if (i < LONGBITS &&       /* only the first 32/64 threads may be pinned */
-			    global.cpu_map.thread[relative_pid-1][i]) /* only do this if the thread has a THREAD map */
+			    global.cpu_map.thread[relative_pid-1][i]) {/* only do this if the thread has a THREAD map */
+#if defined(__FreeBSD__) || defined(__NetBSD__)
+				cpuset_t cpuset;
+#else
+				cpu_set_t cpuset;
+#endif
+				int j;
+				unsigned long cpu_map = global.cpu_map.thread[relative_pid-1][i];
+
+				CPU_ZERO(&cpuset);
+
+				while ((j = ffsl(cpu_map)) > 0) {
+					CPU_SET(j - 1, &cpuset);
+					cpu_map &= ~(1 << (j - 1));
+				}
 				pthread_setaffinity_np(threads[i],
-						       sizeof(unsigned long),
-						       (void *)&global.cpu_map.thread[relative_pid-1][i]);
+						       sizeof(cpuset), &cpuset);
+			}
 		}
 #endif /* !USE_CPU_AFFINITY */
 
