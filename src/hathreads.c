@@ -70,6 +70,8 @@ void thread_sync_enable(void)
 void thread_want_sync()
 {
 	if (all_threads_mask) {
+		if (threads_want_sync & tid_bit)
+			return;
 		if (HA_ATOMIC_OR(&threads_want_sync, tid_bit) == tid_bit)
 			shut_your_big_mouth_gcc(write(threads_sync_pipe[1], "S", 1));
 	}
