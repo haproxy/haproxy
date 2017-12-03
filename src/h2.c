@@ -212,6 +212,10 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		*(out++) = '\n';
 	}
 
+	/* RFC7540#8.1.2.1 mandates to reject response pseudo-headers (:status) */
+	if (fields & H2_PHDR_FND_STAT)
+		goto fail;
+
 	/* Let's dump the request now if not yet emitted. */
 	if (!(fields & H2_PHDR_FND_NONE)) {
 		ret = h2_prepare_h1_reqline(fields, phdr_val, &out, out_end);
