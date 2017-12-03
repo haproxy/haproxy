@@ -83,7 +83,7 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
 		}
 	}
 
-	if (out + phdr[uri_idx].len + 1 + phdr[uri_idx].len + 11 > end) {
+	if (out + phdr[H2_PHDR_IDX_METH].len + 1 + phdr[uri_idx].len + 11 > end) {
 		/* too large */
 		goto fail;
 	}
