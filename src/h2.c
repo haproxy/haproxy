@@ -179,6 +179,9 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		if (isteq(list[idx].n, ist("host")))
 			fields |= H2_PHDR_FND_HOST;
 
+		if (isteq(list[idx].n, ist("te")) && !isteq(list[idx].v, ist("trailers")))
+			goto fail;
+
 		/* cookie requires special processing at the end */
 		if (isteq(list[idx].n, ist("cookie"))) {
 			list[idx].n.len = -1;
