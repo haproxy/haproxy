@@ -179,6 +179,14 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		if (isteq(list[idx].n, ist("host")))
 			fields |= H2_PHDR_FND_HOST;
 
+		/* these ones are forbidden in requests (RFC7540#8.1.2.2) */
+		if (isteq(list[idx].n, ist("connection")) ||
+		    isteq(list[idx].n, ist("proxy-connection")) ||
+		    isteq(list[idx].n, ist("keep-alive")) ||
+		    isteq(list[idx].n, ist("upgrade")) ||
+		    isteq(list[idx].n, ist("transfer-encoding")))
+			goto fail;
+
 		if (isteq(list[idx].n, ist("te")) && !isteq(list[idx].v, ist("trailers")))
 			goto fail;
 
