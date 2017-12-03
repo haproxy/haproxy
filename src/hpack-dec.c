@@ -376,7 +376,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 		}
 
 		hpack_debug_printf("\e[1;34m%s\e[0m: ",
-		                   istpad(trash.str, name).ptr);
+		                   istpad(trash.str, name.ptr ? name : hpack_idx_to_name(dht, idx)).ptr);
 
 		hpack_debug_printf("\e[1;35m%s\e[0m [idx=%d, used=%d]\n",
 		                   istpad(trash.str, value).ptr,
