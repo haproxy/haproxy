@@ -1518,8 +1518,12 @@ int huff_dec(const uint8_t *huff, int hlen, char *out, int olen)
 
 	if (bleft > 0) {
 		/* some bits were not consumed after the last code, they must
-		 * match EOS (ie: all ones).
+		 * match EOS (ie: all ones) and there must be 7 bits or less.
+		 * (7541#5.2).
 		 */
+		if (bleft > 7)
+			return -1;
+
 		if ((code & -(1 << (32 - bleft))) != (uint32_t)-(1 << (32 - bleft)))
 			return -1;
 	}
