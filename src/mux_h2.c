@@ -1422,6 +1422,40 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	return 0;
 }
 
+/* processes a PRIORITY frame, and either skips it or rejects if it is
+ * invalid. Returns > 0 on success or zero on missing data. It may return
+ * an error in h2c. Described in RFC7540#6.3.
+ */
+static int h2c_handle_priority(struct h2c *h2c)
+{
+	int error;
+
+	if (h2c->dsi == 0) {
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+
+	if (h2c->dfl != 5) {
+		error = H2_ERR_FRAME_SIZE_ERROR;
+		goto conn_err;
+	}
+
+	/* process full frame only */
+	if (h2c->dbuf->i < h2c->dfl)
+		return 0;
+
+	if (h2_get_n32(h2c->dbuf, 0) == h2c->dsi) {
+		/* 7540#5.3 : can't depend on itself */
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto conn_err;
+	}
+	return 1;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return 0;
+}
+
 /* processes an RST_STREAM frame, and sets the 32-bit error code on the stream.
  * Returns > 0 on success or zero on missing data. It may return an error in
  * h2c. Described in RFC7540#6.4.
@@ -1807,6 +1841,11 @@ static void h2_process_demux(struct h2c *h2c)
 
 			if (h2c->st0 == H2_CS_FRAME_A)
 				ret = h2c_send_strm_wu(h2c);
+			break;
+
+		case H2_FT_PRIORITY:
+			if (h2c->st0 == H2_CS_FRAME_P)
+				ret = h2c_handle_priority(h2c);
 			break;
 
 		case H2_FT_RST_STREAM:
