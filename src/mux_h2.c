@@ -2617,7 +2617,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	/* The padlen is the first byte before data, and the padding appears
 	 * after data. padlen+data+padding are included in flen.
 	 */
-	if (h2c->dff & H2_F_HEADERS_PADDED) {
+	if (h2c->dff & H2_F_DATA_PADDED) {
 		padlen = *(uint8_t *)bi_ptr(h2c->dbuf);
 		if (padlen >= flen) {
 			/* RFC7540#6.1 : pad length = length of frame payload or greater */
@@ -2660,7 +2660,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	 * FIXME: should we instead try to send it much later, after the
 	 * response ? This would require that we keep a copy of it in h2s.
 	 */
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+	if (h2c->dff & H2_F_DATA_END_STREAM) {
 		h2s->cs->flags |= CS_FL_EOS;
 		h2s->flags |= H2_SF_ES_RCVD;
 	}
