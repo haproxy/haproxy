@@ -105,6 +105,8 @@ struct h2c {
 
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
+	unsigned int nb_streams;  /* number of streams in the tree */
+	/* 32 bit hole here */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
@@ -361,6 +363,7 @@ static int h2c_frt_init(struct connection *conn)
 	h2c->flags = H2_CF_NONE;
 	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
+	h2c->nb_streams = 0;
 
 	h2c->dbuf = &buf_empty;
 	h2c->dsi = -1;
@@ -613,6 +616,9 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	LIST_INIT(&h2s->list);
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
+	h2c->nb_streams++;
+	if (h2c->nb_streams > h2_settings_max_concurrent_streams)
+		goto out_close;
 
 	cs = cs_new(h2c->conn);
 	if (!cs)
@@ -630,6 +636,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
  out_free_cs:
 	cs_free(cs);
  out_close:
+	h2c->nb_streams--;
 	eb32_delete(&h2s->by_id);
 	pool_free(pool_head_h2s, h2s);
 	h2s = NULL;
@@ -991,6 +998,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (!h2s->cs) {
 			/* this stream was already orphaned */
+			h2c->nb_streams--;
 			eb32_delete(&h2s->by_id);
 			pool_free(pool_head_h2s, h2s);
 			continue;
@@ -1906,6 +1914,7 @@ static int h2_process_mux(struct h2c *h2c)
 					h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 				else {
 					/* just sent the last frame for this orphaned stream */
+					h2c->nb_streams--;
 					eb32_delete(&h2s->by_id);
 					pool_free(pool_head_h2s, h2s);
 				}
@@ -1948,6 +1957,7 @@ static int h2_process_mux(struct h2c *h2c)
 				h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 			else {
 				/* just sent the last frame for this orphaned stream */
+				h2c->nb_streams--;
 				eb32_delete(&h2s->by_id);
 				pool_free(pool_head_h2s, h2s);
 			}
@@ -2299,6 +2309,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	if (h2s->by_id.node.leaf_p) {
 		/* h2s still attached to the h2c */
+		h2c->nb_streams--;
 		eb32_delete(&h2s->by_id);
 
 		/* We don't want to close right now unless we're removing the
