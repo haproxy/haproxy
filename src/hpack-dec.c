@@ -177,6 +177,11 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 				goto leave;
 			}
 
+			if (!hpack_valid_idx(dht, idx)) {
+				ret = -HPACK_ERR_TOO_LARGE;
+				goto leave;
+			}
+
 			value = hpack_alloc_string(tmp, idx, hpack_idx_to_value(dht, idx));
 			if (!value.ptr) {
 				ret = -HPACK_ERR_TOO_LARGE;
@@ -313,6 +318,11 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 
 			if (len == (uint32_t)-1 || !len) { // truncated
 				ret = -HPACK_ERR_TRUNCATED;
+				goto leave;
+			}
+
+			if (!hpack_valid_idx(dht, idx)) {
+				ret = -HPACK_ERR_TOO_LARGE;
 				goto leave;
 			}
 

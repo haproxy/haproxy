@@ -154,6 +154,12 @@ static inline const struct hpack_dte *hpack_get_dte(const struct hpack_dht *dht,
 	return &dht->dte[idx];
 }
 
+/* returns non-zero if <idx> is valid for table <dht> */
+static inline int hpack_valid_idx(const struct hpack_dht *dht, uint16_t idx)
+{
+	return idx < dht->used + HPACK_SHT_SIZE;
+}
+
 /* return a pointer to the header name for entry <dte>. */
 static inline struct ist hpack_get_name(const struct hpack_dht *dht, const struct hpack_dte *dte)
 {
