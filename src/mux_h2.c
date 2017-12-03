@@ -1102,6 +1102,12 @@ static int h2c_handle_settings(struct h2c *h2c)
 			}
 			h2c->mfs = arg;
 			break;
+		case H2_SETTINGS_ENABLE_PUSH:
+			if (arg < 0 || arg > 1) { // RFC7540#6.5.2
+				error = H2_ERR_PROTOCOL_ERROR;
+				goto fail;
+			}
+			break;
 		}
 	}
 
