@@ -2465,6 +2465,12 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 
 	/* Skip StreamDep and weight for now (we don't support PRIORITY) */
 	if (h2c->dff & H2_F_HEADERS_PRIORITY) {
+		if (read_n32(hdrs) == h2s->id) {
+			/* RFC7540#5.3.1 : stream dep may not depend on itself */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			return 0;//goto fail_stream;
+		}
+
 		hdrs += 5; // stream dep = 4, weight = 1
 		flen -= 5;
 	}
