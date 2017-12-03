@@ -133,6 +133,7 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 	int ck, lck; /* cookie index and last cookie index */
 	int phdr;
 	int ret;
+	int i;
 
 	lck = ck = -1; // no cookie for now
 	fields = 0;
@@ -143,6 +144,11 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		}
 		else {
 			/* this can be any type of header */
+			/* RFC7540#8.1.2: upper case not allowed in header field names */
+			for (i = 0; i < list[idx].n.len; i++)
+				if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A')
+					goto fail;
+
 			phdr = h2_str_to_phdr(list[idx].n);
 		}
 
