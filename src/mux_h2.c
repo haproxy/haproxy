@@ -1159,7 +1159,7 @@ static int h2c_handle_ping(struct h2c *h2c)
 	}
 
 	/* schedule a response */
-	if (!(h2c->dft & H2_F_PING_ACK))
+	if (!(h2c->dff & H2_F_PING_ACK))
 		h2c->st0 = H2_CS_FRAME_A;
 	return 1;
 }
