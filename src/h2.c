@@ -83,6 +83,10 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
 		}
 	}
 
+	/* 7540#8.1.2.3: :path must not be empty */
+	if (!phdr[uri_idx].len)
+		goto fail;
+
 	if (out + phdr[H2_PHDR_IDX_METH].len + 1 + phdr[uri_idx].len + 11 > end) {
 		/* too large */
 		goto fail;
