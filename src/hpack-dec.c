@@ -202,6 +202,12 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 		}
 		else if (*raw >= 0x20 && *raw <= 0x3f) {
 			/* max dyn table size change */
+			if (ret) {
+				/* 7541#4.2.1 : DHT size update must only be at the beginning */
+				ret = -HPACK_ERR_TOO_LARGE;
+				goto leave;
+			}
+
 			idx = get_var_int(&raw, &len, 5);
 			if (len == (uint32_t)-1) { // truncated
 				ret = -HPACK_ERR_TRUNCATED;
