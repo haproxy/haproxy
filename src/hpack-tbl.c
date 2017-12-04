@@ -259,7 +259,7 @@ int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value)
 	uint32_t headroom, tailroom;
 
 	if (!hpack_dht_make_room(dht, name.len + value.len))
-		return -1;
+		return 0;
 
 	used = dht->used;
 	prev = head = dht->head;

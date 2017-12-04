@@ -216,8 +216,10 @@ static inline struct ist hpack_idx_to_value(const struct hpack_dht *dht, int idx
  */
 static inline int hpack_dht_make_room(struct hpack_dht *dht, unsigned int needed)
 {
-	if (!dht->used || dht->used * 32 + dht->total + needed + 32 <= dht->size)
+	if (dht->used * 32 + dht->total + needed + 32 <= dht->size)
 		return 1;
+	else if (!dht->used)
+		return 0;
 
 	return __hpack_dht_make_room(dht, needed);
 }
