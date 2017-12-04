@@ -4705,7 +4705,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			return -1;
 		}
 	}
-	if (!ssl_shctx) {
+	if (!ssl_shctx && global.tune.sslcachesize) {
 		alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
 		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE,
 		                       sizeof(*sh_ssl_sess_tree),
