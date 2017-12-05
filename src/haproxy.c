@@ -755,7 +755,7 @@ restart_wait:
 		}
 
 		if (exitpid == -1 && errno == ECHILD) {
-			ha_warning("All workers are left. Leaving... (%d)\n", status);
+			ha_warning("All workers exited. Exiting... (%d)\n", status);
 			atexit_flag = 0;
 			exit(status); /* parent must leave using the latest status code known */
 		}
@@ -770,18 +770,18 @@ restart_wait:
 			status = 255;
 
 		if (!children) {
-			ha_warning("Worker %d left with exit code %d\n", exitpid, status);
+			ha_warning("Worker %d exited with code %d\n", exitpid, status);
 		} else {
 			/* check if exited child was in the current children list */
 			if (current_child(exitpid)) {
-				ha_alert("Current worker %d left with exit code %d\n", exitpid, status);
+				ha_alert("Current worker %d exited with code %d\n", exitpid, status);
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
 					mworker_kill(SIGTERM);
 				}
 			} else {
-				ha_warning("Former worker %d left with exit code %d\n", exitpid, status);
+				ha_warning("Former worker %d exited with code %d\n", exitpid, status);
 				delete_oldpid(exitpid);
 			}
 		}
