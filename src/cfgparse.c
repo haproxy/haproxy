@@ -742,7 +742,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(args[1], "no-exit-on-failure")) {
 				global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
 			} else {
-				ha_alert("parsing [%s:%d] : '%s' only supports 'exit-on-failure' option.\n", file, linenum, args[0]);
+				ha_alert("parsing [%s:%d] : '%s' only supports 'no-exit-on-failure' option.\n", file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
