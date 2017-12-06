@@ -4623,6 +4623,9 @@ void srv_update_status(struct server *s)
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
+			/* commit new admin status */
+
+			s->cur_admin = s->next_admin;
 		}
 		else {	/* server was still running */
 			check->health = 0; /* failure */
