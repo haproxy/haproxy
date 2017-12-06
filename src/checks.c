@@ -3145,7 +3145,7 @@ static struct task *process_email_alert(struct task *t)
 			t->expire             = now_ms;
 			check->server         = alert->srv;
 			check->tcpcheck_rules = &alert->tcpcheck_rules;
-			check->status         = HCHK_STATUS_INI;
+			check->status         = HCHK_STATUS_UNKNOWN; // the UNKNOWN status is used to exit set_server_check_status(.) early
 			check->state         |= CHK_ST_ENABLED;
 		}
 
