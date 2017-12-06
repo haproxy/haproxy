@@ -1780,6 +1780,11 @@ static void init(int argc, char **argv)
 	global.hardmaxconn = global.maxconn;  /* keep this max value */
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
+	/* compute fd used by async engines */
+	if (global.ssl_used_async_engines) {
+		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+		global.maxsock += global.maxconn * sides * global.ssl_used_async_engines;
+	}
 
 	if (global.stats_fe)
 		global.maxsock += global.stats_fe->maxconn;

@@ -161,6 +161,7 @@ enum {
 int sslconns = 0;
 int totalsslconns = 0;
 static struct xprt_ops ssl_sock;
+int nb_engines = 0;
 
 static struct {
 	char *crt_base;             /* base directory path for certificates */
@@ -411,6 +412,9 @@ static int ssl_init_single_engine(const char *engine_id, const char *def_algorit
 	el = calloc(1, sizeof(*el));
 	el->e = engine;
 	LIST_ADD(&openssl_engines, &el->list);
+	nb_engines++;
+	if (global_ssl.async)
+		global.ssl_used_async_engines = nb_engines;
 	return 0;
 
 fail_set_method:
@@ -7978,6 +7982,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
 {
 #if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	global_ssl.async = 1;
+	global.ssl_used_async_engines = nb_engines;
 	return 0;
 #else
 	memprintf(err, "'%s': openssl library does not support async mode", args[0]);

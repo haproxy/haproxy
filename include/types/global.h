@@ -97,6 +97,7 @@ struct global {
 	int ssl_handshake_max_cost; /* how many bytes an SSL handshake may use */
 	int ssl_used_frontend;      /* non-zero if SSL is used in a frontend */
 	int ssl_used_backend;       /* non-zero if SSL is used in a backend */
+	int ssl_used_async_engines; /* number of used async engines */
 	unsigned int ssl_server_verify; /* default verify mode on servers side */
 	struct freq_ctr conn_per_sec;
 	struct freq_ctr sess_per_sec;
