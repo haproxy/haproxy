@@ -1912,6 +1912,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */
+	s->si[1].flags |= SI_FL_NOLINGER;
 	si_set_state(&s->si[1], SI_ST_ASS);
 
 	/* automatically prepare the stream interface to connect to the
