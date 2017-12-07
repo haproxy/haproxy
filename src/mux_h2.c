@@ -3164,7 +3164,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 	}
 
 	/* RST are sent similarly to frame acks */
-	if (h2s->st >= H2_SS_ERROR) {
+	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
 		cs->flags |= CS_FL_ERROR;
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s->st = H2_SS_CLOSED;
