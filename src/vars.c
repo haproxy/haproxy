@@ -174,8 +174,7 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	/* Check length. */
 	if (len == 0) {
 		memprintf(err, "Empty variable name cannot be accepted");
-		res = NULL;
-		goto end;
+		return res;
 	}
 
 	/* Check scope. */
@@ -207,8 +206,7 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	else {
 		memprintf(err, "invalid variable name '%s'. A variable name must be start by its scope. "
 		               "The scope can be 'proc', 'sess', 'txn', 'req' or 'res'", name);
-		res = NULL;
-		goto end;
+		return res;
 	}
 
 	if (alloc)
