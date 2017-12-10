@@ -42,14 +42,19 @@ static struct pool_head *pool_head_h2s;
 #define H2_CF_MUX_MFULL         0x00000002  // mux blocked on connection's mux buffer full
 #define H2_CF_MUX_BLOCK_ANY     0x00000003  // aggregate of the mux flags above
 
-/* Flags indicating why writing to the demux is blocked. */
+/* Flags indicating why writing to the demux is blocked.
+ * The first two ones directly affect the ability for the mux to receive data
+ * from the connection. The other ones affect the mux's ability to demux
+ * received data.
+ */
 #define H2_CF_DEM_DALLOC        0x00000004  // demux blocked on lack of connection's demux buffer
 #define H2_CF_DEM_DFULL         0x00000008  // demux blocked on connection's demux buffer full
+
 #define H2_CF_DEM_MBUSY         0x00000010  // demux blocked on connection's mux side busy
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
-#define H2_CF_DEM_BLOCK_ANY     0x000000FC  // aggregate of the demux flags above
+#define H2_CF_DEM_BLOCK_ANY     0x000000F0  // aggregate of the demux flags above except DALLOC/DFULL
 
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
@@ -214,6 +219,33 @@ static struct task *h2_timeout_task(struct task *t);
 /* functions below are for dynamic buffer management */
 /*****************************************************/
 
+/* indicates whether or not the we may call the h2_recv() function to attempt
+ * to receive data into the buffer and/or demux pending data. The condition is
+ * a bit complex due to some API limits for now. The rules are the following :
+ *   - if an error or a shutdown was detected on the connection and the buffer
+ *     is empty, we must not attempt to receive
+ *   - if the demux buf failed to be allocated, we must not try to receive and
+ *     we know there is nothing pending
+ *   - if the buffer is not full, we may attempt to receive
+ *   - if no flag indicates a blocking condition, we may attempt to receive
+ *   - otherwise must may not attempt
+ */
+static inline int h2_recv_allowed(const struct h2c *h2c)
+{
+	if (h2c->dbuf->i == 0 &&
+	    (h2c->st0 >= H2_CS_ERROR ||
+	     h2c->conn->flags & CO_FL_ERROR ||
+	     conn_xprt_read0_pending(h2c->conn)))
+		return 0;
+
+	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
+	    (!(h2c->flags & H2_CF_DEM_DFULL) ||
+	     !(h2c->flags & H2_CF_DEM_BLOCK_ANY)))
+		return 1;
+
+	return 0;
+}
+
 /* re-enables receiving on mux <target> after a buffer was allocated. It returns
  * 1 if the allocation succeeds, in which case the connection is woken up, or 0
  * if it's impossible to wake up and we prefer to be woken up later.
@@ -225,7 +257,7 @@ static int h2_dbuf_available(void *target)
 	/* take the buffer now as we'll get scheduled waiting for ->wake() */
 	if (b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
-		if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY))
+		if (h2_recv_allowed(h2c))
 			conn_xprt_want_recv(h2c->conn);
 		return 1;
 	}
@@ -275,7 +307,7 @@ static int h2_mbuf_available(void *target)
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
 			h2c->flags &= ~H2_CF_DEM_MROOM;
-			if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY))
+			if (h2_recv_allowed(h2c))
 				conn_xprt_want_recv(h2c->conn);
 		}
 
@@ -2037,10 +2069,7 @@ static void h2_recv(struct connection *conn)
 	struct buffer *buf;
 	int max;
 
-	if (conn->flags & CO_FL_ERROR)
-		return;
-
-	if (h2c->flags & H2_CF_DEM_BLOCK_ANY)
+	if (!h2_recv_allowed(h2c))
 		return;
 
 	buf = h2_get_dbuf(h2c);
@@ -2051,14 +2080,8 @@ static void h2_recv(struct connection *conn)
 
 	/* note: buf->o == 0 */
 	max = buf->size - buf->i;
-	if (!max) {
-		h2c->flags |= H2_CF_DEM_DFULL;
-		return;
-	}
-
-	conn->xprt->rcv_buf(conn, buf, max);
-	if (conn->flags & CO_FL_ERROR)
-		return;
+	if (max)
+		conn->xprt->rcv_buf(conn, buf, max);
 
 	if (!buf->i) {
 		h2_release_dbuf(h2c);
@@ -2071,7 +2094,7 @@ static void h2_recv(struct connection *conn)
 	h2_process_demux(h2c);
 
 	/* after streams have been processed, we should have made some room */
-	if (h2c->st0 >= H2_CS_ERROR)
+	if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
 		buf->i = 0;
 
 	if (buf->i != buf->size)
@@ -2181,8 +2204,7 @@ static int h2_wake(struct connection *conn)
 		h2_release_dbuf(h2c);
 
 	/* stop being notified of incoming data if we can't process them */
-	if (h2c->st0 >= H2_CS_ERROR ||
-	    (h2c->flags & H2_CF_DEM_BLOCK_ANY) || conn_xprt_read0_pending(conn)) {
+	if (!h2_recv_allowed(h2c)) {
 		__conn_xprt_stop_recv(conn);
 	}
 	else {
@@ -2284,10 +2306,11 @@ static void h2_update_poll(struct conn_stream *cs)
 
 	/* we may unblock a blocked read */
 
-	if (cs->flags & CS_FL_DATA_RD_ENA &&
-	    h2s->h2c->flags & H2_CF_DEM_SFULL && h2s->h2c->dsi == h2s->id) {
+	if (cs->flags & CS_FL_DATA_RD_ENA) {
+		/* the stream indicates it's willing to read */
 		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
-		conn_xprt_want_recv(cs->conn);
+		if (h2s->h2c->dsi == h2s->id)
+			conn_xprt_want_recv(cs->conn);
 	}
 
 	/* Note: the stream and stream-int code doesn't allow us to perform a
