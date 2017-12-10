@@ -326,6 +326,26 @@ static inline void notification_purge(struct list *purge)
 	}
 }
 
+/* In some cases, the disconnected notifications must be cleared.
+ * This function just release memory blocs. The purge list is not
+ * locked because it is owned by only one process. Before browsing
+ * this list, the caller must ensure to be the only one browser.
+ * The "com" is not locked because when com->task is NULL, the
+ * notification is no longer used.
+ */
+static inline void notification_gc(struct list *purge)
+{
+	struct notification *com, *back;
+
+	/* Delete all pending communication signals. */
+	list_for_each_entry_safe (com, back, purge, purge_me) {
+		if (com->task)
+			continue;
+		LIST_DEL(&com->purge_me);
+		pool_free(pool_head_notification, com);
+	}
+}
+
 /* This function sends signals. It wakes all the tasks attached
  * to a list head, and remove the signal, and free the used
  * memory. The wake list is not locked because it is owned by
