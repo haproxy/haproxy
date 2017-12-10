@@ -304,6 +304,9 @@ static inline struct notification *notification_new(struct list *purge, struct l
 /* This function purge all the pending signals when the LUA execution
  * is finished. This prevent than a coprocess try to wake a deleted
  * task. This function remove the memory associated to the signal.
+ * The purge list is not locked because it is owned by only one
+ * process. before browsing this list, the caller must ensure to be
+ * the only one browser.
  */
 static inline void notification_purge(struct list *purge)
 {
@@ -325,7 +328,9 @@ static inline void notification_purge(struct list *purge)
 
 /* This function sends signals. It wakes all the tasks attached
  * to a list head, and remove the signal, and free the used
- * memory.
+ * memory. The wake list is not locked because it is owned by
+ * only one process. before browsing this list, the caller must
+ * ensure to be the only one browser.
  */
 static inline void notification_wake(struct list *wake)
 {
