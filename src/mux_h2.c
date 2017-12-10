@@ -2611,6 +2611,8 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	unsigned int padlen = 0;
 	int offset = 0;
 
+	h2s->cs->flags &= ~CS_FL_RCV_MORE;
+
 	if (h2c->dbuf->i < flen)
 		return 0;
 
@@ -2631,6 +2633,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	/* does it fit in output buffer or should we wait ? */
 	if (buf->i + buf->o + flen > buf->size) {
 		h2c->flags |= H2_CF_DEM_SFULL;
+		h2s->cs->flags |= CS_FL_RCV_MORE;
 		return 0;
 	}
 
