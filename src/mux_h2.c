@@ -94,7 +94,8 @@ struct h2c {
 	int32_t dfl; /* demux frame length (if dsi >= 0) */
 	int8_t  dft; /* demux frame type   (if dsi >= 0) */
 	int8_t  dff; /* demux frame flags  (if dsi >= 0) */
-	/* 16 bit hole here */
+	uint8_t dpl; /* demux pad length (part of dfl), init to 0 */
+	/* 8 bit hole here */
 	int32_t last_sid; /* last processed stream ID for GOAWAY, <0 before preface */
 
 	/* states for the mux direction */
@@ -1760,6 +1761,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->dsi = hdr.sid;
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
+			h2c->dpl = 0;
 			h2c->st0 = H2_CS_FRAME_P;
 		}
 	}
@@ -1787,6 +1789,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->dsi = hdr.sid;
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
+			h2c->dpl = 0;
 			h2c->st0 = H2_CS_FRAME_P;
 			h2_skip_frame_hdr(h2c->dbuf);
 		}
@@ -2523,12 +2526,13 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	 * after data. padlen+data+padding are included in flen.
 	 */
 	if (h2c->dff & H2_F_HEADERS_PADDED) {
-		if (*hdrs >= flen) {
+		h2c->dpl = *hdrs;
+		if (h2c->dpl >= flen) {
 			/* RFC7540#6.2 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			return 0;
 		}
-		flen -= *hdrs + 1;
+		flen -= h2c->dpl + 1;
 		hdrs += 1; // skip Pad Length
 	}
 
@@ -2638,7 +2642,6 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
 	unsigned int flen = h2c->dfl;
-	unsigned int padlen = 0;
 	int offset = 0;
 
 	h2s->cs->flags &= ~CS_FL_RCV_MORE;
@@ -2650,13 +2653,13 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	 * after data. padlen+data+padding are included in flen.
 	 */
 	if (h2c->dff & H2_F_DATA_PADDED) {
-		padlen = *(uint8_t *)bi_ptr(h2c->dbuf);
-		if (padlen >= flen) {
+		h2c->dpl = *(uint8_t *)bi_ptr(h2c->dbuf);
+		if (h2c->dpl >= h2c->dfl) {
 			/* RFC7540#6.1 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			return 0;
 		}
-		flen -= padlen + 1;
+		flen -= h2c->dpl + 1;
 		offset = 1; // skip Pad Length
 	}
 
