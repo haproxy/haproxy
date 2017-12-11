@@ -2632,64 +2632,95 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
  * data, 2 for the extra CRLF, so that's 5+X, while on the H2 side the smallest
  * frame will be 9+X bytes based on the same buffer size. The HTTP/2 frame
  * parser state is automatically updated. Returns the number of bytes emitted
- * if > 0, or 0 if it couldn't proceed. Stream errors are reported in
- * h2s->errcode and connection errors in h2c->errcode. The caller must already
- * have checked the frame header and ensured that the frame was complete or the
- * buffer full. It changes the frame state to FRAME_A once done.
+ * if > 0, or 0 if it couldn't proceed, in which case CS_FL_RCV_MORE must be
+ * checked to know if some data remain pending (an empty DATA frame can return
+ * 0 as a valid result). Stream errors are reported in h2s->errcode and
+ * connection errors in h2c->errcode. The caller must already have checked the
+ * frame header and ensured that the frame was complete or the buffer full. It
+ * changes the frame state to FRAME_A once done.
  */
 static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 {
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
 	unsigned int flen = h2c->dfl;
-	int offset = 0;
 
 	h2s->cs->flags &= ~CS_FL_RCV_MORE;
-
-	if (h2c->dbuf->i < flen)
-		return 0;
+	h2c->flags &= ~H2_CF_DEM_SFULL;
 
 	/* The padlen is the first byte before data, and the padding appears
 	 * after data. padlen+data+padding are included in flen.
 	 */
 	if (h2c->dff & H2_F_DATA_PADDED) {
+		if (h2c->dbuf->i < 1)
+			return 0;
+
 		h2c->dpl = *(uint8_t *)bi_ptr(h2c->dbuf);
 		if (h2c->dpl >= h2c->dfl) {
 			/* RFC7540#6.1 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			return 0;
 		}
-		flen -= h2c->dpl + 1;
-		offset = 1; // skip Pad Length
+
+		/* skip the padlen byte */
+		bi_del(h2c->dbuf, 1);
+		h2c->dfl--;
+		h2c->rcvd_c++; h2c->rcvd_s++;
+		h2c->dff &= ~H2_F_DATA_PADDED;
+	}
+
+	flen = h2c->dfl - h2c->dpl;
+	if (!flen)
+		return 0;
+
+	if (flen > h2c->dbuf->i) {
+		flen = h2c->dbuf->i;
+		if (!flen)
+			return 0;
 	}
 
 	/* does it fit in output buffer or should we wait ? */
-	if (buf->i + buf->o + flen > buf->size) {
-		h2c->flags |= H2_CF_DEM_SFULL;
-		h2s->cs->flags |= CS_FL_RCV_MORE;
-		return 0;
+	if (flen > count) {
+		flen = count;
+		if (!flen) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			h2s->cs->flags |= CS_FL_RCV_MORE;
+			return 0;
+		}
 	}
 
 	/* Block1 is the length of the first block before the buffer wraps,
 	 * block2 is the optional second block to reach the end of the frame.
 	 */
 	block1 = bi_contig_data(h2c->dbuf);
-	if (block1 > offset + flen)
-		block1 = offset + flen;
-	block1 -= offset; // skip Pad Length
+	if (block1 > flen)
+		block1 = flen;
 	block2 = flen - block1;
 
 	if (block1)
-		bi_putblk(buf, b_ptr(h2c->dbuf, offset), block1);
+		bi_putblk(buf, b_ptr(h2c->dbuf, 0), block1);
 
 	if (block2)
-		bi_putblk(buf, b_ptr(h2c->dbuf, offset + block1), block2);
+		bi_putblk(buf, b_ptr(h2c->dbuf, block1), block2);
 
 	/* now mark the input data as consumed (will be deleted from the buffer
 	 * by the caller when seeing FRAME_A after sending the window update).
 	 */
-	h2c->rcvd_c += h2c->dfl;
-	h2c->rcvd_s += h2c->dfl;  // warning, this can also affect the closed streams!
+	bi_del(h2c->dbuf, flen);
+	h2c->dfl    -= flen;
+	h2c->rcvd_c += flen;
+	h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
+
+	if (h2c->dfl > h2c->dpl) {
+		/* more data available, transfer stalled on stream full */
+		h2c->flags |= H2_CF_DEM_SFULL;
+		h2s->cs->flags |= CS_FL_RCV_MORE;
+		return flen;
+	}
+
+	/* here we're done with the frame, all the payload (except padding) was
+	 * transferred.
+	 */
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 
 	/* don't send it before returning data!
