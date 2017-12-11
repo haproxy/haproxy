@@ -1656,12 +1656,6 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
-	/* last frame */
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
-		h2s->st = H2_SS_HREM;
-		h2s->flags |= H2_SF_ES_RCVD;
-	}
-
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
 	 */
@@ -1691,6 +1685,13 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 */
 	if (h2c->st0 == H2_CS_FRAME_P)
 		return 0;
+
+
+	/* last frame */
+	if (h2c->dff & H2_F_DATA_END_STREAM) {
+		h2s->st = H2_SS_HREM;
+		h2s->flags |= H2_SF_ES_RCVD;
+	}
 
 	return 1;
 
