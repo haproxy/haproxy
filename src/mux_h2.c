@@ -2489,8 +2489,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1
  * request. Returns the number of bytes emitted if > 0, or 0 if it couldn't
  * proceed. Stream errors are reported in h2s->errcode and connection errors
- * in h2c->errcode. The caller must already have checked the frame header and
- * ensured that the frame was complete or the buffer full.
+ * in h2c->errcode.
  */
 static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 {
@@ -2508,6 +2507,9 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR); // empty headers frame!
 		return 0;
 	}
+
+	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+		return 0; // incomplete input frame
 
 	/* if the input buffer wraps, take a temporary copy of it (rare) */
 	wrap = h2c->dbuf->data + h2c->dbuf->size - h2c->dbuf->p;
@@ -2754,9 +2756,6 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 
 	if (!h2c->dbuf->size)
 		return 0; // empty buffer
-
-	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
-		return 0; // incomplete input frame
 
 	switch (h2c->dft) {
 	case H2_FT_HEADERS:
