@@ -678,14 +678,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 }
 
 /* This handshake handler waits a NetScaler Client IP insertion header
- * at the beginning of the raw data stream. The header looks like this:
- *
- *   4 bytes:   CIP magic number
- *   4 bytes:   Header length
- *   20+ bytes: Header of the last IP packet sent by the client during
- *              TCP handshake.
- *   20+ bytes: Header of the last TCP packet sent by the client during
- *              TCP handshake.
+ * at the beginning of the raw data stream. The header format is
+ * described in doc/netscaler-client-ip-insertion-protocol.txt
  *
  * This line MUST be at the beginning of the buffer and MUST NOT be
  * fragmented.
@@ -735,24 +729,38 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	}
 
 	/* Fail if buffer length is not large enough to contain
-	 * CIP magic, CIP length */
-	if (trash.len < 8)
+	 * CIP magic, header length or
+	 * CIP magic, CIP length, CIP type, header length */
+	if (trash.len < 12)
 		goto missing;
 
 	line = trash.str;
-	hdr_len = ntohl(*(uint32_t *)(line+4));
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
 	if (ntohl(*(uint32_t *)line) != objt_listener(conn->target)->bind_conf->ns_cip_magic)
 		goto bad_magic;
 
-	/* Fail if buffer length is not large enough to contain
-	 * CIP magic, CIP length, minimal IP header */
-	if (trash.len < 28)
-		goto missing;
+	/* Legacy CIP protocol */
+	if ((trash.str[8] & 0xD0) == 0x40) {
+		hdr_len = ntohl(*(uint32_t *)(line+4));
+		line += 8;
+	}
+	/* Standard CIP protocol */
+	else if (trash.str[8] == 0x00) {
+		hdr_len = ntohs(*(uint32_t *)(line+10));
+		line += 12;
+	}
+	/* Unknown CIP protocol */
+	else {
+		conn->err_code = CO_ER_CIP_BAD_PROTO;
+		goto fail;
+	}
 
-	line += 8;
+	/* Fail if buffer length is not large enough to contain
+	 * a minimal IP header */
+	if (trash.len < 20)
+		goto missing;
 
 	/* Get IP version from the first four bits */
 	ip_v = (*line & 0xf0) >> 4;

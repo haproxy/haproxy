@@ -10,7 +10,9 @@ Specifications and documentations from NetScaler:
   https://www.citrix.com/blogs/2016/04/25/how-to-enable-client-ip-in-tcpip-option-of-netscaler/
 
 When CIP is enabled on the NetScaler, then a TCP packet is inserted just after
-the TCP handshake. This is composed as:
+the TCP handshake. Two versions of the CIP extension exist.
+
+Legacy (NetScaler < 10.5)
 
   - CIP magic number : 4 bytes
     Both sender and receiver have to agree on a magic number so that
@@ -18,6 +20,30 @@ the TCP handshake. This is composed as:
     packet.
 
   - Header length : 4 bytes
+    Defines the length on the remaining data.
+
+  - IP header : >= 20 bytes if IPv4, 40 bytes if IPv6
+    Contains the header of the last IP packet sent by the client during TCP
+    handshake.
+
+  - TCP header : >= 20 bytes
+    Contains the header of the last TCP packet sent by the client during TCP
+    handshake.
+
+Standard (NetScaler >= 10.5)
+
+  - CIP magic number : 4 bytes
+    Both sender and receiver have to agree on a magic number so that
+    they both handle the incoming data as a NetScaler Client IP insertion
+    packet.
+
+  - CIP length : 4 bytes
+    Defines the total length on the CIP header.
+
+  - CIP type: 2 bytes
+    Always set to 1.
+
+  - Header length : 2 bytes
     Defines the length on the remaining data.
 
   - IP header : >= 20 bytes if IPv4, 40 bytes if IPv6
