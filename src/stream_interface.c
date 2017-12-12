@@ -1176,7 +1176,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	 * recv().
 	 */
 	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) &&
-	       !(cs->flags & CS_FL_ERROR) && !(ic->flags & CF_SHUTR)) {
+	       !(cs->flags & (CS_FL_ERROR|CS_FL_EOS)) && !(ic->flags & CF_SHUTR)) {
 		max = channel_recv_max(ic);
 
 		if (!max) {
