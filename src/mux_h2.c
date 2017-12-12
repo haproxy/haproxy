@@ -226,8 +226,13 @@ static struct task *h2_timeout_task(struct task *t);
  *     is empty, we must not attempt to receive
  *   - if the demux buf failed to be allocated, we must not try to receive and
  *     we know there is nothing pending
- *   - if the buffer is not full, we may attempt to receive
- *   - if no flag indicates a blocking condition, we may attempt to receive
+ *   - if no flag indicates a blocking condition, we may attempt to receive,
+ *     regardless of whether the demux buffer is full or not, so that only
+ *     de demux part decides whether or not to block. This is needed because
+ *     the connection API indeed prevents us from re-enabling receipt that is
+ *     already enabled in a polled state, so we must always immediately stop
+ *     as soon as the demux can't proceed so as never to hit an end of read
+ *     with data pending in the buffers.
  *   - otherwise must may not attempt
  */
 static inline int h2_recv_allowed(const struct h2c *h2c)
@@ -239,8 +244,7 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 		return 0;
 
 	if (!(h2c->flags & H2_CF_DEM_DALLOC) &&
-	    (!(h2c->flags & H2_CF_DEM_DFULL) ||
-	     !(h2c->flags & H2_CF_DEM_BLOCK_ANY)))
+	    !(h2c->flags & H2_CF_DEM_BLOCK_ANY))
 		return 1;
 
 	return 0;
