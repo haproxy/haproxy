@@ -798,7 +798,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
-		if (trash.len < 28) {
+		if (trash.len < 48) {
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv6 header */
 			goto missing;
@@ -808,7 +808,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
 		}
-		else if (trash.len < 48) {
+		else if (trash.len < 68) {
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv6 header, TCP header */
 			goto missing;
