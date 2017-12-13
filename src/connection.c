@@ -770,11 +770,13 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv4 header */
 			goto missing;
-		} else if (hdr_ip4->ip_p != IPPROTO_TCP) {
+		}
+		else if (hdr_ip4->ip_p != IPPROTO_TCP) {
 			/* The protocol does not include a TCP header */
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
-		} else if (trash.len < (28 + ntohs(hdr_ip4->ip_len))) {
+		}
+		else if (trash.len < (28 + ntohs(hdr_ip4->ip_len))) {
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv4 header, TCP header */
 			goto missing;
@@ -803,11 +805,13 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv6 header */
 			goto missing;
-		} else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
+		}
+		else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
 			/* The protocol does not include a TCP header */
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
-		} else if (trash.len < 48) {
+		}
+		else if (trash.len < 48) {
 			/* Fail if buffer length is not large enough to contain
 			 * CIP magic, CIP length, IPv6 header, TCP header */
 			goto missing;
