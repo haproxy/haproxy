@@ -763,20 +763,15 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip4 = (struct ip *)line;
 
-		if (trash.len < ntohs(hdr_ip4->ip_len)) {
+		if (trash.len < (ntohs(hdr_ip4->ip_len) + 20)) {
 			/* Fail if buffer length is not large enough to contain
-			 * IPv4 header */
+			 * IPv4 header, TCP header */
 			goto missing;
 		}
 		else if (hdr_ip4->ip_p != IPPROTO_TCP) {
 			/* The protocol does not include a TCP header */
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
-		}
-		else if (trash.len < (20 + ntohs(hdr_ip4->ip_len))) {
-			/* Fail if buffer length is not large enough to contain
-			 * IPv4 header, TCP header */
-			goto missing;
 		}
 
 		hdr_tcp = (struct my_tcphdr *)(line + (hdr_ip4->ip_hl * 4));
@@ -798,20 +793,15 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
-		if (trash.len < 40) {
+		if (trash.len < 60) {
 			/* Fail if buffer length is not large enough to contain
-			 * IPv6 header */
+			 * IPv6 header, TCP header */
 			goto missing;
 		}
 		else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
 			/* The protocol does not include a TCP header */
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
-		}
-		else if (trash.len < 60) {
-			/* Fail if buffer length is not large enough to contain
-			 * IPv6 header, TCP header */
-			goto missing;
 		}
 
 		hdr_tcp = (struct my_tcphdr *)(line + sizeof(struct ip6_hdr));
