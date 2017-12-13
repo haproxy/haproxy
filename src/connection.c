@@ -763,7 +763,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip4 = (struct ip *)line;
 
-		if (trash.len < (ntohs(hdr_ip4->ip_len) + 20)) {
+		if (trash.len < 40 || trash.len < hdr_len) {
 			/* Fail if buffer length is not large enough to contain
 			 * IPv4 header, TCP header */
 			goto missing;
@@ -793,7 +793,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
-		if (trash.len < 60) {
+		if (trash.len < 60 || trash.len < hdr_len) {
 			/* Fail if buffer length is not large enough to contain
 			 * IPv6 header, TCP header */
 			goto missing;
