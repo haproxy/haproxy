@@ -1568,6 +1568,15 @@ static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *p
 	return 1;
 }
 
+static int sample_conv_strlen(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	int i = smp->data.u.str.len;
+	smp->data.u.sint = i;
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
+
 static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	int i;
@@ -2787,6 +2796,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "len",    sample_conv_strlen,    0,            NULL, SMP_T_STR,  SMP_T_SINT },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",  sample_conv_hex2int,   0,            NULL, SMP_T_STR,  SMP_T_SINT },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },

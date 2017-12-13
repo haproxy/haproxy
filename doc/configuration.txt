@@ -12941,6 +12941,11 @@ language(<value>[,<default>])
     use_backend english if en
     default_backend choose_your_language
 
+len
+  Get the length of the string. This can only be placed after a string
+  sample fetch function or after a transformation keyword returning a string
+  type. The result is of type integer.
+
 lower
   Convert a string sample to lower case. This can only be placed after a string
   sample fetch function or after a transformation keyword returning a string
