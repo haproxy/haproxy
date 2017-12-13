@@ -702,7 +702,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 int conn_recv_netscaler_cip(struct connection *conn, int flag)
 {
 	char *line;
-	uint32_t cip_len;
+	uint32_t hdr_len;
 	uint8_t ip_v;
 
 	/* we might have been called just after an asynchronous shutr */
@@ -740,7 +740,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto missing;
 
 	line = trash.str;
-	cip_len = ntohl(*(uint32_t *)(line+4));
+	hdr_len = ntohl(*(uint32_t *)(line+4));
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
@@ -833,7 +833,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto fail;
 	}
 
-	line += cip_len;
+	line += hdr_len;
 	trash.len = line - trash.str;
 
 	/* remove the NetScaler Client IP header from the request. For this
