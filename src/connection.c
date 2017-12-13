@@ -702,7 +702,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 int conn_recv_netscaler_cip(struct connection *conn, int flag)
 {
 	char *line;
-	uint32_t cip_magic;
 	uint32_t cip_len;
 	uint8_t ip_v;
 
@@ -741,13 +740,11 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto missing;
 
 	line = trash.str;
-
-	cip_magic = ntohl(*(uint32_t *)line);
 	cip_len = ntohl(*(uint32_t *)(line+4));
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
-	if (cip_magic != objt_listener(conn->target)->bind_conf->ns_cip_magic)
+	if (ntohl(*(uint32_t *)line) != objt_listener(conn->target)->bind_conf->ns_cip_magic)
 		goto bad_magic;
 
 	/* Fail if buffer length is not large enough to contain
