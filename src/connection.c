@@ -763,9 +763,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip4 = (struct ip *)line;
 
-		if (trash.len < (8 + ntohs(hdr_ip4->ip_len))) {
+		if (trash.len < ntohs(hdr_ip4->ip_len)) {
 			/* Fail if buffer length is not large enough to contain
-			 * CIP magic, CIP length, IPv4 header */
+			 * IPv4 header */
 			goto missing;
 		}
 		else if (hdr_ip4->ip_p != IPPROTO_TCP) {
@@ -773,9 +773,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
 		}
-		else if (trash.len < (28 + ntohs(hdr_ip4->ip_len))) {
+		else if (trash.len < (20 + ntohs(hdr_ip4->ip_len))) {
 			/* Fail if buffer length is not large enough to contain
-			 * CIP magic, CIP length, IPv4 header, TCP header */
+			 * IPv4 header, TCP header */
 			goto missing;
 		}
 
@@ -798,9 +798,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
-		if (trash.len < 48) {
+		if (trash.len < 40) {
 			/* Fail if buffer length is not large enough to contain
-			 * CIP magic, CIP length, IPv6 header */
+			 * IPv6 header */
 			goto missing;
 		}
 		else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
@@ -808,9 +808,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
 		}
-		else if (trash.len < 68) {
+		else if (trash.len < 60) {
 			/* Fail if buffer length is not large enough to contain
-			 * CIP magic, CIP length, IPv6 header, TCP header */
+			 * IPv6 header, TCP header */
 			goto missing;
 		}
 
