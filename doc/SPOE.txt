@@ -239,6 +239,15 @@ option continue-on-error
   When set, this option bypass this behaviour and only the current event will
   be ignored.
 
+option force-set-var
+  By default, SPOE filter only register already known variables (mainly from
+  parsing of the configuration). If you want that haproxy trusts the agent and
+  registers all variables (ex: can be useful for LUA workload), activate this
+  option.
+
+  Caution : this option opens to a variety of attacks such as a rogue SPOA that
+  asks to register too many variables.
+
 
 option pipelining
 no option pipelining
@@ -310,8 +319,9 @@ option var-prefix <prefix>
   "myvar" in the "txn" scope, with the prefix "my_spoe_pfx", then you should
   use "txn.my_spoe_pfx.myvar" name in your HAProxy configuration.
 
-  An agent will never set new variables at runtime. It can only set new value
-  for existing ones.
+  By default, an agent will never set new variables at runtime: It can only set
+  new value for existing ones. If you want a different behaviour, see
+  force-set-var option
 
 
 timeout hello <timeout>

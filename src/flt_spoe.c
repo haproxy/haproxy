@@ -2307,7 +2307,10 @@ spoe_set_var(struct spoe_context *ctx, char *scope, char *name, int len,
 	memset(varname, 0, sizeof(varname));
 	len = snprintf(varname, sizeof(varname), "%s.%s.%.*s",
 		       scope, agent->var_pfx, len, name);
-	vars_set_by_name_ifexist(varname, len, smp);
+	if (agent->flags & SPOE_FL_FORCE_SET_VAR)
+		vars_set_by_name(varname, len, smp);
+	else
+		vars_set_by_name_ifexist(varname, len, smp);
 }
 
 /* Helper function to unset a variable */
@@ -3398,6 +3401,11 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				tmp++;
 			}
 			curagent->var_pfx = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "force-set-var")) {
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+				goto out;
+			curagent->flags |= SPOE_FL_FORCE_SET_VAR;
 		}
 		else if (!strcmp(args[1], "continue-on-error")) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
