@@ -2938,7 +2938,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		goto end;
 	}
 	else
-		h1m->state = (h1m->flags & H1_MF_CLEN) ? HTTP_MSG_BODY : HTTP_MSG_CHUNK_SIZE;
+		h1m->state = (h1m->flags & H1_MF_CHNK) ? HTTP_MSG_CHUNK_SIZE : HTTP_MSG_BODY;
 
  end:
 	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1_msg_state_str(h1m->err_state));
@@ -3004,6 +3004,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	switch (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
 	case 0:           /* no content length, read till SHUTW */
 		size = buf->o;
+		h1m->curr_len = size;
 		break;
 	case H1_MF_CLEN:  /* content-length: read only h2m->body_len */
 		size = buf->o;
