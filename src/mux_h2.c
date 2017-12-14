@@ -2094,15 +2094,6 @@ static void h2_recv(struct connection *conn)
 
 	if (buf->i == buf->size)
 		h2c->flags |= H2_CF_DEM_DFULL;
-
-	h2_process_demux(h2c);
-
-	/* after streams have been processed, we should have made some room */
-	if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
-		buf->i = 0;
-
-	if (buf->i != buf->size)
-		h2c->flags &= ~H2_CF_DEM_DFULL;
 	return;
 }
 
@@ -2173,6 +2164,16 @@ static void h2_send(struct connection *conn)
 static int h2_wake(struct connection *conn)
 {
 	struct h2c *h2c = conn->mux_ctx;
+
+	if (h2c->dbuf->i && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
+		h2_process_demux(h2c);
+
+		if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
+			h2c->dbuf->i = 0;
+
+		if (h2c->dbuf->i != h2c->dbuf->size)
+			h2c->flags &= ~H2_CF_DEM_DFULL;
+	}
 
 	/*
 	 * If we received early data, try to wake any stream, just in case
@@ -2313,8 +2314,10 @@ static void h2_update_poll(struct conn_stream *cs)
 	if (cs->flags & CS_FL_DATA_RD_ENA) {
 		/* the stream indicates it's willing to read */
 		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (h2s->h2c->dsi == h2s->id)
+		if (h2s->h2c->dsi == h2s->id) {
 			conn_xprt_want_recv(cs->conn);
+			conn_xprt_want_send(cs->conn);
+		}
 	}
 
 	/* Note: the stream and stream-int code doesn't allow us to perform a
