@@ -629,6 +629,18 @@ static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh
 	return ret;
 }
 
+/* marks stream <h2s> as CLOSED for connection <h2c> and decrement the number
+ * of active streams for this connection if the stream was not yet closed.
+ * Please use this exclusively before closing a stream to ensure stream count
+ * is well maintained.
+ */
+static inline void h2c_stream_close(struct h2c *h2c, struct h2s *h2s)
+{
+	if (h2s->st != H2_SS_CLOSED)
+		h2s->h2c->nb_streams--;
+	h2s->st = H2_SS_CLOSED;
+}
+
 /* creates a new stream <id> on the h2c connection and returns it, or NULL in
  * case of memory allocation error.
  */
@@ -902,7 +914,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	h2s->flags |= H2_SF_RST_SENT;
-	h2s->st = H2_SS_CLOSED;
+	h2c_stream_close(h2c, h2s);
 	return ret;
 }
 
@@ -957,7 +969,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) {
 		h2s->flags |= H2_SF_RST_SENT;
-		h2s->st = H2_SS_CLOSED;
+		h2c_stream_close(h2c, h2s);
 	}
 
 	return ret;
@@ -1035,7 +1047,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (!h2s->cs) {
 			/* this stream was already orphaned */
-			h2c->nb_streams--;
+			h2c_stream_close(h2c, h2s);
 			eb32_delete(&h2s->by_id);
 			pool_free(pool_head_h2s, h2s);
 			continue;
@@ -1053,7 +1065,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		else if (flags & CS_FL_EOS && h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
 		else if (flags & CS_FL_EOS && h2s->st == H2_SS_HLOC)
-			h2s->st = H2_SS_CLOSED;
+			h2c_stream_close(h2c, h2s);
 	}
 }
 
@@ -1520,7 +1532,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 1;
 
 	h2s->errcode = h2_get_n32(h2c->dbuf, 0);
-	h2s->st = H2_SS_CLOSED;
+	h2c_stream_close(h2c, h2s);
 
 	if (h2s->cs) {
 		h2s->cs->flags |= CS_FL_EOS;
@@ -1999,7 +2011,7 @@ static int h2_process_mux(struct h2c *h2c)
 					h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 				else {
 					/* just sent the last frame for this orphaned stream */
-					h2c->nb_streams--;
+					h2c_stream_close(h2c, h2s);
 					eb32_delete(&h2s->by_id);
 					pool_free(pool_head_h2s, h2s);
 				}
@@ -2042,7 +2054,7 @@ static int h2_process_mux(struct h2c *h2c)
 				h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 			else {
 				/* just sent the last frame for this orphaned stream */
-				h2c->nb_streams--;
+				h2c_stream_close(h2c, h2s);
 				eb32_delete(&h2s->by_id);
 				pool_free(pool_head_h2s, h2s);
 			}
@@ -2388,7 +2400,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	if (h2s->by_id.node.leaf_p) {
 		/* h2s still attached to the h2c */
-		h2c->nb_streams--;
+		h2c_stream_close(h2c, h2s);
 		eb32_delete(&h2s->by_id);
 
 		/* We don't want to close right now unless we're removing the
@@ -2444,7 +2456,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
 		conn_xprt_want_send(cs->conn);
 
-	h2s->st = H2_SS_CLOSED;
+	h2c_stream_close(h2s->h2c, h2s);
 }
 
 static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -2462,7 +2474,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 			return;
 
 		if (h2s->st == H2_SS_HREM)
-			h2s->st = H2_SS_CLOSED;
+			h2c_stream_close(h2s->h2c, h2s);
 		else
 			h2s->st = H2_SS_HLOC;
 	} else {
@@ -2480,7 +2492,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
 			return;
 
-		h2s->st = H2_SS_CLOSED;
+		h2c_stream_close(h2s->h2c, h2s);
 	}
 
 	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
@@ -2928,7 +2940,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HLOC;
 		else
-			h2s->st = H2_SS_CLOSED;
+			h2c_stream_close(h2c, h2s);
 	}
 	else if (h1m->status >= 100 && h1m->status < 200) {
 		/* we'll let the caller check if it has more headers to send */
@@ -3170,7 +3182,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HLOC;
 		else
-			h2s->st = H2_SS_CLOSED;
+			h2c_stream_close(h2c, h2s);
 
 		if (!(h1m->flags & H1_MF_CHNK))
 			h1m->state = HTTP_MSG_DONE;
@@ -3235,7 +3247,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
 		cs->flags |= CS_FL_ERROR;
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
-			h2s->st = H2_SS_CLOSED;
+			h2c_stream_close(h2s->h2c, h2s);
 	}
 
 	if (h2s->flags & H2_SF_BLK_SFCTL) {
