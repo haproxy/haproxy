@@ -12149,7 +12149,6 @@ enum act_parse_ret parse_http_req_capture(const char **args, int *orig_arg, stru
 
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture;
-		rule->check_ptr    = check_http_req_capture;
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr  = hdr;
 	}
