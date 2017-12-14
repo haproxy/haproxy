@@ -4523,6 +4523,10 @@ int http_sync_req_state(struct stream *s)
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
+		/* if we don't know whether the server will close, we need to hard close */
+		if (txn->rsp.flags & HTTP_MSGF_XFER_LEN)
+			s->si[1].flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
+
 		/* see above in MSG_DONE why we only do this in these states */
 		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL) &&
 		    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) &&
@@ -4535,7 +4539,6 @@ int http_sync_req_state(struct stream *s)
 	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
 	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 		/* if we've just closed an output, let's switch */
-		s->si[1].flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
 		txn->req.msg_state = HTTP_MSG_CLOSING;
 		goto http_msg_closing;
 	}
