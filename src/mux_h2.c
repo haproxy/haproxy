@@ -1535,7 +1535,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2c_stream_close(h2c, h2s);
 
 	if (h2s->cs) {
-		h2s->cs->flags |= CS_FL_EOS;
+		h2s->cs->flags |= CS_FL_EOS | CS_FL_ERROR;
 		/* recv is used to force to detect CS_FL_EOS that wake()
 		 * doesn't handle in the stream-int code.
 		 */
