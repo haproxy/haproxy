@@ -466,7 +466,7 @@ int convert_date(const char *field)
 {
 	unsigned int h, m, s, ms;
 	unsigned char c;
-	const char *b, *e;
+	const char *e;
 
 	h = m = s = ms = 0;
 	e = field;
@@ -481,7 +481,6 @@ int convert_date(const char *field)
 	}
 
 	/* hour + ':' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -492,7 +491,6 @@ int convert_date(const char *field)
 		goto out_err;
 
 	/* minute + ':' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -503,7 +501,6 @@ int convert_date(const char *field)
 		goto out_err;
 
 	/* second + '.' or ']' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -516,7 +513,6 @@ int convert_date(const char *field)
 	/* if there's a '.', we have milliseconds */
 	if (c == (unsigned char)('.' - '0')) {
 		/* millisecond second + ']' */
-		b = e;
 		while (1) {
 			c = *(e++) - '0';
 			if (c > 9)
@@ -539,7 +535,7 @@ int convert_date_to_timestamp(const char *field)
 {
 	unsigned int d, mo, y, h, m, s;
 	unsigned char c;
-	const char *b, *e;
+	const char *e;
 	time_t rawtime;
 	static struct tm * timeinfo;
 	static int last_res;
@@ -626,7 +622,6 @@ int convert_date_to_timestamp(const char *field)
 	}
 
 	/* hour + ':' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -637,7 +632,6 @@ int convert_date_to_timestamp(const char *field)
 		goto out_err;
 
 	/* minute + ':' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -648,7 +642,6 @@ int convert_date_to_timestamp(const char *field)
 		goto out_err;
 
 	/* second + '.' or ']' */
-	b = e;
 	while (1) {
 		c = *(e++) - '0';
 		if (c > 9)
@@ -690,10 +683,10 @@ void truncated_line(int linenum, const char *line)
 
 int main(int argc, char **argv)
 {
-	const char *b, *e, *p, *time_field, *accept_field, *source_field;
+	const char *b, *p, *time_field, *accept_field, *source_field;
 	const char *filter_term_code_name = NULL;
 	const char *output_file = NULL;
-	int f, last, err;
+	int f, last;
 	struct timer *t = NULL;
 	struct eb32_node *n;
 	struct url_stat *ustat = NULL;
@@ -945,7 +938,7 @@ int main(int argc, char **argv)
 				}
 			}
 
-			e = field_stop(time_field + 1);
+			field_stop(time_field + 1);
 			/* we have field TIME_FIELD in [time_field]..[e-1] */
 			p = time_field;
 			f = 0;
@@ -969,17 +962,15 @@ int main(int argc, char **argv)
 				}
 			}
 
-			e = field_stop(time_field + 1);
+			field_stop(time_field + 1);
 			/* we have field TIME_FIELD in [time_field]..[e-1], let's check only the response time */
 
 			p = time_field;
-			err = 0;
 			f = 0;
 			while (!SEP(*p)) {
 				tps = str2ic(p);
 				if (tps < 0) {
 					tps = -1;
-					err = 1;
 				}
 				if (++f == 4)
 					break;
@@ -1706,7 +1697,7 @@ void filter_count_ip(const char *source_field, const char *accept_field, const c
 void filter_graphs(const char *accept_field, const char *time_field, struct timer **tptr)
 {
 	struct timer *t2;
-	const char *e, *p;
+	const char *p;
 	int f, err, array[5];
 
 	if (!time_field) {
@@ -1717,7 +1708,7 @@ void filter_graphs(const char *accept_field, const char *time_field, struct time
 		}
 	}
 
-	e = field_stop(time_field + 1);
+	field_stop(time_field + 1);
 	/* we have field TIME_FIELD in [time_field]..[e-1] */
 
 	p = time_field;
