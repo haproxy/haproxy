@@ -1176,6 +1176,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
 			/* does nothing under Linux, maybe needed for others */
 			shutdown(*plogfd, SHUT_RD);
+			fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
 		}
 
 		switch (logsrv->format) {
