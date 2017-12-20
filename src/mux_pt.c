@@ -214,6 +214,7 @@ const struct mux_ops mux_pt_ops = {
 	.detach = mux_pt_detach,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
+	.flags = MX_FL_NONE,
 	.name = "PASS",
 };
 

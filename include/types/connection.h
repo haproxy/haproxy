@@ -255,6 +255,12 @@ enum {
 	XPRT_ENTRIES /* must be last one */
 };
 
+/* MUX-specific flags */
+enum {
+	MX_FL_NONE        = 0x00000000,
+	MX_FL_CLEAN_ABRT  = 0x00000001, /* abort is clearly reported as an error */
+};
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -299,6 +305,7 @@ struct mux_ops {
 
 	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
+	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
 

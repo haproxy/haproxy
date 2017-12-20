@@ -3330,6 +3330,7 @@ const struct mux_ops h2_ops = {
 	.detach = h2_detach,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
+	.flags = MX_FL_CLEAN_ABRT,
 	.name = "H2",
 };
 
