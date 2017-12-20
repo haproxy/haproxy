@@ -74,6 +74,7 @@ enum {
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
 	SI_FL_WANT_PUT   = 0x2000,  /* an applet would like to put some data into the buffer */
 	SI_FL_WANT_GET   = 0x4000,  /* an applet would like to get some data from the buffer */
+	SI_FL_CLEAN_ABRT = 0x8000,  /* SI_FL_ERR is used to report aborts, and not SHUTR */
 };
 
 /* A stream interface has 3 parts :

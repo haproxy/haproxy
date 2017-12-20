@@ -195,6 +195,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	si_set_state(&s->si[0], SI_ST_EST);
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
+	if (cs && cs->conn->mux && cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
+		s->si[0].flags |= SI_FL_CLEAN_ABRT;
+
 	/* attach the incoming connection to the stream interface now. */
 	if (cs)
 		si_attach_cs(&s->si[0], cs);
