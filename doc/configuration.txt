@@ -5438,8 +5438,9 @@ no option checkcache
   proxy. When this option is enabled, the only responses which can be delivered
   to the client are :
     - all those without "Set-Cookie" header ;
-    - all those with a return code other than 200, 203, 206, 300, 301, 410,
-      provided that the server has not set a "Cache-control: public" header ;
+    - all those with a return code other than 200, 203, 204, 206, 300, 301,
+      404, 405, 410, 414, 501, provided that the server has not set a
+      "Cache-control: public" header field ;
     - all those that result from a request using a method other than GET, HEAD,
       OPTIONS, TRACE, provided that the server has not set a 'Cache-Control:
       public' header field ;

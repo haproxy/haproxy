@@ -5388,15 +5388,24 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	switch (txn->status) {
 	case 200:
 	case 203:
+	case 204:
 	case 206:
 	case 300:
 	case 301:
+	case 404:
+	case 405:
 	case 410:
-		/* RFC2616 @13.4:
-		 *   "A response received with a status code of
-		 *    200, 203, 206, 300, 301 or 410 MAY be stored
-		 *    by a cache (...) unless a cache-control
-		 *    directive prohibits caching."
+	case 414:
+	case 501:
+		/* RFC7231#6.1:
+		 *   Responses with status codes that are defined as
+		 *   cacheable by default (e.g., 200, 203, 204, 206,
+		 *   300, 301, 404, 405, 410, 414, and 501 in this
+		 *   specification) can be reused by a cache with
+		 *   heuristic expiration unless otherwise indicated
+		 *   by the method definition or explicit cache
+		 *   controls [RFC7234]; all other status codes are
+		 *   not cacheable by default.
 		 *
 		 * RFC7234#4:
 		 *   A cache MUST write through requests with methods
