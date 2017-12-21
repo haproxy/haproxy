@@ -5398,12 +5398,23 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 *    by a cache (...) unless a cache-control
 		 *    directive prohibits caching."
 		 *
-		 * RFC2616 @9.5: POST method :
-		 *   "Responses to this method are not cacheable,
-		 *    unless the response includes appropriate
-		 *    Cache-Control or Expires header fields."
+		 * RFC7234#4:
+		 *   A cache MUST write through requests with methods
+		 *   that are unsafe (Section 4.2.1 of [RFC7231]) to
+		 *   the origin server; i.e., a cache is not allowed
+		 *   to generate a reply to such a request before
+		 *   having forwarded the request and having received
+		 *   a corresponding response.
+		 *
+		 * RFC7231#4.2.1:
+		 *   Of the request methods defined by this
+		 *   specification, the GET, HEAD, OPTIONS, and TRACE
+		 *   methods are defined to be safe.
 		 */
-		if (likely(txn->meth != HTTP_METH_POST) &&
+		if (likely(txn->meth == HTTP_METH_GET ||
+		           txn->meth == HTTP_METH_HEAD ||
+		           txn->meth == HTTP_METH_OPTIONS ||
+		           txn->meth == HTTP_METH_TRACE) &&
 		    ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC)))
 			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
 		break;

@@ -5440,8 +5440,9 @@ no option checkcache
     - all those without "Set-Cookie" header ;
     - all those with a return code other than 200, 203, 206, 300, 301, 410,
       provided that the server has not set a "Cache-control: public" header ;
-    - all those that come from a POST request, provided that the server has not
-      set a 'Cache-Control: public' header ;
+    - all those that result from a request using a method other than GET, HEAD,
+      OPTIONS, TRACE, provided that the server has not set a 'Cache-Control:
+      public' header field ;
     - those with a 'Pragma: no-cache' header
     - those with a 'Cache-control: private' header
     - those with a 'Cache-control: no-store' header
