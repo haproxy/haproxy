@@ -2163,6 +2163,26 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	    (msg->body_len || (msg->flags & HTTP_MSGF_TE_CHNK)))
 		req->analysers |= AN_REQ_HTTP_BODY;
 
+	/*
+	 * RFC7234#4:
+	 *   A cache MUST write through requests with methods
+	 *   that are unsafe (Section 4.2.1 of [RFC7231]) to
+	 *   the origin server; i.e., a cache is not allowed
+	 *   to generate a reply to such a request before
+	 *   having forwarded the request and having received
+	 *   a corresponding response.
+	 *
+	 * RFC7231#4.2.1:
+	 *   Of the request methods defined by this
+	 *   specification, the GET, HEAD, OPTIONS, and TRACE
+	 *   methods are defined to be safe.
+	 */
+	if (likely(txn->meth == HTTP_METH_GET ||
+		   txn->meth == HTTP_METH_HEAD ||
+		   txn->meth == HTTP_METH_OPTIONS ||
+		   txn->meth == HTTP_METH_TRACE))
+		txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
+
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -5397,6 +5417,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	case 410:
 	case 414:
 	case 501:
+		break;
+	default:
 		/* RFC7231#6.1:
 		 *   Responses with status codes that are defined as
 		 *   cacheable by default (e.g., 200, 203, 204, 206,
@@ -5406,28 +5428,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 *   by the method definition or explicit cache
 		 *   controls [RFC7234]; all other status codes are
 		 *   not cacheable by default.
-		 *
-		 * RFC7234#4:
-		 *   A cache MUST write through requests with methods
-		 *   that are unsafe (Section 4.2.1 of [RFC7231]) to
-		 *   the origin server; i.e., a cache is not allowed
-		 *   to generate a reply to such a request before
-		 *   having forwarded the request and having received
-		 *   a corresponding response.
-		 *
-		 * RFC7231#4.2.1:
-		 *   Of the request methods defined by this
-		 *   specification, the GET, HEAD, OPTIONS, and TRACE
-		 *   methods are defined to be safe.
 		 */
-		if (likely(txn->meth == HTTP_METH_GET ||
-		           txn->meth == HTTP_METH_HEAD ||
-		           txn->meth == HTTP_METH_OPTIONS ||
-		           txn->meth == HTTP_METH_TRACE) &&
-		    ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC)))
-			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
-		break;
-	default:
+		txn->flags &= ~(TX_CACHEABLE | TX_CACHE_COOK);
 		break;
 	}
 
