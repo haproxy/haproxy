@@ -89,6 +89,18 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 #define HA_RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
 #define HA_RWLOCK_RDUNLOCK(lbl, l) do { /* do nothing */ } while(0)
 
+static inline void __ha_barrier_load(void)
+{
+}
+
+static inline void __ha_barrier_store(void)
+{
+}
+
+static inline void __ha_barrier_full(void)
+{
+}
+
 #else /* USE_THREAD */
 
 #include <stdio.h>
@@ -668,6 +680,145 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 
 #endif  /* DEBUG_THREAD */
 
+#ifdef __x86_64__
+#define HA_HAVE_CAS_DW	1
+#define HA_CAS_IS_8B
+static __inline int
+__ha_cas_dw(void *target, void *compare, const void *set)
+{
+        char ret;
+
+        __asm __volatile("lock cmpxchg16b %0; setz %3"
+                          : "+m" (*(void **)target),
+                            "=a" (((void **)compare)[0]),
+                            "=d" (((void **)compare)[1]),
+                            "=q" (ret)
+                          : "a" (((void **)compare)[0]),
+                            "d" (((void **)compare)[1]),
+                            "b" (((const void **)set)[0]),
+                            "c" (((const void **)set)[1])
+                          : "memory", "cc");
+        return (ret);
+}
+
+static __inline void
+__ha_barrier_load(void)
+{
+	__asm __volatile("lfence" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_store(void)
+{
+	__asm __volatile("sfence" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_full(void)
+{
+	__asm __volatile("mfence" ::: "memory");
+}
+
+#elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
+#define HA_HAVE_CAS_DW	1
+static __inline void
+__ha_barrier_load(void)
+{
+	__asm __volatile("dmb" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_store(void)
+{
+	__asm __volatile("dsb" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_full(void)
+{
+	__asm __volatile("dmb" ::: "memory");
+}
+
+static __inline int __ha_cas_dw(void *target, void *compare, void *set)
+{
+	uint64_t previous;
+	int tmp;
+
+	__asm __volatile("1:"
+	                 "ldrexd %0, [%4];"
+			 "cmp %Q0, %Q2;"
+			 "ittt eq;"
+			 "cmpeq %R0, %R2;"
+			 "strexdeq %1, %3, [%4];"
+			 "cmpeq %1, #1;"
+			 "beq 1b;"
+			 : "=&r" (previous), "=&r" (tmp)
+			 : "r" (compare), "r" (set), "r" (target)
+			 : "memory", "cc");
+	tmp = (previous == *(uint64_t *)compare);
+	*(uint64_t *)compare = previous;
+	return (tmp);
+}
+
+#elif defined (__aarch64__)
+#define HA_HAVE_CAS_DW	1
+#define HA_CAS_IS_8B
+
+static __inline void
+__ha_barrier_load(void)
+{
+	__asm __volatile("dmb ishld" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_store(void)
+{
+	__asm __volatile("dmb ishst" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_full(void)
+{
+	__asm __volatile("dmb ish" ::: "memory");
+}
+
+static __inline int __ha_cas_dw(void *target, void *compare, void *set)
+{
+	void *value[2];
+	uint64_t tmp1, tmp2;
+
+	__asm__ __volatile__("1:"
+                             "ldxp %0, %1, [%4];"
+                             "mov %2, %0;"
+                             "mov %3, %1;"
+                             "eor %0, %0, %5;"
+                             "eor %1, %1, %6;"
+                             "orr %1, %0, %1;"
+                             "mov %w0, #0;"
+                             "cbnz %1, 2f;"
+                             "stxp %w0, %7, %8, [%4];"
+                             "cbnz %w0, 1b;"
+                             "mov %w0, #1;"
+                             "2:"
+                             : "=&r" (tmp1), "=&r" (tmp2), "=&r" (value[0]), "=&r" (value[1])
+                             : "r" (target), "r" (((void **)(compare))[0]), "r" (((void **)(compare))[1]), "r" (((void **)(set))[0]), "r" (((void **)(set))[1])
+                             : "cc", "memory");
+
+	memcpy(compare, &value, sizeof(value));
+        return (tmp1);
+}
+
+#else
+#define __ha_barrier_load __sync_synchronize
+#define __ha_barrier_store __sync_synchronize
+#define __ha_barrier_full __sync_synchronize
+#endif
+
 #endif /* USE_THREAD */
+
+static inline void __ha_compiler_barrier(void)
+{
+	__asm __volatile("" ::: "memory");
+}
 
 #endif /* _COMMON_HATHREADS_H */
