@@ -431,11 +431,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (http_find_header2("Vary", 4, txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx))
 		goto out;
 
-	/* we need to put this flag before using check_response_for_cacheability */
-	txn->flags |= TX_CACHEABLE;
-
-	if (txn->status != 101)
-		check_response_for_cacheability(s, &s->res);
+	check_response_for_cacheability(s, &s->res);
 
 	if (!(txn->flags & TX_CACHEABLE))
 		goto out;
