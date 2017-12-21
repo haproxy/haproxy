@@ -5833,7 +5833,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	/*
 	 * Check for cache-control or pragma headers if required.
 	 */
-	if (((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC)) && txn->status != 101)
+	if ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC))
 		check_response_for_cacheability(s, rep);
 
 	/*
@@ -7690,8 +7690,11 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx;
 
-	if (!(txn->flags & TX_CACHEABLE))
+	if (txn->status < 200) {
+		/* do not try to cache interim responses! */
+		txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 		return;
+	}
 
 	/* Iterate through the headers.
 	 * we start with the start line.
