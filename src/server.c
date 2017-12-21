@@ -4630,10 +4630,11 @@ void srv_update_status(struct server *s)
 		else {	/* server was still running */
 			check->health = 0; /* failure */
 			s->last_change = now.tv_sec;
+
+			s->next_state = SRV_ST_STOPPED;
 			if (s->proxy->lbprm.set_server_status_down)
 				s->proxy->lbprm.set_server_status_down(s);
 
-			s->next_state = SRV_ST_STOPPED;
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);
 
