@@ -6871,7 +6871,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 		akl->kw[0].parse = action_register_service_http;
 	else
 		WILL_LJMP(luaL_error(L, "lua service environment '%s' is unknown. "
-		                        "'tcp' or 'http' are expected."));
+		                        "'tcp' or 'http' are expected.", env));
 
 	akl->kw[0].match_pfx = 0;
 	akl->kw[0].private = fcn;
