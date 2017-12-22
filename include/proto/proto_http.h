@@ -72,6 +72,7 @@ int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy
 int apply_filters_to_response(struct stream *s, struct channel *rtr, struct proxy *px);
 void manage_client_side_cookies(struct stream *s, struct channel *req);
 void manage_server_side_cookies(struct stream *s, struct channel *rtr);
+void check_request_for_cacheability(struct stream *s, struct channel *chn);
 void check_response_for_cacheability(struct stream *s, struct channel *rtr);
 int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct proxy *backend);
 void init_proto_http();
