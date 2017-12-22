@@ -670,7 +670,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache_entry *res;
 	struct cache *cache = (struct cache *)rule->arg.act.p[0];
 
+	check_request_for_cacheability(s, &s->req);
+	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
+		return ACT_RET_CONT;
+
 	if (!sha1_hosturi(s->txn))
+		return ACT_RET_CONT;
+
+	if (s->txn->flags & TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
 
 	shctx_lock(shctx_ptr(cache));
