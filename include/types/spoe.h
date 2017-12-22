@@ -177,6 +177,13 @@ struct spoe_placeholder {
 	struct list list;  /* Use to chain SPOE placeholders */
 };
 
+/* Used during the config parsing, when SPOE agent section is parsed, to
+ * register some variable names. */
+struct spoe_var_placeholder {
+	char        *name;  /* The variable name */
+	struct list  list;  /* Use to chain SPOE var placeholders */
+};
+
 /* Describe a message that will be sent in a NOTIFY frame. A message has a name,
  * an argument list (see above) and it is linked to a specific event. */
 struct spoe_message {

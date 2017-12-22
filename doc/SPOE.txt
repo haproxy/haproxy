@@ -172,8 +172,10 @@ spoe-agent <name>
     - [no] option pipelining
     - [no] option send-frag-payload
     - option continue-on-error
+    - option force-set-var
     - option set-on-error
     - option var-prefix
+    - register-var-names
     - timeout hello|idle|processing
     - use-backend
 
@@ -321,8 +323,24 @@ option var-prefix <prefix>
 
   By default, an agent will never set new variables at runtime: It can only set
   new value for existing ones. If you want a different behaviour, see
-  force-set-var option
+  force-set-var option and register-var-names directive.
 
+register-var-names <var name> ...
+  Register some variable names. By default, an agent will not be allowed to set
+  new variables at runtime. This rule can be totally relaxed by setting the
+  option "force-set-var". If you know all the variables you will need, this
+  directive is a good way to register them without letting an agent doing what
+  it want. This is only required if these variables are not referenced anywhere
+  in the HAProxy configuration or the SPOE one.
+
+  Arguments:
+    <var name>   is a variable name without the scope. The name may only
+                 contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+  The prefix will be automatically added during the registration. You can have
+  many "register-var-names" lines.
+
+  See also: "option force-set-var", "option var-prefix".
 
 timeout hello <timeout>
   Set the maximum time to wait for an agent to receive the AGENT-HELLO frame.
@@ -391,7 +409,6 @@ spoe-message <name>
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
-
   Declare or complete an access list.
 
   See section 7 about ACL usage in the HAProxy Configuration Manual.

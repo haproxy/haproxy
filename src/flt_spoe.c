@@ -87,6 +87,7 @@ struct list curmsgs;
 struct list curgrps;
 struct list curmphs;
 struct list curgphs;
+struct list curvars;
 
 /* Pools used to allocate SPOE structs */
 static struct pool_head *pool_head_spoe_ctx = NULL;
@@ -3483,6 +3484,33 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "register-var-names")) {
+		int   cur_arg;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : '%s' expects one or more variable names.\n",
+				 file, linenum, args[0]);
+                        err_code |= ERR_ALERT | ERR_FATAL;
+                        goto out;
+                }
+		cur_arg = 1;
+		while (*args[cur_arg]) {
+			struct spoe_var_placeholder *vph;
+
+			if ((vph = calloc(1, sizeof(*vph))) == NULL) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			if ((vph->name  = strdup(args[cur_arg])) == NULL) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			LIST_ADDQ(&curvars, &vph->list);
+			cur_arg++;
+		}
+	}
 	else if (*args[0]) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in spoe-agent section.\n",
 			 file, linenum, args[0]);
@@ -3779,6 +3807,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct spoe_message         *msg, *msgback;
 	struct spoe_group           *grp, *grpback;
 	struct spoe_placeholder     *ph, *phback;
+	struct spoe_var_placeholder *vph, *vphback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
 
@@ -3834,6 +3863,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	LIST_INIT(&curgrps);
 	LIST_INIT(&curmphs);
 	LIST_INIT(&curgphs);
+	LIST_INIT(&curvars);
 	ret = readcfgfile(file);
 	curproxy = NULL;
 
@@ -4061,6 +4091,25 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		LIST_DEL(&ph->list);
 		spoe_release_placeholder(ph);
 	}
+	list_for_each_entry_safe(vph, vphback, &curvars, list) {
+		struct arg arg;
+
+		trash.len = snprintf(trash.str, trash.size, "proc.%s.%s",
+				     curagent->var_pfx, vph->name);
+
+		arg.type = ARGT_STR;
+		arg.data.str.str = trash.str;
+		arg.data.str.len = trash.len;
+		if (!vars_check_arg(&arg, err)) {
+			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
+				  curagent->id, curagent->var_pfx, vph->name, *err);
+			goto error;
+		}
+
+		LIST_DEL(&vph->list);
+		free(vph->name);
+		free(vph);
+	}
 	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
 		LIST_DEL(&grp->list);
 		spoe_release_group(grp);
@@ -4080,6 +4129,11 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	list_for_each_entry_safe(ph, phback, &curgphs, list) {
 		LIST_DEL(&ph->list);
 		spoe_release_placeholder(ph);
+	}
+	list_for_each_entry_safe(vph, vphback, &curvars, list) {
+		LIST_DEL(&vph->list);
+		free(vph->name);
+		free(vph);
 	}
 	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
 		LIST_DEL(&grp->list);
