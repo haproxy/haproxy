@@ -151,7 +151,7 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutw)
 		cs->conn->xprt->shutw(cs->conn, (mode == CS_SHW_NORMAL));
 	if (!(cs->flags & CS_FL_SHR))
-		conn_sock_shutw(cs->conn);
+		conn_sock_shutw(cs->conn, (mode == CS_SHW_NORMAL));
 	else
 		conn_full_close(cs->conn);
 }

@@ -505,17 +505,21 @@ static inline void conn_sock_read0(struct connection *c)
 }
 
 /* write shutdown, indication that the upper layer is not willing to send
- * anything anymore and wants to close after pending data are sent.
+ * anything anymore and wants to close after pending data are sent. The
+ * <clean> argument will allow not to perform the socket layer shutdown if
+ * equal to 0.
  */
-static inline void conn_sock_shutw(struct connection *c)
+static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	conn_refresh_polling_flags(c);
 	__conn_sock_stop_send(c);
 	conn_cond_update_sock_polling(c);
 
-	/* don't perform a clean shutdown if we're going to reset */
-	if (conn_ctrl_ready(c) && !fdtab[c->handle.fd].linger_risk)
+	/* don't perform a clean shutdown if we're going to reset or
+	 * if the shutr was already received.
+	 */
+	if (conn_ctrl_ready(c) && !(c->flags & CO_FL_SOCK_RD_SH) && clean)
 		shutdown(c->handle.fd, SHUT_WR);
 }
 
