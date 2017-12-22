@@ -7680,7 +7680,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 
 
 /*
- * Check if response is cacheable or not. Updates s->flags.
+ * Check if response is cacheable or not. Updates s->txn->flags.
  */
 void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 {
@@ -7712,8 +7712,7 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 		cur_next = cur_end + cur_hdr->cr + 1;
 
 		/* We have one full header between cur_ptr and cur_end, and the
-		 * next header starts at cur_next. We're only interested in
-		 * "Cookie:" headers.
+		 * next header starts at cur_next.
 		 */
 
 		val = http_header_match2(cur_ptr, cur_end, "Pragma", 6);
@@ -7744,6 +7743,12 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 
 		/* we have a complete value between p1 and p2 */
 		if (p2 < cur_end && *p2 == '=') {
+			if (((cur_end - p2) > 1 && (p2 - p1 == 7) && strncasecmp(p1, "max-age=0", 9) == 0) ||
+			    ((cur_end - p2) > 1 && (p2 - p1 == 8) && strncasecmp(p1, "s-maxage=0", 10) == 0)) {
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+				continue;
+			}
+
 			/* we have something of the form no-cache="set-cookie" */
 			if ((cur_end - p1 >= 21) &&
 			    strncasecmp(p1, "no-cache=\"set-cookie", 20) == 0
@@ -7755,9 +7760,7 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 		/* OK, so we know that either p2 points to the end of string or to a comma */
 		if (((p2 - p1 ==  7) && strncasecmp(p1, "private", 7) == 0) ||
 		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-cache", 8) == 0) ||
-		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-store", 8) == 0) ||
-		    ((p2 - p1 ==  9) && strncasecmp(p1, "max-age=0", 9) == 0) ||
-		    ((p2 - p1 == 10) && strncasecmp(p1, "s-maxage=0", 10) == 0)) {
+		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-store", 8) == 0)) {
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 			return;
 		}
