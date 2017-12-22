@@ -469,6 +469,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			    filter->config->conf == rule->arg.act.p[0]) {
 				if (filter->ctx) {
 					struct cache_st *cache_ctx = filter->ctx;
+					struct cache_entry *old;
 
 					cache_ctx->first_block = first;
 					object = (struct cache_entry *)first->data;
@@ -478,14 +479,11 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					/* Insert the node later on caching success */
 
 					shctx_lock(shctx);
-					if (entry_exist(cache, txn->cache_hash)) {
-						shctx_unlock(shctx);
-						if (filter->ctx) {
-							object->eb.key = 0;
-							pool_free(pool_head_cache_st, filter->ctx);
-							filter->ctx = NULL;
-						}
-						goto out;
+
+					old = entry_exist(cache, txn->cache_hash);
+					if (old) {
+						eb32_delete(&old->eb);
+						old->eb.key = 0;
 					}
 					shctx_unlock(shctx);
 
