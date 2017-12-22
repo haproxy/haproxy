@@ -672,7 +672,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache_entry *res;
 	struct cache *cache = (struct cache *)rule->arg.act.p[0];
 
-	sha1_hosturi(s->txn);
+	if (!sha1_hosturi(s->txn))
+		return ACT_RET_CONT;
 
 	shctx_lock(shctx_ptr(cache));
 	res = entry_exist(cache, s->txn->cache_hash);
