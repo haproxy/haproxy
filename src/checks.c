@@ -376,7 +376,7 @@ static void check_notify_stopping(struct check *check)
 	if ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise))
 		return;
 
-	srv_set_running(s, NULL, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL);
+	srv_set_stopping(s, NULL, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL);
 }
 
 /* note: use health_adjust() only, which first checks that the observe mode is
