@@ -2580,9 +2580,18 @@ int main(int argc, char **argv)
 
 	/* MODE_QUIET can inhibit alerts and warnings below this line */
 
-	if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
-		/* detach from the tty */
-		fclose(stdin); fclose(stdout); fclose(stderr);
+	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
+		/* either stdin/out/err are already closed or should stay as they are. */
+		if ((global.mode & MODE_DAEMON)) {
+			/* daemon mode re-executing, stdin/stdout/stderr are already closed so keep quiet */
+			global.mode &= ~MODE_VERBOSE;
+			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+		}
+	} else {
+		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
+			/* detach from the tty */
+			fclose(stdin); fclose(stdout); fclose(stderr);
+		}
 	}
 
 	/* open log & pid files before the chroot */
