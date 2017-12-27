@@ -67,7 +67,8 @@ enum h2_cs {
 	H2_CS_SETTINGS1, // preface OK, waiting for first settings frame
 	H2_CS_FRAME_H,   // first settings frame ok, waiting for frame header
 	H2_CS_FRAME_P,   // frame header OK, waiting for frame payload
-	H2_CS_FRAME_A,   // frame payload OK, trying to send ACK/RST frame
+	H2_CS_FRAME_A,   // frame payload OK, trying to send ACK frame
+	H2_CS_FRAME_E,   // frame payload OK, trying to send RST frame
 	H2_CS_ERROR,     // send GOAWAY(errcode) and close the connection ASAP
 	H2_CS_ERROR2,    // GOAWAY(errcode) sent, close the connection ASAP
 	H2_CS_ENTRIES    // must be last
@@ -1429,7 +1430,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
  strm_err:
 	if (h2s) {
 		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_A;
+		h2c->st0 = H2_CS_FRAME_E;
 	}
 	else
 		h2c_error(h2c, error);
@@ -1613,7 +1614,7 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
-		h2c->st0 = H2_CS_FRAME_A;
+		h2c->st0 = H2_CS_FRAME_E;
 	}
 	else {
 		/* update the max stream ID if the request is being processed */
@@ -1630,7 +1631,7 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
  strm_err:
 	if (h2s) {
 		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_A;
+		h2c->st0 = H2_CS_FRAME_E;
 	}
 	else
 		h2c_error(h2c, error);
@@ -1689,7 +1690,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
-		h2c->st0 = H2_CS_FRAME_A;
+		h2c->st0 = H2_CS_FRAME_E;
 	}
 
 	/* check for completion : the callee will change this to FRAME_A or
@@ -1714,7 +1715,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
  strm_err:
 	if (h2s) {
 		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_A;
+		h2c->st0 = H2_CS_FRAME_E;
 	}
 	else
 		h2c_error(h2c, error);
@@ -1807,6 +1808,9 @@ static void h2_process_demux(struct h2c *h2c)
 			h2_skip_frame_hdr(h2c->dbuf);
 		}
 
+		if (h2c->st0 == H2_CS_FRAME_E)
+			goto strm_err;
+
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 		h2s = h2c_st_by_id(h2c, h2c->dsi);
 
@@ -1826,6 +1830,7 @@ static void h2_process_demux(struct h2c *h2c)
 			 * this state MUST be treated as a stream error
 			 */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+			h2c->st0 = H2_CS_FRAME_E;
 			goto strm_err;
 		}
 
@@ -1878,8 +1883,10 @@ static void h2_process_demux(struct h2c *h2c)
 			 * we have nowhere to store the partial HEADERS frame.
 			 * Let's abort the stream on an INTERNAL_ERROR here.
 			 */
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+				h2c->st0 = H2_CS_FRAME_E;
+			}
 			break;
 
 		case H2_FT_HEADERS:
@@ -1928,14 +1935,12 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 	strm_err:
-		/* RST are sent similarly to frame acks */
-		if (h2s->st == H2_SS_ERROR) {
-			if (h2c->st0 == H2_CS_FRAME_P)
-				h2c->st0 = H2_CS_FRAME_A;
+		/* We may have to send an RST if not done yet */
+		if (h2s->st == H2_SS_ERROR)
+			h2c->st0 = H2_CS_FRAME_E;
 
-			if (h2c->st0 == H2_CS_FRAME_A)
-				ret = h2c_send_rst_stream(h2c, h2s);
-		}
+		if (h2c->st0 == H2_CS_FRAME_E)
+			ret = h2c_send_rst_stream(h2c, h2s);
 
 		/* error or missing data condition met above ? */
 		if (ret <= 0)
@@ -2518,6 +2523,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 
 	if (!h2c->dfl) {
 		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR); // empty headers frame!
+		h2c->st0 = H2_CS_FRAME_E;
 		return 0;
 	}
 
