@@ -889,6 +889,36 @@ static void dump(struct sig_handler *sh)
 	pool_gc(NULL);
 }
 
+/*
+ *  This function dup2 the stdio FDs (0,1,2) with <fd>, then closes <fd>
+ *  If <fd> < 0, it opens /dev/null and use it to dup
+ *
+ *  In the case of chrooting, you have to open /dev/null before the chroot, and
+ *  pass the <fd> to this function
+ */
+static void stdio_quiet(int fd)
+{
+	if (fd < 0)
+		fd = open("/dev/null", O_RDWR, 0);
+
+	if (fd > -1) {
+		fclose(stdin);
+		fclose(stdout);
+		fclose(stderr);
+
+		dup2(fd, 0);
+		dup2(fd, 1);
+		dup2(fd, 2);
+		if (fd > 2)
+			close(fd);
+		return;
+	}
+
+	ha_alert("Cannot open /dev/null\n");
+	exit(EXIT_FAILURE);
+}
+
+
 /* This function check if cfg_cfgfiles containes directories.
  * If it find one, it add all the files (and only files) it containes
  * in cfg_cfgfiles in place of the directory (and remove the directory).
@@ -2590,7 +2620,7 @@ int main(int argc, char **argv)
 	} else {
 		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
-			fclose(stdin); fclose(stdout); fclose(stderr);
+			stdio_quiet(-1);
 		}
 	}
 
@@ -2683,6 +2713,7 @@ int main(int argc, char **argv)
 		struct peers *curpeers;
 		int ret = 0;
 		int proc;
+		int devnullfd = -1;
 
 		children = calloc(global.nbproc, sizeof(int));
 		/*
@@ -2797,7 +2828,9 @@ int main(int argc, char **argv)
 				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
 					(global.mode & MODE_DAEMON)) {
 					/* detach from the tty, this is required to properly daemonize. */
-					fclose(stdin); fclose(stdout); fclose(stderr);
+					if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
+						stdio_quiet(-1);
+
 					global.mode &= ~MODE_VERBOSE;
 					global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 					setsid();
@@ -2815,6 +2848,14 @@ int main(int argc, char **argv)
 
 		/* child must never use the atexit function */
 		atexit_flag = 0;
+
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+			devnullfd = open("/dev/null", O_RDWR, 0);
+			if (devnullfd < 0) {
+				ha_alert("Cannot open /dev/null\n");
+				exit(EXIT_FAILURE);
+			}
+		}
 
 		/* Must chroot and setgid/setuid in the children */
 		/* chroot if needed */
@@ -2908,7 +2949,7 @@ int main(int argc, char **argv)
 		 */
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
-			fclose(stdin); fclose(stdout); fclose(stderr);
+			stdio_quiet(devnullfd);
 			global.mode &= ~MODE_VERBOSE;
 			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 		}
