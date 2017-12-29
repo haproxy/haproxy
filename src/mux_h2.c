@@ -1808,11 +1808,11 @@ static void h2_process_demux(struct h2c *h2c)
 			h2_skip_frame_hdr(h2c->dbuf);
 		}
 
-		if (h2c->st0 == H2_CS_FRAME_E)
-			goto strm_err;
-
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 		h2s = h2c_st_by_id(h2c, h2c->dsi);
+
+		if (h2c->st0 == H2_CS_FRAME_E)
+			goto strm_err;
 
 		if (h2s->st == H2_SS_IDLE &&
 		    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
