@@ -4963,8 +4963,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
+	 * And when content-length is used, we never want to let the possible
+	 * shutdown be forwarded to the other side, as the state machine will
+	 * take care of it once the client responds. It's also important to
+	 * prevent TIME_WAITs from accumulating on the backend side, and for
+	 * HTTP/2 where the last frame comes with a shutdown.
 	 */
-	if (msg->flags & HTTP_MSGF_TE_CHNK)
+	if (msg->flags & (HTTP_MSGF_TE_CHNK|HTTP_MSGF_CNT_LEN))
 		channel_dont_close(req);
 
 	/* We know that more data are expected, but we couldn't send more that
