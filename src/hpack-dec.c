@@ -365,8 +365,13 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 			if (!must_index)
 				name.len = hpack_idx_to_phdr(idx);
 
-			if (!name.len)
-				name = hpack_idx_to_name(dht, idx);
+			if (!name.len) {
+				name = hpack_alloc_string(tmp, idx, hpack_idx_to_name(dht, idx));
+				if (!name.ptr) {
+					ret = -HPACK_ERR_TOO_LARGE;
+					goto leave;
+				}
+			}
 			/* <name> and <value> are correctly filled here */
 		}
 
