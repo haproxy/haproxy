@@ -2250,6 +2250,7 @@ static void h2_send(struct connection *conn)
 static int h2_wake(struct connection *conn)
 {
 	struct h2c *h2c = conn->mux_ctx;
+	struct session *sess = conn->owner;
 
 	if (h2c->dbuf->i && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
@@ -2259,6 +2260,18 @@ static int h2_wake(struct connection *conn)
 
 		if (h2c->dbuf->i != h2c->dbuf->size)
 			h2c->flags &= ~H2_CF_DEM_DFULL;
+	}
+
+	if (sess && unlikely(sess->fe->state == PR_STSTOPPED)) {
+		/* frontend is stopping, reload likely in progress, let's try
+		 * to announce a graceful shutdown if not yet done. We don't
+		 * care if it fails, it will be tried again later.
+		 */
+		if (!(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+			if (h2c->last_sid < 0)
+				h2c->last_sid = (1U << 31) - 1;
+			h2c_send_goaway_error(h2c, NULL);
+		}
 	}
 
 	/*
