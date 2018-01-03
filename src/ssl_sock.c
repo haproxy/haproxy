@@ -3849,8 +3849,12 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 		first->len = sizeof(struct sh_ssl_sess_hdr);
 	}
 
-	if (shctx_row_data_append(ssl_shctx, first, data, data_len) < 0)
+	if (shctx_row_data_append(ssl_shctx, first, data, data_len) < 0) {
+		shctx_row_dec_hot(ssl_shctx, first);
 		return 0;
+	}
+
+	shctx_row_dec_hot(ssl_shctx, first);
 
 	return 1;
 }
