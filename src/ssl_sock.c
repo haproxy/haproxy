@@ -4044,7 +4044,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
 	int verify = SSL_VERIFY_NONE;
-	struct ssl_bind_conf *ssl_conf_cur;
+	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
 	const char *conf_ciphers;
 	const char *conf_curves = NULL;
 
