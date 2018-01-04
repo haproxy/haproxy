@@ -1869,7 +1869,10 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 
 	/* Set pattern. */
 	lua_pushinteger(L, wanted);
-	lua_replace(L, 2);
+
+	/* Check if we would replace the top by itself. */
+	if (lua_gettop(L) != 2)
+		lua_replace(L, 2);
 
 	/* init bufffer, and fiil it wih prefix. */
 	luaL_buffinit(L, &socket->b);
