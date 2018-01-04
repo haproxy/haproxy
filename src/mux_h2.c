@@ -2770,7 +2770,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 
 	flen = h2c->dfl - h2c->dpl;
 	if (!flen)
-		return 0;
+		goto end_transfer;
 
 	if (flen > h2c->dbuf->i) {
 		flen = h2c->dbuf->i;
@@ -2817,6 +2817,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 		return flen;
 	}
 
+ end_transfer:
 	/* here we're done with the frame, all the payload (except padding) was
 	 * transferred.
 	 */
