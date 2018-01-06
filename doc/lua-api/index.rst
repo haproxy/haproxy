@@ -1769,7 +1769,7 @@ Socket class
   "abns@", and finaly a filedescriotr can be passed with the prefix "fd@".
   The prefix "ipv4@", "ipv6@" and "unix@" are also supported. The port can be
   passed int the string. The syntax "127.0.0.1:1234" is valid. in this case, the
-  parameter *port* is ignored.
+  parameter *port* must not be set.
 
 .. js:function:: Socket.connect_ssl(socket, address, port)
 

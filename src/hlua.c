@@ -2333,8 +2333,21 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
-	if (lua_gettop(L) >= 3)
+	if (lua_gettop(L) >= 3) {
+		luaL_Buffer b;
 		port = MAY_LJMP(luaL_checkinteger(L, 3));
+
+		/* Force the ip to end with a colon, to support IPv6 addresses
+		 * that are not enclosed within square brackets.
+		 */
+		if (port > 0) {
+			luaL_buffinit(L, &b);
+			luaL_addstring(&b, ip);
+			luaL_addchar(&b, ':');
+			luaL_pushresult(&b);
+			ip = lua_tolstring(L, lua_gettop(L), NULL);
+		}
+	}
 
 	/* check for connection break. If some data where read, return it. */
 	peer = xref_get_peer_and_lock(&socket->xref);
