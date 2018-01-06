@@ -2490,7 +2490,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	s->res.wto = tmout;
 	xref_unlock(&socket->xref, peer);
 
-	return 0;
+	return 1;
 }
 
 __LJMP static int hlua_socket_new(lua_State *L)
