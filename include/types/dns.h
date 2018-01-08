@@ -143,7 +143,7 @@ struct dns_answer_item {
 	int16_t         class;                     /* query class */
 	int32_t         ttl;                       /* response TTL */
 	int16_t         priority;                  /* SRV type priority */
-	int16_t         weight;                    /* SRV type weight */
+	uint16_t        weight;                    /* SRV type weight */
 	int16_t         port;                      /* SRV type port */
 	int16_t         data_len;                  /* number of bytes in target below */
 	struct sockaddr address;                   /* IPv4 or IPv6, network format */

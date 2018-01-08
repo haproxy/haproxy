@@ -522,10 +522,16 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
 				    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
-					if (srv->uweight != item->weight) {
+					int ha_weight;
+
+					/* Make sure weight is at least 1, so
+					 * that the server will be used.
+					 */
+					ha_weight = item->weight / 256 + 1;
+					if (srv->uweight != ha_weight) {
 						char weight[9];
 
-						snprintf(weight, sizeof(weight), "%d", item->weight);
+						snprintf(weight, sizeof(weight), "%d", ha_weight);
 						server_parse_weight_change_request(srv, weight);
 					}
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -547,6 +553,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 			if (srv) {
 				const char *msg = NULL;
 				char weight[9];
+				int ha_weight;
 				char hostname[DNS_MAX_NAME_SIZE];
 
 				if (dns_dn_label_to_str(item->target, item->data_len+1,
@@ -563,7 +570,13 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				if ((srv->check.state & CHK_ST_CONFIGURED) &&
 				    !(srv->flags & SRV_F_CHECKPORT))
 					srv->check.port = item->port;
-				snprintf(weight, sizeof(weight), "%d", item->weight);
+
+				/* Make sure weight is at least 1, so
+				 * that the server will be used.
+				 */
+				ha_weight = item->weight / 256 + 1;
+
+				snprintf(weight, sizeof(weight), "%d", ha_weight);
 				server_parse_weight_change_request(srv, weight);
 				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
