@@ -1242,7 +1242,8 @@ static char **copy_argv(int argc, char **argv)
 
 	while (i < argc) {
 		/* -sf or -st or -x */
-		if ((argv[i][1] == 's' && (argv[i][2] == 'f' || argv[i][2] == 't')) || argv[i][1] == 'x' ) {
+		if (i > 0 && argv[i][0] == '-' &&
+		    ((argv[i][1] == 's' && (argv[i][2] == 'f' || argv[i][2] == 't')) || argv[i][1] == 'x' )) {
 			/* list of pids to finish ('f') or terminate ('t') or unix socket (-x) */
 			i++;
 			while (i < argc && argv[i][0] != '-') {
