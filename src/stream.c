@@ -833,7 +833,7 @@ static void sess_establish(struct stream *s)
 static int check_req_may_abort(struct channel *req, struct stream *s)
 {
 	return ((req->flags & (CF_READ_ERROR)) ||
-	        ((req->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
+	        ((req->flags & (CF_SHUTW_NOW|CF_SHUTW)) &&  /* empty and client aborted */
 	         (channel_is_empty(req) ||
 		  ((s->be->options & PR_O_ABRT_CLOSE) && !(s->si[0].flags & SI_FL_CLEAN_ABRT)))));
 }
