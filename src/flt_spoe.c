@@ -2592,9 +2592,6 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 		if (!ret)
 			goto out;
 
-		if (spoe_queue_context(ctx) < 0)
-			goto error;
-
 		ctx->state = SPOE_CTX_ST_ENCODING_MSGS;
 		/* fall through */
 	}
@@ -2607,6 +2604,8 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 			goto error;
 		if (!ret)
 			goto skip;
+		if (spoe_queue_context(ctx) < 0)
+			goto error;
 		ctx->state = SPOE_CTX_ST_SENDING_MSGS;
 	}
 
