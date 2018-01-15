@@ -14510,7 +14510,8 @@ ssl_fc_has_sni : boolean
 
 ssl_fc_is_resumed : boolean
   Returns true if the SSL/TLS session has been resumed through the use of
-  SSL session cache or TLS tickets.
+  SSL session cache or TLS tickets on an incoming connection over an SSL/TLS
+  transport layer.
 
 ssl_fc_npn : string
   This extracts the Next Protocol Negotiation field from an incoming connection
