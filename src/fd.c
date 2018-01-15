@@ -170,6 +170,7 @@ int nbpollers = 0;
 
 unsigned int *fd_cache = NULL; // FD events cache
 int fd_cache_num = 0;          // number of events in the cache
+unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
@@ -236,10 +237,8 @@ void fd_process_cached_events()
 {
 	int fd, entry, e;
 
-	if (!fd_cache_num)
-		return;
-
 	HA_RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
+	fd_cache_mask &= ~tid_bit;
 	for (entry = 0; entry < fd_cache_num; ) {
 		fd = fd_cache[entry];
 
@@ -247,6 +246,8 @@ void fd_process_cached_events()
 			activity[tid].fd_skip++;
 			goto next;
 		}
+
+		fd_cache_mask |= tid_bit;
 		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
 			activity[tid].fd_lock++;
 			goto next;

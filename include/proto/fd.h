@@ -35,6 +35,7 @@
 
 extern unsigned int *fd_cache;      // FD events cache
 extern int fd_cache_num;            // number of events in the cache
+extern unsigned long fd_cache_mask; // Mask of threads with events in the cache
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
@@ -115,6 +116,7 @@ static inline void fd_alloc_cache_entry(const int fd)
 	if (fdtab[fd].cache)
 		goto end;
 	fd_cache_num++;
+	fd_cache_mask |= fdtab[fd].thread_mask;
 	fdtab[fd].cache = fd_cache_num;
 	fd_cache[fd_cache_num-1] = fd;
   end:
