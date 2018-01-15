@@ -2392,7 +2392,7 @@ static void run_poll_loop()
 
 		/* expire immediately if events are pending */
 		exp = now_ms;
-		if (fd_cache_num)
+		if (fd_cache_mask & tid_bit)
 			activity[tid].wake_cache++;
 		else if (active_tasks_mask & tid_bit)
 			activity[tid].wake_tasks++;
