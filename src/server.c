@@ -86,10 +86,34 @@ int srv_getinter(const struct check *check)
 	return (check->fastinter)?(check->fastinter):(check->inter);
 }
 
-void srv_set_dyncookie(struct server *s)
+/*
+ * Check that we did not get a hash collision.
+ * Unlikely, but it can happen.
+ */
+static inline void srv_check_for_dup_dyncookie(struct server *s)
 {
 	struct proxy *p = s->proxy;
 	struct server *tmpserv;
+
+	for (tmpserv = p->srv; tmpserv != NULL;
+	    tmpserv = tmpserv->next) {
+		if (tmpserv == s)
+			continue;
+		if (tmpserv->next_admin & SRV_ADMF_FMAINT)
+			continue;
+		if (tmpserv->cookie &&
+		    strcmp(tmpserv->cookie, s->cookie) == 0) {
+			ha_warning("We generated two equal cookies for two different servers.\n"
+				   "Please change the secret key for '%s'.\n",
+				   s->proxy->id);
+		}
+	}
+
+}
+
+void srv_set_dyncookie(struct server *s)
+{
+	struct proxy *p = s->proxy;
 	char *tmpbuf;
 	unsigned long long hash_value;
 	size_t key_len;
@@ -136,21 +160,13 @@ void srv_set_dyncookie(struct server *s)
 	if (!s->cookie)
 		return;
 	s->cklen = 16;
-	/*
-	 * Check that we did not get a hash collision.
-	 * Unlikely, but it can happen.
+
+	/* Don't bother checking if the dyncookie is duplicated if
+	 * the server is marked as "disabled", maybe it doesn't have
+	 * its real IP yet, but just a place holder.
 	 */
-	for (tmpserv = p->srv; tmpserv != NULL;
-	    tmpserv = tmpserv->next) {
-		if (tmpserv == s)
-			continue;
-		if (tmpserv->cookie &&
-		    strcmp(tmpserv->cookie, s->cookie) == 0) {
-			ha_warning("We generated two equal cookies for two different servers.\n"
-				   "Please change the secret key for '%s'.\n",
-				   s->proxy->id);
-		}
-	}
+	if (!(s->next_admin & SRV_ADMF_FMAINT))
+		srv_check_for_dup_dyncookie(s);
 }
 
 /*
@@ -4398,6 +4414,10 @@ static int cli_parse_enable_server(char **args, struct appctx *appctx, void *pri
 		return 1;
 
 	srv_adm_set_ready(sv);
+	if (!(sv->flags & SRV_F_COOKIESET)
+	    && (sv->proxy->ck_opts & PR_CK_DYNAMIC) &&
+	    sv->cookie)
+		srv_check_for_dup_dyncookie(sv);
 	return 1;
 }
 
