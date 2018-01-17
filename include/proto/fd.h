@@ -98,11 +98,15 @@ void fd_process_cached_events();
  */
 static inline void updt_fd_polling(const int fd)
 {
-	if (fdtab[fd].update_mask & tid_bit)
-		/* already scheduled for update */
+	unsigned int oldupdt;
+
+	/* note: we don't have a test-and-set yet in hathreads */
+
+	if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 		return;
-	fdtab[fd].update_mask |= tid_bit;
-	fd_updt[fd_nbupdt++] = fd;
+
+	oldupdt = HA_ATOMIC_ADD(&fd_nbupdt, 1) - 1;
+	fd_updt[oldupdt] = fd;
 }
 
 static inline void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
@@ -411,10 +415,10 @@ static inline void fd_stop_recv(int fd)
 		new &= ~FD_EV_POLLED_R;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -432,10 +436,10 @@ static inline void fd_stop_send(int fd)
 		new &= ~FD_EV_POLLED_W;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -453,10 +457,10 @@ static inline void fd_stop_both(int fd)
 		new &= ~FD_EV_POLLED_RW;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_RW)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -475,10 +479,10 @@ static inline void fd_cant_recv(const int fd)
 			new |= FD_EV_POLLED_R;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -512,10 +516,10 @@ static inline void fd_done_recv(const int fd)
 			new |= FD_EV_POLLED_R;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -534,10 +538,10 @@ static inline void fd_cant_send(const int fd)
 			new |= FD_EV_POLLED_W;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -567,10 +571,10 @@ static inline void fd_want_recv(int fd)
 			new |= FD_EV_POLLED_R;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
@@ -589,10 +593,10 @@ static inline void fd_want_send(int fd)
 			new |= FD_EV_POLLED_W;
 	} while (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
