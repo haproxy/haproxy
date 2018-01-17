@@ -202,8 +202,10 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].new = 0;
 	fdtab[fd].thread_mask = 0;
-	if (do_close)
+	if (do_close) {
+		fdtab[fd].polled_mask = 0;
 		close(fd);
+	}
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 	HA_SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);

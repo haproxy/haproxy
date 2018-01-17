@@ -405,6 +405,9 @@ static inline void fd_insert(int fd, unsigned long thread_mask)
 	fdtab[fd].cloned = 0;
 	fdtab[fd].cache = 0;
 	fdtab[fd].thread_mask = thread_mask;
+	/* note: do not reset polled_mask here as it indicates which poller
+	 * still knows this FD from a possible previous round.
+	 */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 	HA_SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);

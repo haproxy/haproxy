@@ -94,6 +94,7 @@ enum fd_states {
 struct fdtab {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
+	unsigned long polled_mask;           /* mask of thread IDs currently polling this fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
