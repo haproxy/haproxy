@@ -64,7 +64,7 @@ REGPRM1 static void __fd_clo(int fd)
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
-	int status, eo, en;
+	int status, en;
 	int fd, opcode;
 	int count;
 	int updt_idx;
@@ -81,9 +81,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].update_mask &= ~tid_bit;
-		eo = fdtab[fd].state;
-		en = fd_compute_new_polled_status(eo);
-		fdtab[fd].state = en;
+		en = fdtab[fd].state;
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if (fdtab[fd].polled_mask & tid_bit) {
