@@ -13503,6 +13503,11 @@ date([<offset>]) : integer
      # set an expires header to now+1 hour in every response
      http-response set-header Expires %[date(3600),http_date]
 
+date_us : integer
+  Return the microseconds part of the date (the "second" part is returned by
+  date sample). This sample is coherent with the date sample as it is comes
+  from the same timeval structure.
+
 distcc_body(<token>[,<occ>]) : binary
   Parses a distcc message and returns the body associated to occurrence #<occ>
   of the token <token>. Occurrences start at 1, and when unspecified, any may
