@@ -398,7 +398,6 @@ static inline void fd_insert(int fd, unsigned long thread_mask)
 {
 	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fdtab[fd].ev = 0;
-	fdtab[fd].new = 1;
 	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;

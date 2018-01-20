@@ -794,7 +794,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c%c] cache=%u owner=%p iocb=%p(%s) tmask=0x%lx umask=0x%lx",
+			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] cache=%u owner=%p iocb=%p(%s) tmask=0x%lx umask=0x%lx",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_EV_POLLED_R) ? 'P' : 'p',
@@ -809,7 +809,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.ev & FD_POLL_OUT) ? 'O' : 'o',
 			     (fdt.ev & FD_POLL_PRI) ? 'P' : 'p',
 			     (fdt.ev & FD_POLL_IN)  ? 'I' : 'i',
-			     fdt.new ? 'N' : 'n',
 			     fdt.linger_risk ? 'L' : 'l',
 			     fdt.cloned ? 'C' : 'c',
 			     fdt.cache,
