@@ -99,10 +99,10 @@ void fd_process_cached_events();
  */
 static inline void updt_fd_polling(const int fd)
 {
-	if (fdtab[fd].updated)
+	if (fdtab[fd].update_mask & tid_bit)
 		/* already scheduled for update */
 		return;
-	fdtab[fd].updated = 1;
+	fdtab[fd].update_mask |= tid_bit;
 	fd_updt[fd_nbupdt++] = fd;
 }
 
@@ -400,7 +400,7 @@ static inline void fd_insert(int fd, unsigned long thread_mask)
 	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fdtab[fd].ev = 0;
 	fdtab[fd].new = 1;
-	fdtab[fd].updated = 0;
+	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].cache = 0;

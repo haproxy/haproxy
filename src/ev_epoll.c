@@ -74,7 +74,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
-		fdtab[fd].updated = 0;
+		fdtab[fd].update_mask &= ~tid_bit;
 		fdtab[fd].new = 0;
 
 		eo = fdtab[fd].state;
