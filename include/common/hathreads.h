@@ -30,6 +30,8 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 
 #ifndef USE_THREAD
 
+#define MAX_THREADS 1
+
 #define __decl_hathreads(decl)
 
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
@@ -94,6 +96,8 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 #include <string.h>
 #include <pthread.h>
 #include <import/plock.h>
+
+#define MAX_THREADS LONGBITS
 
 #define __decl_hathreads(decl) decl
 

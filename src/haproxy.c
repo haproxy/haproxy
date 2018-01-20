@@ -2986,7 +2986,7 @@ int main(int argc, char **argv)
 			if (global.cpu_map.proc[relative_pid-1])
 				global.cpu_map.thread[relative_pid-1][i] &= global.cpu_map.proc[relative_pid-1];
 
-			if (i < LONGBITS &&       /* only the first 32/64 threads may be pinned */
+			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
 			    global.cpu_map.thread[relative_pid-1][i]) {/* only do this if the thread has a THREAD map */
 #if defined(__FreeBSD__) || defined(__NetBSD__)
 				cpuset_t cpuset;

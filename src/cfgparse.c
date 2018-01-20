@@ -1175,12 +1175,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.nbthread = atol(args[1]);
-		if (global.nbthread < 1 || global.nbthread > LONGBITS) {
-			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
-				 file, linenum, args[0], LONGBITS, global.nbthread);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 #ifndef USE_THREAD
 		if (global.nbthread > 1) {
 			ha_alert("HAProxy is not compiled with threads support, please check build options for USE_THREAD.\n");
@@ -1189,6 +1183,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 #endif
+		if (global.nbthread < 1 || global.nbthread > MAX_THREADS) {
+			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
+				 file, linenum, args[0], MAX_THREADS, global.nbthread);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 	}
 	else if (!strcmp(args[0], "maxconn")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -1801,7 +1801,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 
 			/* Mapping at the thread level */
-			for (j = 0; j < LONGBITS; j++) {
+			for (j = 0; j < MAX_THREADS; j++) {
 				/* Np mapping for this thread */
 				if (!(thread & (1UL << j)))
 					continue;

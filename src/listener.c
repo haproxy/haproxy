@@ -963,7 +963,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 
 	conf->bind_proc |= proc;
 	if (thread) {
-		for (i = 0; i < LONGBITS; i++)
+		for (i = 0; i < MAX_THREADS; i++)
 			if (!proc || (proc & (1UL << i)))
 				conf->bind_thread[i] |= thread;
 	}

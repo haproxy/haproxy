@@ -168,7 +168,7 @@ struct global {
 #ifdef USE_CPU_AFFINITY
 	struct {
 		unsigned long proc[LONGBITS];             /* list of CPU masks for the 32/64 first processes */
-		unsigned long thread[LONGBITS][LONGBITS]; /* list of CPU masks for the 32/64 first threads per process */
+		unsigned long thread[LONGBITS][MAX_THREADS]; /* list of CPU masks for the 32/64 first threads per process */
 	} cpu_map;
 #endif
 };
