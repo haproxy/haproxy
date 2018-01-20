@@ -63,8 +63,10 @@ void conn_fd_handler(int fd)
 	struct connection *conn = fdtab[fd].owner;
 	unsigned int flags;
 
-	if (unlikely(!conn))
+	if (unlikely(!conn)) {
+		activity[tid].conn_dead++;
 		return;
+	}
 
 	conn_refresh_polling_flags(conn);
 	conn->flags |= CO_FL_WILL_UPDATE;

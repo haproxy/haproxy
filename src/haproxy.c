@@ -165,6 +165,8 @@ struct global global = {
 	/* others NULL OK */
 };
 
+struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
+
 /*********************************************************************/
 
 int stopping;	/* non zero means stopping in progress */
@@ -2371,7 +2373,7 @@ static void sync_poll_loop()
 /* Runs the polling loop */
 static void run_poll_loop()
 {
-	int next;
+	int next, exp;
 
 	tv_update_date(0,1);
 	while (1) {
@@ -2389,18 +2391,27 @@ static void run_poll_loop()
 			break;
 
 		/* expire immediately if events are pending */
-		if (fd_cache_num || (active_tasks_mask & tid_bit) || signal_queue_len || (active_applets_mask & tid_bit))
-			next = now_ms;
+		exp = now_ms;
+		if (fd_cache_num)
+			activity[tid].wake_cache++;
+		else if (active_tasks_mask & tid_bit)
+			activity[tid].wake_tasks++;
+		else if (active_applets_mask & tid_bit)
+			activity[tid].wake_applets++;
+		else if (signal_queue_len)
+			activity[tid].wake_signal++;
+		else
+			exp = next;
 
 		/* The poller will ensure it returns around <next> */
-		cur_poller.poll(&cur_poller, next);
+		cur_poller.poll(&cur_poller, exp);
 		fd_process_cached_events();
 		applet_run_active();
 
 
 		/* Synchronize all polling loops */
 		sync_poll_loop();
-
+		activity[tid].loops++;
 	}
 }
 

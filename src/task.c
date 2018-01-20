@@ -196,8 +196,10 @@ void process_runnable_tasks()
 	max_processed = 200;
 	if (unlikely(global.nbthread <= 1)) {
 		/* when no lock is needed, this loop is much faster */
-		if (!(active_tasks_mask & tid_bit))
+		if (!(active_tasks_mask & tid_bit)) {
+			activity[tid].empty_rq++;
 			return;
+		}
 
 		active_tasks_mask &= ~tid_bit;
 		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
@@ -245,6 +247,7 @@ void process_runnable_tasks()
 			max_processed--;
 			if (max_processed <= 0) {
 				active_tasks_mask |= tid_bit;
+				activity[tid].long_rq++;
 				break;
 			}
 		}
@@ -254,6 +257,7 @@ void process_runnable_tasks()
 	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	if (!(active_tasks_mask & tid_bit)) {
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+		activity[tid].empty_rq++;
 		return;
 	}
 
@@ -335,6 +339,7 @@ void process_runnable_tasks()
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		if (max_processed <= 0) {
 			active_tasks_mask |= tid_bit;
+			activity[tid].long_rq++;
 			break;
 		}
 	}

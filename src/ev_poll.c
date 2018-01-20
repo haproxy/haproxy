@@ -73,8 +73,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		if (!fdtab[fd].owner)
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_drop++;
 			continue;
+		}
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].updated = 0;
@@ -111,13 +113,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 
 		for (count = 0, fd = fds * 8*sizeof(**fd_evts); count < 8*sizeof(**fd_evts) && fd < maxfd; count++, fd++) {
-
-			if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
-				continue;
-
 			sr = (rn >> count) & 1;
 			sw = (wn >> count) & 1;
 			if ((sr|sw)) {
+				if (!fdtab[fd].owner) {
+					/* should normally not happen here except
+					 * due to rare thread concurrency
+					 */
+					continue;
+				}
+
+				if (!(fdtab[fd].thread_mask & tid_bit)) {
+					activity[tid].poll_skip++;
+					continue;
+				}
+
 				poll_events[nbfd].fd = fd;
 				poll_events[nbfd].events = (sr ? (POLLIN | POLLRDHUP) : 0) | (sw ? POLLOUT : 0);
 				nbfd++;
@@ -128,8 +138,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* now let's wait for events */
 	if (!exp)
 		wait_time = MAX_DELAY_MS;
-	else if (tick_is_expired(exp, now_ms))
+	else if (tick_is_expired(exp, now_ms)) {
+		activity[tid].poll_exp++;
 		wait_time = 0;
+	}
 	else {
 		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
 		if (wait_time > MAX_DELAY_MS)
@@ -152,8 +164,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		/* ok, we found one active fd */
 		status--;
 
-		if (!fdtab[fd].owner)
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_dead++;
 			continue;
+		}
 
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values... In fact it depends on gcc :-(

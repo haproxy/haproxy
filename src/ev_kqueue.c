@@ -47,8 +47,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		if (!fdtab[fd].owner)
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_drop++;
 			continue;
+		}
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].updated = 0;
@@ -106,6 +108,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		timeout.tv_sec  = (delta_ms / 1000);
 		timeout.tv_nsec = (delta_ms % 1000) * 1000000;
 	}
+	else
+		activity[tid].poll_exp++;
 
 	fd = MIN(maxfd, global.tune.maxpollevents);
 	gettimeofday(&before_poll, NULL);
@@ -122,8 +126,15 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		unsigned int n = 0;
 		fd = kev[count].ident;
 
-		if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_dead++;
 			continue;
+		}
+
+		if (!(fdtab[fd].thread_mask & tid_bit)) {
+			activity[tid].poll_skip++;
+			continue;
+		}
 
 		if (kev[count].filter ==  EVFILT_READ) {
 			if (kev[count].data)

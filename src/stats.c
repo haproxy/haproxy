@@ -3578,6 +3578,8 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 	global.ssl_max = 0;
 	global.ssl_fe_keys_max = 0;
 	global.ssl_be_keys_max = 0;
+
+	memset(activity, 0, sizeof(activity));
 	return 1;
 }
 

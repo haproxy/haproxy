@@ -1627,6 +1627,8 @@ struct task *process_stream(struct task *t)
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
 
+	activity[tid].stream++;
+
 	req = &s->req;
 	res = &s->res;
 

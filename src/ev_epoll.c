@@ -68,8 +68,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		if (!fdtab[fd].owner)
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_drop++;
 			continue;
+		}
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].updated = 0;
@@ -114,8 +116,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* compute the epoll_wait() timeout */
 	if (!exp)
 		wait_time = MAX_DELAY_MS;
-	else if (tick_is_expired(exp, now_ms))
+	else if (tick_is_expired(exp, now_ms)) {
+		activity[tid].poll_exp++;
 		wait_time = 0;
+	}
 	else {
 		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
 		if (wait_time > MAX_DELAY_MS)
@@ -136,8 +140,15 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		unsigned int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
-		if (!fdtab[fd].owner || !(fdtab[fd].thread_mask & tid_bit))
+		if (!fdtab[fd].owner) {
+			activity[tid].poll_dead++;
 			continue;
+		}
+
+		if (!(fdtab[fd].thread_mask & tid_bit)) {
+			activity[tid].poll_skip++;
+			continue;
+		}
 
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values... In fact it depends on gcc :-(

@@ -1321,7 +1321,8 @@ add map <map> <key> <value>
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
-  backend) and in each server. The accumulated counters are not affected. This
+  backend) and in each server. The accumulated counters are not affected. The
+  internal activity counters reported by "show activity" are also reset. This
   can be used to get clean counters after an incident, without having to
   restart nor to clear traffic counters. This command is restricted and can
   only be issued on sockets configured for levels "operator" or "admin".
@@ -1860,6 +1861,18 @@ show fd [<fd>]
   this command without a good knowledge of the internals. It's worth noting
   that the output format may evolve over time so this output must not be parsed
   by tools designed to be durable.
+
+show activity
+  Reports some counters about internal events that will help developers and
+  more generally people who know haproxy well enough to narrow down the causes
+  of reports of abnormal behaviours. A typical example would be a properly
+  running process never sleeping and eating 100% of the CPU. The output fields
+  will be made of one line per metric, and per-thread counters on the same
+  line. These counters are 32-bit and will wrap during the process' life, which
+  is not a problem since calls to this command will typically be performed
+  twice. The fields are purposely not documented so that their exact meaning is
+  verified in the code where the counters are fed. These values are also reset
+  by the "clear counters" command.
 
 show info [typed|json]
   Dump info about haproxy status on current process. If "typed" is passed as an

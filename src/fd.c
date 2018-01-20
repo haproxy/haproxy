@@ -243,10 +243,14 @@ void fd_process_cached_events()
 	for (entry = 0; entry < fd_cache_num; ) {
 		fd = fd_cache[entry];
 
-		if (!(fdtab[fd].thread_mask & tid_bit))
+		if (!(fdtab[fd].thread_mask & tid_bit)) {
+			activity[tid].fd_skip++;
 			goto next;
-		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock))
+		}
+		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
+			activity[tid].fd_lock++;
 			goto next;
+		}
 
 		HA_RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
 
@@ -272,8 +276,10 @@ void fd_process_cached_events()
 		/* If the fd was removed from the cache, it has been
 		 * replaced by the next one that we don't want to skip !
 		 */
-		if (entry < fd_cache_num && fd_cache[entry] != fd)
+		if (entry < fd_cache_num && fd_cache[entry] != fd) {
+			activity[tid].fd_del++;
 			continue;
+		}
 	  next:
 		entry++;
 	}
