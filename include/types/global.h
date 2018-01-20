@@ -163,14 +163,14 @@ struct global {
 			mode_t mode;    /* 0 to leave unchanged */
 		} ux;
 	} unix_bind;
+	struct proxy *stats_fe;     /* the frontend holding the stats settings */
+	struct vars   vars;         /* list of variables for the process scope. */
 #ifdef USE_CPU_AFFINITY
 	struct {
 		unsigned long proc[LONGBITS];             /* list of CPU masks for the 32/64 first processes */
 		unsigned long thread[LONGBITS][LONGBITS]; /* list of CPU masks for the 32/64 first threads per process */
 	} cpu_map;
 #endif
-	struct proxy *stats_fe;     /* the frontend holding the stats settings */
-	struct vars   vars;         /* list of variables for the process scope. */
 };
 
 extern struct global global;
