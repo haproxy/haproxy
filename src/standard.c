@@ -722,6 +722,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 #ifdef USE_GETADDRINFO
 	if (global.tune.options & GTUNE_USE_GAI) {
 		struct addrinfo hints, *result;
+		int success = 0;
 
 		memset(&result, 0, sizeof(result));
 		memset(&hints, 0, sizeof(hints));
@@ -733,23 +734,30 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 		if (getaddrinfo(str, NULL, &hints, &result) == 0) {
 			if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
 				sa->ss_family = result->ai_family;
-			else if (sa->ss_family != result->ai_family)
+			else if (sa->ss_family != result->ai_family) {
+				freeaddrinfo(result);
 				goto fail;
+			}
 
 			switch (result->ai_family) {
 			case AF_INET:
 				memcpy((struct sockaddr_in *)sa, result->ai_addr, result->ai_addrlen);
 				set_host_port(sa, port);
-				return sa;
+				success = 1;
+				break;
 			case AF_INET6:
 				memcpy((struct sockaddr_in6 *)sa, result->ai_addr, result->ai_addrlen);
 				set_host_port(sa, port);
-				return sa;
+				success = 1;
+				break;
 			}
 		}
 
 		if (result)
 			freeaddrinfo(result);
+
+		if (success)
+			return sa;
 	}
 #endif
 	/* try to resolve an IPv4/IPv6 hostname */
