@@ -1195,9 +1195,7 @@ switchstate:
 						newts = stksess_new(st->table, NULL);
 						if (!newts)
 							goto ignore_msg;
-						/* Force expiratiion to remote date
-						   in case of first insert */
-						newts->expire = tick_add(now_ms, expire);
+
 						if (st->table->type == SMP_T_STR) {
 							unsigned int to_read, to_store;
 
@@ -1350,6 +1348,9 @@ switchstate:
 								}
 							}
 						}
+
+						/* Force new expiration */
+						ts->expire = tick_add(now_ms, expire);
 
 						HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 						stktable_touch_remote(st->table, ts, 1);
