@@ -237,6 +237,7 @@ enum lock_label {
 	PID_LIST_LOCK,
 	EMAIL_ALERTS_LOCK,
 	PIPES_LOCK,
+	START_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {

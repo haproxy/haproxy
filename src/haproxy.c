@@ -2339,9 +2339,12 @@ void mworker_pipe_handler(int fd)
 	return;
 }
 
-void mworker_pipe_register(int pipefd[2])
+/* should only be called once per process */
+void mworker_pipe_register()
 {
-	close(mworker_pipe[1]); /* close the write end of the master pipe in the children */
+	if (fdtab[mworker_pipe[0]].owner)
+		/* already initialized */
+		return;
 
 	fcntl(mworker_pipe[0], F_SETFL, O_NONBLOCK);
 	fdtab[mworker_pipe[0]].owner = mworker_pipe;
@@ -2419,6 +2422,7 @@ static void *run_thread_poll_loop(void *data)
 {
 	struct per_thread_init_fct   *ptif;
 	struct per_thread_deinit_fct *ptdf;
+	static __maybe_unused HA_SPINLOCK_T start_lock;
 
 	tid     = *((unsigned int *)data);
 	tid_bit = (1UL << tid);
@@ -2431,8 +2435,11 @@ static void *run_thread_poll_loop(void *data)
 		}
 	}
 
-	if (global.mode & MODE_MWORKER)
-		mworker_pipe_register(mworker_pipe);
+	if (global.mode & MODE_MWORKER) {
+		HA_SPIN_LOCK(START_LOCK, &start_lock);
+		mworker_pipe_register();
+		HA_SPIN_UNLOCK(START_LOCK, &start_lock);
+	}
 
 	protocol_enable_all();
 	THREAD_SYNC_ENABLE();
@@ -2860,6 +2867,10 @@ int main(int argc, char **argv)
 
 		/* child must never use the atexit function */
 		atexit_flag = 0;
+
+		/* close the write end of the master pipe in the children */
+		if (global.mode & MODE_MWORKER)
+			close(mworker_pipe[1]);
 
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 			devnullfd = open("/dev/null", O_RDWR, 0);
