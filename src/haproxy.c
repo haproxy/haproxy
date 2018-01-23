@@ -2786,7 +2786,8 @@ int main(int argc, char **argv)
 		if (global.mode & MODE_MWORKER) {
 			char pidstr[100];
 			snprintf(pidstr, sizeof(pidstr), "%d\n", getpid());
-			shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
+			if (pidfd >= 0)
+				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
 		}
 
 		/* the father launches the required number of processes */
