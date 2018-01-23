@@ -150,6 +150,7 @@ struct worker {
 	struct list         clients;
 
 	struct list         frames;
+	unsigned int        nbframes;
 };
 
 
@@ -1287,7 +1288,7 @@ worker_monitor_cb(evutil_socket_t fd, short events, void *arg)
 {
 	struct worker *worker = arg;
 
-	LOG(worker, "%u clients connected", worker->nbclients);
+	LOG(worker, "%u clients connected (%u frames)", worker->nbclients, worker->nbframes);
 }
 
 static void
@@ -1330,7 +1331,7 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 				goto stop_processing;
 			if (spoe_decode_data(&p, end, &data, &type) == -1)
 				goto skip_message;
-
+			frame->worker->nbframes++;
 			if (type == SPOE_DATA_T_IPV4)
 				check_ipv4_reputation(frame, &data.ipv4);
 			if (type == SPOE_DATA_T_IPV6)
@@ -1819,6 +1820,7 @@ main(int argc, char **argv)
 
 		w->id        = i+1;
 		w->nbclients = 0;
+		w->nbframes  = 0;
 		LIST_INIT(&w->engines);
 		LIST_INIT(&w->clients);
 		LIST_INIT(&w->frames);
