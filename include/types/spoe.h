@@ -336,6 +336,7 @@ struct spoe_appctx {
 	struct buffer_wait  buffer_wait;    /* position in the list of ressources waiting for a buffer */
 	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
 	struct list         list;           /* next spoe appctx for the same agent */
+	unsigned int        cur_fpa;
 
 	struct {
 		struct spoe_context *ctx;    /* SPOE context owning the fragmented frame */
