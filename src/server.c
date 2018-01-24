@@ -976,7 +976,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopping(srv, NULL, NULL);
-		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
@@ -1019,7 +1019,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_admin_flag(srv, mode, cause);
-		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 }
 
