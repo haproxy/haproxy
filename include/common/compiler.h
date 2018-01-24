@@ -107,5 +107,23 @@
 #endif
 #endif
 
+#ifndef __GNUC_PREREQ__
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#define __GNUC_PREREQ__(ma, mi) \
+        (__GNUC__ > (ma) || __GNUC__ == (ma) && __GNUC_MINOR__ >= (mi))
+#else
+#define __GNUC_PREREQ__(ma, mi) 0
+#endif
+#endif
+
+#ifndef offsetof
+#if __GNUC_PREREQ__(4, 1)
+#define offsetof(type, field)  __builtin_offsetof(type, field)
+#else
+#define offsetof(type, field) \
+        ((__size_t)(__uintptr_t)((const volatile void *)&((type *)0)->field))
+#endif
+#endif
+
 
 #endif /* _COMMON_COMPILER_H */
