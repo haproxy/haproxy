@@ -305,8 +305,8 @@ struct spoe_context {
 	unsigned int        frame_id;     /* to map NOTIFY and ACK frames */
 	unsigned int        process_exp;  /* expiration date to process an event */
 
+	struct spoe_appctx *spoe_appctx; /* SPOE appctx sending the current frame */
 	struct {
-		struct spoe_appctx  *spoe_appctx; /* SPOE appctx sending the fragmented frame */
 		struct spoe_message *curmsg;      /* SPOE message from which to resume encoding */
 		struct spoe_arg     *curarg;      /* SPOE arg in <curmsg> from which to resume encoding */
 		unsigned int         curoff;      /* offset in <curarg> from which to resume encoding */

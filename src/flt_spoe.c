@@ -981,7 +981,6 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		/* ABRT bit is set for an unfinished fragmented frame */
 		if (flags & SPOE_FRM_FL_ABRT) {
 			*ctx = SPOE_APPCTX(appctx)->frag_ctx.ctx;
-			(*ctx)->frag_ctx.spoe_appctx = NULL;
 			(*ctx)->state = SPOE_CTX_ST_ERROR;
 			(*ctx)->status_code = SPOE_CTX_ERR_FRAG_FRAME_ABRT;
 			/* Ignore the payload */
@@ -1252,7 +1251,7 @@ spoe_release_appctx(struct appctx *appctx)
 	 * corresponding stream. */
 	if (spoe_appctx->frag_ctx.ctx) {
 		ctx = spoe_appctx->frag_ctx.ctx;
-		ctx->frag_ctx.spoe_appctx = NULL;
+		ctx->spoe_appctx = NULL;
 		ctx->state = SPOE_CTX_ST_ERROR;
 		ctx->status_code = (spoe_appctx->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
@@ -1471,6 +1470,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
+			ctx->spoe_appctx = NULL;
 			ctx->state = SPOE_CTX_ST_ERROR;
 			ctx->status_code = (SPOE_APPCTX(appctx)->status_code + 0x100);
 			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
@@ -1487,6 +1487,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
+			ctx->spoe_appctx = SPOE_APPCTX(appctx);
 			if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) ||
 			    (ctx->frag_ctx.flags & SPOE_FRM_FL_FIN))
 				goto no_frag_frame_sent;
@@ -1502,8 +1503,6 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 	SPOE_APPCTX(appctx)->frag_ctx.ctx    = ctx;
 	SPOE_APPCTX(appctx)->frag_ctx.cursid = ctx->stream_id;
 	SPOE_APPCTX(appctx)->frag_ctx.curfid = ctx->frame_id;
-
-	ctx->frag_ctx.spoe_appctx = SPOE_APPCTX(appctx);
 	ctx->state = SPOE_CTX_ST_ENCODING_MSGS;
 	task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	goto end;
@@ -1525,7 +1524,6 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 	SPOE_APPCTX(appctx)->frag_ctx.cursid = 0;
 	SPOE_APPCTX(appctx)->frag_ctx.curfid = 0;
 
-	ctx->frag_ctx.spoe_appctx = NULL;
 	ctx->state = SPOE_CTX_ST_WAITING_ACK;
 	goto end;
 
@@ -1573,7 +1571,8 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 		default:
 			LIST_DEL(&ctx->list);
 			LIST_INIT(&ctx->list);
-
+			if (ctx->spoe_appctx)
+				ctx->spoe_appctx = NULL;
 			if (appctx->st0 == SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY &&
 			    ctx == SPOE_APPCTX(appctx)->frag_ctx.ctx) {
 				appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
@@ -2221,7 +2220,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    (int)now.tv_sec, (int)now.tv_usec,
 		    agent->id, __FUNCTION__, s,
 		    ((ctx->flags & SPOE_CTX_FL_FRAGMENTED) ? "last fragment of" : "unfragmented"),
-		    ctx->frag_ctx.spoe_appctx, (agent->rt[tid].frame_size - FRAME_HDR_SIZE),
+		    ctx->spoe_appctx, (agent->rt[tid].frame_size - FRAME_HDR_SIZE),
 		    p - ctx->buffer->p);
 
 	ctx->buffer->i = p - ctx->buffer->p;
@@ -2243,7 +2242,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    " - curmsg=%p - curarg=%p - curoff=%u"
 		    " - max_size=%u - encoded=%ld\n",
 		    (int)now.tv_sec, (int)now.tv_usec,
-		    agent->id, __FUNCTION__, s, ctx->frag_ctx.spoe_appctx,
+		    agent->id, __FUNCTION__, s, ctx->spoe_appctx,
 		    ctx->frag_ctx.curmsg, ctx->frag_ctx.curarg, ctx->frag_ctx.curoff,
 		    (agent->rt[tid].frame_size - FRAME_HDR_SIZE), p - ctx->buffer->p);
 
@@ -2455,9 +2454,9 @@ spoe_start_processing(struct spoe_context *ctx, int dir)
 static inline void
 spoe_stop_processing(struct spoe_context *ctx)
 {
-	struct spoe_appctx *sa = ctx->frag_ctx.spoe_appctx;
+	struct spoe_appctx *sa = ctx->spoe_appctx;
 
-	if (sa) {
+	if (sa && sa->frag_ctx.ctx == ctx) {
 		sa->frag_ctx.ctx = NULL;
 		spoe_wakeup_appctx(sa->owner);
 	}
@@ -2472,7 +2471,7 @@ spoe_stop_processing(struct spoe_context *ctx)
 
 	spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
 
-	ctx->frag_ctx.spoe_appctx = NULL;
+	ctx->spoe_appctx          = NULL;
 	ctx->frag_ctx.curmsg      = NULL;
 	ctx->frag_ctx.curarg      = NULL;
 	ctx->frag_ctx.curoff      = 0;
@@ -2578,8 +2577,8 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 	}
 
 	if (ctx->state == SPOE_CTX_ST_SENDING_MSGS) {
-		if (ctx->frag_ctx.spoe_appctx)
-			spoe_wakeup_appctx(ctx->frag_ctx.spoe_appctx->owner);
+		if (ctx->spoe_appctx)
+			spoe_wakeup_appctx(ctx->spoe_appctx->owner);
 		ret = 0;
 		goto out;
 	}
