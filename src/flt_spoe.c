@@ -268,25 +268,6 @@ generate_pseudo_uuid()
 	return uuid;
 }
 
-/* Returns the minimum number of appets alive at a time. This function is used
- * to know if more applets should be created for an engine. */
-static inline unsigned int
-min_applets_act(struct spoe_agent *agent)
-{
-	unsigned int nbsrv;
-
-	/* TODO: Add a config parameter to customize this value. Always 0 for
-	 * now */
-	if (agent->min_applets)
-		return agent->min_applets;
-
-	/* Get the number of active servers for the backend */
-	nbsrv = (agent->b.be->srv_act
-		 ? agent->b.be->srv_act
-		 : agent->b.be->srv_bck);
-	return 2*nbsrv;
-}
-
 /********************************************************************
  * Functions that encode/decode SPOE frames
  ********************************************************************/
@@ -1703,7 +1684,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		appctx->st0 = SPOE_APPCTX_ST_IDLE;
 		agent->rt[tid].applets_idle++;
 	}
-	if (fpa || (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_PERSIST)) {
+	if (fpa) {
 		HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 		LIST_DEL(&SPOE_APPCTX(appctx)->list);
 		LIST_ADD(&agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
@@ -2008,13 +1989,9 @@ spoe_queue_context(struct spoe_context *ctx)
 	struct spoe_agent  *agent = conf->agent;
 	struct appctx      *appctx;
 	struct spoe_appctx *spoe_appctx;
-	unsigned int        min_applets;
-
-	min_applets = min_applets_act(agent);
 
 	/* Check if we need to create a new SPOE applet or not. */
-	if (agent->rt[tid].applets_act >= min_applets &&
-	    agent->rt[tid].applets_idle &&
+	if (agent->rt[tid].applets_idle &&
 	    agent->rt[tid].sending_rate)
 		goto end;
 
@@ -2057,8 +2034,6 @@ spoe_queue_context(struct spoe_context *ctx)
 
 		goto end;
 	}
-	if (agent->rt[tid].applets_act <= min_applets)
-		SPOE_APPCTX(appctx)->flags |= SPOE_APPCTX_FL_PERSIST;
 
 	/* Increase the per-process number of cumulated connections */
 	if (agent->cps_max > 0)
@@ -3196,7 +3171,6 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->cps_max        = 0;
 		curagent->eps_max        = 0;
 		curagent->max_frame_size = MAX_FRAME_SIZE;
-		curagent->min_applets    = 0;
 		curagent->max_fpa        = 100;
 
 		for (i = 0; i < SPOE_EV_EVENTS; ++i)

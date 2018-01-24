@@ -58,7 +58,6 @@
 #define SPOE_APPCTX_FL_PIPELINING    0x00000001 /* Set if pipelining is supported */
 #define SPOE_APPCTX_FL_ASYNC         0x00000002 /* Set if asynchronus frames is supported */
 #define SPOE_APPCTX_FL_FRAGMENTATION 0x00000004 /* Set if fragmentation is supported */
-#define SPOE_APPCTX_FL_PERSIST       0x00000008 /* Set if the applet is persistent */
 
 #define SPOE_APPCTX_ERR_NONE    0x00000000 /* no error yet, leave it to zero */
 #define SPOE_APPCTX_ERR_TOUT    0x00000001 /* SPOE applet timeout */
@@ -249,7 +248,6 @@ struct spoe_agent {
 	unsigned int          cps_max;        /* Maximum # of connections per second */
 	unsigned int          eps_max;        /* Maximum # of errors per second */
 	unsigned int          max_frame_size; /* Maximum frame size for this agent, before any negotiation */
-	unsigned int          min_applets;    /* Minimum # applets alive at a time */
 	unsigned int          max_fpa;        /* Maximum # of frames handled per applet at once */
 
 	struct list events[SPOE_EV_EVENTS];   /* List of SPOE messages that will be sent
