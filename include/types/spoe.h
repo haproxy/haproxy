@@ -260,16 +260,18 @@ struct spoe_agent {
 	/* running info */
 	struct {
 		unsigned int    frame_size;     /* current maximum frame size, only used to encode messages */
+#if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
 		unsigned int    applets_act;    /* # of applets alive at a time */
 		unsigned int    applets_idle;   /* # of applets in the state SPOE_APPCTX_ST_IDLE */
-
+#endif
 		unsigned int    processing;
 		struct freq_ctr processing_per_sec;
 
 		struct freq_ctr conn_per_sec;   /* connections per second */
 		struct freq_ctr err_per_sec;    /* connetion errors per second */
 
-		struct list     applets;        /* List of available SPOE applets */
+		struct eb_root  idle_applets;   /* idle SPOE applets available to process data */
+		struct list     applets;        /* all SPOE applets for this agent */
 		struct list     sending_queue;  /* Queue of streams waiting to send data */
 		struct list     waiting_queue;  /* Queue of streams waiting for a ack, in async mode */
 		__decl_hathreads(HA_SPINLOCK_T lock);
@@ -336,6 +338,7 @@ struct spoe_appctx {
 	struct buffer_wait  buffer_wait;    /* position in the list of ressources waiting for a buffer */
 	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
 	struct list         list;           /* next spoe appctx for the same agent */
+	struct eb32_node    node;           /* node used for applets tree */
 	unsigned int        cur_fpa;
 
 	struct {
