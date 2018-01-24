@@ -1638,7 +1638,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 			goto next;
 
 		case 0: /* ignore */
-			agent->rt[tid].sending_rate++;
+			update_freq_ctr(&agent->rt[tid].processing_per_sec, 1);
 			fpa++;
 			break;
 
@@ -1646,7 +1646,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 			break;
 
 		default:
-			agent->rt[tid].sending_rate++;
+			update_freq_ctr(&agent->rt[tid].processing_per_sec, 1);
 			fpa++;
 			break;
 	}
@@ -1991,7 +1991,7 @@ spoe_queue_context(struct spoe_context *ctx)
 
 	/* Check if we need to create a new SPOE applet or not. */
 	if (agent->rt[tid].applets_idle &&
-	    agent->rt[tid].sending_rate)
+	    agent->rt[tid].processing < read_freq_ctr(&agent->rt[tid].processing_per_sec))
 		goto end;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
@@ -2045,18 +2045,15 @@ spoe_queue_context(struct spoe_context *ctx)
 		return -1;
 	}
 
-	/* Add the SPOE context in the sending queue and update all running
-	 * info */
+	/* Add the SPOE context in the sending queue */
 	LIST_ADDQ(&agent->rt[tid].sending_queue, &ctx->list);
-	if (agent->rt[tid].sending_rate)
-		agent->rt[tid].sending_rate--;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 		    " - Add stream in sending queue"
-		    " - applets_act=%u - applets_idle=%u - sending_rate=%u\n",
+		    " - applets_act=%u - applets_idle=%u - processing=%u\n",
 		    (int)now.tv_sec, (int)now.tv_usec, agent->id, __FUNCTION__,
 		    ctx->strm, agent->rt[tid].applets_act, agent->rt[tid].applets_idle,
-		    agent->rt[tid].sending_rate);
+		    agent->rt[tid].processing);
 
 	/* Finally try to wakeup the first IDLE applet found and move it at the
 	 * end of the list. */
@@ -2436,12 +2433,14 @@ spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
  * Functions that process SPOE events
  **************************************************************************/
 static inline int
-spoe_start_processing(struct spoe_context *ctx, int dir)
+spoe_start_processing(struct spoe_agent *agent, struct spoe_context *ctx, int dir)
 {
 	/* If a process is already started for this SPOE context, retry
 	 * later. */
 	if (ctx->flags & SPOE_CTX_FL_PROCESS)
 		return 0;
+
+	agent->rt[tid].processing++;
 
 	/* Set the right flag to prevent request and response processing
 	 * in same time. */
@@ -2452,9 +2451,12 @@ spoe_start_processing(struct spoe_context *ctx, int dir)
 }
 
 static inline void
-spoe_stop_processing(struct spoe_context *ctx)
+spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
 {
 	struct spoe_appctx *sa = ctx->spoe_appctx;
+
+	if (!(ctx->flags & SPOE_CTX_FL_PROCESS))
+		return;
 
 	if (sa && sa->frag_ctx.ctx == ctx) {
 		sa->frag_ctx.ctx = NULL;
@@ -2462,6 +2464,7 @@ spoe_stop_processing(struct spoe_context *ctx)
 	}
 
 	/* Reset the flag to allow next processing */
+	agent->rt[tid].processing--;
 	ctx->flags &= ~(SPOE_CTX_FL_PROCESS|SPOE_CTX_FL_FRAGMENTED);
 
 	ctx->status_code = 0;
@@ -2555,7 +2558,7 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 			s->task->expire  = tick_first((tick_is_expired(s->task->expire, now_ms) ? 0 : s->task->expire),
 						      ctx->process_exp);
 		}
-		ret = spoe_start_processing(ctx, dir);
+		ret = spoe_start_processing(agent, ctx, dir);
 		if (!ret)
 			goto out;
 
@@ -2609,7 +2612,7 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 	ret = 1;
 
   end:
-	spoe_stop_processing(ctx);
+	spoe_stop_processing(agent, ctx);
 	return ret;
 }
 
@@ -2710,7 +2713,7 @@ spoe_wakeup_context(struct spoe_context *ctx)
 }
 
 static struct spoe_context *
-spoe_create_context(struct filter *filter)
+spoe_create_context(struct stream *s, struct filter *filter)
 {
 	struct spoe_config  *conf = FLT_CONF(filter);
 	struct spoe_context *ctx;
@@ -2736,17 +2739,25 @@ spoe_create_context(struct filter *filter)
 	ctx->frame_id    = 1;
 	ctx->process_exp = TICK_ETERNITY;
 
+	ctx->strm   = s;
+	ctx->state  = SPOE_CTX_ST_READY;
+	filter->ctx = ctx;
+
 	return ctx;
 }
 
 static void
-spoe_destroy_context(struct spoe_context *ctx)
+spoe_destroy_context(struct filter *filter)
 {
+	struct spoe_config  *conf = FLT_CONF(filter);
+	struct spoe_context *ctx  = filter->ctx;
+
 	if (!ctx)
 		return;
 
-	spoe_stop_processing(ctx);
+	spoe_stop_processing(conf->agent, ctx);
 	pool_free(pool_head_spoe_ctx, ctx);
+	filter->ctx = NULL;
 }
 
 static void
@@ -2907,8 +2918,7 @@ spoe_start(struct stream *s, struct filter *filter)
 		    (int)now.tv_sec, (int)now.tv_usec, agent->id,
 		    __FUNCTION__, s);
 
-	ctx = spoe_create_context(filter);
-	if (ctx == NULL) {
+	if ((ctx = spoe_create_context(s, filter)) == NULL) {
 		SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 			    " - failed to create SPOE context\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
@@ -2918,10 +2928,6 @@ spoe_start(struct stream *s, struct filter *filter)
 			 agent->id);
 		return 0;
 	}
-
-	ctx->strm   = s;
-	ctx->state  = SPOE_CTX_ST_READY;
-	filter->ctx = ctx;
 
 	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_REQ_FE]))
 		filter->pre_analyzers |= AN_REQ_INSPECT_FE;
@@ -2953,7 +2959,7 @@ spoe_stop(struct stream *s, struct filter *filter)
 		    (int)now.tv_sec, (int)now.tv_usec,
 		    ((struct spoe_config *)FLT_CONF(filter))->agent->id,
 		    __FUNCTION__, s);
-	spoe_destroy_context(filter->ctx);
+	spoe_destroy_context(filter);
 }
 
 
@@ -3186,7 +3192,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			curagent->rt[i].frame_size   = curagent->max_frame_size;
 			curagent->rt[i].applets_act  = 0;
 			curagent->rt[i].applets_idle = 0;
-			curagent->rt[i].sending_rate = 0;
+			curagent->rt[i].processing   = 0;
 			LIST_INIT(&curagent->rt[i].applets);
 			LIST_INIT(&curagent->rt[i].sending_queue);
 			LIST_INIT(&curagent->rt[i].waiting_queue);
@@ -4168,7 +4174,7 @@ spoe_send_group(struct act_rule *rule, struct proxy *px,
 				    agent->id, __FUNCTION__, s, group->id);
 			ctx->status_code = SPOE_CTX_ERR_INTERRUPT;
 			spoe_handle_processing_error(s, agent, ctx, dir);
-			spoe_stop_processing(ctx);
+			spoe_stop_processing(agent, ctx);
 			return ACT_RET_CONT;
 		}
 		return ACT_RET_YIELD;
