@@ -259,7 +259,6 @@ int  thread_need_sync(void);
 /* WARNING!!! if you update this enum, please also keep lock_label() up to date below */
 enum lock_label {
 	THREAD_SYNC_LOCK = 0,
-	FDCACHE_LOCK,
 	FD_LOCK,
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
@@ -376,7 +375,6 @@ static inline const char *lock_label(enum lock_label label)
 {
 	switch (label) {
 	case THREAD_SYNC_LOCK:     return "THREAD_SYNC";
-	case FDCACHE_LOCK:         return "FDCACHE";
 	case FD_LOCK:              return "FD";
 	case TASK_RQ_LOCK:         return "TASK_RQ";
 	case TASK_WQ_LOCK:         return "TASK_WQ";

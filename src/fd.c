@@ -167,14 +167,13 @@ struct poller pollers[MAX_POLLERS];
 struct poller cur_poller;
 int nbpollers = 0;
 
-unsigned int *fd_cache = NULL; // FD events cache
-int fd_cache_num = 0;          // number of events in the cache
+volatile struct fdlist fd_cache ; // FD events cache
+volatile struct fdlist fd_cache_local[MAX_THREADS]; // FD events local for each thread
+
 unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
-
-__decl_hathreads(HA_RWLOCK_T   fdcache_lock);     /* global lock to protect fd_cache array */
 
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
@@ -221,32 +220,29 @@ void fd_remove(int fd)
 	fd_dodelete(fd, 0);
 }
 
-/* Scan and process the cached events. This should be called right after
- * the poller. The loop may cause new entries to be created, for example
- * if a listener causes an accept() to initiate a new incoming connection
- * wanting to attempt an recv().
- */
-void fd_process_cached_events()
+static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 {
-	int fd, entry, e;
+	int fd, old_fd, e;
 
-	HA_RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
-	fd_cache_mask &= ~tid_bit;
-	for (entry = 0; entry < fd_cache_num; ) {
-		fd = fd_cache[entry];
+	for (old_fd = fd = fdlist->first; fd != -1; fd = fdtab[fd].fdcache_entry.next) {
+		if (fd == -2) {
+			fd = old_fd;
+			continue;
+		} else if (fd <= -3)
+			fd = -fd - 4;
+		if (fd == -1)
+			break;
+		old_fd = fd;
+		if (!(fdtab[fd].thread_mask & tid_bit))
+			continue;
+		if (fdtab[fd].fdcache_entry.next < -3)
+			continue;
 
-		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			activity[tid].fd_skip++;
-			goto next;
-		}
-
-		fd_cache_mask |= tid_bit;
+		HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
 		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
 			activity[tid].fd_lock++;
-			goto next;
+			continue;
 		}
-
-		HA_RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
 
 		e = fdtab[fd].state;
 		fdtab[fd].ev &= FD_POLL_STICKY;
@@ -265,19 +261,19 @@ void fd_process_cached_events()
 			fd_release_cache_entry(fd);
 			HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 		}
-
-		HA_RWLOCK_RDLOCK(FDCACHE_LOCK, &fdcache_lock);
-		/* If the fd was removed from the cache, it has been
-		 * replaced by the next one that we don't want to skip !
-		 */
-		if (entry < fd_cache_num && fd_cache[entry] != fd) {
-			activity[tid].fd_del++;
-			continue;
-		}
-	  next:
-		entry++;
 	}
-	HA_RWLOCK_RDUNLOCK(FDCACHE_LOCK, &fdcache_lock);
+}
+
+/* Scan and process the cached events. This should be called right after
+ * the poller. The loop may cause new entries to be created, for example
+ * if a listener causes an accept() to initiate a new incoming connection
+ * wanting to attempt an recv().
+ */
+void fd_process_cached_events()
+{
+	HA_ATOMIC_AND(&fd_cache_mask, ~tid_bit);
+	fdlist_process_cached_events(&fd_cache_local[tid]);
+	fdlist_process_cached_events(&fd_cache);
 }
 
 /* disable the specified poller */
@@ -320,16 +316,19 @@ int init_pollers()
 	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
 		goto fail_info;
 
-	if ((fd_cache = calloc(global.maxsock, sizeof(*fd_cache))) == NULL)
-		goto fail_cache;
-
+	fd_cache.first = fd_cache.last = -1;
 	hap_register_per_thread_init(init_pollers_per_thread);
 	hap_register_per_thread_deinit(deinit_pollers_per_thread);
 
-	for (p = 0; p < global.maxsock; p++)
+	for (p = 0; p < global.maxsock; p++) {
 		HA_SPIN_INIT(&fdtab[p].lock);
+		/* Mark the fd as out of the fd cache */
+		fdtab[p].fdcache_entry.next = -3;
+		fdtab[p].fdcache_entry.next = -3;
+	}
+	for (p = 0; p < global.nbthread; p++)
+		fd_cache_local[p].first = fd_cache_local[p].last = -1;
 
-	HA_RWLOCK_INIT(&fdcache_lock);
 	do {
 		bp = NULL;
 		for (p = 0; p < nbpollers; p++)
@@ -372,11 +371,8 @@ void deinit_pollers() {
 			bp->term(bp);
 	}
 
-	free(fd_cache); fd_cache = NULL;
 	free(fdinfo);   fdinfo   = NULL;
 	free(fdtab);    fdtab    = NULL;
-
-	HA_RWLOCK_DESTROY(&fdcache_lock);
 }
 
 /*

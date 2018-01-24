@@ -90,15 +90,25 @@ enum fd_states {
  */
 #define DEAD_FD_MAGIC 0xFDDEADFD
 
+struct fdlist_entry {
+	volatile int next;
+	volatile int prev;
+} __attribute__ ((aligned(8)));
+
+struct fdlist {
+	volatile int first;
+	volatile int last;
+} __attribute__ ((aligned(8)));
+
 /* info about one given fd */
 struct fdtab {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
 	unsigned long polled_mask;           /* mask of thread IDs currently polling this fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
+	struct fdlist_entry fdcache_entry;   /* Entry in the fdcache */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
