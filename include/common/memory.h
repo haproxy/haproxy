@@ -47,10 +47,20 @@
 #define POOL_LINK(pool, item) ((void **)(item))
 #endif
 
-struct pool_head {
-	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
+#ifdef HA_HAVE_CAS_DW
+struct pool_free_list {
 	void **free_list;
-	struct list list;	/* list of all known pools */
+	uintptr_t seq;
+};
+#endif
+
+struct pool_head {
+	void **free_list;
+#ifdef HA_HAVE_CAS_DW
+	uintptr_t seq;
+#else
+	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
+#endif
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int allocated;	/* how many chunks have been allocated */
 	unsigned int limit;	/* hard limit on the number of chunks */
@@ -59,6 +69,7 @@ struct pool_head {
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int failed;	/* failed allocations */
+	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
 } __attribute__((aligned(64)));
 
@@ -111,6 +122,110 @@ void pool_gc(struct pool_head *pool_ctx);
  */
 void *pool_destroy(struct pool_head *pool);
 
+#ifdef HA_HAVE_CAS_DW
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> if
+ * available, otherwise returns NULL. No malloc() is attempted, and poisonning
+ * is never performed. The purpose is to get the fastest possible allocation.
+ */
+static inline void *__pool_get_first(struct pool_head *pool)
+{
+	struct pool_free_list cmp, new;
+
+	cmp.seq = pool->seq;
+	__ha_barrier_load();
+
+	cmp.free_list = pool->free_list;
+	do {
+		if (cmp.free_list == NULL)
+			return NULL;
+		new.seq = cmp.seq + 1;
+		__ha_barrier_load();
+		new.free_list = *POOL_LINK(pool, cmp.free_list);
+	} while (__ha_cas_dw((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
+end:
+	HA_ATOMIC_ADD(&pool->used, 1);
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, cmp.free_list) = (void *)pool;
+#endif
+	return cmp.free_list;
+}
+
+static inline void *pool_get_first(struct pool_head *pool)
+{
+	void *ret;
+
+	ret = __pool_get_first(pool);
+	return ret;
+}
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. No memory poisonning is ever performed on the
+ * returned area.
+ */
+static inline void *pool_alloc_dirty(struct pool_head *pool)
+{
+	void *p;
+
+	if ((p = __pool_get_first(pool)) == NULL)
+		p = __pool_refill_alloc(pool, 0);
+	return p;
+}
+
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. Memory poisonning is performed if enabled.
+ */
+static inline void *pool_alloc(struct pool_head *pool)
+{
+	void *p;
+
+	p = pool_alloc_dirty(pool);
+#ifdef DEBUG_MEMORY_POOLS
+	if (p) {
+		/* keep track of where the element was allocated from */
+		*POOL_LINK(pool, p) = (void *)pool;
+	}
+#endif
+	if (p && mem_poison_byte >= 0) {
+		memset(p, mem_poison_byte, pool->size);
+	}
+
+	return p;
+}
+
+/*
+ * Puts a memory area back to the corresponding pool.
+ * Items are chained directly through a pointer that
+ * is written in the beginning of the memory area, so
+ * there's no need for any carrier cell. This implies
+ * that each memory area is at least as big as one
+ * pointer. Just like with the libc's free(), nothing
+ * is done if <ptr> is NULL.
+ */
+static inline void pool_free(struct pool_head *pool, void *ptr)
+{
+        if (likely(ptr != NULL)) {
+		void *free_list;
+#ifdef DEBUG_MEMORY_POOLS
+		/* we'll get late corruption if we refill to the wrong pool or double-free */
+		if (*POOL_LINK(pool, ptr) != (void *)pool)
+			*(volatile int *)0 = 0;
+#endif
+		free_list = pool->free_list;
+		do {
+			*POOL_LINK(pool, ptr) = (void *)free_list;
+			__ha_barrier_store();
+		} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr));
+end:
+		HA_ATOMIC_SUB(&pool->used, 1);
+	}
+}
+
+#else
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -261,6 +376,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 }
+#endif /* HA_HAVE_CAS_DW */
 #endif /* _COMMON_MEMORY_H */
 
 /*

@@ -93,9 +93,135 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		LIST_ADDQ(start, &pool->list);
 	}
 	pool->users++;
+#ifndef HA_HAVE_CAS_DW
 	HA_SPIN_INIT(&pool->lock);
+#endif
 	return pool;
 }
+
+#ifdef HA_HAVE_CAS_DW
+/* Allocates new entries for pool <pool> until there are at least <avail> + 1
+ * available, then returns the last one for immediate use, so that at least
+ * <avail> are left available in the pool upon return. NULL is returned if the
+ * last entry could not be allocated. It's important to note that at least one
+ * allocation is always performed even if there are enough entries in the pool.
+ * A call to the garbage collector is performed at most once in case malloc()
+ * returns an error, before returning NULL.
+ */
+void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+{
+	void *ptr = NULL, *free_list;
+	int failed = 0;
+	int size = pool->size;
+	int limit = pool->limit;
+	int allocated = pool->allocated, allocated_orig = allocated;
+
+	/* stop point */
+	avail += pool->used;
+
+	while (1) {
+		if (limit && allocated >= limit) {
+			HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
+			return NULL;
+		}
+
+		ptr = malloc(size + POOL_EXTRA);
+		if (!ptr) {
+			HA_ATOMIC_ADD(&pool->failed, 1);
+			if (failed)
+				return NULL;
+			failed++;
+			pool_gc(pool);
+			continue;
+		}
+		if (++allocated > avail)
+			break;
+
+		free_list = pool->free_list;
+		do {
+			*POOL_LINK(pool, ptr) = free_list;
+			__ha_barrier_store();
+		} while (HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr) == 0);
+	}
+
+	HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
+	HA_ATOMIC_ADD(&pool->used, 1);
+
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, ptr) = (void *)pool;
+#endif
+	return ptr;
+}
+void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+{
+	void *ptr;
+
+	ptr = __pool_refill_alloc(pool, avail);
+	return ptr;
+}
+/*
+ * This function frees whatever can be freed in pool <pool>.
+ */
+void pool_flush(struct pool_head *pool)
+{
+	void *next, *temp;
+	int removed = 0;
+
+	if (!pool)
+		return;
+	do {
+		next = pool->free_list;
+	} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&next, NULL));
+	while (next) {
+		temp = next;
+		next = *POOL_LINK(pool, temp);
+		removed++;
+		free(temp);
+	}
+	pool->free_list = next;
+	HA_ATOMIC_SUB(&pool->allocated, removed);
+	/* here, we should have pool->allocate == pool->used */
+}
+
+/*
+ * This function frees whatever can be freed in all pools, but respecting
+ * the minimum thresholds imposed by owners. It takes care of avoiding
+ * recursion because it may be called from a signal handler.
+ *
+ * <pool_ctx> is unused
+ */
+void pool_gc(struct pool_head *pool_ctx)
+{
+	static int recurse;
+	int cur_recurse = 0;
+	struct pool_head *entry;
+
+	if (recurse || !HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
+		return;
+
+	list_for_each_entry(entry, &pools, list) {
+		while ((int)((volatile int)entry->allocated - (volatile int)entry->used) > (int)entry->minavail) {
+			struct pool_free_list cmp, new;
+
+			cmp.seq = entry->seq;
+			__ha_barrier_load();
+			cmp.free_list = entry->free_list;
+			__ha_barrier_load();
+			if (cmp.free_list == NULL)
+				break;
+			new.free_list = *POOL_LINK(entry, cmp.free_list);
+			new.seq = cmp.seq + 1;
+			if (__ha_cas_dw(&entry->free_list, &cmp, &new) == 0)
+				continue;
+			free(cmp.free_list);
+			HA_ATOMIC_SUB(&entry->allocated, 1);
+		}
+	}
+
+	HA_ATOMIC_STORE(&recurse, 0);
+}
+#else
 
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1
  * available, then returns the last one for immediate use, so that at least
@@ -208,6 +334,7 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	HA_ATOMIC_STORE(&recurse, 0);
 }
+#endif
 
 /*
  * This function destroys a pool by freeing it completely, unless it's still
@@ -225,7 +352,9 @@ void *pool_destroy(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DEL(&pool->list);
+#ifndef HA_HAVE_CAS_DW
 			HA_SPIN_DESTROY(&pool->lock);
+#endif
 			free(pool);
 		}
 	}
@@ -242,7 +371,9 @@ void dump_pools_to_trash()
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
+#ifndef HA_HAVE_CAS_DW
 		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
+#endif
 		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used, entry->failed,
@@ -251,7 +382,9 @@ void dump_pools_to_trash()
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
+#ifndef HA_HAVE_CAS_DW
 		HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
+#endif
 	}
 	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);
