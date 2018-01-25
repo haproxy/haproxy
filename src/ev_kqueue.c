@@ -161,7 +161,7 @@ static int init_kqueue_per_thread()
 	if (kev == NULL)
 		goto fail_alloc;
 
-	if (tid) {
+	if (MAX_THREADS > 1 && tid) {
 		kqueue_fd[tid] = kqueue();
 		if (kqueue_fd[tid] < 0)
 			goto fail_fd;
@@ -184,7 +184,7 @@ static int init_kqueue_per_thread()
 
 static void deinit_kqueue_per_thread()
 {
-	if (tid)
+	if (MAX_THREADS > 1 && tid)
 		close(kqueue_fd[tid]);
 
 	free(kev);
