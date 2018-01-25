@@ -184,6 +184,9 @@ static int init_kqueue_per_thread()
 
 static void deinit_kqueue_per_thread()
 {
+	if (tid)
+		close(kqueue_fd[tid]);
+
 	free(kev);
 	kev = NULL;
 }
