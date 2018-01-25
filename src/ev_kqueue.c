@@ -40,7 +40,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int status;
 	int count, fd, delta_ms;
 	struct timespec timeout;
-	int updt_idx, en, eo;
+	int updt_idx, en;
 	int changes = 0;
 
 	/* first, scan the update list to find changes */
@@ -54,9 +54,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].update_mask &= ~tid_bit;
-		eo = fdtab[fd].state;
-		en = fd_compute_new_polled_status(eo);
-		fdtab[fd].state = en;
+		en = fdtab[fd].state;
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
