@@ -49,7 +49,7 @@ enum {
 	ARGT_IPV4,     /* an IPv4 address */
 	ARGT_MSK4,     /* an IPv4 address mask (integer or dotted), stored as ARGT_IPV4 */
 	ARGT_IPV6,     /* an IPv6 address */
-	ARGT_MSK6,     /* an IPv6 address mask (integer or dotted), stored as ARGT_IPV4 */
+	ARGT_MSK6,     /* an IPv6 address mask (integer or dotted), stored as ARGT_IPV6 */
 	ARGT_TIME,     /* a delay in ms by default, stored as ARGT_UINT */
 	ARGT_SIZE,     /* a size in bytes by default, stored as ARGT_UINT */
 	ARGT_FE,       /* a pointer to a frontend only */
