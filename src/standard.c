@@ -1028,6 +1028,28 @@ int str2mask(const char *str, struct in_addr *mask)
 	return 1;
 }
 
+/* converts <str> to a struct in6_addr containing a network mask. It can be
+ * passed in quadruplet form (ffff::ffff::) or in CIDR form (64). It returns 1
+ * if the conversion succeeds otherwise zero.
+ */
+int str2mask6(const char *str, struct in6_addr *mask)
+{
+	if (strchr(str, ':') != NULL) {	    /* quadruplet notation */
+		if (!inet_pton(AF_INET6, str, mask))
+			return 0;
+	}
+	else { /* mask length */
+		char *err;
+		unsigned long len = strtol(str, &err, 10);
+
+		if (!*str || (err && *err) || (unsigned)len > 128)
+			return 0;
+
+		len2mask6(len, mask);
+	}
+	return 1;
+}
+
 /* convert <cidr> to struct in_addr <mask>. It returns 1 if the conversion
  * succeeds otherwise zero.
  */
