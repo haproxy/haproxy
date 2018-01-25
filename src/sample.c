@@ -389,12 +389,12 @@ struct sample_fetch *find_sample_fetch(const char *kw, int len)
 	return NULL;
 }
 
-/* This fucntion browse the list of available saple fetch. <current> is
+/* This function browses the list of available sample fetches. <current> is
  * the last used sample fetch. If it is the first call, it must set to NULL.
- * <idx> is the index of the next sampleèfetch entry. It is used as private
- * value. It is useles to initiate it.
+ * <idx> is the index of the next sample fetch entry. It is used as private
+ * value. It is useless to initiate it.
  *
- * It returns always the newt fetch_sample entry, and NULL when the end of
+ * It returns always the new fetch_sample entry, and NULL when the end of
  * the list is reached.
  */
 struct sample_fetch *sample_fetch_getnext(struct sample_fetch *current, int *idx)
