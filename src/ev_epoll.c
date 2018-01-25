@@ -195,7 +195,7 @@ static int init_epoll_per_thread()
 	if (epoll_events == NULL)
 		goto fail_alloc;
 
-	if (tid) {
+	if (MAX_THREADS > 1 && tid) {
 		epoll_fd[tid] = epoll_create(global.maxsock + 1);
 		if (epoll_fd[tid] < 0)
 			goto fail_fd;
@@ -218,7 +218,7 @@ static int init_epoll_per_thread()
 
 static void deinit_epoll_per_thread()
 {
-	if (tid)
+	if (MAX_THREADS > 1 && tid)
 		close(epoll_fd[tid]);
 
 	free(epoll_events);
