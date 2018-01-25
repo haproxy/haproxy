@@ -3098,10 +3098,12 @@ void free_check(struct check *check)
 	check->bi = NULL;
 	free(check->bo);
 	check->bo = NULL;
-	free(check->cs->conn);
-	check->cs->conn = NULL;
-	cs_free(check->cs);
-	check->cs = NULL;
+	if (check->cs) {
+		free(check->cs->conn);
+		check->cs->conn = NULL;
+		cs_free(check->cs);
+		check->cs = NULL;
+	}
 }
 
 void email_alert_free(struct email_alert *alert)
