@@ -2422,9 +2422,7 @@ static void *run_thread_poll_loop(void *data)
 {
 	struct per_thread_init_fct   *ptif;
 	struct per_thread_deinit_fct *ptdf;
-#ifdef USE_THREAD
-	static HA_SPINLOCK_T start_lock;
-#endif
+	__decl_hathreads(static HA_SPINLOCK_T start_lock);
 
 	tid     = *((unsigned int *)data);
 	tid_bit = (1UL << tid);
