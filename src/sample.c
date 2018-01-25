@@ -496,8 +496,6 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 
 /******************************************************************/
 /*          Sample casts functions                                */
-/*   Note: these functions do *NOT* set the output type on the    */
-/*   sample, the caller is responsible for doing this on return.  */
 /******************************************************************/
 
 static int c_ip2int(struct sample *smp)
