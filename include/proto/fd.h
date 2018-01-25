@@ -41,7 +41,6 @@ extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
 
 __decl_hathreads(extern HA_RWLOCK_T   __attribute__((aligned(64))) fdcache_lock);    /* global lock to protect fd_cache array */
-__decl_hathreads(extern HA_SPINLOCK_T __attribute__((aligned(64))) poll_lock);       /* global lock to protect poll info */
 
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
@@ -412,12 +411,12 @@ static inline void fd_insert(int fd, unsigned long thread_mask)
 /* These are replacements for FD_SET, FD_CLR, FD_ISSET, working on uints */
 static inline void hap_fd_set(int fd, unsigned int *evts)
 {
-	evts[fd / (8*sizeof(*evts))] |= 1U << (fd & (8*sizeof(*evts) - 1));
+	HA_ATOMIC_OR(&evts[fd / (8*sizeof(*evts))], 1U << (fd & (8*sizeof(*evts) - 1)));
 }
 
 static inline void hap_fd_clr(int fd, unsigned int *evts)
 {
-	evts[fd / (8*sizeof(*evts))] &= ~(1U << (fd & (8*sizeof(*evts) - 1)));
+	HA_ATOMIC_AND(&evts[fd / (8*sizeof(*evts))], ~(1U << (fd & (8*sizeof(*evts) - 1))));
 }
 
 static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)

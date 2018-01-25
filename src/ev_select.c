@@ -32,10 +32,8 @@ static THREAD_LOCAL fd_set *tmp_evts[2];
 /* Immediately remove the entry upon close() */
 REGPRM1 static void __fd_clo(int fd)
 {
-	HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 	hap_fd_clr(fd, fd_evts[DIR_RD]);
 	hap_fd_clr(fd, fd_evts[DIR_WR]);
-	HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 }
 
 /*
@@ -73,7 +71,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed, update the lists */
-			HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
 				hap_fd_clr(fd, fd_evts[DIR_RD]);
 			else if ((en & ~eo) & FD_EV_POLLED_R) {
@@ -89,7 +86,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				if (fd > max_add_fd)
 					max_add_fd = fd;
 			}
-			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
 

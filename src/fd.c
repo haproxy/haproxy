@@ -175,7 +175,6 @@ THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 
 __decl_hathreads(HA_RWLOCK_T   fdcache_lock);     /* global lock to protect fd_cache array */
-__decl_hathreads(HA_SPINLOCK_T poll_lock);        /* global lock to protect poll info */
 
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
@@ -331,7 +330,6 @@ int init_pollers()
 		HA_SPIN_INIT(&fdtab[p].lock);
 
 	HA_RWLOCK_INIT(&fdcache_lock);
-	HA_SPIN_INIT(&poll_lock);
 	do {
 		bp = NULL;
 		for (p = 0; p < nbpollers; p++)
@@ -379,7 +377,6 @@ void deinit_pollers() {
 	free(fdtab);    fdtab    = NULL;
 
 	HA_RWLOCK_DESTROY(&fdcache_lock);
-	HA_SPIN_DESTROY(&poll_lock);
 }
 
 /*
