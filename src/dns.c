@@ -193,9 +193,7 @@ static int dns_connect_namesaver(struct dns_nameserver *ns)
 
 	/* Add the fd in the fd list and update its parameters */
 	dgram->t.sock.fd = fd;
-	fdtab[fd].owner  = dgram;
-	fdtab[fd].iocb   = dgram_fd_handler;
-	fd_insert(fd, (unsigned long)-1);
+	fd_insert(fd, dgram, dgram_fd_handler, MAX_THREADS_MASK);
 	fd_want_recv(fd);
 	return 0;
 }

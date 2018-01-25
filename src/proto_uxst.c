@@ -331,13 +331,10 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
 
-	/* the function for the accept() event */
-	fdtab[fd].iocb = listener->proto->accept;
-	fdtab[fd].owner = listener; /* reference the listener instead of a task */
-	if (listener->bind_conf->bind_thread[relative_pid-1])
-		fd_insert(fd, listener->bind_conf->bind_thread[relative_pid-1]);
-	else
-		fd_insert(fd, MAX_THREADS_MASK);
+	fd_insert(fd, listener, listener->proto->accept,
+		  listener->bind_conf->bind_thread[relative_pid-1] ?
+		  listener->bind_conf->bind_thread[relative_pid-1] : MAX_THREADS_MASK);
+
 	return err;
 
  err_rename:

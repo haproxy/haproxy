@@ -393,9 +393,11 @@ static inline void fd_update_events(int fd, int evts)
 }
 
 /* Prepares <fd> for being polled */
-static inline void fd_insert(int fd, unsigned long thread_mask)
+static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
 	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	fdtab[fd].owner = owner;
+	fdtab[fd].iocb = iocb;
 	fdtab[fd].ev = 0;
 	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].linger_risk = 0;

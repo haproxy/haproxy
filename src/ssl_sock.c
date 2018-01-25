@@ -488,7 +488,7 @@ static void ssl_async_fd_free(int fd)
  */
 static void inline ssl_async_process_fds(struct connection *conn, SSL *ssl)
 {
-	OSSL_ASYNC_FD add_fd[32], afd;
+	OSSL_ASYNC_FD add_fd[32];
 	OSSL_ASYNC_FD del_fd[32];
 	size_t num_add_fds = 0;
 	size_t num_del_fds = 0;
@@ -509,10 +509,7 @@ static void inline ssl_async_process_fds(struct connection *conn, SSL *ssl)
 
 	/* We add new fds to the fdtab */
 	for (i=0 ; i < num_add_fds ; i++) {
-		afd = add_fd[i];
-		fdtab[afd].owner = conn;
-		fdtab[afd].iocb = ssl_async_fd_handler;
-		fd_insert(afd, tid_bit);
+		fd_insert(add_fd[i], conn, ssl_async_fd_handler, tid_bit);
 	}
 
 	num_add_fds = 0;
