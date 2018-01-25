@@ -39,16 +39,6 @@ static unsigned int *fd_evts[2];
 static THREAD_LOCAL int nbfd = 0;
 static THREAD_LOCAL struct pollfd *poll_events = NULL;
 
-static inline void hap_fd_set(int fd, unsigned int *evts)
-{
-	evts[fd / (8*sizeof(*evts))] |= 1U << (fd & (8*sizeof(*evts) - 1));
-}
-
-static inline void hap_fd_clr(int fd, unsigned int *evts)
-{
-	evts[fd / (8*sizeof(*evts))] &= ~(1U << (fd & (8*sizeof(*evts) - 1)));
-}
-
 REGPRM1 static void __fd_clo(int fd)
 {
 	HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
