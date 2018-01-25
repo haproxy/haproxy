@@ -1603,11 +1603,28 @@ static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, vo
 	return 1;
 }
 
-/* takes the netmask in arg_p */
-static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp, void *private)
+/* takes the IPv4 mask in args[0] and an optional IPv6 mask in args[1] */
+static int sample_conv_ipmask(const struct arg *args, struct sample *smp, void *private)
 {
-	smp->data.u.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
-	smp->data.type = SMP_T_IPV4;
+	/* Attempt to convert to IPv4 to apply the correct mask. */
+	c_ipv62ip(smp);
+
+	if (smp->data.type == SMP_T_IPV4) {
+		smp->data.u.ipv4.s_addr &= args[0].data.ipv4.s_addr;
+		smp->data.type = SMP_T_IPV4;
+	}
+	else if (smp->data.type == SMP_T_IPV6) {
+		/* IPv6 cannot be converted without an IPv6 mask. */
+		if (args[1].type != ARGT_IPV6)
+			return 0;
+
+		*(uint32_t*)&smp->data.u.ipv6.s6_addr[0]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[0];
+		*(uint32_t*)&smp->data.u.ipv6.s6_addr[4]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[4];
+		*(uint32_t*)&smp->data.u.ipv6.s6_addr[8]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[8];
+		*(uint32_t*)&smp->data.u.ipv6.s6_addr[12] &= *(uint32_t*)&args[1].data.ipv6.s6_addr[12];
+		smp->data.type = SMP_T_IPV6;
+	}
+
 	return 1;
 }
 
@@ -2809,7 +2826,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "length", sample_conv_length,    0,            NULL, SMP_T_STR,  SMP_T_SINT },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",  sample_conv_hex2int,   0,            NULL, SMP_T_STR,  SMP_T_SINT },
-	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
+	{ "ipmask", sample_conv_ipmask,    ARG2(1,MSK4,MSK6), NULL, SMP_T_ADDR, SMP_T_IPV4 },
 	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "crc32",  sample_conv_crc32,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },

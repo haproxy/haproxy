@@ -12870,11 +12870,14 @@ in_table(<table>)
   the presence of a certain key in a table tracking some elements (e.g. whether
   or not a source IP address or an Authorization header was already seen).
 
-ipmask(<mask>)
-  Apply a mask to an IPv4 address, and use the result for lookups and storage.
+ipmask(<mask4>, [<mask6>])
+  Apply a mask to an IP address, and use the result for lookups and storage.
   This can be used to make all hosts within a certain mask to share the same
-  table entries and as such use the same server. The mask can be passed in
-  dotted form (e.g. 255.255.255.0) or in CIDR form (e.g. 24).
+  table entries and as such use the same server. The mask4 can be passed in
+  dotted form (e.g. 255.255.255.0) or in CIDR form (e.g. 24). The mask6 can
+  be passed in quadruplet form (e.g. ffff:ffff::) or in CIDR form (e.g. 64).
+  If no mask6 is given IPv6 addresses will fail to convert for backwards
+  compatibility reasons.
 
 json([<input-code>])
   Escapes the input string and produces an ASCII output string ready to use as a
