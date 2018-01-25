@@ -52,10 +52,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 		}
 
-		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
-		fdtab[fd].update_mask &= ~tid_bit;
 		en = fdtab[fd].state;
-		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
 			if (!(fdtab[fd].polled_mask & tid_bit)) {

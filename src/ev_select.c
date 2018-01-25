@@ -62,10 +62,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 		}
 
-		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
-		fdtab[fd].update_mask &= ~tid_bit;
 		en = fdtab[fd].state;
-		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 
 		/* we have a single state for all threads, which is why we
 		 * don't check the tid_bit. First thread to see the update
