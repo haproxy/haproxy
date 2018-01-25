@@ -45,6 +45,24 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 		*(val) = new;						\
 		__old;							\
 	})
+#define HA_ATOMIC_BTS(val, bit)						\
+	({								\
+		typeof((val)) __p = (val);				\
+		typeof(*__p)  __b = (1UL << (bit));			\
+		typeof(*__p)  __t = *__p & __b;				\
+		if (!__t)						\
+			*__p |= __b;					\
+		__t;							\
+	})
+#define HA_ATOMIC_BTR(val, bit)						\
+	({								\
+		typeof((val)) __p = (val);				\
+		typeof(*__p)  __b = (1UL << (bit));			\
+		typeof(*__p)  __t = *__p & __b;				\
+		if (__t)						\
+			*__p &= ~__b;					\
+		__t;							\
+	})
 #define HA_ATOMIC_STORE(val, new)    ({*(val) = new;})
 #define HA_ATOMIC_UPDATE_MAX(val, new)					\
 	({								\
@@ -157,6 +175,19 @@ static inline void __ha_barrier_full(void)
 		} while (!__sync_bool_compare_and_swap(__val, __old, __new));  \
 		__old;							       \
 	})
+
+#define HA_ATOMIC_BTS(val, bit)						\
+	({								\
+		typeof(*(val)) __b = (1UL << (bit));			\
+		__sync_fetch_and_or((val), __b) & __b;			\
+	})
+
+#define HA_ATOMIC_BTR(val, bit)						\
+	({								\
+		typeof(*(val)) __b = (1UL << (bit));			\
+		__sync_fetch_and_and((val), ~__b) & __b;		\
+	})
+
 #define HA_ATOMIC_STORE(val, new)					     \
 	({								       \
 		typeof((val)) __val = (val);				       \
@@ -172,6 +203,18 @@ static inline void __ha_barrier_full(void)
 #define HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, 0)
 #define HA_ATOMIC_AND(val, flags)    __atomic_and_fetch(val, flags, 0)
 #define HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, 0)
+#define HA_ATOMIC_BTS(val, bit)						\
+	({								\
+		typeof(*(val)) __b = (1UL << (bit));			\
+		__sync_fetch_and_or((val), __b) & __b;			\
+	})
+
+#define HA_ATOMIC_BTR(val, bit)						\
+	({								\
+		typeof(*(val)) __b = (1UL << (bit));			\
+		__sync_fetch_and_and((val), ~__b) & __b;		\
+	})
+
 #define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, 0)
 #define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, 0)
 #endif
