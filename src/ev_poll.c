@@ -53,7 +53,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int status;
 	int fd;
 	int wait_time;
-	int updt_idx, en, eo;
+	int updt_idx, en;
 	int fds, count;
 	int sr, sw;
 	int old_maxfd, new_maxfd, max_add_fd;
@@ -72,9 +72,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 		fdtab[fd].update_mask &= ~tid_bit;
-		eo = fdtab[fd].state;
-		en = fd_compute_new_polled_status(eo);
-		fdtab[fd].state = en;
+		en = fdtab[fd].state;
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 		/* we have a single state for all threads, which is why we
