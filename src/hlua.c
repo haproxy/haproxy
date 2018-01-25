@@ -704,6 +704,13 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			break;
 
 		case ARGT_MSK6:
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			if (!str2mask6(trash.str, &argp[idx].data.ipv6))
+				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 mask"));
+			argp[idx].type = ARGT_MSK6;
+			break;
+
 		case ARGT_MAP:
 		case ARGT_REG:
 		case ARGT_USR:
