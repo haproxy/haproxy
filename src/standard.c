@@ -1022,10 +1022,8 @@ int str2mask(const char *str, struct in_addr *mask)
 
 		if (!*str || (err && *err) || (unsigned)len > 32)
 			return 0;
-		if (len)
-			mask->s_addr = htonl(~0UL << (32 - len));
-		else
-			mask->s_addr = 0;
+
+		len2mask4(len, mask);
 	}
 	return 1;
 }
