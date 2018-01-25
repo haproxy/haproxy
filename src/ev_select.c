@@ -69,23 +69,35 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fdtab[fd].state = en;
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
-		if ((eo ^ en) & FD_EV_POLLED_RW) {
-			/* poll status changed, update the lists */
-			if ((eo & ~en) & FD_EV_POLLED_R)
+		/* we have a single state for all threads, which is why we
+		 * don't check the tid_bit. First thread to see the update
+		 * takes it for every other one.
+		 */
+		if (!(en & FD_EV_POLLED_RW)) {
+			if (!fdtab[fd].polled_mask) {
+				/* fd was not watched, it's still not */
+				continue;
+			}
+			/* fd totally removed from poll list */
+			hap_fd_clr(fd, fd_evts[DIR_RD]);
+			hap_fd_clr(fd, fd_evts[DIR_WR]);
+			HA_ATOMIC_AND(&fdtab[fd].polled_mask, 0);
+		}
+		else {
+			/* OK fd has to be monitored, it was either added or changed */
+			if (!(en & FD_EV_POLLED_R))
 				hap_fd_clr(fd, fd_evts[DIR_RD]);
-			else if ((en & ~eo) & FD_EV_POLLED_R) {
+			else
 				hap_fd_set(fd, fd_evts[DIR_RD]);
-				if (fd > max_add_fd)
-					max_add_fd = fd;
-			}
 
-			if ((eo & ~en) & FD_EV_POLLED_W)
+			if (!(en & FD_EV_POLLED_W))
 				hap_fd_clr(fd, fd_evts[DIR_WR]);
-			else if ((en & ~eo) & FD_EV_POLLED_W) {
+			else
 				hap_fd_set(fd, fd_evts[DIR_WR]);
-				if (fd > max_add_fd)
-					max_add_fd = fd;
-			}
+
+			HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+			if (fd > max_add_fd)
+				max_add_fd = fd;
 		}
 	}
 
