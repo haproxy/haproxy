@@ -26,15 +26,15 @@
 
 /* private data */
 static int maxfd;   /* # of the highest fd + 1 */
-static fd_set *fd_evts[2];
+static unsigned int *fd_evts[2];
 static THREAD_LOCAL fd_set *tmp_evts[2];
 
 /* Immediately remove the entry upon close() */
 REGPRM1 static void __fd_clo(int fd)
 {
 	HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
-	FD_CLR(fd, fd_evts[DIR_RD]);
-	FD_CLR(fd, fd_evts[DIR_WR]);
+	hap_fd_clr(fd, fd_evts[DIR_RD]);
+	hap_fd_clr(fd, fd_evts[DIR_WR]);
 	HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 }
 
@@ -75,21 +75,20 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			/* poll status changed, update the lists */
 			HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
-				FD_CLR(fd, fd_evts[DIR_RD]);
+				hap_fd_clr(fd, fd_evts[DIR_RD]);
 			else if ((en & ~eo) & FD_EV_POLLED_R) {
-				FD_SET(fd, fd_evts[DIR_RD]);
+				hap_fd_set(fd, fd_evts[DIR_RD]);
 				if (fd > max_add_fd)
 					max_add_fd = fd;
 			}
 
 			if ((eo & ~en) & FD_EV_POLLED_W)
-				FD_CLR(fd, fd_evts[DIR_WR]);
+				hap_fd_clr(fd, fd_evts[DIR_WR]);
 			else if ((en & ~eo) & FD_EV_POLLED_W) {
-				FD_SET(fd, fd_evts[DIR_WR]);
+				hap_fd_set(fd, fd_evts[DIR_WR]);
 				if (fd > max_add_fd)
 					max_add_fd = fd;
 			}
-
 			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
@@ -122,16 +121,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		readnotnull |= (*(((int*)tmp_evts[DIR_RD])+i) = *(((int*)fd_evts[DIR_RD])+i)) != 0;
 		writenotnull |= (*(((int*)tmp_evts[DIR_WR])+i) = *(((int*)fd_evts[DIR_WR])+i)) != 0;
 	}
-
-#if 0
-	/* just a verification code, needs to be removed for performance */
-	for (i=0; i<maxfd; i++) {
-		if (FD_ISSET(i, tmp_evts[DIR_RD]) != FD_ISSET(i, fd_evts[DIR_RD]))
-			abort();
-		if (FD_ISSET(i, tmp_evts[DIR_WR]) != FD_ISSET(i, fd_evts[DIR_WR]))
-			abort();
-	}
-#endif
 
 	delta_ms      = 0;
 	delta.tv_sec  = 0;
@@ -232,9 +221,9 @@ REGPRM1 static int _do_init(struct poller *p)
 
 	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
 
-	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_RD] = calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
-	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_WR] = calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
 
 	hap_register_per_thread_init(init_select_per_thread);
