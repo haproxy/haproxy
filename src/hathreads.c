@@ -49,7 +49,7 @@ int thread_sync_init(unsigned long mask)
 	rfd = threads_sync_pipe[0];
 	fcntl(rfd, F_SETFL, O_NONBLOCK);
 
-	fdtab[rfd].owner = NULL;
+	fdtab[rfd].owner = thread_sync_io_handler;
 	fdtab[rfd].iocb = thread_sync_io_handler;
 	fd_insert(rfd, MAX_THREADS_MASK);
 
