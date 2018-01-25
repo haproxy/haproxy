@@ -531,7 +531,7 @@ static int c_ipv62ip(struct sample *smp)
 {
 	if (!v6tov4(&smp->data.u.ipv4, &smp->data.u.ipv6))
 		return 0;
-	smp->data.type = SMP_T_IPV6;
+	smp->data.type = SMP_T_IPV4;
 	return 1;
 }
 
