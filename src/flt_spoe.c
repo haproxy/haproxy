@@ -3455,6 +3455,23 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "max-waiting-frames")) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
+				 file, linenum, args[0]);
+                        err_code |= ERR_ALERT | ERR_FATAL;
+                        goto out;
+                }
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		curagent->max_fpa = atol(args[1]);
+		if (curagent->max_fpa < 1) {
+			ha_alert("parsing [%s:%d] : '%s' expects a positive integer argument.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "register-var-names")) {
 		int   cur_arg;
 

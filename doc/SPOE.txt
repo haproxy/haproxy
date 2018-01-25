@@ -167,6 +167,7 @@ spoe-agent <name>
     - maxconnrate
     - maxerrrate
     - max-frame-size
+    - max-waiting-frames
     - messages
     - [no] option async
     - [no] option pipelining
@@ -209,6 +210,10 @@ max-frame-size <number>
   It must be in the range [256, tune.bufsize-4] (4 bytes are reserved for the
   frame length). By default, it is set to (tune.bufsize-4).
 
+max-waiting-frames <number>
+  Set the maximum number of frames waiting for an acknowledgement on the same
+  connection. This value is only used when the pipelinied or asynchronus
+  exchanges between HAProxy and SPOA are enabled. By default, it is set to 20.
 
 messages <msg-name> ...
   Declare the list of SPOE messages that an agent will handle.
