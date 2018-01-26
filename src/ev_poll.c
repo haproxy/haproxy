@@ -32,6 +32,7 @@
 #define POLLRDHUP 0
 #endif
 
+static int maxfd;   /* # of the highest fd + 1 */
 static unsigned int *fd_evts[2];
 
 /* private data */
@@ -67,7 +68,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int updt_idx, en, eo;
 	int fds, count;
 	int sr, sw;
+	int old_maxfd, new_maxfd, max_add_fd;
 	unsigned rn, wn; /* read new, write new */
+
+	max_add_fd = -1;
 
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
@@ -100,8 +104,32 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			else if ((en & ~eo) & FD_EV_POLLED_W)
 				hap_fd_set(fd, fd_evts[DIR_WR]);
 			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
+
+			if (fd > max_add_fd)
+				max_add_fd = fd;
 		}
 	}
+
+	/* maybe we added at least one fd larger than maxfd */
+	for (old_maxfd = maxfd; old_maxfd <= max_add_fd; ) {
+		if (HA_ATOMIC_CAS(&maxfd, &old_maxfd, max_add_fd + 1))
+			break;
+	}
+
+	/* maxfd doesn't need to be precise but it needs to cover *all* active
+	 * FDs. Thus we only shrink it if we have such an opportunity. The algo
+	 * is simple : look for the previous used place, try to update maxfd to
+	 * point to it, abort if maxfd changed in the mean time.
+	 */
+	old_maxfd = maxfd;
+	do {
+		new_maxfd = old_maxfd;
+		while (new_maxfd - 1 >= 0 && !fdtab[new_maxfd - 1].owner)
+			new_maxfd--;
+		if (new_maxfd >= old_maxfd)
+			break;
+	} while (!HA_ATOMIC_CAS(&maxfd, &old_maxfd, new_maxfd));
+
 	fd_nbupdt = 0;
 
 	nbfd = 0;

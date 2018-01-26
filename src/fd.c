@@ -160,7 +160,6 @@
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
 struct fdinfo *fdinfo = NULL;   /* less-often used infos for file descriptors */
-int maxfd;                      /* # of the highest fd + 1 */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
@@ -179,7 +178,7 @@ __decl_hathreads(HA_SPINLOCK_T fdtab_lock);       /* global lock to protect fdta
 __decl_hathreads(HA_RWLOCK_T   fdcache_lock);     /* global lock to protect fd_cache array */
 __decl_hathreads(HA_SPINLOCK_T poll_lock);        /* global lock to protect poll info */
 
-/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+/* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
 static void fd_dodelete(int fd, int do_close)
@@ -207,14 +206,9 @@ static void fd_dodelete(int fd, int do_close)
 		close(fd);
 	}
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
-
-	HA_SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);
-	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
-		maxfd--;
-	HA_SPIN_UNLOCK(FDTAB_LOCK, &fdtab_lock);
 }
 
-/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+/* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
 void fd_delete(int fd)
@@ -222,7 +216,7 @@ void fd_delete(int fd)
 	fd_dodelete(fd, 1);
 }
 
-/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+/* Deletes an FD from the fdsets.
  * The file descriptor is kept open.
  */
 void fd_remove(int fd)

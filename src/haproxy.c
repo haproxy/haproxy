@@ -1298,7 +1298,7 @@ static void init(int argc, char **argv)
 	 * Initialize the previously static variables.
 	 */
 
-	totalconn = actconn = maxfd = listeners = stopping = 0;
+	totalconn = actconn = listeners = stopping = 0;
 	killed = 0;
 
 

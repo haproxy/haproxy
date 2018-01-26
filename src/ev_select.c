@@ -25,6 +25,7 @@
 
 
 /* private data */
+static int maxfd;   /* # of the highest fd + 1 */
 static fd_set *fd_evts[2];
 static THREAD_LOCAL fd_set *tmp_evts[2];
 
@@ -50,6 +51,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int updt_idx, en, eo;
 	char count;
 	int readnotnull, writenotnull;
+	int old_maxfd, new_maxfd, max_add_fd;
+
+	max_add_fd = -1;
 
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
@@ -74,16 +78,44 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
 				FD_CLR(fd, fd_evts[DIR_RD]);
-			else if ((en & ~eo) & FD_EV_POLLED_R)
+			else if ((en & ~eo) & FD_EV_POLLED_R) {
 				FD_SET(fd, fd_evts[DIR_RD]);
+				if (fd > max_add_fd)
+					max_add_fd = fd;
+			}
 
 			if ((eo & ~en) & FD_EV_POLLED_W)
 				FD_CLR(fd, fd_evts[DIR_WR]);
-			else if ((en & ~eo) & FD_EV_POLLED_W)
+			else if ((en & ~eo) & FD_EV_POLLED_W) {
 				FD_SET(fd, fd_evts[DIR_WR]);
+				if (fd > max_add_fd)
+					max_add_fd = fd;
+			}
+
 			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
+
+	/* maybe we added at least one fd larger than maxfd */
+	for (old_maxfd = maxfd; old_maxfd <= max_add_fd; ) {
+		if (HA_ATOMIC_CAS(&maxfd, &old_maxfd, max_add_fd + 1))
+			break;
+	}
+
+	/* maxfd doesn't need to be precise but it needs to cover *all* active
+	 * FDs. Thus we only shrink it if we have such an opportunity. The algo
+	 * is simple : look for the previous used place, try to update maxfd to
+	 * point to it, abort if maxfd changed in the mean time.
+	 */
+	old_maxfd = maxfd;
+	do {
+		new_maxfd = old_maxfd;
+		while (new_maxfd - 1 >= 0 && !fdtab[new_maxfd - 1].owner)
+			new_maxfd--;
+		if (new_maxfd >= old_maxfd)
+			break;
+	} while (!HA_ATOMIC_CAS(&maxfd, &old_maxfd, new_maxfd));
+
 	fd_nbupdt = 0;
 
 	/* let's restore fdset state */

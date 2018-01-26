@@ -44,12 +44,12 @@ __decl_hathreads(extern HA_SPINLOCK_T __attribute__((aligned(64))) fdtab_lock); 
 __decl_hathreads(extern HA_RWLOCK_T   __attribute__((aligned(64))) fdcache_lock);    /* global lock to protect fd_cache array */
 __decl_hathreads(extern HA_SPINLOCK_T __attribute__((aligned(64))) poll_lock);       /* global lock to protect poll info */
 
-/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+/* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
 void fd_delete(int fd);
 
-/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+/* Deletes an FD from the fdsets.
  * The file descriptor is kept open.
  */
 void fd_remove(int fd);
@@ -409,11 +409,6 @@ static inline void fd_insert(int fd, unsigned long thread_mask)
 	 * still knows this FD from a possible previous round.
 	 */
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
-
-	HA_SPIN_LOCK(FDTAB_LOCK, &fdtab_lock);
-	if (fd + 1 > maxfd)
-		maxfd = fd + 1;
-	HA_SPIN_UNLOCK(FDTAB_LOCK, &fdtab_lock);
 }
 
 

@@ -149,7 +149,6 @@ extern struct poller pollers[MAX_POLLERS];   /* all registered pollers */
 
 extern struct fdtab *fdtab;             /* array of all the file descriptors */
 extern struct fdinfo *fdinfo;           /* less-often used infos for file descriptors */
-extern int maxfd;                       /* # of the highest fd + 1 */
 extern int totalconn;                   /* total # of terminated sessions */
 extern int actconn;                     /* # of active sessions */
 
