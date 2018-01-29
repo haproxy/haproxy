@@ -206,7 +206,7 @@ static int init_epoll_per_thread()
 	 * fd for this thread. Let's just mark them as updated, the poller will
 	 * do the rest.
 	 */
-	for (fd = 0; fd < maxfd; fd++)
+	for (fd = 0; fd < global.maxsock; fd++)
 		updt_fd_polling(fd);
 
 	return 1;

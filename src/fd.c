@@ -457,7 +457,7 @@ int list_pollers(FILE *out)
 int fork_poller()
 {
 	int fd;
-	for (fd = 0; fd <= maxfd; fd++) {
+	for (fd = 0; fd < global.maxsock; fd++) {
 		if (fdtab[fd].owner) {
 			fdtab[fd].cloned = 1;
 		}

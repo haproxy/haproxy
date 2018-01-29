@@ -110,7 +110,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	else
 		activity[tid].poll_exp++;
 
-	fd = MIN(maxfd, global.tune.maxpollevents);
+	fd = global.tune.maxpollevents;
 	gettimeofday(&before_poll, NULL);
 	status = kevent(kqueue_fd[tid], // int kq
 			NULL,      // const struct kevent *changelist
@@ -172,7 +172,7 @@ static int init_kqueue_per_thread()
 	 * fd for this thread. Let's just mark them as updated, the poller will
 	 * do the rest.
 	 */
-	for (fd = 0; fd < maxfd; fd++)
+	for (fd = 0; fd < global.maxsock; fd++)
 		updt_fd_polling(fd);
 
 	return 1;
