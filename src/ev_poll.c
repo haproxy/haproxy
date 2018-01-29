@@ -96,17 +96,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			HA_SPIN_LOCK(POLL_LOCK, &poll_lock);
 			if ((eo & ~en) & FD_EV_POLLED_R)
 				hap_fd_clr(fd, fd_evts[DIR_RD]);
-			else if ((en & ~eo) & FD_EV_POLLED_R)
+			else if ((en & ~eo) & FD_EV_POLLED_R) {
 				hap_fd_set(fd, fd_evts[DIR_RD]);
+				if (fd > max_add_fd)
+					max_add_fd = fd;
+			}
 
 			if ((eo & ~en) & FD_EV_POLLED_W)
 				hap_fd_clr(fd, fd_evts[DIR_WR]);
-			else if ((en & ~eo) & FD_EV_POLLED_W)
+			else if ((en & ~eo) & FD_EV_POLLED_W) {
 				hap_fd_set(fd, fd_evts[DIR_WR]);
-			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
+				if (fd > max_add_fd)
+					max_add_fd = fd;
+			}
 
-			if (fd > max_add_fd)
-				max_add_fd = fd;
+			HA_SPIN_UNLOCK(POLL_LOCK, &poll_lock);
 		}
 	}
 
