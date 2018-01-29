@@ -730,13 +730,19 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		rule->arg.cap.hdr = hdr;
 		rule->action = ACT_TCP_CAPTURE;
 	}
-	else if (strncmp(args[arg], "track-sc", 8) == 0 &&
-		 args[arg][9] == '\0' && args[arg][8] >= '0' &&
-		 args[arg][8] < '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
+	else if (strncmp(args[arg], "track-sc", 8) == 0) {
 		struct sample_expr *expr;
 		int kw = arg;
+		unsigned int tsc_num;
+		const char *tsc_num_str;
 
 		arg++;
+
+		tsc_num_str = &args[kw][8];
+		if (cfg_parse_track_sc_num(&tsc_num, tsc_num_str, tsc_num_str + strlen(tsc_num_str), err) == -1) {
+			memprintf(err, "'%s %s %s' : %s", args[0], args[1], args[kw], *err);
+			return -1;
+		}
 
 		curpx->conf.args.ctx = ARGC_TRK;
 		expr = sample_parse_expr(args, &arg, file, line, err, &curpx->conf.args);
@@ -772,7 +778,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			arg++;
 		}
 		rule->arg.trk_ctr.expr = expr;
-		rule->action = ACT_ACTION_TRK_SC0 + args[kw][8] - '0';
+		rule->action = ACT_ACTION_TRK_SC0 + tsc_num;
 		rule->check_ptr = check_trk_action;
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {

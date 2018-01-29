@@ -7120,6 +7120,31 @@ cfg_parse_scope(const char *file, int linenum, char *line)
 	return err_code;
 }
 
+int
+cfg_parse_track_sc_num(unsigned int *track_sc_num,
+                       const char *arg, const char *end, char **errmsg)
+{
+	const char *p;
+	unsigned int num;
+
+	p = arg;
+	num = read_uint64(&arg, end);
+
+	if (arg != end) {
+		memprintf(errmsg, "Wrong track-sc number '%s'", p);
+		return -1;
+	}
+
+	if (num >= MAX_SESS_STKCTR) {
+		memprintf(errmsg, "%u track-sc number exceeding "
+		          "%d (MAX_SESS_STKCTR-1) value", num, MAX_SESS_STKCTR - 1);
+		return -1;
+	}
+
+	*track_sc_num = num;
+	return 0;
+}
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, or any combination of :
