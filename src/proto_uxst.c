@@ -452,20 +452,20 @@ static int uxst_connect_server(struct connection *conn, int data, int delack)
 		if (errno == ENFILE) {
 			conn->err_code = CO_ER_SYS_FDLIM;
 			send_log(be, LOG_EMERG,
-				 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
-				 be->id, maxfd);
+				 "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
+				 be->id, global.maxsock);
 		}
 		else if (errno == EMFILE) {
 			conn->err_code = CO_ER_PROC_FDLIM;
 			send_log(be, LOG_EMERG,
-				 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
-				 be->id, maxfd);
+				 "Proxy %s reached process FD limit (maxsock=%d). Please check 'ulimit-n' and restart.\n",
+				 be->id, global.maxsock);
 		}
 		else if (errno == ENOBUFS || errno == ENOMEM) {
 			conn->err_code = CO_ER_SYS_MEMLIM;
 			send_log(be, LOG_EMERG,
-				 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
-				 be->id, maxfd);
+				 "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
+				 be->id, global.maxsock);
 		}
 		else if (errno == EAFNOSUPPORT || errno == EPROTONOSUPPORT) {
 			conn->err_code = CO_ER_NOPROTO;

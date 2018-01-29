@@ -570,21 +570,21 @@ void listener_accept(int fd)
 			case ENFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
-						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
-						 p->id, maxfd);
+						 "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
+						 p->id, global.maxsock);
 				goto transient_error;
 			case EMFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
-						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
-						 p->id, maxfd);
+						 "Proxy %s reached process FD limit (maxsock=%d). Please check 'ulimit-n' and restart.\n",
+						 p->id, global.maxsock);
 				goto transient_error;
 			case ENOBUFS:
 			case ENOMEM:
 				if (p)
 					send_log(p, LOG_EMERG,
-						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
-						 p->id, maxfd);
+						 "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
+						 p->id, global.maxsock);
 				goto transient_error;
 			default:
 				/* unexpected result, let's give up and let other tasks run */
