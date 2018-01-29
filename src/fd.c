@@ -174,7 +174,6 @@ unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 
-__decl_hathreads(HA_SPINLOCK_T fdtab_lock);       /* global lock to protect fdtab array */
 __decl_hathreads(HA_RWLOCK_T   fdcache_lock);     /* global lock to protect fd_cache array */
 __decl_hathreads(HA_SPINLOCK_T poll_lock);        /* global lock to protect poll info */
 
@@ -332,7 +331,6 @@ int init_pollers()
 	for (p = 0; p < global.maxsock; p++)
 		HA_SPIN_INIT(&fdtab[p].lock);
 
-	HA_SPIN_INIT(&fdtab_lock);
 	HA_RWLOCK_INIT(&fdcache_lock);
 	HA_SPIN_INIT(&poll_lock);
 	do {
@@ -381,7 +379,6 @@ void deinit_pollers() {
 	free(fdinfo);   fdinfo   = NULL;
 	free(fdtab);    fdtab    = NULL;
 
-	HA_SPIN_DESTROY(&fdtab_lock);
 	HA_RWLOCK_DESTROY(&fdcache_lock);
 	HA_SPIN_DESTROY(&poll_lock);
 }

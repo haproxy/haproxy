@@ -203,7 +203,6 @@ int  thread_need_sync(void);
 
 enum lock_label {
 	THREAD_SYNC_LOCK = 0,
-	FDTAB_LOCK,
 	FDCACHE_LOCK,
 	FD_LOCK,
 	POLL_LOCK,
