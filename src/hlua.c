@@ -297,7 +297,7 @@ __LJMP static inline void check_args(lua_State *L, int nb, char *fcn)
 	WILL_LJMP(luaL_error(L, "'%s' needs %d arguments", fcn, nb));
 }
 
-/* This fucntion push an error string prefixed by the file name
+/* This function pushes an error string prefixed by the file name
  * and the line number where the error is encountered.
  */
 static int hlua_pusherror(lua_State *L, const char *fmt, ...)
@@ -1896,7 +1896,7 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 }
 
 /* Write the Lua input string in the output buffer.
- * This fucntion returns a yield if no space are available.
+ * This function returns a yield if no space is available.
  */
 static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext ctx)
 {
