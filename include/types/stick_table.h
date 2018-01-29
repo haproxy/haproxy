@@ -52,6 +52,8 @@ enum {
 	STKTABLE_DT_BYTES_IN_RATE,/* bytes rate from client to servers */
 	STKTABLE_DT_BYTES_OUT_CNT,/* cumulated bytes count from servers to client */
 	STKTABLE_DT_BYTES_OUT_RATE,/* bytes rate from servers to client */
+	STKTABLE_DT_GPC1,         /* General Purpose Counter 1 (unsigned 32-bit integer) */
+	STKTABLE_DT_GPC1_RATE,    /* General Purpose Counter 1's event rate */
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always
 	 * followed by the number of data types, must always be last.
@@ -87,6 +89,8 @@ union stktable_data {
 	unsigned int gpt0;
 	unsigned int gpc0;
 	struct freq_ctr_period gpc0_rate;
+	unsigned int gpc1;
+	struct freq_ctr_period gpc1_rate;
 	unsigned int conn_cnt;
 	struct freq_ctr_period conn_rate;
 	unsigned int conn_cur;

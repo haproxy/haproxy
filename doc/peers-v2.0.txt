@@ -219,6 +219,8 @@ bit
  14: bytes in rate
  15: bytes out rate
  16: bytes out rate
+ 17: gpc1
+ 18: gpc1 rate
 
 d) Table Switch Message
 

@@ -3903,6 +3903,7 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
               unset-var(<var name>) |
               { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
               sc-inc-gpc0(<sc-id>) |
+              sc-inc-gpc1(<sc-id>) |
               sc-set-gpt0(<sc-id>) <int> |
               silent-drop |
               send-spoe-group |
@@ -4194,6 +4195,9 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
       designated by <sc-id>. If an error occurs, this action silently fails and
       the actions evaluation continues.
 
+    - sc-inc-gpc1(<sc-id>):
+	  Same as "sc-inc-gpc0" action above but for GPC1 counter.
+
     - set-var(<var-name>) <expr> :
       Is used to set the contents of a variable. The variable is declared
       inline.
@@ -4403,6 +4407,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 unset-var(<var-name>) |
                 { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
                 sc-inc-gpc0(<sc-id>) |
+                sc-inc-gpc1(<sc-id>) |
                 sc-set-gpt0(<sc-id>) <int> |
                 silent-drop |
                 send-spoe-group |
@@ -4643,6 +4648,9 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       This action increments the GPC0 counter according with the sticky counter
       designated by <sc-id>. If an error occurs, this action silently fails and
       the actions evaluation continues.
+
+    - sc-inc-gpc1(<sc-id>):
+	  Same as "sc-inc-gpc0" action above but for GPC1 counter.
 
     - "silent-drop" : this stops the evaluation of the rules and makes the
       client-facing connection suddenly disappear using a system-dependent way
@@ -8743,6 +8751,18 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       incremented. Most of the time it will be used to measure the frequency of
       occurrence of certain events (e.g. requests to a specific URL).
 
+    - gpc1 : second General Purpose Counter. It is a positive 32-bit integer
+      integer which may be used for anything. Most of the time it will be used
+      to put a special tag on some entries, for instance to note that a
+      specific behavior was detected and must be known for future matches.
+
+    - gpc1_rate(<period>) : increment rate of the second General Purpose Counter
+      over a period. It is a positive 32-bit integer integer which may be used
+      for anything. Just like <gpc1>, it counts events, but instead of keeping
+      a cumulative number, it maintains the rate at which the counter is
+      incremented. Most of the time it will be used to measure the frequency of
+      occurrence of certain events (e.g. requests to a specific URL).
+
     - conn_cnt : Connection Count. It is a positive 32-bit integer which counts
       the absolute number of connections received from clients which matched
       this entry. It does not mean the connections were accepted, just that
@@ -9255,6 +9275,11 @@ tcp-request connection <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action silently
         fails and the actions evaluation continues.
 
+    - sc-inc-gpc1(<sc-id>):
+        The "sc-inc-gpc1" increments the GPC1 counter according to the sticky
+        counter designated by <sc-id>. If an error occurs, this action silently
+        fails and the actions evaluation continues.
+
     - sc-set-gpt0(<sc-id>) <int>:
         This action sets the GPT0 tag according to the sticky counter designated
         by <sc-id> and the value of <int>. The expected result is a boolean. If
@@ -9414,6 +9439,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
+    - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt0(<sc-id>) <int>
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
@@ -9648,6 +9674,11 @@ tcp-response content <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action fails
         silently and the actions evaluation continues.
 
+    - sc-inc-gpc1(<sc-id>):
+        This action increments the GPC1 counter according to the sticky
+        counter designated by <sc-id>. If an error occurs, this action fails
+        silently and the actions evaluation continues.
+
     - sc-set-gpt0(<sc-id>) <int> :
         This action sets the GPT0 tag according to the sticky counter designated
         by <sc-id> and the value of <int>. The expected result is a boolean. If
@@ -9772,6 +9803,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - reject : the request is rejected and the connection is closed
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
+    - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt0(<sc-id>) <int>
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
@@ -13237,6 +13269,21 @@ table_gpc0_rate(<table>)
   with the input sample in the designated table. See also the sc_get_gpc0_rate
   sample fetch keyword.
 
+table_gpc1(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the current value of the second
+  general purpose counter associated with the input sample in the designated
+  table. See also the sc_get_gpc1 sample fetch keyword.
+
+table_gpc1_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the frequency which the gpc1
+  counter was incremented over the configured period in the table, associated
+  with the input sample in the designated table. See also the sc_get_gpc1_rate
+  sample fetch keyword.
+
 table_http_err_cnt(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -13880,6 +13927,16 @@ sc2_clr_gpc0([<table>]) : integer
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
+sc_clr_gpc1(<ctr>[,<table>]) : integer
+sc0_clr_gpc1([<table>]) : integer
+sc1_clr_gpc1([<table>]) : integer
+sc2_clr_gpc1([<table>]) : integer
+  Clears the second General Purpose Counter associated to the currently tracked
+  counters, and returns its previous value. Before the first invocation, the
+  stored value is zero, so first invocation will always return zero. This is
+  typically used as a second ACL in an expression in order to mark a connection
+  when a first ACL was verified.
+
 sc_conn_cnt(<ctr>[,<table>]) : integer
 sc0_conn_cnt([<table>]) : integer
 sc1_conn_cnt([<table>]) : integer
@@ -13910,6 +13967,13 @@ sc2_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc/sc0/sc1/sc2_inc_gpc0.
 
+sc_get_gpc1(<ctr>[,<table>]) : integer
+sc0_get_gpc1([<table>]) : integer
+sc1_get_gpc1([<table>]) : integer
+sc2_get_gpc1([<table>]) : integer
+  Returns the value of the second General Purpose Counter associated to the
+  currently tracked counters. See also src_get_gpc1 and sc/sc0/sc1/sc2_inc_gpc1.
+
 sc_get_gpt0(<ctr>[,<table>]) : integer
 sc0_get_gpt0([<table>]) : integer
 sc1_get_gpt0([<table>]) : integer
@@ -13927,6 +13991,17 @@ sc2_gpc0_rate([<table>]) : integer
   src_gpc0_rate, sc/sc0/sc1/sc2_get_gpc0, and sc/sc0/sc1/sc2_inc_gpc0. Note
   that the "gpc0_rate" counter must be stored in the stick-table for a value to
   be returned, as "gpc0" only holds the event count.
+
+sc_gpc1_rate(<ctr>[,<table>]) : integer
+sc0_gpc1_rate([<table>]) : integer
+sc1_gpc1_rate([<table>]) : integer
+sc2_gpc1_rate([<table>]) : integer
+  Returns the average increment rate of the second General Purpose Counter
+  associated to the currently tracked counters. It reports the frequency
+  which the gpc1 counter was incremented over the configured period. See also
+  src_gpcA_rate, sc/sc0/sc1/sc2_get_gpc1, and sc/sc0/sc1/sc2_inc_gpc1. Note
+  that the "gpc1_rate" counter must be stored in the stick-table for a value to
+  be returned, as "gpc1" only holds the event count.
 
 sc_http_err_cnt(<ctr>[,<table>]) : integer
 sc0_http_err_cnt([<table>]) : integer
@@ -13976,6 +14051,16 @@ sc2_inc_gpc0([<table>]) : integer
         acl abuse sc0_http_req_rate gt 10
         acl kill  sc0_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
+
+sc_inc_gpc1(<ctr>[,<table>]) : integer
+sc0_inc_gpc1([<table>]) : integer
+sc1_inc_gpc1([<table>]) : integer
+sc2_inc_gpc1([<table>]) : integer
+  Increments the second General Purpose Counter associated to the currently
+  tracked counters, and returns its new value. Before the first invocation,
+  the stored value is zero, so first invocation will increase it to 1 and will
+  return 1. This is typically used as a second ACL in an expression in order
+  to mark a connection when a first ACL was verified.
 
 sc_kbytes_in(<ctr>[,<table>]) : integer
 sc0_kbytes_in([<table>]) : integer
@@ -14084,6 +14169,14 @@ src_clr_gpc0([<table>]) : integer
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
+src_clr_gpc1([<table>]) : integer
+  Clears the second General Purpose Counter associated to the incoming
+  connection's source address in the current proxy's stick-table or in the
+  designated stick-table, and returns its previous value. If the address is not
+  found, an entry is created and 0 is returned. This is typically used as a
+  second ACL in an expression in order to mark a connection when a first ACL
+  was verified.
+
 src_conn_cnt([<table>]) : integer
   Returns the cumulative number of connections initiated from the current
   incoming connection's source address in the current proxy's stick-table or in
@@ -14108,6 +14201,12 @@ src_get_gpc0([<table>]) : integer
   the designated stick-table. If the address is not found, zero is returned.
   See also sc/sc0/sc1/sc2_get_gpc0 and src_inc_gpc0.
 
+src_get_gpc1([<table>]) : integer
+  Returns the value of the second General Purpose Counter associated to the
+  incoming connection's source address in the current proxy's stick-table or in
+  the designated stick-table. If the address is not found, zero is returned.
+  See also sc/sc0/sc1/sc2_get_gpc1 and src_inc_gpc1.
+
 src_get_gpt0([<table>]) : integer
   Returns the value of the first General Purpose Tag associated to the
   incoming connection's source address in the current proxy's stick-table or in
@@ -14122,6 +14221,15 @@ src_gpc0_rate([<table>]) : integer
   sc/sc0/sc1/sc2_gpc0_rate, src_get_gpc0, and sc/sc0/sc1/sc2_inc_gpc0. Note
   that the "gpc0_rate" counter must be stored in the stick-table for a value to
   be returned, as "gpc0" only holds the event count.
+
+src_gpc1_rate([<table>]) : integer
+  Returns the average increment rate of the second General Purpose Counter
+  associated to the incoming connection's source address in the current proxy's
+  stick-table or in the designated stick-table. It reports the frequency
+  which the gpc1 counter was incremented over the configured period. See also
+  sc/sc0/sc1/sc2_gpc1_rate, src_get_gpc1, and sc/sc0/sc1/sc2_inc_gpc1. Note
+  that the "gpc1_rate" counter must be stored in the stick-table for a value to
+  be returned, as "gpc1" only holds the event count.
 
 src_http_err_cnt([<table>]) : integer
   Returns the cumulative number of HTTP errors from the incoming connection's
@@ -14162,6 +14270,14 @@ src_inc_gpc0([<table>]) : integer
         acl abuse src_http_req_rate gt 10
         acl kill  src_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
+
+src_inc_gpc1([<table>]) : integer
+  Increments the second General Purpose Counter associated to the incoming
+  connection's source address in the current proxy's stick-table or in the
+  designated stick-table, and returns its new value. If the address is not
+  found, an entry is created and 1 is returned. See also sc0/sc2/sc2_inc_gpc1.
+  This is typically used as a second ACL in an expression in order to mark a
+  connection when a first ACL was verified.
 
 src_is_local : boolean
   Returns true if the source address of the incoming connection is local to the
