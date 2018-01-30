@@ -151,7 +151,9 @@ struct stream {
 		struct stktable *table;
 	} store[8];                     /* tracked stickiness values to store */
 	int store_count;
-	/* 4 unused bytes here */
+
+	enum obj_type obj_type;         /* object type == OBJ_TYPE_STREAM */
+	/* 3 unused bytes here */
 
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
 

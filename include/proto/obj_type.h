@@ -30,6 +30,7 @@
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/server.h>
+#include <types/stream.h>
 #include <types/stream_interface.h>
 
 static inline enum obj_type obj_type(enum obj_type *t)
@@ -51,6 +52,7 @@ static inline const char *obj_type_name(enum obj_type *t)
 	case OBJ_TYPE_CONN:     return "CONN";
 	case OBJ_TYPE_SRVRQ:    return "SRVRQ";
 	case OBJ_TYPE_CS:       return "CS";
+	case OBJ_TYPE_STREAM:   return "STREAM";
 	default:                return "!INVAL!";
 	}
 }
@@ -156,6 +158,18 @@ static inline struct dns_srvrq *objt_dns_srvrq(enum obj_type *t)
 	if (!t || *t != OBJ_TYPE_SRVRQ)
 		return NULL;
 	return __objt_dns_srvrq(t);
+}
+
+static inline struct stream *__objt_stream(enum obj_type *t)
+{
+	return container_of(t, struct stream, obj_type);
+}
+
+static inline struct stream *objt_stream(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_STREAM)
+		return NULL;
+	return __objt_stream(t);
 }
 
 static inline void *obj_base_ptr(enum obj_type *t)
