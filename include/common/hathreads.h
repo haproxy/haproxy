@@ -201,6 +201,7 @@ int  thread_need_sync(void);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 
+/* WARNING!!! if you update this enum, please also keep lock_label() up to date below */
 enum lock_label {
 	THREAD_SYNC_LOCK = 0,
 	FDCACHE_LOCK,
@@ -316,16 +317,51 @@ struct ha_rwlock {
 	} info;
 };
 
+static inline const char *lock_label(enum lock_label label)
+{
+	switch (label) {
+	case THREAD_SYNC_LOCK:     return "THREAD_SYNC";
+	case FDCACHE_LOCK:         return "FDCACHE";
+	case FD_LOCK:              return "FD";
+	case TASK_RQ_LOCK:         return "TASK_RQ";
+	case TASK_WQ_LOCK:         return "TASK_WQ";
+	case POOL_LOCK:            return "POOL";
+	case LISTENER_LOCK:        return "LISTENER";
+	case LISTENER_QUEUE_LOCK:  return "LISTENER_QUEUE";
+	case PROXY_LOCK:           return "PROXY";
+	case SERVER_LOCK:          return "SERVER";
+	case UPDATED_SERVERS_LOCK: return "UPDATED_SERVERS";
+	case LBPRM_LOCK:           return "LBPRM";
+	case SIGNALS_LOCK:         return "SIGNALS";
+	case STK_TABLE_LOCK:       return "STK_TABLE";
+	case STK_SESS_LOCK:        return "STK_SESS";
+	case APPLETS_LOCK:         return "APPLETS";
+	case PEER_LOCK:            return "PEER";
+	case BUF_WQ_LOCK:          return "BUF_WQ";
+	case STRMS_LOCK:           return "STRMS";
+	case SSL_LOCK:             return "SSL";
+	case SSL_GEN_CERTS_LOCK:   return "SSL_GEN_CERTS";
+	case PATREF_LOCK:          return "PATREF";
+	case PATEXP_LOCK:          return "PATEXP";
+	case PATLRU_LOCK:          return "PATLRU";
+	case VARS_LOCK:            return "VARS";
+	case COMP_POOL_LOCK:       return "COMP_POOL";
+	case LUA_LOCK:             return "LUA";
+	case NOTIF_LOCK:           return "NOTIF";
+	case SPOE_APPLET_LOCK:     return "SPOE_APPLET";
+	case DNS_LOCK:             return "DNS";
+	case PID_LIST_LOCK:        return "PID_LIST";
+	case EMAIL_ALERTS_LOCK:    return "EMAIL_ALERTS";
+	case PIPES_LOCK:           return "PIPES";
+	case START_LOCK:           return "START";
+	case LOCK_LABELS:          break; /* keep compiler happy */
+	};
+	/* only way to come here is consecutive to an internal bug */
+	abort();
+}
+
 static inline void show_lock_stats()
 {
-	const char *labels[LOCK_LABELS] = {"THREAD_SYNC", "FDTAB", "FDCACHE", "FD", "POLL",
-					   "TASK_RQ", "TASK_WQ", "POOL",
-					   "LISTENER", "LISTENER_QUEUE", "PROXY", "SERVER",
-					   "UPDATED_SERVERS", "LBPRM", "SIGNALS", "STK_TABLE", "STK_SESS",
-					   "APPLETS", "PEER", "BUF_WQ", "STREAMS", "SSL", "SSL_GEN_CERTS",
-					   "PATREF", "PATEXP", "PATLRU", "VARS", "COMP_POOL", "LUA",
-					   "NOTIF", "SPOE_APPLET", "DNS", "PID_LIST", "EMAIL_ALERTS",
-					   "PIPES" };
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
@@ -339,7 +375,7 @@ static inline void show_lock_stats()
 			"\t # read unlock : %lu (%ld)\n"
 			"\t # wait time for read      : %.3f msec\n"
 			"\t # wait time for read/lock : %.3f nsec\n",
-			labels[lbl],
+			lock_label(lbl),
 			lock_stats[lbl].num_write_locked,
 			lock_stats[lbl].num_write_unlocked,
 			lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked,
