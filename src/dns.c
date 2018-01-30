@@ -1397,6 +1397,9 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 			req = srv->dns_requester;
 		if (!requester_locked)
 			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+
+		req->requester_cb       = snr_resolution_cb;
+		req->requester_error_cb = snr_resolution_error_cb;
 	}
 	else if (srvrq) {
 		if (srvrq->dns_requester == NULL) {
@@ -1407,13 +1410,14 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 		}
 		else
 			req = srvrq->dns_requester;
+
+		req->requester_cb       = snr_resolution_cb;
+		req->requester_error_cb = snr_resolution_error_cb;
 	}
 	else
 		goto err;
 
 	req->resolution         = res;
-	req->requester_cb       = snr_resolution_cb;
-	req->requester_error_cb = snr_resolution_error_cb;
 
 	LIST_ADDQ(&res->requesters, &req->list);
 	return 0;
