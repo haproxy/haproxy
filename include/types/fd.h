@@ -90,14 +90,24 @@ enum fd_states {
  */
 #define DEAD_FD_MAGIC 0xFDDEADFD
 
+/* fdlist_entry: entry used by the fd cache.
+ *    >= 0 means we're in the cache and gives the FD of the next in the cache,
+ *      -1 means we're in the cache and the last element,
+ *      -2 means the entry is locked,
+ *   <= -3 means not in the cache, and next element is -4-fd
+ *
+ * It must remain 8-aligned so that aligned CAS operations may be done on both
+ * entries at once.
+ */
 struct fdlist_entry {
-	volatile int next;
-	volatile int prev;
+	int next;
+	int prev;
 } __attribute__ ((aligned(8)));
 
+/* head of the fd cache */
 struct fdlist {
-	volatile int first;
-	volatile int last;
+	int first;
+	int last;
 } __attribute__ ((aligned(8)));
 
 /* info about one given fd */
@@ -106,7 +116,7 @@ struct fdtab {
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
 	unsigned long polled_mask;           /* mask of thread IDs currently polling this fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
-	struct fdlist_entry fdcache_entry;   /* Entry in the fdcache */
+	struct fdlist_entry cache;           /* Entry in the fdcache */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */

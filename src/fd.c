@@ -224,7 +224,7 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 {
 	int fd, old_fd, e;
 
-	for (old_fd = fd = fdlist->first; fd != -1; fd = fdtab[fd].fdcache_entry.next) {
+	for (old_fd = fd = fdlist->first; fd != -1; fd = fdtab[fd].cache.next) {
 		if (fd == -2) {
 			fd = old_fd;
 			continue;
@@ -235,7 +235,7 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 		old_fd = fd;
 		if (!(fdtab[fd].thread_mask & tid_bit))
 			continue;
-		if (fdtab[fd].fdcache_entry.next < -3)
+		if (fdtab[fd].cache.next < -3)
 			continue;
 
 		HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
@@ -323,8 +323,8 @@ int init_pollers()
 	for (p = 0; p < global.maxsock; p++) {
 		HA_SPIN_INIT(&fdtab[p].lock);
 		/* Mark the fd as out of the fd cache */
-		fdtab[p].fdcache_entry.next = -3;
-		fdtab[p].fdcache_entry.next = -3;
+		fdtab[p].cache.next = -3;
+		fdtab[p].cache.next = -3;
 	}
 	for (p = 0; p < global.nbthread; p++)
 		fd_cache_local[p].first = fd_cache_local[p].last = -1;

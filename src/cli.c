@@ -811,7 +811,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.ev & FD_POLL_IN)  ? 'I' : 'i',
 			     fdt.linger_risk ? 'L' : 'l',
 			     fdt.cloned ? 'C' : 'c',
-			     fdt.fdcache_entry.next >= -2 ? 1 : 0,
+			     fdt.cache.next >= -2 ? 1 : 0,
 			     fdt.owner,
 			     fdt.iocb,
 			     (fdt.iocb == conn_fd_handler)  ? "conn_fd_handler" :
