@@ -50,7 +50,7 @@ static THREAD_LOCAL struct epoll_event ev;
 REGPRM1 static void __fd_clo(int fd)
 {
 	if (unlikely(fdtab[fd].cloned)) {
-		unsigned long m = fdtab[fd].thread_mask;
+		unsigned long m = fdtab[fd].polled_mask;
 		int i;
 
 		for (i = global.nbthread - 1; i >= 0; i--)
