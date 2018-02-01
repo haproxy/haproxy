@@ -11722,7 +11722,9 @@ send-proxy-v2
 proxy-v2-options <option>[,<option>]*
   The "proxy-v2-options" parameter add option to send in PROXY protocol version
   2 when "send-proxy-v2" is used. Options available are "ssl" (see also
-  send-proxy-v2-ssl), "cert-cn" (see also "send-proxy-v2-ssl-cn").
+  send-proxy-v2-ssl), "cert-cn" (see also "send-proxy-v2-ssl-cn"), "ssl-cipher":
+  name of the used cipher, "cert-sig": signature algorithm of the used
+  certificate, "cert-key": key algorithm of the used certificate).
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version

@@ -144,10 +144,13 @@ enum srv_initaddr {
 #define SRV_F_COOKIESET    0x0100        /* this server has a cookie configured, so don't generate dynamic cookies */
 
 /* configured server options for send-proxy (server->pp_opts) */
-#define SRV_PP_V1          0x0001        /* proxy protocol version 1 */
-#define SRV_PP_V2          0x0002        /* proxy protocol version 2 */
-#define SRV_PP_V2_SSL      0x0004        /* proxy protocol version 2 with SSL*/
-#define SRV_PP_V2_SSL_CN   0x0008        /* proxy protocol version 2 with SSL and CN*/
+#define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
+#define SRV_PP_V2               0x0002   /* proxy protocol version 2 */
+#define SRV_PP_V2_SSL           0x0004   /* proxy protocol version 2 with SSL */
+#define SRV_PP_V2_SSL_CN        0x0008   /* proxy protocol version 2 with CN */
+#define SRV_PP_V2_SSL_KEY_ALG   0x0010   /* proxy protocol version 2 with cert key algorithm */
+#define SRV_PP_V2_SSL_SIG_ALG   0x0020   /* proxy protocol version 2 with cert signature algorithm */
+#define SRV_PP_V2_SSL_CIPHER    0x0040   /* proxy protocol version 2 with cipher used */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */

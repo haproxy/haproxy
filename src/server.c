@@ -517,6 +517,15 @@ static int srv_parse_proxy_v2_options(char **args, int *cur_arg,
 		} else if (!strcmp(p, "cert-cn")) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
 			newsrv->pp_opts |= SRV_PP_V2_SSL_CN;
+		} else if (!strcmp(p, "cert-key")) {
+			newsrv->pp_opts |= SRV_PP_V2_SSL;
+			newsrv->pp_opts |= SRV_PP_V2_SSL_KEY_ALG;
+		} else if (!strcmp(p, "cert-sig")) {
+			newsrv->pp_opts |= SRV_PP_V2_SSL;
+			newsrv->pp_opts |= SRV_PP_V2_SSL_SIG_ALG;
+		} else if (!strcmp(p, "ssl-cipher")) {
+			newsrv->pp_opts |= SRV_PP_V2_SSL;
+			newsrv->pp_opts |= SRV_PP_V2_SSL_CIPHER;
 		} else
 			goto fail;
 	}

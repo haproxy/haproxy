@@ -1071,6 +1071,24 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN, cn_trash->len, cn_trash->str);
 				}
 			}
+			if (srv->pp_opts & SRV_PP_V2_SSL_KEY_ALG) {
+				struct chunk *pkey_trash = get_trash_chunk();
+				if (ssl_sock_get_pkey_algo(remote, pkey_trash) > 0) {
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_KEY_ALG, pkey_trash->len, pkey_trash->str);
+				}
+			}
+			if (srv->pp_opts & SRV_PP_V2_SSL_SIG_ALG) {
+				value = ssl_sock_get_cert_sig(remote);
+				if (value) {
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_SIG_ALG, strlen(value), value);
+				}
+			}
+			if (srv->pp_opts & SRV_PP_V2_SSL_CIPHER) {
+				value = ssl_sock_get_cipher_name(remote);
+				if (value) {
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CIPHER, strlen(value), value);
+				}
+			}
 		}
 		tlv->tlv.length_hi = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) >> 8;
 		tlv->tlv.length_lo = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) & 0x00ff;
