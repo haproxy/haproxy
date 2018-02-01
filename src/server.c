@@ -503,6 +503,30 @@ static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
 	return 0;
 }
 
+/* parse the "proxy-v2-options" */
+static int srv_parse_proxy_v2_options(char **args, int *cur_arg,
+				      struct proxy *px, struct server *newsrv, char **err)
+{
+	char *p, *n;
+	for (p = args[*cur_arg+1]; p; p = n) {
+		n = strchr(p, ',');
+		if (n)
+			*n++ = '\0';
+		if (!strcmp(p, "ssl")) {
+			newsrv->pp_opts |= SRV_PP_V2_SSL;
+		} else if (!strcmp(p, "cert-cn")) {
+			newsrv->pp_opts |= SRV_PP_V2_SSL;
+			newsrv->pp_opts |= SRV_PP_V2_SSL_CN;
+		} else
+			goto fail;
+	}
+	return 0;
+ fail:
+	if (err)
+		memprintf(err, "'%s' : proxy v2 option not implemented", p);
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "observe" server keyword */
 static int srv_parse_observe(char **args, int *cur_arg,
                              struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1124,6 +1148,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */

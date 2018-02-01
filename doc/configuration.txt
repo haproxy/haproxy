@@ -11718,6 +11718,11 @@ send-proxy-v2
   of this version of the protocol. See also the "no-send-proxy-v2" option of
   this section and send-proxy" option of the "bind" keyword.
 
+proxy-v2-options <option>[,<option>]*
+  The "proxy-v2-options" parameter add option to send in PROXY protocol version
+  2 when "send-proxy-v2" is used. Options available are "ssl" (see also
+  send-proxy-v2-ssl), "cert-cn" (see also "send-proxy-v2-ssl-cn").
+
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
   2 over any connection established to this server. The PROXY protocol informs
