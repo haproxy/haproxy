@@ -3088,7 +3088,7 @@ spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
 	}
 
   out:
-	if (!ret) {
+	if (!ret && (chn->flags & CF_ISRESP)) {
                 channel_dont_read(chn);
                 channel_dont_close(chn);
 	}
