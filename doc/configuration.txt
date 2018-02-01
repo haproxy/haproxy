@@ -5769,9 +5769,6 @@ no option http-keep-alive
   available to try optimize server selection so that if the server currently
   attached to an idle connection is usable, it will be used.
 
-  In general it is preferred to use "option http-server-close" with application
-  servers, and some static servers might benefit from "option http-keep-alive".
-
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
   of the previous request, and the request time corresponds to the time spent
