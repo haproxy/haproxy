@@ -5783,6 +5783,18 @@ const char *ssl_sock_get_cert_sig(struct connection *conn)
 	return OBJ_nid2sn(OBJ_obj2nid(algorithm));
 }
 
+/* used for ppv2 authority */
+const char *ssl_sock_get_sni(struct connection *conn)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	if (!ssl_sock_is_ssl(conn))
+		return NULL;
+	return SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
+#else
+	return 0;
+#endif
+}
+
 /* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_cipher_name(struct connection *conn)
 {

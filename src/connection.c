@@ -1044,6 +1044,15 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	}
 
 #ifdef USE_OPENSSL
+	if (srv->pp_opts & SRV_PP_V2_AUTHORITY) {
+		value = ssl_sock_get_sni(remote);
+		if (value) {
+			if ((buf_len - ret) < sizeof(struct tlv))
+				return 0;
+			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_AUTHORITY, strlen(value), value);
+		}
+	}
+
 	if (srv->pp_opts & SRV_PP_V2_SSL) {
 		struct tlv_ssl *tlv;
 		int ssl_tlv_len = 0;

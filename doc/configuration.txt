@@ -11724,7 +11724,9 @@ proxy-v2-options <option>[,<option>]*
   2 when "send-proxy-v2" is used. Options available are "ssl" (see also
   send-proxy-v2-ssl), "cert-cn" (see also "send-proxy-v2-ssl-cn"), "ssl-cipher":
   name of the used cipher, "cert-sig": signature algorithm of the used
-  certificate, "cert-key": key algorithm of the used certificate).
+  certificate, "cert-key": key algorithm of the used certificate), "authority":
+  host name value passed by the client (only sni from a tls connection is
+  supported).
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
