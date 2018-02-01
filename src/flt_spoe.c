@@ -1136,17 +1136,13 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	int      ret;
 	uint32_t netint;
 
-	if (si_ic(si)->buf == &buf_empty)
-		goto retry;
-
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
 	netint = htonl(framesz);
 	memcpy(buf, (char *)&netint, 4);
 	ret = ci_putblk(si_ic(si), buf, framesz+4);
-
 	if (ret <= 0) {
-		if (ret == -1) {
+		if ((ret == -3 && si_ic(si)->buf == &buf_empty) || ret == -1) {
 		  retry:
 			si_applet_cant_put(si);
 			return 1; /* retry */
@@ -1166,9 +1162,6 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 	struct stream_interface *si = appctx->owner;
 	int      ret;
 	uint32_t netint;
-
-	if (si_oc(si)->buf == &buf_empty)
-		goto retry;
 
 	ret = co_getblk(si_oc(si), (char *)&netint, 4, 0);
 	if (ret > 0) {
