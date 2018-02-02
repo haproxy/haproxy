@@ -4636,16 +4636,8 @@ int http_sync_res_state(struct stream *s)
 			 * let's enforce it now that we're not expecting any new
 			 * data to come. The caller knows the stream is complete
 			 * once both states are CLOSED.
-			 *
-			 * However, there is an exception if the response length
-			 * is undefined. In this case, we switch in TUNNEL mode.
 			 */
-			if (!(txn->rsp.flags & HTTP_MSGF_XFER_LEN)) {
-				channel_auto_read(chn);
-				txn->rsp.msg_state = HTTP_MSG_TUNNEL;
-				chn->flags |= CF_NEVER_WAIT;
-			}
-			else if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 				channel_shutr_now(chn);
 				channel_shutw_now(chn);
 			}
@@ -6243,6 +6235,8 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 		/* The server still sending data that should be filtered */
 		if (!(chn->flags & CF_SHUTR) && HAS_DATA_FILTERS(s, chn))
 			goto missing_data_or_waiting;
+		msg->msg_state = HTTP_MSG_TUNNEL;
+		goto ending;
 	}
 
 	msg->msg_state = HTTP_MSG_ENDING;
@@ -6264,7 +6258,8 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 			 /* default_ret */ 1,
 			 /* on_error    */ goto error,
 			 /* on_wait     */ goto waiting);
-	msg->msg_state = HTTP_MSG_DONE;
+	if (msg->msg_state == HTTP_MSG_ENDING)
+		msg->msg_state = HTTP_MSG_DONE;
 	return 1;
 
   missing_data_or_waiting:
