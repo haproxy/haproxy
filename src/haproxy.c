@@ -2492,6 +2492,7 @@ int main(int argc, char **argv)
 	char errmsg[100];
 	int pidfd = -1;
 
+	setvbuf(stdout, NULL, _IONBF, 0);
 	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
