@@ -281,7 +281,7 @@ lock_self:
 
 #else
 lock_self_next:
-	next = fdtab[fd].cache.next;
+	next = pl_deref_int(&fdtab[fd].cache.next);
 	if (next == -2)
 		goto lock_self_next;
 	if (next <= -3)
@@ -289,7 +289,7 @@ lock_self_next:
 	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
-	prev = fdtab[fd].cache.prev;
+	prev = pl_deref_int(&fdtab[fd].cache.prev);
 	if (prev == -2)
 		goto lock_self_prev;
 	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.prev, &prev, -2)))
