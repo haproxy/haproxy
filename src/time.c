@@ -173,7 +173,7 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  */
 REGPRM2 void tv_update_date(int max_wait, int interrupted)
 {
-	struct timeval adjusted, deadline, tmp_now;
+	struct timeval adjusted, deadline, tmp_now, tmp_adj;
 	unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
 	unsigned long long old_now;
 	unsigned long long new_now;
@@ -215,17 +215,20 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	do {
 		tmp_now.tv_sec  = (unsigned int)(old_now >> 32);
 		tmp_now.tv_usec = old_now & 0xFFFFFFFFU;
+		tmp_adj = adjusted;
 
-		if (__tv_islt(&adjusted, &tmp_now))
-			adjusted = tmp_now;
+		if (__tv_islt(&tmp_adj, &tmp_now))
+			tmp_adj = tmp_now;
 
 		/* now <adjusted> is expected to be the most accurate date,
 		 * equal to <global_now> or newer.
 		 */
-		new_now = (((unsigned long long)adjusted.tv_sec) << 32) + (unsigned int)adjusted.tv_usec;
+		new_now = (((unsigned long long)tmp_adj.tv_sec) << 32) + (unsigned int)tmp_adj.tv_usec;
 
 		/* let's try to update the global <now> or loop again */
 	} while (!HA_ATOMIC_CAS(&global_now, &old_now, new_now));
+
+	adjusted = tmp_adj;
 
 	/* the new global date when we looked was old_now, and the new one is
 	 * new_now == adjusted. We can recompute our local offset.
