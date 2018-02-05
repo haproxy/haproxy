@@ -233,12 +233,7 @@ redo_last:
 		} while (1);
 	}
 	/* Then, update the last entry */
-redo_fd_cache:
-	last = list->last;
-	__ha_barrier_load();
-
-	if (unlikely(!HA_ATOMIC_CAS(&list->last, &last, fd)))
-		goto redo_fd_cache;
+	list->last = fd;
 	__ha_barrier_store();
 	fdtab[fd].cache.next = -1;
 	__ha_barrier_store();
