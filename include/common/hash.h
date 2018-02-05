@@ -22,9 +22,12 @@
 #ifndef _COMMON_HASH_H_
 #define _COMMON_HASH_H_
 
+#include <stdint.h>
+
 unsigned int hash_djb2(const char *key, int len);
 unsigned int hash_wt6(const char *key, int len);
 unsigned int hash_sdbm(const char *key, int len);
 unsigned int hash_crc32(const char *key, int len);
+uint32_t hash_crc32c(const char *key, int len);
 
 #endif /* _COMMON_HASH_H_ */
