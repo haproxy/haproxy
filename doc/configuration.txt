@@ -11726,7 +11726,7 @@ proxy-v2-options <option>[,<option>]*
   name of the used cipher, "cert-sig": signature algorithm of the used
   certificate, "cert-key": key algorithm of the used certificate), "authority":
   host name value passed by the client (only sni from a tls connection is
-  supported).
+  supported), "crc32c": checksum of the proxy protocol v2 header.
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version

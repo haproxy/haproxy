@@ -528,6 +528,8 @@ static int srv_parse_proxy_v2_options(char **args, int *cur_arg,
 			newsrv->pp_opts |= SRV_PP_V2_SSL_CIPHER;
 		} else if (!strcmp(p, "authority")) {
 			newsrv->pp_opts |= SRV_PP_V2_AUTHORITY;
+		} else if (!strcmp(p, "crc32c")) {
+			newsrv->pp_opts |= SRV_PP_V2_CRC32C;
 		} else
 			goto fail;
 	}

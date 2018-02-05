@@ -15,6 +15,8 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/namespace.h>
+#include <common/hash.h>
+#include <common/net_helper.h>
 
 #include <proto/connection.h>
 #include <proto/fd.h>
@@ -990,6 +992,7 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote)
 {
 	const char pp2_signature[] = PP2_SIGNATURE;
+	void *tlv_crc32c_p = NULL;
 	int ret = 0;
 	struct proxy_hdr_v2 *hdr = (struct proxy_hdr_v2 *)buf;
 	struct sockaddr_storage null_addr = { .ss_family = 0 };
@@ -1035,6 +1038,14 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		hdr->ver_cmd = PP2_VERSION | PP2_CMD_LOCAL;
 		hdr->fam = PP2_FAM_UNSPEC | PP2_TRANS_UNSPEC;
 		ret = PP2_HDR_LEN_UNSPEC;
+	}
+
+	if (srv->pp_opts & SRV_PP_V2_CRC32C) {
+		uint32_t zero_crc32c = 0;
+		if ((buf_len - ret) < sizeof(struct tlv))
+			return 0;
+		tlv_crc32c_p = (void *)((struct tlv *)&buf[ret])->value;
+		ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_CRC32C, sizeof(zero_crc32c), (const char *)&zero_crc32c);
 	}
 
 	if (conn_get_alpn(remote, &value, &value_len)) {
@@ -1114,6 +1125,10 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 #endif
 
 	hdr->len = htons((uint16_t)(ret - PP2_HEADER_LEN));
+
+	if (tlv_crc32c_p) {
+		write_u32(tlv_crc32c_p, htonl(hash_crc32c(buf, ret)));
+	}
 
 	return ret;
 }

@@ -152,6 +152,7 @@ enum srv_initaddr {
 #define SRV_PP_V2_SSL_SIG_ALG   0x0020   /* proxy protocol version 2 with cert signature algorithm */
 #define SRV_PP_V2_SSL_CIPHER    0x0040   /* proxy protocol version 2 with cipher used */
 #define SRV_PP_V2_AUTHORITY     0x0080   /* proxy protocol version 2 with authority */
+#define SRV_PP_V2_CRC32C        0x0100   /* proxy protocol version 2 with crc32c */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -195,7 +196,8 @@ struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
-	unsigned char pp_opts;                  /* proxy protocol options (SRV_PP_*) */
+	/* 1 unused byte here */
+	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
