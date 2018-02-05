@@ -1445,13 +1445,27 @@ static void init(int argc, char **argv)
 				else
 					oldpids_sig = SIGTERM; /* terminate immediately */
 				while (argc > 1 && argv[1][0] != '-') {
+					char * endptr = NULL;
 					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
 					if (!oldpids) {
 						ha_alert("Cannot allocate old pid : out of memory.\n");
 						exit(1);
 					}
 					argc--; argv++;
-					oldpids[nb_oldpids] = atol(*argv);
+					errno = 0;
+					oldpids[nb_oldpids] = strtol(*argv, &endptr, 10);
+					if (errno) {
+						ha_alert("-%2s option: failed to parse {%s}: %s\n",
+							 flag,
+							 *argv, strerror(errno));
+						exit(1);
+					} else if (endptr && strlen(endptr)) {
+						while (isspace(*endptr)) endptr++;
+						if (*endptr != 0)
+							ha_alert("-%2s option: some bytes unconsumed in PID list {%s}\n",
+								 flag, endptr);
+							exit(1);
+					}
 					if (oldpids[nb_oldpids] <= 0)
 						usage(progname);
 					nb_oldpids++;
