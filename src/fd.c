@@ -175,6 +175,191 @@ unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 
+/* adds fd <fd> to fd list <list> if it was not yet in it */
+void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
+{
+	int next;
+	int new;
+	int old;
+	int last;
+
+redo_next:
+	next = fdtab[fd].cache.next;
+	/* Check that we're not already in the cache, and if not, lock us. */
+	if (next >= -2)
+		goto done;
+	if (!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2))
+		goto redo_next;
+	__ha_barrier_store();
+redo_last:
+	/* First, insert in the linked list */
+	last = list->last;
+	old = -1;
+	new = fd;
+	if (unlikely(last == -1)) {
+		/* list is empty, try to add ourselves alone so that list->last=fd */
+
+		fdtab[fd].cache.prev = last;
+
+		/* Make sure the "prev" store is visible before we update the last entry */
+		__ha_barrier_store();
+		if (unlikely(!HA_ATOMIC_CAS(&list->last, &old, new)))
+			    goto redo_last;
+
+		/* list->first was necessary -1, we're guaranteed to be alone here */
+		list->first = fd;
+
+		/* since we're alone at the end of the list and still locked(-2),
+		 * we know noone tried to add past us. Mark the end of list.
+		 */
+		fdtab[fd].cache.next = -1;
+		goto done; /* We're done ! */
+	} else {
+		/* non-empty list, add past the tail */
+		do {
+			new = fd;
+			old = -1;
+			fdtab[fd].cache.prev = last;
+
+			__ha_barrier_store();
+
+			/* adding ourselves past the last element
+			 * The CAS will only succeed if its next is -1,
+			 * which means it's in the cache, and the last element.
+			 */
+			if (likely(HA_ATOMIC_CAS(&fdtab[last].cache.next, &old, new)))
+				break;
+			goto redo_last;
+		} while (1);
+	}
+	/* Then, update the last entry */
+redo_fd_cache:
+	last = list->last;
+	__ha_barrier_load();
+
+	if (unlikely(!HA_ATOMIC_CAS(&list->last, &last, fd)))
+		goto redo_fd_cache;
+	__ha_barrier_store();
+	fdtab[fd].cache.next = -1;
+	__ha_barrier_store();
+done:
+	return;
+}
+
+/* removes fd <fd> from fd list <list> */
+void fd_rm_from_fd_list(volatile struct fdlist *list, int fd)
+{
+#if defined(HA_HAVE_CAS_DW) || defined(HA_CAS_IS_8B)
+	volatile struct fdlist_entry cur_list, next_list;
+#endif
+	int old;
+	int new = -2;
+	int prev;
+	int next;
+	int last;
+
+lock_self:
+#if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
+	next_list.next = next_list.prev = -2;
+	cur_list = fdtab[fd].cache;
+	/* First, attempt to lock our own entries */
+	do {
+		/* The FD is not in the FD cache, give up */
+		if (unlikely(cur_list.next <= -3))
+			return;
+		if (unlikely(cur_list.prev == -2 || cur_list.next == -2))
+			goto lock_self;
+	} while (
+#ifdef HA_CAS_IS_8B
+	    unlikely(!HA_ATOMIC_CAS(((void **)(void *)&fdtab[fd].cache.next), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
+#else
+	    unlikely(!__ha_cas_dw((void *)&fdtab[fd].cache.next, (void *)&cur_list, (void *)&next_list)))
+#endif
+	    ;
+	next = cur_list.next;
+	prev = cur_list.prev;
+
+#else
+lock_self_next:
+	next = fdtab[fd].cache.next;
+	if (next == -2)
+		goto lock_self_next;
+	if (next <= -3)
+		goto done;
+	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2)))
+		goto lock_self_next;
+lock_self_prev:
+	prev = fdtab[fd].cache.prev;
+	if (prev == -2)
+		goto lock_self_prev;
+	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.prev, &prev, -2)))
+		goto lock_self_prev;
+#endif
+	__ha_barrier_store();
+
+	/* Now, lock the entries of our neighbours */
+	if (likely(prev != -1)) {
+redo_prev:
+		old = fd;
+
+		if (unlikely(!HA_ATOMIC_CAS(&fdtab[prev].cache.next, &old, new))) {
+			if (unlikely(old == -2)) {
+				/* Neighbour already locked, give up and
+				 * retry again once he's done
+				 */
+				fdtab[fd].cache.prev = prev;
+				__ha_barrier_store();
+				fdtab[fd].cache.next = next;
+				__ha_barrier_store();
+				goto lock_self;
+			}
+			goto redo_prev;
+		}
+	}
+	if (likely(next != -1)) {
+redo_next:
+		old = fd;
+		if (unlikely(!HA_ATOMIC_CAS(&fdtab[next].cache.prev, &old, new))) {
+			if (unlikely(old == -2)) {
+				/* Neighbour already locked, give up and
+				 * retry again once he's done
+				 */
+				if (prev != -1) {
+					fdtab[prev].cache.next = fd;
+					__ha_barrier_store();
+				}
+				fdtab[fd].cache.prev = prev;
+				__ha_barrier_store();
+				fdtab[fd].cache.next = next;
+				__ha_barrier_store();
+				goto lock_self;
+			}
+			goto redo_next;
+		}
+	}
+	if (list->first == fd)
+		list->first = next;
+	__ha_barrier_store();
+	last = list->last;
+	while (unlikely(last == fd && (!HA_ATOMIC_CAS(&list->last, &last, prev))))
+		__ha_compiler_barrier();
+	/* Make sure we let other threads know we're no longer in cache,
+	 * before releasing our neighbours.
+	 */
+	__ha_barrier_store();
+	if (likely(prev != -1))
+		fdtab[prev].cache.next = next;
+	__ha_barrier_store();
+	if (likely(next != -1))
+		fdtab[next].cache.prev = prev;
+	__ha_barrier_store();
+	/* Ok, now we're out of the fd cache */
+	fdtab[fd].cache.next = -(next + 4);
+	__ha_barrier_store();
+done:
+	return;
+}
+
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
