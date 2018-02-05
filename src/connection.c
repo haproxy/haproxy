@@ -613,6 +613,14 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				tlv_offset += tlv_len + TLV_HEADER_SIZE;
 
 				switch (tlv_packet->type) {
+				case PP2_TYPE_CRC32C: {
+					void *tlv_crc32c_p = (void *)tlv_packet->value;
+					uint32_t n_crc32c = ntohl(read_u32(tlv_crc32c_p));
+					write_u32(tlv_crc32c_p, 0);
+					if (hash_crc32c(trash.str, PP2_HEADER_LEN + ntohs(hdr_v2->len)) != n_crc32c)
+						goto bad_header;
+					break;
+				}
 #ifdef CONFIG_HAP_NS
 				case PP2_TYPE_NETNS: {
 					const struct netns_entry *ns;
