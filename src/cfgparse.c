@@ -4827,6 +4827,12 @@ stats_error_parsing:
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
 			curproxy->conf.lfs_line = curproxy->conf.args.line;
+
+			if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+				ha_warning("parsing [%s:%d] : backend '%s' : 'option httplog' directive is ignored in backends.\n",
+					file, linenum, curproxy->id);
+				err_code |= ERR_WARN;
+			}
 		}
 		else if (!strcmp(args[1], "tcplog")) {
 			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
@@ -4854,6 +4860,12 @@ stats_error_parsing:
 
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
+
+			if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+				ha_warning("parsing [%s:%d] : backend '%s' : 'option tcplog' directive is ignored in backends.\n",
+					file, linenum, curproxy->id);
+				err_code |= ERR_WARN;
+			}
 		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server streams */

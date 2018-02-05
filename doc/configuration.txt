@@ -6071,7 +6071,7 @@ no option httpclose
 option httplog [ clf ]
   Enable logging of HTTP request, session state and timers
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   no
   Arguments :
     clf       if the "clf" argument is added, then the output format will be
               the CLF format instead of HAProxy's default HTTP format. You can
@@ -6086,8 +6086,6 @@ option httplog [ clf ]
   status, the connections numbers, the captured headers and cookies, the
   frontend, backend and server name, and of course the source address and
   ports.
-
-  This option may be set either in the frontend or the backend.
 
   Specifying only "option httplog" will automatically clear the 'clf' mode
   if it was set by default.
@@ -6938,7 +6936,7 @@ option tcpka
 option tcplog
   Enable advanced logging of TCP connections with session state and timers
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   no
   Arguments : none
 
   By default, the log output format is very poor, as it only contains the
@@ -6949,8 +6947,6 @@ option tcplog
   address and ports. This option is useful for pure TCP proxies in order to
   find which of the client or server disconnects or times out. For normal HTTP
   proxies, it's better to use "option httplog" which is even more complete.
-
-  This option may be set either in the frontend or the backend.
 
   "option tcplog" overrides any previous "log-format" directive.
 
