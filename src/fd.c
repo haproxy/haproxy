@@ -191,50 +191,39 @@ redo_next:
 	if (!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2))
 		goto redo_next;
 	__ha_barrier_store();
+
+	new = fd;
 redo_last:
 	/* First, insert in the linked list */
 	last = list->last;
 	old = -1;
-	new = fd;
+
+	fdtab[fd].cache.prev = last;
+	/* Make sure the "prev" store is visible before we update the last entry */
+	__ha_barrier_store();
+
 	if (unlikely(last == -1)) {
 		/* list is empty, try to add ourselves alone so that list->last=fd */
-
-		fdtab[fd].cache.prev = last;
-
-		/* Make sure the "prev" store is visible before we update the last entry */
-		__ha_barrier_store();
 		if (unlikely(!HA_ATOMIC_CAS(&list->last, &old, new)))
 			    goto redo_last;
 
 		/* list->first was necessary -1, we're guaranteed to be alone here */
 		list->first = fd;
-
-		/* since we're alone at the end of the list and still locked(-2),
-		 * we know noone tried to add past us. Mark the end of list.
-		 */
-		fdtab[fd].cache.next = -1;
-		goto done; /* We're done ! */
 	} else {
-		/* non-empty list, add past the tail */
-		do {
-			new = fd;
-			old = -1;
-			fdtab[fd].cache.prev = last;
-
-			__ha_barrier_store();
-
-			/* adding ourselves past the last element
-			 * The CAS will only succeed if its next is -1,
-			 * which means it's in the cache, and the last element.
-			 */
-			if (likely(HA_ATOMIC_CAS(&fdtab[last].cache.next, &old, new)))
-				break;
+		/* adding ourselves past the last element
+		 * The CAS will only succeed if its next is -1,
+		 * which means it's in the cache, and the last element.
+		 */
+		if (unlikely(!HA_ATOMIC_CAS(&fdtab[last].cache.next, &old, new)))
 			goto redo_last;
-		} while (1);
+
+		/* Then, update the last entry */
+		list->last = fd;
 	}
-	/* Then, update the last entry */
-	list->last = fd;
 	__ha_barrier_store();
+	/* since we're alone at the end of the list and still locked(-2),
+	 * we know noone tried to add past us. Mark the end of list.
+	 */
 	fdtab[fd].cache.next = -1;
 	__ha_barrier_store();
 done:
