@@ -176,6 +176,10 @@ list of options is :
     is compatible either with the foreground or daemon mode.  It is
     recommended to use this mode with multiprocess and systemd.
 
+  -Ws : master-worker mode with support of `notify` type of systemd service.
+    This option is only available when HAProxy was built with `USE_SYSTEMD`
+    build option enabled.
+
   -c : only performs a check of the configuration files and exits before trying
     to bind. The exit status is zero if everything is OK, or non-zero if an
     error is encountered.
