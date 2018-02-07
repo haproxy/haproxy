@@ -10799,7 +10799,12 @@ interface <interface>
   interface, not an aliased interface. It is also possible to bind multiple
   frontends to the same address if they are bound to different interfaces. Note
   that binding to a network interface requires root privileges. This parameter
-  is only compatible with TCPv4/TCPv6 sockets.
+  is only compatible with TCPv4/TCPv6 sockets. When specified, return traffic
+  uses the same interface as inbound traffic, and its associated routing table,
+  even if there are explicit routes through different interfaces configured.
+  This can prove useful to address asymmetric routing issues when the same
+  client IP addresses need to be able to reach frontends hosted on different
+  interfaces.
 
 level <level>
   This setting is used with the stats sockets only to restrict the nature of
