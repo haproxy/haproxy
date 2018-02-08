@@ -7727,7 +7727,7 @@ int check_config_validity()
 			break;
 		}
 
-		if ((curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
+		if (curproxy != global.stats_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
 			ha_warning("config : %s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
