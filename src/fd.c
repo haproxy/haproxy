@@ -198,7 +198,7 @@ redo_last:
 	last = list->last;
 	old = -1;
 
-	fdtab[fd].cache.prev = last;
+	fdtab[fd].cache.prev = -2;
 	/* Make sure the "prev" store is visible before we update the last entry */
 	__ha_barrier_store();
 
@@ -224,6 +224,7 @@ redo_last:
 	/* since we're alone at the end of the list and still locked(-2),
 	 * we know noone tried to add past us. Mark the end of list.
 	 */
+	fdtab[fd].cache.prev = last;
 	fdtab[fd].cache.next = -1;
 	__ha_barrier_store();
 done:
