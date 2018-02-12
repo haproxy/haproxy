@@ -443,7 +443,7 @@ Core class
   configuration file. Each entry of the proxies array is an object of type
   :ref:`proxy_class`
 
-.. js:function:: core.register_action(name, actions, func)
+.. js:function:: core.register_action(name, actions, func [, nb_args])
 
   **context**: body
 
@@ -455,17 +455,21 @@ Core class
   :param table actions: is a table of string describing the HAProxy actions who
                         want to register to. The expected actions are 'tcp-req',
                         'tcp-res', 'http-req' or 'http-res'.
+  :param integer nb_args: is the expected number of argument for the action.
+                          By default the value is 0.
   :param function func: is the Lua function called to work as converter.
 
   The prototype of the Lua function used as argument is:
 
 .. code-block:: lua
 
-  function(txn)
+  function(txn [, arg1 [, arg2]])
 ..
 
   * **txn** (:ref:`txn_class`): this is a TXN object used for manipulating the
             current request or TCP stream.
+
+  * **argX**: this is argument provided throught the HAProxy configuration file.
 
   Here, an exemple of action registration. the action juste send an 'Hello world'
   in the logs.
@@ -488,7 +492,26 @@ Core class
   frontend http_frt
     mode http
     http-request lua.hello-world
+..
 
+  A second example using aruments
+
+.. code-block:: lua
+
+  function hello_world(txn, arg)
+     txn:Info("Hello world for " .. arg)
+  end
+  core.register_action("hello-world", { "tcp-req", "http-req" }, hello_world, 2)
+..
+
+  This example code is used in HAproxy configuration like this:
+
+::
+
+  frontend tcp_frt
+    mode tcp
+    tcp-request content lua.hello-world everybody
+..
 .. js:function:: core.register_converters(name, func)
 
   **context**: body
