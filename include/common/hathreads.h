@@ -780,7 +780,7 @@ __ha_barrier_full(void)
 	__asm __volatile("dmb" ::: "memory");
 }
 
-static __inline int __ha_cas_dw(void *target, void *compare, void *set)
+static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
 {
 	uint64_t previous;
 	int tmp;
@@ -794,7 +794,7 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 			 "cmpeq %1, #1;"
 			 "beq 1b;"
 			 : "=&r" (previous), "=&r" (tmp)
-			 : "r" (compare), "r" (set), "r" (target)
+			 : "r" (*(uint64_t *)compare), "r" (*(uint64_t *)set), "r" (target)
 			 : "memory", "cc");
 	tmp = (previous == *(uint64_t *)compare);
 	*(uint64_t *)compare = previous;
