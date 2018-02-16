@@ -25,6 +25,8 @@
 #include <openssl/ssl.h>
 #include <ebmbtree.h>
 
+#include <common/hathreads.h>
+
 struct sni_ctx {
 	SSL_CTX *ctx;             /* context associated to the certificate */
 	int order;                /* load order for the certificate */
@@ -54,6 +56,7 @@ struct tls_keys_ref {
 	int unique_id; /* Each pattern reference have unique id. */
 	struct tls_sess_key *tlskeys;
 	int tls_ticket_enc_index;
+	__decl_hathreads(HA_RWLOCK_T lock); /* lock used to protect the ref */
 };
 
 /* shared ssl session */

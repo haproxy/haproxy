@@ -61,6 +61,7 @@ unsigned int ssl_sock_get_verify_result(struct connection *conn);
 int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err);
 #endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey);
 int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err);
 struct tls_keys_ref *tlskeys_ref_lookup(const char *filename);
 struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id);

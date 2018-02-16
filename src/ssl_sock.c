@@ -816,41 +816,50 @@ end:
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, HMAC_CTX *hctx, int enc)
 {
+	struct tls_keys_ref *ref;
 	struct tls_sess_key *keys;
 	struct connection *conn;
 	int head;
 	int i;
+	int ret = -1; /* error by default */
 
 	conn = SSL_get_app_data(s);
-	keys = objt_listener(conn->target)->bind_conf->keys_ref->tlskeys;
-	head = objt_listener(conn->target)->bind_conf->keys_ref->tls_ticket_enc_index;
+	ref  = objt_listener(conn->target)->bind_conf->keys_ref;
+	HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+
+	keys = ref->tlskeys;
+	head = ref->tls_ticket_enc_index;
 
 	if (enc) {
 		memcpy(key_name, keys[head].name, 16);
 
 		if(!RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH))
-			return -1;
+			goto end;
 
 		if(!EVP_EncryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[head].aes_key, iv))
-			return -1;
+			goto end;
 
 		HMAC_Init_ex(hctx, keys[head].hmac_key, 16, HASH_FUNCT(), NULL);
-
-		return 1;
+		ret = 1;
 	} else {
 		for (i = 0; i < TLS_TICKETS_NO; i++) {
 			if (!memcmp(key_name, keys[(head + i) % TLS_TICKETS_NO].name, 16))
 				goto found;
 		}
-		return 0;
+		ret = 0;
+		goto end;
 
-		found:
+	  found:
 		HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].hmac_key, 16, HASH_FUNCT(), NULL);
 		if(!EVP_DecryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].aes_key, iv))
-			return -1;
+			goto end;
+
 		/* 2 for key renewal, 1 if current key is still valid */
-		return i ? 2 : 1;
+		ret = i ? 2 : 1;
 	}
+  end:
+	HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+	return ret;
 }
 
 struct tls_keys_ref *tlskeys_ref_lookup(const char *filename)
@@ -873,17 +882,23 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id)
         return NULL;
 }
 
-int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err) {
+void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey)
+{
+	HA_RWLOCK_WRLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)), tlskey->str, tlskey->len);
+	ref->tls_ticket_enc_index = (ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
+	HA_RWLOCK_WRUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+}
+
+int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err)
+{
 	struct tls_keys_ref *ref = tlskeys_ref_lookup(filename);
 
 	if(!ref) {
 		memprintf(err, "Unable to locate the referenced filename: %s", filename);
 		return 1;
 	}
-
-	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)), tlskey->str, tlskey->len);
-	ref->tls_ticket_enc_index = (ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
-
+	ssl_sock_update_tlskey_ref(ref, tlskey);
 	return 0;
 }
 
@@ -7579,6 +7594,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	i -= 2;
 	keys_ref->tls_ticket_enc_index = i < 0 ? 0 : i % TLS_TICKETS_NO;
 	keys_ref->unique_id = -1;
+	HA_RWLOCK_INIT(&keys_ref->lock);
 	conf->keys_ref = keys_ref;
 
 	LIST_ADD(&tlskeys_reference, &keys_ref->list);
@@ -8322,7 +8338,6 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 	case STAT_ST_LIST:
 		while (appctx->ctx.cli.p0) {
 			struct tls_keys_ref *ref = appctx->ctx.cli.p0;
-			int head = ref->tls_ticket_enc_index;
 
 			chunk_reset(&trash);
 			if (appctx->io_handler == cli_io_handler_tlskeys_entries && appctx->ctx.cli.i1 == 0)
@@ -8332,6 +8347,10 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				chunk_appendf(&trash, "%d (%s)\n", ref->unique_id, ref->filename);
 
 			if (appctx->io_handler == cli_io_handler_tlskeys_entries) {
+				int head;
+
+				HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+				head = ref->tls_ticket_enc_index;
 				while (appctx->ctx.cli.i1 < TLS_TICKETS_NO) {
 					struct chunk *t2 = get_trash_chunk();
 
@@ -8345,11 +8364,13 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 						/* let's try again later from this stream. We add ourselves into
 						 * this stream's users so that it can remove us upon termination.
 						 */
+						HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 						si_applet_cant_put(si);
 						return 0;
 					}
 					appctx->ctx.cli.i1++;
 				}
+				HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 				appctx->ctx.cli.i1 = 0;
 			}
 			if (ci_putchk(si_ic(si), &trash) == -1) {
@@ -8430,10 +8451,7 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
-
-	memcpy(ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO), trash.str, trash.len);
-	ref->tls_ticket_enc_index = (ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
-
+	ssl_sock_update_tlskey_ref(ref, &trash);
 	appctx->ctx.cli.severity = LOG_INFO;
 	appctx->ctx.cli.msg = "TLS ticket key updated!";
 	appctx->st0 = CLI_ST_PRINT;
