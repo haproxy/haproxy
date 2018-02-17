@@ -1461,10 +1461,11 @@ static void init(int argc, char **argv)
 						exit(1);
 					} else if (endptr && strlen(endptr)) {
 						while (isspace(*endptr)) endptr++;
-						if (*endptr != 0)
+						if (*endptr != 0) {
 							ha_alert("-%2s option: some bytes unconsumed in PID list {%s}\n",
 								 flag, endptr);
 							exit(1);
+						}
 					}
 					if (oldpids[nb_oldpids] <= 0)
 						usage(progname);
