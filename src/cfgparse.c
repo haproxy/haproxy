@@ -662,7 +662,6 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 			*proc |= 1UL << (low-1);
 	}
 
-  end:
 	return 0;
 }
 
