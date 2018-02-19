@@ -14412,6 +14412,11 @@ ssl_bc_cipher : string
   Returns the name of the used cipher when the outgoing connection was made
   over an SSL/TLS transport layer.
 
+ssl_bc_is_resumed : boolean
+  Returns true when the back connection was made over an SSL/TLS transport
+  layer and the newly created SSL session was resumed using a cached
+  session or a TLS ticket.
+
 ssl_bc_protocol : string
   Returns the name of the used protocol when the outgoing connection was made
   over an SSL/TLS transport layer.
