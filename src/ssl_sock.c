@@ -5449,10 +5449,9 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				break;
 			} else if (ret == SSL_ERROR_ZERO_RETURN)
 				goto read0;
-			/* For SSL_ERROR_SYSCALL, make sure the error is
-			 * unrecoverable before flagging the connection as
-			 * in error.
-			 */
+			/* For SSL_ERROR_SYSCALL, make sure to clear the error
+			 * stack before shutting down the connection for
+			 * reading. */
 			if (ret == SSL_ERROR_SYSCALL && (!errno || errno == EAGAIN))
 				goto clear_ssl_error;
 			/* otherwise it's a real error */
@@ -5465,16 +5464,19 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	conn_cond_update_sock_polling(conn);
 	return done;
 
- read0:
-	conn_sock_read0(conn);
-	goto leave;
- out_error:
-	conn->flags |= CO_FL_ERROR;
-clear_ssl_error:
+ clear_ssl_error:
 	/* Clear openssl global errors stack */
 	ssl_sock_dump_errors(conn);
 	ERR_clear_error();
+ read0:
+	conn_sock_read0(conn);
+	goto leave;
 
+ out_error:
+	conn->flags |= CO_FL_ERROR;
+	/* Clear openssl global errors stack */
+	ssl_sock_dump_errors(conn);
+	ERR_clear_error();
 	goto leave;
 }
 
