@@ -12810,6 +12810,27 @@ bytes(<offset>[,<length>])
   sample starting at an offset (in bytes) of the original sample and
   optionally truncated at the given length.
 
+concat([<start>],[<var>],[<end>])
+  Concatenates up to 3 fields after the current sample which is then turned to
+  a string. The first one, <start>, is a constant string, that will be appended
+  immediately after the existing sample. It may be omitted if not used. The
+  second one, <var>, is a variable name. The variable will be looked up, its
+  contents converted to a string, and it will be appended immediately after the
+  <first> part. If the variable is not found, nothing is appended. It may be
+  omitted as well. The third field, <end> is a constant string that will be
+  appended after the variable. It may also be omitted. Together, these elements
+  allow to concatenate variables with delimiters to an existing set of
+  variables. This can be used to build new variables made of a succession of
+  other variables, such as colon-delimited varlues. Note that due to the config
+  parser, it is not possible to use a comma nor a closing parenthesis as
+  delimitors.
+
+  Example:
+    tcp-request session set-var(sess.src) src
+    tcp-request session set-var(sess.dn)  ssl_c_s_dn
+    tcp-request session set-var(txn.sig) str(),concat(<ip=,sess.ip,>),concat(<dn=,sess.dn,>)
+    http-request set-header x-hap-sig %[var(txn.sig)]
+
 cpl
   Takes the input value of type signed integer, applies a ones-complement
   (flips all bits) and returns the result as an signed integer.

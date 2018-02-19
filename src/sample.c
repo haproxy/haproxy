@@ -2531,6 +2531,83 @@ static int sample_conv_arith_even(const struct arg *arg_p,
 	return 1;
 }
 
+/* appends an optional const string, an optional variable contents and another
+ * optional const string to an existing string.
+ */
+static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct chunk *trash;
+	struct sample tmp;
+	int max;
+
+	trash = get_trash_chunk();
+	trash->len = smp->data.u.str.len;
+	if (trash->len > trash->size - 1)
+		trash->len = trash->size - 1;
+
+	memcpy(trash->str, smp->data.u.str.str, trash->len);
+	trash->str[trash->len] = 0;
+
+	/* append first string */
+	max = arg_p[0].data.str.len;
+	if (max > trash->size - 1 - trash->len)
+		max = trash->size - 1 - trash->len;
+
+	if (max) {
+		memcpy(trash->str + trash->len, arg_p[0].data.str.str, max);
+		trash->len += max;
+		trash->str[trash->len] = 0;
+	}
+
+	/* append second string (variable) if it's found and we can turn it
+	 * into a string.
+	 */
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp) &&
+	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
+	     sample_casts[tmp.data.type][SMP_T_STR](&tmp))) {
+
+		max = tmp.data.u.str.len;
+		if (max > trash->size - 1 - trash->len)
+			max = trash->size - 1 - trash->len;
+
+		if (max) {
+			memcpy(trash->str + trash->len, tmp.data.u.str.str, max);
+			trash->len += max;
+			trash->str[trash->len] = 0;
+		}
+	}
+
+	/* append third string */
+	max = arg_p[2].data.str.len;
+	if (max > trash->size - 1 - trash->len)
+		max = trash->size - 1 - trash->len;
+
+	if (max) {
+		memcpy(trash->str + trash->len, arg_p[2].data.str.str, max);
+		trash->len += max;
+		trash->str[trash->len] = 0;
+	}
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	return 1;
+}
+
+/* This function checks the "concat" converter's arguments and extracts the
+ * variable name and its scope.
+ */
+static int smp_check_concat(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	/* Try to decode a variable. */
+	if (args[1].data.str.len > 0 && !vars_check_arg(&args[1], NULL)) {
+		memprintf(err, "failed to register variable name '%s'", args[1].data.str.str);
+		return 0;
+	}
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -2539,6 +2616,9 @@ static int sample_conv_arith_even(const struct arg *arg_p,
 static int
 smp_fetch_true(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	if (!smp_make_rw(smp))
+		return 0;
+
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = 1;
 	return 1;
@@ -2841,6 +2921,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "word",   sample_conv_word,      ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
+	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
