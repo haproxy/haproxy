@@ -2913,7 +2913,6 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	 * block does not wrap and we can safely read it this way without
 	 * having to realign the buffer.
 	 */
- next_header_block:
 	ret = h1_headers_to_hdr_list(bo_ptr(buf), bo_ptr(buf) + buf->o,
 	                             list, sizeof(list)/sizeof(list[0]), h1m);
 	if (ret <= 0) {
@@ -2932,7 +2931,6 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 
 	chunk_reset(&outbuf);
 
- try_again:
 	while (1) {
 		outbuf.str  = bo_end(h2c->mbuf);
 		outbuf.size = bo_contig_space(h2c->mbuf);
