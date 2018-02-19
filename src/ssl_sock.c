@@ -6578,8 +6578,8 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_fc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = (conn && conn->xprt == &ssl_sock);
@@ -6623,8 +6623,8 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
 static int
 smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	smp->flags = 0;
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
@@ -6649,9 +6649,8 @@ smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
-
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	int sint;
 
 	smp->flags = 0;
@@ -6674,8 +6673,8 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 static int
 smp_fetch_ssl_fc_use_keysize(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	smp->flags = 0;
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
@@ -6745,8 +6744,8 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 static int
 smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	smp->flags = 0;
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
@@ -6771,9 +6770,8 @@ static int
 smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
-
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	SSL_SESSION *ssl_sess;
 
 	smp->flags = SMP_F_CONST;
@@ -6915,9 +6913,8 @@ static int
 smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
-	struct connection *conn = objt_conn((kw[4] != 'b') ? smp->sess->origin :
-	                                    smp->strm ? smp->strm->si[1].end : NULL);
-
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	int finished_len;
 	struct chunk *finished_trash;
 
