@@ -144,7 +144,7 @@ static inline void *__pool_get_first(struct pool_head *pool)
 		__ha_barrier_load();
 		new.free_list = *POOL_LINK(pool, cmp.free_list);
 	} while (__ha_cas_dw((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
-end:
+
 	HA_ATOMIC_ADD(&pool->used, 1);
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
@@ -221,7 +221,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 			*POOL_LINK(pool, ptr) = (void *)free_list;
 			__ha_barrier_store();
 		} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr));
-end:
+
 		HA_ATOMIC_SUB(&pool->used, 1);
 	}
 }
