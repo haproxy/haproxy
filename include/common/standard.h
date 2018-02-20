@@ -378,7 +378,7 @@ struct sockaddr_storage *str2sa_range(const char *str,
 int str2mask(const char *str, struct in_addr *mask);
 
 /* converts <str> to a struct in6_addr containing a network mask. It can be
- * passed in quadruplet form (ffff::ffff::) or in CIDR form (64). It returns 1
+ * passed in quadruplet form (ffff:ffff::) or in CIDR form (64). It returns 1
  * if the conversion succeeds otherwise zero.
  */
 int str2mask6(const char *str, struct in6_addr *mask);
