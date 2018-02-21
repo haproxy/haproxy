@@ -1,0 +1,104 @@
+2018-02-21 - Layering in haproxy 1.9
+------------------------------------
+
+2 main zones :
+  - application : reads from conn_streams, writes to conn_streams, often uses
+    streams
+
+  - connection : receives data from the network, presented into buffers
+    available via conn_streams, sends data to the network
+
+
+The connection zone contains multiple layers which behave independantly in each
+direction. The Rx direction is activated upon callbacks from the lower layers.
+The Tx direction is activated recursively from the upper layers. Between every
+two layers there may be a buffer, in each direction. When a buffer is full
+either in Tx or Rx direction, this direction is paused from the network layer
+and the location where the congestion is encountered. Upon end of congestion
+(cs_recv() from the upper layer, of sendto() at the lower layers), a
+tasklet_wakeup() is performed on the blocked layer so that suspended operations
+can be resumed. In this case, the Rx side restarts propagating data upwards
+from the lowest blocked level, while the Tx side restarts propagating data
+downwards from the highest blocked level. Proceeding like this ensures that
+information known to the producer may always be used to tailor the buffer sizes
+or decide of a strategy to best aggregate data. Additionally, each time a layer
+is crossed without transformation, it becomes possible to send without copying.
+
+The Rx side notifies the application of data readiness using a wakeup or a
+callback. The Tx side notifies the application of room availability once data
+have been moved resulting in the uppermost buffer having some free space.
+
+When crossing a mux downwards, it is possible that the sender is not allowed to
+access the buffer because it is not yet its turn. It is not a problem, the data
+remains in the conn_stream's buffer (or the stream one) and will be restarted
+once the mux is ready to consume these data.
+
+
+          cs_recv()        -------.           cs_send()
+     ^          +-------->  |||||| -------------+       ^
+     |          |          -------'             |       |             stream
+   --|----------|-------------------------------|-------|-------------------
+     |          |                               V       |         connection
+    data      .---.                           |   |    room
+    ready!    |---|                           |---|    available!
+              |---|                           |---|
+              |---|                           |---|
+              |   |                           '---'
+                ^   +------------+-------+      |
+                |   |            ^       |      /
+                /   V            |       V      /
+                / recvfrom()     |     sendto() |
+   -------------|----------------|--------------|---------------------------
+                |                | poll!        V                     kernel
+
+
+The cs_recv() function should act on pointers to buffer pointers, so that the
+callee may decide to pass its own buffer directly by simply swapping pointers.
+Similarly for cs_send() it is desirable to let the callee steal the buffer by
+swapping the pointers. This way it remains possible to implement zero-copy
+forwarding.
+
+Some operation flags will be needed on cs_recv() :
+  - RECV_ZERO_COPY : refuse to merge new data into the current buffer if it
+    will result in a data copy (ie the buffer is not empty), unless no more
+    than XXX bytes have to be copied (eg: copying 2 cache lines may be cheaper
+    than waiting and playing with pointers)
+
+  - RECV_AT_ONCE : only perform the operation if it will result in the source
+    buffer to become empty at the end of the operation so that no two buffers
+    remain allocated at the end. It will most of the time result in either a
+    small read or a zero-copy operation.
+
+  - RECV_PEEK : retrieve a copy of pending data without removing these data
+    from the source buffer. Maybe an alternate solution could consist in
+    finding the pointer to the source buffer and accessing these data directly,
+    except that it might be less interesting for the long term, thread-wise.
+
+  - RECV_MIN : receive minimum X bytes (or less with a shutdown), or fail.
+    This should help various protocol parsers which need to receive a complete
+    frame before proceeding.
+
+  - RECV_ENOUGH : no more data expected after this read if it's of the
+    requested size, thus no need to re-enable receiving on the lower layers.
+
+  - RECV_ONE_SHOT : perform a single read without re-enabling reading on the
+    lower layers, like we currently do when receving an HTTP/1 request. Like
+    RECV_ENOUGH where any size is enough. Probably that the two could be merged
+    (eg: by having a MIN argument like RECV_MIN).
+
+
+Some operation flags will be needed on cs_send() :
+  - SEND_ZERO_COPY : refuse to merge the presented data with existing data and
+    prefer to wait for current data to leave and try again, unless the consumer
+    considers the amount of data acceptable for a copy.
+
+  - SEND_AT_ONCE : only perform the operation if it will result in the source
+    buffer to become empty at the end of the operation so that no two buffers
+    remain allocated at the end. It will most of the time result in either a
+    small write or a zero-copy operation.
+
+
+Both operations should return a composite status :
+  - number of bytes transfered
+  - status flags (shutr, shutw, reset, empty, full, ...)
+
