@@ -48,7 +48,7 @@
 #define POOL_LINK(pool, item) ((void **)(item))
 #endif
 
-#ifdef HA_HAVE_CAS_DW
+#ifdef CONFIG_HAP_LOCKLESS_POOLS
 struct pool_free_list {
 	void **free_list;
 	uintptr_t seq;
@@ -57,7 +57,7 @@ struct pool_free_list {
 
 struct pool_head {
 	void **free_list;
-#ifdef HA_HAVE_CAS_DW
+#ifdef CONFIG_HAP_LOCKLESS_POOLS
 	uintptr_t seq;
 #else
 	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
@@ -123,7 +123,7 @@ void pool_gc(struct pool_head *pool_ctx);
  */
 void *pool_destroy(struct pool_head *pool);
 
-#ifdef HA_HAVE_CAS_DW
+#ifdef CONFIG_HAP_LOCKLESS_POOLS
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -226,7 +226,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 	}
 }
 
-#else
+#else /* CONFIG_HAP_LOCKLESS_POOLS */
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -377,7 +377,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	}
 }
-#endif /* HA_HAVE_CAS_DW */
+#endif /* CONFIG_HAP_LOCKLESS_POOLS */
 #endif /* _COMMON_MEMORY_H */
 
 /*

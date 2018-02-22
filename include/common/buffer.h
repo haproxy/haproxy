@@ -735,7 +735,7 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 		return *buf;
 
 	*buf = &buf_wanted;
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 	HA_SPIN_LOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
 
@@ -743,7 +743,7 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 	if ((pool_head_buffer->allocated - pool_head_buffer->used) > margin) {
 		b = __pool_get_first(pool_head_buffer);
 		if (likely(b)) {
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
 			b->size = pool_head_buffer->size - sizeof(struct buffer);
@@ -756,7 +756,7 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 	/* slow path, uses malloc() */
 	b = __pool_refill_alloc(pool_head_buffer, margin);
 
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
 

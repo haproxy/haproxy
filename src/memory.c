@@ -93,13 +93,13 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		LIST_ADDQ(start, &pool->list);
 	}
 	pool->users++;
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 	HA_SPIN_INIT(&pool->lock);
 #endif
 	return pool;
 }
 
-#ifdef HA_HAVE_CAS_DW
+#ifdef CONFIG_HAP_LOCKLESS_POOLS
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1
  * available, then returns the last one for immediate use, so that at least
  * <avail> are left available in the pool upon return. NULL is returned if the
@@ -221,7 +221,7 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	HA_ATOMIC_STORE(&recurse, 0);
 }
-#else
+#else /* CONFIG_HAP_LOCKLESS_POOLS */
 
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1
  * available, then returns the last one for immediate use, so that at least
@@ -352,7 +352,7 @@ void *pool_destroy(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DEL(&pool->list);
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_DESTROY(&pool->lock);
 #endif
 			free(pool);
@@ -371,7 +371,7 @@ void dump_pools_to_trash()
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 #endif
 		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users%s\n",
@@ -382,7 +382,7 @@ void dump_pools_to_trash()
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
-#ifndef HA_HAVE_CAS_DW
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 #endif
 	}
