@@ -298,7 +298,9 @@ static inline void pool_free_area(void *area, size_t __maybe_unused size)
  * to those of malloc(). However the allocation is rounded up to 4kB so that a
  * full page is allocated. This ensures the object can be freed alone so that
  * future dereferences are easily detected. The returned object is always
- * 16-bytes aligned to avoid issues with unaligned structure objects.
+ * 16-bytes aligned to avoid issues with unaligned structure objects. In case
+ * some padding is added, the area's start address is copied at the end of the
+ * padding to help detect underflows.
  */
 static inline void *pool_alloc_area(size_t size)
 {
@@ -306,16 +308,25 @@ static inline void *pool_alloc_area(size_t size)
 	void *ret;
 
 	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
-	return ret == MAP_FAILED ? NULL : ret + pad;
+	if (ret == MAP_FAILED)
+		return NULL;
+	if (pad >= sizeof(void *))
+		*(void **)(ret + pad - sizeof(void *)) = ret + pad;
+	return ret + pad;
 }
 
 /* frees an area <area> of size <size> allocated by pool_alloc_area(). The
  * semantics are identical to free() except that the size must absolutely match
- * the one passed to pool_alloc_area().
+ * the one passed to pool_alloc_area(). In case some padding is added, the
+ * area's start address is compared to the one at the end of the padding, and
+ * a segfault is triggered if they don't match, indicating an underflow.
  */
 static inline void pool_free_area(void *area, size_t size)
 {
 	size_t pad = (4096 - size) & 0xFF0;
+
+	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
+		*(volatile int *)0 = 0;
 
 	munmap(area - pad, (size + 4095) & -4096);
 }
