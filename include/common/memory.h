@@ -303,8 +303,10 @@ static inline void pool_free_area(void *area, size_t __maybe_unused size)
 static inline void *pool_alloc_area(size_t size)
 {
 	size_t pad = (4096 - size) & 0xFF0;
+	void *ret;
 
-	return mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0) + pad;
+	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
+	return ret == MAP_FAILED ? NULL : ret + pad;
 }
 
 /* frees an area <area> of size <size> allocated by pool_alloc_area(). The
