@@ -982,6 +982,10 @@ out:
 
 int process_create(pid_t *pid, void *(*ps)(void *), void *data)
 {
+	if (debug) {
+		ps(data);
+		exit(EXIT_SUCCESS);
+	}
 	*pid = fork();
 	if (*pid == -1)
 		return -1;
