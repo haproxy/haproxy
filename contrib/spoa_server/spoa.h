@@ -89,12 +89,21 @@ struct ps {
 	struct ps *next;
 	char *ext;
 	int (*init_worker)(struct worker *w);
+	int (*exec_message)(struct worker *w, void *ref, int nargs, struct spoe_kv *args);
+};
+
+struct ps_message {
+	struct ps_message *next;
+	const char *name;
+	struct ps *ps;
+	void *ref;
 };
 
 extern bool debug;
 extern pthread_key_t worker_id;
 
 void ps_register(struct ps *ps);
+void ps_register_message(struct ps *ps, const char *name, void *ref);
 
 #define LOG(fmt, args...) \
 	do { \

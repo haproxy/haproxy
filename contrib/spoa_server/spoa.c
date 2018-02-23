@@ -98,11 +98,41 @@ static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
 bool debug = false;
 pthread_key_t worker_id;
 static struct ps *ps_list = NULL;
+static struct ps_message *ps_messages = NULL;
 
 void ps_register(struct ps *ps)
 {
 	ps->next = ps_list;
 	ps_list = ps;
+}
+
+void ps_register_message(struct ps *ps, const char *name, void *ref)
+{
+	struct ps_message *msg;
+
+	/* Look for already registered name */
+	for (msg = ps_messages; msg; msg = msg->next) {
+		if (strcmp(name, msg->name) == 0) {
+			LOG("Message \"%s\" already registered\n", name);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	msg = calloc(1, sizeof(*msg));
+	if (msg == NULL) {
+		LOG("Out of memory error\n");
+		exit(EXIT_FAILURE);
+	}
+
+	msg->next = ps_messages;
+	ps_messages = msg;
+	msg->name = strdup(name);
+	if (msg->name == NULL) {
+		LOG("Out of memory error\n");
+		exit(EXIT_FAILURE);
+	}
+	msg->ref = ref;
+	msg->ps = ps;
 }
 
 static void
