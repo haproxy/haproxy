@@ -1,0 +1,88 @@
+A Random IP reputation service acting as a Stream Processing Offload Agent
+--------------------------------------------------------------------------
+
+This is a very simple service that implement a "random" ip reputation
+service. It will return random scores for all checked IP addresses. It only
+shows you how to implement a ip reputation service or such kind of services
+using the SPOE.
+
+
+  Start the service
+---------------------
+
+After you have compiled it, to start the service, you just need to use "spoa"
+binary:
+
+    $> ./spoa  -h
+    Usage: ./spoa [-h] [-d] [-p <port>] [-n <num-workers>]
+        -h                  Print this message
+        -d                  Enable the debug mode
+        -p <port>           Specify the port to listen on (default: 12345)
+        -n <num-workers>    Specify the number of workers (default: 5)
+
+Note: A worker is a thread.
+
+
+  Configure a SPOE to use the service
+---------------------------------------
+
+All information about SPOE configuration can be found in "doc/SPOE.txt". Here is
+the configuration template to use for your SPOE:
+
+    [ip-reputation]
+
+    spoe-agent iprep-agent
+        messages check-client-ip
+
+        option var-prefix iprep
+
+        timeout hello      100ms
+        timeout idle       30s
+        timeout processing 15ms
+
+        use-backend iprep-backend
+
+    spoe-message check-client-ip
+        args src
+        event on-client-session
+
+
+The engine is in the scope "ip-reputation". So to enable it, you must set the
+following line in a frontend/listener section:
+
+    frontend my-front
+        ...
+        filter spoe engine ip-reputation config /path/spoe-ip-reputation.conf
+	....
+
+where "/path/spoe-ip-reputation.conf" is the path to your SPOE configuration
+file. The engine name is important here, it must be the same than the one used
+in the SPOE configuration file.
+
+IMPORTANT NOTE:
+    Because we want to send a message on the "on-client-session" event, this
+    SPOE must be attached to a proxy with the frontend capability. If it is
+    declared in a backend section, it will have no effet.
+
+
+Because, in SPOE configuration file, we declare to use the backend
+"iprep-backend" to communicate with the service, you must define it in HAProxy
+configuration. For example:
+
+    backend iprep-backend
+        mode tcp
+	timeout server 1m
+	server iprep-srv 127.0.0.1:12345 check maxconn 5
+
+
+In reply to the "check-client-ip" message, this service will set the variable
+"ip_score" for the session, an integer between 0 and 100. If unchanged, the
+variable prefix is "iprep". So the full variable name will be
+"sess.iprep.ip_score".
+
+You can use it in ACLs to experiment the SPOE feature. For example:
+
+    tcp-request content reject if { var(sess.iprep.ip_score) -m int lt 20 }
+
+With this rule, all IP address with a score lower than 20 will be rejected
+(Remember, this score is random).
