@@ -97,6 +97,13 @@ static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
 
 bool debug = false;
 pthread_key_t worker_id;
+static struct ps *ps_list = NULL;
+
+void ps_register(struct ps *ps)
+{
+	ps->next = ps_list;
+	ps_list = ps;
+}
 
 static void
 check_ipv4_reputation(struct worker *w, struct in_addr *ipv4)
@@ -925,9 +932,14 @@ spoa_worker(void *data)
 	struct sockaddr_in client;
 	int *info = (int *)data;
 	int csock, lsock = info[0];
+	struct ps *ps;
 
 	signal(SIGPIPE, SIG_IGN);
 	pthread_setspecific(worker_id, &info[1]);
+
+	/* Init registered processors */
+	for (ps = ps_list; ps != NULL; ps = ps->next)
+		ps->init_worker(&w);
 
 	while (1) {
 		socklen_t sz = sizeof(client);

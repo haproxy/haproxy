@@ -80,8 +80,21 @@ struct spoe_data {
 	union spoe_value    u;     /* spoe data value */
 };
 
+struct spoe_kv {
+	struct chunk name;
+	struct spoe_data value;
+};
+
+struct ps {
+	struct ps *next;
+	char *ext;
+	int (*init_worker)(struct worker *w);
+};
+
 extern bool debug;
 extern pthread_key_t worker_id;
+
+void ps_register(struct ps *ps);
 
 #define LOG(fmt, args...) \
 	do { \
