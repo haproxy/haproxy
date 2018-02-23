@@ -55,7 +55,8 @@ struct worker {
 	unsigned int stream_id;
 	unsigned int frame_id;
 	bool         healthcheck;
-	int          ip_score; /* -1 if unset, else between 0 and 100 */
+	char         ack[MAX_FRAME_SIZE];
+	unsigned int ack_len;
 };
 
 struct chunk {
@@ -105,6 +106,41 @@ extern pthread_key_t worker_id;
 
 void ps_register(struct ps *ps);
 void ps_register_message(struct ps *ps, const char *name, void *ref);
+
+int set_var_null(struct worker *w,
+                 const char *name, int name_len,
+                 unsigned char scope);
+int set_var_bool(struct worker *w,
+                 const char *name, int name_len,
+                 unsigned char scope, bool value);
+int set_var_uint32(struct worker *w,
+                   const char *name, int name_len,
+                   unsigned char scope, uint32_t value);
+int set_var_int32(struct worker *w,
+                  const char *name, int name_len,
+                  unsigned char scope, int32_t value);
+int set_var_uint64(struct worker *w,
+                   const char *name, int name_len,
+                   unsigned char scope, uint64_t value);
+int set_var_int64(struct worker *w,
+                  const char *name, int name_len,
+                  unsigned char scope, int64_t value);
+int set_var_ipv4(struct worker *w,
+                 const char *name, int name_len,
+                 unsigned char scope,
+                 struct in_addr *ipv4);
+int set_var_ipv6(struct worker *w,
+                 const char *name, int name_len,
+                 unsigned char scope,
+                 struct in6_addr *ipv6);
+int set_var_string(struct worker *w,
+                   const char *name, int name_len,
+                   unsigned char scope,
+                   const char *str, int strlen);
+int set_var_bin(struct worker *w,
+                const char *name, int name_len,
+                unsigned char scope,
+                const char *str, int strlen);
 
 #define LOG(fmt, args...) \
 	do { \
