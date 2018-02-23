@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -973,7 +974,21 @@ spoa_worker(void *data)
 
 out:
 	free(info);
+#if 0
 	pthread_exit(NULL);
+#endif
+	return NULL;
+}
+
+int process_create(pid_t *pid, void *(*ps)(void *), void *data)
+{
+	*pid = fork();
+	if (*pid == -1)
+		return -1;
+	if (*pid > 0)
+		return 0;
+	ps(data);
+	return 0;
 }
 
 static void
@@ -989,9 +1004,13 @@ usage(char *prog)
 int
 main(int argc, char **argv)
 {
+#if 0
 	pthread_t *ts = NULL;
+#endif
+	pid_t *pids;
 	struct sockaddr_in server;
 	int i, sock, opt, nbworkers, port;
+	int status;
 
 	nbworkers = NUM_WORKERS;
 	port      = DEFAULT_PORT;
@@ -1049,13 +1068,20 @@ main(int argc, char **argv)
 	}
 	fprintf(stderr, "SPOA is listening on port %d\n", port);
 
-	ts = calloc(nbworkers, sizeof(*ts));
 	pthread_key_create(&worker_id, NULL);
+
+	/* Initialise the server in thread mode. This code is commented
+	 * out and not deleted, because later I expect to work with
+	 * process ansd threads. This first version just support processes.
+	 */
+#if 0
+	ts = calloc(nbworkers, sizeof(*ts));
 	for (i = 0; i < nbworkers; i++) {
 		int *info = calloc(2, sizeof(*info));
 
 		info[0] = sock;
 		info[1] = i+1;
+
 		if (pthread_create(&ts[i], NULL,  spoa_worker, info) < 0) {
 			fprintf(stderr, "Failed to create thread %d: %m\n", i+1);
 			goto error;
@@ -1067,11 +1093,35 @@ main(int argc, char **argv)
 		pthread_join(ts[i], NULL);
 		fprintf(stderr, "SPOA worker %02d stopped\n", i+1);
 	}
-	pthread_key_delete(worker_id);
 	free(ts);
+#endif
+
+	/* Start processes */
+	pids = calloc(nbworkers, sizeof(*pids));
+	if (!pids) {
+		fprintf(stderr, "Out of memory error\n");
+		goto error;
+	}
+	for (i = 0; i < nbworkers; i++) {
+		int *info = calloc(2, sizeof(*info));
+
+		info[0] = sock;
+		info[1] = i+1;
+
+		if (process_create(&pids[i], spoa_worker, info) == -1) {
+			fprintf(stderr, "SPOA worker %02d started\n", i+1);
+			goto error;
+		}
+		fprintf(stderr, "SPOA worker %02d started\n", i+1);
+	}
+	for (i = 0; i < nbworkers; i++) {
+		waitpid(pids[0], &status, 0);
+		fprintf(stderr, "SPOA worker %02d stopped\n", i+1);
+	}
+
 	close(sock);
+	pthread_key_delete(worker_id);
 	return EXIT_SUCCESS;
 error:
-	free(ts);
 	return EXIT_FAILURE;
 }
