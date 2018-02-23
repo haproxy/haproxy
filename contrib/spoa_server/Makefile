@@ -10,9 +10,19 @@ LDFLAGS = -lpthread
 
 OBJS = spoa.o
 
+ifneq ($(USE_LUA),)
+OBJS += ps_lua.o
+ifneq ($(LUA_INC),)
+CFLAGS += -I$(LUA_INC)
+endif
+ifneq ($(LUA_LIB),)
+LDLIBS += -L$(LUA_LIB)
+endif
+LDLIBS += -ldl -Wl,--export-dynamic -llua -lm -Wl,--no-export-dynamic
+endif
 
 spoa: $(OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 install: spoa
 	install spoa $(DESTDIR)$(BINDIR)
