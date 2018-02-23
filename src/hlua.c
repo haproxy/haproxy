@@ -269,7 +269,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
 {
 	if (!lua_isfunction(L, argno)) {
-		const char *msg = lua_pushfstring(L, "function expected, got %s", luaL_typename(L, -1));
+		const char *msg = lua_pushfstring(L, "function expected, got %s", luaL_typename(L, argno));
 		WILL_LJMP(luaL_argerror(L, argno, msg));
 	}
 	lua_pushvalue(L, argno);
