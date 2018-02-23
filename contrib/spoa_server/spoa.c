@@ -918,7 +918,7 @@ error_or_quit:
 }
 
 static void *
-worker(void *data)
+spoa_worker(void *data)
 {
 	struct worker w;
 	struct sockaddr_in client;
@@ -1056,7 +1056,7 @@ main(int argc, char **argv)
 
 		info[0] = sock;
 		info[1] = i+1;
-		if (pthread_create(&ts[i], NULL,  worker, info) < 0) {
+		if (pthread_create(&ts[i], NULL,  spoa_worker, info) < 0) {
 			fprintf(stderr, "Failed to create thread %d: %m\n", i+1);
 			goto error;
 		}
