@@ -15,6 +15,7 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -150,36 +151,6 @@ void ps_register_message(struct ps *ps, const char *name, void *ref)
 	}
 	msg->ref = ref;
 	msg->ps = ps;
-}
-
-static void
-check_ipv4_reputation(struct worker *w, struct in_addr *ipv4)
-{
-	char str[INET_ADDRSTRLEN];
-	unsigned int score;
-
-	if (inet_ntop(AF_INET, ipv4, str, INET_ADDRSTRLEN) == NULL)
-		return;
-
-	score = random() % 100;
-	set_var_uint32(w, "ip_score", 8, SPOE_SCOPE_SESS, score);
-
-	DEBUG("  IP score for %.*s is: %d", INET_ADDRSTRLEN, str, score);
-}
-
-static void
-check_ipv6_reputation(struct worker *w, struct in6_addr *ipv6)
-{
-	char str[INET6_ADDRSTRLEN];
-	unsigned int score;
-
-	if (inet_ntop(AF_INET6, ipv6, str, INET6_ADDRSTRLEN) == NULL)
-		return;
-
-	score = random() % 100;
-	set_var_uint32(w, "ip_score", 8, SPOE_SCOPE_SESS, score);
-
-	DEBUG("  IP score for %.*s is: %d", INET6_ADDRSTRLEN, str, score);
 }
 
 static int
@@ -866,6 +837,10 @@ handle_hanotify(struct worker *w)
 	char    *end = w->buf+w->len;
 	uint64_t stream_id, frame_id;
 	int      nbargs, i, idx = 0;
+	int index;
+	struct spoe_kv args[256];
+	uint64_t length;
+	struct ps_message *msg;
 
 	/* Check frame type */
 	if (w->buf[idx++] != SPOE_FRM_T_HAPROXY_NOTIFY)
@@ -910,50 +885,46 @@ handle_hanotify(struct worker *w)
 		}
 		DEBUG("  Message '%.*s' received", (int)sz, str);
 
-		nbargs = w->buf[idx++];
-		if (!memcmp(str, "check-client-ip", sz)) {
-			struct spoe_data data;
+		/* Decode all SPOE data */
+		nbargs = (unsigned char)w->buf[idx++];
+		for (index = 0; index < nbargs; index++) {
 
-			memset(&data, 0, sizeof(data));
-
-			if (nbargs != 1) {
+			/* Read the key name */
+			if ((i = decode_spoe_string(w->buf+idx, end,
+			                            &args[index].name.str,
+			                            &length)) == -1) {
 				w->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
-			if ((i = decode_spoe_string(w->buf+idx, end, &str, &sz)) == -1) {
+			if (length > INT_MAX) {
+				w->status_code = SPOE_FRM_ERR_TOO_BIG;
+				goto error;
+			}
+			args[index].name.len = length;
+			idx += i;
+
+			/* Read the value */
+			memset(&args[index].value, 0, sizeof(args[index].value));
+			if ((i = decode_spoe_data(w->buf+idx, end, &args[index].value)) == -1) {
 				w->status_code = SPOE_FRM_ERR_INVALID;
 				goto error;
 			}
 			idx += i;
-			if ((i = decode_spoe_data(w->buf+idx, end, &data)) == -1) {
-				w->status_code = SPOE_FRM_ERR_INVALID;
-				goto error;
-			}
-			idx += i;
-			if ((data.type & SPOE_DATA_T_MASK) == SPOE_DATA_T_IPV4)
-				check_ipv4_reputation(w, &data.u.ipv4);
-			else if ((data.type & SPOE_DATA_T_MASK) == SPOE_DATA_T_IPV6)
-				check_ipv6_reputation(w, &data.u.ipv6);
-			else {
-				w->status_code = SPOE_FRM_ERR_INVALID;
-				goto error;
-			}
 		}
-		else {
-			while (nbargs-- > 0) {
-				/* Silently ignore argument: its name and its value */
-				if ((i = decode_spoe_string(w->buf+idx, end, &str, &sz)) == -1) {
-					w->status_code = SPOE_FRM_ERR_INVALID;
-					goto error;
-				}
-				idx += i;
-				if ((i = skip_spoe_data(w->buf+idx, end)) == -1) {
-					w->status_code = SPOE_FRM_ERR_INVALID;
-					goto error;
-				}
-				idx += i;
-			}
+
+		/* Lookup for existsing bindings. If no existing message
+		 * where found, does nothing.
+		 */
+		for (msg = ps_messages; msg; msg = msg->next)
+			if (sz == strlen(msg->name) && strncmp(str, msg->name, sz) == 0)
+				break;
+		if (msg == NULL || msg->ps->exec_message == NULL) {
+			DEBUG("  Message '%.*s' have no bindings registered", (int)sz, str);
+			continue;
 		}
+
+		/* Process the message */
+		msg->ps->exec_message(w, msg->ref, nbargs, args);
 	}
 
 	return idx;
@@ -1332,6 +1303,7 @@ main(int argc, char **argv)
 	close(sock);
 	pthread_key_delete(worker_id);
 	return EXIT_SUCCESS;
+
 error:
 	return EXIT_FAILURE;
 }
