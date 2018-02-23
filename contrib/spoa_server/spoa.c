@@ -99,6 +99,23 @@ bool debug = false;
 pthread_key_t worker_id;
 static struct ps *ps_list = NULL;
 static struct ps_message *ps_messages = NULL;
+static int nfiles = 0;
+static char **files = NULL;
+
+static inline void add_file(const char *file)
+{
+	nfiles++;
+	files = realloc(files, sizeof(*files) * nfiles);
+	if (files == NULL) {
+		fprintf(stderr, "Out of memory error\n");
+		exit(EXIT_FAILURE);
+	}
+	files[nfiles - 1] = strdup(file);
+	if (files[nfiles - 1] == NULL) {
+		fprintf(stderr, "Out of memory error\n");
+		exit(EXIT_FAILURE);
+	}
+}
 
 void ps_register(struct ps *ps)
 {
@@ -963,6 +980,8 @@ spoa_worker(void *data)
 	int *info = (int *)data;
 	int csock, lsock = info[0];
 	struct ps *ps;
+	int i;
+	int len;
 
 	signal(SIGPIPE, SIG_IGN);
 	pthread_setspecific(worker_id, &info[1]);
@@ -970,6 +989,20 @@ spoa_worker(void *data)
 	/* Init registered processors */
 	for (ps = ps_list; ps != NULL; ps = ps->next)
 		ps->init_worker(&w);
+
+	/* Load files */
+	for (i = 0; i < nfiles; i++) {
+		len = strlen(files[i]);
+		for (ps = ps_list; ps != NULL; ps = ps->next)
+			if (strcmp(files[i] + len - strlen(ps->ext), ps->ext) == 0)
+				break;
+		if (ps == NULL) {
+			LOG("Can't load file \"%s\"\n", files[i]);
+			goto out;
+		}
+		if (!ps->load_file(&w, files[i]))
+			goto out;
+	}
 
 	while (1) {
 		socklen_t sz = sizeof(client);
@@ -1040,11 +1073,13 @@ int process_create(pid_t *pid, void *(*ps)(void *), void *data)
 static void
 usage(char *prog)
 {
-	fprintf(stderr, "Usage: %s [-h] [-d] [-p <port>] [-n <num-workers>]\n", prog);
+	fprintf(stderr, "Usage: %s [-h] [-d] [-p <port>] [-n <num-workers>] -f <file>\n", prog);
 	fprintf(stderr, "    -h                  Print this message\n");
 	fprintf(stderr, "    -d                  Enable the debug mode\n");
 	fprintf(stderr, "    -p <port>           Specify the port to listen on (default: 12345)\n");
 	fprintf(stderr, "    -n <num-workers>    Specify the number of workers (default: 5)\n");
+	fprintf(stderr, "    -f <file>           Specify the file whoch contains the processing code.\n");
+	fprintf(stderr, "                        This argument can specified more than once.\n");
 }
 
 int
@@ -1060,7 +1095,7 @@ main(int argc, char **argv)
 
 	nbworkers = NUM_WORKERS;
 	port      = DEFAULT_PORT;
-	while ((opt = getopt(argc, argv, "hdn:p:")) != -1) {
+	while ((opt = getopt(argc, argv, "hdn:p:f:")) != -1) {
 		switch (opt) {
 			case 'h':
 				usage(argv[0]);
@@ -1073,6 +1108,9 @@ main(int argc, char **argv)
 				break;
 			case 'p':
 				port = atoi(optarg);
+				break;
+			case 'f':
+				add_file(optarg);
 				break;
 			default:
 				usage(argv[0]);

@@ -90,6 +90,7 @@ struct ps {
 	char *ext;
 	int (*init_worker)(struct worker *w);
 	int (*exec_message)(struct worker *w, void *ref, int nargs, struct spoe_kv *args);
+	int (*load_file)(struct worker *w, const char *file);
 };
 
 struct ps_message {
