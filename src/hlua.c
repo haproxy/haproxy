@@ -5576,7 +5576,7 @@ __LJMP static int hlua_register_init(lua_State *L)
 
 	init = calloc(1, sizeof(*init));
 	if (!init)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	init->function_ref = ref;
 	LIST_ADDQ(&hlua_init_functions, &init->l);
@@ -5604,14 +5604,14 @@ static int hlua_register_task(lua_State *L)
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	task = task_new(MAX_THREADS_MASK);
 	task->context = hlua;
 	task->process = hlua_process_task;
 
 	if (!hlua_ctx_init(hlua, task))
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Restore the function in the stack. */
 	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ref);
@@ -5897,15 +5897,15 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	sck = calloc(1, sizeof(*sck) + sizeof(struct sample_conv) * 2);
 	if (!sck)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Fill fcn. */
 	fcn->name = strdup(name);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn->function_ref = ref;
 
 	/* List head */
@@ -5915,7 +5915,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	sck->kw[0].kw = calloc(1, len);
 	if (!sck->kw[0].kw)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	snprintf((char *)sck->kw[0].kw, len, "lua.%s", name);
 	sck->kw[0].process = hlua_sample_conv_wrapper;
@@ -5954,15 +5954,15 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	sfk = calloc(1, sizeof(*sfk) + sizeof(struct sample_fetch) * 2);
 	if (!sfk)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Fill fcn. */
 	fcn->name = strdup(name);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn->function_ref = ref;
 
 	/* List head */
@@ -5972,7 +5972,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	sfk->kw[0].kw = calloc(1, len);
 	if (!sfk->kw[0].kw)
-		return luaL_error(L, "lua out of memory error.");
+		return luaL_error(L, "Lua out of memory error.");
 
 	snprintf((char *)sfk->kw[0].kw, len, "lua.%s", name);
 	sfk->kw[0].process = hlua_sample_fetch_wrapper;
@@ -6758,15 +6758,15 @@ __LJMP static int hlua_register_action(lua_State *L)
 		/* Allocate and fill the sample fetch keyword struct. */
 		akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 		if (!akl)
-			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 		fcn = calloc(1, sizeof(*fcn));
 		if (!fcn)
-			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 		/* Fill fcn. */
 		fcn->name = strdup(name);
 		if (!fcn->name)
-			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 		fcn->function_ref = ref;
 
 		/* Set the expected number od arguments. */
@@ -6779,7 +6779,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 		len = strlen("lua.") + strlen(name) + 1;
 		akl->kw[0].kw = calloc(1, len);
 		if (!akl->kw[0].kw)
-			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 		snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
@@ -6797,7 +6797,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 		else if (strcmp(lua_tostring(L, -1), "http-res") == 0)
 			http_res_keywords_register(akl);
 		else
-			WILL_LJMP(luaL_error(L, "lua action environment '%s' is unknown. "
+			WILL_LJMP(luaL_error(L, "Lua action environment '%s' is unknown. "
 			                        "'tcp-req', 'tcp-res', 'http-req' or 'http-res' "
 			                        "are expected.", lua_tostring(L, -1)));
 
@@ -6863,16 +6863,16 @@ __LJMP static int hlua_register_service(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 	if (!akl)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Fill fcn. */
 	len = strlen("<lua.>") + strlen(name) + 1;
 	fcn->name = calloc(1, len);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	snprintf((char *)fcn->name, len, "<lua.%s>", name);
 	fcn->function_ref = ref;
 
@@ -6883,7 +6883,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	akl->kw[0].kw = calloc(1, len);
 	if (!akl->kw[0].kw)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
@@ -6893,7 +6893,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	else if (strcmp(env, "http") == 0)
 		akl->kw[0].parse = action_register_service_http;
 	else
-		WILL_LJMP(luaL_error(L, "lua service environment '%s' is unknown. "
+		WILL_LJMP(luaL_error(L, "Lua service environment '%s' is unknown. "
 		                        "'tcp' or 'http' are expected.", env));
 
 	akl->kw[0].match_pfx = 0;
@@ -7093,10 +7093,10 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	cli_kws = calloc(1, sizeof(*cli_kws) + sizeof(struct cli_kw) * 2);
 	if (!cli_kws)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Fill path. */
 	index = 0;
@@ -7108,7 +7108,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table filled with strings"));
 		cli_kws->kw[0].str_kw[index] = strdup(lua_tostring(L, -1));
 		if (!cli_kws->kw[0].str_kw[index])
-			WILL_LJMP(luaL_error(L, "lua out of memory error."));
+			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 		index++;
 		lua_pop(L, 1);
 	}
@@ -7116,7 +7116,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	/* Copy help message. */
 	cli_kws->kw[0].usage = strdup(message);
 	if (!cli_kws->kw[0].usage)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Fill fcn io handler. */
 	len = strlen("<lua.cli>") + 1;
@@ -7124,7 +7124,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		len += strlen(cli_kws->kw[0].str_kw[i]) + 1;
 	fcn->name = calloc(1, len);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	strncat((char *)fcn->name, "<lua.cli", len);
 	for (i = 0; i < index; i++) {
 		strncat((char *)fcn->name, ".", len);
@@ -7239,7 +7239,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 	/* Just load and compile the file. */
 	error = luaL_loadfile(gL.T, args[1]);
 	if (error) {
-		memprintf(err, "error in lua file '%s': %s", args[1], lua_tostring(gL.T, -1));
+		memprintf(err, "error in Lua file '%s': %s", args[1], lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	}
@@ -7250,22 +7250,22 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 	case LUA_OK:
 		break;
 	case LUA_ERRRUN:
-		memprintf(err, "lua runtime error: %s\n", lua_tostring(gL.T, -1));
+		memprintf(err, "Lua runtime error: %s\n", lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	case LUA_ERRMEM:
-		memprintf(err, "lua out of memory error\n");
+		memprintf(err, "Lua out of memory error.n");
 		return -1;
 	case LUA_ERRERR:
-		memprintf(err, "lua message handler error: %s\n", lua_tostring(gL.T, -1));
+		memprintf(err, "Lua message handler error: %s\n", lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	case LUA_ERRGCMM:
-		memprintf(err, "lua garbage collector error: %s\n", lua_tostring(gL.T, -1));
+		memprintf(err, "Lua garbage collector error: %s\n", lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	default:
-		memprintf(err, "lua unknonwn error: %s\n", lua_tostring(gL.T, -1));
+		memprintf(err, "Lua unknonwn error: %s\n", lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	}
@@ -7315,7 +7315,7 @@ int hlua_post_init()
 			lua_pop(gL.T, -1);
 			return 1;
 		case HLUA_E_AGAIN:
-			ha_alert("lua init: yield not allowed.\n");
+			ha_alert("Lua init: yield not allowed.\n");
 			return 0;
 		case HLUA_E_ERRMSG:
 			msg = lua_tostring(gL.T, -1);
@@ -7323,7 +7323,7 @@ int hlua_post_init()
 			return 0;
 		case HLUA_E_ERR:
 		default:
-			ha_alert("lua init: unknown runtime error.\n");
+			ha_alert("Lua init: unknown runtime error.\n");
 			return 0;
 		}
 	}
