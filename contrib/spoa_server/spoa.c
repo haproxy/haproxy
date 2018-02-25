@@ -36,22 +36,6 @@
 
 #define SLEN(str) (sizeof(str)-1)
 
-#define LOG(fmt, args...)                                           \
-	do {							    \
-		struct timeval now;				    \
-		int wid = *((int*)pthread_getspecific(worker_id));  \
-								    \
-		gettimeofday(&now, NULL);			    \
-		fprintf(stderr, "%ld.%06ld [%02d] " fmt "\n",	    \
-			now.tv_sec, now.tv_usec, wid, ##args);	    \
-	} while (0)
-
-#define DEBUG(x...)                             \
-	do {					\
-		if (debug)			\
-			LOG(x);			\
-	} while (0)
-
 /* Frame Types sent by HAProxy and by agents */
 enum spoe_frame_type {
 	/* Frames sent by HAProxy */
@@ -110,8 +94,8 @@ static const char *spoe_frm_err_reasons[SPOE_FRM_ERRS] = {
 	[SPOE_FRM_ERR_UNKNOWN]        = "an unknown error occurred",
 };
 
-static bool debug = false;
-static pthread_key_t worker_id;
+bool debug = false;
+pthread_key_t worker_id;
 
 static void
 check_ipv4_reputation(struct worker *w, struct in_addr *ipv4)

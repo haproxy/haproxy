@@ -11,9 +11,11 @@
 #ifndef __SPOA_H__
 #define __SPOA_H__
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <netinet/in.h>
+#include <sys/time.h>
 
 #define MAX_FRAME_SIZE    16384
 #define SPOP_VERSION      "1.0"
@@ -77,5 +79,24 @@ struct spoe_data {
 	enum spoe_data_type type;  /* SPOE_DATA_T_* */
 	union spoe_value    u;     /* spoe data value */
 };
+
+extern bool debug;
+extern pthread_key_t worker_id;
+
+#define LOG(fmt, args...) \
+	do { \
+		struct timeval now; \
+		int wid = *((int*)pthread_getspecific(worker_id)); \
+		\
+		gettimeofday(&now, NULL); \
+		fprintf(stderr, "%ld.%06ld [%02d] " fmt "\n", \
+		        now.tv_sec, now.tv_usec, wid, ##args); \
+	} while (0)
+
+#define DEBUG(x...) \
+	do { \
+		if (debug) \
+			LOG(x); \
+	} while (0)
 
 #endif /* __SPOA_H__ */
