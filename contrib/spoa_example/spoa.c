@@ -1318,7 +1318,7 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 
 		DEBUG(frame->worker, "Process SPOE Message '%.*s'", (int)sz, str);
 
-		nbargs = *p++;                     /* Get the number of arguments */
+		nbargs = (unsigned char)*p++;      /* Get the number of arguments */
 		frame->offset = (p - frame->buf);  /* Save index to handle errors and skip args */
 		if (!memcmp(str, "check-client-ip", sz)) {
 			union spoe_data data;
