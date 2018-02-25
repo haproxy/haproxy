@@ -21,6 +21,12 @@ endif
 LDLIBS += -ldl -Wl,--export-dynamic -llua -lm -Wl,--no-export-dynamic
 endif
 
+ifneq ($(USE_PYTHON),)
+OBJS += ps_python.o
+CFLAGS += -I/usr/include/python2.7
+LDLIBS += -lpython2.7
+endif
+
 spoa: $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
