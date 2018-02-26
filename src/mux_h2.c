@@ -2813,10 +2813,10 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 {
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
-	unsigned int flen = h2c->dfl;
+	unsigned int flen = 0;
 	unsigned int chklen = 0;
+	struct buffer *csbuf;
 
-	h2s->cs->flags &= ~CS_FL_RCV_MORE;
 	h2c->flags &= ~H2_CF_DEM_SFULL;
 
 	/* The padlen is the first byte before data, and the padding appears
@@ -2840,6 +2840,12 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 		h2c->dff &= ~H2_F_DATA_PADDED;
 	}
 
+	csbuf = h2_get_buf(h2c, &h2s->cs->rxbuf);
+	if (!csbuf) {
+		h2c->flags |= H2_CF_DEM_SALLOC;
+		goto out;
+	}
+
 	flen = h2c->dfl - h2c->dpl;
 	if (!flen)
 		goto end_transfer;
@@ -2847,12 +2853,19 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (flen > b_data(&h2c->dbuf)) {
 		flen = b_data(&h2c->dbuf);
 		if (!flen)
-			return 0;
+			goto leave;
+	}
+
+	if (unlikely(b_space_wraps(csbuf))) {
+		/* it doesn't fit and the buffer is fragmented,
+		 * so let's defragment it and try again.
+		 */
+		b_slow_realign(csbuf, trash.area, 0);
 	}
 
 	/* chunked-encoding requires more room */
 	if (h2s->flags & H2_SF_DATA_CHNK) {
-		chklen = MIN(flen, count);
+		chklen = MIN(flen, b_room(csbuf));
 		chklen = (chklen < 16) ? 1 : (chklen < 256) ? 2 :
 			(chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
 			(chklen < 1048576) ? 4 : 8;
@@ -2860,10 +2873,12 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	}
 
 	/* does it fit in output buffer or should we wait ? */
-	if (flen + chklen > count) {
-		if (chklen >= count)
-			goto full;
-		flen = count - chklen;
+	if (flen + chklen > b_room(csbuf)) {
+		if (chklen >= b_room(csbuf)) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto leave;
+		}
+		flen = b_room(csbuf) - chklen;
 	}
 
 	if (h2s->flags & H2_SF_DATA_CHNK) {
@@ -2878,7 +2893,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 		do {
 			*--beg = hextab[chksz & 0xF];
 		} while (chksz >>= 4);
-		b_putblk(buf, beg, str + sizeof(str) - beg);
+		b_putblk(csbuf, beg, str + sizeof(str) - beg);
 	}
 
 	/* Block1 is the length of the first block before the buffer wraps,
@@ -2890,14 +2905,14 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	block2 = flen - block1;
 
 	if (block1)
-		b_putblk(buf, b_head(&h2c->dbuf), block1);
+		b_putblk(csbuf, b_head(&h2c->dbuf), block1);
 
 	if (block2)
-		b_putblk(buf, b_peek(&h2c->dbuf, block1), block2);
+		b_putblk(csbuf, b_peek(&h2c->dbuf, block1), block2);
 
 	if (h2s->flags & H2_SF_DATA_CHNK) {
 		/* emit the CRLF */
-		b_putblk(buf, "\r\n", 2);
+		b_putblk(csbuf, "\r\n", 2);
 	}
 
 	/* now mark the input data as consumed (will be deleted from the buffer
@@ -2910,7 +2925,8 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 
 	if (h2c->dfl > h2c->dpl) {
 		/* more data available, transfer stalled on stream full */
-		goto more;
+		h2c->flags |= H2_CF_DEM_SFULL;
+		goto leave;
 	}
 
  end_transfer:
@@ -2920,10 +2936,12 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 
 	if (h2c->dff & H2_F_DATA_END_STREAM && h2s->flags & H2_SF_DATA_CHNK) {
 		/* emit the trailing 0 CRLF CRLF */
-		if (count < 5)
-			goto more;
+		if (b_room(csbuf) < 5) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto leave;
+		}
 		chklen += 5;
-		b_putblk(buf, "0\r\n\r\n", 5);
+		b_putblk(csbuf, "0\r\n\r\n", 5);
 	}
 
 	h2c->rcvd_c += h2c->dpl;
@@ -2931,22 +2949,24 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 
-	/* don't send it before returning data!
-	 * FIXME: should we instead try to send it much later, after the
-	 * response ? This would require that we keep a copy of it in h2s.
-	 */
-	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		h2s->cs->flags |= CS_FL_EOS;
+	if (h2c->dff & H2_F_DATA_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
+
+ leave:
+	/* now transfer possibly pending data from the h2s buffer to the stream buffer */
+	flen = b_xfer(buf, csbuf, count);
+
+ out:
+	if (csbuf && b_data(csbuf))
+		h2s->cs->flags |= CS_FL_RCV_MORE;
+	else {
+		h2s->cs->flags &= ~CS_FL_RCV_MORE;
+		if (h2s->flags & H2_SF_ES_RCVD)
+			h2s->cs->flags |= CS_FL_EOS;
 	}
 
-	return flen + chklen;
- full:
-	flen = chklen = 0;
- more:
-	h2c->flags |= H2_CF_DEM_SFULL;
-	h2s->cs->flags |= CS_FL_RCV_MORE;
-	return flen + chklen;
+	cs_drop_rxbuf(h2s->cs);
+	return flen;
 }
 
 /*
