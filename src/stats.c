@@ -81,6 +81,7 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_NAME]                           = "Name",
 	[INF_VERSION]                        = "Version",
 	[INF_RELEASE_DATE]                   = "Release_date",
+	[INF_NBTHREAD]                       = "Nbthread",
 	[INF_NBPROC]                         = "Nbproc",
 	[INF_PROCESS_NUM]                    = "Process_num",
 	[INF_PID]                            = "Pid",
@@ -2277,7 +2278,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<hr width=\"100%%\" class=\"hr\">\n"
 	              "<h3>&gt; General process information</h3>\n"
 	              "<table border=0><tr><td align=\"left\" nowrap width=\"1%%\">\n"
-	              "<p><b>pid = </b> %d (process #%d, nbproc = %d)<br>\n"
+	              "<p><b>pid = </b> %d (process #%d, nbproc = %d, nbthread = %d)<br>\n"
 	              "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
@@ -2311,7 +2312,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 		      (uri->flags & ST_SHNODE) ? (uri->node ? uri->node : global.node) : "",
 	              (uri->flags & ST_SHDESC) ? ": " : "",
 		      (uri->flags & ST_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
-	              pid, relative_pid, global.nbproc,
+	              pid, relative_pid, global.nbproc, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
 	              global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
@@ -3203,6 +3204,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_VERSION);
 	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_DATE);
 
+	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
 	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
 	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, relative_pid);
 	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
