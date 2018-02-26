@@ -2661,7 +2661,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * proceed. Stream errors are reported in h2s->errcode and connection errors
  * in h2c->errcode.
  */
-static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count, int flags)
+static int h2_frt_decode_headers(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
@@ -2781,14 +2781,8 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
 
-	outlen = b_xfer(buf, csbuf, count);
-
-	if (!b_data(csbuf) && (h2s->flags & H2_SF_ES_RCVD))
-		h2s->cs->flags |= CS_FL_EOS;
-
  leave:
 	free_trash_chunk(copy);
-	cs_drop_rxbuf(h2s->cs);
 	return outlen;
  fail:
 	outlen = 0;
@@ -2809,7 +2803,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
  * frame header and ensured that the frame was complete or the buffer full. It
  * changes the frame state to FRAME_A once done.
  */
-static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, int flags)
+static int h2_frt_transfer_data(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
@@ -2843,7 +2837,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	csbuf = h2_get_buf(h2c, &h2s->cs->rxbuf);
 	if (!csbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
-		goto out;
+		goto fail;
 	}
 
 	flen = h2c->dfl - h2c->dpl;
@@ -2853,7 +2847,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (flen > b_data(&h2c->dbuf)) {
 		flen = b_data(&h2c->dbuf);
 		if (!flen)
-			goto leave;
+			goto fail;
 	}
 
 	if (unlikely(b_space_wraps(csbuf))) {
@@ -2876,7 +2870,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (flen + chklen > b_room(csbuf)) {
 		if (chklen >= b_room(csbuf)) {
 			h2c->flags |= H2_CF_DEM_SFULL;
-			goto leave;
+			goto fail;
 		}
 		flen = b_room(csbuf) - chklen;
 	}
@@ -2926,7 +2920,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (h2c->dfl > h2c->dpl) {
 		/* more data available, transfer stalled on stream full */
 		h2c->flags |= H2_CF_DEM_SFULL;
-		goto leave;
+		goto fail;
 	}
 
  end_transfer:
@@ -2938,7 +2932,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 		/* emit the trailing 0 CRLF CRLF */
 		if (b_room(csbuf) < 5) {
 			h2c->flags |= H2_CF_DEM_SFULL;
-			goto leave;
+			goto fail;
 		}
 		chklen += 5;
 		b_putblk(csbuf, "0\r\n\r\n", 5);
@@ -2952,21 +2946,9 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (h2c->dff & H2_F_DATA_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
 
- leave:
-	/* now transfer possibly pending data from the h2s buffer to the stream buffer */
-	flen = b_xfer(buf, csbuf, count);
-
- out:
-	if (csbuf && b_data(csbuf))
-		h2s->cs->flags |= CS_FL_RCV_MORE;
-	else {
-		h2s->cs->flags &= ~CS_FL_RCV_MORE;
-		if (h2s->flags & H2_SF_ES_RCVD)
-			h2s->cs->flags |= CS_FL_EOS;
-	}
-
-	cs_drop_rxbuf(h2s->cs);
-	return flen;
+	return flen + chklen;
+ fail:
+	return 0;
 }
 
 /*
@@ -2978,6 +2960,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 {
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
+	struct buffer *csbuf = &cs->rxbuf;
 	size_t ret = 0;
 
 	if (h2c->st0 != H2_CS_FRAME_P)
@@ -2991,16 +2974,26 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	switch (h2c->dft) {
 	case H2_FT_HEADERS:
-		ret = h2_frt_decode_headers(h2s, buf, count, flags);
+		ret = h2_frt_decode_headers(h2s);
 		break;
 
 	case H2_FT_DATA:
-		ret = h2_frt_transfer_data(h2s, buf, count, flags);
+		ret = h2_frt_transfer_data(h2s);
 		break;
-
-	default:
-		ret = 0;
 	}
+
+	/* transfer possibly pending data to the upper layer */
+	ret = b_xfer(buf, csbuf, count);
+
+	if (b_data(csbuf))
+		cs->flags |= CS_FL_RCV_MORE;
+	else {
+		cs->flags &= ~CS_FL_RCV_MORE;
+		if (h2s->flags & H2_SF_ES_RCVD)
+			cs->flags |= CS_FL_EOS;
+	}
+
+	cs_drop_rxbuf(cs);
 	return ret;
 }
 
