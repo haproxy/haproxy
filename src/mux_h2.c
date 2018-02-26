@@ -220,6 +220,8 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
 static struct task *h2_send(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
+static int h2_frt_decode_headers(struct h2s *h2s);
+static int h2_frt_transfer_data(struct h2s *h2s);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -1612,6 +1614,9 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->flags |= H2_SF_ES_RCVD;
 	}
 
+	if (!h2_frt_decode_headers(h2s))
+		return 0;
+
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
 	 */
@@ -1682,6 +1687,9 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		error = H2_ERR_STREAM_CLOSED;
 		goto strm_err;
 	}
+
+	if (!h2_frt_transfer_data(h2s))
+		return 0;
 
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
@@ -2959,28 +2967,8 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
-	struct h2c *h2c = h2s->h2c;
 	struct buffer *csbuf = &cs->rxbuf;
-	size_t ret = 0;
-
-	if (h2c->st0 != H2_CS_FRAME_P)
-		return 0; // no pre-parsed frame yet
-
-	if (h2c->dsi != h2s->id)
-		return 0; // not for us
-
-	if (!b_size(&h2c->dbuf))
-		return 0; // empty buffer
-
-	switch (h2c->dft) {
-	case H2_FT_HEADERS:
-		ret = h2_frt_decode_headers(h2s);
-		break;
-
-	case H2_FT_DATA:
-		ret = h2_frt_transfer_data(h2s);
-		break;
-	}
+	size_t ret;
 
 	/* transfer possibly pending data to the upper layer */
 	ret = b_xfer(buf, csbuf, count);
