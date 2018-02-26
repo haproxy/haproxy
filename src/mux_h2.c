@@ -1565,12 +1565,14 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
-/* processes a HEADERS frame. Returns > 0 on success or zero on missing data.
- * It may return an error in h2c or h2s. Described in RFC7540#6.2. Most of the
+/* processes a HEADERS frame. Returns h2s on success or NULL on missing data.
+ * It may return an error in h2c or h2s. The caller must consider that the
+ * return value is the new h2s in case one was allocated (most common case).
+ * Described in RFC7540#6.2. Most of the
  * errors here are reported as connection errors since it's impossible to
  * recover from such errors after the compression context has been altered.
  */
-static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
+static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
 
@@ -1580,10 +1582,10 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (!b_size(&h2c->dbuf))
-		return 0; // empty buffer
+		return NULL; // empty buffer
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
-		return 0; // incomplete frame
+		return NULL; // incomplete frame
 
 	if (h2c->flags & H2_CF_DEM_TOOMANY)
 		return 0; // too many cs still present
@@ -1615,21 +1617,10 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (!h2_frt_decode_headers(h2s))
-		return 0;
-
-	/* call the upper layers to process the frame, then let the upper layer
-	 * notify the stream about any change.
-	 */
-	h2s->cs->data_cb->recv(h2s->cs);
-
-	if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
-		/* FIXME: cs has already been destroyed, but we have to kill h2s. */
-		error = H2_ERR_INTERNAL_ERROR;
-		goto conn_err;
-	}
+		return NULL;
 
 	if (h2c->st0 >= H2_CS_ERROR)
-		return 0;
+		return NULL;
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
@@ -1641,11 +1632,11 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2c->max_id = h2s->id;
 	}
 
-	return 1;
+	return h2s;
 
  conn_err:
 	h2c_error(h2c, error);
-	return 0;
+	return NULL;
 
  strm_err:
 	if (h2s) {
@@ -1654,7 +1645,7 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 	else
 		h2c_error(h2c, error);
-	return 0;
+	return NULL;
 }
 
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
@@ -1699,14 +1690,6 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
-	h2s->cs->data_cb->recv(h2s->cs);
-
-	if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
-		/* cs has just been destroyed, we have to kill h2s. */
-		error = H2_ERR_STREAM_CLOSED;
-		goto strm_err;
-	}
-
 	if (h2c->st0 >= H2_CS_ERROR)
 		return 0;
 
@@ -1747,7 +1730,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
-	struct h2s *h2s;
+	struct h2s *h2s = NULL, *tmp_h2s;
 
 	if (h2c->st0 >= H2_CS_ERROR)
 		return;
@@ -1831,7 +1814,27 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
-		h2s = h2c_st_by_id(h2c, h2c->dsi);
+		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
+
+		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
+			/* we may have to signal the upper layers */
+			h2s->cs->flags |= CS_FL_RCV_MORE;
+			h2s->cs->data_cb->recv(h2s->cs);
+			if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
+				/* cs has just been destroyed, we have to kill h2s. */
+				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+				goto strm_err;
+			}
+
+			if (h2c->st0 >= H2_CS_ERROR)
+				goto strm_err;
+
+			if (h2s->st >= H2_SS_ERROR) {
+				/* stream error : send RST_STREAM */
+				h2c->st0 = H2_CS_FRAME_E;
+			}
+		}
+		h2s = tmp_h2s;
 
 		if (h2c->st0 == H2_CS_FRAME_E)
 			goto strm_err;
@@ -1852,7 +1855,6 @@ static void h2_process_demux(struct h2c *h2c)
 			 * this state MUST be treated as a stream error
 			 */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
-			h2c->st0 = H2_CS_FRAME_E;
 			goto strm_err;
 		}
 
@@ -1977,8 +1979,13 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		case H2_FT_HEADERS:
-			if (h2c->st0 == H2_CS_FRAME_P)
-				ret = h2c_frt_handle_headers(h2c, h2s);
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				tmp_h2s = h2c_frt_handle_headers(h2c, h2s);
+				if (tmp_h2s) {
+					h2s = tmp_h2s;
+					ret = 1;
+				}
+			}
 			break;
 
 		case H2_FT_DATA:
@@ -2030,8 +2037,10 @@ static void h2_process_demux(struct h2c *h2c)
 			ret = h2c_send_rst_stream(h2c, h2s);
 
 		/* error or missing data condition met above ? */
-		if (ret <= 0)
+		if (ret <= 0) {
+			h2s = NULL;
 			break;
+		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
 			b_del(&h2c->dbuf, h2c->dfl);
@@ -2045,6 +2054,16 @@ static void h2_process_demux(struct h2c *h2c)
 
  fail:
 	/* we can go here on missing data, blocked response or error */
+	if (h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
+		/* we may have to signal the upper layers */
+		h2s->cs->flags |= CS_FL_RCV_MORE;
+		h2s->cs->data_cb->recv(h2s->cs);
+		if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
+			/* cs has just been destroyed, we have to kill h2s. */
+			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+			h2c_send_rst_stream(h2c, h2s);
+		}
+	}
 	return;
 }
 
