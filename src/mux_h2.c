@@ -277,7 +277,7 @@ static inline struct buffer *h2_get_dbuf(struct h2c *h2c)
 
 	if (likely(LIST_ISEMPTY(&h2c->dbuf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(&h2c->dbuf, 0)) == NULL)) {
-		h2c->dbuf_wait.target = h2c->conn;
+		h2c->dbuf_wait.target = h2c;
 		h2c->dbuf_wait.wakeup_cb = h2_dbuf_available;
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &h2c->dbuf_wait.list);
