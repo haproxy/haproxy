@@ -581,6 +581,14 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
+	/* if the CS's input buffer already has data available, let's try to
+	 * receive now. The new muxes do this. The CS_FL_REOS is another cause
+	 * for recv() (received only an empty response).
+	 */
+	if (!(cs->flags & CS_FL_EOS) &&
+	    (cs->flags & (CS_FL_DATA_RD_ENA|CS_FL_REOS|CS_FL_RCV_MORE)) > CS_FL_DATA_RD_ENA)
+		si_cs_recv_cb(cs);
+
 	/* First step, report to the stream-int what was detected at the
 	 * connection layer : errors and connection establishment.
 	 */
