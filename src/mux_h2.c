@@ -1068,10 +1068,6 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		}
 
 		h2s->cs->flags |= flags;
-		/* recv is used to force to detect CS_FL_EOS that wake()
-		 * doesn't handle in the stream int code.
-		 */
-		h2s->cs->data_cb->recv(h2s->cs);
 		h2s->cs->data_cb->wake(h2s->cs);
 
 		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
@@ -1550,10 +1546,6 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->cs) {
 		h2s->cs->flags |= CS_FL_EOS | CS_FL_ERROR;
-		/* recv is used to force to detect CS_FL_EOS that wake()
-		 * doesn't handle in the stream-int code.
-		 */
-		h2s->cs->data_cb->recv(h2s->cs);
 		h2s->cs->data_cb->wake(h2s->cs);
 	}
 
@@ -1819,7 +1811,6 @@ static void h2_process_demux(struct h2c *h2c)
 		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
-			h2s->cs->data_cb->recv(h2s->cs);
 			if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
 				/* cs has just been destroyed, we have to kill h2s. */
 				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
@@ -2057,7 +2048,6 @@ static void h2_process_demux(struct h2c *h2c)
 	if (h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
-		h2s->cs->data_cb->recv(h2s->cs);
 		if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
 			/* cs has just been destroyed, we have to kill h2s. */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
