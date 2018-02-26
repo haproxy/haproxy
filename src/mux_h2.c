@@ -219,6 +219,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
 static struct task *h2_send(struct task *t, void *ctx, unsigned short state);
+static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -269,6 +270,7 @@ static inline int h2_has_too_many_cs(const struct h2c *h2c)
 static int h2_buf_available(void *target)
 {
 	struct h2c *h2c = target;
+	struct h2s *h2s;
 
 	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
@@ -289,6 +291,16 @@ static int h2_buf_available(void *target)
 		}
 		return 1;
 	}
+
+	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
+	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
+	    b_alloc_margin(&h2s->cs->rxbuf, 0)) {
+		h2c->flags &= ~H2_CF_DEM_SALLOC;
+		if (h2_recv_allowed(h2c))
+			conn_xprt_want_recv(h2c->conn);
+		return 1;
+	}
+
 	return 0;
 }
 
