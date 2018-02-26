@@ -2669,6 +2669,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 	struct http_hdr list[MAX_HTTP_HDR * 2];
 	struct buffer *copy = NULL;
 	unsigned int msgf;
+	struct buffer *csbuf;
 	int flen = h2c->dfl;
 	int outlen = 0;
 	int wrap;
@@ -2731,31 +2732,22 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 		goto fail;
 	}
 
+	csbuf = h2_get_buf(h2c, &h2s->cs->rxbuf);
+	if (!csbuf) {
+		h2c->flags |= H2_CF_DEM_SALLOC;
+		goto fail;
+	}
+
 	/* we can't retry a failed decompression operation so we must be very
 	 * careful not to take any risks. In practice the output buffer is
-	 * always empty except maybe for trailers, so these operations almost
-	 * never happen.
+	 * always empty except maybe for trailers, in which case we simply have
+	 * to wait for the upper layer to finish consuming what is available.
 	 */
-	if (flags & CO_RFL_BUF_WET) {
-		/* need to let the output buffer flush and
-		 * mark the buffer for later wake up.
-		 */
-		goto fail;
-	}
-
-	if (unlikely(b_space_wraps(buf))) {
-		/* it doesn't fit and the buffer is fragmented,
-		 * so let's defragment it and try again.
-		 */
-		b_slow_realign(buf, trash.area, 0);
-	}
-
-	try = b_contig_space(buf);
-	if (!try)
+	if (b_data(csbuf))
 		goto fail;
 
-	if (try > count)
-		try = count;
+	csbuf->head = 0;
+	try = b_size(csbuf);
 
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
@@ -2766,7 +2758,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
-	outlen = h2_make_h1_request(list, b_tail(buf), try, &msgf);
+	outlen = h2_make_h1_request(list, b_tail(csbuf), try, &msgf);
 
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
@@ -2784,19 +2776,19 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 	/* now consume the input data */
 	b_del(&h2c->dbuf, h2c->dfl);
 	h2c->st0 = H2_CS_FRAME_H;
-	b_add(buf, outlen);
+	b_add(csbuf, outlen);
 
-	/* don't send it before returning data!
-	 * FIXME: should we instead try to send it much later, after the
-	 * response ? This would require that we keep a copy of it in h2s.
-	 */
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
-		h2s->cs->flags |= CS_FL_EOS;
+	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
-	}
+
+	outlen = b_xfer(buf, csbuf, count);
+
+	if (!b_data(csbuf) && (h2s->flags & H2_SF_ES_RCVD))
+		h2s->cs->flags |= CS_FL_EOS;
 
  leave:
 	free_trash_chunk(copy);
+	cs_drop_rxbuf(h2s->cs);
 	return outlen;
  fail:
 	outlen = 0;
