@@ -577,7 +577,7 @@ static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 
 	memcpy(bi_end(b), blk, half);
 	if (len > half)
-		memcpy(b_ptr(b, b->i + half), blk, len - half);
+		memcpy(b_ptr(b, b->i + half), blk + half, len - half);
 	b->i += len;
 	return len;
 }
