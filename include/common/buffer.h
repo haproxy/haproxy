@@ -468,7 +468,7 @@ static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 	memcpy(b->p, blk, half);
 	b->p = b_ptr(b, half);
 	if (len > half) {
-		memcpy(b->p, blk, len - half);
+		memcpy(b->p, blk + half, len - half);
 		b->p = b_ptr(b, half);
 	}
 	b->o += len;
