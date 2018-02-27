@@ -18,5 +18,15 @@ Type=notify
 # reduced performance. See systemd.service(5) and systemd.exec(5) for further
 # information.
 
+# NoNewPrivileges=true
+# ProtectHome=true
+# If you want to use 'ProtectSystem=strict' you should whitelist the PIDFILE,
+# any state files and any other files written using 'ReadWritePaths' or
+# 'RuntimeDirectory'.
+# ProtectSystem=true
+# ProtectKernelTunables=true
+# ProtectKernelModules=true
+# ProtectControlGroups=true
+
 [Install]
 WantedBy=multi-user.target
