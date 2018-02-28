@@ -35,5 +35,11 @@
 /contrib/iprange/iprange
 /contrib/systemd/haproxy.service
 /contrib/spoa_example/spoa
+contrib/debug/flags
+contrib/mod_defender/defender
+contrib/modsecurity/modsecurity
+contrib/hpack/decode
+contrib/hpack/gen-rht
+contrib/tcploop/tcploop
 /src/dlmalloc.c
 /tests/test_hashes
