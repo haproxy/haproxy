@@ -1057,7 +1057,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			tlv->client |= PP2_CLIENT_SSL;
 			value = ssl_sock_get_proto_version(remote);
 			if (value) {
-				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_VERSION, strlen(value)+1, value);
+				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_SUBTYPE_SSL_VERSION, strlen(value), value);
 			}
 			if (ssl_sock_get_cert_used_sess(remote)) {
 				tlv->client |= PP2_CLIENT_CERT_SESS;
