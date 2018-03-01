@@ -119,8 +119,7 @@ struct h2c {
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
-	struct buffer_wait dbuf_wait; /* wait list for demux buffer allocation */
-	struct buffer_wait mbuf_wait; /* wait list for mux buffer allocation */
+	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 };
 
 /* H2 stream state, in h2s->st */
@@ -253,106 +252,58 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 	return 0;
 }
 
-/* re-enables receiving on mux <target> after a buffer was allocated. It returns
- * 1 if the allocation succeeds, in which case the connection is woken up, or 0
- * if it's impossible to wake up and we prefer to be woken up later.
+/* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
+ * flags are used to figure what buffer was requested. It returns 1 if the
+ * allocation succeeds, in which case the connection is woken up, or 0 if it's
+ * impossible to wake up and we prefer to be woken up later.
  */
-static int h2_dbuf_available(void *target)
+static int h2_buf_available(void *target)
 {
 	struct h2c *h2c = target;
 
-	/* take the buffer now as we'll get scheduled waiting for ->wake() */
-	if (b_alloc_margin(&h2c->dbuf, 0)) {
+	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
 		if (h2_recv_allowed(h2c))
 			conn_xprt_want_recv(h2c->conn);
 		return 1;
 	}
-	return 0;
-}
 
-static inline struct buffer *h2_get_dbuf(struct h2c *h2c)
-{
-	struct buffer *buf = NULL;
-
-	if (likely(LIST_ISEMPTY(&h2c->dbuf_wait.list)) &&
-	    unlikely((buf = b_alloc_margin(&h2c->dbuf, 0)) == NULL)) {
-		h2c->dbuf_wait.target = h2c;
-		h2c->dbuf_wait.wakeup_cb = h2_dbuf_available;
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_ADDQ(&buffer_wq, &h2c->dbuf_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		__conn_xprt_stop_recv(h2c->conn);
-	}
-	return buf;
-}
-
-static inline void h2_release_dbuf(struct h2c *h2c)
-{
-	if (h2c->dbuf->size) {
-		b_free(&h2c->dbuf);
-		offer_buffers(h2c->dbuf_wait.target,
-			      tasks_run_queue + applets_active_queue);
-	}
-}
-
-/* re-enables sending on mux <target> after a buffer was allocated. It returns
- * 1 if the allocation succeeds, in which case the connection is woken up, or 0
- * if it's impossible to wake up and we prefer to be woken up later.
- */
-static int h2_mbuf_available(void *target)
-{
-	struct h2c *h2c = target;
-
-	/* take the buffer now as we'll get scheduled waiting for ->wake(). */
-	if (b_alloc_margin(&h2c->mbuf, 0)) {
-		if (h2c->flags & H2_CF_MUX_MALLOC) {
-			h2c->flags &= ~H2_CF_MUX_MALLOC;
-			if (!(h2c->flags & H2_CF_MUX_BLOCK_ANY))
-				conn_xprt_want_send(h2c->conn);
-		}
+	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc_margin(&h2c->mbuf, 0)) {
+		h2c->flags &= ~H2_CF_MUX_MALLOC;
+		if (!(h2c->flags & H2_CF_MUX_BLOCK_ANY))
+			conn_xprt_want_send(h2c->conn);
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
 			h2c->flags &= ~H2_CF_DEM_MROOM;
 			if (h2_recv_allowed(h2c))
 				conn_xprt_want_recv(h2c->conn);
 		}
-
-		/* FIXME: we should in fact call something like h2_update_poll()
-		 * now to recompte the polling. For now it will be enough like
-		 * this.
-		 */
 		return 1;
 	}
 	return 0;
 }
 
-static inline struct buffer *h2_get_mbuf(struct h2c *h2c)
+static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer **bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(LIST_ISEMPTY(&h2c->mbuf_wait.list)) &&
-	    unlikely((buf = b_alloc_margin(&h2c->mbuf, 0)) == NULL)) {
-		h2c->mbuf_wait.target = h2c;
-		h2c->mbuf_wait.wakeup_cb = h2_mbuf_available;
+	if (likely(LIST_ISEMPTY(&h2c->buf_wait.list)) &&
+	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
+		h2c->buf_wait.target = h2c;
+		h2c->buf_wait.wakeup_cb = h2_buf_available;
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_ADDQ(&buffer_wq, &h2c->mbuf_wait.list);
+		LIST_ADDQ(&buffer_wq, &h2c->buf_wait.list);
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-
-		/* FIXME: we should in fact only block the direction being
-		 * currently used. For now it will be enough like this.
-		 */
-		__conn_xprt_stop_send(h2c->conn);
 		__conn_xprt_stop_recv(h2c->conn);
 	}
 	return buf;
 }
 
-static inline void h2_release_mbuf(struct h2c *h2c)
+static inline void h2_release_buf(struct h2c *h2c, struct buffer **bptr)
 {
-	if (h2c->mbuf->size) {
-		b_free(&h2c->mbuf);
-		offer_buffers(h2c->mbuf_wait.target,
+	if ((*bptr)->size) {
+		b_free(bptr);
+		offer_buffers(h2c->buf_wait.target,
 			      tasks_run_queue + applets_active_queue);
 	}
 }
@@ -416,8 +367,7 @@ static int h2c_frt_init(struct connection *conn)
 	h2c->streams_by_id = EB_ROOT_UNIQUE;
 	LIST_INIT(&h2c->send_list);
 	LIST_INIT(&h2c->fctl_list);
-	LIST_INIT(&h2c->dbuf_wait.list);
-	LIST_INIT(&h2c->mbuf_wait.list);
+	LIST_INIT(&h2c->buf_wait.list);
 	conn->mux_ctx = h2c;
 
 	if (t)
@@ -474,15 +424,13 @@ static void h2_release(struct connection *conn)
 
 	if (h2c) {
 		hpack_dht_free(h2c->ddht);
-		h2_release_dbuf(h2c);
+
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&h2c->dbuf_wait.list);
+		LIST_DEL(&h2c->buf_wait.list);
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
-		h2_release_mbuf(h2c);
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&h2c->mbuf_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		h2_release_buf(h2c, &h2c->dbuf);
+		h2_release_buf(h2c, &h2c->mbuf);
 
 		if (h2c->task) {
 			task_delete(h2c->task);
@@ -722,7 +670,7 @@ static int h2c_snd_settings(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -837,7 +785,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		if (h2s)
@@ -901,7 +849,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -953,7 +901,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1009,7 +957,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -1194,7 +1142,7 @@ static int h2c_ack_settings(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1254,7 +1202,7 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1337,7 +1285,7 @@ static int h2c_ack_ping(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_mbuf(h2c);
+	res = h2_get_buf(h2c, &h2c->mbuf);
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -2171,7 +2119,7 @@ static void h2_recv(struct connection *conn)
 	if (!h2_recv_allowed(h2c))
 		return;
 
-	buf = h2_get_dbuf(h2c);
+	buf = h2_get_buf(h2c, &h2c->dbuf);
 	if (!buf) {
 		h2c->flags |= H2_CF_DEM_DALLOC;
 		return;
@@ -2183,7 +2131,7 @@ static void h2_recv(struct connection *conn)
 		conn->xprt->rcv_buf(conn, buf, max);
 
 	if (!buf->i) {
-		h2_release_dbuf(h2c);
+		h2_release_buf(h2c, &h2c->dbuf);
 		return;
 	}
 
@@ -2325,7 +2273,7 @@ static int h2_wake(struct connection *conn)
 	}
 
 	if (!h2c->dbuf->i)
-		h2_release_dbuf(h2c);
+		h2_release_buf(h2c, &h2c->dbuf);
 
 	/* stop being notified of incoming data if we can't process them */
 	if (!h2_recv_allowed(h2c)) {
@@ -2344,7 +2292,7 @@ static int h2_wake(struct connection *conn)
 		__conn_xprt_want_send(conn);
 	}
 	else {
-		h2_release_mbuf(h2c);
+		h2_release_buf(h2c, &h2c->mbuf);
 		__conn_xprt_stop_send(conn);
 	}
 
@@ -2909,7 +2857,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		return 0;
 	}
 
-	if (!h2_get_mbuf(h2c)) {
+	if (!h2_get_buf(h2c, &h2c->mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
@@ -3084,7 +3032,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 		goto end;
 	}
 
-	if (!h2_get_mbuf(h2c)) {
+	if (!h2_get_buf(h2c, &h2c->mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
