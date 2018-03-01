@@ -12009,9 +12009,6 @@ accepted_payload_size <nb>
   <nb> is in bytes. If not set, HAProxy announces 512. (minimal value defined
        by RFC 6891)
 
-  Note: to get bigger responses but still be sure that responses won't be
-        dropped on the wire, one can choose a value between 1280 and 1410.
-
   Note: the maximum allowed value is 8192.
 
 nameserver <id> <ip>:<port>

@@ -1733,12 +1733,6 @@ static struct task *dns_process_resolvers(struct task *t)
 			dns_reset_resolution(res);
 			LIST_DEL(&res->list);
 			LIST_ADDQ(&resolvers->resolutions.wait, &res->list);
-
-			/* This might be triggered by too big UDP packets
-			 * dropped somewhere on the network, so lowering the
-			 * accepted_payload_size announced */
-			if (resolvers->accepted_payload_size > 1280)
-				resolvers->accepted_payload_size = 1280;
 		}
 		else {
 			/* Otherwise resend the DNS query and requeue the resolution */
