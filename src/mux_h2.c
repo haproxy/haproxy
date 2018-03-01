@@ -642,6 +642,19 @@ static inline void h2s_close(struct h2s *h2s)
 	h2s->st = H2_SS_CLOSED;
 }
 
+/* detaches an H2 stream from its H2C. */
+static void h2s_detach(struct h2s *h2s)
+{
+	h2s_close(h2s);
+	eb32_delete(&h2s->by_id);
+}
+
+/* releases an H2 stream back to the pool, and detaches it from the h2c. */
+static void h2s_free(struct h2s *h2s)
+{
+	pool_free(pool_head_h2s, h2s);
+}
+
 /* creates a new stream <id> on the h2c connection and returns it, or NULL in
  * case of memory allocation error.
  */
@@ -686,9 +699,8 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
  out_free_cs:
 	cs_free(cs);
  out_close:
-	h2c->nb_streams--;
-	eb32_delete(&h2s->by_id);
-	pool_free(pool_head_h2s, h2s);
+	h2s_detach(h2s);
+	h2s_free(h2s);
 	h2s = NULL;
  out:
 	return h2s;
@@ -1048,9 +1060,8 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (!h2s->cs) {
 			/* this stream was already orphaned */
-			h2s_close(h2s);
-			eb32_delete(&h2s->by_id);
-			pool_free(pool_head_h2s, h2s);
+			h2s_detach(h2s);
+			h2s_free(h2s);
 			continue;
 		}
 
@@ -2081,9 +2092,8 @@ static int h2_process_mux(struct h2c *h2c)
 					h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 				else {
 					/* just sent the last frame for this orphaned stream */
-					h2s_close(h2s);
-					eb32_delete(&h2s->by_id);
-					pool_free(pool_head_h2s, h2s);
+					h2s_detach(h2s);
+					h2s_free(h2s);
 				}
 			}
 		}
@@ -2124,9 +2134,8 @@ static int h2_process_mux(struct h2c *h2c)
 				h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 			else {
 				/* just sent the last frame for this orphaned stream */
-				h2s_close(h2s);
-				eb32_delete(&h2s->by_id);
-				pool_free(pool_head_h2s, h2s);
+				h2s_detach(h2s);
+				h2s_free(h2s);
 			}
 		}
 	}
@@ -2494,8 +2503,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	if (h2s->by_id.node.leaf_p) {
 		/* h2s still attached to the h2c */
-		h2s_close(h2s);
-		eb32_delete(&h2s->by_id);
+		h2s_detach(h2s);
 
 		/* We don't want to close right now unless we're removing the
 		 * last stream, and either the connection is in error, or it
@@ -2520,7 +2528,7 @@ static void h2_detach(struct conn_stream *cs)
 				h2c->task->expire = TICK_ETERNITY;
 		}
 	}
-	pool_free(pool_head_h2s, h2s);
+	h2s_free(h2s);
 }
 
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
