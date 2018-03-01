@@ -2834,25 +2834,6 @@ static int tcpcheck_main(struct check *check)
 			if (&check->current_step->list == head)
 				break;
 
-			/* don't do anything until the connection is established */
-			if (!(conn->flags & CO_FL_CONNECTED)) {
-				/* update expire time, should be done by process_chk */
-				/* we allow up to min(inter, timeout.connect) for a connection
-				 * to establish but only when timeout.check is set
-				 * as it may be to short for a full check otherwise
-				 */
-				while (tick_is_expired(t->expire, now_ms)) {
-					int t_con;
-
-					t_con = tick_add(t->expire, s->proxy->timeout.connect);
-					t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-
-					if (s->proxy->timeout.check)
-						t->expire = tick_first(t->expire, t_con);
-				}
-				goto out;
-			}
-
 		} /* end 'connect' */
 		else if (check->current_step->action == TCPCHK_ACT_SEND) {
 			/* mark the step as started */
@@ -3039,6 +3020,25 @@ static int tcpcheck_main(struct check *check)
 			}
 		} /* end expect */
 	} /* end loop over double chained step list */
+
+	/* don't do anything until the connection is established */
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		/* update expire time, should be done by process_chk */
+		/* we allow up to min(inter, timeout.connect) for a connection
+		 * to establish but only when timeout.check is set
+		 * as it may be to short for a full check otherwise
+		 */
+		while (tick_is_expired(t->expire, now_ms)) {
+			int t_con;
+
+			t_con = tick_add(t->expire, s->proxy->timeout.connect);
+			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
+
+			if (s->proxy->timeout.check)
+				t->expire = tick_first(t->expire, t_con);
+		}
+		goto out;
+	}
 
 	/* We're waiting for some I/O to complete, we've reached the end of the
 	 * rules, or both. Do what we have to do, otherwise we're done.
