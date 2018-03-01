@@ -150,6 +150,30 @@ void show_conn_flags(unsigned int f)
 	}
 	putchar('\n');
 }
+void show_cs_flags(unsigned int f)
+{
+	printf("cs->flags = ");
+	if (!f) {
+		printf("0\n");
+		return;
+	}
+	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
+	SHOW_FLAG(f, CS_FL_REOS);
+	SHOW_FLAG(f, CS_FL_EOS);
+	SHOW_FLAG(f, CS_FL_RCV_MORE);
+	SHOW_FLAG(f, CS_FL_ERROR);
+	SHOW_FLAG(f, CS_FL_SHWS);
+	SHOW_FLAG(f, CS_FL_SHWN);
+	SHOW_FLAG(f, CS_FL_SHRR);
+	SHOW_FLAG(f, CS_FL_SHRD);
+	SHOW_FLAG(f, CS_FL_DATA_WR_ENA);
+	SHOW_FLAG(f, CS_FL_DATA_RD_ENA);
+
+	if (f) {
+		printf("EXTRA(0x%08x)", f);
+	}
+	putchar('\n');
+}
 
 void show_si_et(unsigned int f)
 {
@@ -370,6 +394,7 @@ int main(int argc, char **argv)
 	show_strm_flags(flags);
 	show_si_et(flags);
 	show_si_flags(flags);
+	show_cs_flags(flags);
 	show_conn_flags(flags);
 	show_chn_flags(flags);
 	show_chn_ana(flags);
