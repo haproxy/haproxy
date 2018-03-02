@@ -601,6 +601,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
+	cs->rxbuf = BUF_NULL;
 }
 
 /* Initializes all required fields for a new connection. Note that it does the
@@ -661,11 +662,26 @@ static inline struct connection *conn_new()
 	return conn;
 }
 
-/* Releases a conn_stream previously allocated by cs_new() */
+/* Releases the conn_stream's rx buf if it exists. The buffer is automatically
+ * replaced with a pointer to the empty buffer.
+ */
+static inline void cs_drop_rxbuf(struct conn_stream *cs)
+{
+	if (b_size(&cs->rxbuf)) {
+		b_free(&cs->rxbuf);
+		offer_buffers(NULL, tasks_run_queue);
+	}
+}
+
+/* Releases a conn_stream previously allocated by cs_new(), as well as any
+ * buffer it would still hold.
+ */
 static inline void cs_free(struct conn_stream *cs)
 {
 	if (cs->wait_list.task)
 		tasklet_free(cs->wait_list.task);
+
+	cs_drop_rxbuf(cs);
 	pool_free(pool_head_connstream, cs);
 }
 
