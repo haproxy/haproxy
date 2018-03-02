@@ -1236,7 +1236,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 			break;
 		}
 
-		ret = conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
+		ret = cs_recv(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
 		if (cs->flags & CS_FL_RCV_MORE)
 			si->flags |= SI_FL_WAIT_ROOM;
 

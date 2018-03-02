@@ -44,6 +44,9 @@ int init_connection();
  */
 void conn_fd_handler(int fd);
 
+/* conn_stream functions */
+size_t __cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote);
@@ -298,6 +301,17 @@ static inline void cs_update_mux_polling(struct conn_stream *cs)
 
 	if (conn->mux && conn->mux->update_poll)
 		conn->mux->update_poll(cs);
+}
+
+/* conn_stream receive function. Uses mux->rcv_buf() if defined, otherwise
+ * falls back to __cs_recv().
+ */
+static inline size_t cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	if (cs->conn->mux->rcv_buf)
+		return cs->conn->mux->rcv_buf(cs, buf, count, flags);
+	else
+		return __cs_recv(cs, buf, count, flags);
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/

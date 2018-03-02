@@ -384,6 +384,33 @@ int conn_sock_drain(struct connection *conn)
 }
 
 /*
+ * default conn_stream recv() : this one is used when cs->rcv_buf == NULL.
+ * It reads up to <count> bytes from cs->rxbuf, puts them into <buf> and
+ * returns the count. It possibly sets/clears CS_FL_RCV_MORE depending on the
+ * buffer's state, and may set CS_FL_EOS. The number of bytes transferred is
+ * returned. <buf> is not touched if <count> is null, but cs flags will be
+ * updated to indicate any RCV_MORE or EOS.
+ */
+size_t __cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	size_t ret = 0;
+
+	/* transfer possibly pending data to the upper layer */
+	ret = b_xfer(buf, &cs->rxbuf, count);
+
+	if (b_data(&cs->rxbuf))
+		cs->flags |= CS_FL_RCV_MORE;
+	else {
+		cs->flags &= ~CS_FL_RCV_MORE;
+		if (cs->flags & CS_FL_REOS)
+			cs->flags |= CS_FL_EOS;
+		cs_drop_rxbuf(cs);
+	}
+
+	return ret;
+}
+
+/*
  * Get data length from tlv
  */
 static int get_tlv_length(const struct tlv *src)
