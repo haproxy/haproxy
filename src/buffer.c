@@ -247,6 +247,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 	fflush(o);
 }
 
+/* see offer_buffer() for details */
 void __offer_buffer(void *from, unsigned int threshold)
 {
 	struct buffer_wait *wait, *bak;

@@ -769,6 +769,13 @@ static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
 }
 
 
+/* Offer a buffer currently belonging to target <from> to whoever needs one.
+ * Any pointer is valid for <from>, including NULL. Its purpose is to avoid
+ * passing a buffer to oneself in case of failed allocations (e.g. need two
+ * buffers, get one, fail, release it and wake up self again). In case of
+ * normal buffer release where it is expected that the caller is not waiting
+ * for a buffer, NULL is fine.
+ */
 void __offer_buffer(void *from, unsigned int threshold);
 
 static inline void offer_buffers(void *from, unsigned int threshold)
