@@ -1606,6 +1606,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
 		h2s->st = H2_SS_HREM;
 		h2s->flags |= H2_SF_ES_RCVD;
+		/* note: cs cannot be null for now (just created above) */
+		h2s->cs->flags |= CS_FL_REOS;
 	}
 
 	if (!h2_frt_decode_headers(h2s))
@@ -1701,6 +1703,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
 		h2s->st = H2_SS_HREM;
 		h2s->flags |= H2_SF_ES_RCVD;
+		h2s->cs->flags |= CS_FL_REOS;
 	}
 
 	return 1;
@@ -2795,8 +2798,10 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 	h2c->st0 = H2_CS_FRAME_H;
 	b_add(csbuf, outlen);
 
-	if (h2c->dff & H2_F_HEADERS_END_STREAM)
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
 		h2s->flags |= H2_SF_ES_RCVD;
+		h2s->cs->flags |= CS_FL_REOS;
+	}
 
  leave:
 	free_trash_chunk(copy);
@@ -2960,8 +2965,10 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 
-	if (h2c->dff & H2_F_DATA_END_STREAM)
+	if (h2c->dff & H2_F_DATA_END_STREAM) {
 		h2s->flags |= H2_SF_ES_RCVD;
+		h2s->cs->flags |= CS_FL_REOS;
+	}
 
 	return flen + chklen;
  fail:
@@ -2975,7 +2982,6 @@ static int h2_frt_transfer_data(struct h2s *h2s)
  */
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	struct h2s *h2s = cs->ctx;
 	struct buffer *csbuf = &cs->rxbuf;
 	size_t ret;
 
@@ -2986,7 +2992,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags |= CS_FL_RCV_MORE;
 	else {
 		cs->flags &= ~CS_FL_RCV_MORE;
-		if (h2s->flags & H2_SF_ES_RCVD)
+		if (cs->flags & CS_FL_REOS)
 			cs->flags |= CS_FL_EOS;
 	}
 
