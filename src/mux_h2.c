@@ -2975,31 +2975,6 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	return 0;
 }
 
-/*
- * Called from the upper layer to get more data, up to <count> bytes. The
- * caller is responsible for never asking for more data than what is available
- * in the buffer.
- */
-static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
-{
-	struct buffer *csbuf = &cs->rxbuf;
-	size_t ret;
-
-	/* transfer possibly pending data to the upper layer */
-	ret = b_xfer(buf, csbuf, count);
-
-	if (b_data(csbuf))
-		cs->flags |= CS_FL_RCV_MORE;
-	else {
-		cs->flags &= ~CS_FL_RCV_MORE;
-		if (cs->flags & CS_FL_REOS)
-			cs->flags |= CS_FL_EOS;
-	}
-
-	cs_drop_rxbuf(cs);
-	return ret;
-}
-
 /* Try to send a HEADERS frame matching HTTP/1 response present at offset <ofs>
  * and for <max> bytes in buffer <buf> for the H2 stream <h2s>. Returns the
  * number of bytes sent. The caller must check the stream's status to detect
@@ -3616,7 +3591,6 @@ const struct mux_ops h2_ops = {
 	.recv = h2_recv,
 	.wake = h2_wake,
 	.update_poll = h2_update_poll,
-	.rcv_buf = h2_rcv_buf,
 	.snd_buf = h2_snd_buf,
 	.subscribe = h2_subscribe,
 	.attach = h2_attach,
