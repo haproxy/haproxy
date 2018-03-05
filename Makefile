@@ -331,7 +331,7 @@ ifeq ($(TARGET),osx)
   USE_POLL       = implicit
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
-  EXPORT_SYMBOL  = -export-dynamic
+  EXPORT_SYMBOL  = -export_dynamic
 else
 ifeq ($(TARGET),openbsd)
   # This is for OpenBSD >= 5.7
