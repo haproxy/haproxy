@@ -2297,7 +2297,7 @@ static int h2_wake(struct connection *conn)
 	}
 
 	if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id)) {
+		if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -2468,7 +2468,7 @@ static void h2_detach(struct conn_stream *cs)
 			h2_release(h2c->conn);
 		}
 		else if (h2c->task) {
-			if (eb_is_empty(&h2c->streams_by_id)) {
+			if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
 				h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 				task_queue(h2c->task);
 			}
