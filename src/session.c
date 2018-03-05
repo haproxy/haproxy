@@ -264,8 +264,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	}
 
 	/* OK let's complete stream initialization since there is no handshake */
-	cli_conn->flags |= CO_FL_CONNECTED;
-
 	if (conn_complete_session(cli_conn) >= 0)
 		return 1;
 
@@ -401,6 +399,10 @@ static int conn_complete_session(struct connection *conn)
 	struct session *sess = conn->owner;
 
 	conn_clear_xprt_done_cb(conn);
+
+	/* Verify if the connection just established. */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
