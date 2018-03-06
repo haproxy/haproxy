@@ -429,9 +429,17 @@ enum alpn_proxy_mode {
 	ALPN_MODE_ANY  = ALPN_MODE_TCP | ALPN_MODE_HTTP,
 };
 
+enum alpn_proxy_side {
+	ALPN_SIDE_NONE = 0,
+	ALPN_SIDE_FE   = 1, // same as PR_CAP_FE
+	ALPN_SIDE_BE   = 2, // same as PR_CAP_BE
+	ALPN_SIDE_BOTH = ALPN_SIDE_FE | ALPN_SIDE_BE,
+};
+
 struct alpn_mux_list {
 	const struct ist token;    /* token name and length. Empty is catch-all */
 	enum alpn_proxy_mode mode;
+	enum alpn_proxy_side side;
 	const struct mux_ops *mux;
 	struct list list;
 };

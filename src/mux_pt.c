@@ -217,7 +217,7 @@ const struct mux_ops mux_pt_ops = {
 
 /* ALPN selection : default mux has empty name */
 static struct alpn_mux_list alpn_mux_pt =
-	{ .token = IST(""), .mode = ALPN_MODE_ANY, .mux = &mux_pt_ops };
+	{ .token = IST(""), .mode = ALPN_MODE_ANY, .side = ALPN_SIDE_BOTH, .mux = &mux_pt_ops };
 
 __attribute__((constructor))
 static void __mux_pt_init(void)

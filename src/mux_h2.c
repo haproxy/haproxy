@@ -3603,7 +3603,7 @@ const struct mux_ops h2_ops = {
 
 /* ALPN selection : this mux registers ALPN tolen "h2" */
 static struct alpn_mux_list alpn_mux_h2 =
-	{ .token = IST("h2"), .mode = ALPN_MODE_HTTP, .mux = &h2_ops };
+	{ .token = IST("h2"), .mode = ALPN_MODE_HTTP, .side = ALPN_SIDE_FE, .mux = &h2_ops };
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
