@@ -157,7 +157,7 @@ static int uxst_find_compatible_fd(struct listener *l)
 		if (xfer_sock->prev)
 			xfer_sock->prev->next = xfer_sock->next;
 		if (xfer_sock->next)
-			xfer_sock->next->prev = xfer_sock->next->prev;
+			xfer_sock->next->prev = xfer_sock->prev;
 		free(xfer_sock);
 	}
 	return ret;
