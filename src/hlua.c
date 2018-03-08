@@ -2474,6 +2474,10 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
 
+	/* Check for negative values */
+	if (tmout < 0)
+		WILL_LJMP(luaL_error(L, "settimeout: cannot set negatives values"));
+
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
 	 */
