@@ -772,7 +772,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	while (fd < global.maxsock) {
+	while (fd >= 0 && fd < global.maxsock) {
 		struct fdtab fdt;
 		struct listener *li = NULL;
 		struct server *sv = NULL;
