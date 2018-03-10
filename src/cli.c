@@ -1416,7 +1416,6 @@ static int _getsocks(char **args, struct appctx *appctx, void *private)
 				iov.iov_len = curoff;
 				if (sendmsg(fd, &msghdr, 0) != curoff) {
 					ha_warning("Failed to transfer sockets\n");
-					printf("errno %d\n", errno);
 					goto out;
 				}
 				/* Wait for an ack */
