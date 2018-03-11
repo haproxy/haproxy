@@ -1184,7 +1184,7 @@ static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *pri
 			"   - 'connections global' to set the per-process maximum connection rate\n"
 			"   - 'sessions global' to set the per-process maximum session rate\n"
 #ifdef USE_OPENSSL
-			"   - 'ssl-session global' to set the per-process maximum SSL session rate\n"
+			"   - 'ssl-sessions global' to set the per-process maximum SSL session rate\n"
 #endif
 			"   - 'http-compression global' to set the per-process maximum compression speed in kB/s\n";
 		appctx->st0 = CLI_ST_PRINT;
