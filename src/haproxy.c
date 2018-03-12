@@ -2837,7 +2837,7 @@ int main(int argc, char **argv)
 			CPU_ZERO(&cpuset);
 			while ((i = ffsl(cpu_map)) > 0) {
 				CPU_SET(i - 1, &cpuset);
-				cpu_map &= ~(1 << (i - 1));
+				cpu_map &= ~(1UL << (i - 1));
 			}
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset), &cpuset);
 		}
@@ -3037,7 +3037,7 @@ int main(int argc, char **argv)
 
 				while ((j = ffsl(cpu_map)) > 0) {
 					CPU_SET(j - 1, &cpuset);
-					cpu_map &= ~(1 << (j - 1));
+					cpu_map &= ~(1UL << (j - 1));
 				}
 				pthread_setaffinity_np(threads[i],
 						       sizeof(cpuset), &cpuset);
