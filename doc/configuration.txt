@@ -2039,7 +2039,7 @@ errorloc                                  X          X         X         X
 errorloc302                               X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 errorloc303                               X          X         X         X
-force-persist                             -          X         X         X
+force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
 grace                                     X          X         X         X
@@ -2052,7 +2052,7 @@ http-response                             -          X         X         X
 http-reuse                                X          -         X         X
 http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
-ignore-persist                            -          X         X         X
+ignore-persist                            -          -         X         X
 load-server-state-from-file               X          -         X         X
 log                                  (*)  X          X         X         X
 log-format                                X          X         X         -
@@ -3503,7 +3503,7 @@ email-alert to <emailaddr>
 force-persist { if | unless } <condition>
   Declare a condition to force persistence on down servers
   May be used in sections:    defaults | frontend | listen | backend
-                                  no   |    yes   |   yes  |   yes
+                                  no   |    no    |   yes  |   yes
 
   By default, requests are not dispatched to down servers. It is possible to
   force this using "option persist", but it is unconditional and redispatches
@@ -4825,7 +4825,7 @@ id <value>
 ignore-persist { if | unless } <condition>
   Declare a condition to ignore persistence
   May be used in sections:    defaults | frontend | listen | backend
-                                  no   |    yes   |   yes  |   yes
+                                  no   |    no    |   yes  |   yes
 
   By default, when cookie persistence is enabled, every requests containing
   the cookie are unconditionally persistent (assuming the target server is up
