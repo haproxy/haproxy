@@ -24,15 +24,19 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <common/hathreads.h>
 
 #include <types/server.h>
 
 struct stream;
 
 struct pendconn {
-	struct list list;		/* chaining ... */
-	struct stream *strm;		/* the stream waiting for a connection */
-	struct server *srv;		/* the server we are waiting for */
+	int            strm_flags; /* stream flags */
+	struct stream *strm;
+	struct proxy  *px;
+	struct server *srv;        /* the server we are waiting for, may be NULL */
+	struct list    list;       /* next pendconn */
+	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
 #endif /* _TYPES_QUEUE_H */

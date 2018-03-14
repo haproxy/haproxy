@@ -38,6 +38,7 @@ extern struct pool_head *pool_head_pendconn;
 
 int init_pendconn();
 struct pendconn *pendconn_add(struct stream *strm);
+int pendconn_dequeue(struct stream *strm);
 void pendconn_free(struct pendconn *p);
 void process_srv_queue(struct server *s);
 unsigned int srv_dynamic_maxconn(const struct server *s);

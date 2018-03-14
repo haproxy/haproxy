@@ -929,7 +929,7 @@ static void sess_update_stream_int(struct stream *s)
 	}
 	else if (si->state == SI_ST_QUE) {
 		/* connection request was queued, check for any update */
-		if (!s->pend_pos) {
+		if (!pendconn_dequeue(s)) {
 			/* The connection is not in the queue anymore. Either
 			 * we have a server connection slot available and we
 			 * go directly to the assigned state, or we need to

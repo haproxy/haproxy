@@ -8253,8 +8253,6 @@ void http_reset_txn(struct stream *s)
 	s->store_count = 0;
 	s->uniq_id = global.req_count++;
 
-	s->pend_pos = NULL;
-
 	s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* We must trim any excess data from the response buffer, because we
