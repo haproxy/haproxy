@@ -8554,7 +8554,7 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 	}
 	ssl_sock_update_tlskey_ref(ref, &trash);
 	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = "TLS ticket key updated!";
+	appctx->ctx.cli.msg = "TLS ticket key updated!\n";
 	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 
@@ -8591,7 +8591,7 @@ static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *
 		return 1;
 	}
 	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = "OCSP Response updated!";
+	appctx->ctx.cli.msg = "OCSP Response updated!\n";
 	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 #else

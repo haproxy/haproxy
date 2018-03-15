@@ -1145,7 +1145,7 @@ static int cli_parse_set_severity_output(char **args, struct appctx *appctx, voi
 		return 0;
 
 	appctx->ctx.cli.severity = LOG_ERR;
-	appctx->ctx.cli.msg = "one of 'none', 'number', 'string' is a required argument";
+	appctx->ctx.cli.msg = "one of 'none', 'number', 'string' is a required argument\n";
 	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 }

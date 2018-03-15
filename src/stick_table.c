@@ -3334,7 +3334,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 {
 	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR) {
 		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions";
+		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
