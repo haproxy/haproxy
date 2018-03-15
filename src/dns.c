@@ -2027,8 +2027,6 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 			si->flags |= SI_FL_WAIT_ROOM;
 			return 0;
 		}
-
-		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:
