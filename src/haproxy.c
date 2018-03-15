@@ -1180,7 +1180,7 @@ static int get_old_sockets(const char *unixsocket)
 				goto out;
 			}
 			memcpy(xfer_sock->iface, &tmpbuf[curoff], len);
-			xfer_sock->namespace[len] = 0;
+			xfer_sock->iface[len] = 0;
 			curoff += len;
 		}
 		if (curoff + sizeof(int) > maxoff) {
