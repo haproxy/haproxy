@@ -49,8 +49,6 @@ static struct bind_kw_list bind_keywords = {
 
 struct xfer_sock_list *xfer_sock_list = NULL;
 
-static void __do_unbind_listener(struct listener *listener, int do_close);
-
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections. In deamon mode, we
@@ -68,9 +66,9 @@ static void enable_listener(struct listener *listener)
 			 * want any fd event to reach it.
 			 */
 			if (!(global.tune.options & GTUNE_SOCKET_TRANSFER))
-				__do_unbind_listener(listener, 1);
+				do_unbind_listener(listener, 1);
 			else {
-				__do_unbind_listener(listener, 0);
+				do_unbind_listener(listener, 0);
 				listener->state = LI_LISTEN;
 			}
 		}
@@ -308,8 +306,10 @@ void dequeue_all_listeners(struct list *list)
 	HA_SPIN_UNLOCK(LISTENER_QUEUE_LOCK, &lq_lock);
 }
 
-/* must be called with the lock held */
-static void __do_unbind_listener(struct listener *listener, int do_close)
+/* Must be called with the lock held. Depending on <do_close> value, it does
+ * what unbind_listener or unbind_listener_no_close should do.
+ */
+void do_unbind_listener(struct listener *listener, int do_close)
 {
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->fd);
@@ -331,13 +331,6 @@ static void __do_unbind_listener(struct listener *listener, int do_close)
 	}
 }
 
-static void do_unbind_listener(struct listener *listener, int do_close)
-{
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
-	__do_unbind_listener(listener, do_close);
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
-}
-
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
  * LI_ASSIGNED state. This function is intended to be used as a generic
@@ -345,7 +338,9 @@ static void do_unbind_listener(struct listener *listener, int do_close)
  */
 void unbind_listener(struct listener *listener)
 {
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	do_unbind_listener(listener, 1);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function pretends the listener is dead, but keeps the FD opened, so
@@ -353,7 +348,9 @@ void unbind_listener(struct listener *listener)
  */
 void unbind_listener_no_close(struct listener *listener)
 {
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	do_unbind_listener(listener, 0);
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
 /* This function closes all listening sockets bound to the protocol <proto>,

@@ -393,7 +393,9 @@ static int uxst_pause_listener(struct listener *l)
 	if (((struct sockaddr_un *)&l->addr)->sun_path[0])
 		return 1;
 
-	unbind_listener(l);
+	/* Listener's lock already held. Call lockless version of
+	 * unbind_listener. */
+	do_unbind_listener(l, 1);
 	return 0;
 }
 

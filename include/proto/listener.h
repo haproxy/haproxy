@@ -60,6 +60,11 @@ int disable_all_listeners(struct protocol *proto);
 /* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
 void dequeue_all_listeners(struct list *list);
 
+/* Must be called with the lock held. Depending on <do_close> value, it does
+ * what unbind_listener or unbind_listener_no_close should do.
+ */
+void do_unbind_listener(struct listener *listener, int do_close);
+
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
  * LI_ASSIGNED state. This function is intended to be used as a generic
