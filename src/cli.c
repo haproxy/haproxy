@@ -416,7 +416,7 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 
 	/* unescape '\' */
 	arg = 0;
-	while (*args[arg] != '\0') {
+	while (arg <= MAX_STATS_ARGS && *args[arg] != '\0') {
 		j = 0;
 		for (i=0; args[arg][i] != '\0'; i++) {
 			if (args[arg][i] == '\\') {
