@@ -196,7 +196,7 @@ struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
-	/* 1 unused byte here */
+	unsigned char use_ssl;			/* ssl enabled  */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */
@@ -275,7 +275,6 @@ struct server {
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
 
-	int use_ssl;				/* ssl enabled  */
 #ifdef USE_OPENSSL
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */
 	struct {
