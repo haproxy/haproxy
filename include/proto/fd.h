@@ -117,6 +117,7 @@ static inline void updt_fd_polling(const int fd)
  */
 static inline void fd_alloc_cache_entry(const int fd)
 {
+	HA_ATOMIC_OR(&fd_cache_mask, fdtab[fd].thread_mask);
 	if (!(fdtab[fd].thread_mask & (fdtab[fd].thread_mask - 1)))
 		fd_add_to_fd_list(&fd_cache_local[my_ffsl(fdtab[fd].thread_mask) - 1], fd);
 	else
