@@ -12847,7 +12847,17 @@ crc32([<avalanche>])
   found in Ethernet, Gzip, PNG, etc... It is slower than the other algorithms
   but may provide a better or at least less predictable distribution. It must
   not be used for security purposes as a 32-bit hash is trivial to break. See
-  also "djb2", "sdbm", "wt6" and the "hash-type" directive.
+  also "djb2", "sdbm", "wt6", "crc32c" and the "hash-type" directive.
+
+crc32c([<avalanche>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the CRC32C
+  hash function. Optionally, it is possible to apply a full avalanche hash
+  function to the output if the optional <avalanche> argument equals 1. This
+  converter uses the same functions as described in RFC4960, Appendix B [8].
+  It is provided for compatibility with other software which want a CRC32C to be
+  computed on some input keys. It is slower than the other algorithms and it must
+  not be used for security purposes as a 32-bit hash is trivial to break. See
+  also "djb2", "sdbm", "wt6", "crc32" and the "hash-type" directive.
 
 da-csv-conv(<prop>[,<prop>*])
   Asks the DeviceAtlas converter to identify the User Agent string passed on
@@ -12890,8 +12900,8 @@ djb2([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "crc32", "sdbm", "wt6" and the
-  "hash-type" directive.
+  32-bit hash is trivial to break. See also "crc32", "sdbm", "wt6", "crc32c",
+  and the "hash-type" directive.
 
 even
   Returns a boolean TRUE if the input value of type signed integer is even
@@ -13199,8 +13209,8 @@ sdbm([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "crc32", "djb2", "wt6" and the
-  "hash-type" directive.
+  32-bit hash is trivial to break. See also "crc32", "djb2", "wt6", "crc32c",
+  and the "hash-type" directive.
 
 set-var(<var name>)
   Sets a variable with the input content and returns the content on the output
@@ -13442,8 +13452,8 @@ wt6([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "crc32", "djb2", "sdbm", and the
-  "hash-type" directive.
+  32-bit hash is trivial to break. See also "crc32", "djb2", "sdbm", "crc32c",
+  and the "hash-type" directive.
 
 xor(<value>)
   Performs a bitwise "XOR" (exclusive OR) between <value> and the input value

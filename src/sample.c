@@ -1743,6 +1743,16 @@ static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+/* hashes the binary input into crc32c (RFC4960, Appendix B [8].) */
+static int sample_conv_crc32c(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	smp->data.u.sint = hash_crc32c(smp->data.u.str.str, smp->data.u.str.len);
+	if (arg_p && arg_p->data.sint)
+		smp->data.u.sint = full_hash(smp->data.u.sint);
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
 /* This function escape special json characters. The returned string can be
  * safely set between two '"' and used as json string. The json string is
  * defined like this:
@@ -2910,6 +2920,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_SINT, SMP_T_STR },
 	{ "crc32",  sample_conv_crc32,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "crc32c", sample_conv_crc32c,    ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "djb2",   sample_conv_djb2,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "sdbm",   sample_conv_sdbm,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "wt6",    sample_conv_wt6,       ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
