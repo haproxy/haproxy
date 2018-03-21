@@ -3902,6 +3902,22 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->engine_id == NULL)
 		curagent->engine_id = generate_pseudo_uuid();
 
+	if (curagent->var_on_error) {
+		struct arg arg;
+
+		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+				     curagent->var_pfx, curagent->var_on_error);
+
+		arg.type = ARGT_STR;
+		arg.data.str.str = trash.str;
+		arg.data.str.len = trash.len;
+		if (!vars_check_arg(&arg, err)) {
+			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
+				  curagent->id, curagent->var_pfx, curagent->var_on_error, *err);
+			goto error;
+		}
+	}
+
 	if (LIST_ISEMPTY(&curmphs) && LIST_ISEMPTY(&curgphs)) {
 		ha_warning("Proxy '%s': No message/group used by SPOE agent '%s' declared at %s:%d.\n",
 			   px->id, curagent->id, curagent->conf.file, curagent->conf.line);
