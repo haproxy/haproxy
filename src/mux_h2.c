@@ -844,6 +844,14 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	if (!h2s || h2s->st == H2_SS_CLOSED)
 		return 1;
 
+	/* RFC7540#5.4.2: To avoid looping, an endpoint MUST NOT send a
+	 * RST_STREAM in response to a RST_STREAM frame.
+	 */
+	if (h2c->dft == H2_FT_RST_STREAM) {
+		ret = 1;
+		goto ignore;
+	}
+
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
 		return 0;
@@ -874,6 +882,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 
+ ignore:
 	h2s->flags |= H2_SF_RST_SENT;
 	h2s_close(h2s);
 	return ret;
@@ -895,6 +904,14 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	struct buffer *res;
 	char str[13];
 	int ret;
+
+	/* RFC7540#5.4.2: To avoid looping, an endpoint MUST NOT send a
+	 * RST_STREAM in response to a RST_STREAM frame.
+	 */
+	if (h2c->dft == H2_FT_RST_STREAM) {
+		ret = 1;
+		goto ignore;
+	}
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
@@ -928,6 +945,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 
+ ignore:
 	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) {
 		h2s->flags |= H2_SF_RST_SENT;
 		h2s_close(h2s);
