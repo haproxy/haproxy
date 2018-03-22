@@ -2788,6 +2788,9 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	/* here we're done with the frame, all the payload (except padding) was
 	 * transferred.
 	 */
+	h2c->rcvd_c += h2c->dpl;
+	h2c->rcvd_s += h2c->dpl;
+	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 
 	/* don't send it before returning data!
