@@ -33,6 +33,7 @@ SUMMARY
   3.3.        Events & messages
   3.4.        Actions
   3.5.        Errors & timeouts
+  4.      Logging
 
 
 0. Terms
@@ -132,10 +133,10 @@ scope ends when the file ends or when another scope is found.
               ...
           spoe-message msg2
               ...
-	  spoe-group grp1
+          spoe-group grp1
               ...
-	  spoe-group grp2
-	      ...
+          spoe-group grp2
+              ...
 
       [my-second-engine]
           ...
@@ -1113,6 +1114,42 @@ to use a lower value for idle timeout than the server timeout. Else the
 connection will be closed by HAProxy. The same is true for hello timeout. You
 should choose a lower value than the connect timeout.
 
+4. Logging
+-----------
+
+Activity of an SPOE is logged using HAProxy's logger. The messages are logged
+in the context of the streams that handle the client and the server
+connections. A message is emitted for each event or group handled by an
+SPOE. Depending on the status code, the log level will be different. In the
+normal case, when no error occurred, the message is logged with the level
+LOG_NOTICE. Otherwise, the message is logged with the level LOG_WARNING.
+
+The messages are logged using the stream's logger and use the following format:
+
+    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUC-CODE reqT/qT/wT/resT/pT
+
+      AGENT              is the agent name
+      TYPE               is EVENT of GROUP
+      NAME               is the event or the group name
+      STREAM-ID          is an integer, the unique id of the stream
+      STATUS_CODE        is the processing's status code
+      reqT/qT/wT/resT/pT are the following time events:
+
+        * reqT : the encoding time. It includes ACLs processing, if any. For
+                 fragmented frames, it is the sum of all fragments.
+        * qT   : the delay before the request gets out the sending queue. For
+                 fragmented frames, it is the sum of all fragments.
+        * wT   : the delay before the reponse is received. No fragmentation
+                 supported here.
+        * resT : the delay to process the response. No fragmentation supported
+	         here.
+        * pT   : the delay to process the event or the group. From the stream
+	         point of view, it is the latency added by the SPOE processing.
+		 It is more or less the sum of values above.
+
+For all these time events, -1 means the processing was interrupted before the
+end. So -1 for the queue time means the request was never dequeued. For
+fragmented frames it is harder to know when the interruption happened.
 
 /*
  * Local variables:

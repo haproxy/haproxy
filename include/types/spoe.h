@@ -22,6 +22,8 @@
 #ifndef _TYPES_SPOE_H
 #define _TYPES_SPOE_H
 
+#include <sys/time.h>
+
 #include <common/buffer.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
@@ -316,6 +318,20 @@ struct spoe_context {
 		unsigned int         curoff;      /* offset in <curarg> from which to resume encoding */
 		unsigned int         flags;       /* SPOE_FRM_FL_* */
 	} frag_ctx; /* Info about fragmented frames, valid on if SPOE_CTX_FL_FRAGMENTED is set */
+
+	struct {
+		struct timeval tv_start;    /* start date of the current event/group */
+		struct timeval tv_request;  /* date the frame processing starts (reset for each frag) */
+		struct timeval tv_queue;    /* date the frame is queued (reset for each frag) */
+		struct timeval tv_wait;     /* date the stream starts waiting for a response */
+		struct timeval tv_response; /* date the response processing starts */
+		long           t_request;   /* delay to encode and push the frame in queue (cumulative for frags) */
+		long           t_queue;     /* delay before the frame gets out the sending queue (cumulative for frags) */
+		long           t_waiting;   /* delay before the response is reveived */
+		long           t_response;  /* delay to process the response (from the stream pov) */
+		long           t_process;   /* processing time of the last event/group */
+		unsigned long  t_total;     /* cumulative processing time */
+	} stats; /* Stats for this stream */
 };
 
 /* SPOE context inside a appctx */
