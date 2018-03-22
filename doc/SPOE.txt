@@ -176,6 +176,8 @@ spoe-agent <name>
     - option continue-on-error
     - option force-set-var
     - option set-on-error
+    - option set-process-time
+    - option set-total-time
     - option var-prefix
     - register-var-names
     - timeout hello|idle|processing
@@ -307,6 +309,55 @@ option set-on-error <var name>
   automatically removed between events processing.
 
   See also: "option continue-on-error", "option var-prefix".
+
+
+option set-process-time <var name>
+  Define the variable to set to report the processing time of the last event or
+  group.
+
+  Arguments :
+
+    <var name>   is the variable name, without the scope. The name may only
+                 contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+  This variable will be set in the scope of the transaction. As for all other
+  variables define by the SPOE, it will be prefixed. So, if your variable name
+  is "process_time" and your prefix is "my_spoe_pfx", the variable will be
+  "txn.my_spoe_pfx.process_time".
+
+  When set, the variable is an integer representing the delay to process the
+  event or the group, in milliseconds. From the stream point of view, it is the
+  latency added by the SPOE processing for the last handled event or group.
+
+  If several events or groups are processed for the same stream, this value
+  will be overrideen.
+
+  See also: "option set-total-time".
+
+
+option set-total-time <var name>
+  Define the variable to set to report the total processing time SPOE for a
+  stream.
+
+  Arguments :
+
+    <var name>   is the variable name, without the scope. The name may only
+                 contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
+
+  This variable will be set in the scope of the transaction. As for all other
+  variables define by the SPOE, it will be prefixed. So, if your variable name
+  is "total_time" and your prefix is "my_spoe_pfx", the variable will be
+  "txn.my_spoe_pfx.total_time".
+
+  When set, the variable is an integer representing the sum of processing times
+  for a stream, in milliseconds. From the stream point of view, it is the
+  latency added by the SPOE processing.
+
+  If several events or groups are processed for the same stream, this value
+  will be updated.
+
+  See also: "option set-process-time".
+
 
 option var-prefix <prefix>
   Define the prefix used when variables are set by an agent.
@@ -1142,10 +1193,10 @@ The messages are logged using the stream's logger and use the following format:
         * wT   : the delay before the reponse is received. No fragmentation
                  supported here.
         * resT : the delay to process the response. No fragmentation supported
-	         here.
+                 here.
         * pT   : the delay to process the event or the group. From the stream
-	         point of view, it is the latency added by the SPOE processing.
-		 It is more or less the sum of values above.
+                 point of view, it is the latency added by the SPOE processing.
+                 It is more or less the sum of values above.
 
 For all these time events, -1 means the processing was interrupted before the
 end. So -1 for the queue time means the request was never dequeued. For

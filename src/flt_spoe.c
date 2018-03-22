@@ -165,6 +165,8 @@ spoe_release_agent(struct spoe_agent *agent)
 	free(agent->var_pfx);
 	free(agent->engine_id);
 	free(agent->var_on_error);
+	free(agent->var_t_process);
+	free(agent->var_t_total);
 	list_for_each_entry_safe(msg, msgback, &agent->messages, list) {
 		LIST_DEL(&msg->list);
 		spoe_release_message(msg);
@@ -2527,6 +2529,30 @@ spoe_update_stats(struct stream *s, struct spoe_agent *agent,
 		tv_zero(&ctx->stats.tv_wait);
 		tv_zero(&ctx->stats.tv_response);
 	}
+
+	if (agent->var_t_process) {
+		struct sample smp;
+
+		memset(&smp, 0, sizeof(smp));
+		smp_set_owner(&smp, s->be, s->sess, s, dir|SMP_OPT_FINAL);
+		smp.data.u.sint = ctx->stats.t_process;
+		smp.data.type   = SMP_T_SINT;
+
+		spoe_set_var(ctx, "txn", agent->var_t_process,
+			     strlen(agent->var_t_process), &smp);
+	}
+
+	if (agent->var_t_total) {
+		struct sample smp;
+
+		memset(&smp, 0, sizeof(smp));
+		smp_set_owner(&smp, s->be, s->sess, s, dir|SMP_OPT_FINAL);
+		smp.data.u.sint = ctx->stats.t_total;
+		smp.data.type   = SMP_T_SINT;
+
+		spoe_set_var(ctx, "txn", agent->var_t_total,
+			     strlen(agent->var_t_total), &smp);
+	}
 }
 
 static void
@@ -3261,6 +3287,8 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->engine_id      = NULL;
 		curagent->var_pfx        = NULL;
 		curagent->var_on_error   = NULL;
+		curagent->var_t_process  = NULL;
+		curagent->var_t_total    = NULL;
 		curagent->flags          = (SPOE_FL_PIPELINING | SPOE_FL_SND_FRAGMENTATION);
 		if (global.nbthread == 1)
 			curagent->flags |= SPOE_FL_ASYNC;
@@ -3498,6 +3526,54 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				tmp++;
 			}
 			curagent->var_on_error = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "set-process-time")) {
+			char *tmp;
+
+			if (!*args[2]) {
+				ha_alert("parsing [%s:%d]: '%s %s' expects a value.\n",
+					 file, linenum, args[0],
+					 args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
+				goto out;
+			tmp = args[2];
+			while (*tmp) {
+				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
+						 file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				tmp++;
+			}
+			curagent->var_t_process = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "set-total-time")) {
+			char *tmp;
+
+			if (!*args[2]) {
+				ha_alert("parsing [%s:%d]: '%s %s' expects a value.\n",
+					 file, linenum, args[0],
+					 args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (alertif_too_many_args(2, file, linenum, args, &err_code))
+				goto out;
+			tmp = args[2];
+			while (*tmp) {
+				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z_-.] chars.\n",
+						 file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				tmp++;
+			}
+			curagent->var_t_total = strdup(args[2]);
 		}
 		else {
 			ha_alert("parsing [%s:%d]: option '%s' is not supported.\n",
@@ -4009,6 +4085,38 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		if (!vars_check_arg(&arg, err)) {
 			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
 				  curagent->id, curagent->var_pfx, curagent->var_on_error, *err);
+			goto error;
+		}
+	}
+
+	if (curagent->var_t_process) {
+		struct arg arg;
+
+		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+				     curagent->var_pfx, curagent->var_t_process);
+
+		arg.type = ARGT_STR;
+		arg.data.str.str = trash.str;
+		arg.data.str.len = trash.len;
+		if (!vars_check_arg(&arg, err)) {
+			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
+				  curagent->id, curagent->var_pfx, curagent->var_t_process, *err);
+			goto error;
+		}
+	}
+
+	if (curagent->var_t_total) {
+		struct arg arg;
+
+		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+				     curagent->var_pfx, curagent->var_t_total);
+
+		arg.type = ARGT_STR;
+		arg.data.str.str = trash.str;
+		arg.data.str.len = trash.len;
+		if (!vars_check_arg(&arg, err)) {
+			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
+				  curagent->id, curagent->var_pfx, curagent->var_t_process, *err);
 			goto error;
 		}
 	}

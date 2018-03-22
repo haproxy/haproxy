@@ -246,6 +246,8 @@ struct spoe_agent {
 	char                 *engine_id;      /* engine-id string */
 	char                 *var_pfx;        /* Prefix used for vars set by the agent */
 	char                 *var_on_error;   /* Variable to set when an error occurred, in the TXN scope */
+	char                 *var_t_process;  /* Variable to set to report the processing time of the last event/group, in the TXN scope */
+	char                 *var_t_total;    /* Variable to set to report the cumulative processing time, in the TXN scope */
 	unsigned int          flags;          /* SPOE_FL_* */
 	unsigned int          cps_max;        /* Maximum # of connections per second */
 	unsigned int          eps_max;        /* Maximum # of errors per second */
