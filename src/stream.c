@@ -3261,7 +3261,6 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		}
 
 		HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
-		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:

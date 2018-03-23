@@ -369,7 +369,6 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 			appctx->ctx.map.bref.ref = elt->list.n;
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:
@@ -430,7 +429,6 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			                                        appctx->ctx.map.display_flags);
 		}
 
-		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:
@@ -552,7 +550,6 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			                                         &appctx->ctx.map.ref->pat);
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		appctx->st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:
