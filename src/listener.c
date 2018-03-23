@@ -617,9 +617,6 @@ void listener_accept(int fd)
 			 * error due to a resource shortage, and we must stop the
 			 * listener (ret < 0).
 			 */
-			if (!(l->options & LI_O_UNLIMITED))
-				HA_ATOMIC_SUB(&actconn, 1);
-			HA_ATOMIC_SUB(&l->nbconn, 1);
 			if (ret == 0) /* successful termination */
 				continue;
 

@@ -269,12 +269,16 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	/* error unrolling */
  out_free_sess:
+	 /* prevent call to listener_release during session_free. It will be
+	  * done below, for all errors. */
+	sess->listener = NULL;
 	session_free(sess);
  out_free_conn:
 	conn_stop_tracking(cli_conn);
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
  out_close:
+	listener_release(l);
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) && p->mode == PR_MODE_HTTP) {
 		/* critical error, no more memory, try to emit a 500 response */
 		struct chunk *err_msg = &p->errmsg[HTTP_ERR_500];
