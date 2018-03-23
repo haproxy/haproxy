@@ -3797,6 +3797,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
 
+	LIST_INIT(&curmsgs);
+	LIST_INIT(&curgrps);
+	LIST_INIT(&curmphs);
+	LIST_INIT(&curgphs);
+	LIST_INIT(&curvars);
+
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {
 		memprintf(err, "%s: out of memory", args[*cur_arg]);
@@ -3845,11 +3851,6 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	curproxy  = px;
 	curagent  = NULL;
 	curmsg    = NULL;
-	LIST_INIT(&curmsgs);
-	LIST_INIT(&curgrps);
-	LIST_INIT(&curmphs);
-	LIST_INIT(&curgphs);
-	LIST_INIT(&curvars);
 	ret = readcfgfile(file);
 	curproxy = NULL;
 
