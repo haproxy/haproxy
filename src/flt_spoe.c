@@ -2456,9 +2456,13 @@ spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
 	if (!(ctx->flags & SPOE_CTX_FL_PROCESS))
 		return;
 
-	if (sa && sa->frag_ctx.ctx == ctx) {
-		sa->frag_ctx.ctx = NULL;
-		spoe_wakeup_appctx(sa->owner);
+	if (sa) {
+		if (sa->frag_ctx.ctx == ctx) {
+			sa->frag_ctx.ctx = NULL;
+			spoe_wakeup_appctx(sa->owner);
+		}
+		else
+			sa->cur_fpa--;
 	}
 
 	/* Reset the flag to allow next processing */
