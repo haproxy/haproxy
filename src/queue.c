@@ -181,7 +181,7 @@ void process_srv_queue(struct server *s)
 	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
 
 	if (remote)
-		thread_want_sync();
+		THREAD_WANT_SYNC();
 }
 
 /* Adds the stream <strm> to the pending connection list of server <strm>->srv
@@ -269,8 +269,7 @@ int pendconn_redistribute(struct server *s)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	if (remote)
-		thread_want_sync();
-
+		THREAD_WANT_SYNC();
 	return xferred;
 }
 
@@ -308,8 +307,7 @@ int pendconn_grab_from_px(struct server *s)
 	HA_SPIN_UNLOCK(PROXY_LOCK, &s->proxy->lock);
 
 	if (remote)
-		thread_want_sync();
-
+		THREAD_WANT_SYNC();
 	return xferred;
 }
 
