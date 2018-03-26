@@ -172,6 +172,7 @@ spoe-agent <name>
     - max-waiting-frames
     - messages
     - [no] option async
+    - [no] option dontlog-normal
     - [no] option pipelining
     - [no] option send-frag-payload
     - option continue-on-error
@@ -259,6 +260,16 @@ option continue-on-error
 
   When set, this option bypass this behaviour and only the current event will
   be ignored.
+
+
+option dontlog-normal
+no option dontlog-normal
+  Enable or disable logging of normal, successful processing.
+
+  Arguments : none
+
+  See also: "log" and section 4 about logging.
+
 
 option force-set-var
   By default, SPOE filter only register already known variables (mainly from

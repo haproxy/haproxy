@@ -94,6 +94,10 @@ struct list curvars;
 /* list of log servers used during the parsing */
 struct list curlogsrvs;
 
+/* agent's proxy flags (PR_O_* and PR_O2_*) used during parsing */
+int curpxopts;
+int curpxopts2;
+
 /* Pools used to allocate SPOE structs */
 static struct pool_head *pool_head_spoe_ctx = NULL;
 static struct pool_head *pool_head_spoe_appctx = NULL;
@@ -3461,6 +3465,14 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curagent->flags |= SPOE_FL_SND_FRAGMENTATION;
 			goto out;
 		}
+		else if (!strcmp(args[1], "dontlog-normal")) {
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+				goto out;
+			if (kwm == 1)
+				curpxopts2 &= ~PR_O2_NOLOGNORM;
+			else
+				curpxopts2 |= PR_O2_NOLOGNORM;
+		}
 
 		/* Following options does not support negation */
 		if (kwm == 1) {
@@ -3983,6 +3995,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	LIST_INIT(&curgphs);
 	LIST_INIT(&curvars);
 	LIST_INIT(&curlogsrvs);
+	curpxopts  = 0;
+	curpxopts2 = 0;
 
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {
@@ -4306,6 +4320,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
         init_new_proxy(&conf->agent_fe);
 	conf->agent_fe.id        = conf->agent->id;
 	conf->agent_fe.parent    = conf->agent;
+	conf->agent_fe.options  |= curpxopts;
+	conf->agent_fe.options2 |= curpxopts2;
 
 	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
 		LIST_DEL(&logsrv->list);
