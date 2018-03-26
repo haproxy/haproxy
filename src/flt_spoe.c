@@ -2052,7 +2052,7 @@ spoe_queue_context(struct spoe_context *ctx)
 			    " - failed to create SPOE appctx\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
 			    __FUNCTION__, ctx->strm);
-		send_log(ctx->strm->be, LOG_EMERG,
+		send_log(&conf->agent_fe, LOG_EMERG,
 			 "SPOE: [%s] failed to create SPOE applet\n",
 			 agent->id);
 
@@ -2717,7 +2717,7 @@ spoe_process_group(struct stream *s, struct spoe_context *ctx,
 			    __FUNCTION__, s, s->uniq_id, ctx->status_code,
 			    ctx->stats.t_request, ctx->stats.t_queue, ctx->stats.t_waiting,
 			    ctx->stats.t_response, ctx->stats.t_process);
-		send_log(s->be, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
+		send_log(&conf->agent_fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
 			 "SPOE: [%s] <GROUP:%s> sid=%u st=%u %ld/%ld/%ld/%ld/%ld\n",
 			 agent->id, group->id, s->uniq_id, ctx->status_code,
 			 ctx->stats.t_request, ctx->stats.t_queue, ctx->stats.t_waiting,
@@ -2755,7 +2755,7 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
 			    __FUNCTION__, s, spoe_event_str[ev], s->uniq_id, ctx->status_code,
 			    ctx->stats.t_request, ctx->stats.t_queue, ctx->stats.t_waiting,
 			    ctx->stats.t_response, ctx->stats.t_process);
-		send_log(s->be, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
+		send_log(&conf->agent_fe, (!ctx->status_code ? LOG_NOTICE : LOG_WARNING),
 			 "SPOE: [%s] <EVENT:%s> sid=%u st=%u %ld/%ld/%ld/%ld/%ld\n",
 			 agent->id, spoe_event_str[ev], s->uniq_id, ctx->status_code,
 			 ctx->stats.t_request, ctx->stats.t_queue, ctx->stats.t_waiting,
@@ -3047,7 +3047,7 @@ spoe_start(struct stream *s, struct filter *filter)
 			    " - failed to create SPOE context\n",
 			    (int)now.tv_sec, (int)now.tv_usec, agent->id,
 			    __FUNCTION__, s);
-		send_log(s->be, LOG_EMERG,
+		send_log(&conf->agent_fe, LOG_EMERG,
 			 "SPOE: [%s] failed to create SPOE context\n",
 			 agent->id);
 		return 0;

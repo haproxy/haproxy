@@ -1197,7 +1197,8 @@ SPOE. Depending on the status code, the log level will be different. In the
 normal case, when no error occurred, the message is logged with the level
 LOG_NOTICE. Otherwise, the message is logged with the level LOG_WARNING.
 
-The messages are logged using the stream's logger and use the following format:
+The messages are logged using the agent's logger, if defined, and use the
+following format:
 
     SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUC-CODE reqT/qT/wT/resT/pT
 
