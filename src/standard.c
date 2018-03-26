@@ -629,7 +629,7 @@ const char *invalid_domainchar(const char *name) {
  * If everything is fine, NULL is returned.
  */
 const char *invalid_prefix_char(const char *name) {
-	return __invalid_char(name, isalpha);
+	return __invalid_char(name, isalnum);
 }
 
 /*
