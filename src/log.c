@@ -720,10 +720,21 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 			goto error;
 		}
 		list_for_each_entry(logsrv, &global.logsrvs, list) {
-			struct logsrv *node = malloc(sizeof(*node));
+			struct logsrv *node;
+
+			list_for_each_entry(node, logsrvs, list) {
+				if (node->ref == logsrv)
+					goto skip_logsrv;
+			}
+
+			node = malloc(sizeof(*node));
 			memcpy(node, logsrv, sizeof(struct logsrv));
+			node->ref = logsrv;
 			LIST_INIT(&node->list);
 			LIST_ADDQ(logsrvs, &node->list);
+
+		  skip_logsrv:
+			continue;
 		}
 		return 1;
 	}

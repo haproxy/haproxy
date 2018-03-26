@@ -2836,6 +2836,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		list_for_each_entry(tmplogsrv, &defproxy.logsrvs, list) {
 			struct logsrv *node = malloc(sizeof(*node));
 			memcpy(node, tmplogsrv, sizeof(struct logsrv));
+			node->ref = tmplogsrv->ref;
 			LIST_INIT(&node->list);
 			LIST_ADDQ(&curproxy->logsrvs, &node->list);
 		}
