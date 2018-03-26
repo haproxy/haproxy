@@ -82,6 +82,10 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
  * You can set arguments using { } : %{many arguments}varname
  */
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err);
+
+/* Parse "log" keyword and update the linked list. */
+int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err);
+
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.

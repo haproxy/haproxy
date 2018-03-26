@@ -671,6 +671,166 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	return 1;
 }
 
+/*
+ * Parse "log" keyword and update <logsrvs> list accordingly.
+ *
+ * When <do_del> is set, it means the "no log" line was parsed, so all log
+ * servers in <logsrvs> are released.
+ *
+ * Otherwise, we try to parse the "log" line. First of all, when the list is not
+ * the global one, we look for the parameter "global". If we find it,
+ * global.logsrvs is copied. Else we parse each arguments.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
+{
+	struct sockaddr_storage *sk;
+	struct logsrv *logsrv = NULL;
+	int port1, port2;
+	int cur_arg;
+
+	/*
+	 * "no log": delete previous herited or defined syslog
+	 *           servers.
+	 */
+	if (do_del) {
+		struct logsrv *back;
+
+		if (*(args[1]) != 0) {
+			memprintf(err, "'no log' does not expect arguments");
+			goto error;
+		}
+
+		list_for_each_entry_safe(logsrv, back, logsrvs, list) {
+			LIST_DEL(&logsrv->list);
+			free(logsrv);
+		}
+		return 1;
+	}
+
+	/*
+	 * "log global": copy global.logrsvs linked list to the end of logsrvs
+	 *               list. But first, we check (logsrvs != global.logsrvs).
+	 */
+	if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
+		if (logsrvs == &global.logsrvs) {
+			memprintf(err, "'global' is not supported for a global syslog server");
+			goto error;
+		}
+		list_for_each_entry(logsrv, &global.logsrvs, list) {
+			struct logsrv *node = malloc(sizeof(*node));
+			memcpy(node, logsrv, sizeof(struct logsrv));
+			LIST_INIT(&node->list);
+			LIST_ADDQ(logsrvs, &node->list);
+		}
+		return 1;
+	}
+
+	/*
+	* "log <address> ...: parse a syslog server line
+	*/
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+		memprintf(err, "expects <address> and <facility> %s as arguments",
+			  ((logsrvs == &global.logsrvs) ? "" : "or global"));
+		goto error;
+	}
+
+	logsrv = calloc(1, sizeof(*logsrv));
+	if (!logsrv) {
+		memprintf(err, "out of memory");
+		goto error;
+	}
+
+	/* skip address for now, it will be parsed at the end */
+	cur_arg = 2;
+
+	/* just after the address, a length may be specified */
+	logsrv->maxlen = MAX_SYSLOG_LEN;
+	if (strcmp(args[cur_arg], "len") == 0) {
+		int len = atoi(args[cur_arg+1]);
+		if (len < 80 || len > 65535) {
+			memprintf(err, "invalid log length '%s', must be between 80 and 65535",
+				  args[cur_arg+1]);
+			goto error;
+		}
+		logsrv->maxlen = len;
+		cur_arg += 2;
+	}
+	if (logsrv->maxlen > global.max_syslog_len)
+		global.max_syslog_len = logsrv->maxlen;
+
+	/* after the length, a format may be specified */
+	if (strcmp(args[cur_arg], "format") == 0) {
+		logsrv->format = get_log_format(args[cur_arg+1]);
+		if (logsrv->format < 0) {
+			memprintf(err, "unknown log format '%s'", args[cur_arg+1]);
+			goto error;
+		}
+		cur_arg += 2;
+	}
+
+	/* parse the facility */
+	logsrv->facility = get_log_facility(args[cur_arg]);
+	if (logsrv->facility < 0) {
+		memprintf(err, "unknown log facility '%s'", args[cur_arg]);
+		goto error;
+	}
+	cur_arg++;
+
+	/* parse the max syslog level (default: debug) */
+	logsrv->level = 7;
+	if (*(args[cur_arg])) {
+		logsrv->level = get_log_level(args[cur_arg]);
+		if (logsrv->level < 0) {
+			memprintf(err, "unknown optional log level '%s'", args[cur_arg]);
+			goto error;
+		}
+		cur_arg++;
+	}
+
+	/* parse the limit syslog level (default: emerg) */
+	logsrv->minlvl = 0;
+	if (*(args[cur_arg])) {
+		logsrv->minlvl = get_log_level(args[cur_arg]);
+		if (logsrv->minlvl < 0) {
+			memprintf(err, "unknown optional minimum log level '%s'", args[cur_arg]);
+			goto error;
+		}
+		cur_arg++;
+	}
+
+	/* Too many args */
+	if (*(args[cur_arg])) {
+		memprintf(err, "cannot handle unexpected argument '%s'", args[cur_arg]);
+		goto error;
+	}
+
+	/* now, back to the address */
+	sk = str2sa_range(args[1], NULL, &port1, &port2, err, NULL, NULL, 1);
+	if (!sk)
+		goto error;
+	logsrv->addr = *sk;
+
+	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
+		if (port1 != port2) {
+			memprintf(err, "port ranges and offsets are not allowed in '%s'", args[1]);
+			goto error;
+		}
+		logsrv->addr = *sk;
+		if (!port1)
+			set_host_port(&logsrv->addr, SYSLOG_PORT);
+	}
+	LIST_ADDQ(logsrvs, &logsrv->list);
+	return 1;
+
+  error:
+	free(logsrv);
+	return 0;
+}
+
+
 /* Generic function to display messages prefixed by a label */
 static void print_message(const char *label, const char *fmt, va_list argp)
 {
