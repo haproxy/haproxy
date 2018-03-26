@@ -91,6 +91,9 @@ struct list curmphs;
 struct list curgphs;
 struct list curvars;
 
+/* list of log servers used during the parsing */
+struct list curlogsrvs;
+
 /* Pools used to allocate SPOE structs */
 static struct pool_head *pool_head_spoe_ctx = NULL;
 static struct pool_head *pool_head_spoe_appctx = NULL;
@@ -2930,11 +2933,9 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
 
-        memset(&conf->agent_fe, 0, sizeof(conf->agent_fe));
-        init_new_proxy(&conf->agent_fe);
-        conf->agent_fe.parent = conf->agent;
+	/* conf->agent_fe was already initialized during the config
+	 * parsing. Finish initialization. */
         conf->agent_fe.last_change = now.tv_sec;
-        conf->agent_fe.id = conf->agent->id;
         conf->agent_fe.cap = PR_CAP_FE;
         conf->agent_fe.mode = PR_MODE_TCP;
         conf->agent_fe.maxconn = 0;
@@ -3666,6 +3667,15 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			cur_arg++;
 		}
 	}
+	else if (!strcmp(args[0], "log")) {
+		char *errmsg = NULL;
+
+		if (!parse_logsrv(args, &curlogsrvs, (kwm == 1), &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (*args[0]) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in spoe-agent section.\n",
 			 file, linenum, args[0]);
@@ -3963,6 +3973,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	struct spoe_group           *grp, *grpback;
 	struct spoe_placeholder     *ph, *phback;
 	struct spoe_var_placeholder *vph, *vphback;
+	struct logsrv               *logsrv, *logsrvback;
 	char                        *file = NULL, *engine = NULL;
 	int                          ret, pos = *cur_arg + 1;
 
@@ -3971,6 +3982,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	LIST_INIT(&curmphs);
 	LIST_INIT(&curgphs);
 	LIST_INIT(&curvars);
+	LIST_INIT(&curlogsrvs);
 
 	conf = calloc(1, sizeof(*conf));
 	if (conf == NULL) {
@@ -4287,6 +4299,19 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 	conf->id    = strdup(engine ? engine : curagent->id);
 	conf->agent = curagent;
+
+	/* Start agent's proxy initialization here. It will be finished during
+	 * the filter init. */
+        memset(&conf->agent_fe, 0, sizeof(conf->agent_fe));
+        init_new_proxy(&conf->agent_fe);
+	conf->agent_fe.id        = conf->agent->id;
+	conf->agent_fe.parent    = conf->agent;
+
+	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
+		LIST_DEL(&logsrv->list);
+		LIST_ADDQ(&conf->agent_fe.logsrvs, &logsrv->list);
+	}
+
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {
 		LIST_DEL(&ph->list);
 		spoe_release_placeholder(ph);
@@ -4346,6 +4371,10 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
 		LIST_DEL(&msg->list);
 		spoe_release_message(msg);
+	}
+	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
+		LIST_DEL(&logsrv->list);
+		free(logsrv);
 	}
 	free(conf);
 	return -1;

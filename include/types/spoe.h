@@ -30,6 +30,7 @@
 
 #include <types/filters.h>
 #include <types/freq_ctr.h>
+#include <types/log.h>
 #include <types/proxy.h>
 #include <types/sample.h>
 #include <types/stream.h>

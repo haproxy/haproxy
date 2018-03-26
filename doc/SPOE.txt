@@ -165,6 +165,7 @@ spoe-agent <name>
 
   following keywords are supported :
     - groups
+    - log
     - maxconnrate
     - maxerrrate
     - max-frame-size
@@ -195,6 +196,16 @@ groups <grp-name> ...
 
   See also: "spoe-group" section.
 
+
+log global
+log <address> [len <length>] [format <format>] <facility> [<level> [<minlevel>]]
+no log
+  Enable per-instance logging of events and traffic.
+
+  Prefix :
+    no         should be used when the logger list must be flushed.
+
+  See the HAProxy Configuration Manual for details about this option.
 
 maxconnrate <number>
   Set the maximum number of connections per second to <number>. The SPOE will
