@@ -261,15 +261,11 @@ int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value)
 	if (!hpack_dht_make_room(dht, name.len + value.len))
 		return 0;
 
-	used = dht->used;
-	prev = head = dht->head;
-	wrap = dht->wrap;
-	tail = hpack_dht_get_tail(dht);
-
 	/* Now there is enough room in the table, that's guaranteed by the
 	 * protocol, but not necessarily where we need it.
 	 */
 
+	used = dht->used;
 	if (!used) {
 		/* easy, the table was empty */
 		dht->front = dht->head = 0;
@@ -281,6 +277,10 @@ int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value)
 	}
 
 	/* compute the new head, used and wrap position */
+	prev = head = dht->head;
+	wrap = dht->wrap;
+	tail = hpack_dht_get_tail(dht);
+
 	used++;
 	head++;
 
