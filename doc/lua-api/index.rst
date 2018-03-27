@@ -1906,12 +1906,13 @@ Socket class
 
   The amount of time to wait is specified as the value parameter, in seconds.
 
-  The timeout modes are bot implemented, the only settable timeout is the
+  The timeout modes are not implemented, the only settable timeout is the
   inactivity time waiting for complete the internal buffer send or waiting for
   receive data.
 
   :param class_socket socket: Is the manipulated Socket.
-  :param integer value: The timeout value.
+  :param float value: The timeout value. Use flotting point to specify
+    milliseconds.
 
 .. _regex_class:
 

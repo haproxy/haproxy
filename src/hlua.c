@@ -11,6 +11,7 @@
  */
 
 #include <ctype.h>
+#include <limits.h>
 #include <setjmp.h>
 
 #include <lauxlib.h>
@@ -2464,6 +2465,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 {
 	struct hlua_socket *socket;
 	int tmout;
+	double dtmout;
 	struct xref *peer;
 	struct appctx *appctx;
 	struct stream_interface *si;
@@ -2472,11 +2474,18 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	MAY_LJMP(check_args(L, 2, "settimeout"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
-	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
+
+	/* round up for inputs that are fractions and convert to millis */
+	dtmout = (0.5 + MAY_LJMP(luaL_checknumber(L, 2))) * 1000;
 
 	/* Check for negative values */
-	if (tmout < 0)
+	if (dtmout < 0)
 		WILL_LJMP(luaL_error(L, "settimeout: cannot set negatives values"));
+
+	if (dtmout > INT_MAX) /* overflow check */
+		WILL_LJMP(luaL_error(L, "settimeout: cannot set values larger than %d", INT_MAX));
+
+	tmout = MS_TO_TICKS((int)dtmout);
 
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
@@ -2484,7 +2493,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	if (socket->tid != tid)
 		WILL_LJMP(luaL_error(L, "connect: cannot use socket on other thread"));
 
-	/* check for connection break. If some data where read, return it. */
+	/* check for connection break. If some data were read, return it. */
 	peer = xref_get_peer_and_lock(&socket->xref);
 	if (!peer) {
 		hlua_pusherror(L, "socket: not yet initialised, you can't set timeouts.");
