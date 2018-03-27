@@ -3202,9 +3202,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 
 		check->xprt = mailer->xprt;
 		check->addr = mailer->addr;
-		if (!get_host_port(&mailer->addr))
-			/* Default to submission port */
-			check->port = 587;
+		check->port = get_host_port(&mailer->addr);
 		//check->server = s;
 
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
