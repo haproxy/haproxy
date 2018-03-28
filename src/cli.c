@@ -817,6 +817,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.iocb == conn_fd_handler)  ? "conn_fd_handler" :
 			     (fdt.iocb == dgram_fd_handler) ? "dgram_fd_handler" :
 			     (fdt.iocb == listener_accept)  ? "listener_accept" :
+			     (fdt.iocb == thread_sync_io_handler) ? "thread_sync_io_handler" :
 			     "unknown",
 			     fdt.thread_mask, fdt.update_mask);
 

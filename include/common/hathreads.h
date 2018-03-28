@@ -866,4 +866,7 @@ static inline void __ha_compiler_barrier(void)
 	__asm __volatile("" ::: "memory");
 }
 
+/* Dummy I/O handler used by the sync pipe.*/
+void thread_sync_io_handler(int fd);
+
 #endif /* _COMMON_HATHREADS_H */

@@ -33,7 +33,9 @@ struct lock_stat lock_stats[LOCK_LABELS];
 #endif
 
 /* Dummy I/O handler used by the sync pipe.*/
-static void thread_sync_io_handler(int fd) { }
+void thread_sync_io_handler(int fd)
+{
+}
 
 /* Initializes the sync point. It creates a pipe used by threads to wakup all
  * others when a sync is requested. It also initialize the mask of all create
