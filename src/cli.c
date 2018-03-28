@@ -777,6 +777,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		struct listener *li = NULL;
 		struct server *sv = NULL;
 		struct proxy *px = NULL;
+		struct mux_ops *mux = NULL;
+		void *ctx = NULL;
 		uint32_t conn_flags = 0;
 
 		fdt = fdtab[fd];
@@ -786,6 +788,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		if (fdt.iocb == conn_fd_handler) {
 			conn_flags = ((struct connection *)fdt.owner)->flags;
+			mux = ((struct connection *)fdt.owner)->mux;
+			ctx = ((struct connection *)fdt.owner)->mux_ctx;
 			li = objt_listener(((struct connection *)fdt.owner)->target);
 			sv = objt_server(((struct connection *)fdt.owner)->target);
 			px = objt_proxy(((struct connection *)fdt.owner)->target);
@@ -829,6 +833,11 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 				chunk_appendf(&trash, " sv=%s/%s", sv->id, sv->proxy->id);
 			else if (li)
 				chunk_appendf(&trash, " fe=%s", li->bind_conf->frontend->id);
+
+			if (mux)
+				chunk_appendf(&trash, " mux=%s mux_ctx=%p", mux->name, ctx);
+			else
+				chunk_appendf(&trash, " nomux");
 		}
 		else if (fdt.iocb == listener_accept) {
 			chunk_appendf(&trash, " l.st=%s fe=%s",
