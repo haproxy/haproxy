@@ -590,18 +590,13 @@ static inline void h2s_close(struct h2s *h2s)
 	h2s->st = H2_SS_CLOSED;
 }
 
-/* detaches an H2 stream from its H2C. */
-static void h2s_detach(struct h2s *h2s)
+/* detaches an H2 stream from its H2C and releases it to the H2S pool. */
+static void h2s_destroy(struct h2s *h2s)
 {
 	h2s_close(h2s);
 	LIST_DEL(&h2s->list);
 	LIST_INIT(&h2s->list);
 	eb32_delete(&h2s->by_id);
-}
-
-/* releases an H2 stream back to the pool, and detaches it from the h2c. */
-static void h2s_free(struct h2s *h2s)
-{
 	pool_free(pool_head_h2s, h2s);
 }
 
@@ -649,8 +644,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
  out_free_cs:
 	cs_free(cs);
  out_close:
-	h2s_detach(h2s);
-	h2s_free(h2s);
+	h2s_destroy(h2s);
 	h2s = NULL;
  out:
 	return h2s;
@@ -1028,8 +1022,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (!h2s->cs) {
 			/* this stream was already orphaned */
-			h2s_detach(h2s);
-			h2s_free(h2s);
+			h2s_destroy(h2s);
 			continue;
 		}
 
@@ -2060,8 +2053,7 @@ static int h2_process_mux(struct h2c *h2c)
 					h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 				else {
 					/* just sent the last frame for this orphaned stream */
-					h2s_detach(h2s);
-					h2s_free(h2s);
+					h2s_destroy(h2s);
 				}
 			}
 		}
@@ -2102,8 +2094,7 @@ static int h2_process_mux(struct h2c *h2c)
 				h2s->cs->flags &= ~CS_FL_DATA_WR_ENA;
 			else {
 				/* just sent the last frame for this orphaned stream */
-				h2s_detach(h2s);
-				h2s_free(h2s);
+				h2s_destroy(h2s);
 			}
 		}
 	}
@@ -2466,8 +2457,7 @@ static void h2_detach(struct conn_stream *cs)
 		conn_xprt_want_send(cs->conn);
 	}
 
-	h2s_detach(h2s);
-	h2s_free(h2s);
+	h2s_destroy(h2s);
 
 	/* We don't want to close right now unless we're removing the
 	 * last stream, and either the connection is in error, or it
