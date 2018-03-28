@@ -2455,10 +2455,6 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))
 		return;
 
-	/* the stream could be in the send list */
-	LIST_DEL(&h2s->list);
-	LIST_INIT(&h2s->list);
-
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
 	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
 		/* unblock the connection if it was blocked on this
@@ -2470,34 +2466,31 @@ static void h2_detach(struct conn_stream *cs)
 		conn_xprt_want_send(cs->conn);
 	}
 
-	if (h2s->by_id.node.leaf_p) {
-		/* h2s still attached to the h2c */
-		h2s_detach(h2s);
-
-		/* We don't want to close right now unless we're removing the
-		 * last stream, and either the connection is in error, or it
-		 * reached the ID already specified in a GOAWAY frame received
-		 * or sent (as seen by last_sid >= 0).
-		 */
-		if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
-		    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
-		     (h2c->flags & H2_CF_GOAWAY_FAILED) ||
-		     (!h2c->mbuf->o &&  /* mux buffer empty, also process clean events below */
-		      (conn_xprt_read0_pending(h2c->conn) ||
-		       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
-			/* no more stream will come, kill it now */
-			h2_release(h2c->conn);
-		}
-		else if (h2c->task) {
-			if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
-				h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
-				task_queue(h2c->task);
-			}
-			else
-				h2c->task->expire = TICK_ETERNITY;
-		}
-	}
+	h2s_detach(h2s);
 	h2s_free(h2s);
+
+	/* We don't want to close right now unless we're removing the
+	 * last stream, and either the connection is in error, or it
+	 * reached the ID already specified in a GOAWAY frame received
+	 * or sent (as seen by last_sid >= 0).
+	 */
+	if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
+	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
+	     (h2c->flags & H2_CF_GOAWAY_FAILED) ||
+	     (!h2c->mbuf->o &&  /* mux buffer empty, also process clean events below */
+	      (conn_xprt_read0_pending(h2c->conn) ||
+	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
+		/* no more stream will come, kill it now */
+		h2_release(h2c->conn);
+	}
+	else if (h2c->task) {
+		if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
+			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
+			task_queue(h2c->task);
+		}
+		else
+			h2c->task->expire = TICK_ETERNITY;
+	}
 }
 
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
