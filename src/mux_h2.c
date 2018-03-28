@@ -594,6 +594,8 @@ static inline void h2s_close(struct h2s *h2s)
 static void h2s_detach(struct h2s *h2s)
 {
 	h2s_close(h2s);
+	LIST_DEL(&h2s->list);
+	LIST_INIT(&h2s->list);
 	eb32_delete(&h2s->by_id);
 }
 
@@ -2455,6 +2457,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	/* the stream could be in the send list */
 	LIST_DEL(&h2s->list);
+	LIST_INIT(&h2s->list);
 
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
 	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
