@@ -433,8 +433,8 @@ static void h2_release(struct connection *conn)
 		h2_release_buf(h2c, &h2c->mbuf);
 
 		if (h2c->task) {
-			task_delete(h2c->task);
-			task_free(h2c->task);
+			h2c->task->context = NULL;
+			task_wakeup(h2c->task, TASK_WOKEN_OTHER);
 			h2c->task = NULL;
 		}
 
@@ -2329,9 +2329,18 @@ static struct task *h2_timeout_task(struct task *t)
 	struct h2c *h2c = t->context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!expired)
+	if (!expired && h2c)
 		return t;
 
+	task_delete(t);
+	task_free(t);
+
+	if (!h2c) {
+		/* resources were already deleted */
+		return NULL;
+	}
+
+	h2c->task = NULL;
 	h2c_error(h2c, H2_ERR_NO_ERROR);
 	h2_wake_some_streams(h2c, 0, 0);
 
@@ -2348,17 +2357,12 @@ static struct task *h2_timeout_task(struct task *t)
 	if (h2c->mbuf->o && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn))
 		h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, 0);
 
-	if (!eb_is_empty(&h2c->streams_by_id))
-		goto wait;
+	/* either we can release everything now or it will be done later once
+	 * the last stream closes.
+	 */
+	if (eb_is_empty(&h2c->streams_by_id))
+		h2_release(h2c->conn);
 
-	h2_release(h2c->conn);
-	return NULL;
-
- wait:
-	/* the streams have been notified, we must let them finish and close */
-	h2c->task = NULL;
-	task_delete(t);
-	task_free(t);
 	return NULL;
 }
 
