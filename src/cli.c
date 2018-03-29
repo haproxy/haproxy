@@ -777,7 +777,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		struct listener *li = NULL;
 		struct server *sv = NULL;
 		struct proxy *px = NULL;
-		struct mux_ops *mux = NULL;
+		const struct mux_ops *mux = NULL;
 		void *ctx = NULL;
 		uint32_t conn_flags = 0;
 
