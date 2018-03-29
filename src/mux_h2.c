@@ -2447,7 +2447,8 @@ static void h2_detach(struct conn_stream *cs)
 	/* this stream may be blocked waiting for some data to leave (possibly
 	 * an ES or RST frame), so orphan it in this case.
 	 */
-	if (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))
+	if (!(cs->conn->flags & CO_FL_ERROR) &&
+	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)))
 		return;
 
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
