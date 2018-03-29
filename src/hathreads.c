@@ -21,6 +21,11 @@
 THREAD_LOCAL unsigned int tid      = 0;
 THREAD_LOCAL unsigned long tid_bit = (1UL << 0);
 
+/* Dummy I/O handler used by the sync pipe.*/
+void thread_sync_io_handler(int fd)
+{
+}
+
 #ifdef USE_THREAD
 
 static HA_SPINLOCK_T sync_lock;
@@ -31,11 +36,6 @@ static unsigned long all_threads_mask  = 0;
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 struct lock_stat lock_stats[LOCK_LABELS];
 #endif
-
-/* Dummy I/O handler used by the sync pipe.*/
-void thread_sync_io_handler(int fd)
-{
-}
 
 /* Initializes the sync point. It creates a pipe used by threads to wakup all
  * others when a sync is requested. It also initialize the mask of all create
