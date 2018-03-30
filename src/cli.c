@@ -798,7 +798,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] cache=%u owner=%p iocb=%p(%s) tmask=0x%lx umask=0x%lx",
+			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] cnext=%d cprev=%d tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_EV_POLLED_R) ? 'P' : 'p',
@@ -815,15 +815,16 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.ev & FD_POLL_IN)  ? 'I' : 'i',
 			     fdt.linger_risk ? 'L' : 'l',
 			     fdt.cloned ? 'C' : 'c',
-			     fdt.cache.next >= -2 ? 1 : 0,
+			     fdt.cache.next,
+			     fdt.cache.prev,
+			     fdt.thread_mask, fdt.update_mask,
 			     fdt.owner,
 			     fdt.iocb,
 			     (fdt.iocb == conn_fd_handler)  ? "conn_fd_handler" :
 			     (fdt.iocb == dgram_fd_handler) ? "dgram_fd_handler" :
 			     (fdt.iocb == listener_accept)  ? "listener_accept" :
 			     (fdt.iocb == thread_sync_io_handler) ? "thread_sync_io_handler" :
-			     "unknown",
-			     fdt.thread_mask, fdt.update_mask);
+			     "unknown");
 
 		if (fdt.iocb == conn_fd_handler) {
 			chunk_appendf(&trash, " cflg=0x%08x", conn_flags);
