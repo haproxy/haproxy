@@ -3327,11 +3327,48 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 		/* stream flow control, quit the list */
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
+
+			if (!h2s->cs && LIST_ISEMPTY(&h2s->h2c->send_list) && LIST_ISEMPTY(&h2s->h2c->fctl_list)) {
+				fprintf(stderr, "%s:%d: removing %p\n", __FUNCTION__, __LINE__, h2s);
+			}
+
 	}
 
 	return total;
 }
 
+/* for debugging with CLI's "show fd" command */
+static void h2_show_fd(struct chunk *msg, struct connection *conn)
+{
+	struct h2c *h2c = conn->mux_ctx;
+	struct h2s *h2s;
+	struct eb32_node *node;
+	int fctl_cnt = 0;
+	int send_cnt = 0;
+	int tree_cnt = 0;
+	int orph_cnt = 0;
+
+	if (!h2c)
+		return;
+
+	list_for_each_entry(h2s, &h2c->fctl_list, list)
+		fctl_cnt++;
+
+	list_for_each_entry(h2s, &h2c->send_list, list)
+		send_cnt++;
+
+	node = eb32_first(&h2c->streams_by_id);
+	while (node) {
+		h2s = container_of(node, struct h2s, by_id);
+		tree_cnt++;
+		if (!h2s->cs)
+			orph_cnt++;
+		node = eb32_next(node);
+	}
+
+	chunk_appendf(msg, " st0=%d flg=0x%08x fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d",
+		      h2c->st0, h2c->flags, fctl_cnt, send_cnt, tree_cnt, orph_cnt);
+}
 
 /*******************************************************/
 /* functions below are dedicated to the config parsers */
@@ -3403,6 +3440,7 @@ const struct mux_ops h2_ops = {
 	.detach = h2_detach,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
+	.show_fd = h2_show_fd,
 	.flags = MX_FL_CLEAN_ABRT,
 	.name = "H2",
 };
