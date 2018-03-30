@@ -834,8 +834,11 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			else if (li)
 				chunk_appendf(&trash, " fe=%s", li->bind_conf->frontend->id);
 
-			if (mux)
+			if (mux) {
 				chunk_appendf(&trash, " mux=%s mux_ctx=%p", mux->name, ctx);
+				if (mux->show_fd)
+					mux->show_fd(&trash, fdt.owner);
+			}
 			else
 				chunk_appendf(&trash, " nomux");
 		}
