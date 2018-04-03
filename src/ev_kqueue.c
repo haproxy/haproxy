@@ -47,13 +47,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
+		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_drop++;
 			continue;
 		}
 
 		en = fdtab[fd].state;
-		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
 			if (!(fdtab[fd].polled_mask & tid_bit)) {

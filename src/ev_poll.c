@@ -65,13 +65,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
+		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_drop++;
 			continue;
 		}
 
 		en = fdtab[fd].state;
-		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 
 		/* we have a single state for all threads, which is why we
 		 * don't check the tid_bit. First thread to see the update
