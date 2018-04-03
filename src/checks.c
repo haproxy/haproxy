@@ -1394,7 +1394,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		__cs_stop_both(cs);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
-	else if (!(conn->flags & (CO_FL_XPRT_RD_ENA|CO_FL_XPRT_WR_ENA|CO_FL_HANDSHAKE))) {
+	else if (!(conn->flags & CO_FL_HANDSHAKE) && !(cs->flags & (CS_FL_DATA_RD_ENA|CS_FL_DATA_WR_ENA))) {
 		/* we may get here if only a connection probe was required : we
 		 * don't have any data to send nor anything expected in response,
 		 * so the completion of the connection establishment is enough.
