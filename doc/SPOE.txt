@@ -1200,7 +1200,8 @@ LOG_NOTICE. Otherwise, the message is logged with the level LOG_WARNING.
 The messages are logged using the agent's logger, if defined, and use the
 following format:
 
-    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUC-CODE reqT/qT/wT/resT/pT
+    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUC-CODE reqT/qT/wT/resT/pT \
+    <idles>/<applets> <nb_sending>/<nb_waiting> <nb_error>/<nb_processed>
 
       AGENT              is the agent name
       TYPE               is EVENT of GROUP
@@ -1220,6 +1221,14 @@ following format:
         * pT   : the delay to process the event or the group. From the stream
                  point of view, it is the latency added by the SPOE processing.
                  It is more or less the sum of values above.
+
+      <idle>             is the numbers of idle SPOE applets
+      <applets>          is the numbers of SPOE applets
+      <nb_sending>       is the numbers of streams waiting to send data
+      <nb_waiting>       is the numbers of streams waiting for a ack
+      <nb_error>         is the numbers of processing errors
+      <nb_processed>     is the numbers of events/groups processed
+
 
 For all these time events, -1 means the processing was interrupted before the
 end. So -1 for the queue time means the request was never dequeued. For

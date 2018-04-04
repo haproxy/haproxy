@@ -282,6 +282,14 @@ struct spoe_agent {
 		__decl_hathreads(HA_SPINLOCK_T lock);
 	} *rt;
 
+	struct {
+		unsigned int applets;            /* # of SPOE applets */
+		unsigned int idles;              /* # of idle applets */
+		unsigned int nb_sending;         /* # of streams waiting to send data */
+		unsigned int nb_waiting;         /* # of streams waiting for a ack */
+		unsigned long long nb_processed; /* # of frames processed by the SPOE */
+		unsigned long long nb_errors;    /* # of errors during the processing */
+	} counters;
 };
 
 /* SPOE filter configuration */
