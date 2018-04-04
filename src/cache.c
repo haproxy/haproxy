@@ -963,9 +963,6 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 	struct cache* cache = appctx->ctx.cli.p0;
 	struct stream_interface *si = appctx->owner;
 
-	chunk_reset(&trash);
-
-
 	if (cache == NULL) {
 		cache = LIST_ELEM((caches).n, typeof(struct cache *), list);
 	}
@@ -975,9 +972,14 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		unsigned int next_key;
 		struct cache_entry *entry;
 
-		chunk_appendf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
-
 		next_key = appctx->ctx.cli.i0;
+		if (!next_key) {
+			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				si_applet_cant_put(si);
+				return 0;
+			}
+		}
 
 		appctx->ctx.cli.p0 = cache;
 
@@ -987,11 +989,12 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			node = eb32_lookup_ge(&cache->entries, next_key);
 			if (!node) {
 				shctx_unlock(shctx_ptr(cache));
+				appctx->ctx.cli.i0 = 0;
 				break;
 			}
 
 			entry = container_of(node, struct cache_entry, eb);
-			chunk_appendf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, (*(unsigned int *)entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+			chunk_printf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, (*(unsigned int *)entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
 
 			next_key = node->key + 1;
 			appctx->ctx.cli.i0 = next_key;
