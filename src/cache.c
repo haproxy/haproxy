@@ -378,13 +378,11 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 static void cache_free_blocks(struct shared_block *first, struct shared_block *block)
 {
-	if (first == block) {
-		struct cache_entry *object = (struct cache_entry *)first->data;
-		if (object->eb.key) {
-			eb32_delete(&object->eb);
-			object->eb.key = 0;
-		}
-	}
+	struct cache_entry *object = (struct cache_entry *)block->data;
+
+	if (first == block && object->eb.key)
+		eb32_delete(&object->eb);
+	object->eb.key = 0;
 }
 
 /*
