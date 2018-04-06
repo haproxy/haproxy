@@ -1239,7 +1239,6 @@ spoe_release_appctx(struct appctx *appctx)
 		    __FUNCTION__, appctx);
 
 	/* Remove applet from the list of running applets */
-	SPOE_DEBUG_STMT(agent->rt[tid].applets_act--);
 	HA_ATOMIC_SUB(&agent->counters.applets, 1);
 	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 	if (!LIST_ISEMPTY(&spoe_appctx->list)) {
@@ -1252,7 +1251,6 @@ spoe_release_appctx(struct appctx *appctx)
 	if (appctx->st0 != SPOE_APPCTX_ST_END) {
 		if (appctx->st0 == SPOE_APPCTX_ST_IDLE) {
 			eb32_delete(&spoe_appctx->node);
-			SPOE_DEBUG_STMT(agent->rt[tid].applets_idle--);
 			HA_ATOMIC_SUB(&agent->counters.idles, 1);
 		}
 
@@ -1437,7 +1435,6 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 		default:
 			/* HELLO handshake is finished, set the idle timeout and
 			 * add the applet in the list of running applets. */
-			SPOE_DEBUG_STMT(agent->rt[tid].applets_idle++);
 			HA_ATOMIC_ADD(&agent->counters.idles, 1);
 			appctx->st0 = SPOE_APPCTX_ST_IDLE;
 			SPOE_APPCTX(appctx)->node.key = 0;
@@ -1725,7 +1722,6 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == SPOE_APPCTX_ST_PROCESSING && SPOE_APPCTX(appctx)->cur_fpa < agent->max_fpa) {
-		SPOE_DEBUG_STMT(agent->rt[tid].applets_idle++);
 		HA_ATOMIC_ADD(&agent->counters.idles, 1);
 		appctx->st0 = SPOE_APPCTX_ST_IDLE;
 		eb32_insert(&agent->rt[tid].idle_applets, &SPOE_APPCTX(appctx)->node);
@@ -1889,7 +1885,6 @@ spoe_handle_appctx(struct appctx *appctx)
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_IDLE:
-			SPOE_DEBUG_STMT(agent->rt[tid].applets_idle--);
 			HA_ATOMIC_SUB(&agent->counters.idles, 1);
 			eb32_delete(&SPOE_APPCTX(appctx)->node);
 			if (stopping &&
@@ -2007,7 +2002,6 @@ spoe_create_appctx(struct spoe_config *conf)
 	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
 	LIST_ADDQ(&conf->agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
 	HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
-	SPOE_DEBUG_STMT(conf->agent->rt[tid].applets_act++);
 	HA_ATOMIC_ADD(&conf->agent->counters.applets, 1);
 
 	task_wakeup(SPOE_APPCTX(appctx)->task, TASK_WOKEN_INIT);
@@ -2099,9 +2093,9 @@ spoe_queue_context(struct spoe_context *ctx)
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 		    " - Add stream in sending queue"
-		    " - applets_act=%u - applets_idle=%u - processing=%u\n",
+		    " - applets=%u - idles=%u - processing=%u\n",
 		    (int)now.tv_sec, (int)now.tv_usec, agent->id, __FUNCTION__,
-		    ctx->strm, agent->rt[tid].applets_act, agent->rt[tid].applets_idle,
+		    ctx->strm, agent->counters.applets, agent->counters.idles,
 		    agent->rt[tid].processing);
 
 	/* Finally try to wakeup an IDLE applet. */
@@ -3358,8 +3352,6 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		}
 		for (i = 0; i < global.nbthread; ++i) {
 			curagent->rt[i].frame_size   = curagent->max_frame_size;
-			SPOE_DEBUG_STMT(curagent->rt[i].applets_act  = 0);
-			SPOE_DEBUG_STMT(curagent->rt[i].applets_idle = 0);
 			curagent->rt[i].processing   = 0;
 			LIST_INIT(&curagent->rt[i].applets);
 			LIST_INIT(&curagent->rt[i].sending_queue);

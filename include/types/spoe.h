@@ -265,10 +265,6 @@ struct spoe_agent {
 	/* running info */
 	struct {
 		unsigned int    frame_size;     /* current maximum frame size, only used to encode messages */
-#if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
-		unsigned int    applets_act;    /* # of applets alive at a time */
-		unsigned int    applets_idle;   /* # of applets in the state SPOE_APPCTX_ST_IDLE */
-#endif
 		unsigned int    processing;
 		struct freq_ctr processing_per_sec;
 
