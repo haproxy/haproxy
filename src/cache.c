@@ -446,6 +446,13 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	}
 	shctx_unlock(shctx);
 
+	/* the received memory is not initialized, we need at least to mark
+	 * the object as not indexed yet.
+	 */
+	object = (struct cache_entry *)first->data;
+	object->eb.node.leaf_p = NULL;
+	object->eb.key = 0;
+
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
 
@@ -470,7 +477,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					struct cache_entry *old;
 
 					cache_ctx->first_block = first;
-					object = (struct cache_entry *)first->data;
 
 					object->eb.key = (*(unsigned int *)&txn->cache_hash);
 					memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
@@ -497,8 +503,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 out:
 	/* if does not cache */
 	if (first) {
-		object = (struct cache_entry *)first->data;
-
 		shctx_lock(shctx);
 		first->len = 0;
 		object->eb.key = 0;
