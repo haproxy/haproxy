@@ -421,25 +421,25 @@ struct connection {
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
 };
 
-/* ALPN token registration */
-enum alpn_proxy_mode {
-	ALPN_MODE_NONE = 0,
-	ALPN_MODE_TCP  = 1 << 0, // must not be changed!
-	ALPN_MODE_HTTP = 1 << 1, // must not be changed!
-	ALPN_MODE_ANY  = ALPN_MODE_TCP | ALPN_MODE_HTTP,
+/* PROTO token registration */
+enum proto_proxy_mode {
+	PROTO_MODE_NONE = 0,
+	PROTO_MODE_TCP  = 1 << 0, // must not be changed!
+	PROTO_MODE_HTTP = 1 << 1, // must not be changed!
+	PROTO_MODE_ANY  = PROTO_MODE_TCP | PROTO_MODE_HTTP,
 };
 
-enum alpn_proxy_side {
-	ALPN_SIDE_NONE = 0,
-	ALPN_SIDE_FE   = 1, // same as PR_CAP_FE
-	ALPN_SIDE_BE   = 2, // same as PR_CAP_BE
-	ALPN_SIDE_BOTH = ALPN_SIDE_FE | ALPN_SIDE_BE,
+enum proto_proxy_side {
+	PROTO_SIDE_NONE = 0,
+	PROTO_SIDE_FE   = 1, // same as PR_CAP_FE
+	PROTO_SIDE_BE   = 2, // same as PR_CAP_BE
+	PROTO_SIDE_BOTH = PROTO_SIDE_FE | PROTO_SIDE_BE,
 };
 
-struct alpn_mux_list {
+struct mux_proto_list {
 	const struct ist token;    /* token name and length. Empty is catch-all */
-	enum alpn_proxy_mode mode;
-	enum alpn_proxy_side side;
+	enum proto_proxy_mode mode;
+	enum proto_proxy_side side;
 	const struct mux_ops *mux;
 	struct list list;
 };

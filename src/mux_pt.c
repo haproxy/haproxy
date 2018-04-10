@@ -215,12 +215,12 @@ const struct mux_ops mux_pt_ops = {
 	.name = "PASS",
 };
 
-/* ALPN selection : default mux has empty name */
-static struct alpn_mux_list alpn_mux_pt =
-	{ .token = IST(""), .mode = ALPN_MODE_ANY, .side = ALPN_SIDE_BOTH, .mux = &mux_pt_ops };
+/* PROT selection : default mux has empty name */
+static struct mux_proto_list mux_proto_pt =
+	{ .token = IST(""), .mode = PROTO_MODE_ANY, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
 
 __attribute__((constructor))
 static void __mux_pt_init(void)
 {
-	alpn_register_mux(&alpn_mux_pt);
+	register_mux_proto(&mux_proto_pt);
 }

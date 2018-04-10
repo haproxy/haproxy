@@ -34,7 +34,7 @@
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
-extern struct alpn_mux_list alpn_mux_list;
+extern struct mux_proto_list mux_proto_list;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_connection();
@@ -949,14 +949,14 @@ static inline int conn_get_alpn(const struct connection *conn, const char **str,
 	return conn->xprt->get_alpn(conn, str, len);
 }
 
-/* registers alpn mux list <list>. Modifies the list element! */
-static inline void alpn_register_mux(struct alpn_mux_list *list)
+/* registers proto mux list <list>. Modifies the list element! */
+static inline void register_mux_proto(struct mux_proto_list *list)
 {
-	LIST_ADDQ(&alpn_mux_list.list, &list->list);
+	LIST_ADDQ(&mux_proto_list.list, &list->list);
 }
 
-/* unregisters alpn mux list <list> */
-static inline void alpn_unregister_mux(struct alpn_mux_list *list)
+/* unregisters proto mux list <list> */
+static inline void unregister_mux_proto(struct mux_proto_list *list)
 {
 	LIST_DEL(&list->list);
 	LIST_INIT(&list->list);
@@ -970,12 +970,12 @@ static inline void alpn_unregister_mux(struct alpn_mux_list *list)
  */
 static inline const struct mux_ops *alpn_get_mux(const struct ist token, int http_mode)
 {
-	struct alpn_mux_list *item;
+	struct mux_proto_list *item;
 	const struct mux_ops *fallback = NULL;
 
 	http_mode = 1 << !!http_mode;
 
-	list_for_each_entry(item, &alpn_mux_list.list, list) {
+	list_for_each_entry(item, &mux_proto_list.list, list) {
 		if (!(item->mode & http_mode))
 			continue;
 		if (isteq(token, item->token))
