@@ -30,6 +30,7 @@
 #include <types/protocol.h>
 
 #include <proto/acl.h>
+#include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
@@ -964,6 +965,30 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 	return 0;
 }
 
+/* parse the "proto" bind keyword */
+static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct ist proto;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	proto = ist2(args[cur_arg + 1], strlen(args[cur_arg + 1]));
+	conf->mux_proto = get_mux_proto(proto);
+	if (!conf->mux_proto) {
+		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[cur_arg], args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (!(conf->mux_proto->side & PROTO_SIDE_FE)) {
+		memprintf(err, "'%s' :  MUX protocol '%s' cannot be used for incoming connections",
+			  args[cur_arg], args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -996,6 +1021,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "name",         bind_parse_name,         1 }, /* set name of listening socket */
 	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
 	{ "process",      bind_parse_process,      1 }, /* set list of allowed process for this socket */
+	{ "proto",        bind_parse_proto,        1 }, /* set the proto to use for all incoming connections */
 	{ /* END */ },
 }};
 

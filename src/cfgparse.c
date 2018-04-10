@@ -8768,6 +8768,23 @@ out_uri_auth_compat:
 				}
 			}
 		}
+
+		/* Check the mux protocols, if any, for each listener
+		 * attached to the current proxy */
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
+
+			if (!bind_conf->mux_proto)
+				continue;
+			if (!(bind_conf->mux_proto->mode & mode)) {
+				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
+					 proxy_type_str(curproxy), curproxy->id,
+					 (int)bind_conf->mux_proto->token.len,
+					 bind_conf->mux_proto->token.ptr,
+					 bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+		}
 	}
 
 	/***********************************************************/

@@ -10995,6 +10995,16 @@ process <process-set>[/<thread-set>]
   smoother inter-process load balancing. Currently Linux 3.9 and above is known
   for supporting this. See also "bind-process" and "nbproc".
 
+proto <name>
+  Forces the multiplexer's protocol to use for the incoming connections. It
+  must be compatible with the mode of the frontend (TCP or HTTP). It must also
+  be usable on the frontend side. The list of available protocols is reported
+  in haproxy -vv.
+  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  protocol for all connections instantiated from this listening socket. For
+  instance, it is possible to force the http/2 on clear TCP by specifing "proto
+  h2" on the bind line.
+
 ssl
   This setting is only available when support for OpenSSL was built in. It
   enables SSL deciphering on connections instantiated from this listener. A
