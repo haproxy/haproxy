@@ -32,6 +32,7 @@
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/checks.h>
+#include <proto/connection.h>
 #include <proto/port_range.h>
 #include <proto/protocol.h>
 #include <proto/queue.h>
@@ -497,6 +498,29 @@ static int srv_parse_non_stick(char **args, int *cur_arg,
 static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
 {
 	srv->pp_opts |= flags;
+	return 0;
+}
+/* parse the "proto" server keyword */
+static int srv_parse_proto(char **args, int *cur_arg,
+			   struct proxy *px, struct server *newsrv, char **err)
+{
+	struct ist proto;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	proto = ist2(args[*cur_arg + 1], strlen(args[*cur_arg + 1]));
+	newsrv->mux_proto = get_mux_proto(proto);
+	if (!newsrv->mux_proto) {
+		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[*cur_arg], args[*cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (!(newsrv->mux_proto->side & PROTO_SIDE_BE)) {
+		memprintf(err, "'%s' :  MUX protocol '%s' cannot be used for outgoing connections",
+			  args[*cur_arg], args[*cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 }
 
@@ -1179,6 +1203,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "proto",               srv_parse_proto,               1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
@@ -1584,6 +1609,8 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 #ifdef TCP_USER_TIMEOUT
 	srv->tcp_ut = src->tcp_ut;
 #endif
+	srv->mux_proto = src->mux_proto;
+
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;
 }

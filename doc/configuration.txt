@@ -11669,6 +11669,15 @@ port <port>
   inetd for instance. This parameter is ignored if the "check" parameter is not
   set. See also the "addr" parameter.
 
+proto <name>
+
+  Forces the multiplexer's protocol to use for the outgoing connections to this
+  server. It must be compatible with the mode of the backend (TCP or HTTP). It
+  must also be usable on the backend side. The list of available protocols is
+  reported in haproxy -vv.
+  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  protocol for all connections established to this server.
+
 redir <prefix>
   The "redir" parameter enables the redirection mode for all GET and HEAD
   requests addressing this server. This means that instead of having HAProxy

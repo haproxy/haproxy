@@ -8769,7 +8769,7 @@ out_uri_auth_compat:
 			}
 		}
 
-		/* Check the mux protocols, if any, for each listener
+		/* Check the mux protocols, if any, for each listener and server
 		 * attached to the current proxy */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
@@ -8782,6 +8782,20 @@ out_uri_auth_compat:
 					 (int)bind_conf->mux_proto->token.len,
 					 bind_conf->mux_proto->token.ptr,
 					 bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+		}
+		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
+			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
+
+			if (!newsrv->mux_proto)
+				continue;
+			if (!(newsrv->mux_proto->mode & mode)) {
+				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
+					 proxy_type_str(curproxy), curproxy->id,
+					 (int)newsrv->mux_proto->token.len,
+					 newsrv->mux_proto->token.ptr,
+					 newsrv->id, newsrv->conf.file, newsrv->conf.line);
 				cfgerr++;
 			}
 		}
