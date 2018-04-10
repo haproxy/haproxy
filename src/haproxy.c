@@ -390,6 +390,8 @@ static void display_build_opts()
 
 	list_pollers(stdout);
 	putchar('\n');
+	list_mux_proto(stdout);
+	putchar('\n');
 	list_filters(stdout);
 	putchar('\n');
 }

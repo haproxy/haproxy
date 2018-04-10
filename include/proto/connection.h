@@ -962,6 +962,52 @@ static inline void unregister_mux_proto(struct mux_proto_list *list)
 	LIST_INIT(&list->list);
 }
 
+static inline struct mux_proto_list *get_mux_proto(char *str, int len)
+{
+	struct mux_proto_list *item;
+	struct ist proto = ist2(str, len);
+
+	list_for_each_entry(item, &mux_proto_list.list, list) {
+		if (isteq(proto, item->token))
+			return item;
+	}
+	return NULL;
+}
+
+/* Lists the known proto mux on <out> */
+static inline void list_mux_proto(FILE *out)
+{
+	struct mux_proto_list *item;
+	struct ist proto;
+	char *mode, *side;
+
+	fprintf(out, "Available multiplexer protocols :\n");
+	list_for_each_entry(item, &mux_proto_list.list, list) {
+		proto = item->token;
+
+		if (item->mode == PROTO_MODE_ANY)
+			mode = "TCP|HTTP";
+		else if (item->mode == PROTO_MODE_TCP)
+			mode = "TCP";
+		else if (item->mode == PROTO_MODE_HTTP)
+			mode = "HTTP";
+		else
+			mode = "NONE";
+
+		if (item->side == PROTO_SIDE_BOTH)
+			side = "FE|BE";
+		else if (item->side == PROTO_SIDE_FE)
+			side = "FE";
+		else if (item->side == PROTO_SIDE_BE)
+			side = "BE";
+		else
+			side = "NONE";
+
+		fprintf(out, " %15s : mode=%-10s side=%s\n",
+			(proto.len ? proto.ptr : "pass-through"), mode, side);
+	}
+}
+
 /* returns the first mux in the list matching the exact same token and
  * compatible with the proxy's mode (http or tcp). Mode "health" has to be
  * considered as TCP here. Ie passing "px->mode == PR_MODE_HTTP" is fine. Will
