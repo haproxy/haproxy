@@ -1008,56 +1008,78 @@ static inline void list_mux_proto(FILE *out)
 	}
 }
 
-/* returns the first mux in the list matching the exact same token and
- * compatible with the proxy's mode (http or tcp). Mode "health" has to be
- * considered as TCP here. Ie passing "px->mode == PR_MODE_HTTP" is fine. Will
- * fall back to the first compatible mux with empty ALPN name. May return null
- * if the code improperly registered the default mux to use as a fallback.
+/* returns the first mux in the list matching the exact same <mux_proto> and
+ * compatible with the <proto_side> (FE or BE) and the <proto_mode> (TCP or
+ * HTTP). <mux_proto> can be empty. Will fall back to the first compatible mux
+ * with exactly the same <proto_mode> or with an empty name. May return
+ * null if the code improperly registered the default mux to use as a fallback.
  */
-static inline const struct mux_ops *alpn_get_mux(const struct ist token, int http_mode)
+static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
+						      const struct ist mux_proto,
+						      int proto_side, int proto_mode)
 {
 	struct mux_proto_list *item;
-	const struct mux_ops *fallback = NULL;
-
-	http_mode = 1 << !!http_mode;
+	struct mux_proto_list *fallback = NULL;
 
 	list_for_each_entry(item, &mux_proto_list.list, list) {
-		if (!(item->mode & http_mode))
+		if (!(item->side & proto_side) || !(item->mode & proto_mode))
 			continue;
-		if (isteq(token, item->token))
+		if (istlen(mux_proto) && isteq(mux_proto, item->token))
 			return item->mux;
-		if (!istlen(item->token))
-			fallback = item->mux;
+		else if (!istlen(item->token)) {
+			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
+				fallback = item;
+		}
 	}
-	return fallback;
+	return (fallback ? fallback->mux : NULL);
+
 }
 
-/* finds the best mux for incoming connection <conn> and mode <http_mode> for
- * the proxy. Null cannot be returned unless there's a serious bug somewhere
- * else (no fallback mux registered).
+/* installs the best mux for incoming connection <conn> using the upper context
+ * <ctx>. If the mux protocol is forced, we use it to find the best
+ * mux. Otherwise we use the ALPN name, if any. Returns < 0 on error.
  */
-static inline const struct mux_ops *conn_find_best_mux(struct connection *conn, int http_mode)
+static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 {
-	const char *alpn_str;
-	int alpn_len;
-
-	if (!conn_get_alpn(conn, &alpn_str, &alpn_len))
-		alpn_len = 0;
-
-	return alpn_get_mux(ist2(alpn_str, alpn_len), http_mode);
-}
-
-/* finds the best mux for incoming connection <conn>, a proxy in and http mode
- * <mode>, and installs it on the connection for upper context <ctx>. Returns
- * < 0 on error.
- */
-static inline int conn_install_best_mux(struct connection *conn, int mode, void *ctx)
-{
+	struct bind_conf     *bind_conf = objt_listener(conn->target)->bind_conf;
 	const struct mux_ops *mux_ops;
 
-	mux_ops = conn_find_best_mux(conn, mode);
-	if (!mux_ops)
-		return -1;
+	if (bind_conf->mux_proto)
+		mux_ops = bind_conf->mux_proto->mux;
+	else {
+		struct ist mux_proto;
+		const char *alpn_str = NULL;
+		int alpn_len = 0;
+		int mode = (1 << (bind_conf->frontend->mode == PR_MODE_HTTP));
+
+		conn_get_alpn(conn, &alpn_str, &alpn_len);
+		mux_proto = ist2(alpn_str, alpn_len);
+		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
+		if (!mux_ops)
+			return -1;
+	}
+	return conn_install_mux(conn, mux_ops, ctx);
+}
+
+/* installs the best mux for outgoing connection <conn> using the upper context
+ * <ctx>. If the mux protocol is forced, we use it to find the best mux. Returns
+ * < 0 on error.
+ */
+static inline int conn_install_mux_be(struct connection *conn, void *ctx)
+{
+	struct server *srv = objt_server(conn->target);
+	const struct mux_ops *mux_ops;
+
+	if (srv->mux_proto)
+		mux_ops = srv->mux_proto->mux;
+	else {
+		int mode;
+
+		mode = (1 << (srv->proxy->mode == PR_MODE_HTTP));
+		mux_ops = conn_get_best_mux(conn, ist(NULL), PROTO_SIDE_BE, mode);
+		if (!mux_ops)
+			return -1;
+	}
 	return conn_install_mux(conn, mux_ops, ctx);
 }
 

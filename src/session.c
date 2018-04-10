@@ -423,7 +423,7 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	session_count_new(sess);
-	if (conn_install_best_mux(conn, sess->fe->mode == PR_MODE_HTTP, NULL) < 0)
+	if (conn_install_mux_fe(conn, NULL) < 0)
 		goto fail;
 
 	/* the embryonic session's task is not needed anymore */
