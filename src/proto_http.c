@@ -3720,9 +3720,11 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		path = http_get_path(txn);
-		url2sa(req->buf->p + msg->sl.rq.u,
-		       path ? path - (req->buf->p + msg->sl.rq.u) : msg->sl.rq.u_l,
-		       &conn->addr.to, NULL);
+		if (url2sa(req->buf->p + msg->sl.rq.u,
+			   path ? path - (req->buf->p + msg->sl.rq.u) : msg->sl.rq.u_l,
+			   &conn->addr.to, NULL) == -1)
+			goto return_bad_req;
+
 		/* if the path was found, we have to remove everything between
 		 * req->buf->p + msg->sl.rq.u and path (excluded). If it was not
 		 * found, we need to replace from req->buf->p + msg->sl.rq.u for
