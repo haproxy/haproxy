@@ -699,7 +699,20 @@ static inline void conn_free(struct connection *conn)
 /* Release a conn_stream, and kill the connection if it was the last one */
 static inline void cs_destroy(struct conn_stream *cs)
 {
-	cs->conn->mux->detach(cs);
+	if (cs->conn->mux)
+		cs->conn->mux->detach(cs);
+	else {
+		/* It's too early to have a mux, let's just destroy
+		 * the connection
+		 */
+		struct connection *conn = cs->conn;
+
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
 	cs_free(cs);
 }
 
