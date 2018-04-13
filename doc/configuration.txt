@@ -13917,6 +13917,10 @@ fc_reordering(<unit>) : integer
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
 
+fe_defbe : string
+  Returns a string containing the frontend's default backend name. It can be
+  used in frontends to check which backend will handle requests by default.
+
 fe_id : integer
   Returns an integer containing the current frontend's id. It can be used in
   backends to check from which frontend it was called, or to stick all users

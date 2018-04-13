@@ -194,6 +194,22 @@ smp_fetch_fe_name(const struct arg *args, struct sample *smp, const char *kw, vo
 	return 1;
 }
 
+/* set string to the name of the default backend */
+static int
+smp_fetch_fe_defbe(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->sess->fe->defbe.be)
+		return 0;
+	smp->data.u.str.str = (char *)smp->sess->fe->defbe.be->id;
+	if (!smp->data.u.str.str)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	return 1;
+}
+
 /* set temp integer to the number of HTTP requests per second reaching the frontend.
  * Accepts exactly 1 argument. Argument is a frontend, other types will cause
  * an undefined behaviour.
@@ -239,6 +255,7 @@ smp_fetch_fe_conn(const struct arg *args, struct sample *smp, const char *kw, vo
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "fe_conn",      smp_fetch_fe_conn,      ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "fe_defbe",     smp_fetch_fe_defbe,     0,          NULL, SMP_T_STR,  SMP_USE_FTEND, },
 	{ "fe_id",        smp_fetch_fe_id,        0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ "fe_name",      smp_fetch_fe_name,      0,          NULL, SMP_T_STR,  SMP_USE_FTEND, },
 	{ "fe_req_rate",  smp_fetch_fe_req_rate,  ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
