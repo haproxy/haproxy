@@ -7336,6 +7336,7 @@ int check_config_validity()
 	struct bind_conf *bind_conf;
 	char *err;
 	struct cfg_postparser *postparser;
+	struct dns_resolvers *curr_resolvers = NULL;
 
 	bind_conf = NULL;
 	/*
@@ -8975,6 +8976,15 @@ out_uri_auth_compat:
 	pool_head_hdr_idx = create_pool("hdr_idx",
 				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),
 				    MEM_F_SHARED);
+
+	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+		if (LIST_ISEMPTY(&curr_resolvers->nameservers)) {
+			ha_warning("config : resolvers '%s' [%s:%d] has no nameservers configured!\n",
+				   curr_resolvers->id, curr_resolvers->conf.file,
+				   curr_resolvers->conf.line);
+			err_code |= ERR_WARN;
+		}
+	}
 
 	list_for_each_entry(postparser, &postparsers, list) {
 		if (postparser->func)
