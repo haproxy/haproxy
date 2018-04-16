@@ -31,6 +31,7 @@
 /* private data */
 static int kqueue_fd[MAX_THREADS]; // per-thread kqueue_fd
 static THREAD_LOCAL struct kevent *kev = NULL;
+static struct kevent *kev_out = NULL; // Trash buffer for kevent() to write the eventlist in
 
 /*
  * kqueue() poller
@@ -43,6 +44,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int updt_idx, en;
 	int changes = 0;
 
+	timeout.tv_sec  = 0;
+	timeout.tv_nsec = 0;
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
@@ -81,13 +84,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
 		}
 	}
-	if (changes)
-		kevent(kqueue_fd[tid], kev, changes, NULL, 0, NULL);
+	if (changes) {
+#ifdef EV_RECEIPT
+		kev[0].flags |= EV_RECEIPT;
+#else
+		/* If EV_RECEIPT isn't defined, just add an invalid entry,
+		 * so that we get an error and kevent() stops before scanning
+		 * the kqueue.
+		 */
+		EV_SET(&kev[changes++], -1, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+#endif
+		kevent(kqueue_fd[tid], kev, changes, kev_out, changes, &timeout);
+	}
 	fd_nbupdt = 0;
 
 	delta_ms        = 0;
-	timeout.tv_sec  = 0;
-	timeout.tv_nsec = 0;
 
 	if (!exp) {
 		delta_ms        = MAX_DELAY_MS;
@@ -150,8 +161,12 @@ static int init_kqueue_per_thread()
 {
 	int fd;
 
-	/* we can have up to two events per fd (*/
-	kev = calloc(1, sizeof(struct kevent) * 2 * global.maxsock);
+	/* we can have up to two events per fd, so allocate enough to store
+	 * 2*fd event, and an extra one, in case EV_RECEIPT isn't defined,
+	 * so that we can add an invalid entry and get an error, to avoid
+	 * scanning the kqueue uselessly.
+	 */
+	kev = calloc(1, sizeof(struct kevent) * (2 * global.maxsock + 1));
 	if (kev == NULL)
 		goto fail_alloc;
 
@@ -194,6 +209,15 @@ REGPRM1 static int _do_init(struct poller *p)
 {
 	p->private = NULL;
 
+	/* we can have up to two events per fd, so allocate enough to store
+	 * 2*fd event, and an extra one, in case EV_RECEIPT isn't defined,
+	 * so that we can add an invalid entry and get an error, to avoid
+	 * scanning the kqueue uselessly.
+	 */
+	kev_out = calloc(1, sizeof(struct kevent) * (2 * global.maxsock + 1));
+	if (!kev_out)
+		goto fail_alloc;
+
 	kqueue_fd[tid] = kqueue();
 	if (kqueue_fd[tid] < 0)
 		goto fail_fd;
@@ -203,6 +227,9 @@ REGPRM1 static int _do_init(struct poller *p)
 	return 1;
 
  fail_fd:
+	free(kev_out);
+	kev_out = NULL;
+fail_alloc:
 	p->pref = 0;
 	return 0;
 }
@@ -220,6 +247,10 @@ REGPRM1 static void _do_term(struct poller *p)
 
 	p->private = NULL;
 	p->pref = 0;
+	if (kev_out) {
+		free(kev_out);
+		kev_out = NULL;
+	}
 }
 
 /*
