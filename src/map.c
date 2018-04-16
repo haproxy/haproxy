@@ -723,15 +723,21 @@ static int cli_parse_set_map(char **args, struct appctx *appctx, void *private)
 				return 1;
 			}
 
-			/* Try to delete the entry. */
+			/* Try to modify the entry. */
 			err = NULL;
 			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4], &err)) {
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				if (err)
+				if (err) {
 					memprintf(&err, "%s.\n", err);
-				appctx->ctx.cli.err = err;
-				appctx->st0 = CLI_ST_PRINT_FREE;
+					appctx->ctx.cli.err = err;
+					appctx->st0 = CLI_ST_PRINT_FREE;
+				}
+				else {
+					appctx->ctx.cli.severity = LOG_ERR;
+					appctx->ctx.cli.msg = "Failed to update an entry.\n";
+					appctx->st0 = CLI_ST_PRINT;
+				}
 				return 1;
 			}
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
@@ -744,10 +750,16 @@ static int cli_parse_set_map(char **args, struct appctx *appctx, void *private)
 			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4], &err)) {
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				if (err)
+				if (err) {
 					memprintf(&err, "%s.\n", err);
-				appctx->ctx.cli.err = err;
-				appctx->st0 = CLI_ST_PRINT_FREE;
+					appctx->ctx.cli.err = err;
+					appctx->st0 = CLI_ST_PRINT_FREE;
+				}
+				else {
+					appctx->ctx.cli.severity = LOG_ERR;
+					appctx->ctx.cli.msg = "Failed to update an entry.\n";
+					appctx->st0 = CLI_ST_PRINT;
+				}
 				return 1;
 			}
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
@@ -829,10 +841,16 @@ static int cli_parse_add_map(char **args, struct appctx *appctx, void *private)
 			ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!ret) {
-			if (err)
+			if (err) {
 				memprintf(&err, "%s.\n", err);
-			appctx->ctx.cli.err = err;
-			appctx->st0 = CLI_ST_PRINT_FREE;
+				appctx->ctx.cli.err = err;
+				appctx->st0 = CLI_ST_PRINT_FREE;
+			}
+			else {
+				appctx->ctx.cli.severity = LOG_ERR;
+				appctx->ctx.cli.msg = "Failed to add an entry.\n";
+				appctx->st0 = CLI_ST_PRINT;
+			}
 			return 1;
 		}
 

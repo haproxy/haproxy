@@ -8588,6 +8588,11 @@ static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *
 			appctx->ctx.cli.err = err;
 			appctx->st0 = CLI_ST_PRINT_FREE;
 		}
+		else {
+			appctx->ctx.cli.severity = LOG_ERR;
+			appctx->ctx.cli.msg = "Failed to update OCSP response.\n";
+			appctx->st0 = CLI_ST_PRINT;
+		}
 		return 1;
 	}
 	appctx->ctx.cli.severity = LOG_INFO;
