@@ -625,14 +625,20 @@ static void cli_io_handler(struct appctx *appctx)
 				else
 					si_applet_cant_put(si);
 				break;
-			case CLI_ST_PRINT_FREE:
-				if (cli_output_msg(res, appctx->ctx.cli.err, LOG_ERR, cli_get_severity_output(appctx)) != -1) {
+			case CLI_ST_PRINT_FREE: {
+				const char *msg = appctx->ctx.cli.err;
+
+				if (!msg)
+					msg = "Out of memory.\n";
+
+				if (cli_output_msg(res, msg, LOG_ERR, cli_get_severity_output(appctx)) != -1) {
 					free(appctx->ctx.cli.err);
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
 					si_applet_cant_put(si);
 				break;
+			}
 			case CLI_ST_CALLBACK: /* use custom pointer */
 				if (appctx->io_handler)
 					if (appctx->io_handler(appctx)) {
