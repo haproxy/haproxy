@@ -12907,10 +12907,20 @@ even
   Returns a boolean TRUE if the input value of type signed integer is even
   otherwise returns FALSE. It is functionally equivalent to "not,and(1),bool".
 
-field(<index>,<delimiters>)
-  Extracts the substring at the given index considering given delimiters from
-  an input string. Indexes start at 1 and delimiters are a string formatted
-  list of chars.
+field(<index>,<delimiters>[,<count>])
+  Extracts the substring at the given index counting from the beginning
+  (positive index) or from the end (negative index) considering given delimiters
+  from an input string. Indexes start at 1 or -1 and delimiters are a string
+  formatted list of chars. Optionally you can specify <count> of fields to
+  extract (default: 1). Value of 0 indicates extraction of all remaining
+  fields.
+
+  Example :
+      str(f1_f2_f3__f5),field(5,_)    # f5
+      str(f1_f2_f3__f5),field(2,_,0)  # f2_f3__f5
+      str(f1_f2_f3__f5),field(2,_,2)  # f2_f3
+      str(f1_f2_f3__f5),field(-2,_,3) # f2_f3_
+      str(f1_f2_f3__f5),field(-3,_,0) # f1_f2_f3
 
 hex
   Converts a binary input sample to a hex string containing two hex digits per
@@ -13440,9 +13450,19 @@ utime(<format>[,<offset>])
       # e.g.  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
 
-word(<index>,<delimiters>)
-  Extracts the nth word considering given delimiters from an input string.
-  Indexes start at 1 and delimiters are a string formatted list of chars.
+word(<index>,<delimiters>[,<count>])
+  Extracts the nth word counting from the beginning (positive index) or from
+  the end (negative index) considering given delimiters from an input string.
+  Indexes start at 1 or -1 and delimiters are a string formatted list of chars.
+  Optionally you can specify <count> of words to extract (default: 1).
+  Value of 0 indicates extraction of all remaining words.
+
+  Example :
+      str(f1_f2_f3__f5),word(4,_)    # f5
+      str(f1_f2_f3__f5),word(2,_,0)  # f2_f3__f5
+      str(f1_f2_f3__f5),word(3,_,2)  # f3__f5
+      str(f1_f2_f3__f5),word(-2,_,3) # f1_f2_f3
+      str(f1_f2_f3__f5),word(-3,_,0) # f1_f2
 
 wt6([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the WT6

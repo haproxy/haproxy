@@ -1997,27 +1997,54 @@ static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
  */
 static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	unsigned int field;
+	int field;
 	char *start, *end;
 	int i;
+	int count = (arg_p[2].type == ARGT_SINT) ? arg_p[2].data.sint : 1;
 
 	if (!arg_p[0].data.sint)
 		return 0;
 
-	field = 1;
-	end = start = smp->data.u.str.str;
-	while (end - smp->data.u.str.str < smp->data.u.str.len) {
-
-		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
-			if (*end == arg_p[1].data.str.str[i]) {
-				if (field == arg_p[0].data.sint)
-					goto found;
-				start = end+1;
-				field++;
-				break;
+	if (arg_p[0].data.sint < 0) {
+		field = -1;
+		end = start = smp->data.u.str.str + smp->data.u.str.len;
+		while (start > smp->data.u.str.str) {
+			for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+				if (*(start-1) == arg_p[1].data.str.str[i]) {
+					if (field == arg_p[0].data.sint) {
+						if (count == 1)
+							goto found;
+						else if (count > 1)
+							count--;
+					} else {
+						end = start-1;
+						field--;
+					}
+					break;
+				}
 			}
+			start--;
 		}
-		end++;
+	} else {
+		field = 1;
+		end = start = smp->data.u.str.str;
+		while (end - smp->data.u.str.str < smp->data.u.str.len) {
+			for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+				if (*end == arg_p[1].data.str.str[i]) {
+					if (field == arg_p[0].data.sint) {
+						if (count == 1)
+							goto found;
+						else if (count > 1)
+							count--;
+					} else {
+						start = end+1;
+						field++;
+					}
+					break;
+				}
+			}
+			end++;
+		}
 	}
 
 	/* Field not found */
@@ -2048,37 +2075,74 @@ found:
  */
 static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	unsigned int word;
+	int word;
 	char *start, *end;
 	int i, issep, inword;
+	int count = (arg_p[2].type == ARGT_SINT) ? arg_p[2].data.sint : 1;
 
 	if (!arg_p[0].data.sint)
 		return 0;
 
 	word = 0;
 	inword = 0;
-	end = start = smp->data.u.str.str;
-	while (end - smp->data.u.str.str < smp->data.u.str.len) {
-		issep = 0;
-		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
-			if (*end == arg_p[1].data.str.str[i]) {
-				issep = 1;
-				break;
+	if (arg_p[0].data.sint < 0) {
+		end = start = smp->data.u.str.str + smp->data.u.str.len;
+		while (start > smp->data.u.str.str) {
+			issep = 0;
+			for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+				if (*(start-1) == arg_p[1].data.str.str[i]) {
+					issep = 1;
+					break;
+				}
 			}
-		}
-		if (!inword) {
-			if (!issep) {
-				word++;
-				start = end;
-				inword = 1;
+			if (!inword) {
+				if (!issep) {
+					if (word != arg_p[0].data.sint) {
+						word--;
+						end = start;
+					}
+					inword = 1;
+				}
 			}
+			else if (issep) {
+				if (word == arg_p[0].data.sint)
+					if (count == 1)
+						goto found;
+					else if (count > 1)
+						count--;
+				inword = 0;
+			}
+			start--;
 		}
-		else if (issep) {
-			if (word == arg_p[0].data.sint)
-				goto found;
-			inword = 0;
+	} else {
+		end = start = smp->data.u.str.str;
+		while (end - smp->data.u.str.str < smp->data.u.str.len) {
+			issep = 0;
+			for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+				if (*end == arg_p[1].data.str.str[i]) {
+					issep = 1;
+					break;
+				}
+			}
+			if (!inword) {
+				if (!issep) {
+					if (word != arg_p[0].data.sint) {
+						word++;
+						start = end;
+					}
+					inword = 1;
+				}
+			}
+			else if (issep) {
+				if (word == arg_p[0].data.sint)
+					if (count == 1)
+						goto found;
+					else if (count > 1)
+						count--;
+				inword = 0;
+			}
+			end++;
 		}
-		end++;
 	}
 
 	/* Field not found */
@@ -2928,8 +2992,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "xxh64",  sample_conv_xxh64,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
 	{ "bytes",  sample_conv_bytes,     ARG2(1,SINT,SINT), NULL, SMP_T_BIN,  SMP_T_BIN },
-	{ "field",  sample_conv_field,     ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
-	{ "word",   sample_conv_word,      ARG2(2,SINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "field",  sample_conv_field,     ARG3(2,SINT,STR,SINT), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "word",   sample_conv_word,      ARG3(2,SINT,STR,SINT), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
