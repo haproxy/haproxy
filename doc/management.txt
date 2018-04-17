@@ -161,7 +161,9 @@ list of options is :
     that a faulty configuration doesn't prevent the system from booting.
 
   -L <name> : change the local peer name to <name>, which defaults to the local
-    hostname. This is used only with peers replication.
+    hostname. This is used only with peers replication. You can use the
+    variable $HAPROXY_LOCALPEER in the configuration file to reference the
+    peer name.
 
   -N <limit> : sets the default per-proxy maxconn to <limit> instead of the
     builtin default value (usually 2000). Only useful for debugging.

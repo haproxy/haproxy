@@ -1293,6 +1293,7 @@ static void init(int argc, char **argv)
 	gethostname(hostname, sizeof(hostname) - 1);
 	memset(localpeer, 0, sizeof(localpeer));
 	memcpy(localpeer, hostname, (sizeof(hostname) > sizeof(localpeer) ? sizeof(localpeer) : sizeof(hostname)) - 1);
+	setenv("HAPROXY_LOCALPEER", localpeer, 1);
 
 	/*
 	 * Initialize the previously static variables.
@@ -1496,7 +1497,10 @@ static void init(int argc, char **argv)
 				case 'n' : cfg_maxconn = atol(*argv); break;
 				case 'm' : global.rlimit_memmax_all = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
-				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
+				case 'L' :
+					strncpy(localpeer, *argv, sizeof(localpeer) - 1);
+					setenv("HAPROXY_LOCALPEER", localpeer, 1);
+					break;
 				case 'f' :
 					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {
 						ha_alert("Cannot load configuration file/directory %s : %s\n",

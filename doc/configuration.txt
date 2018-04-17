@@ -476,6 +476,9 @@ underscore ("_") but should not start with a digit.
 
       user "$HAPROXY_USER"
 
+A special variable $HAPROXY_LOCALPEER is defined at the startup of the process
+which contains the name of the local peer. (See "-L" in the management guide.)
+
 
 2.4. Time format
 ----------------
