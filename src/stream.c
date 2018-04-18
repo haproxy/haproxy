@@ -3025,7 +3025,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 }
 
 
-static int cli_parse_show_sess(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -3280,7 +3280,7 @@ static void cli_release_show_sess(struct appctx *appctx)
 }
 
 /* Parses the "shutdown session" directive, it always returns 1 */
-static int cli_parse_shutdown_session(char **args, struct appctx *appctx, void *private)
+static int cli_parse_shutdown_session(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct stream *strm, *ptr;
 
@@ -3315,7 +3315,7 @@ static int cli_parse_shutdown_session(char **args, struct appctx *appctx, void *
 }
 
 /* Parses the "shutdown session server" directive, it always returns 1 */
-static int cli_parse_shutdown_sessions_server(char **args, struct appctx *appctx, void *private)
+static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 	struct stream *strm, *strm_bck;

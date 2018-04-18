@@ -1298,6 +1298,18 @@ delimiter to mark an end of output for each command, and takes care of ensuring
 that no command can emit an empty line on output. A script can thus easily
 parse the output even when multiple commands were pipelined on a single line.
 
+Some commands may take an optional payload. To add one to a command, the first
+line needs to end with the "<<\n" pattern. The next lines will be treated as
+the payload and can contain as many lines as needed. To validate a command with
+a payload, it needs to end with an empty line.
+
+Limitations do exist: the length of the whole buffer passed to the CLI must
+not be greater than tune.bfsize and the pattern "<<" must not be glued to the
+last word of the line.
+
+When entering a paylod while in interactive mode, the prompt will change from
+"> " to "+ ".
+
 It is important to understand that when multiple haproxy processes are started
 on the same sockets, any process may pick up the request and will output its
 own stats.

@@ -3375,7 +3375,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 }
 
 /* returns 0 if wants to be called, 1 if has ended processing */
-static int cli_parse_table_req(char **args, struct appctx *appctx, void *private)
+static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	appctx->ctx.table.data_type = -1;
 	appctx->ctx.table.target = NULL;

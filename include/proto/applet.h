@@ -43,11 +43,13 @@ static int inline appctx_res_wakeup(struct appctx *appctx);
 
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
- * 3 integer states st0, st1, st2 are zeroed.
+ * 3 integer states st0, st1, st2 and the chunk used to gather unfinished
+ * commands are zeroed
  */
 static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
+	appctx->chunk = NULL;
 	appctx->io_release = NULL;
 	appctx->thread_mask = thread_mask;
 	appctx->state = APPLET_SLEEPING;

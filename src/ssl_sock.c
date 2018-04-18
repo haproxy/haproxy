@@ -8500,7 +8500,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 }
 
 /* sets cli.i0 to non-zero if only file lists should be dumped */
-static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	/* no parameter, shows only file list */
 	if (!*args[2]) {
@@ -8525,7 +8525,7 @@ static int cli_parse_show_tlskeys(char **args, struct appctx *appctx, void *priv
 	return 0;
 }
 
-static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct tls_keys_ref *ref;
 
@@ -8561,7 +8561,7 @@ static int cli_parse_set_tlskeys(char **args, struct appctx *appctx, void *priva
 }
 #endif
 
-static int cli_parse_set_ocspresponse(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 	char *err = NULL;

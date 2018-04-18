@@ -1393,7 +1393,7 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
  * 1 if it stops immediately. If an argument is specified, it will set the proxy
  * pointer into cli.p0 and its ID into cli.i0.
  */
-static int cli_parse_show_servers(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_servers(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 
@@ -1558,7 +1558,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 }
 
 /* Parses the "enable dynamic-cookies backend" directive, it always returns 1 */
-static int cli_parse_enable_dyncookie_backend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_enable_dyncookie_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 	struct server *s;
@@ -1579,7 +1579,7 @@ static int cli_parse_enable_dyncookie_backend(char **args, struct appctx *appctx
 }
 
 /* Parses the "disable dynamic-cookies backend" directive, it always returns 1 */
-static int cli_parse_disable_dyncookie_backend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_disable_dyncookie_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 	struct server *s;
@@ -1604,7 +1604,7 @@ static int cli_parse_disable_dyncookie_backend(char **args, struct appctx *appct
 }
 
 /* Parses the "set dynamic-cookie-key backend" directive, it always returns 1 */
-static int cli_parse_set_dyncookie_key_backend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_dyncookie_key_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 	struct server *s;
@@ -1641,7 +1641,7 @@ static int cli_parse_set_dyncookie_key_backend(char **args, struct appctx *appct
 }
 
 /* Parses the "set maxconn frontend" directive, it always returns 1 */
-static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 	struct listener *l;
@@ -1686,7 +1686,7 @@ static int cli_parse_set_maxconn_frontend(char **args, struct appctx *appctx, vo
 }
 
 /* Parses the "shutdown frontend" directive, it always returns 1 */
-static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 
@@ -1713,7 +1713,7 @@ static int cli_parse_shutdown_frontend(char **args, struct appctx *appctx, void 
 }
 
 /* Parses the "disable frontend" directive, it always returns 1 */
-static int cli_parse_disable_frontend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_disable_frontend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 
@@ -1748,7 +1748,7 @@ static int cli_parse_disable_frontend(char **args, struct appctx *appctx, void *
 }
 
 /* Parses the "enable frontend" directive, it always returns 1 */
-static int cli_parse_enable_frontend(char **args, struct appctx *appctx, void *private)
+static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 

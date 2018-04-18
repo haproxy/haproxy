@@ -4088,7 +4088,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 }
 
 
-static int cli_parse_set_server(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 	const char *warning;
@@ -4271,7 +4271,7 @@ static int cli_parse_set_server(char **args, struct appctx *appctx, void *privat
 	return 1;
 }
 
-static int cli_parse_get_weight(char **args, struct appctx *appctx, void *private)
+static int cli_parse_get_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct stream_interface *si = appctx->owner;
 	struct proxy *px;
@@ -4309,7 +4309,7 @@ static int cli_parse_get_weight(char **args, struct appctx *appctx, void *privat
 	return 1;
 }
 
-static int cli_parse_set_weight(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 	const char *warning;
@@ -4331,7 +4331,7 @@ static int cli_parse_set_weight(char **args, struct appctx *appctx, void *privat
 }
 
 /* parse a "set maxconn server" command. It always returns 1. */
-static int cli_parse_set_maxconn_server(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_maxconn_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 	const char *warning;
@@ -4353,7 +4353,7 @@ static int cli_parse_set_maxconn_server(char **args, struct appctx *appctx, void
 }
 
 /* parse a "disable agent" command. It always returns 1. */
-static int cli_parse_disable_agent(char **args, struct appctx *appctx, void *private)
+static int cli_parse_disable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 
@@ -4369,7 +4369,7 @@ static int cli_parse_disable_agent(char **args, struct appctx *appctx, void *pri
 }
 
 /* parse a "disable health" command. It always returns 1. */
-static int cli_parse_disable_health(char **args, struct appctx *appctx, void *private)
+static int cli_parse_disable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 
@@ -4385,7 +4385,7 @@ static int cli_parse_disable_health(char **args, struct appctx *appctx, void *pr
 }
 
 /* parse a "disable server" command. It always returns 1. */
-static int cli_parse_disable_server(char **args, struct appctx *appctx, void *private)
+static int cli_parse_disable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 
@@ -4401,7 +4401,7 @@ static int cli_parse_disable_server(char **args, struct appctx *appctx, void *pr
 }
 
 /* parse a "enable agent" command. It always returns 1. */
-static int cli_parse_enable_agent(char **args, struct appctx *appctx, void *private)
+static int cli_parse_enable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 
@@ -4424,7 +4424,7 @@ static int cli_parse_enable_agent(char **args, struct appctx *appctx, void *priv
 }
 
 /* parse a "enable health" command. It always returns 1. */
-static int cli_parse_enable_health(char **args, struct appctx *appctx, void *private)
+static int cli_parse_enable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 
@@ -4440,7 +4440,7 @@ static int cli_parse_enable_health(char **args, struct appctx *appctx, void *pri
 }
 
 /* parse a "enable server" command. It always returns 1. */
-static int cli_parse_enable_server(char **args, struct appctx *appctx, void *private)
+static int cli_parse_enable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
 

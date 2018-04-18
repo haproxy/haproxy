@@ -67,6 +67,8 @@
 #include <proto/task.h>
 #include <proto/proto_udp.h>
 
+#define PAYLOAD_PATTERN "<<"
+
 static struct applet cli_applet;
 
 static const char stats_sock_usage_msg[] =
@@ -90,7 +92,7 @@ static struct cli_kw_list cli_keywords = {
 
 extern const char *stat_status_codes[];
 
-char *cli_gen_usage_msg()
+static char *cli_gen_usage_msg(struct appctx *appctx)
 {
 	struct cli_kw_list *kw_list;
 	struct cli_kw *kw;
@@ -101,7 +103,7 @@ char *cli_gen_usage_msg()
 	dynamic_usage_msg = NULL;
 
 	if (LIST_ISEMPTY(&cli_keywords.list))
-		return NULL;
+		goto end;
 
 	chunk_reset(tmp);
 	chunk_strcat(tmp, stats_sock_usage_msg);
@@ -115,6 +117,18 @@ char *cli_gen_usage_msg()
 	chunk_init(&out, NULL, 0);
 	chunk_dup(&out, tmp);
 	dynamic_usage_msg = out.str;
+
+end:
+	if (dynamic_usage_msg) {
+		appctx->ctx.cli.severity = LOG_INFO;
+		appctx->ctx.cli.msg = dynamic_usage_msg;
+	}
+	else {
+		appctx->ctx.cli.severity = LOG_INFO;
+		appctx->ctx.cli.msg = stats_sock_usage_msg;
+	}
+	appctx->st0 = CLI_ST_PRINT;
+
 	return dynamic_usage_msg;
 }
 
@@ -379,61 +393,69 @@ static int cli_get_severity_output(struct appctx *appctx)
  * If a keyword parser is NULL and an I/O handler is declared, the I/O handler
  * will automatically be used.
  */
-static int cli_parse_request(struct appctx *appctx, char *line)
+static int cli_parse_request(struct appctx *appctx)
 {
-	char *args[MAX_STATS_ARGS + 1];
+	char *args[MAX_STATS_ARGS + 1], *p, *end, *payload = NULL;
+	int i = 0;
 	struct cli_kw *kw;
-	int arg;
-	int i, j;
-
-	while (isspace((unsigned char)*line))
-		line++;
-
-	arg = 0;
-	args[arg] = line;
-
-	while (*line && arg < MAX_STATS_ARGS) {
-		if (*line == '\\') {
-			line++;
-			if (*line == '\0')
-				break;
-		}
-		else if (isspace((unsigned char)*line)) {
-			*line++ = '\0';
-
-			while (isspace((unsigned char)*line))
-				line++;
-
-			args[++arg] = line;
-			continue;
-		}
-
-		line++;
-	}
-
-	while (++arg <= MAX_STATS_ARGS)
-		args[arg] = line;
-
-	/* unescape '\' */
-	arg = 0;
-	while (arg <= MAX_STATS_ARGS && *args[arg] != '\0') {
-		j = 0;
-		for (i=0; args[arg][i] != '\0'; i++) {
-			if (args[arg][i] == '\\') {
-				if (args[arg][i+1] == '\\')
-					i++;
-				else
-					continue;
-			}
-			args[arg][j] = args[arg][i];
-			j++;
-		}
-		args[arg][j] = '\0';
-		arg++;
-	}
 
 	appctx->st2 = 0;
 	memset(&appctx->ctx.cli, 0, sizeof(appctx->ctx.cli));
+
+	p = appctx->chunk->str;
+	end = p + appctx->chunk->len;
+
+	/*
+	 * Get the payload start if there is one.
+	 * For the sake of simplicity, the payload pattern is looked up
+	 * everywhere from the start of the input but it can only be found
+	 * at the end of the first line if APPCTX_CLI_ST1_PAYLOAD is set.
+	 *
+	 * The input string was zero terminated so it is safe to use
+	 * the str*() functions throughout the parsing
+	 */
+	if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+		payload = strstr(p, PAYLOAD_PATTERN);
+		end = payload;
+		/* skip the pattern */
+		payload += strlen(PAYLOAD_PATTERN);
+	}
+
+	/*
+	 * Get pointers on words.
+	 * One extra slot is reserved to store a pointer on a null byte.
+	 */
+	while (i < MAX_STATS_ARGS && p < end) {
+		int j, k;
+
+		/* skip leading spaces/tabs */
+		p += strspn(p, " \t");
+		if (!*p)
+			break;
+
+		args[i] = p;
+		p += strcspn(p, " \t");
+		*p++ = 0;
+
+		/* unescape backslashes (\) */
+		for (j = 0, k = 0; args[i][k]; k++) {
+			if (args[i][k] == '\\') {
+				if (args[i][k + 1] == '\\')
+					k++;
+				else
+					continue;
+			}
+			args[i][j] = args[i][k];
+			j++;
+		}
+		args[i][j] = 0;
+
+		i++;
+	}
+	/* fill unused slots */
+	p = appctx->chunk->str + appctx->chunk->len;
+	for (; i < MAX_STATS_ARGS + 1; i++)
+		args[i] = p;
 
 	kw = cli_find_kw(args);
 	if (!kw)
@@ -442,7 +464,7 @@ static int cli_parse_request(struct appctx *appctx, char *line)
 	appctx->io_handler = kw->io_handler;
 	appctx->io_release = kw->io_release;
 	/* kw->parse could set its own io_handler or ip_release handler */
-	if ((!kw->parse || kw->parse(args, appctx, kw->private) == 0) && appctx->io_handler) {
+	if ((!kw->parse || kw->parse(args, payload, appctx, kw->private) == 0) && appctx->io_handler) {
 		appctx->st0 = CLI_ST_CALLBACK;
 	}
 	return 1;
@@ -519,9 +541,23 @@ static void cli_io_handler(struct appctx *appctx)
 			 * side, the conditions below will complete if needed.
 			 */
 			si_shutw(si);
+			free_trash_chunk(appctx->chunk);
 			break;
 		}
 		else if (appctx->st0 == CLI_ST_GETREQ) {
+			char *str;
+
+			/* use a trash chunk to store received data */
+			if (!appctx->chunk) {
+				appctx->chunk = alloc_trash_chunk();
+				if (!appctx->chunk) {
+					appctx->st0 = CLI_ST_END;
+					continue;
+				}
+			}
+
+			str = appctx->chunk->str + appctx->chunk->len;
+
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
@@ -530,7 +566,8 @@ static void cli_io_handler(struct appctx *appctx)
 				break;
 			}
 
-			reql = co_getline(si_oc(si), trash.str, trash.size);
+			/* '- 1' is to ensure a null byte can always be inserted at the end */
+			reql = co_getline(si_oc(si), str, appctx->chunk->size - appctx->chunk->len - 1);
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -538,18 +575,20 @@ static void cli_io_handler(struct appctx *appctx)
 				continue;
 			}
 
-			/* seek for a possible unescaped semi-colon. If we find
-			 * one, we replace it with an LF and skip only this part.
-			 */
-			for (len = 0; len < reql; len++) {
-				if (trash.str[len] == '\\') {
-					len++;
-					continue;
-				}
-				if (trash.str[len] == ';') {
-					trash.str[len] = '\n';
-					reql = len + 1;
-					break;
+			if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
+				/* seek for a possible unescaped semi-colon. If we find
+				 * one, we replace it with an LF and skip only this part.
+				 */
+				for (len = 0; len < reql; len++) {
+					if (str[len] == '\\') {
+						len++;
+						continue;
+					}
+					if (str[len] == ';') {
+						str[len] = '\n';
+						reql = len + 1;
+						break;
+					}
 				}
 			}
 
@@ -558,56 +597,58 @@ static void cli_io_handler(struct appctx *appctx)
 			 * line.
 			 */
 			len = reql - 1;
-			if (trash.str[len] != '\n') {
+			if (str[len] != '\n') {
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
 
-			if (len && trash.str[len-1] == '\r')
+			if (len && str[len-1] == '\r')
 				len--;
 
-			trash.str[len] = '\0';
+			str[len] = '\0';
+			appctx->chunk->len += len;
+
+			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+				appctx->chunk->str[appctx->chunk->len] = '\n';
+				appctx->chunk->str[appctx->chunk->len + 1] = 0;
+				appctx->chunk->len++;
+			}
 
 			appctx->st0 = CLI_ST_PROMPT;
-			if (len) {
-				if (strcmp(trash.str, "quit") == 0) {
-					appctx->st0 = CLI_ST_END;
-					continue;
+
+			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+				/* empty line */
+				if (!len) {
+					/* remove the last two \n */
+					appctx->chunk->len -= 2;
+					appctx->chunk->str[appctx->chunk->len] = 0;
+
+					if (!cli_parse_request(appctx))
+						cli_gen_usage_msg(appctx);
+
+					chunk_reset(appctx->chunk);
+					/* NB: cli_sock_parse_request() may have put
+					 * another CLI_ST_O_* into appctx->st0.
+					 */
+
+					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
 				}
-				else if (strcmp(trash.str, "prompt") == 0)
-					appctx->st1 = !appctx->st1;
-				else if (strcmp(trash.str, "help") == 0 ||
-					 !cli_parse_request(appctx, trash.str)) {
-					cli_gen_usage_msg();
-					if (dynamic_usage_msg) {
-						appctx->ctx.cli.severity = LOG_INFO;
-						appctx->ctx.cli.msg = dynamic_usage_msg;
-					}
-					else {
-						appctx->ctx.cli.severity = LOG_INFO;
-						appctx->ctx.cli.msg = stats_sock_usage_msg;
-					}
-					appctx->st0 = CLI_ST_PRINT;
-				}
-				/* NB: stats_sock_parse_request() may have put
-				 * another CLI_ST_O_* into appctx->st0.
-				 */
 			}
-			else if (!appctx->st1) {
-				/* if prompt is disabled, print help on empty lines,
-				 * so that the user at least knows how to enable
-				 * prompt and find help.
+			else {
+				/*
+				 * Look for the "payload start" pattern at the end of a line
+				 * Its location is not remembered here, this is just to switch
+				 * to a gathering mode.
 				 */
-				cli_gen_usage_msg();
-				if (dynamic_usage_msg) {
-					appctx->ctx.cli.severity = LOG_INFO;
-					appctx->ctx.cli.msg = dynamic_usage_msg;
-				}
+				if (!strcmp(appctx->chunk->str + appctx->chunk->len - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN))
+					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				else {
-					appctx->ctx.cli.severity = LOG_INFO;
-					appctx->ctx.cli.msg = stats_sock_usage_msg;
+					/* no payload, the command is complete: parse the request */
+					if (!cli_parse_request(appctx))
+						cli_gen_usage_msg(appctx);
+
+					chunk_reset(appctx->chunk);
 				}
-				appctx->st0 = CLI_ST_PRINT;
 			}
 
 			/* re-adjust req buffer */
@@ -656,7 +697,24 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (appctx->st0 == CLI_ST_PROMPT) {
-				if (ci_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
+				const char *prompt = "";
+
+				if (appctx->st1 & APPCTX_CLI_ST1_PROMPT) {
+					/*
+					 * when entering a payload with interactive mode, change the prompt
+					 * to emphasize that more data can still be sent
+					 */
+					if (appctx->chunk->len && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
+						prompt = "+ ";
+					else
+						prompt = "\n> ";
+				}
+				else {
+					if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))
+						prompt = "\n";
+				}
+
+				if (ci_putstr(si_ic(si), prompt) != -1)
 					appctx->st0 = CLI_ST_GETREQ;
 				else
 					si_applet_cant_put(si);
@@ -671,7 +729,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * buffer is empty. This still allows pipelined requests
 			 * to be sent in non-interactive mode.
 			 */
-			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!appctx->st1 && !req->buf->o)) {
+			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !req->buf->o)) {
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
@@ -1020,7 +1078,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
  * wants to stop here. It puts the variable to be dumped into cli.p0 if a single
  * variable is requested otherwise puts environ there.
  */
-static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_env(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	extern char **environ;
 	char **var;
@@ -1054,7 +1112,7 @@ static int cli_parse_show_env(char **args, struct appctx *appctx, void *private)
  * wants to stop here. It puts the FD number into cli.i0 if a specific FD is
  * requested and sets st2 to STAT_ST_END, otherwise leaves 0 in i0.
  */
-static int cli_parse_show_fd(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -1069,7 +1127,7 @@ static int cli_parse_show_fd(char **args, struct appctx *appctx, void *private)
 }
 
 /* parse a "set timeout" CLI request. It always returns 1. */
-static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_timeout(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
@@ -1106,7 +1164,7 @@ static int cli_parse_set_timeout(char **args, struct appctx *appctx, void *priva
 }
 
 /* parse a "set maxconn global" command. It always returns 1. */
-static int cli_parse_set_maxconn_global(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_maxconn_global(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	int v;
 
@@ -1159,7 +1217,7 @@ static int set_severity_output(int *target, char *argument)
 }
 
 /* parse a "set severity-output" command. */
-static int cli_parse_set_severity_output(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_severity_output(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (*args[2] && set_severity_output(&appctx->cli_severity_output, args[2]))
 		return 0;
@@ -1170,13 +1228,13 @@ static int cli_parse_set_severity_output(char **args, struct appctx *appctx, voi
 	return 1;
 }
 
-int cli_parse_default(char **args, struct appctx *appctx, void *private)
+int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	return 0;
 }
 
 /* parse a "set rate-limit" command. It always returns 1. */
-static int cli_parse_set_ratelimit(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	int v;
 	int *res;
@@ -1296,7 +1354,7 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 }
 
 /* Send all the bound sockets, always returns 1 */
-static int _getsocks(char **args, struct appctx *appctx, void *private)
+static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	char *cmsgbuf = NULL;
 	unsigned char *tmpbuf = NULL;
@@ -1474,6 +1532,20 @@ out:
 	return 1;
 }
 
+static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (*args[0] == 'h')
+		/* help */
+		cli_gen_usage_msg(appctx);
+	else if (*args[0] == 'p')
+		/* prompt */
+		appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
+	else if (*args[0] == 'q')
+		/* quit */
+		appctx->st0 = CLI_ST_END;
+
+	return 1;
+}
 
 
 static struct applet cli_applet = {
@@ -1485,6 +1557,9 @@ static struct applet cli_applet = {
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "help", NULL }, NULL, cli_parse_simple, NULL },
+	{ { "prompt", NULL }, NULL, cli_parse_simple, NULL },
+	{ { "quit", NULL }, NULL, cli_parse_simple, NULL },
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL }, "set severity-output [none|number|string] : set presence of severity level in feedback information", cli_parse_set_severity_output, NULL, NULL },

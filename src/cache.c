@@ -952,7 +952,7 @@ struct flt_ops cache_ops = {
 
 };
 
-static int cli_parse_show_cache(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_cache(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;

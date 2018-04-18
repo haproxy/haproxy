@@ -24,7 +24,6 @@
 #define _PROTO_CLI_H
 
 
-struct cli_kw* cli_find_kw(char **args);
 void cli_register_kw(struct cli_kw_list *kw_list);
 
 int cli_has_level(struct appctx *appctx, int level);

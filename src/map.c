@@ -565,7 +565,7 @@ static void cli_release_mlook(struct appctx *appctx)
 }
 
 
-static int cli_parse_get_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
 		/* Set flags. */
@@ -632,7 +632,7 @@ static void cli_release_show_map(struct appctx *appctx)
 	}
 }
 
-static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 ||
 	    strcmp(args[1], "acl") == 0) {
@@ -672,7 +672,7 @@ static int cli_parse_show_map(char **args, struct appctx *appctx, void *private)
 	return 0;
 }
 
-static int cli_parse_set_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0) {
 		char *err;
@@ -772,7 +772,7 @@ static int cli_parse_set_map(char **args, struct appctx *appctx, void *private)
 	return 1;
 }
 
-static int cli_parse_add_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 ||
 	    strcmp(args[1], "acl") == 0) {
@@ -862,7 +862,7 @@ static int cli_parse_add_map(char **args, struct appctx *appctx, void *private)
 	return 0;
 }
 
-static int cli_parse_del_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (args[1][0] == 'm')
 		appctx->ctx.map.display_flags = PAT_REF_MAP;
@@ -958,7 +958,7 @@ static int cli_parse_del_map(char **args, struct appctx *appctx, void *private)
 }
 
 
-static int cli_parse_clear_map(char **args, struct appctx *appctx, void *private)
+static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
 		/* Set ACL or MAP flags. */

@@ -3524,7 +3524,7 @@ static int stats_dump_json_schema_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
-static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *private)
+static int cli_parse_clear_counters(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
 	struct server *sv;
@@ -3586,7 +3586,7 @@ static int cli_parse_clear_counters(char **args, struct appctx *appctx, void *pr
 }
 
 
-static int cli_parse_show_info(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
@@ -3600,7 +3600,7 @@ static int cli_parse_show_info(char **args, struct appctx *appctx, void *private
 }
 
 
-static int cli_parse_show_stat(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;

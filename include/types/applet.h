@@ -50,6 +50,9 @@ struct applet {
 #define APPLET_WOKEN_UP     0x02  /* applet was running and requested to woken up again */
 #define APPLET_WANT_DIE     0x04  /* applet was running and requested to die */
 
+#define APPCTX_CLI_ST1_PROMPT  (1 << 0)
+#define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
+
 /* Context of a running applet. */
 struct appctx {
 	struct list runq;          /* chaining in the applet run queue */
@@ -57,7 +60,8 @@ struct appctx {
 	/* 3 unused bytes here */
 	unsigned short state;      /* Internal appctx state */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
-	unsigned int st1;          /* prompt for stats, session error for peers */
+	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
+	struct chunk *chunk;       /* used to store unfinished commands */
 	unsigned int st2;          /* output state for stats, unused by peers  */
 	struct applet *applet;     /* applet this context refers to */
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */

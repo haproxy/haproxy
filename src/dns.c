@@ -1948,7 +1948,7 @@ static int dns_finalize_config(void)
 }
 
 /* if an arg is found, it sets the resolvers section pointer into cli.p0 */
-static int cli_parse_stat_resolvers(char **args, struct appctx *appctx, void *private)
+static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct dns_resolvers *presolvers;
 

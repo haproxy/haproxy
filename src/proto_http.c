@@ -12489,7 +12489,7 @@ struct action_kw *action_http_res_custom(const char *kw)
 /* "show errors" handler for the CLI. Returns 0 if wants to continue, 1 to stop
  * now.
  */
-static int cli_parse_show_errors(char **args, struct appctx *appctx, void *private)
+static int cli_parse_show_errors(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;

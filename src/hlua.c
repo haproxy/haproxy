@@ -6926,7 +6926,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 /* This function initialises Lua cli handler. It copies the
  * arguments in the Lua stack and create channel IO objects.
  */
-static int hlua_cli_parse_fct(char **args, struct appctx *appctx, void *private)
+static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct hlua *hlua;
 	struct hlua_function *fcn;

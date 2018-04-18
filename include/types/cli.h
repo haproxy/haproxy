@@ -27,7 +27,7 @@ struct cli_kw {
 	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
 				 separated keywords combination */
 	const char *usage;   /* usage message */
-	int (*parse)(char **args, struct appctx *appctx, void *private);
+	int (*parse)(char **args, char *payload, struct appctx *appctx, void *private);
 	int (*io_handler)(struct appctx *appctx);
 	void (*io_release)(struct appctx *appctx);
 	void *private;
