@@ -1331,11 +1331,28 @@ add acl <acl> <pattern>
   In this case, you must use the command "add map" in place of "add acl".
 
 add map <map> <key> <value>
+add map <map> <payload>
   Add an entry into the map <map> to associate the value <value> to the key
   <key>. This command does not verify if the entry already exists. It is
   mainly used to fill a map after a clear operation. Note that if the reference
   <map> is a file and is shared with a map, this map will contain also a new
-  pattern entry.
+  pattern entry. Using the payload syntax it is possible to add multiple
+  key/value pairs by entering them on separate lines. On each new line, the
+  first word is the key and the rest of the line is considered to be the value
+  which can even contains spaces.
+
+  Example:
+
+    # socat /tmp/sock1 -
+    prompt
+
+    > add map #-1 <<
+    + key1 value1
+    + key2 value2 with spaces
+    + key3 value3 also with spaces
+    + key4 value4
+
+    >
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &

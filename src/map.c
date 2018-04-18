@@ -772,6 +772,20 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 	return 1;
 }
 
+static int map_add_key_value(struct appctx *appctx, const char *key, const char *value, char **err)
+{
+	int ret;
+
+	HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+	if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+		ret = pat_ref_add(appctx->ctx.map.ref, key, value, err);
+	else
+		ret = pat_ref_add(appctx->ctx.map.ref, key, NULL, err);
+	HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+
+	return ret;
+}
+
 static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 ||
@@ -785,13 +799,16 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 		else
 			appctx->ctx.map.display_flags = PAT_REF_ACL;
 
-		/* If the keywork is "map", we expect three parameters, if it
-		 * is "acl", we expect only two parameters
+		/* If the keyword is "map", we expect:
+		 *   - three parameters if there is no payload
+		 *   - one parameter if there is a payload
+		 * If it is "acl", we expect only two parameters
 		 */
 		if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-			if (!*args[2] || !*args[3] || !*args[4]) {
+			if ((!payload && (!*args[2] || !*args[3] || !*args[4])) ||
+			    (payload && !*args[2])) {
 				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "'add map' expects three parameters: map identifier, key and value.\n";
+				appctx->ctx.cli.msg = "'add map' expects three parameters (map identifier, key and value) or one parameter (map identifier) and a payload\n";
 				appctx->st0 = CLI_ST_PRINT;
 				return 1;
 			}
@@ -832,26 +849,69 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 			return 1;
 		}
 
-		/* Add value. */
+		/* Add value(s). */
 		err = NULL;
-		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-			ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], &err);
-		else
-			ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
-		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		if (!ret) {
-			if (err) {
-				memprintf(&err, "%s.\n", err);
-				appctx->ctx.cli.err = err;
-				appctx->st0 = CLI_ST_PRINT_FREE;
+		if (!payload) {
+			ret = map_add_key_value(appctx, args[3], args[4], &err);
+			if (!ret) {
+				if (err) {
+					memprintf(&err, "%s.\n", err);
+					appctx->ctx.cli.err = err;
+					appctx->st0 = CLI_ST_PRINT_FREE;
+				}
+				else {
+					appctx->ctx.cli.severity = LOG_ERR;
+					appctx->ctx.cli.msg = "Failed to add an entry.\n";
+					appctx->st0 = CLI_ST_PRINT;
+				}
+				return 1;
 			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Failed to add an entry.\n";
-				appctx->st0 = CLI_ST_PRINT;
+		}
+		else {
+			const char *end = payload + strlen(payload);
+
+			while (payload < end) {
+				char *key, *value;
+				size_t l;
+
+				/* key */
+				key = payload;
+				l = strcspn(key, " \t");
+				payload += l;
+
+				if (!*payload && appctx->ctx.map.display_flags == PAT_REF_MAP) {
+					memprintf(&err, "Missing value for key '%s'.\n", key);
+					appctx->ctx.cli.err = err;
+					appctx->st0 = CLI_ST_PRINT_FREE;
+					return 1;
+				}
+				key[l] = 0;
+				payload++;
+
+				/* value */
+				payload += strspn(payload, " \t");
+				value = payload;
+				l = strcspn(value, "\n");
+				payload += l;
+				if (*payload)
+					payload++;
+				value[l] = 0;
+
+				ret = map_add_key_value(appctx, key, value, &err);
+				if (!ret) {
+					if (err) {
+						memprintf(&err, "%s.\n", err);
+						appctx->ctx.cli.err = err;
+						appctx->st0 = CLI_ST_PRINT_FREE;
+					}
+					else {
+						appctx->ctx.cli.severity = LOG_ERR;
+						appctx->ctx.cli.msg = "Failed to add a key.\n";
+						appctx->st0 = CLI_ST_PRINT;
+					}
+					return 1;
+				}
 			}
-			return 1;
 		}
 
 		/* The add is done, send message. */
