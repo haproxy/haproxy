@@ -8565,16 +8565,28 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 	char *err = NULL;
+	int i, j;
+
+	if (!payload)
+		payload = args[3];
 
 	/* Expect one parameter: the new response in base64 encoding */
-	if (!*args[3]) {
+	if (!*payload) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
-	trash.len = base64dec(args[3], strlen(args[3]), trash.str, trash.size);
+	/* remove \r and \n from the payload */
+	for (i = 0, j = 0; payload[i]; i++) {
+		if (payload[i] == '\r' || payload[i] == '\n')
+			continue;
+		payload[j++] = payload[i];
+	}
+	payload[j] = 0;
+
+	trash.len = base64dec(payload, j, trash.str, trash.size);
 	if (trash.len < 0) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";

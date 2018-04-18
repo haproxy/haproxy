@@ -1712,7 +1712,7 @@ set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
   duration of the current session.
 
-set ssl ocsp-response <response>
+set ssl ocsp-response <response | payload>
   This command is used to update an OCSP Response for a certificate (see "crt"
   on "bind" lines). Same controls are performed as during the initial loading of
   the response. The <response> must be passed as a base64 encoded string of the
@@ -1723,6 +1723,10 @@ set ssl ocsp-response <response>
     openssl ocsp -issuer issuer.pem -cert server.pem \
                  -host ocsp.issuer.com:80 -respout resp.der
     echo "set ssl ocsp-response $(base64 -w 10000 resp.der)" | \
+                 socat stdio /var/run/haproxy.stat
+
+    using the payload syntax:
+    echo -e "set ssl ocsp-response <<\n$(base64 resp.der)\n" | \
                  socat stdio /var/run/haproxy.stat
 
 set ssl tls-key <id> <tlskey>
