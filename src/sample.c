@@ -2105,11 +2105,12 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 				}
 			}
 			else if (issep) {
-				if (word == arg_p[0].data.sint)
+				if (word == arg_p[0].data.sint) {
 					if (count == 1)
 						goto found;
 					else if (count > 1)
 						count--;
+				}
 				inword = 0;
 			}
 			start--;
@@ -2134,11 +2135,12 @@ static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *p
 				}
 			}
 			else if (issep) {
-				if (word == arg_p[0].data.sint)
+				if (word == arg_p[0].data.sint) {
 					if (count == 1)
 						goto found;
 					else if (count > 1)
 						count--;
+				}
 				inword = 0;
 			}
 			end++;
