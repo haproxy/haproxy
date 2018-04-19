@@ -1906,7 +1906,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 	ref->unique_id = unique_id;
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
-
+	HA_SPIN_INIT(&ref->lock);
 	LIST_ADDQ(&pattern_reference, &ref->list);
 
 	return ref;
