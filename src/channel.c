@@ -340,7 +340,7 @@ int co_getline_nc(const struct channel *chn,
 	int l;
 
 	retcode = co_getblk_nc(chn, blk1, len1, blk2, len2);
-	if (unlikely(retcode) <= 0)
+	if (unlikely(retcode <= 0))
 		return retcode;
 
 	for (l = 0; l < *len1 && (*blk1)[l] != '\n'; l++);
