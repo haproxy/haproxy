@@ -1619,18 +1619,16 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
 
+	/* If there is data available for analysis, log the end of the idle time. */
+	if (buffer_not_empty(req->buf) && s->logs.t_idle == -1)
+		s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
+
 	/* There's a protected area at the end of the buffer for rewriting
 	 * purposes. We don't want to start to parse the request if the
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
 	if (buffer_not_empty(req->buf) && msg->msg_state < HTTP_MSG_ERROR) {
-
-		/* This point is executed when some data is avalaible for analysis,
-		 * so we log the end of the idle time. */
-		if (s->logs.t_idle == -1)
-			s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
-
 		if (txn->flags & TX_NOT_FIRST) {
 			if (unlikely(!channel_is_rewritable(req))) {
 				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
