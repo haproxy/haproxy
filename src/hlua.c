@@ -5544,6 +5544,7 @@ static struct task *hlua_process_task(struct task *task)
 		hlua_ctx_destroy(hlua);
 		task_delete(task);
 		task_free(task);
+		task = NULL;
 		break;
 
 	case HLUA_E_AGAIN: /* co process or timeout wake me later. */
