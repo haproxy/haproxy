@@ -117,6 +117,7 @@ struct fdtab {
 	unsigned long polled_mask;           /* mask of thread IDs currently polling this fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
 	struct fdlist_entry cache;           /* Entry in the fdcache */
+	struct fdlist_entry update;          /* Entry in the global update list */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */

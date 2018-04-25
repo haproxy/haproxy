@@ -59,16 +59,55 @@ REGPRM1 static void __fd_clo(int fd)
 	}
 }
 
+static void _update_fd(int fd)
+{
+	int en, opcode;
+
+	en = fdtab[fd].state;
+
+	if (fdtab[fd].polled_mask & tid_bit) {
+		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
+			/* fd removed from poll list */
+			opcode = EPOLL_CTL_DEL;
+			HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
+		}
+		else {
+			/* fd status changed */
+			opcode = EPOLL_CTL_MOD;
+		}
+	}
+	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_POLLED_RW)) {
+		/* new fd in the poll list */
+		opcode = EPOLL_CTL_ADD;
+		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+	}
+	else {
+		return;
+	}
+
+	/* construct the epoll events based on new state */
+	ev.events = 0;
+	if (en & FD_EV_POLLED_R)
+		ev.events |= EPOLLIN | EPOLLRDHUP;
+
+	if (en & FD_EV_POLLED_W)
+		ev.events |= EPOLLOUT;
+
+	ev.data.fd = fd;
+	epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
+}
+
 /*
  * Linux epoll() poller
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
-	int status, en;
-	int fd, opcode;
+	int status;
+	int fd;
 	int count;
 	int updt_idx;
 	int wait_time;
+	int old_fd;
 
 	/* first, scan the update list to find polling changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
@@ -80,40 +119,27 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 		}
 
-		en = fdtab[fd].state;
-
-		if (fdtab[fd].polled_mask & tid_bit) {
-			if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
-				/* fd removed from poll list */
-				opcode = EPOLL_CTL_DEL;
-				HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
-			}
-			else {
-				/* fd status changed */
-				opcode = EPOLL_CTL_MOD;
-			}
-		}
-		else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_POLLED_RW)) {
-			/* new fd in the poll list */
-			opcode = EPOLL_CTL_ADD;
-			HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
-		}
-		else {
-			continue;
-		}
-
-		/* construct the epoll events based on new state */
-		ev.events = 0;
-		if (en & FD_EV_POLLED_R)
-			ev.events |= EPOLLIN | EPOLLRDHUP;
-
-		if (en & FD_EV_POLLED_W)
-			ev.events |= EPOLLOUT;
-
-		ev.data.fd = fd;
-		epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
+		_update_fd(fd);
 	}
 	fd_nbupdt = 0;
+	/* Scan the global update list */
+	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
+		if (fd == -2) {
+			fd = old_fd;
+			continue;
+		}
+		else if (fd <= -3)
+			fd = -fd -4;
+		if (fd == -1)
+			break;
+		if (fdtab[fd].update_mask & tid_bit)
+			done_update_polling(fd);
+		else
+			continue;
+		if (!fdtab[fd].owner)
+			continue;
+		_update_fd(fd);
+	}
 
 	/* compute the epoll_wait() timeout */
 	if (!exp)

@@ -33,6 +33,41 @@ static int kqueue_fd[MAX_THREADS]; // per-thread kqueue_fd
 static THREAD_LOCAL struct kevent *kev = NULL;
 static struct kevent *kev_out = NULL; // Trash buffer for kevent() to write the eventlist in
 
+static int _update_fd(int fd)
+{
+	int en;
+	int changes = 0;
+
+	en = fdtab[fd].state;
+
+	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
+		if (!(fdtab[fd].polled_mask & tid_bit)) {
+			/* fd was not watched, it's still not */
+			return 0;
+		}
+		/* fd totally removed from poll list */
+		EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+		EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+		HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
+	}
+	else {
+		/* OK fd has to be monitored, it was either added or changed */
+
+		if (en & FD_EV_POLLED_R)
+			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+		else if (fdtab[fd].polled_mask & tid_bit)
+			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+
+		if (en & FD_EV_POLLED_W)
+			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
+		else if (fdtab[fd].polled_mask & tid_bit)
+			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+
+		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+	}
+	return changes;
+}
+
 /*
  * kqueue() poller
  */
@@ -41,8 +76,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int status;
 	int count, fd, delta_ms;
 	struct timespec timeout;
-	int updt_idx, en;
+	int updt_idx;
 	int changes = 0;
+	int old_fd;
 
 	timeout.tv_sec  = 0;
 	timeout.tv_nsec = 0;
@@ -55,35 +91,27 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			activity[tid].poll_drop++;
 			continue;
 		}
-
-		en = fdtab[fd].state;
-
-		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
-			if (!(fdtab[fd].polled_mask & tid_bit)) {
-				/* fd was not watched, it's still not */
-				continue;
-			}
-			/* fd totally removed from poll list */
-			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-			HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
-		}
-		else {
-			/* OK fd has to be monitored, it was either added or changed */
-
-			if (en & FD_EV_POLLED_R)
-				EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-			else if (fdtab[fd].polled_mask & tid_bit)
-				EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-
-			if (en & FD_EV_POLLED_W)
-				EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
-			else if (fdtab[fd].polled_mask & tid_bit)
-				EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-
-			HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
-		}
+		changes += _update_fd(fd);
 	}
+	/* Scan the global update list */
+	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
+		if (fd == -2) {
+			fd = old_fd;
+			continue;
+		}
+		else if (fd <= -3)
+			fd = -fd -4;
+		if (fd == -1)
+			break;
+		if (fdtab[fd].update_mask & tid_bit)
+			done_update_polling(fd);
+		else
+			continue;
+		if (!fdtab[fd].owner)
+			continue;
+		changes += _update_fd(fd);
+	}
+
 	if (changes) {
 #ifdef EV_RECEIPT
 		kev[0].flags |= EV_RECEIPT;

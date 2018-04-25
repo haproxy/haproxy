@@ -169,6 +169,7 @@ int nbpollers = 0;
 
 volatile struct fdlist fd_cache ; // FD events cache
 volatile struct fdlist fd_cache_local[MAX_THREADS]; // FD events local for each thread
+volatile struct fdlist update_list; // Global update list
 
 unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 
@@ -244,7 +245,6 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
 	int prev;
 	int next;
 	int last;
-
 lock_self:
 #if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
 	next_list.next = next_list.prev = -2;
@@ -492,6 +492,7 @@ int init_pollers()
 		goto fail_info;
 
 	fd_cache.first = fd_cache.last = -1;
+	update_list.first = update_list.last = -1;
 	hap_register_per_thread_init(init_pollers_per_thread);
 	hap_register_per_thread_deinit(deinit_pollers_per_thread);
 
@@ -499,7 +500,7 @@ int init_pollers()
 		HA_SPIN_INIT(&fdtab[p].lock);
 		/* Mark the fd as out of the fd cache */
 		fdtab[p].cache.next = -3;
-		fdtab[p].cache.next = -3;
+		fdtab[p].update.next = -3;
 	}
 	for (p = 0; p < global.nbthread; p++)
 		fd_cache_local[p].first = fd_cache_local[p].last = -1;

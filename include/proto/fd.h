@@ -36,6 +36,8 @@
 extern volatile struct fdlist fd_cache;
 extern volatile struct fdlist fd_cache_local[MAX_THREADS];
 
+extern volatile struct fdlist update_list;
+
 extern unsigned long fd_cache_mask; // Mask of threads with events in the cache
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
@@ -101,15 +103,57 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
  */
 static inline void updt_fd_polling(const int fd)
 {
-	unsigned int oldupdt;
+	if (fdtab[fd].thread_mask == tid_bit) {
+		unsigned int oldupdt;
 
-	/* note: we don't have a test-and-set yet in hathreads */
+		/* note: we don't have a test-and-set yet in hathreads */
 
-	if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-		return;
+		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+			return;
 
-	oldupdt = HA_ATOMIC_ADD(&fd_nbupdt, 1) - 1;
-	fd_updt[oldupdt] = fd;
+		oldupdt = HA_ATOMIC_ADD(&fd_nbupdt, 1) - 1;
+		fd_updt[oldupdt] = fd;
+	} else {
+		unsigned long update_mask = fdtab[fd].update_mask;
+		do {
+			if (update_mask == fdtab[fd].thread_mask)
+				return;
+		} while (!HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask,
+		    fdtab[fd].thread_mask));
+		fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+	}
+
+}
+
+/* Called from the poller to acknoledge we read an entry from the global
+ * update list, to remove our bit from the update_mask, and remove it from
+ * the list if we were the last one.
+ */
+static inline void done_update_polling(int fd)
+{
+	unsigned long update_mask;
+
+	update_mask = HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
+	while ((update_mask & all_threads_mask)== 0) {
+		/* If we were the last one that had to update that entry, remove it from the list */
+		fd_rm_from_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+		if (update_list.first == fd)
+			abort();
+		update_mask = (volatile unsigned long)fdtab[fd].update_mask;
+		if ((update_mask & all_threads_mask) != 0) {
+			/* Maybe it's been re-updated in the meanwhile, and we
+			 * wrongly removed it from the list, if so, re-add it
+			 */
+			fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+			update_mask = (volatile unsigned long)(fdtab[fd].update_mask);
+			/* And then check again, just in case after all it
+			 * should be removed, even if it's very unlikely, given
+			 * the current thread wouldn't have been able to take
+			 * care of it yet */
+		} else
+			break;
+
+	}
 }
 
 /* Allocates a cache entry for a file descriptor if it does not yet have one.

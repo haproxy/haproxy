@@ -36,6 +36,44 @@ REGPRM1 static void __fd_clo(int fd)
 	hap_fd_clr(fd, fd_evts[DIR_WR]);
 }
 
+static void _update_fd(int fd, int *max_add_fd)
+{
+	int en;
+
+	en = fdtab[fd].state;
+
+	/* we have a single state for all threads, which is why we
+	 * don't check the tid_bit. First thread to see the update
+	 * takes it for every other one.
+	 */
+	if (!(en & FD_EV_POLLED_RW)) {
+		if (!fdtab[fd].polled_mask) {
+			/* fd was not watched, it's still not */
+			return;
+		}
+		/* fd totally removed from poll list */
+		hap_fd_clr(fd, fd_evts[DIR_RD]);
+		hap_fd_clr(fd, fd_evts[DIR_WR]);
+		HA_ATOMIC_AND(&fdtab[fd].polled_mask, 0);
+	}
+	else {
+		/* OK fd has to be monitored, it was either added or changed */
+		if (!(en & FD_EV_POLLED_R))
+			hap_fd_clr(fd, fd_evts[DIR_RD]);
+		else
+			hap_fd_set(fd, fd_evts[DIR_RD]);
+
+		if (!(en & FD_EV_POLLED_W))
+			hap_fd_clr(fd, fd_evts[DIR_WR]);
+		else
+			hap_fd_set(fd, fd_evts[DIR_WR]);
+
+		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+		if (fd > *max_add_fd)
+			*max_add_fd = fd;
+	}
+}
+
 /*
  * Select() poller
  */
@@ -46,10 +84,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	struct timeval delta;
 	int delta_ms;
 	int fds;
-	int updt_idx, en;
+	int updt_idx;
 	char count;
 	int readnotnull, writenotnull;
 	int old_maxfd, new_maxfd, max_add_fd;
+	int old_fd;
 
 	max_add_fd = -1;
 
@@ -62,40 +101,32 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			activity[tid].poll_drop++;
 			continue;
 		}
-
-		en = fdtab[fd].state;
-
-		/* we have a single state for all threads, which is why we
-		 * don't check the tid_bit. First thread to see the update
-		 * takes it for every other one.
-		 */
-		if (!(en & FD_EV_POLLED_RW)) {
-			if (!fdtab[fd].polled_mask) {
-				/* fd was not watched, it's still not */
-				continue;
-			}
-			/* fd totally removed from poll list */
-			hap_fd_clr(fd, fd_evts[DIR_RD]);
-			hap_fd_clr(fd, fd_evts[DIR_WR]);
-			HA_ATOMIC_AND(&fdtab[fd].polled_mask, 0);
-		}
-		else {
-			/* OK fd has to be monitored, it was either added or changed */
-			if (!(en & FD_EV_POLLED_R))
-				hap_fd_clr(fd, fd_evts[DIR_RD]);
-			else
-				hap_fd_set(fd, fd_evts[DIR_RD]);
-
-			if (!(en & FD_EV_POLLED_W))
-				hap_fd_clr(fd, fd_evts[DIR_WR]);
-			else
-				hap_fd_set(fd, fd_evts[DIR_WR]);
-
-			HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
-			if (fd > max_add_fd)
-				max_add_fd = fd;
-		}
+		_update_fd(fd, &max_add_fd);
 	}
+	/* Now scan the global update list */
+	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
+		if (fd == -2) {
+			fd = old_fd;
+			continue;
+		}
+		else if (fd <= -3)
+			fd = -fd -4;
+		if (fd == -1)
+			break;
+		if (fdtab[fd].update_mask & tid_bit) {
+			/* Cheat a bit, as the state is global to all pollers
+			 * we don't need every thread ot take care of the
+			 * update.
+			 */
+			HA_ATOMIC_AND(&fdtab[fd].update_mask, ~all_threads_mask);
+			done_update_polling(fd);
+		} else
+			continue;
+		if (!fdtab[fd].owner)
+			continue;
+		_update_fd(fd, &max_add_fd);
+	}
+
 
 	/* maybe we added at least one fd larger than maxfd */
 	for (old_maxfd = maxfd; old_maxfd <= max_add_fd; ) {
