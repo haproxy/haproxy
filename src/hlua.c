@@ -5529,6 +5529,9 @@ static struct task *hlua_process_task(struct task *task)
 	struct hlua *hlua = task->context;
 	enum hlua_exec status;
 
+	if (task->thread_mask == MAX_THREADS_MASK)
+		task_set_affinity(task, tid_bit);
+
 	/* If it is the first call to the task, we must initialize the
 	 * execution timeouts.
 	 */
