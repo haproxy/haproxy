@@ -2586,6 +2586,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	struct chunk *tmp = get_trash_chunk();
 	struct http_hdr list[MAX_HTTP_HDR * 2];
 	struct chunk *copy = NULL;
+	unsigned int msgf;
 	int flen = h2c->dfl;
 	int outlen = 0;
 	int wrap;
@@ -2687,11 +2688,20 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	}
 
 	/* OK now we have our header list in <list> */
-	outlen = h2_make_h1_request(list, bi_end(buf), try);
+	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
+	outlen = h2_make_h1_request(list, bi_end(buf), try, &msgf);
 
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
 		goto fail;
+	}
+
+	if (msgf & H2_MSGF_BODY) {
+		/* a payload is present */
+		if (msgf & H2_MSGF_BODY_CL)
+			h2s->flags |= H2_SF_DATA_CLEN;
+		else if (!(msgf & H2_MSGF_BODY_TUNNEL))
+			h2s->flags |= H2_SF_DATA_CHNK;
 	}
 
 	/* now consume the input data */

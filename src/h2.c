@@ -36,9 +36,10 @@
  * stored in <phdr[]>. <fields> indicates what was found so far. This should be
  * called once at the detection of the first general header field or at the end
  * of the request if no general header field was found yet. Returns 0 on success
- * or a negative error code on failure.
+ * or a negative error code on failure. Upon success, <msgf> is updated with a
+ * few H2_MSGF_* flags indicating what was found while parsing.
  */
-static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, char *end)
+static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, char *end, unsigned int *msgf)
 {
 	char *out = *ptr;
 	int uri_idx = H2_PHDR_IDX_PATH;
@@ -62,6 +63,7 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
 		}
 		// otherwise OK ; let's use the authority instead of the URI
 		uri_idx = H2_PHDR_IDX_AUTH;
+		*msgf |= H2_MSGF_BODY_TUNNEL;
 	}
 	else if ((fields & (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) !=
 	         (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) {
@@ -113,6 +115,10 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
  * for a max of <osize> bytes, and the amount of bytes emitted is returned. In
  * case of error, a negative error code is returned.
  *
+ * Upon success, <msgf> is filled with a few H2_MSGF_* flags indicating what
+ * was found while parsing. The caller must set it to zero in or H2_MSGF_BODY
+ * if a body is detected (!ES).
+ *
  * The headers list <list> must be composed of :
  *   - n.name != NULL, n.len  > 0 : literal header name
  *   - n.name == NULL, n.len  > 0 : indexed pseudo header name number <n.len>
@@ -124,7 +130,7 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
  * The Cookie header will be reassembled at the end, and for this, the <list>
  * will be used to create a linked list, so its contents may be destroyed.
  */
-int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
+int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf)
 {
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	char *out_end = out + osize;
@@ -176,7 +182,7 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 		/* regular header field in (name,value) */
 		if (!(fields & H2_PHDR_FND_NONE)) {
 			/* no more pseudo-headers, time to build the request line */
-			ret = h2_prepare_h1_reqline(fields, phdr_val, &out, out_end);
+			ret = h2_prepare_h1_reqline(fields, phdr_val, &out, out_end, msgf);
 			if (ret != 0)
 				goto leave;
 			fields |= H2_PHDR_FND_NONE;
@@ -184,6 +190,10 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 
 		if (isteq(list[idx].n, ist("host")))
 			fields |= H2_PHDR_FND_HOST;
+
+		if ((*msgf & (H2_MSGF_BODY|H2_MSGF_BODY_TUNNEL|H2_MSGF_BODY_CL)) == H2_MSGF_BODY &&
+		    isteq(list[idx].n, ist("content-length")))
+			*msgf |= H2_MSGF_BODY_CL;
 
 		/* these ones are forbidden in requests (RFC7540#8.1.2.2) */
 		if (isteq(list[idx].n, ist("connection")) ||
@@ -232,7 +242,7 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize)
 
 	/* Let's dump the request now if not yet emitted. */
 	if (!(fields & H2_PHDR_FND_NONE)) {
-		ret = h2_prepare_h1_reqline(fields, phdr_val, &out, out_end);
+		ret = h2_prepare_h1_reqline(fields, phdr_val, &out, out_end, msgf);
 		if (ret != 0)
 			goto leave;
 	}

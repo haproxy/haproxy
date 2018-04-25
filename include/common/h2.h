@@ -145,9 +145,15 @@ enum h2_err {
 	"\x0d\x0a\x53\x4d\x0d\x0a\x0d\x0a"
 
 
+/* some flags related to protocol parsing */
+#define H2_MSGF_BODY           0x0001    // a body is present
+#define H2_MSGF_BODY_CL        0x0002    // content-length is present
+#define H2_MSGF_BODY_TUNNEL    0x0004    // a tunnel is in use (CONNECT)
+
+
 /* various protocol processing functions */
 
-int h2_make_h1_request(struct http_hdr *list, char *out, int osize);
+int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf);
 
 /*
  * Some helpful debugging functions.
