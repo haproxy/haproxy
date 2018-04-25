@@ -643,7 +643,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->sock_init_arg = NULL;
 		HA_SPIN_INIT(&newpeer->lock);
 
-		if (strcmp(newpeer->id, localpeer) == 0) {
+		if (strcmp(newpeer->id, localpeer) != 0)
+			/* We are done. */
+			goto out;
+
 			/* Current is local peer, it define a frontend */
 			newpeer->local = 1;
 			cfg_peers->local = newpeer;
@@ -687,7 +690,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_FATAL;
 				goto out;
 			}
-		}
 	} /* neither "peer" nor "peers" */
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
 		curpeers->state = PR_STSTOPPED;
