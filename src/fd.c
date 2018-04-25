@@ -175,8 +175,10 @@ unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 
+#define _GET_NEXT(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
+#define _GET_PREV(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
 /* adds fd <fd> to fd list <list> if it was not yet in it */
-void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
+void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off)
 {
 	int next;
 	int new;
@@ -184,11 +186,11 @@ void fd_add_to_fd_list(volatile struct fdlist *list, int fd)
 	int last;
 
 redo_next:
-	next = fdtab[fd].cache.next;
+	next = _GET_NEXT(fd, off);
 	/* Check that we're not already in the cache, and if not, lock us. */
 	if (next >= -2)
 		goto done;
-	if (!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2))
+	if (!HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2))
 		goto redo_next;
 	__ha_barrier_store();
 
@@ -198,7 +200,7 @@ redo_last:
 	last = list->last;
 	old = -1;
 
-	fdtab[fd].cache.prev = -2;
+	_GET_PREV(fd, off) = -2;
 	/* Make sure the "prev" store is visible before we update the last entry */
 	__ha_barrier_store();
 
@@ -214,7 +216,7 @@ redo_last:
 		 * The CAS will only succeed if its next is -1,
 		 * which means it's in the cache, and the last element.
 		 */
-		if (unlikely(!HA_ATOMIC_CAS(&fdtab[last].cache.next, &old, new)))
+		if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(last, off), &old, new)))
 			goto redo_last;
 
 		/* Then, update the last entry */
@@ -224,15 +226,15 @@ redo_last:
 	/* since we're alone at the end of the list and still locked(-2),
 	 * we know noone tried to add past us. Mark the end of list.
 	 */
-	fdtab[fd].cache.prev = last;
-	fdtab[fd].cache.next = -1;
+	_GET_PREV(fd, off) = last;
+	_GET_NEXT(fd, off) = -1;
 	__ha_barrier_store();
 done:
 	return;
 }
 
 /* removes fd <fd> from fd list <list> */
-void fd_rm_from_fd_list(volatile struct fdlist *list, int fd)
+void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
 {
 #if defined(HA_HAVE_CAS_DW) || defined(HA_CAS_IS_8B)
 	volatile struct fdlist_entry cur_list, next_list;
@@ -246,7 +248,7 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd)
 lock_self:
 #if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
 	next_list.next = next_list.prev = -2;
-	cur_list = fdtab[fd].cache;
+	cur_list = *(volatile struct fdlist_entry *)(((char *)&fdtab[fd]) + off);
 	/* First, attempt to lock our own entries */
 	do {
 		/* The FD is not in the FD cache, give up */
@@ -256,9 +258,9 @@ lock_self:
 			goto lock_self;
 	} while (
 #ifdef HA_CAS_IS_8B
-	    unlikely(!HA_ATOMIC_CAS(((void **)(void *)&fdtab[fd].cache.next), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
+	    unlikely(!HA_ATOMIC_CAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
 #else
-	    unlikely(!__ha_cas_dw((void *)&fdtab[fd].cache.next, (void *)&cur_list, (void *)&next_list)))
+	    unlikely(!__ha_cas_dw((void *)&_GET_NEXT(fd, off), (void *)&cur_list, (void *)&next_list)))
 #endif
 	    ;
 	next = cur_list.next;
@@ -266,18 +268,18 @@ lock_self:
 
 #else
 lock_self_next:
-	next = ({ volatile int *next = &fdtab[fd].cache.next; *next; });
+	next = ({ volatile int *next = &_GET_NEXT(fd, off); *next; });
 	if (next == -2)
 		goto lock_self_next;
 	if (next <= -3)
 		goto done;
-	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.next, &next, -2)))
+	if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
-	prev = ({ volatile int *prev = &fdtab[fd].cache.prev; *prev; });
+	prev = ({ volatile int *prev = &_GET_PREV(fd, off); *prev; });
 	if (prev == -2)
 		goto lock_self_prev;
-	if (unlikely(!HA_ATOMIC_CAS(&fdtab[fd].cache.prev, &prev, -2)))
+	if (unlikely(!HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
 		goto lock_self_prev;
 #endif
 	__ha_barrier_store();
@@ -287,14 +289,14 @@ lock_self_prev:
 redo_prev:
 		old = fd;
 
-		if (unlikely(!HA_ATOMIC_CAS(&fdtab[prev].cache.next, &old, new))) {
+		if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(prev, off), &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
 				 */
-				fdtab[fd].cache.prev = prev;
+				_GET_PREV(fd, off) = prev;
 				__ha_barrier_store();
-				fdtab[fd].cache.next = next;
+				_GET_NEXT(fd, off) = next;
 				__ha_barrier_store();
 				goto lock_self;
 			}
@@ -304,18 +306,18 @@ redo_prev:
 	if (likely(next != -1)) {
 redo_next:
 		old = fd;
-		if (unlikely(!HA_ATOMIC_CAS(&fdtab[next].cache.prev, &old, new))) {
+		if (unlikely(!HA_ATOMIC_CAS(&_GET_PREV(next, off), &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
 				 */
 				if (prev != -1) {
-					fdtab[prev].cache.next = fd;
+					_GET_NEXT(prev, off) = fd;
 					__ha_barrier_store();
 				}
-				fdtab[fd].cache.prev = prev;
+				_GET_PREV(fd, off) = prev;
 				__ha_barrier_store();
-				fdtab[fd].cache.next = next;
+				_GET_NEXT(fd, off) = next;
 				__ha_barrier_store();
 				goto lock_self;
 			}
@@ -333,17 +335,20 @@ redo_next:
 	 */
 	__ha_barrier_store();
 	if (likely(prev != -1))
-		fdtab[prev].cache.next = next;
+		_GET_NEXT(prev, off) = next;
 	__ha_barrier_store();
 	if (likely(next != -1))
-		fdtab[next].cache.prev = prev;
+		_GET_PREV(next, off) = prev;
 	__ha_barrier_store();
 	/* Ok, now we're out of the fd cache */
-	fdtab[fd].cache.next = -(next + 4);
+	_GET_NEXT(fd, off) = -(next + 4);
 	__ha_barrier_store();
 done:
 	return;
 }
+
+#undef _GET_NEXT
+#undef _GET_PREV
 
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.

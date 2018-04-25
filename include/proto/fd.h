@@ -93,8 +93,8 @@ void run_poller();
  */
 void fd_process_cached_events();
 
-void fd_add_to_fd_list(volatile struct fdlist *list, int fd);
-void fd_rm_from_fd_list(volatile struct fdlist *list, int fd);
+void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off);
+void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
 
 /* Mark fd <fd> as updated for polling and allocate an entry in the update list
  * for this if it was not already there. This can be done at any time.
@@ -119,9 +119,9 @@ static inline void fd_alloc_cache_entry(const int fd)
 {
 	HA_ATOMIC_OR(&fd_cache_mask, fdtab[fd].thread_mask);
 	if (!(fdtab[fd].thread_mask & (fdtab[fd].thread_mask - 1)))
-		fd_add_to_fd_list(&fd_cache_local[my_ffsl(fdtab[fd].thread_mask) - 1], fd);
+		fd_add_to_fd_list(&fd_cache_local[my_ffsl(fdtab[fd].thread_mask) - 1], fd,  offsetof(struct fdtab, cache));
 	else
-		fd_add_to_fd_list(&fd_cache, fd);
+		fd_add_to_fd_list(&fd_cache, fd,  offsetof(struct fdtab, cache));
 }
 
 /* Removes entry used by fd <fd> from the FD cache and replaces it with the
@@ -131,9 +131,9 @@ static inline void fd_alloc_cache_entry(const int fd)
 static inline void fd_release_cache_entry(const int fd)
 {
 	if (!(fdtab[fd].thread_mask & (fdtab[fd].thread_mask - 1)))
-		fd_rm_from_fd_list(&fd_cache_local[my_ffsl(fdtab[fd].thread_mask) - 1], fd);
+		fd_rm_from_fd_list(&fd_cache_local[my_ffsl(fdtab[fd].thread_mask) - 1], fd, offsetof(struct fdtab, cache));
 	else
-		fd_rm_from_fd_list(&fd_cache, fd);
+		fd_rm_from_fd_list(&fd_cache, fd, offsetof(struct fdtab, cache));
 }
 
 /* This function automatically enables/disables caching for an entry depending
