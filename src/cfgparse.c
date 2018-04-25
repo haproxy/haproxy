@@ -647,9 +647,16 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			/* We are done. */
 			goto out;
 
+		if (cfg_peers->local) {
+			ha_alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
+				 file, linenum, args[0], args[1],
+				 curpeers->peers_fe->conf.file, curpeers->peers_fe->conf.line);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
 		/* Current is local peer, it define a frontend */
 		newpeer->local = 1;
-		cfg_peers->local = newpeer;
 
 		if (!curpeers->peers_fe) {
 			if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
@@ -682,13 +689,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 				global.maxsock += l->maxconn;
 			}
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
-				 file, linenum, args[0], args[1],
-				 curpeers->peers_fe->conf.file, curpeers->peers_fe->conf.line);
-			err_code |= ERR_FATAL;
-			goto out;
+			cfg_peers->local = newpeer;
 		}
 	} /* neither "peer" nor "peers" */
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
