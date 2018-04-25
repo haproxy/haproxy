@@ -2745,6 +2745,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
 	unsigned int flen = h2c->dfl;
+	unsigned int chklen = 0;
 
 	h2s->cs->flags &= ~CS_FL_RCV_MORE;
 	h2c->flags &= ~H2_CF_DEM_SFULL;
@@ -2780,14 +2781,35 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 			return 0;
 	}
 
+	/* chunked-encoding requires more room */
+	if (h2s->flags & H2_SF_DATA_CHNK) {
+		chklen = MIN(flen, count);
+		chklen = (chklen < 16) ? 1 : (chklen < 256) ? 2 :
+			(chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
+			(chklen < 1048576) ? 4 : 8;
+		chklen += 4; // CRLF, CRLF
+	}
+
 	/* does it fit in output buffer or should we wait ? */
-	if (flen > count) {
-		flen = count;
-		if (!flen) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			h2s->cs->flags |= CS_FL_RCV_MORE;
-			return 0;
-		}
+	if (flen + chklen > count) {
+		if (chklen >= count)
+			goto full;
+		flen = count - chklen;
+	}
+
+	if (h2s->flags & H2_SF_DATA_CHNK) {
+		/* emit the chunk size */
+		unsigned int chksz = flen;
+		char str[10];
+		char *beg;
+
+		beg = str + sizeof(str);
+		*--beg = '\n';
+		*--beg = '\r';
+		do {
+			*--beg = hextab[chksz & 0xF];
+		} while (chksz >>= 4);
+		bi_putblk(buf, beg, str + sizeof(str) - beg);
 	}
 
 	/* Block1 is the length of the first block before the buffer wraps,
@@ -2804,6 +2826,11 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	if (block2)
 		bi_putblk(buf, b_ptr(h2c->dbuf, block1), block2);
 
+	if (h2s->flags & H2_SF_DATA_CHNK) {
+		/* emit the CRLF */
+		bi_putblk(buf, "\r\n", 2);
+	}
+
 	/* now mark the input data as consumed (will be deleted from the buffer
 	 * by the caller when seeing FRAME_A after sending the window update).
 	 */
@@ -2814,15 +2841,22 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 
 	if (h2c->dfl > h2c->dpl) {
 		/* more data available, transfer stalled on stream full */
-		h2c->flags |= H2_CF_DEM_SFULL;
-		h2s->cs->flags |= CS_FL_RCV_MORE;
-		return flen;
+		goto more;
 	}
 
  end_transfer:
 	/* here we're done with the frame, all the payload (except padding) was
 	 * transferred.
 	 */
+
+	if (h2c->dff & H2_F_DATA_END_STREAM && h2s->flags & H2_SF_DATA_CHNK) {
+		/* emit the trailing 0 CRLF CRLF */
+		if (count < 5)
+			goto more;
+		chklen += 5;
+		bi_putblk(buf, "0\r\n\r\n", 5);
+	}
+
 	h2c->rcvd_c += h2c->dpl;
 	h2c->rcvd_s += h2c->dpl;
 	h2c->dpl = 0;
@@ -2837,7 +2871,13 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 		h2s->flags |= H2_SF_ES_RCVD;
 	}
 
-	return flen;
+	return flen + chklen;
+ full:
+	flen = chklen = 0;
+ more:
+	h2c->flags |= H2_CF_DEM_SFULL;
+	h2s->cs->flags |= CS_FL_RCV_MORE;
+	return flen + chklen;
 }
 
 /*

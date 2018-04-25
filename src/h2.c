@@ -262,6 +262,14 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int
 		*(out++) = '\n';
 	}
 
+	if ((*msgf & (H2_MSGF_BODY|H2_MSGF_BODY_TUNNEL|H2_MSGF_BODY_CL)) == H2_MSGF_BODY) {
+		/* add chunked encoding */
+		if (out + 28 > out_end)
+			goto fail;
+		memcpy(out, "transfer-encoding: chunked\r\n", 28);
+		out += 28;
+	}
+
 	/* now we may have to build a cookie list. We'll dump the values of all
 	 * visited headers.
 	 */
