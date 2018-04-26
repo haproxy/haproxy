@@ -3509,6 +3509,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curpxopts2 &= ~PR_O2_NOLOGNORM;
 			else
 				curpxopts2 |= PR_O2_NOLOGNORM;
+			goto out;
 		}
 
 		/* Following options does not support negation */
