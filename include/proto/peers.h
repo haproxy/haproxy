@@ -25,8 +25,34 @@
 #include <common/config.h>
 #include <common/ticks.h>
 #include <common/time.h>
+#include <proto/connection.h>
 #include <types/stream.h>
 #include <types/peers.h>
+
+#if defined(USE_OPENSSL)
+static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
+{
+	if (p->srv->use_ssl)
+		return &p->srv->obj_type;
+	else
+		return &s->be->obj_type;
+}
+
+static inline struct xprt_ops *peer_xprt(struct peer *p)
+{
+	return p->srv->use_ssl ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW);
+}
+#else
+static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
+{
+	return &s->be->obj_type;
+}
+
+static inline struct xprt_ops *peer_xprt(struct peer *p)
+{
+	return xprt_get(XPRT_RAW);
+}
+#endif
 
 int peers_init_sync(struct peers *peers);
 void peers_register_table(struct peers *, struct stktable *table);

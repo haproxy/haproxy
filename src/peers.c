@@ -39,6 +39,7 @@
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/mux_pt.h>
+#include <proto/peers.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/stream.h>
@@ -1996,10 +1997,10 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (unlikely((cs = cs_new(conn)) == NULL))
 		goto out_free_conn;
 
-	conn->target = s->target = &s->be->obj_type;
+	conn->target = s->target = peer_session_target(peer, s);
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 
-	conn_prepare(conn, peer->proto, peer->xprt);
+	conn_prepare(conn, peer->proto, peer_xprt(peer));
 	conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL);
 	si_attach_cs(&s->si[1], cs);
 

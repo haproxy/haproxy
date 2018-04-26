@@ -513,6 +513,7 @@ static int init_peers_frontend(const char *file, int linenum,
  out:
 	if (id && !p->id)
 		p->id = strdup(id);
+	free(p->conf.file);
 	p->conf.args.file = p->conf.file = strdup(file);
 	p->conf.args.line = p->conf.line = linenum;
 
@@ -623,9 +624,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->sock_init_arg = NULL;
 		HA_SPIN_INIT(&newpeer->lock);
 
-		if (strcmp(newpeer->id, localpeer) != 0)
-			/* We are done. */
+		if (strcmp(newpeer->id, localpeer) != 0) {
+			newpeer->srv = curpeers->peers_fe->srv;
 			goto out;
+		}
 
 		if (cfg_peers->local) {
 			ha_alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
@@ -3633,6 +3635,13 @@ out_uri_auth_compat:
 				curpeers->peers_fe = NULL;
 			}
 			else {
+				p = curpeers->remote;
+				while (p) {
+					if (p->srv && p->srv->use_ssl &&
+					    xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
+						cfgerr += xprt_get(XPRT_SSL)->prepare_srv(p->srv);
+					p = p->next;
+				}
 				if (!peers_init_sync(curpeers)) {
 					ha_alert("Peers section '%s': out of memory, giving up on peers.\n",
 						 curpeers->id);
