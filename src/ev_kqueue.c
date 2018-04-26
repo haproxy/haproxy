@@ -41,29 +41,29 @@ static int _update_fd(int fd)
 	en = fdtab[fd].state;
 
 	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
-		if (!(fdtab[fd].polled_mask & tid_bit)) {
+		if (!(polled_mask[fd] & tid_bit)) {
 			/* fd was not watched, it's still not */
 			return 0;
 		}
 		/* fd totally removed from poll list */
 		EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 		EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-		HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
+		HA_ATOMIC_AND(&polled_mask[fd], ~tid_bit);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
 
 		if (en & FD_EV_POLLED_R)
 			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-		else if (fdtab[fd].polled_mask & tid_bit)
+		else if (polled_mask[fd] & tid_bit)
 			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
 		if (en & FD_EV_POLLED_W)
 			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
-		else if (fdtab[fd].polled_mask & tid_bit)
+		else if (polled_mask[fd] & tid_bit)
 			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
 
-		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+		HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
 	}
 	return changes;
 }

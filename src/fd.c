@@ -159,6 +159,7 @@
 #include <proto/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
+unsigned long *polled_mask = NULL; /* Array for the polled_mask of each fd */
 struct fdinfo *fdinfo = NULL;   /* less-often used infos for file descriptors */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
@@ -373,7 +374,7 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].thread_mask = 0;
 	if (do_close) {
-		fdtab[fd].polled_mask = 0;
+		polled_mask[fd] = 0;
 		close(fd);
 	}
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
@@ -488,6 +489,8 @@ int init_pollers()
 	if ((fdtab = calloc(global.maxsock, sizeof(struct fdtab))) == NULL)
 		goto fail_tab;
 
+	if ((polled_mask = calloc(global.maxsock, sizeof(unsigned long))) == NULL)
+		goto fail_polledmask;
 	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
 		goto fail_info;
 
@@ -526,6 +529,8 @@ int init_pollers()
  fail_info:
 	free(fdtab);
  fail_tab:
+	free(polled_mask);
+ fail_polledmask:
 	return 0;
 }
 
@@ -549,6 +554,7 @@ void deinit_pollers() {
 
 	free(fdinfo);   fdinfo   = NULL;
 	free(fdtab);    fdtab    = NULL;
+	free(polled_mask); polled_mask = NULL;
 }
 
 /*

@@ -114,7 +114,6 @@ struct fdlist {
 struct fdtab {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
-	unsigned long polled_mask;           /* mask of thread IDs currently polling this fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
 	struct fdlist_entry cache;           /* Entry in the fdcache */
 	struct fdlist_entry update;          /* Entry in the global update list */

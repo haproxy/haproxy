@@ -56,14 +56,14 @@ static void _update_fd(int fd, int *max_add_fd)
 	 * takes it for every other one.
 	 */
 	if (!(en & FD_EV_POLLED_RW)) {
-		if (!fdtab[fd].polled_mask) {
+		if (!polled_mask[fd]) {
 			/* fd was not watched, it's still not */
 			return;
 		}
 		/* fd totally removed from poll list */
 		hap_fd_clr(fd, fd_evts[DIR_RD]);
 		hap_fd_clr(fd, fd_evts[DIR_WR]);
-		HA_ATOMIC_AND(&fdtab[fd].polled_mask, 0);
+		HA_ATOMIC_AND(&polled_mask[fd], 0);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
@@ -77,7 +77,7 @@ static void _update_fd(int fd, int *max_add_fd)
 		else
 			hap_fd_set(fd, fd_evts[DIR_WR]);
 
-		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+		HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
 		if (fd > *max_add_fd)
 			*max_add_fd = fd;
 	}

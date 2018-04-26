@@ -38,6 +38,8 @@ extern volatile struct fdlist fd_cache_local[MAX_THREADS];
 
 extern volatile struct fdlist update_list;
 
+extern unsigned long *polled_mask;
+
 extern unsigned long fd_cache_mask; // Mask of threads with events in the cache
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list

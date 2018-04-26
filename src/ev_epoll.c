@@ -50,7 +50,7 @@ static THREAD_LOCAL struct epoll_event ev;
 REGPRM1 static void __fd_clo(int fd)
 {
 	if (unlikely(fdtab[fd].cloned)) {
-		unsigned long m = fdtab[fd].polled_mask;
+		unsigned long m = polled_mask[fd];
 		int i;
 
 		for (i = global.nbthread - 1; i >= 0; i--)
@@ -65,11 +65,11 @@ static void _update_fd(int fd)
 
 	en = fdtab[fd].state;
 
-	if (fdtab[fd].polled_mask & tid_bit) {
+	if (polled_mask[fd] & tid_bit) {
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
 			/* fd removed from poll list */
 			opcode = EPOLL_CTL_DEL;
-			HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
+			HA_ATOMIC_AND(&polled_mask[fd], ~tid_bit);
 		}
 		else {
 			/* fd status changed */
@@ -79,7 +79,7 @@ static void _update_fd(int fd)
 	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_POLLED_RW)) {
 		/* new fd in the poll list */
 		opcode = EPOLL_CTL_ADD;
-		HA_ATOMIC_OR(&fdtab[fd].polled_mask, tid_bit);
+		HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
 	}
 	else {
 		return;
@@ -177,7 +177,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			/* FD has been migrated */
 			activity[tid].poll_skip++;
 			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
-			HA_ATOMIC_AND(&fdtab[fd].polled_mask, ~tid_bit);
+			HA_ATOMIC_AND(&polled_mask[fd], ~tid_bit);
 			continue;
 		}
 
