@@ -2088,11 +2088,12 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	char *fqdn = NULL;
 
 	if (!strcmp(args[0], "server")         ||
+	    !strcmp(args[0], "peer")           ||
 	    !strcmp(args[0], "default-server") ||
 	    !strcmp(args[0], "server-template")) {
 		int cur_arg;
 		int defsrv = (*args[0] == 'd');
-		int srv = !defsrv && !strcmp(args[0], "server");
+		int srv = !defsrv && (*args[0] == 'p' || !strcmp(args[0], "server"));
 		int srv_tmpl = !defsrv && !srv;
 		int tmpl_range_low = 0, tmpl_range_high = 0;
 

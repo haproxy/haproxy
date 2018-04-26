@@ -1930,7 +1930,7 @@ static void peer_session_forceshutdown(struct appctx *appctx)
 void peers_setup_frontend(struct proxy *fe)
 {
 	fe->last_change = now.tv_sec;
-	fe->cap = PR_CAP_FE;
+	fe->cap = PR_CAP_FE | PR_CAP_BE;
 	fe->maxconn = 0;
 	fe->conn_retries = CONN_RETRIES;
 	fe->timeout.client = MS_TO_TICKS(5000);

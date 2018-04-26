@@ -485,15 +485,18 @@ void init_default_instance()
 /* Allocate and initialize the frontend of a "peers" section found in
  * file <file> at line <linenum> with <id> as ID.
  * Return 0 if succeeded, -1 if not.
+ * Note that this function may be called from "default-server"
+ * or "peer" lines.
  */
 static int init_peers_frontend(const char *file, int linenum,
                                const char *id, struct peers *peers)
 {
 	struct proxy *p;
 
-	if (peers->peers_fe)
-		/* Nothing to do */
-		return 0;
+	if (peers->peers_fe) {
+		p = peers->peers_fe;
+		goto out;
+	}
 
 	p = calloc(1, sizeof *p);
 	if (!p) {
@@ -502,12 +505,16 @@ static int init_peers_frontend(const char *file, int linenum,
 	}
 
 	init_new_proxy(p);
+	peers_setup_frontend(p);
 	p->parent = peers;
-	p->id = strdup(id);
+	/* Finally store this frontend. */
+	peers->peers_fe = p;
+
+ out:
+	if (id && !p->id)
+		p->id = strdup(id);
 	p->conf.args.file = p->conf.file = strdup(file);
 	p->conf.args.line = p->conf.line = linenum;
-	peers_setup_frontend(p);
-	peers->peers_fe = p;
 
 	return 0;
 }
@@ -532,7 +539,14 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	char *errmsg = NULL;
 
-	if (strcmp(args[0], "peers") == 0) { /* new peers section */
+	if (strcmp(args[0], "default-server") == 0) {
+		if (init_peers_frontend(file, linenum, NULL, curpeers) != 0) {
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL);
+	}
+	else if (strcmp(args[0], "peers") == 0) { /* new peers section */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing name for peers section.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -576,26 +590,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->id = strdup(args[1]);
 		curpeers->state = PR_STNEW;
 	}
-	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
-		struct sockaddr_storage *sk;
-		int port1, port2;
-		struct protocol *proto;
-
-		if (!*args[2]) {
-			ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err = invalid_char(args[1]);
-		if (err) {
-			ha_alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
-				 file, linenum, *err, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
+	else if (strcmp(args[0], "peer") == 0 ||
+	         strcmp(args[0], "server") == 0) { /* peer or server definition */
 		if ((newpeer = calloc(1, sizeof(*newpeer))) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -612,37 +608,17 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
-		if (!sk) {
-			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		if (init_peers_frontend(file, linenum, newpeer->id, curpeers) != 0) {
+			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
-		proto = protocol_by_family(sk->ss_family);
-		if (!proto || !proto->connect) {
-			ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL);
+		if (!curpeers->peers_fe->srv)
 			goto out;
-		}
 
-		if (port1 != port2) {
-			ha_alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
-				 file, linenum, args[0], args[1], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!port1) {
-			ha_alert("parsing [%s:%d] : '%s %s' : missing or invalid port in '%s'\n",
-				 file, linenum, args[0], args[1], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		newpeer->addr = *sk;
-		newpeer->proto = proto;
+		newpeer->addr = curpeers->peers_fe->srv->addr;
+		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
 		newpeer->xprt  = xprt_get(XPRT_RAW);
 		newpeer->sock_init_arg = NULL;
 		HA_SPIN_INIT(&newpeer->lock);
@@ -661,12 +637,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		/* Current is local peer, it define a frontend */
 		newpeer->local = 1;
-
-		if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-		}
 
 		bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
 
