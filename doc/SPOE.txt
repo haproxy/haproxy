@@ -1205,7 +1205,7 @@ LOG_NOTICE. Otherwise, the message is logged with the level LOG_WARNING.
 The messages are logged using the agent's logger, if defined, and use the
 following format:
 
-    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUC-CODE reqT/qT/wT/resT/pT \
+    SPOE: [AGENT] <TYPE:NAME> sid=STREAM-ID st=STATUS-CODE reqT/qT/wT/resT/pT \
     <idles>/<applets> <nb_sending>/<nb_waiting> <nb_error>/<nb_processed>
 
       AGENT              is the agent name
