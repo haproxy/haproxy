@@ -2597,7 +2597,7 @@ spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
 
 	if (!LIST_ISEMPTY(&ctx->list)) {
 		if (ctx->state == SPOE_CTX_ST_SENDING_MSGS)
-			HA_ATOMIC_ADD(&agent->counters.nb_sending, 1);
+			HA_ATOMIC_SUB(&agent->counters.nb_sending, 1);
 		else
 			HA_ATOMIC_SUB(&agent->counters.nb_waiting, 1);
 
