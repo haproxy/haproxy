@@ -142,6 +142,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_403] = 403,
 	[HTTP_ERR_405] = 405,
 	[HTTP_ERR_408] = 408,
+	[HTTP_ERR_421] = 421,
 	[HTTP_ERR_425] = 425,
 	[HTTP_ERR_429] = 429,
 	[HTTP_ERR_500] = 500,
@@ -190,6 +191,14 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n",
+
+	[HTTP_ERR_421] =
+	"HTTP/1.0 421 Misdirected Request\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>421 Misdirected Request</h1>\nRequest sent to a non-authoritative server.\n</body></html>\n",
 
 	[HTTP_ERR_425] =
 	"HTTP/1.0 425 Too Early\r\n"
@@ -340,6 +349,7 @@ const char *get_reason(unsigned int status)
 	case 416: return "Requested range unsatisfiable";
 	case 417: return "Expectation failed";
 	case 418: return "I'm a teapot";
+	case 421: return "Misdirected Request";
 	case 422: return "Unprocessable entity";
 	case 423: return "Locked";
 	case 424: return "Method failure";
@@ -389,6 +399,7 @@ static const int http_get_status_idx(unsigned int status)
 	case 403: return HTTP_ERR_403;
 	case 405: return HTTP_ERR_405;
 	case 408: return HTTP_ERR_408;
+	case 421: return HTTP_ERR_421;
 	case 425: return HTTP_ERR_425;
 	case 429: return HTTP_ERR_429;
 	case 500: return HTTP_ERR_500;
