@@ -2684,6 +2684,54 @@ static int smp_check_concat(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
+/* compares string with a variable containing a string. Return value
+ * is compatible with strcmp(3)'s return value.
+ */
+static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct sample tmp;
+	int max, result;
+
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[0].type != ARGT_VAR)
+		return 0;
+	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp))
+		return 0;
+	if (!sample_casts[tmp.data.type][SMP_T_STR](&tmp))
+		return 0;
+
+	max = MIN(smp->data.u.str.len, tmp.data.u.str.len);
+	result = strncmp(smp->data.u.str.str, tmp.data.u.str.str, max);
+	if (result == 0) {
+		if (smp->data.u.str.len != tmp.data.u.str.len) {
+			if (smp->data.u.str.len < tmp.data.u.str.len) {
+				result = -1;
+			}
+			else {
+				result = 1;
+			}
+		}
+	}
+
+	smp->data.u.sint = result;
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
+/* This function checks the "strcmp" converter's arguments and extracts the
+ * variable name and its scope.
+ */
+static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	/* Try to decode a variable. */
+	if (vars_check_arg(&args[0], NULL))
+		return 1;
+
+	memprintf(err, "failed to register variable name '%s'", args[0].data.str.str);
+	return 0;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -2999,6 +3047,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
+	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },

@@ -13242,6 +13242,21 @@ sha1
   Converts a binary input sample to a SHA1 digest. The result is a binary
   sample with length of 20 bytes.
 
+strcmp(<var>)
+  Compares the contents of <var> with the input value of type string. Returns
+  the result as a signed integer compatible with strcmp(3): 0 if both strings
+  are identical. A value less than 0 if the left string is lexicographically
+  smaller than the right string or if the left string is shorter. A value greater
+  than 0 otherwise (right string greater than left string or the right string is
+  shorter).
+
+  Example :
+
+     http-request set-var(txn.host) hdr(host)
+     # Check whether the client is attempting domain fronting.
+     acl ssl_sni_http_host_match ssl_fc_sni,strcmp(txn.host) eq 0
+
+
 sub(<value>)
   Subtracts <value> from the input value of type signed integer, and returns
   the result as an signed integer. Note: in order to subtract the input from
