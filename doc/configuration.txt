@@ -14484,6 +14484,12 @@ ssl_bc_session_id : binary
   made over an SSL/TLS transport layer. It is useful to log if we want to know
   if session was reused or not.
 
+ssl_bc_session_key : binary
+  Returns the SSL session master key of the back connection when the outgoing
+  connection was made over an SSL/TLS transport layer. It is useful to decrypt
+  traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
+  BoringSSL.
+
 ssl_bc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the outgoing
   connection was made over an SSL/TLS transport layer.
@@ -14743,6 +14749,13 @@ ssl_fc_session_id : binary
   made over an SSL/TLS transport layer. It is useful to stick a given client to
   a server. It is important to note that some browsers refresh their session ID
   every few minutes.
+
+ssl_fc_session_key : binary
+  Returns the SSL session master key of the front connection when the incoming
+  connection was made over an SSL/TLS transport layer. It is useful to decrypt
+  traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
+  BoringSSL.
+
 
 ssl_fc_sni : string
   This extracts the Server Name Indication TLS extension (SNI) field from an

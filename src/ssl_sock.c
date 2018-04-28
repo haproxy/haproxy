@@ -6895,6 +6895,35 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 #endif
 
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+static int
+smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	SSL_SESSION *ssl_sess;
+	struct chunk *data;
+
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+
+	ssl_sess = SSL_get_session(conn->xprt_ctx);
+	if (!ssl_sess)
+		return 0;
+
+	data = get_trash_chunk();
+	data->len = SSL_SESSION_get_master_key(ssl_sess, (unsigned char *)data->str, data->size);
+	if (!data->len)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str = *data;
+
+	return 1;
+}
+#endif
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 static int
 smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -8640,6 +8669,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
 	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
+#endif
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
@@ -8685,6 +8717,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+#endif
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+	{ "ssl_fc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
