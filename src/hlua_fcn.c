@@ -490,6 +490,8 @@ int hlua_listener_get_stats(lua_State *L)
 
 int hlua_fcn_new_server(lua_State *L, struct server *srv)
 {
+	char buffer[12];
+
 	lua_newtable(L);
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
@@ -498,6 +500,18 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 
 	lua_pushlightuserdata(L, srv);
 	lua_rawseti(L, -2, 0);
+
+	/* Add server name. */
+	lua_pushstring(L, "name");
+	lua_pushstring(L, srv->id);
+	lua_settable(L, -3);
+
+	/* Add server puid. */
+	lua_pushstring(L, "puid");
+	snprintf(buffer, sizeof(buffer), "%d", srv->puid);
+	lua_pushstring(L, buffer);
+	lua_settable(L, -3);
+
 	return 1;
 }
 

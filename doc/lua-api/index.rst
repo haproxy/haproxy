@@ -922,6 +922,14 @@ Server class
 
   This class provides a way for manipulating servers and retrieving information.
 
+.. js:attribute:: Server.name
+
+  Contain the name of the server.
+
+.. js:attribute:: Server.puid
+
+  Contain the proxy unique identifier of the server.
+
 .. js:function:: Server.is_draining(sv)
 
   Return true if the server is currently draining sticky connections.
