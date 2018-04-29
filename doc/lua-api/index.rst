@@ -938,6 +938,23 @@ Server class
     server.
   :returns: a boolean
 
+.. js:function:: Server.set_maxconn(sv, weight)
+
+  Dynamically change the maximum connections of the server. See the management
+  socket documentation for more information about the format of the string.
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+    server.
+  :param string maxconn: A string describing the server maximum connections.
+
+.. js:function:: Server.get_maxconn(sv, weight)
+
+  This function returns an integer representing the server maximum connections.
+
+  :param class_server sv: A :ref:`server_class` which indicates the manipulated
+    server.
+  :returns: an integer.
+
 .. js:function:: Server.set_weight(sv, weight)
 
   Dynamically change the weight of the server. See the management socket

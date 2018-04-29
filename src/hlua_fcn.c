@@ -592,6 +592,34 @@ int hlua_server_is_draining(lua_State *L)
 	return 1;
 }
 
+int hlua_server_set_maxconn(lua_State *L)
+{
+	struct server *srv;
+	const char *maxconn;
+	const char *err;
+
+	srv = hlua_check_server(L, 1);
+	maxconn = luaL_checkstring(L, 2);
+
+	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	err = server_parse_maxconn_change_request(srv, maxconn);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	if (!err)
+		lua_pushnil(L);
+	else
+		hlua_pushstrippedstring(L, err);
+	return 1;
+}
+
+int hlua_server_get_maxconn(lua_State *L)
+{
+	struct server *srv;
+
+	srv = hlua_check_server(L, 1);
+	lua_pushinteger(L, srv->maxconn);
+	return 1;
+}
+
 int hlua_server_set_weight(lua_State *L)
 {
 	struct server *srv;
@@ -1274,6 +1302,8 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
 	hlua_class_function(L, "is_draining", hlua_server_is_draining);
+	hlua_class_function(L, "set_maxconn", hlua_server_set_maxconn);
+	hlua_class_function(L, "get_maxconn", hlua_server_get_maxconn);
 	hlua_class_function(L, "set_weight", hlua_server_set_weight);
 	hlua_class_function(L, "get_weight", hlua_server_get_weight);
 	hlua_class_function(L, "set_addr", hlua_server_set_addr);
