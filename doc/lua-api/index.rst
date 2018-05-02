@@ -169,9 +169,9 @@ Core class
 
   **context**: task, action, sample-fetch, converter
 
-  This attribute is an array of declared proxies (frontend and backends). Each
-  proxy give an access to his list of listeners and servers. Each entry is of
-  type :ref:`proxy_class`
+  This attribute is a table of declared proxies (frontend and backends). Each
+  proxy give an access to his list of listeners and servers. The table is
+  indexed by proxy name, and each entry is of type :ref:`proxy_class`.
 
   Warning, if you are declared frontend and backend with the same name, only one
   of these are listed.
@@ -183,12 +183,9 @@ Core class
 
   **context**: task, action, sample-fetch, converter
 
-  This attribute is an array of declared proxies with backend capability. Each
-  proxy give an access to his list of listeners and servers. Each entry is of
-  type :ref:`proxy_class`
-
-  Warning, if you are declared frontend and backend with the same name, only one
-  of these are listed.
+  This attribute is a table of declared proxies with backend capability. Each
+  proxy give an access to his list of listeners and servers. The table is
+  indexed by the backend name, and each entry is of type :ref:`proxy_class`.
 
   :see: :js:attr:`core.proxies`
   :see: :js:attr:`core.frontends`
@@ -197,12 +194,9 @@ Core class
 
   **context**: task, action, sample-fetch, converter
 
-  This attribute is an array of declared proxies with frontend capability. Each
-  proxy give an access to his list of listeners and servers. Each entry is of
-  type :ref:`proxy_class`
-
-  Warning, if you are declared frontend and backend with the same name, only one
-  of these are listed.
+  This attribute is a table of declared proxies with frontend capability. Each
+  proxy give an access to his list of listeners and servers. The table is
+  indexed by the frontend name, and each entry is of type :ref:`proxy_class`.
 
   :see: :js:attr:`core.proxies`
   :see: :js:attr:`core.backends`
@@ -336,7 +330,7 @@ Core class
   Lua execution or resume, so two consecutive call to the function "now" will
   probably returns the same result.
 
-  :returns: an array which contains two entries "sec" and "usec". "sec"
+  :returns: a table which contains two entries "sec" and "usec". "sec"
     contains the current at the epoch format, and "usec" contains the
     current microseconds.
 
@@ -439,9 +433,12 @@ Core class
 
   **context**: body, init, task, action, sample-fetch, converter
 
-  proxies is an array containing the list of all proxies declared in the
-  configuration file. Each entry of the proxies array is an object of type
-  :ref:`proxy_class`
+  proxies is a table containing the list of all proxies declared in the
+  configuration file. The table is indexed by the proxy name, and each entry
+  of the proxies table is an object of type :ref:`proxy_class`.
+
+  Warning, if you have declared a frontend and backend with the same name, only
+  one of these are listed.
 
 .. js:function:: core.register_action(name, actions, func [, nb_args])
 
@@ -852,13 +849,14 @@ Proxy class
 
 .. js:attribute:: Proxy.servers
 
-  Contain an array with the attached servers. Each server entry is an object of
-  type :ref:`server_class`.
+  Contain a table with the attached servers. The table is indexed by server
+  name, and each server entry is an object of type :ref:`server_class`.
 
 .. js:attribute:: Proxy.listeners
 
-  Contain an array with the attached listeners. Each listeners entry is an
-  object of type :ref:`listener_class`.
+  Contain a table with the attached listeners. The table is indexed by listener
+  name, and each each listeners entry is an object of type
+  :ref:`listener_class`.
 
 .. js:function:: Proxy.pause(px)
 
@@ -908,21 +906,25 @@ Proxy class
 
 .. js:function:: Proxy.get_stats(px)
 
-  Returns an array containg the proxy statistics. The statistics returned are
+  Returns a table containg the proxy statistics. The statistics returned are
   not the same if the proxy is frontend or a backend.
 
   :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
     proxy.
-  :returns: a key/value array containing stats
+  :returns: a key/value table containing stats
 
 .. _server_class:
 
 Server class
 ============
 
+.. js:class:: Server
+
+  This class provides a way for manipulating servers and retrieving information.
+
 .. js:function:: Server.is_draining(sv)
 
-  Return true if the server is currently draining stiky connections.
+  Return true if the server is currently draining sticky connections.
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
@@ -930,7 +932,7 @@ Server class
 
 .. js:function:: Server.set_weight(sv, weight)
 
-  Dynamically change the weight of the serveur. See the management socket
+  Dynamically change the weight of the server. See the management socket
   documentation for more information about the format of the string.
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
@@ -939,7 +941,7 @@ Server class
 
 .. js:function:: Server.get_weight(sv)
 
-  This function returns an integer representing the serveur weight.
+  This function returns an integer representing the server weight.
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
@@ -947,16 +949,16 @@ Server class
 
 .. js:function:: Server.set_addr(sv, addr)
 
-  Dynamically change the address of the serveur. See the management socket
+  Dynamically change the address of the server. See the management socket
   documentation for more information about the format of the string.
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
-  :param string weight: A string describing the server address.
+  :param string addr: A string describing the server address.
 
 .. js:function:: Server.get_addr(sv)
 
-  Returns a string describing the address of the serveur.
+  Returns a string describing the address of the server.
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
@@ -968,7 +970,7 @@ Server class
 
   :param class_server sv: A :ref:`server_class` which indicates the manipulated
     server.
-  :returns: a key/value array containing stats
+  :returns: a key/value table containing stats
 
 .. js:function:: Server.shut_sess(sv)
 
@@ -1085,7 +1087,7 @@ Listener class
 
   :param class_listener ls: A :ref:`listener_class` which indicates the
     manipulated listener.
-  :returns: a key/value array containing stats
+  :returns: a key/value table containing stats
 
 .. _concat_class:
 
@@ -1169,7 +1171,7 @@ Fetches class
   usage. they are the chapters 7.3.2 to 7.3.6.
 
   **warning** some sample fetches are not available in some context. These
-  limitations are specified in this documentation when theire useful.
+  limitations are specified in this documentation when they're useful.
 
   :see: :js:attr:`TXN.f`
   :see: :js:attr:`TXN.sf`
@@ -1345,13 +1347,13 @@ HTTP class
 
 .. js:function:: HTTP.req_get_headers(http)
 
-  Returns an array containing all the request headers.
+  Returns a table containing all the request headers.
 
   :param class_http http: The related http object.
-  :returns: array of headers.
+  :returns: table of headers.
   :see: :js:func:`HTTP.res_get_headers`
 
-  This is the form of the returned array:
+  This is the form of the returned table:
 
 .. code-block:: lua
 
@@ -1366,13 +1368,13 @@ HTTP class
 
 .. js:function:: HTTP.res_get_headers(http)
 
-  Returns an array containing all the response headers.
+  Returns a table containing all the response headers.
 
   :param class_http http: The related http object.
-  :returns: array of headers.
+  :returns: table of headers.
   :see: :js:func:`HTTP.req_get_headers`
 
-  This is the form of the returned array:
+  This is the form of the returned table:
 
 .. code-block:: lua
 
@@ -2211,12 +2213,12 @@ AppletHTTP class
 
 .. js:attribute:: AppletHTTP.headers
 
-  :returns: array
+  :returns: table
 
-  The attribute headers returns an array containing the HTTP
+  The attribute headers returns a table containing the HTTP
   headers. The header names are always in lower case. As the header name can be
   encountered more than once in each request, the value is indexed with 0 as
-  first index value. The array have this form:
+  first index value. The table have this form:
 
 .. code-block:: lua
 
