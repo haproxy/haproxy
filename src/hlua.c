@@ -5552,8 +5552,7 @@ static struct task *hlua_process_task(struct task *task)
 
 	case HLUA_E_AGAIN: /* co process or timeout wake me later. */
 		notification_gc(&hlua->com);
-		if (hlua->wake_time != TICK_ETERNITY)
-			task->expire = hlua->wake_time;
+		task->expire = hlua->wake_time;
 		break;
 
 	/* finished with error. */
