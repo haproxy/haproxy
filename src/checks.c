@@ -243,7 +243,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		 */
 		if ((!(check->state & CHK_ST_AGENT) ||
 		    (check->status >= HCHK_STATUS_L57DATA)) &&
-		    (check->health >= check->rise)) {
+		    (check->health > 0)) {
 			HA_ATOMIC_ADD(&s->counters.failed_checks, 1);
 			report = 1;
 			check->health--;
