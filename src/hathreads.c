@@ -82,7 +82,7 @@ void thread_want_sync()
 /* Returns 1 if no thread has requested a sync. Otherwise, it returns 0. */
 int thread_no_sync()
 {
-	return (threads_want_sync == 0);
+	return (threads_want_sync == 0UL);
 }
 
 /* Returns 1 if the current thread has requested a sync. Otherwise, it returns
@@ -90,7 +90,7 @@ int thread_no_sync()
  */
 int thread_need_sync()
 {
-	return (threads_want_sync & tid_bit);
+	return ((threads_want_sync & tid_bit) != 0UL);
 }
 
 /* Thread barrier. Synchronizes all threads at the barrier referenced by
