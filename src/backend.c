@@ -513,6 +513,21 @@ static struct server *get_server_rch(struct stream *s)
 		return map_get_server_hash(px, hash);
 }
 
+/* random value  */
+static struct server *get_server_rnd(struct stream *s)
+{
+	unsigned int hash = 0;
+	struct proxy  *px = s->be;
+
+	/* tot_weight appears to mean srv_count */
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	/* ensure all 32 bits are covered as long as RAND_MAX >= 65535 */
+	hash = ((uint64_t)random() * ((uint64_t)RAND_MAX + 1)) ^ random();
+	return chash_get_server_hash(px, hash);
+}
+
 /*
  * This function applies the load-balancing algorithm to the stream, as
  * defined by the backend it is assigned to. The stream is then marked as
@@ -615,7 +630,9 @@ int assign_server(struct stream *s)
 		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
-				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
+				if ((s->be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM)
+					srv = get_server_rnd(s);
+				else if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
 					srv = chash_get_next_server(s->be, prev_srv);
 				else
 					srv = map_get_server_rr(s->be, prev_srv);
@@ -1502,6 +1519,10 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 	else if (!strcmp(args[0], "leastconn")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LC;
+	}
+	else if (!strcmp(args[0], "random")) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
 	}
 	else if (!strcmp(args[0], "source")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;

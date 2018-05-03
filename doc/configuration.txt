@@ -2444,6 +2444,16 @@ balance url_param <param> [check_post]
                   changing a server's weight on the fly will have no effect,
                   but this can be changed using "hash-type".
 
+      random      A random number will be used as the key for the consistent
+                  hashing function. This means that the servers' weights are
+                  respected, dynamic weight changes immediately take effect, as
+                  well as new server additions. Random load balancing can be
+                  useful with large farms or when servers are frequently added
+                  or removed. The hash-balance-factor directive can be used to
+                  further improve fairness of the load balancing, especially
+                  in situations where servers show highly variable response
+                  times.
+
       rdp-cookie
       rdp-cookie(<name>)
                   The RDP cookie <name> (or "mstshash" if omitted) will be
@@ -3641,6 +3651,9 @@ hash-balance-factor <factor>
   found. A higher <factor> allows more imbalance between the servers, while a
   lower <factor> means that more servers will be checked on average, affecting
   performance. Reasonable values are from 125 to 200.
+
+  This setting is also used by "balance random" which internally relies on the
+  consistent hashing mechanism.
 
   See also : "balance" and "hash-type".
 
