@@ -39,6 +39,7 @@ unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
+THREAD_LOCAL struct eb32sc_node *rq_next = NULL; /* Next task to be potentially run */
 
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) rq_lock); /* spin lock related to run queue */
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lock related to wait queue */
@@ -186,7 +187,6 @@ void process_runnable_tasks()
 	struct task *t;
 	int i;
 	int max_processed;
-	struct eb32sc_node *rq_next;
 	struct task *local_tasks[16];
 	int local_tasks_count;
 	int final_tasks_count;
@@ -227,8 +227,14 @@ void process_runnable_tasks()
 			 */
 			if (likely(t->process == process_stream))
 				t = process_stream(t);
-			else
-				t = t->process(t);
+			else {
+				if (t->process != NULL)
+					t = t->process(t);
+				else {
+					__task_free(t);
+					t = NULL;
+				}
+			}
 			curr_task = NULL;
 
 			if (likely(t != NULL)) {
@@ -309,8 +315,14 @@ void process_runnable_tasks()
 			curr_task = t;
 			if (likely(t->process == process_stream))
 				t = process_stream(t);
-			else
-				t = t->process(t);
+			else {
+				if (t->process != NULL)
+					t = t->process(t);
+				else {
+					__task_free(t);
+					t = NULL;
+				}
+			}
 			curr_task = NULL;
 			if (t)
 				local_tasks[final_tasks_count++] = t;

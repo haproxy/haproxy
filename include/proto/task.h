@@ -90,6 +90,8 @@ extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_notification;
+extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
+extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
@@ -177,8 +179,11 @@ static inline struct task *__task_unlink_rq(struct task *t)
 static inline struct task *task_unlink_rq(struct task *t)
 {
 	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	if (likely(task_in_rq(t)))
+	if (likely(task_in_rq(t))) {
+		if (&t->rq == rq_next)
+			rq_next = eb32sc_next(rq_next, tid_bit);
 		__task_unlink_rq(t);
+	}
 	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
 }
@@ -230,13 +235,25 @@ static inline struct task *task_new(unsigned long thread_mask)
  * Free a task. Its context must have been freed since it will be lost.
  * The task count is decremented.
  */
-static inline void task_free(struct task *t)
+static inline void __task_free(struct task *t)
 {
 	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
 	HA_ATOMIC_SUB(&nb_tasks, 1);
 }
+
+static inline void task_free(struct task *t)
+{
+	/* There's no need to protect t->state with a lock, as the task
+	 * has to run on the current thread.
+	 */
+	if (t == curr_task || !(t->state & TASK_RUNNING))
+		__task_free(t);
+	else
+		t->process = NULL;
+}
+
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
  * timer is infinite, do nothing and rely on wake_expired_task to clean up.
