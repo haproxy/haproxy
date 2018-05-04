@@ -307,9 +307,9 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		 * reference to the last ref_elt being dumped.
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
-			if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
-				LIST_DEL(&appctx->ctx.sess.bref.users);
-				LIST_INIT(&appctx->ctx.sess.bref.users);
+			if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
+				LIST_DEL(&appctx->ctx.map.bref.users);
+				LIST_INIT(&appctx->ctx.map.bref.users);
 			}
 		}
 		return 1;
