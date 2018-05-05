@@ -2423,6 +2423,10 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	}
 	xref_unlock(&socket->xref, peer);
+
+	task_wakeup(s->task, TASK_WOKEN_INIT);
+	/* Return yield waiting for connection. */
+
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
 	return 0;
@@ -2582,8 +2586,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
 	strm->target = &socket_tcp.obj_type;
 
-	task_wakeup(strm->task, TASK_WOKEN_INIT);
-	/* Return yield waiting for connection. */
 	return 1;
 
  out_fail_stream:
