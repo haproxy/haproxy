@@ -838,7 +838,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	struct server *srv;
 	struct listener *lst;
 	int lid;
-	char buffer[10];
+	char buffer[17];
 
 	lua_newtable(L);
 
@@ -878,7 +878,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 		if (lst->name)
 			lua_pushstring(L, lst->name);
 		else {
-			snprintf(buffer, 10, "sock-%d", lid);
+			snprintf(buffer, sizeof(buffer), "sock-%d", lid);
 			lid++;
 			lua_pushstring(L, buffer);
 		}
