@@ -33,10 +33,10 @@ static int kqueue_fd[MAX_THREADS]; // per-thread kqueue_fd
 static THREAD_LOCAL struct kevent *kev = NULL;
 static struct kevent *kev_out = NULL; // Trash buffer for kevent() to write the eventlist in
 
-static int _update_fd(int fd)
+static int _update_fd(int fd, int start)
 {
 	int en;
-	int changes = 0;
+	int changes = start;
 
 	en = fdtab[fd].state;
 
@@ -91,7 +91,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			activity[tid].poll_drop++;
 			continue;
 		}
-		changes += _update_fd(fd);
+		changes = _update_fd(fd, changes);
 	}
 	/* Scan the global update list */
 	for (old_fd = fd = update_list.first; fd != -1; fd = fdtab[fd].update.next) {
@@ -109,7 +109,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 		if (!fdtab[fd].owner)
 			continue;
-		changes += _update_fd(fd);
+		changes = _update_fd(fd, changes);
 	}
 
 	if (changes) {
