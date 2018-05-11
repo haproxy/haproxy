@@ -32,6 +32,7 @@ struct stream;
 
 struct pendconn {
 	int            strm_flags; /* stream flags */
+	unsigned int   queue_idx;  /* value of proxy/server queue_idx at time of enqueue */
 	struct stream *strm;
 	struct proxy  *px;
 	struct server *srv;        /* the server we are waiting for, may be NULL if don't care */

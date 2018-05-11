@@ -210,6 +210,7 @@ struct server {
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	int nbpend;				/* number of pending connections */
+	unsigned int queue_idx;			/* count of pending connections which have been de-queued */
 	int maxqueue;				/* maximum number of pending connections allowed */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	struct be_counters counters;		/* statistics counters */

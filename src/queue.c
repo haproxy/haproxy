@@ -129,10 +129,13 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
  */
 static void __pendconn_unlink(struct pendconn *p)
 {
-	if (p->srv)
+	if (p->srv) {
+		p->strm->logs.srv_queue_pos += p->srv->queue_idx - p->queue_idx;
 		p->srv->nbpend--;
-	else
+	} else {
+		p->strm->logs.prx_queue_pos += p->px->queue_idx - p->queue_idx;
 		p->px->nbpend--;
+	}
 	HA_ATOMIC_SUB(&p->px->totpend, 1);
 	LIST_DEL(&p->list);
 	LIST_INIT(&p->list);
@@ -199,6 +202,7 @@ void pendconn_unlink(struct pendconn *p)
 static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 {
 	struct pendconn *p = NULL;
+	struct pendconn *pp = NULL;
 	struct server   *rsrv;
 
 	rsrv = srv->track;
@@ -213,8 +217,6 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	    (!(srv->flags & SRV_F_BACKUP) ||
 	     (!px->srv_act &&
 	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK))))) {
-		struct pendconn *pp;
-
 		pp = LIST_ELEM(px->pendconns.n, struct pendconn *, list);
 
 		/* If the server pendconn is older than the proxy one,
@@ -235,6 +237,11 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	__pendconn_unlink(p);
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
+
+	if (p != pp)
+		srv->queue_idx++;
+	else
+		px->queue_idx++;
 
 	HA_ATOMIC_ADD(&srv->served, 1);
 	HA_ATOMIC_ADD(&srv->proxy->served, 1);
@@ -272,6 +279,8 @@ void process_srv_queue(struct server *s)
  * are updated accordingly. Returns NULL if no memory is available, otherwise the
  * pendconn itself. If the stream was already marked as served, its flag is
  * cleared. It is illegal to call this function with a non-NULL strm->srv_conn.
+ * The stream's queue position is counted with an offset of -1 because we want
+ * to make sure that being at the first position in the queue reports 1.
  *
  * This function must be called by the stream itself, so in the context of
  * process_stream.
@@ -302,16 +311,16 @@ struct pendconn *pendconn_add(struct stream *strm)
 
 	if (srv) {
 		srv->nbpend++;
-		strm->logs.srv_queue_pos += srv->nbpend;
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
+		p->queue_idx = srv->queue_idx - 1; // for increment
 		LIST_ADDQ(&srv->pendconns, &p->list);
 	}
 	else {
 		px->nbpend++;
-		strm->logs.prx_queue_pos += px->nbpend;
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
+		p->queue_idx = px->queue_idx - 1; // for increment
 		LIST_ADDQ(&px->pendconns, &p->list);
 	}
 	strm->pend_pos = p;
