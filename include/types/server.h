@@ -215,7 +215,7 @@ struct server {
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	struct be_counters counters;		/* statistics counters */
 
-	struct list pendconns;			/* pending connections */
+	struct eb_root pendconns;		/* pending connections */
 	struct list actconns;			/* active connections */
 	struct list *priv_conns;		/* private idle connections attached to stream interfaces */
 	struct list *idle_conns;		/* sharable idle connections attached or not to a stream interface */

@@ -21,7 +21,7 @@
  * A stream does not necessarily have such a pendconn. Thus the pendconn is
  * designated by the stream->pend_pos pointer. This results in some properties :
  *   - pendconn->strm->pend_pos is never NULL for any valid pendconn
- *   - if LIST_ISEMPTY(pendconn->list) is true, the element is unlinked,
+ *   - if p->node.node.leaf_p is NULL, the element is unlinked,
  *     otherwise it necessarily belongs to one of the other lists ; this may
  *     not be atomically checked under threads though ;
  *   - pendconn->px is never NULL if pendconn->list is not empty
@@ -73,6 +73,7 @@
 #include <common/memory.h>
 #include <common/time.h>
 #include <common/hathreads.h>
+#include <eb32tree.h>
 
 #include <proto/queue.h>
 #include <proto/server.h>
@@ -137,8 +138,7 @@ static void __pendconn_unlink(struct pendconn *p)
 		p->px->nbpend--;
 	}
 	HA_ATOMIC_SUB(&p->px->totpend, 1);
-	LIST_DEL(&p->list);
-	LIST_INIT(&p->list);
+	eb32_delete(&p->node);
 }
 
 /* Locks the queue the pendconn element belongs to. This relies on both p->px
@@ -204,20 +204,24 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	struct pendconn *p = NULL;
 	struct pendconn *pp = NULL;
 	struct server   *rsrv;
+	struct eb32_node *node;
 
 	rsrv = srv->track;
 	if (!rsrv)
 		rsrv = srv;
 
 	p = NULL;
-	if (srv->nbpend)
-		p = LIST_ELEM(srv->pendconns.n, struct pendconn *, list);
+	if (srv->nbpend) {
+		node = eb32_first(&srv->pendconns);
+		p = eb32_entry(node, struct pendconn, node);
+	}
 
 	if (srv_currently_usable(rsrv) && px->nbpend &&
 	    (!(srv->flags & SRV_F_BACKUP) ||
 	     (!px->srv_act &&
 	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK))))) {
-		pp = LIST_ELEM(px->pendconns.n, struct pendconn *, list);
+		node = eb32_first(&px->pendconns);
+		pp = eb32_entry(node, struct pendconn, node);
 
 		/* If the server pendconn is older than the proxy one,
 		 * we process the server one.
@@ -303,6 +307,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	px            = strm->be;
 	p->target     = NULL;
 	p->srv        = srv;
+	p->node.key   = 0;
 	p->px         = px;
 	p->strm       = strm;
 	p->strm_flags = strm->flags;
@@ -314,14 +319,14 @@ struct pendconn *pendconn_add(struct stream *strm)
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
 		p->queue_idx = srv->queue_idx - 1; // for increment
-		LIST_ADDQ(&srv->pendconns, &p->list);
+		eb32_insert(&srv->pendconns, &p->node);
 	}
 	else {
 		px->nbpend++;
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
 		p->queue_idx = px->queue_idx - 1; // for increment
-		LIST_ADDQ(&px->pendconns, &p->list);
+		eb32_insert(&px->pendconns, &p->node);
 	}
 	strm->pend_pos = p;
 
@@ -336,7 +341,8 @@ struct pendconn *pendconn_add(struct stream *strm)
  */
 int pendconn_redistribute(struct server *s)
 {
-	struct pendconn *p, *pback;
+	struct pendconn *p;
+	struct eb32_node *node;
 	int xferred = 0;
 
 	/* The REDISP option was specified. We will ignore cookie and force to
@@ -345,7 +351,8 @@ int pendconn_redistribute(struct server *s)
 		return 0;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	list_for_each_entry_safe(p, pback, &s->pendconns, list) {
+	for (node = eb32_first(&s->pendconns); node; node = eb32_next(node)) {
+		p = eb32_entry(&node, struct pendconn, node);
 		if (p->strm_flags & SF_FORCE_PRST)
 			continue;
 
@@ -366,7 +373,8 @@ int pendconn_redistribute(struct server *s)
  */
 int pendconn_grab_from_px(struct server *s)
 {
-	struct pendconn *p, *pback;
+	struct pendconn *p;
+	struct eb32_node *node;
 	int maxconn, xferred = 0;
 
 	if (!srv_currently_usable(s))
@@ -383,7 +391,8 @@ int pendconn_grab_from_px(struct server *s)
 
 	HA_SPIN_LOCK(PROXY_LOCK, &s->proxy->lock);
 	maxconn = srv_dynamic_maxconn(s);
-	list_for_each_entry_safe(p, pback, &s->proxy->pendconns, list) {
+	while ((node = eb32_first(&s->proxy->pendconns))) {
+		p = eb32_entry(&node, struct pendconn, node);
 		if (s->maxconn && s->served + xferred >= maxconn)
 			break;
 
@@ -428,7 +437,7 @@ int pendconn_dequeue(struct stream *strm)
 	 * unlinked, these functions were completely done.
 	 */
 	pendconn_queue_lock(p);
-	is_unlinked = LIST_ISEMPTY(&p->list);
+	is_unlinked = !p->node.node.leaf_p;
 	pendconn_queue_unlock(p);
 
 	if (!is_unlinked)

@@ -322,7 +322,7 @@ struct proxy {
 		int serverfin;                  /* timeout to apply to server half-closed connections */
 	} timeout;
 	char *id, *desc;			/* proxy id (name) and description */
-	struct list pendconns;			/* pending connections with no server assigned yet */
+	struct eb_root pendconns;		/* pending connections with no server assigned yet */
 	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int queue_idx;			/* number of pending connections which have been de-queued */

@@ -1627,7 +1627,7 @@ static struct server *new_server(struct proxy *proxy)
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
 	LIST_INIT(&srv->actconns);
-	LIST_INIT(&srv->pendconns);
+	srv->pendconns = EB_ROOT;
 
 	if ((srv->priv_conns = calloc(global.nbthread, sizeof(*srv->priv_conns))) == NULL)
 		goto free_srv;
