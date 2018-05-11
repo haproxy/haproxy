@@ -2135,7 +2135,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_SRVQUEUE: // %sq
-				ret = ltoa_o(s->logs.srv_queue_size, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(s->logs.srv_queue_pos, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -2143,7 +2143,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_BCKQUEUE:  // %bq
-				ret = ltoa_o(s->logs.prx_queue_size, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(s->logs.prx_queue_pos, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;

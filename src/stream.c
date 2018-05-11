@@ -125,8 +125,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->logs.t_data = -1;
 	s->logs.t_close = 0;
 	s->logs.bytes_in = s->logs.bytes_out = 0;
-	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
-	s->logs.srv_queue_size = 0; /* we will get this number soon */
+	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_pos = 0; /* we will get this number soon */
 
 	/* default logging function */
 	s->do_log = strm_log;

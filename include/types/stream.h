@@ -105,8 +105,8 @@ struct strm_logs {
 	long  t_connect;                /* delay before the connect() to the server succeeds, -1 if never occurs */
 	long  t_data;                   /* delay before the first data byte from the server ... */
 	unsigned long t_close;          /* total stream duration */
-	unsigned long srv_queue_size;   /* number of streams waiting for a connect slot on this server at accept() time (in direct assignment) */
-	unsigned long prx_queue_size;   /* overall number of streams waiting for a connect slot on this instance at accept() time */
+	unsigned long srv_queue_pos;    /* number of streams de-queued while waiting for a connection slot on this server */
+	unsigned long prx_queue_pos;    /* number of streams de-qeuued while waiting for a connection slot on this instance */
 	long long bytes_in;             /* number of bytes transferred from the client to the server */
 	long long bytes_out;            /* number of bytes transferred from the server to the client */
 };

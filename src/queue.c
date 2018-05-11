@@ -302,14 +302,14 @@ struct pendconn *pendconn_add(struct stream *strm)
 
 	if (srv) {
 		srv->nbpend++;
-		strm->logs.srv_queue_size += srv->nbpend;
+		strm->logs.srv_queue_pos += srv->nbpend;
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
 		LIST_ADDQ(&srv->pendconns, &p->list);
 	}
 	else {
 		px->nbpend++;
-		strm->logs.prx_queue_size += px->nbpend;
+		strm->logs.prx_queue_pos += px->nbpend;
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
 		LIST_ADDQ(&px->pendconns, &p->list);

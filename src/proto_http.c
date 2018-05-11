@@ -4426,8 +4426,8 @@ void http_end_txn_clean_session(struct stream *s)
 	s->logs.t_connect = -1;
 	s->logs.t_data = -1;
 	s->logs.t_close = 0;
-	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
-	s->logs.srv_queue_size = 0; /* we will get this number soon */
+	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_pos = 0; /* we will get this number soon */
 
 	s->logs.bytes_in = s->req.total = ci_data(&s->req);
 	s->logs.bytes_out = s->res.total = ci_data(&s->res);
