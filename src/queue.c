@@ -85,6 +85,12 @@
 #include <proto/tcp_rules.h>
 
 
+#define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)
+#define KEY_CLASS(key)                 ((u32)key & 0xfff00000)
+#define KEY_OFFSET(key)                ((u32)key & 0x000fffff)
+#define KEY_CLASS_OFFSET_BOUNDARY(key) (KEY_CLASS(key) | NOW_OFFSET_BOUNDARY())
+#define MAKE_KEY(class, offset)        (((u32)(class + 0x7ff) << 20) | ((u32)(now_ms + offset) & 0xfffff))
+
 struct pool_head *pool_head_pendconn;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -184,6 +190,33 @@ void pendconn_unlink(struct pendconn *p)
 	pendconn_queue_unlock(p);
 }
 
+/* Retrieve the first pendconn from tree <pendconns>. Classes are always
+ * considered first, then the time offset. The time does wrap, so the
+ * lookup is performed twice, one to retrieve the first class and a second
+ * time to retrieve the earliest time in this class.
+ */
+static struct pendconn *pendconn_first(struct eb_root *pendconns)
+{
+	struct eb32_node *node, *node2 = NULL;
+	u32 key;
+
+	node = eb32_first(pendconns);
+	if (!node)
+		return NULL;
+
+	key = KEY_CLASS_OFFSET_BOUNDARY(node->key);
+	node2 = eb32_lookup_ge(pendconns, key);
+
+	if (!node2 ||
+	    KEY_CLASS(node2->key) != KEY_CLASS(node->key)) {
+		/* no other key in the tree, or in this class */
+		return eb32_entry(node, struct pendconn, node);
+	}
+
+	/* found a better key */
+	return eb32_entry(node2, struct pendconn, node);
+}
+
 /* Process the next pending connection from either a server or a proxy, and
  * returns a strictly positive value on success (see below). If no pending
  * connection is found, 0 is returned.  Note that neither <srv> nor <px> may be
@@ -207,40 +240,54 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	struct pendconn *p = NULL;
 	struct pendconn *pp = NULL;
 	struct server   *rsrv;
-	struct eb32_node *node;
+	u32 pkey, ppkey;
 
 	rsrv = srv->track;
 	if (!rsrv)
 		rsrv = srv;
 
 	p = NULL;
-	if (srv->nbpend) {
-		node = eb32_first(&srv->pendconns);
-		p = eb32_entry(node, struct pendconn, node);
-	}
+	if (srv->nbpend)
+		p = pendconn_first(&srv->pendconns);
 
+	pp = NULL;
 	if (srv_currently_usable(rsrv) && px->nbpend &&
 	    (!(srv->flags & SRV_F_BACKUP) ||
 	     (!px->srv_act &&
-	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK))))) {
-		node = eb32_first(&px->pendconns);
-		pp = eb32_entry(node, struct pendconn, node);
+	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK)))))
+		pp = pendconn_first(&px->pendconns);
 
-		/* If the server pendconn is older than the proxy one,
-		 * we process the server one.
-		 */
-		if (p && !tv_islt(&pp->strm->logs.tv_request, &p->strm->logs.tv_request))
-			goto pendconn_found;
-
-		/* Let's switch from the server pendconn to the proxy pendconn */
-		p = pp;
-		goto pendconn_found;
-	}
-
-	if (!p)
+	if (!p && !pp)
 		return 0;
 
-  pendconn_found:
+	if (p && !pp)
+		goto use_p;
+
+	if (pp && !p)
+		goto use_pp;
+
+	if (KEY_CLASS(p->node.key) < KEY_CLASS(pp->node.key))
+		goto use_p;
+
+	if (KEY_CLASS(pp->node.key) < KEY_CLASS(p->node.key))
+		goto use_pp;
+
+	pkey  = KEY_OFFSET(p->node.key);
+	ppkey = KEY_OFFSET(pp->node.key);
+
+	if (pkey < NOW_OFFSET_BOUNDARY())
+		pkey += 0x100000; // key in the future
+
+	if (ppkey < NOW_OFFSET_BOUNDARY())
+		ppkey += 0x100000; // key in the future
+
+	if (pkey <= ppkey)
+		goto use_p;
+
+ use_pp:
+	/* Let's switch from the server pendconn to the proxy pendconn */
+	p = pp;
+ use_p:
 	__pendconn_unlink(p);
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
@@ -281,13 +328,21 @@ void process_srv_queue(struct server *s)
 	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
 }
 
-/* Adds the stream <strm> to the pending connection list of server <strm>->srv
+/* Adds the stream <strm> to the pending connection queue of server <strm>->srv
  * or to the one of <strm>->proxy if srv is NULL. All counters and back pointers
  * are updated accordingly. Returns NULL if no memory is available, otherwise the
  * pendconn itself. If the stream was already marked as served, its flag is
  * cleared. It is illegal to call this function with a non-NULL strm->srv_conn.
  * The stream's queue position is counted with an offset of -1 because we want
  * to make sure that being at the first position in the queue reports 1.
+ *
+ * The queue is sorted by the composition of the priority_class, and the current
+ * timestamp offset by strm->priority_offset. The timestamp is in milliseconds
+ * and truncated to 20 bits, so will wrap every 17m28s575ms.
+ * The offset can be positive or negative, and an offset of 0 puts it in the
+ * middle of this range (~ 8 min). Note that this also means if the adjusted
+ * timestamp wraps around, the request will be misinterpreted as being of
+ * the higest priority for that priority class.
  *
  * This function must be called by the stream itself, so in the context of
  * process_stream.
@@ -310,7 +365,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	px            = strm->be;
 	p->target     = NULL;
 	p->srv        = srv;
-	p->node.key   = 0;
+	p->node.key   = MAKE_KEY(strm->priority_class, strm->priority_offset);
 	p->px         = px;
 	p->strm       = strm;
 	p->strm_flags = strm->flags;
@@ -377,7 +432,6 @@ int pendconn_redistribute(struct server *s)
 int pendconn_grab_from_px(struct server *s)
 {
 	struct pendconn *p;
-	struct eb32_node *node;
 	int maxconn, xferred = 0;
 
 	if (!srv_currently_usable(s))
@@ -394,8 +448,7 @@ int pendconn_grab_from_px(struct server *s)
 
 	HA_SPIN_LOCK(PROXY_LOCK, &s->proxy->lock);
 	maxconn = srv_dynamic_maxconn(s);
-	while ((node = eb32_first(&s->proxy->pendconns))) {
-		p = eb32_entry(&node, struct pendconn, node);
+	while ((p = pendconn_first(&s->proxy->pendconns))) {
 		if (s->maxconn && s->served + xferred >= maxconn)
 			break;
 
