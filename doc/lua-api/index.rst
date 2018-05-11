@@ -1769,6 +1769,24 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :param integer mark: The mark value.
 
+.. js:function:: TXN.set_priority_class(txn, prio)
+
+  This function adjusts the priority class of the transaction. The value should
+  be within the range -2047..2047. Values outside this range will be
+  truncated.
+
+  See the HAProxy configuration.txt file keyword "http-request" action
+  "set-priority-class" for details.
+
+.. js:function:: TXN.set_priority_offset(txn, prio)
+
+  This function adjusts the priority offset of the transaction. The value
+  should be within the range -524287..524287. Values outside this range will be
+  truncated.
+
+  See the HAProxy configuration.txt file keyword "http-request" action
+  "set-priority-offset" for details.
+
 .. _socket_class:
 
 Socket class

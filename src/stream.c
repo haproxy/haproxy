@@ -221,6 +221,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->target = sess->listener ? sess->listener->default_target : NULL;
 
 	s->pend_pos = NULL;
+	s->priority_class = 0;
+	s->priority_offset = 0;
 
 	/* init store persistence */
 	s->store_count = 0;

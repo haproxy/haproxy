@@ -3917,6 +3917,7 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
               replace-value <name> <match-regex> <replace-fmt> |
               set-method <fmt> | set-path <fmt> | set-query <fmt> |
               set-uri <fmt> | set-tos <tos> | set-mark <mark> |
+              set-priority-class <expr> | set-priority-offset <expr>
               add-acl(<file name>) <key fmt> |
               del-acl(<file name>) <key fmt> |
               del-map(<file name>) <key fmt> |
@@ -4112,6 +4113,24 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
       take a different route (for example a cheaper network path for bulk
       downloads). This works on Linux kernels 2.6.32 and above and requires
       admin privileges.
+
+    - "set-priority-class" is used to set the queue priority class of the
+      current request. The value must be a sample expression which converts to
+      an integer in the range -2047..2047. Results outside this range will be
+      truncated. The priority class determines the order in which queued
+      requests are processed. Lower values have higher priority.
+
+    - "set-priority-offset" is used to set the queue priority timestamp offset
+      of the current request. The value must be a sample expression which
+      converts to an integer in the range -524287..524287. Results outside this
+      range will be truncated. When a request is queued, it is ordered first by
+      the priority class, then by the current timestamp adjusted by the given
+      offset in milliseconds. Lower values have higher priority.
+      Note that the resulting timestamp is is only tracked with enough precision
+      for 524,287ms (8m44s287ms). If the request is queued long enough to where
+      the adjusted timestamp exceeds this value, it will be misidentified as
+      highest priority. Thus it is important to set "timeout queue" to a value,
+      where when combined with the offset, does not exceed this limit.
 
     - "add-acl" is used to add a new entry into an ACL. The ACL must be loaded
       from a file (even a dummy empty file). The file name of the ACL to be
@@ -9452,6 +9471,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - accept : the request is accepted
     - reject : the request is rejected and the connection is closed
     - capture : the specified sample expression is captured
+    - set-priority-class <expr> | set-priority-offset <expr>
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
@@ -9512,6 +9532,24 @@ tcp-request content <action> [{if | unless} <condition>]
 
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
+
+  The "set-priority-class" is used to set the queue priority class of the
+  current request. The value must be a sample expression which converts to an
+  integer in the range -2047..2047. Results outside this range will be
+  truncated. The priority class determines the order in which queued requests
+  are processed. Lower values have higher priority.
+
+  The "set-priority-offset" is used to set the queue priority timestamp offset
+  of the current request. The value must be a sample expression which converts
+  to an integer in the range -524287..524287. Results outside this range will be
+  truncated. When a request is queued, it is ordered first by the priority
+  class, then by the current timestamp adjusted by the given offset in
+  milliseconds. Lower values have higher priority.
+  Note that the resulting timestamp is is only tracked with enough precision for
+  524,287ms (8m44s287ms). If the request is queued long enough to where the
+  adjusted timestamp exceeds this value, it will be misidentified as highest
+  priority.  Thus it is important to set "timeout queue" to a value, where when
+  combined with the offset, does not exceed this limit.
 
   The "send-spoe-group" is used to trigger sending of a group of SPOE
   messages. To do so, the SPOE engine used to send messages must be defined, as

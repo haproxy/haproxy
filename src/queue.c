@@ -75,11 +75,14 @@
 #include <common/hathreads.h>
 #include <eb32tree.h>
 
+#include <proto/proto_http.h>
 #include <proto/queue.h>
+#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/tcp_rules.h>
 
 
 struct pool_head *pool_head_pendconn;
@@ -454,6 +457,140 @@ int pendconn_dequeue(struct stream *strm)
 	strm->pend_pos = NULL;
 	pool_free(pool_head_pendconn, p);
 	return 0;
+}
+
+static enum act_return action_set_priority_class(struct act_rule *rule, struct proxy *px,
+                                                 struct session *sess, struct stream *s, int flags)
+{
+	struct sample *smp;
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+	if (!smp)
+		return ACT_RET_CONT;
+
+	s->priority_class = queue_limit_class(smp->data.u.sint);
+	return ACT_RET_CONT;
+}
+
+static enum act_return action_set_priority_offset(struct act_rule *rule, struct proxy *px,
+                                                  struct session *sess, struct stream *s, int flags)
+{
+	struct sample *smp;
+
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
+	if (!smp)
+		return ACT_RET_CONT;
+
+	s->priority_offset = queue_limit_offset(smp->data.u.sint);
+
+	return ACT_RET_CONT;
+}
+
+static enum act_parse_ret parse_set_priority_class(const char **args, int *arg, struct proxy *px,
+                                                   struct act_rule *rule, char **err)
+{
+	unsigned int where = 0;
+
+	rule->arg.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+	                                   px->conf.args.line, err, &px->conf.args);
+	if (!rule->arg.expr)
+		return ACT_RET_PRS_ERR;
+
+	if (px->cap & PR_CAP_FE)
+		where |= SMP_VAL_FE_HRQ_HDR;
+	if (px->cap & PR_CAP_BE)
+		where |= SMP_VAL_BE_HRQ_HDR;
+
+	if (!(rule->arg.expr->fetch->val & where)) {
+		memprintf(err,
+			  "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[0], sample_src_names(rule->arg.expr->fetch->use));
+		free(rule->arg.expr);
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->action     = ACT_CUSTOM;
+	rule->action_ptr = action_set_priority_class;
+	return ACT_RET_PRS_OK;
+}
+
+static enum act_parse_ret parse_set_priority_offset(const char **args, int *arg, struct proxy *px,
+                                                    struct act_rule *rule, char **err)
+{
+	unsigned int where = 0;
+
+	rule->arg.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+	                                   px->conf.args.line, err, &px->conf.args);
+	if (!rule->arg.expr)
+		return ACT_RET_PRS_ERR;
+
+	if (px->cap & PR_CAP_FE)
+		where |= SMP_VAL_FE_HRQ_HDR;
+	if (px->cap & PR_CAP_BE)
+		where |= SMP_VAL_BE_HRQ_HDR;
+
+	if (!(rule->arg.expr->fetch->val & where)) {
+		memprintf(err,
+			  "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[0], sample_src_names(rule->arg.expr->fetch->use));
+		free(rule->arg.expr);
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->action     = ACT_CUSTOM;
+	rule->action_ptr = action_set_priority_offset;
+	return ACT_RET_PRS_OK;
+}
+
+static struct action_kw_list tcp_cont_kws = {ILH, {
+	{ "set-priority-class", parse_set_priority_class },
+	{ "set-priority-offset", parse_set_priority_offset },
+	{ /* END */ }
+}};
+
+static struct action_kw_list http_req_kws = {ILH, {
+	{ "set-priority-class", parse_set_priority_class },
+	{ "set-priority-offset", parse_set_priority_offset },
+	{ /* END */ }
+}};
+
+static int
+smp_fetch_priority_class(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->priority_class;
+
+	return 1;
+}
+
+static int
+smp_fetch_priority_offset(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->priority_offset;
+
+	return 1;
+}
+
+
+static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "prio_class", smp_fetch_priority_class, 0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "prio_offset", smp_fetch_priority_offset, 0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ /* END */},
+}};
+
+__attribute__((constructor))
+static void __queue_init(void)
+{
+	tcp_req_cont_keywords_register(&tcp_cont_kws);
+	http_req_keywords_register(&http_req_kws);
+	sample_register_fetches(&smp_kws);
 }
 
 /*

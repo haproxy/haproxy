@@ -44,6 +44,7 @@
 #include <proto/hlua_fcn.h>
 #include <proto/map.h>
 #include <proto/obj_type.h>
+#include <proto/queue.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
@@ -5388,6 +5389,26 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 	return 0;
 }
 
+__LJMP static int hlua_txn_set_priority_class(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "set_priority_class"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	htxn->s->priority_class = queue_limit_class(MAY_LJMP(luaL_checkinteger(L, 2)));
+	return 0;
+}
+
+__LJMP static int hlua_txn_set_priority_offset(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "set_priority_offset"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	htxn->s->priority_offset = queue_limit_offset(MAY_LJMP(luaL_checkinteger(L, 2)));
+	return 0;
+}
+
 /* This function is an Lua binding that send pending data
  * to the client, and close the stream interface.
  */
@@ -7931,21 +7952,23 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
-	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
-	hlua_class_function(gL.T, "set_var",     hlua_set_var);
-	hlua_class_function(gL.T, "unset_var",   hlua_unset_var);
-	hlua_class_function(gL.T, "get_var",     hlua_get_var);
-	hlua_class_function(gL.T, "done",        hlua_txn_done);
-	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);
-	hlua_class_function(gL.T, "set_tos",     hlua_txn_set_tos);
-	hlua_class_function(gL.T, "set_mark",    hlua_txn_set_mark);
-	hlua_class_function(gL.T, "deflog",      hlua_txn_deflog);
-	hlua_class_function(gL.T, "log",         hlua_txn_log);
-	hlua_class_function(gL.T, "Debug",       hlua_txn_log_debug);
-	hlua_class_function(gL.T, "Info",        hlua_txn_log_info);
-	hlua_class_function(gL.T, "Warning",     hlua_txn_log_warning);
-	hlua_class_function(gL.T, "Alert",       hlua_txn_log_alert);
+	hlua_class_function(gL.T, "set_priv",            hlua_set_priv);
+	hlua_class_function(gL.T, "get_priv",            hlua_get_priv);
+	hlua_class_function(gL.T, "set_var",             hlua_set_var);
+	hlua_class_function(gL.T, "unset_var",           hlua_unset_var);
+	hlua_class_function(gL.T, "get_var",             hlua_get_var);
+	hlua_class_function(gL.T, "done",                hlua_txn_done);
+	hlua_class_function(gL.T, "set_loglevel",        hlua_txn_set_loglevel);
+	hlua_class_function(gL.T, "set_tos",             hlua_txn_set_tos);
+	hlua_class_function(gL.T, "set_mark",            hlua_txn_set_mark);
+	hlua_class_function(gL.T, "set_priority_class",  hlua_txn_set_priority_class);
+	hlua_class_function(gL.T, "set_priority_offset", hlua_txn_set_priority_offset);
+	hlua_class_function(gL.T, "deflog",              hlua_txn_deflog);
+	hlua_class_function(gL.T, "log",                 hlua_txn_log);
+	hlua_class_function(gL.T, "Debug",               hlua_txn_log_debug);
+	hlua_class_function(gL.T, "Info",                hlua_txn_log_info);
+	hlua_class_function(gL.T, "Warning",             hlua_txn_log_warning);
+	hlua_class_function(gL.T, "Alert",               hlua_txn_log_alert);
 
 	lua_rawset(gL.T, -3);
 

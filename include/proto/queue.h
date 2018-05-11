@@ -90,6 +90,25 @@ static inline int may_dequeue_tasks(const struct server *s, const struct proxy *
 		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)));
 }
 
+static inline int queue_limit_class(int class)
+{
+	if (class < -0x7ff)
+		return -0x7ff;
+	if (class > 0x7ff)
+		return 0x7ff;
+	return class;
+}
+
+static inline int queue_limit_offset(int offset)
+{
+	if (offset < -0x7ffff)
+		return -0x7ffff;
+	if (offset > 0x7ffff)
+		return 0x7ffff;
+	return offset;
+}
+
+
 #endif /* _PROTO_QUEUE_H */
 
 /*
