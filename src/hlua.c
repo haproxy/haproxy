@@ -1629,13 +1629,11 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 /* The close function send shutdown signal and break the
  * links between the stream and the object.
  */
-__LJMP static int hlua_socket_close(lua_State *L)
+__LJMP static int hlua_socket_close_helper(lua_State *L)
 {
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct xref *peer;
-
-	MAY_LJMP(check_args(L, 1, "close"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
@@ -1657,6 +1655,14 @@ __LJMP static int hlua_socket_close(lua_State *L)
 	/* Remove all reference between the Lua stack and the coroutine stream. */
 	xref_disconnect(&socket->xref, peer);
 	return 0;
+}
+
+/* The close function calls close_helper.
+ */
+__LJMP static int hlua_socket_close(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "close"));
+	return hlua_socket_close_helper(L);
 }
 
 /* This Lua function assumes that the stack contain three parameters.
@@ -1990,7 +1996,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 		if (len == -1)
 			s->req.flags |= CF_WAKE_WRITE;
 
-		MAY_LJMP(hlua_socket_close(L));
+		MAY_LJMP(hlua_socket_close_helper(L));
 		lua_pop(L, 1);
 		lua_pushinteger(L, -1);
 		xref_unlock(&socket->xref, peer);
