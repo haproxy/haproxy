@@ -109,8 +109,9 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 	chunk_strcat(tmp, stats_sock_usage_msg);
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		kw = &kw_list->kw[0];
-		while (kw->usage) {
-			chunk_appendf(tmp, "  %s\n", kw->usage);
+		while (kw->str_kw[0]) {
+			if (kw->usage)
+				chunk_appendf(tmp, "  %s\n", kw->usage);
 			kw++;
 		}
 	}
