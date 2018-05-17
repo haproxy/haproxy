@@ -1811,15 +1811,15 @@ ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SS
 	struct lru64 *lru = NULL;
 
 	if (ssl_ctx_lru_tree) {
-		HA_RWLOCK_RDLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
 		if (lru && lru->domain) {
 			if (ssl)
 				SSL_set_SSL_CTX(ssl, (SSL_CTX *)lru->data);
-			HA_RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+			HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return (SSL_CTX *)lru->data;
 		}
-		HA_RWLOCK_RDUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
+		HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 	}
 	return NULL;
 }
