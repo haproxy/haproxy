@@ -92,6 +92,8 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
 extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
+extern struct eb_root rqueue;      /* tree constituting the run queue */
+extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
@@ -109,25 +111,28 @@ static inline int task_in_wq(struct task *t)
 }
 
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
-struct task *__task_wakeup(struct task *t);
-static inline struct task *task_wakeup(struct task *t, unsigned int f)
+/* This will put the task in the local runqueue if the task is only runnable
+ * by the current thread, in the global runqueue otherwies.
+ */
+void __task_wakeup(struct task *t, struct eb_root *);
+static inline void task_wakeup(struct task *t, unsigned int f)
 {
-	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	unsigned short state;
 
-	/* If task is running, we postpone the call
-	 * and backup the state.
-	 */
-	if (unlikely(t->state & TASK_RUNNING)) {
-		t->pending_state |= f;
-		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-		return t;
-	}
-	if (likely(!task_in_rq(t)))
-		__task_wakeup(t);
-	t->state |= f;
-	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+#ifdef USE_THREAD
+	struct eb_root *root;
 
-	return t;
+	if (t->thread_mask == tid_bit && global.nbthread > 1)
+		root = &rqueue_local[tid];
+	else
+		root = &rqueue;
+#else
+	struct eb_root *root = &rqueue;
+#endif
+
+	state = HA_ATOMIC_OR(&t->state, f);
+	if (!(state & TASK_RUNNING))
+		__task_wakeup(t, root);
 }
 
 /* change the thread affinity of a task to <thread_mask> */
@@ -167,9 +172,9 @@ static inline struct task *task_unlink_wq(struct task *t)
 static inline struct task *__task_unlink_rq(struct task *t)
 {
 	eb32sc_delete(&t->rq);
-	tasks_run_queue--;
+	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	if (likely(t->nice))
-		niced_tasks--;
+		HA_ATOMIC_SUB(&niced_tasks, 1);
 	return t;
 }
 
@@ -178,13 +183,15 @@ static inline struct task *__task_unlink_rq(struct task *t)
  */
 static inline struct task *task_unlink_rq(struct task *t)
 {
-	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+	if (t->thread_mask != tid_bit)
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	if (likely(task_in_rq(t))) {
 		if (&t->rq == rq_next)
 			rq_next = eb32sc_next(rq_next, tid_bit);
 		__task_unlink_rq(t);
 	}
-	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+	if (t->thread_mask != tid_bit)
+		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
 }
 
@@ -208,7 +215,7 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 {
 	t->wq.node.leaf_p = NULL;
 	t->rq.node.leaf_p = NULL;
-	t->pending_state = t->state = TASK_SLEEPING;
+	t->state = TASK_SLEEPING;
 	t->thread_mask = thread_mask;
 	t->nice = 0;
 	t->calls = 0;
