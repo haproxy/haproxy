@@ -1957,6 +1957,9 @@ ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 #ifndef SSL_MODE_SMALL_BUFFERS                          /* needs small_records.patch */
 #define SSL_MODE_SMALL_BUFFERS 0
 #endif
+#ifndef SSL_OP_PRIORITIZE_CHACHA                        /* needs OpenSSL >= 1.1.1 */
+#define SSL_OP_PRIORITIZE_CHACHA 0
+#endif
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
@@ -3711,6 +3714,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_OP_SINGLE_DH_USE |
 		SSL_OP_SINGLE_ECDH_USE |
 		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+		SSL_OP_PRIORITIZE_CHACHA |
 		SSL_OP_CIPHER_SERVER_PREFERENCE;
 	long mode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |

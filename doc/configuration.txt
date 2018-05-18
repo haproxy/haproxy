@@ -10961,6 +10961,9 @@ prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
   the server's preference is enforced. This option is also available on
   global statement "ssl-default-bind-options".
+  Note that with OpenSSL >= 1.1.1 ChaCha20-Poly1305 is reprioritized anyway
+  (without setting this option), if a ChaCha20-Poly1305 cipher is at the top of
+  the client cipher list.
 
 process <process-set>[/<thread-set>]
   This restricts the list of processes and/or threads on which this listener is
