@@ -694,7 +694,12 @@ actions.
     KV-NAME          : <STRING>
     KV-VALUE         : <TYPED-DATA>
 
-    FLAGS :   0   1      2-31
+    FLAGS :
+
+    Flags are a 32 bits field. They are encoded on 4 bytes in network byte
+    order, where the bit 0 is the LSB.
+
+              0   1      2-31
             +---+---+----------+
             |   | A |          |
             | F | B |          |
