@@ -89,11 +89,14 @@ extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
+extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
 extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
 extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
+extern struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
+extern int task_list_size[MAX_THREADS]; /* Number of task sin the task_list */
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
@@ -101,7 +104,10 @@ __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait qu
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
 {
-	return t->rq.node.leaf_p != NULL;
+	/* Check if leaf_p is NULL, in case he's not in the runqueue, and if
+	 * it's not 0x1, which would mean it's in the tasklet list.
+	 */
+	return t->rq.node.leaf_p != NULL && t->rq.node.leaf_p != (void *)0x1;
 }
 
 /* return 0 if task is in wait queue, otherwise non-zero */
@@ -122,7 +128,7 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 #ifdef USE_THREAD
 	struct eb_root *root;
 
-	if (t->thread_mask == tid_bit && global.nbthread > 1)
+	if (t->thread_mask == tid_bit || global.nbthread == 1)
 		root = &rqueue_local[tid];
 	else
 		root = &rqueue;
@@ -172,7 +178,6 @@ static inline struct task *task_unlink_wq(struct task *t)
 static inline struct task *__task_unlink_rq(struct task *t)
 {
 	eb32sc_delete(&t->rq);
-	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	if (likely(t->nice))
 		HA_ATOMIC_SUB(&niced_tasks, 1);
 	return t;
@@ -193,6 +198,41 @@ static inline struct task *task_unlink_rq(struct task *t)
 	if (t->thread_mask != tid_bit)
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
+}
+
+static inline void tasklet_wakeup(struct tasklet *tl)
+{
+	LIST_ADDQ(&task_list[tid], &tl->list);
+	task_list_size[tid]++;
+	HA_ATOMIC_ADD(&tasks_run_queue, 1);
+
+}
+
+static inline void task_insert_into_tasklet_list(struct task *t)
+{
+	struct tasklet *tl;
+	void *expected = NULL;
+
+	/* Protect ourself against anybody trying to insert the task into
+	 * another runqueue. We set leaf_p to 0x1 to indicate that the node is
+	 * not in a tree but that it's in the tasklet list. See task_in_rq().
+	 */
+	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, 0x1)))
+		return;
+	task_list_size[tid]++;
+	tl = (struct tasklet *)t;
+	LIST_ADDQ(&task_list[tid], &tl->list);
+}
+
+static inline void task_remove_from_task_list(struct task *t)
+{
+	LIST_DEL(&((struct tasklet *)t)->list);
+	task_list_size[tid]--;
+	HA_ATOMIC_SUB(&tasks_run_queue, 1);
+	if (!TASK_IS_TASKLET(t)) {
+		t->rq.node.leaf_p = NULL; // was 0x1
+		__ha_barrier_store();
+	}
 }
 
 /*
@@ -220,6 +260,24 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->nice = 0;
 	t->calls = 0;
 	t->expire = TICK_ETERNITY;
+	return t;
+}
+
+static inline void tasklet_init(struct tasklet *t)
+{
+	t->nice = -32768;
+	t->calls = 0;
+	t->state = 0;
+	t->list.p = t->list.n = NULL;
+}
+
+static inline struct tasklet *tasklet_new(void)
+{
+	struct tasklet *t = pool_alloc(pool_head_tasklet);
+
+	if (t) {
+		tasklet_init(t);
+	}
 	return t;
 }
 
@@ -261,6 +319,13 @@ static inline void task_free(struct task *t)
 		t->process = NULL;
 }
 
+
+static inline void tasklet_free(struct tasklet *tl)
+{
+	pool_free(pool_head_tasklet, tl);
+	if (unlikely(stopping))
+		pool_flush(pool_head_tasklet);
+}
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
  * timer is infinite, do nothing and rely on wake_expired_task to clean up.

@@ -60,19 +60,34 @@ struct notification {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
+/* This part is common between struct task and struct tasklet so that tasks
+ * can be used as-is as tasklets.
+ */
+#define TASK_COMMON							\
+	struct {							\
+		unsigned short state; /* task state : bitfield of TASK_	*/ \
+		short nice; /* task prio from -1024 to +1024, or -32768 for tasklets */ \
+		unsigned int calls; /* number of times process was called */ \
+		struct task *(*process)(struct task *t, void *ctx, unsigned short state); /* the function which processes the task */ \
+		void *context; /* the task's context */			\
+	}
+
 /* The base for all tasks */
 struct task {
+	TASK_COMMON;			/* must be at the beginning! */
 	struct eb32sc_node rq;		/* ebtree node used to hold the task in the run queue */
-	unsigned short state;		/* task state : bit field of TASK_* */
-	unsigned short pending_state;	/* pending states for running talk */
-	short nice;			/* the task's current nice value from -1024 to +1024 */
-	unsigned int calls;		/* number of times ->process() was called */
-	struct task * (*process)(struct task *t, void *ctx, unsigned short state);  /* the function which processes the task */
-	void *context;			/* the task's context */
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
 	int expire;			/* next expiration date for this task, in ticks */
 	unsigned long thread_mask;	/* mask of thread IDs authorized to process the task */
 };
+
+/* lightweight tasks, without priority, mainly used for I/Os */
+struct tasklet {
+	TASK_COMMON;			/* must be at the beginning! */
+	struct list list;
+};
+
+#define TASK_IS_TASKLET(t) ((t)->nice == -32768)
 
 /*
  * The task callback (->process) is responsible for updating ->expire. It must

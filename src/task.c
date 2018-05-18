@@ -25,6 +25,7 @@
 #include <proto/task.h>
 
 struct pool_head *pool_head_task;
+struct pool_head *pool_head_tasklet;
 
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each requiered signal between two tasks.
@@ -40,6 +41,9 @@ unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
 THREAD_LOCAL struct eb32sc_node *rq_next = NULL; /* Next task to be potentially run */
+
+struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
+int task_list_size[MAX_THREADS]; /* Number of tasks in the task_list */
 
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) rq_lock); /* spin lock related to run queue */
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lock related to wait queue */
@@ -240,20 +244,32 @@ void process_runnable_tasks()
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = 200;
-	if (unlikely(global.nbthread <= 1)) {
-		/* when no lock is needed, this loop is much faster */
+
+	if (likely(global.nbthread > 1)) {
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		if (!(active_tasks_mask & tid_bit)) {
+			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 			activity[tid].empty_rq++;
 			return;
 		}
 
-		active_tasks_mask &= ~tid_bit;
-		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
-		while (1) {
-			if (!rq_next) {
-				/* we might have reached the end of the tree, typically because
-				 * <rqueue_ticks> is in the first half and we're first scanning
-				 * the last half. Let's loop back to the beginning of the tree now.
+		average = tasks_run_queue / global.nbthread;
+
+		/* Get some elements from the global run queue and put it in the
+		 * local run queue. To try to keep a bit of fairness, just get as
+		 * much elements from the global list as to have a bigger local queue
+		 * than the average.
+		 */
+		while (rqueue_size[tid] <= average) {
+
+			/* we have to restart looking up after every batch */
+			rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			if (unlikely(!rq_next)) {
+				/* either we just started or we reached the end
+				 * of the tree, typically because <rqueue_ticks>
+				 * is in the first half and we're first scanning
+				 * the last half. Let's loop back to the beginning
+				 * of the tree now.
 				 */
 				rq_next = eb32sc_first(&rqueue, tid_bit);
 				if (!rq_next)
@@ -266,90 +282,22 @@ void process_runnable_tasks()
 
 			/* detach the task from the queue */
 			__task_unlink_rq(t);
-			t->state |= TASK_RUNNING;
-
-			t->calls++;
-			curr_task = t;
-			/* This is an optimisation to help the processor's branch
-			 * predictor take this most common call.
-			 */
-			if (likely(t->process == process_stream))
-				t = process_stream(t, t->context, t->state);
-			else {
-				if (t->process != NULL)
-					t = t->process(t, t->context, t->state);
-				else {
-					__task_free(t);
-					t = NULL;
-				}
-			}
-			curr_task = NULL;
-
-			if (likely(t != NULL)) {
-				t->state &= ~TASK_RUNNING;
-				/* If there is a pending state
-				 * we have to wake up the task
-				 * immediatly, else we defer
-				 * it into wait queue
-				 */
-				if (t->state)
-					__task_wakeup(t, &rqueue);
-				else
-					task_queue(t);
-			}
-
-			max_processed--;
-			if (max_processed <= 0) {
-				active_tasks_mask |= tid_bit;
-				activity[tid].long_rq++;
-				break;
-			}
+			__task_wakeup(t, &rqueue_local[tid]);
 		}
-		return;
-	}
 
-	HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	if (!(active_tasks_mask & tid_bit)) {
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-		activity[tid].empty_rq++;
-		return;
-	}
-
-	average = tasks_run_queue / global.nbthread;
-
-	/* Get some elements from the global run queue and put it in the
-	 * local run queue. To try to keep a bit of fairness, just get as
-	 * much elements from the global list as to have a bigger local queue
-	 * than the average.
-	 */
-	while (rqueue_size[tid] <= average) {
-
-		/* we have to restart looking up after every batch */
-		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
-		if (unlikely(!rq_next)) {
-			/* either we just started or we reached the end
-			 * of the tree, typically because <rqueue_ticks>
-			 * is in the first half and we're first scanning
-			 * the last half. Let's loop back to the beginning
-			 * of the tree now.
-			 */
-			rq_next = eb32sc_first(&rqueue, tid_bit);
-			if (!rq_next)
-				break;
+	} else {
+		if (!(active_tasks_mask & tid_bit)) {
+			activity[tid].empty_rq++;
+			return;
 		}
-
-		t = eb32sc_entry(rq_next, struct task, rq);
-		rq_next = eb32sc_next(rq_next, tid_bit);
-
-		/* detach the task from the queue */
-		__task_unlink_rq(t);
-		__task_wakeup(t, &rqueue_local[tid]);
 	}
-
-	HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	active_tasks_mask &= ~tid_bit;
-	while (1) {
-		unsigned short state;
+	/* Get some tasks from the run queue, make sure we don't
+	 * get too much in the task list, but put a bit more than
+	 * the max that will be run, to give a bit more fairness
+	 */
+	while (max_processed + 20 > task_list_size[tid]) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
@@ -370,18 +318,42 @@ void process_runnable_tasks()
 		}
 		t = eb32sc_entry(rq_next, struct task, rq);
 		rq_next = eb32sc_next(rq_next, tid_bit);
+		/* Make sure nobody re-adds the task in the runqueue */
+		HA_ATOMIC_OR(&t->state, TASK_RUNNING);
 
-		state = HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		/* detach the task from the queue */
 		__task_unlink_rq(t);
-		t->calls++;
-		max_processed--;
+		/* And add it to the local task list */
+		task_insert_into_tasklet_list(t);
+	}
+	while (max_processed > 0 && !LIST_ISEMPTY(&task_list[tid])) {
+		struct task *t;
+		unsigned short state;
+		void *ctx;
+		struct task *(*process)(struct task *t, void *ctx, unsigned short state);
+
+		t = (struct task *)LIST_ELEM(task_list[tid].n, struct tasklet *, list);
+		state = HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
+		__ha_barrier_store();
+		task_remove_from_task_list(t);
+
+		ctx = t->context;
+		process = t->process;
 		rqueue_size[tid]--;
-		curr_task = t;
-		if (likely(t->process == process_stream))
-			t = process_stream(t, t->context, state);
-		else
-			t = t->process(t, t->context, state);
+		t->calls++;
+		curr_task = (struct task *)t;
+		if (TASK_IS_TASKLET(t))
+			t = NULL;
+		if (likely(process == process_stream))
+			t = process_stream(t, ctx, state);
+		else {
+			if (t->process != NULL)
+				t = process(t, ctx, state);
+			else {
+				__task_free(t);
+				t = NULL;
+			}
+		}
 		curr_task = NULL;
 		/* If there is a pending state  we have to wake up the task
 		 * immediatly, else we defer it into wait queue
@@ -412,10 +384,16 @@ int init_task()
 	memset(&rqueue, 0, sizeof(rqueue));
 	HA_SPIN_INIT(&wq_lock);
 	HA_SPIN_INIT(&rq_lock);
-	for (i = 0; i < MAX_THREADS; i++)
+	for (i = 0; i < MAX_THREADS; i++) {
 		memset(&rqueue_local[i], 0, sizeof(rqueue_local[i]));
+		LIST_INIT(&task_list[i]);
+		task_list_size[i] = 0;
+	}
 	pool_head_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
 	if (!pool_head_task)
+		return 0;
+	pool_head_tasklet = create_pool("tasklet", sizeof(struct tasklet), MEM_F_SHARED);
+	if (!pool_head_tasklet)
 		return 0;
 	pool_head_notification = create_pool("notification", sizeof(struct notification), MEM_F_SHARED);
 	if (!pool_head_notification)
