@@ -465,6 +465,7 @@ handle_hahello(struct spoe_frame *frame)
 
 	/* Retrieve flags */
 	memcpy((char *)&(frame->flags), p, 4);
+	frame->flags = ntohl(frame->flags);
 	p += 4;
 
 	/* Fragmentation is not supported for HELLO frame */
@@ -572,6 +573,7 @@ handle_hadiscon(struct spoe_frame *frame)
 
 	/* Retrieve flags */
 	memcpy((char *)&(frame->flags), p, 4);
+	frame->flags = ntohl(frame->flags);
 	p += 4;
 
 	/* Fragmentation is not supported for DISCONNECT frame */
@@ -653,6 +655,7 @@ handle_hanotify(struct spoe_frame *frame)
 
 	/* Retrieve flags */
 	memcpy((char *)&(frame->flags), p, 4);
+	frame->flags = ntohl(frame->flags);
 	p += 4;
 
 	/* Fragmentation is not supported */
@@ -715,6 +718,7 @@ handle_hafrag(struct spoe_frame *frame)
 
 	/* Retrieve flags */
 	memcpy((char *)&(frame->flags), p, 4);
+	frame->flags = ntohl(frame->flags);
 	p+= 4;
 
 	/* Read the stream-id and frame-id */
@@ -777,6 +781,7 @@ prepare_agenthello(struct spoe_frame *frame)
 	*p++ = SPOE_FRM_T_AGENT_HELLO;
 
 	/* Set flags */
+	flags = htonl(flags);
 	memcpy(p, (char *)&flags, 4);
 	p += 4;
 
@@ -858,6 +863,7 @@ prepare_agentdicon(struct spoe_frame *frame)
 	*p++ = SPOE_FRM_T_AGENT_DISCON;
 
 	/* Set flags */
+	flags = htonl(flags);
 	memcpy(p, (char *)&flags, 4);
 	p += 4;
 
@@ -905,6 +911,7 @@ prepare_agentack(struct spoe_frame *frame)
 	*p++ = SPOE_FRM_T_AGENT_ACK;
 
 	/* Set flags */
+	flags = htonl(flags);
 	memcpy(p, (char *)&flags, 4);
 	p += 4;
 
