@@ -7954,8 +7954,12 @@ void hlua_init(void)
 	}
 
 	/* Initialize SSL server. */
-	if (socket_ssl.xprt->prepare_srv)
+	if (socket_ssl.xprt->prepare_srv) {
+		int saved_used_backed = global.ssl_used_backend;
+		// don't affect maxconn automatic computation
 		socket_ssl.xprt->prepare_srv(&socket_ssl);
+		global.ssl_used_backend = saved_used_backed;
+	}
 #endif
 
 	RESET_SAFE_LJMP(gL.T);
