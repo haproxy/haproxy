@@ -2936,7 +2936,8 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			server_recalc_eweight(srv);
 
 			/* load server IP address */
-			srv->lastaddr = strdup(params[0]);
+			if (strcmp(params[0], "-"))
+				srv->lastaddr = strdup(params[0]);
 
 			if (fqdn && srv->hostname) {
 				if (!strcmp(srv->hostname, fqdn)) {

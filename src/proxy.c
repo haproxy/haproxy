@@ -1450,6 +1450,9 @@ static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
 				inet_ntop(srv->addr.ss_family, &((struct sockaddr_in6 *)&srv->addr)->sin6_addr,
 					  srv_addr, INET6_ADDRSTRLEN + 1);
 				break;
+			default:
+				memcpy(srv_addr, "-\0", 2);
+				break;
 		}
 		srv_time_since_last_change = now.tv_sec - srv->last_change;
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
