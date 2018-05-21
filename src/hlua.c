@@ -1034,12 +1034,7 @@ resume_execution:
 		lua->run_time += now_ms - lua->start_time;
 		if (lua->max_time && lua->run_time > lua->max_time) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
-			if (!lua_checkstack(lua->T, 1)) {
-				ret = HLUA_E_ERR;
-				break;
-			}
-			lua_pushfstring(lua->T, "execution timeout");
-			ret = HLUA_E_ERRMSG;
+			ret = HLUA_E_ETMOUT;
 			break;
 		}
 		/* Process the forced yield. if the general yield is not allowed or
@@ -1055,12 +1050,7 @@ resume_execution:
 		}
 		if (!yield_allowed) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
-			if (!lua_checkstack(lua->T, 1)) {
-				ret = HLUA_E_ERR;
-				break;
-			}
-			lua_pushfstring(lua->T, "yield not allowed");
-			ret = HLUA_E_ERRMSG;
+			ret = HLUA_E_YIELD;
 			break;
 		}
 		ret = HLUA_E_AGAIN;
@@ -1096,12 +1086,7 @@ resume_execution:
 	case LUA_ERRMEM:
 		lua->wake_time = TICK_ETERNITY;
 		lua_settop(lua->T, 0); /* Empty the stack. */
-		if (!lua_checkstack(lua->T, 1)) {
-			ret = HLUA_E_ERR;
-			break;
-		}
-		lua_pushfstring(lua->T, "out of memory error");
-		ret = HLUA_E_ERRMSG;
+		ret = HLUA_E_NOMEM;
 		break;
 
 	case LUA_ERRERR:
@@ -1123,12 +1108,7 @@ resume_execution:
 	default:
 		lua->wake_time = TICK_ETERNITY;
 		lua_settop(lua->T, 0); /* Empty the stack. */
-		if (!lua_checkstack(lua->T, 1)) {
-			ret = HLUA_E_ERR;
-			break;
-		}
-		lua_pushfstring(lua->T, "unknonwn error");
-		ret = HLUA_E_ERRMSG;
+		ret = HLUA_E_ERR;
 		break;
 	}
 
@@ -1147,6 +1127,9 @@ resume_execution:
 		HLUA_CLR_RUN(lua);
 		break;
 
+	case HLUA_E_ETMOUT:
+	case HLUA_E_NOMEM:
+	case HLUA_E_YIELD:
 	case HLUA_E_ERR:
 		HLUA_CLR_RUN(lua);
 		notification_purge(&lua->com);
@@ -5756,6 +5739,18 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		lua_pop(stream->hlua->T, 1);
 		return 0;
 
+	case HLUA_E_ETMOUT:
+		SEND_ERR(stream->be, "Lua converter '%s': execution timeout.\n", fcn->name);
+		return 0;
+
+	case HLUA_E_NOMEM:
+		SEND_ERR(stream->be, "Lua converter '%s': out of memory error.\n", fcn->name);
+		return 0;
+
+	case HLUA_E_YIELD:
+		SEND_ERR(stream->be, "Lua converter '%s': yield functions like core.tcp() or core.sleep() are not allowed.\n", fcn->name);
+		return 0;
+
 	case HLUA_E_ERR:
 		/* Display log. */
 		SEND_ERR(stream->be, "Lua converter '%s' returns an unknown error.\n", fcn->name);
@@ -5886,6 +5881,24 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
 		         fcn->name, lua_tostring(stream->hlua->T, -1));
 		lua_pop(stream->hlua->T, 1);
+		return 0;
+
+	case HLUA_E_ETMOUT:
+		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
+			stream_int_retnclose(&stream->si[0], &msg);
+		SEND_ERR(smp->px, "Lua sample-fetch '%s': execution timeout.\n", fcn->name);
+		return 0;
+
+	case HLUA_E_NOMEM:
+		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
+			stream_int_retnclose(&stream->si[0], &msg);
+		SEND_ERR(smp->px, "Lua sample-fetch '%s': out of memory error.\n", fcn->name);
+		return 0;
+
+	case HLUA_E_YIELD:
+		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
+			stream_int_retnclose(&stream->si[0], &msg);
+		SEND_ERR(smp->px, "Lua sample-fetch '%s': yield not allowed.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_ERR:
@@ -6162,6 +6175,31 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		lua_pop(s->hlua->T, 1);
 		return ACT_RET_CONT;
 
+	case HLUA_E_ETMOUT:
+		if (!consistency_check(s, dir, &s->hlua->cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
+			return ACT_RET_ERR;
+		}
+		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn.name);
+		return 0;
+
+	case HLUA_E_NOMEM:
+		if (!consistency_check(s, dir, &s->hlua->cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
+			return ACT_RET_ERR;
+		}
+		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn.name);
+		return 0;
+
+	case HLUA_E_YIELD:
+		if (!consistency_check(s, dir, &s->hlua->cons)) {
+			stream_int_retnclose(&s->si[0], &msg);
+			return ACT_RET_ERR;
+		}
+		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
+		         rule->arg.hlua_rule->fcn.name);
+		return 0;
+
 	case HLUA_E_ERR:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			stream_int_retnclose(&s->si[0], &msg);
@@ -6334,6 +6372,21 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(hlua->T, -1));
 		lua_pop(hlua->T, 1);
+		goto error;
+
+	case HLUA_E_ETMOUT:
+		SEND_ERR(px, "Lua applet tcp '%s': execution timeout.\n",
+		         rule->arg.hlua_rule->fcn.name);
+		goto error;
+
+	case HLUA_E_NOMEM:
+		SEND_ERR(px, "Lua applet tcp '%s': out of memory error.\n",
+		         rule->arg.hlua_rule->fcn.name);
+		goto error;
+
+	case HLUA_E_YIELD: /* unexpected */
+		SEND_ERR(px, "Lua applet tcp '%s': yield not allowed.\n",
+		         rule->arg.hlua_rule->fcn.name);
 		goto error;
 
 	case HLUA_E_ERR:
@@ -6573,6 +6626,21 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 			SEND_ERR(px, "Lua applet http '%s': %s.\n",
 			         rule->arg.hlua_rule->fcn.name, lua_tostring(hlua->T, -1));
 			lua_pop(hlua->T, 1);
+			goto error;
+
+		case HLUA_E_ETMOUT:
+			SEND_ERR(px, "Lua applet http '%s': execution timeout.\n",
+			         rule->arg.hlua_rule->fcn.name);
+			goto error;
+
+		case HLUA_E_NOMEM:
+			SEND_ERR(px, "Lua applet http '%s': out of memory error.\n",
+			         rule->arg.hlua_rule->fcn.name);
+			goto error;
+
+		case HLUA_E_YIELD: /* unexpected */
+			SEND_ERR(px, "Lua applet http '%s': yield not allowed.\n",
+			         rule->arg.hlua_rule->fcn.name);
 			goto error;
 
 		case HLUA_E_ERR:
@@ -7066,6 +7134,21 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 		SEND_ERR(NULL, "Lua cli '%s': %s.\n",
 		         fcn->name, lua_tostring(hlua->T, -1));
 		lua_pop(hlua->T, 1);
+		return 1;
+
+	case HLUA_E_ETMOUT:
+		SEND_ERR(NULL, "Lua converter '%s': execution timeout.\n",
+		         fcn->name);
+		return 1;
+
+	case HLUA_E_NOMEM:
+		SEND_ERR(NULL, "Lua converter '%s': out of memory error.\n",
+		         fcn->name);
+		return 1;
+
+	case HLUA_E_YIELD: /* unexpected */
+		SEND_ERR(NULL, "Lua converter '%s': yield not allowed.\n",
+		         fcn->name);
 		return 1;
 
 	case HLUA_E_ERR:
