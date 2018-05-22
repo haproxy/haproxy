@@ -7737,6 +7737,15 @@ void check_request_for_cacheability(struct stream *s, struct channel *chn)
 			}
 		}
 
+		/* Don't use the cache and don't try to store if we found the
+		 * Authorization header */
+		val = http_header_match2(cur_ptr, cur_end, "Authorization", 13);
+		if (val) {
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			txn->flags |= TX_CACHE_IGNORE;
+			continue;
+		}
+
 		val = http_header_match2(cur_ptr, cur_end, "Cache-control", 13);
 		if (!val)
 			continue;

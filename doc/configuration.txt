@@ -17265,6 +17265,7 @@ The cache won't store and won't deliver objects in these cases:
 
 - If the request is not a GET
 - If the HTTP version of the request is smaller than 1.1
+- If the request contains an Authorization header
 
 Caution!: Due to the current limitation of the filters, it is not recommended
 to use the cache with other filters. Using them can cause undefined behavior
