@@ -31,6 +31,7 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 #ifndef USE_THREAD
 
 #define MAX_THREADS 1
+#define all_threads_mask 0UL
 
 #define __decl_hathreads(decl)
 
