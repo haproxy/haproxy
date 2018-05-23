@@ -721,7 +721,7 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		ret = conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
+		ret = cs_send(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;

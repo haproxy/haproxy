@@ -46,6 +46,7 @@ void conn_fd_handler(int fd);
 
 /* conn_stream functions */
 size_t __cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+size_t __cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
 
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
@@ -312,6 +313,17 @@ static inline size_t cs_recv(struct conn_stream *cs, struct buffer *buf, size_t 
 		return cs->conn->mux->rcv_buf(cs, buf, count, flags);
 	else
 		return __cs_recv(cs, buf, count, flags);
+}
+
+/* conn_stream send function. Uses mux->snd_buf() if defined, otherwise
+ * falls back to __cs_send().
+ */
+static inline size_t cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	if (cs->conn->mux->snd_buf)
+		return cs->conn->mux->snd_buf(cs, buf, count, flags);
+	else
+		return __cs_send(cs, buf, count, flags);
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/

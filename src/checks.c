@@ -771,7 +771,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out;
 
 	if (b_data(&check->bo)) {
-		conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+		cs_send(cs, &check->bo, b_data(&check->bo), 0);
 		b_realign_if_empty(&check->bo);
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
@@ -2699,7 +2699,7 @@ static int tcpcheck_main(struct check *check)
 			int ret;
 
 			__cs_want_send(cs);
-			ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+			ret = cs_send(cs, &check->bo, b_data(&check->bo), 0);
 			b_realign_if_empty(&check->bo);
 
 			if (ret <= 0) {
