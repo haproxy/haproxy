@@ -1123,7 +1123,7 @@ int connect_server(struct stream *s)
 			 */
 			srv_cs = srv_conn->mux_ctx;
 
-			if (srv_conn->mux == &mux_pt_ops && srv_cs->data) {
+			if (srv_cs->data) {
 				si_detach_endpoint(srv_cs->data);
 				if (old_cs && !(old_cs->conn->flags & CO_FL_PRIVATE)) {
 					si_attach_cs(srv_cs->data, old_cs);
