@@ -136,6 +136,7 @@ struct global {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
+		int runqueue_depth;/* max number of tasks to run at once */
 		int recv_enough;   /* how many input bytes at once are "enough" */
 		int bufsize;       /* buffer size in bytes, defaults to BUFSIZE */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */

@@ -135,6 +135,11 @@
 #define MAX_POLL_EVENTS 200
 #endif
 
+// the max number of tasks to run at once
+#ifndef RUNQUEUE_DEPTH
+#define RUNQUEUE_DEPTH 200
+#endif
+
 // cookie delimitor in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC6265,
 // and should not be too common in server names.

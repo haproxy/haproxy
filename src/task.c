@@ -243,7 +243,7 @@ void process_runnable_tasks()
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
-	max_processed = 200;
+	max_processed = global.tune.runqueue_depth;
 
 	if (likely(global.nbthread > 1)) {
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -297,7 +297,7 @@ void process_runnable_tasks()
 	 * get too much in the task list, but put a bit more than
 	 * the max that will be run, to give a bit more fairness
 	 */
-	while (max_processed + 20 > task_list_size[tid]) {
+	while (max_processed + (max_processed / 10) > task_list_size[tid]) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.

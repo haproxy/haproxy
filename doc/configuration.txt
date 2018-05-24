@@ -648,6 +648,7 @@ The following keywords are supported in the "global" section :
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.recv_enough
+   - tune.runqueue-depth
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
@@ -1626,6 +1627,11 @@ tune.recv_enough <number>
   bytes, which defaults to 10136 (7 segments of 1448 each). This default value
   may be changed by this setting to better deal with workloads involving lots
   of short messages such as telnet or SSH sessions.
+
+tune.runqueue-depth <number>
+  Sets the maxinum amount of task that can be processed at once when running
+  tasks. The default value is 200. Increasing it may incur latency when
+  dealing with I/Os, making it too small can incur extra overhead.
 
 tune.sndbuf.client <number>
 tune.sndbuf.server <number>

@@ -788,6 +788,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		global.mode |= MODE_QUIET;
 	}
+	else if (!strcmp(args[0], "tune.runqueue-depth")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+		if (global.tune.runqueue_depth != 0) {
+			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.runqueue_depth = atol(args[1]);
+
+	}
 	else if (!strcmp(args[0], "tune.maxpollevents")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
