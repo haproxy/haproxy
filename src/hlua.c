@@ -1799,7 +1799,6 @@ no_peer:
 
 connection_empty:
 
-	appctx = objt_appctx(s->si[0].end);
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_read, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "out of memory"));
@@ -1951,7 +1950,6 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (s->req.buf->size == 0) {
-		appctx = hlua->task->context;
 		if (!channel_alloc_buffer(&s->req, &appctx->buffer_wait))
 			goto hlua_socket_write_yield_return;
 	}
@@ -1959,7 +1957,6 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* Check for avalaible space. */
 	len = buffer_total_space(s->req.buf);
 	if (len <= 0) {
-		appctx = objt_appctx(s->si[0].end);
 		if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task)) {
 			xref_unlock(&socket->xref, peer);
 			WILL_LJMP(luaL_error(L, "out of memory"));
