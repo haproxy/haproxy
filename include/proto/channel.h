@@ -36,7 +36,6 @@
 #include <types/stream.h>
 #include <types/stream_interface.h>
 
-#include <proto/applet.h>
 #include <proto/task.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -456,7 +455,7 @@ static inline void channel_release_buffer(struct channel *chn, struct buffer_wai
 {
 	if (chn->buf->size && buffer_empty(chn->buf)) {
 		b_free(&chn->buf);
-		offer_buffers(wait->target, tasks_run_queue + applets_active_queue);
+		offer_buffers(wait->target, tasks_run_queue);
 	}
 }
 

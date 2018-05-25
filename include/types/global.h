@@ -183,7 +183,6 @@ struct activity {
 	unsigned int loops;        // complete loops in run_poll_loop()
 	unsigned int wake_cache;   // active fd_cache prevented poll() from sleeping
 	unsigned int wake_tasks;   // active tasks prevented poll() from sleeping
-	unsigned int wake_applets; // active applets prevented poll() from sleeping
 	unsigned int wake_signal;  // pending signal prevented poll() from sleeping
 	unsigned int poll_exp;     // number of times poll() sees an expired timeout (includes wake_*)
 	unsigned int poll_drop;    // poller dropped a dead FD from the update list

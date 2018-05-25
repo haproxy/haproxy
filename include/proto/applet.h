@@ -28,14 +28,11 @@
 #include <common/mini-clist.h>
 #include <types/applet.h>
 #include <proto/connection.h>
+#include <proto/task.h>
 
 extern unsigned int nb_applets;
-extern unsigned long active_applets_mask;
-extern unsigned int applets_active_queue;
-__decl_hathreads(extern HA_SPINLOCK_T applet_active_lock);
-extern struct list applet_active_queue;
 
-void applet_run_active();
+struct task *task_run_applet(struct task *t, void *context, unsigned short state);
 
 
 static int inline appctx_res_wakeup(struct appctx *appctx);
@@ -52,7 +49,7 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 	appctx->chunk = NULL;
 	appctx->io_release = NULL;
 	appctx->thread_mask = thread_mask;
-	appctx->state = APPLET_SLEEPING;
+	appctx->state = 0;
 }
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
@@ -69,7 +66,13 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
 		appctx_init(appctx, thread_mask);
-		LIST_INIT(&appctx->runq);
+		appctx->t = task_new(thread_mask);
+		if (unlikely(appctx->t == NULL)) {
+			pool_free(pool_head_connection, appctx);
+			return NULL;
+		}
+		appctx->t->process = task_run_applet;
+		appctx->t->context = appctx;
 		LIST_INIT(&appctx->buffer_wait.list);
 		appctx->buffer_wait.target = appctx;
 		appctx->buffer_wait.wakeup_cb = (int (*)(void *))appctx_res_wakeup;
@@ -83,11 +86,8 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
  */
 static inline void __appctx_free(struct appctx *appctx)
 {
-	if (!LIST_ISEMPTY(&appctx->runq)) {
-		LIST_DEL(&appctx->runq);
-		applets_active_queue--;
-	}
-
+	task_delete(appctx->t);
+	task_free(appctx->t);
 	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&appctx->buffer_wait.list);
@@ -98,38 +98,27 @@ static inline void __appctx_free(struct appctx *appctx)
 	pool_free(pool_head_connection, appctx);
 	HA_ATOMIC_SUB(&nb_applets, 1);
 }
+
 static inline void appctx_free(struct appctx *appctx)
 {
-	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
-	if (appctx->state & APPLET_RUNNING) {
+	/* The task is supposed to be run on this thread, so we can just
+	 * check if it's running already (or about to run) or not
+	 */
+	if (!(appctx->t->state & TASK_RUNNING))
+		__appctx_free(appctx);
+	else {
+		/* if it's running, or about to run, defer the freeing
+		 * until the callback is called.
+		 */
 		appctx->state |= APPLET_WANT_DIE;
-		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-		return;
+		task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 	}
-	__appctx_free(appctx);
-	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
 }
 
 /* wakes up an applet when conditions have changed */
-static inline void __appctx_wakeup(struct appctx *appctx)
-{
-	if (LIST_ISEMPTY(&appctx->runq)) {
-		LIST_ADDQ(&applet_active_queue, &appctx->runq);
-		applets_active_queue++;
-		active_applets_mask |= appctx->thread_mask;
-	}
-}
-
 static inline void appctx_wakeup(struct appctx *appctx)
 {
-	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
-	if (appctx->state & APPLET_RUNNING) {
-		appctx->state |= APPLET_WOKEN_UP;
-		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-		return;
-	}
-	__appctx_wakeup(appctx);
-	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
+	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
 
 /* Callback used to wake up an applet when a buffer is available. The applet
@@ -139,19 +128,17 @@ static inline void appctx_wakeup(struct appctx *appctx)
  * requested */
 static inline int appctx_res_wakeup(struct appctx *appctx)
 {
-	HA_SPIN_LOCK(APPLETS_LOCK, &applet_active_lock);
-	if (appctx->state & APPLET_RUNNING) {
-		if (appctx->state & APPLET_WOKEN_UP) {
-			HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-			return 0;
-		}
-		appctx->state |= APPLET_WOKEN_UP;
-		HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-		return 1;
-	}
-	__appctx_wakeup(appctx);
-	HA_SPIN_UNLOCK(APPLETS_LOCK, &applet_active_lock);
-	return 1;
+	int ret;
+
+	/* To detect if we have already been waken or not, we now that
+	 * if the state contains TASK_RUNNING, but not just TASK_RUNNING.
+	 * This is racy, but that's OK. At worst we will wake a little more
+	 * tasks than necessary when a buffer is available.
+	 */
+	ret = ((appctx->state & TASK_RUNNING) != 0) &&
+	      ((appctx->state != TASK_RUNNING));
+	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
+	return ret;
 }
 
 

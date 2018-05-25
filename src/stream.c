@@ -339,7 +339,7 @@ static void stream_free(struct stream *s)
 	if (s->req.buf->size || s->res.buf->size) {
 		b_drop(&s->req.buf);
 		b_drop(&s->res.buf);
-		offer_buffers(NULL, tasks_run_queue + applets_active_queue);
+		offer_buffers(NULL, tasks_run_queue);
 	}
 
 	hlua_ctx_destroy(s->hlua);
@@ -469,7 +469,7 @@ void stream_release_buffers(struct stream *s)
 	 * someone waiting, we can wake up a waiter and offer them.
 	 */
 	if (offer)
-		offer_buffers(s, tasks_run_queue + applets_active_queue);
+		offer_buffers(s, tasks_run_queue);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */

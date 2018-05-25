@@ -84,6 +84,7 @@
 #include <proto/stick_table.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
+#include <proto/connection.h>
 
 
 /* This is the SSLv3 CLIENT HELLO packet used in conjunction with the

@@ -2840,8 +2840,7 @@ spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 	/* Release the buffer if needed */
 	if ((*buf)->size) {
 		b_free(buf);
-		offer_buffers(buffer_wait->target,
-			      tasks_run_queue + applets_active_queue);
+		offer_buffers(buffer_wait->target, tasks_run_queue);
 	}
 }
 

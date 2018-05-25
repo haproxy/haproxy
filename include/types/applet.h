@@ -45,17 +45,13 @@ struct applet {
 	unsigned int timeout;              /* execution timeout. */
 };
 
-#define APPLET_SLEEPING     0x00  /* applet is currently sleeping or pending in active queue */
-#define APPLET_RUNNING      0x01  /* applet is currently running */
-#define APPLET_WOKEN_UP     0x02  /* applet was running and requested to woken up again */
-#define APPLET_WANT_DIE     0x04  /* applet was running and requested to die */
+#define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
 
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)
 #define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
 
 /* Context of a running applet. */
 struct appctx {
-	struct list runq;          /* chaining in the applet run queue */
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	/* 3 unused bytes here */
 	unsigned short state;      /* Internal appctx state */
@@ -72,6 +68,7 @@ struct appctx {
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	unsigned long thread_mask;      /* mask of thread IDs authorized to process the applet */
+	struct task *t;                  /* task associated to the applet */
 
 	union {
 		struct {

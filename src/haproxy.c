@@ -90,7 +90,6 @@
 #include <types/peers.h>
 
 #include <proto/acl.h>
-#include <proto/applet.h>
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/backend.h>
@@ -2419,8 +2418,6 @@ static void run_poll_loop()
 			activity[tid].wake_cache++;
 		else if (active_tasks_mask & tid_bit)
 			activity[tid].wake_tasks++;
-		else if (active_applets_mask & tid_bit)
-			activity[tid].wake_applets++;
 		else if (signal_queue_len)
 			activity[tid].wake_signal++;
 		else
@@ -2429,7 +2426,6 @@ static void run_poll_loop()
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, exp);
 		fd_process_cached_events();
-		applet_run_active();
 
 
 		/* Synchronize all polling loops */
