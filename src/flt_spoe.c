@@ -1030,6 +1030,8 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		    (unsigned int)stream_id, (unsigned int)frame_id);
 
 	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAMEID_NOTFOUND;
+	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK)
+		return -1;
 	return 0;
 
   found:
