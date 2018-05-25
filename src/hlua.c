@@ -1676,6 +1676,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	struct stream_interface *si;
 	struct stream *s;
 	struct xref *peer;
+	int missing_bytes;
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -1745,11 +1746,12 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 		if (nblk == 0) /* No data avalaible. */
 			goto connection_empty;
 
-		if (len1 > wanted) {
+		missing_bytes = wanted - socket->b.n;
+		if (len1 > missing_bytes) {
 			nblk = 1;
-			len1 = wanted;
-		} if (nblk == 2 && len1 + len2 > wanted)
-			len2 = wanted - len1;
+			len1 = missing_bytes;
+		} if (nblk == 2 && len1 + len2 > missing_bytes)
+			len2 = missing_bytes - len1;
 	}
 
 	len = len1;
@@ -1772,7 +1774,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	 */
 	if (wanted == HLSR_READ_ALL)
 		goto connection_empty;
-	else if (wanted >= 0 && len < wanted)
+	else if (wanted >= 0 && socket->b.n < wanted)
 		goto connection_empty;
 
 	/* Return result. */
