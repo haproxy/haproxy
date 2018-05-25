@@ -5517,9 +5517,9 @@ __LJMP static int hlua_set_nice(lua_State *L)
  * Task wrapper are longjmp safe because the only one Lua code
  * executed is the safe hlua_ctx_resume();
  */
-static struct task *hlua_process_task(struct task *task)
+static struct task *hlua_process_task(struct task *task, void *context, unsigned short state)
 {
-	struct hlua *hlua = task->context;
+	struct hlua *hlua = context;
 	enum hlua_exec status;
 
 	if (task->thread_mask == MAX_THREADS_MASK)
@@ -6216,9 +6216,9 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 }
 
-struct task *hlua_applet_wakeup(struct task *t)
+struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned short state)
 {
-	struct appctx *ctx = t->context;
+	struct appctx *ctx = context;
 	struct stream_interface *si = ctx->owner;
 
 	/* If the applet is wake up without any expected work, the sheduler

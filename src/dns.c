@@ -1698,9 +1698,9 @@ static void dns_resolve_send(struct dgram_conn *dgram)
  * resolutions and retry them if possible. Else a timeout is reported. Then, it
  * checks the wait list to trigger new resolutions.
  */
-static struct task *dns_process_resolvers(struct task *t)
+static struct task *dns_process_resolvers(struct task *t, void *context, unsigned short state)
 {
-	struct dns_resolvers  *resolvers = t->context;
+	struct dns_resolvers  *resolvers = context;
 	struct dns_resolution *res, *resback;
 	int exp;
 

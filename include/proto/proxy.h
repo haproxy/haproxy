@@ -37,7 +37,7 @@ extern unsigned int error_snapshot_id;  /* global ID assigned to each error then
 extern struct eb_root proxy_by_name;    /* tree of proxies sorted by name */
 
 int start_proxies(int verbose);
-struct task *manage_proxy(struct task *t);
+struct task *manage_proxy(struct task *t, void *context, unsigned short state);
 void soft_stop(void);
 int pause_proxy(struct proxy *p);
 int resume_proxy(struct proxy *p);

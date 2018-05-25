@@ -1434,9 +1434,9 @@ struct data_cb check_conn_cb = {
  * reached, the task automatically stops. Note that any server status change
  * must have updated s->last_change accordingly.
  */
-static struct task *server_warmup(struct task *t)
+static struct task *server_warmup(struct task *t, void *context, unsigned short state)
 {
-	struct server *s = t->context;
+	struct server *s = context;
 
 	/* by default, plan on stopping the task */
 	t->expire = TICK_ETERNITY;
@@ -1967,9 +1967,9 @@ out:
  * Please do NOT place any return statement in this function and only leave
  * via the out_unlock label.
  */
-static struct task *process_chk_proc(struct task *t)
+static struct task *process_chk_proc(struct task *t, void *context, unsigned short state)
 {
-	struct check *check = t->context;
+	struct check *check = context;
 	struct server *s = check->server;
 	int rv;
 	int ret;
@@ -2099,9 +2099,9 @@ static struct task *process_chk_proc(struct task *t)
  * Please do NOT place any return statement in this function and only leave
  * via the out_unlock label.
  */
-static struct task *process_chk_conn(struct task *t)
+static struct task *process_chk_conn(struct task *t, void *context, unsigned short state)
 {
-	struct check *check = t->context;
+	struct check *check = context;
 	struct server *s = check->server;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
@@ -2272,13 +2272,13 @@ static struct task *process_chk_conn(struct task *t)
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
-static struct task *process_chk(struct task *t)
+static struct task *process_chk(struct task *t, void *context, unsigned short state)
 {
-	struct check *check = t->context;
+	struct check *check = context;
 
 	if (check->type == PR_O2_EXT_CHK)
-		return process_chk_proc(t);
-	return process_chk_conn(t);
+		return process_chk_proc(t, context, state);
+	return process_chk_conn(t, context, state);
 
 }
 
@@ -3126,9 +3126,9 @@ void email_alert_free(struct email_alert *alert)
 	pool_free(pool_head_email_alert, alert);
 }
 
-static struct task *process_email_alert(struct task *t)
+static struct task *process_email_alert(struct task *t, void *context, unsigned short state)
 {
-	struct check        *check = t->context;
+	struct check        *check = context;
 	struct email_alertq *q;
 	struct email_alert  *alert;
 
@@ -3153,7 +3153,7 @@ static struct task *process_email_alert(struct task *t)
 			check->state         |= CHK_ST_ENABLED;
 		}
 
-		process_chk(t);
+		process_chk(t, context, state);
 		if (check->state & CHK_ST_INPROGRESS)
 			break;
 

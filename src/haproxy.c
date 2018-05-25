@@ -211,7 +211,7 @@ int mworker_pipe[2];
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
-static struct task *manage_global_listener_queue(struct task *t);
+static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state);
 
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
@@ -2476,7 +2476,7 @@ static void *run_thread_poll_loop(void *data)
  * for global resources when there are enough free resource, or at least once in
  * a while. It is designed to be called as a task.
  */
-static struct task *manage_global_listener_queue(struct task *t)
+static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state)
 {
 	int next = TICK_ETERNITY;
 	/* queue is empty, nothing to do */

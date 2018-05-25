@@ -215,7 +215,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 	.id        = 0,
 };
 
-static struct task *h2_timeout_task(struct task *t);
+static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -2324,9 +2324,9 @@ static int h2_wake(struct connection *conn)
  * immediately killed. If it's allocatable and empty, we attempt to send a
  * GOAWAY frame.
  */
-static struct task *h2_timeout_task(struct task *t)
+static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state)
 {
-	struct h2c *h2c = t->context;
+	struct h2c *h2c = context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
 	if (!expired && h2c)

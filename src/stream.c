@@ -1615,10 +1615,10 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
  */
-struct task *process_stream(struct task *t)
+struct task *process_stream(struct task *t, void *context, unsigned short state)
 {
 	struct server *srv;
-	struct stream *s = t->context;
+	struct stream *s = context;
 	struct session *sess = s->sess;
 	unsigned int rqf_last, rpf_last;
 	unsigned int rq_prod_last, rq_cons_last;
@@ -1655,7 +1655,7 @@ struct task *process_stream(struct task *t)
 	si_b->flags |= SI_FL_DONT_WAKE;
 
 	/* update pending events */
-	s->pending_events |= (t->state & TASK_WOKEN_ANY);
+	s->pending_events |= (state & TASK_WOKEN_ANY);
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream interfaces when their timeouts have expired.

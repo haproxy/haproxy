@@ -226,10 +226,10 @@ void process_runnable_tasks()
 			 * predictor take this most common call.
 			 */
 			if (likely(t->process == process_stream))
-				t = process_stream(t);
+				t = process_stream(t, t->context, t->state);
 			else {
 				if (t->process != NULL)
-					t = t->process(t);
+					t = t->process(t, t->context, t->state);
 				else {
 					__task_free(t);
 					t = NULL;
@@ -314,10 +314,10 @@ void process_runnable_tasks()
 			 */
 			curr_task = t;
 			if (likely(t->process == process_stream))
-				t = process_stream(t);
+				t = process_stream(t, t->context, t->state);
 			else {
 				if (t->process != NULL)
-					t = t->process(t);
+					t = t->process(t, t->context, t->state);
 				else {
 					__task_free(t);
 					t = NULL;

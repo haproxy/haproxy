@@ -46,7 +46,7 @@ void stream_shutdown(struct stream *stream, int why);
 
 void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *sess, struct server *newsrv);
-struct task *process_stream(struct task *t);
+struct task *process_stream(struct task *t, void *context, unsigned short state);
 void default_srv_error(struct stream *s, struct stream_interface *si);
 int parse_track_counters(char **args, int *arg,
 			 int section_type, struct proxy *curpx,

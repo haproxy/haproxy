@@ -67,7 +67,7 @@ struct task {
 	unsigned short pending_state;	/* pending states for running talk */
 	short nice;			/* the task's current nice value from -1024 to +1024 */
 	unsigned int calls;		/* number of times ->process() was called */
-	struct task * (*process)(struct task *t);  /* the function which processes the task */
+	struct task * (*process)(struct task *t, void *ctx, unsigned short state);  /* the function which processes the task */
 	void *context;			/* the task's context */
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
 	int expire;			/* next expiration date for this task, in ticks */

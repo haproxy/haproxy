@@ -1205,9 +1205,9 @@ spoe_wakeup_appctx(struct appctx *appctx)
 /* Callback function that catches applet timeouts. If a timeout occurred, we set
  * <appctx->st1> flag and the SPOE applet is woken up. */
 static struct task *
-spoe_process_appctx(struct task * task)
+spoe_process_appctx(struct task * task, void *context, unsigned short state)
 {
-	struct appctx *appctx = task->context;
+	struct appctx *appctx = context;
 
 	appctx->st1 = SPOE_APPCTX_ERR_NONE;
 	if (tick_is_expired(task->expire, now_ms)) {

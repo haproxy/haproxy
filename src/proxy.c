@@ -834,9 +834,9 @@ int start_proxies(int verbose)
  * called as a task which is woken up upon stopping or when rate limiting must
  * be enforced.
  */
-struct task *manage_proxy(struct task *t)
+struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 {
-	struct proxy *p = t->context;
+	struct proxy *p = context;
 	int next = TICK_ETERNITY;
 	unsigned int wait;
 
@@ -934,7 +934,7 @@ static int proxy_parse_hard_stop_after(char **args, int section_type, struct pro
 	return 0;
 }
 
-struct task *hard_stop(struct task *t)
+struct task *hard_stop(struct task *t, void *context, unsigned short state)
 {
 	struct proxy *p;
 	struct stream *s;
