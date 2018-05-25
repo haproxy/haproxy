@@ -1766,8 +1766,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	co_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
-	stream_int_notify(&s->si[0]);
-	stream_int_update_applet(&s->si[0]);
+	appctx_wakeup(appctx);
 
 	/* If the pattern reclaim to read all the data
 	 * in the connection, got out.
