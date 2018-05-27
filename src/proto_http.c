@@ -2631,7 +2631,20 @@ resume_execution:
 				}
 			}
 
-			http_header_add_tail2(&txn->req, &txn->hdr_idx, replace->str, replace->len);
+			if (http_header_add_tail2(&txn->req, &txn->hdr_idx, replace->str, replace->len) < 0) {
+				static unsigned char rate_limit = 0;
+
+				if ((rate_limit++ & 255) == 0) {
+					replace->str[rule->arg.hdr_add.name_len] = 0;
+					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the request header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id, replace->str, s->uniq_id);
+				}
+
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+				if (sess->fe != s->be)
+					HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+				if (sess->listener->counters)
+					HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+			}
 
 			free_trash_chunk(replace);
 			break;
@@ -2931,7 +2944,23 @@ resume_execution:
 					http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
 				}
 			}
-			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, replace->str, replace->len);
+
+			if (http_header_add_tail2(&txn->rsp, &txn->hdr_idx, replace->str, replace->len) < 0) {
+				static unsigned char rate_limit = 0;
+
+				if ((rate_limit++ & 255) == 0) {
+					replace->str[rule->arg.hdr_add.name_len] = 0;
+					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the response header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id, replace->str, s->uniq_id);
+				}
+
+				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+				if (sess->fe != s->be)
+					HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+				if (sess->listener->counters)
+					HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+				if (objt_server(s->target))
+					HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_rewrites, 1);
+			}
 
 			free_trash_chunk(replace);
 			break;

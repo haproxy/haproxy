@@ -216,6 +216,7 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_INTERCEPTED]    = "intercepted",
 	[ST_F_DCON]           = "dcon",
 	[ST_F_DSES]           = "dses",
+	[ST_F_WREW]           = "wrew",
 };
 
 /* one line of info */
@@ -1298,6 +1299,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
 	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
+	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
 
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 	if (px->mode == PR_MODE_HTTP) {
@@ -1388,6 +1390,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
 	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
 
 	if (flags & ST_SHLGNDS) {
 		char str[INET6_ADDRSTRLEN];
@@ -1553,6 +1556,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
+	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
 
 	/* status */
 	fld_status = chunk_newstr(out);
@@ -1745,6 +1749,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, px->be_counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
+	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);

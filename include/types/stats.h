@@ -383,6 +383,7 @@ enum stat_field {
 	ST_F_INTERCEPTED,
 	ST_F_DCON,
 	ST_F_DSES,
+	ST_F_WREW,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
