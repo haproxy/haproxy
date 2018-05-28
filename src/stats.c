@@ -689,6 +689,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "",
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64),
@@ -700,7 +701,8 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
-			              U2H(stats[ST_F_INTERCEPTED].u.u64));
+			              U2H(stats[ST_F_INTERCEPTED].u.u64),
+			              U2H(stats[ST_F_WREW].u.u64));
 		}
 
 		chunk_appendf(out,
@@ -932,6 +934,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "",
 			              U2H(tot),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_1XX].u.u64 / tot) : 0,
@@ -939,7 +942,8 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              U2H(stats[ST_F_HRSP_3XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_3XX].u.u64 / tot) : 0,
 			              U2H(stats[ST_F_HRSP_4XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_4XX].u.u64 / tot) : 0,
 			              U2H(stats[ST_F_HRSP_5XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_5XX].u.u64 / tot) : 0,
-			              U2H(stats[ST_F_HRSP_OTHER].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_OTHER].u.u64 / tot) : 0);
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_OTHER].u.u64 / tot) : 0,
+			              U2H(stats[ST_F_WREW].u.u64));
 		}
 
 		chunk_appendf(out, "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>");
@@ -1151,6 +1155,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
+			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
 			              "",
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
@@ -1162,6 +1167,7 @@ static int stats_dump_fields_html(struct chunk *out, const struct field *stats, 
 			              U2H(stats[ST_F_HRSP_3XX].u.u64),
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
+			              U2H(stats[ST_F_WREW].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64));
 		}
 
