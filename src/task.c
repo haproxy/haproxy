@@ -260,7 +260,7 @@ void process_runnable_tasks()
 		 * much elements from the global list as to have a bigger local queue
 		 * than the average.
 		 */
-		while (rqueue_size[tid] <= average) {
+		while ((task_list_size[tid] + rqueue_size[tid]) <= average) {
 
 			/* we have to restart looking up after every batch */
 			rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
