@@ -177,6 +177,7 @@ static inline struct task *task_unlink_wq(struct task *t)
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
+	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
 		HA_ATOMIC_SUB(&niced_tasks, 1);
@@ -219,6 +220,7 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 	 */
 	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, 0x1)))
 		return;
+	HA_ATOMIC_ADD(&tasks_run_queue, 1);
 	task_list_size[tid]++;
 	tl = (struct tasklet *)t;
 	LIST_ADDQ(&task_list[tid], &tl->list);
