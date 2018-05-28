@@ -367,6 +367,7 @@ void process_runnable_tasks()
 				task_queue(t);
 		}
 
+		max_processed--;
 		if (max_processed <= 0) {
 			active_tasks_mask |= tid_bit;
 			activity[tid].long_rq++;
