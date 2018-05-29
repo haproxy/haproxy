@@ -2256,7 +2256,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			/* Error if two resolvers owns the same name */
 			if (strcmp(newnameserver->id, args[1]) == 0) {
 				ha_alert("Parsing [%s:%d]: nameserver '%s' has same name as another nameserver (declared at %s:%d).\n",
-					 file, linenum, args[1], curr_resolvers->conf.file, curr_resolvers->conf.line);
+					 file, linenum, args[1], newnameserver->conf.file, newnameserver->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 		}
@@ -2304,6 +2304,119 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		newnameserver->addr = *sk;
+	}
+	else if (strcmp(args[0], "parse-resolv-conf") == 0) {
+		const char *whitespace = "\r\n\t ";
+		char *resolv_line = NULL;
+		int resolv_linenum = 0;
+		FILE *f = NULL;
+		char *address = NULL;
+		struct sockaddr_storage *sk = NULL;
+		struct protocol *proto;
+		int duplicate_name = 0;
+
+		if ((resolv_line = malloc(sizeof(*resolv_line) * LINESIZE)) == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto resolv_out;
+		}
+
+		if ((f = fopen("/etc/resolv.conf", "r")) == NULL) {
+			ha_alert("parsing [%s:%d] : failed to open /etc/resolv.conf.\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto resolv_out;
+		}
+
+		sk = calloc(1, sizeof(*sk));
+		if (sk == NULL) {
+			ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n",
+				 resolv_linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto resolv_out;
+		}
+
+		while (fgets(resolv_line, LINESIZE, f) != NULL) {
+			resolv_linenum++;
+			if (strncmp(resolv_line, "nameserver", 10) != 0)
+				continue;
+
+			address = strtok(resolv_line + 10, whitespace);
+			if (address == resolv_line + 10)
+				continue;
+
+			if (address == NULL) {
+				ha_warning("parsing [/etc/resolv.conf:%d] : nameserver line is missing address.\n",
+					   resolv_linenum);
+				err_code |= ERR_WARN;
+				continue;
+			}
+
+			duplicate_name = 0;
+			list_for_each_entry(newnameserver, &curr_resolvers->nameservers, list) {
+				if (strcmp(newnameserver->id, address) == 0) {
+					ha_warning("Parsing [/etc/resolv.conf:%d] : generated name for /etc/resolv.conf nameserver '%s' conflicts with another nameserver (declared at %s:%d), it appears to be a duplicate and will be excluded.\n",
+						 resolv_linenum, address, newnameserver->conf.file, newnameserver->conf.line);
+					err_code |= ERR_WARN;
+					duplicate_name = 1;
+				}
+			}
+
+			if (duplicate_name)
+				continue;
+
+			memset(sk, 0, sizeof(*sk));
+			sk = str2ip2(address, sk, 1);
+			if (!sk) {
+				ha_warning("parsing [/etc/resolv.conf:%d] : address '%s' could not be recognized, namerserver will be excluded.\n",
+					   resolv_linenum, address);
+				err_code |= ERR_WARN;
+				continue;
+			}
+
+			set_host_port(sk, 53);
+
+			proto = protocol_by_family(sk->ss_family);
+			if (!proto || !proto->connect) {
+				ha_warning("parsing [/etc/resolv.conf:%d] : '%s' : connect() not supported for this address family.\n",
+					   resolv_linenum, address);
+				err_code |= ERR_WARN;
+				continue;
+			}
+
+			if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
+				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto resolv_out;
+			}
+
+			newnameserver->conf.file = strdup("/etc/resolv.conf");
+			if (newnameserver->conf.file == NULL) {
+				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto resolv_out;
+			}
+
+			newnameserver->id = strdup(address);
+			if (newnameserver->id == NULL) {
+				ha_alert("parsing [/etc/resolv.conf:%d] : out of memory.\n", resolv_linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto resolv_out;
+			}
+
+			newnameserver->resolvers = curr_resolvers;
+			newnameserver->conf.line = resolv_linenum;
+			newnameserver->addr = *sk;
+
+			LIST_ADDQ(&curr_resolvers->nameservers, &newnameserver->list);
+		}
+
+resolv_out:
+		free(sk);
+		free(resolv_line);
+		if (f != NULL)
+			fclose(f);
 	}
 	else if (strcmp(args[0], "hold") == 0) { /* hold periods */
 		const char *res;

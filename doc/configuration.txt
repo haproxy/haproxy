@@ -12042,6 +12042,11 @@ nameserver <id> <ip>:<port>
     <ip>   : IP address of the server
     <port> : port where the DNS service actually runs
 
+parse-resolv-conf
+  Adds all nameservers found in /etc/resolv.conf to this resolvers nameservers
+  list. Ordered as if each nameserver in /etc/resolv.conf was individually
+  placed in the resolvers section in place of this directive.
+
 hold <status> <period>
   Defines <period> during which the last name resolution should be kept based
   on last resolution <status>
@@ -12085,6 +12090,7 @@ timeout <event> <time>
    resolvers mydns
      nameserver dns1 10.0.0.1:53
      nameserver dns2 10.0.0.2:53
+     parse-resolv-conf
      resolve_retries       3
      timeout resolve       1s
      timeout retry         1s
