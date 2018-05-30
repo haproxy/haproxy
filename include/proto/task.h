@@ -462,6 +462,13 @@ static inline void notification_wake(struct list *wake)
 	}
 }
 
+/* This function returns true is some notification are pending
+ */
+static inline int notification_registered(struct list *wake)
+{
+	return !LIST_ISEMPTY(wake);
+}
+
 /*
  * This does 3 things :
  *   - wake up all expired tasks
