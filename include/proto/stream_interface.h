@@ -302,8 +302,10 @@ static inline struct appctx *si_alloc_appctx(struct stream_interface *si, struct
 
 	si_release_endpoint(si);
 	appctx = appctx_new(applet, tid_bit);
-	if (appctx)
+	if (appctx) {
 		si_attach_appctx(si, appctx);
+		appctx->t->nice = si_strm(si)->task->nice;
+	}
 
 	return appctx;
 }
