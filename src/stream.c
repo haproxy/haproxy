@@ -2911,13 +2911,14 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx\n",
+			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
-				      tmpctx->thread_mask);
+			              tmpctx->thread_mask,
+			              tmpctx->t->nice, tmpctx->t->calls);
 		}
 
 		if ((cs = objt_cs(strm->si[1].end)) != NULL) {
@@ -2944,13 +2945,14 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx\n",
+			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx, nice=%d, calls=%u\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
-				      tmpctx->thread_mask);
+			              tmpctx->thread_mask,
+			              tmpctx->t->nice, tmpctx->t->calls);
 		}
 
 		chunk_appendf(&trash,
