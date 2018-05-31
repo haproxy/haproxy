@@ -1481,7 +1481,6 @@ read_frame_cb(evutil_socket_t fd, short events, void *arg)
 			if (client->status_code != SPOE_FRM_ERR_NONE)
 				LOG(client->worker, "<%lu> Peer closed connection: %s",
 				    client->id, spoe_frm_err_reasons[client->status_code]);
-			client->status_code = SPOE_FRM_ERR_NONE;
 			goto disconnect;
 	}
 
