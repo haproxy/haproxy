@@ -1,7 +1,7 @@
 ModSecurity for HAProxy
 -----------------------
 
-This is a third party deamon whoch speaks SPOE. It give requests send by HAProxy
+This is a third party deamon which speaks SPOE. It gives requests send by HAProxy
 to ModSecurity and returns the verdict.
 
   Compilation
@@ -24,7 +24,7 @@ the Apache dependencies are installed on the system.
 	cp standalone/*.h $PWD/INSTALL/include
 	cp apache2/*.h $PWD/INSTALL/include
 
-Note that this compilation method works, but is a litle bit rustic. I cant
+Note that this compilation method works, but is a litle bit rustic. I can't
 deal with Lua, I supposed that is a dependecies problem on my computer.
 
   Start the service

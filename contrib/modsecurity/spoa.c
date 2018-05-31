@@ -1,7 +1,7 @@
 /*
  * Modsecurity wrapper for haproxy
  *
- * This file contains the bootstrap for laucnching and scheduling modsecurity
+ * This file contains the bootstrap for launching and scheduling modsecurity
  * for working with HAProxy SPOE protocol.
  *
  * Copyright 2016 OZON, Thierry Fournier <thierry.fournier@ozon.io>
