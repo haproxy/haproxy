@@ -299,6 +299,9 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->thread_mask = thread_mask;
 	t->nice = 0;
 	t->calls = 0;
+	t->call_date = 0;
+	t->cpu_time = 0;
+	t->lat_time = 0;
 	t->expire = TICK_ETERNITY;
 	return t;
 }

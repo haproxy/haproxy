@@ -2984,14 +2984,15 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u\n",
+			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
 			              tmpctx->thread_mask,
-			              tmpctx->t->nice, tmpctx->t->calls);
+			              tmpctx->t->nice, tmpctx->t->calls,
+			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
 		if ((cs = objt_cs(strm->si[1].end)) != NULL) {
@@ -3018,14 +3019,15 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx, nice=%d, calls=%u\n",
+			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx, nice=%d, calls=%u, cpu=%llu, lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
 			              tmpctx->thread_mask,
-			              tmpctx->t->nice, tmpctx->t->calls);
+			              tmpctx->t->nice, tmpctx->t->calls,
+			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
 		chunk_appendf(&trash,
@@ -3225,10 +3227,11 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			}
 
 			chunk_appendf(&trash,
-				     " ts=%02x age=%s calls=%d",
+				     " ts=%02x age=%s calls=%d cpu=%llu lat=%llu",
 				     curr_strm->task->state,
 				     human_time(now.tv_sec - curr_strm->logs.tv_accept.tv_sec, 1),
-				     curr_strm->task->calls);
+			             curr_strm->task->calls,
+			             (unsigned long long)curr_strm->task->cpu_time, (unsigned long long)curr_strm->task->lat_time);
 
 			chunk_appendf(&trash,
 				     " rq[f=%06xh,i=%u,an=%02xh,rx=%s",

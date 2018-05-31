@@ -140,6 +140,9 @@ redo:
 		t->rq.key += offset;
 	}
 
+	if (profiling & HA_PROF_TASKS)
+		t->call_date = now_mono_time();
+
 	eb32sc_insert(root, &t->rq, t->thread_mask);
 #ifdef USE_THREAD
 	if (root == &rqueue) {
@@ -416,6 +419,14 @@ void process_runnable_tasks()
 		ctx = t->context;
 		process = t->process;
 		t->calls++;
+
+		if (unlikely(!TASK_IS_TASKLET(t) && t->call_date)) {
+			uint64_t now_ns = now_mono_time();
+
+			t->lat_time += now_ns - t->call_date;
+			t->call_date = now_ns;
+		}
+
 		curr_task = (struct task *)t;
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
@@ -432,6 +443,11 @@ void process_runnable_tasks()
 		 * immediately, else we defer it into wait queue
 		 */
 		if (t != NULL) {
+			if (unlikely(!TASK_IS_TASKLET(t) && t->call_date)) {
+				t->cpu_time += now_mono_time() - t->call_date;
+				t->call_date = 0;
+			}
+
 			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (state)
 #ifdef USE_THREAD

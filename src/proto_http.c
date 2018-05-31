@@ -3809,6 +3809,12 @@ void http_end_txn_clean_session(struct stream *s)
 	stream_stop_content_counters(s);
 	stream_update_time_stats(s);
 
+	/* reset the profiling counter */
+	s->task->calls     = 0;
+	s->task->cpu_time  = 0;
+	s->task->lat_time  = 0;
+	s->task->call_date = (profiling & HA_PROF_TASKS) ? now_mono_time() : 0;
+
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->logs.t_handshake = 0; /* There are no handshake in keep alive connection. */
