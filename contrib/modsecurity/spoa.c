@@ -48,7 +48,7 @@
 #define CONNECTION_BACKLOG 10
 #define NUM_WORKERS        10
 #define MAX_FRAME_SIZE     16384
-#define SPOP_VERSION       "1.0"
+#define SPOP_VERSION       "2.0"
 
 #define SLEN(str) (sizeof(str)-1)
 

@@ -314,12 +314,13 @@ struct spoe_version {
 
 /* All supported versions */
 static struct spoe_version supported_versions[] = {
-	{"1.0", 1000, 1000},
+	/* 1.0 is now unsupported because of a bug about frame's flags*/
+	{"2.0", 2000, 2000},
 	{NULL,  0, 0}
 };
 
 /* Comma-separated list of supported versions */
-#define SUPPORTED_VERSIONS_VAL  "1.0"
+#define SUPPORTED_VERSIONS_VAL  "2.0"
 
 /* Convert a string to a SPOE version value. The string must follow the format
  * "MAJOR.MINOR". It will be concerted into the integer (1000 * MAJOR + MINOR).
