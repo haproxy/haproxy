@@ -1374,7 +1374,8 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 	frame->flags  = 0;
 
 	ret = prepare_agentack(frame);
-	p = frame->buf + ret;
+	p   = frame->buf + ret;
+	end = frame->buf+max_frame_size;
 
 	if (frame->modsec_code != -1) {
 		DEBUG(frame->worker, "Add action : set variable code=%u",
