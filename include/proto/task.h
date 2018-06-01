@@ -218,7 +218,7 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 	 * another runqueue. We set leaf_p to 0x1 to indicate that the node is
 	 * not in a tree but that it's in the tasklet list. See task_in_rq().
 	 */
-	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, 0x1)))
+	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1)))
 		return;
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
 	task_list_size[tid]++;
