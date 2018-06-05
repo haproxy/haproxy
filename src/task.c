@@ -79,7 +79,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	 * in the meanwhile.
 	 */
 redo:
-	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, 0x1))) {
+	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1))) {
 		if (root == &rqueue)
 			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 		return;
