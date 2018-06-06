@@ -49,9 +49,11 @@ __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) rq_lock); /* spin lo
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lock related to wait queue */
 
 static struct eb_root timers;      /* sorted timers tree */
+#ifdef USE_THREAD
 struct eb_root rqueue;      /* tree constituting the run queue */
-struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 static int global_rqueue_size; /* Number of element sin the global runqueue */
+#endif
+struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 static int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
 static unsigned int rqueue_ticks;  /* insertion count */
 
@@ -68,10 +70,13 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	void *expected = NULL;
 	int *rq_size;
 
+#ifdef USE_THREAD
 	if (root == &rqueue) {
 		rq_size = &global_rqueue_size;
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	} else {
+	} else
+#endif
+	{
 		int nb = root - &rqueue_local[0];
 		rq_size = &rqueue_size[nb];
 	}
@@ -80,8 +85,10 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	 */
 redo:
 	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1))) {
+#ifdef USE_THREAD
 		if (root == &rqueue)
 			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+#endif
 		return;
 	}
 	/* There's a small race condition, when running a task, the thread
@@ -104,8 +111,10 @@ redo:
 		state = (volatile unsigned short)(t->state);
 		if (unlikely(state != 0 && !(state & TASK_RUNNING)))
 			goto redo;
+#ifdef USE_THREAD
 		if (root == &rqueue)
 			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+#endif
 		return;
 	}
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
@@ -124,10 +133,13 @@ redo:
 	}
 
 	eb32sc_insert(root, &t->rq, t->thread_mask);
+#ifdef USE_THREAD
 	if (root == &rqueue) {
 		global_rqueue_size++;
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-	} else {
+	} else
+#endif
+	{
 		int nb = root - &rqueue_local[0];
 
 		rqueue_size[nb]++;
@@ -239,7 +251,9 @@ void process_runnable_tasks()
 {
 	struct task *t;
 	int max_processed;
+#ifdef USE_THREAD
 	uint64_t average = 0;
+#endif
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -253,6 +267,7 @@ void process_runnable_tasks()
 			return;
 		}
 
+#ifdef USE_THREAD
 		average = tasks_run_queue / global.nbthread;
 
 		/* Get some elements from the global run queue and put it in the
@@ -284,6 +299,7 @@ void process_runnable_tasks()
 			__task_unlink_rq(t);
 			__task_wakeup(t, &rqueue_local[tid]);
 		}
+#endif
 
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	} else {
@@ -361,8 +377,12 @@ void process_runnable_tasks()
 		if (t != NULL) {
 			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (state)
+#ifdef USE_THREAD
 				__task_wakeup(t, (t->thread_mask == tid_bit) ?
 				    &rqueue_local[tid] : &rqueue);
+#else
+				__task_wakeup(t, &rqueue_local[tid]);
+#endif
 			else
 				task_queue(t);
 		}
@@ -382,7 +402,9 @@ int init_task()
 	int i;
 
 	memset(&timers, 0, sizeof(timers));
+#ifdef USE_THREAD
 	memset(&rqueue, 0, sizeof(rqueue));
+#endif
 	HA_SPIN_INIT(&wq_lock);
 	HA_SPIN_INIT(&rq_lock);
 	for (i = 0; i < MAX_THREADS; i++) {

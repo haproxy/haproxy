@@ -93,7 +93,9 @@ extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
 extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
+#ifdef USE_THREAD
 extern struct eb_root rqueue;      /* tree constituting the run queue */
+#endif
 extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 extern struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
 extern int task_list_size[MAX_THREADS]; /* Number of task sin the task_list */
