@@ -91,7 +91,7 @@ int co_inject(struct channel *chn, const char *msg, int len)
 		return -2;
 	}
 
-	buffer_realign(chn->buf);
+	c_realign_if_empty(chn);
 	max = bo_contig_space(chn->buf);
 	if (len > max)
 		return max;

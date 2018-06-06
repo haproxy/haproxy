@@ -8318,7 +8318,7 @@ void http_reset_txn(struct stream *s)
 		s->res.buf->i = 0;
 
 	/* Now we can realign the response buffer */
-	buffer_realign(s->res.buf);
+	c_realign_if_empty(&s->res);
 
 	s->req.rto = strm_fe(s)->timeout.client;
 	s->req.wto = TICK_ETERNITY;

@@ -394,15 +394,6 @@ static inline void bi_fast_delete(struct buffer *buf, int n)
 	buf->p += n;
 }
 
-/* Tries to realign the given buffer. */
-static inline void buffer_realign(struct buffer *buf)
-{
-	if (!(buf->i | buf->o)) {
-		/* let's realign the buffer to optimize I/O */
-		buf->p = buf->data;
-	}
-}
-
 /* Schedule all remaining buffer data to be sent. ->o is not touched if it
  * already covers those data. That permits doing a flush even after a forward,
  * although not recommended.
