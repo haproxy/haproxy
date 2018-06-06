@@ -329,6 +329,47 @@ static inline void b_realign_if_empty(struct buffer *b)
 		b->p = b->data;
 }
 
+/* b_slow_realign() : this function realigns a possibly wrapping buffer so that
+ * the part remaining to be parsed is contiguous and starts at the beginning of
+ * the buffer and the already parsed output part ends at the end of the buffer.
+ * This provides the best conditions since it allows the largest inputs to be
+ * processed at once and ensures that once the output data leaves, the whole
+ * buffer is available at once. The number of output bytes supposedly present
+ * at the beginning of the buffer and which need to be moved to the end must be
+ * passed in <output>. A temporary swap area at least as large as b->size must
+ * be provided in <swap>. It's up to the caller to ensure <output> is no larger
+ * than the difference between the whole buffer's length and its input.
+ */
+static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
+{
+	size_t block1 = output;
+	size_t block2 = 0;
+
+	/* process output data in two steps to cover wrapping */
+	if (block1 > b_size(b) - b_head_ofs(b)) {
+		block2 = b_size(b) - b_head_ofs(b);
+		block1 -= block2;
+	}
+	memcpy(swap + b_size(b) - output, b_head(b), block1);
+	memcpy(swap + b_size(b) - block2, b_orig(b), block2);
+
+	/* process input data in two steps to cover wrapping */
+	block1 = b_data(b) - output;
+	block2 = 0;
+
+	if (block1 > b_tail_ofs(b)) {
+		block2 = b_tail_ofs(b);
+		block1 = block1 - block2;
+	}
+	memcpy(swap, b_peek(b, output), block1);
+	memcpy(swap + block1, b_orig(b), block2);
+
+	/* reinject changes into the buffer */
+	memcpy(b_orig(b), swap, b_data(b) - output);
+	memcpy(b_wrap(b) - output, swap + b_size(b) - output, output);
+
+	b->p = b->data;
+}
 
 #endif /* _COMMON_BUF_H */
 

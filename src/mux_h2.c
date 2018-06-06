@@ -2688,7 +2688,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		/* it doesn't fit and the buffer is fragmented,
 		 * so let's defragment it and try again.
 		 */
-		buffer_slow_realign(buf);
+		buffer_slow_realign(buf, 0);
 	}
 
 	/* first check if we have some room after p+i */
@@ -2995,7 +2995,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		if (outbuf.size >= 9 || !buffer_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
-		buffer_slow_realign(h2c->mbuf);
+		buffer_slow_realign(h2c->mbuf, h2c->mbuf->o);
 	}
 
 	if (outbuf.size < 9) {
@@ -3153,7 +3153,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 		if (outbuf.size >= 9 || !buffer_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
-		buffer_slow_realign(h2c->mbuf);
+		buffer_slow_realign(h2c->mbuf, h2c->mbuf->o);
 	}
 
 	if (outbuf.size < 9) {

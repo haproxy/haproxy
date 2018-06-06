@@ -701,6 +701,17 @@ static inline void channel_truncate(struct channel *chn)
 	chn->buf->i = 0;
 }
 
+/* This function realigns a possibly wrapping channel buffer so that the input
+ * part is contiguous and starts at the beginning of the buffer and the output
+ * part ends at the end of the buffer. This provides the best conditions since
+ * it allows the largest inputs to be processed at once and ensures that once
+ * the output data leaves, the whole buffer is available at once.
+ */
+static inline void channel_slow_realign(struct channel *chn)
+{
+	return buffer_slow_realign(chn->buf, co_data(chn));
+}
+
 /*
  * Advance the channel buffer's read pointer by <len> bytes. This is useful
  * when data have been read directly from the buffer. It is illegal to call
