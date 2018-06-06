@@ -22,6 +22,7 @@
 #ifndef _PROTO_CHANNEL_H
 #define _PROTO_CHANNEL_H
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,6 +83,231 @@ static inline struct stream_interface *chn_cons(const struct channel *chn)
 	else
 		return &LIST_ELEM(chn, struct stream *, req)->si[1];
 }
+
+/* c_orig() : returns the pointer to the channel buffer's origin */
+static inline char *c_orig(const struct channel *c)
+{
+	return b_orig(c->buf);
+}
+
+/* c_size() : returns the size of the channel's buffer */
+static inline size_t c_size(const struct channel *c)
+{
+	return b_size(c->buf);
+}
+
+/* c_wrap() : returns the pointer to the channel buffer's wrapping point */
+static inline char *c_wrap(const struct channel *c)
+{
+	return b_wrap(c->buf);
+}
+
+/* c_data() : returns the amount of data in the channel's buffer */
+static inline size_t c_data(const struct channel *c)
+{
+	return b_data(c->buf);
+}
+
+/* c_room() : returns the room left in the channel's buffer */
+static inline size_t c_room(const struct channel *c)
+{
+	return b_size(c->buf) - b_data(c->buf);
+}
+
+/* c_empty() : returns a boolean indicating if the channel's buffer is empty */
+static inline size_t c_empty(const struct channel *c)
+{
+	return !c_data(c);
+}
+
+/* c_full() : returns a boolean indicating if the channel's buffer is full */
+static inline size_t c_full(const struct channel *c)
+{
+	return !c_room(c);
+}
+
+/* co_data() : returns the amount of output data in the channel's buffer */
+static inline size_t co_data(const struct channel *c)
+{
+	return c->buf->o;
+}
+
+/* ci_data() : returns the amount of input data in the channel's buffer */
+static inline size_t ci_data(const struct channel *c)
+{
+	return c->buf->i;
+}
+
+/* ci_next() : for an absolute pointer <p> or a relative offset <o> pointing to
+ * a valid location within channel <c>'s buffer, returns either the absolute
+ * pointer or the relative offset pointing to the next byte, which usually is
+ * at (p + 1) unless p reaches the wrapping point and wrapping is needed.
+ */
+static inline size_t ci_next_ofs(const struct channel *c, size_t o)
+{
+	return b_next_ofs(c->buf, o);
+}
+static inline char *ci_next(const struct channel *c, const char *p)
+{
+	return b_next(c->buf, p);
+}
+
+
+/* c_ptr() : returns a pointer to an offset relative to the beginning of the
+ * input data in the buffer. If instead the offset is negative, a pointer to
+ * existing output data is returned. The function only takes care of wrapping,
+ * it's up to the caller to ensure the offset is always within byte count
+ * bounds.
+ */
+static inline char *c_ptr(const struct channel *c, ssize_t ofs)
+{
+	return b_peek(c->buf, co_data(c) + ofs);
+}
+
+/* c_adv() : advances the channel's buffer by <adv> bytes, which means that the
+ * buffer's pointer advances, and that as many bytes from in are transferred
+ * from in to out. The caller is responsible for ensuring that adv is always
+ * smaller than or equal to b->i.
+ */
+static inline void c_adv(struct channel *c, size_t adv)
+{
+	struct buffer *b = c->buf;
+
+	b->p = c_ptr(c, adv);
+	b->i -= adv;
+	b->o += adv;
+}
+
+/* c_rew() : rewinds the channel's buffer by <adv> bytes, which means that the
+ * buffer's pointer goes backwards, and that as many bytes from out are moved
+ * to in. The caller is responsible for ensuring that adv is always smaller
+ * than or equal to b->o.
+ */
+static inline void c_rew(struct channel *c, size_t adv)
+{
+	struct buffer *b = c->buf;
+
+	b->p = c_ptr(c, (int)-adv);
+	b->i += adv;
+	b->o -= adv;
+}
+
+/* c_realign_if_empty() : realign the channel's buffer if it's empty */
+static inline void c_realign_if_empty(struct channel *chn)
+{
+	b_realign_if_empty(chn->buf);
+}
+
+
+/* co_head() : returns a pointer to the beginning of output data in the buffer.
+ *             The "__" variants don't support wrapping, "ofs" are relative to
+ *             the buffer's origin.
+ */
+static inline size_t __co_head_ofs(const struct channel *c)
+{
+	return __b_peek_ofs(c->buf, 0);
+}
+static inline char *__co_head(const struct channel *c)
+{
+	return __b_peek(c->buf, 0);
+}
+static inline size_t co_head_ofs(const struct channel *c)
+{
+	return b_peek_ofs(c->buf, 0);
+}
+static inline char *co_head(const struct channel *c)
+{
+	return b_peek(c->buf, 0);
+}
+
+
+/* co_tail() : returns a pointer to the end of output data in the buffer.
+ *             The "__" variants don't support wrapping, "ofs" are relative to
+ *             the buffer's origin.
+ */
+static inline size_t __co_tail_ofs(const struct channel *c)
+{
+	return __b_peek_ofs(c->buf, co_data(c));
+}
+static inline char *__co_tail(const struct channel *c)
+{
+	return __b_peek(c->buf, co_data(c));
+}
+static inline size_t co_tail_ofs(const struct channel *c)
+{
+	return b_peek_ofs(c->buf, co_data(c));
+}
+static inline char *co_tail(const struct channel *c)
+{
+	return b_peek(c->buf, co_data(c));
+}
+
+
+/* ci_head() : returns a pointer to the beginning of input data in the buffer.
+ *             The "__" variants don't support wrapping, "ofs" are relative to
+ *             the buffer's origin.
+ */
+static inline size_t __ci_head_ofs(const struct channel *c)
+{
+	return __b_peek_ofs(c->buf, co_data(c));
+}
+static inline char *__ci_head(const struct channel *c)
+{
+	return __b_peek(c->buf, co_data(c));
+}
+static inline size_t ci_head_ofs(const struct channel *c)
+{
+	return b_peek_ofs(c->buf, co_data(c));
+}
+static inline char *ci_head(const struct channel *c)
+{
+	return b_peek(c->buf, co_data(c));
+}
+
+
+/* ci_tail() : returns a pointer to the end of input data in the buffer.
+ *             The "__" variants don't support wrapping, "ofs" are relative to
+ *             the buffer's origin.
+ */
+static inline size_t __ci_tail_ofs(const struct channel *c)
+{
+	return __b_peek_ofs(c->buf, c_data(c));
+}
+static inline char *__ci_tail(const struct channel *c)
+{
+	return __b_peek(c->buf, c_data(c));
+}
+static inline size_t ci_tail_ofs(const struct channel *c)
+{
+	return b_peek_ofs(c->buf, c_data(c));
+}
+static inline char *ci_tail(const struct channel *c)
+{
+	return b_peek(c->buf, c_data(c));
+}
+
+
+/* ci_stop() : returns the pointer to the byte following the end of input data
+ *             in the channel buffer. It may be out of the buffer. It's used to
+ *             compute lengths or stop pointers.
+ */
+static inline size_t __ci_stop_ofs(const struct channel *c)
+{
+	return __b_stop_ofs(c->buf);
+}
+static inline const char *__ci_stop(const struct channel *c)
+{
+	return __b_stop(c->buf);
+}
+static inline size_t ci_stop_ofs(const struct channel *c)
+{
+	return b_stop_ofs(c->buf);
+}
+static inline const char *ci_stop(const struct channel *c)
+{
+	return b_stop(c->buf);
+}
+
 
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
