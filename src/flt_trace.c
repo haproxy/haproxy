@@ -84,9 +84,9 @@ trace_hexdump(struct buffer *buf, int len)
 	int block1, block2, i, j, padding;
 
 	block1 = len;
-        if (block1 > bi_contig_data(buf))
-                block1 = bi_contig_data(buf);
-        block2 = len - block1;
+	if (block1 > b_contig_data(buf, buf->o))
+		block1 = b_contig_data(buf, buf->o);
+	block2 = len - block1;
 
 	memcpy(p, buf->p, block1);
 	memcpy(p+block1, buf->data, block2);

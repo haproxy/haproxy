@@ -2838,7 +2838,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	/* Block1 is the length of the first block before the buffer wraps,
 	 * block2 is the optional second block to reach the end of the frame.
 	 */
-	block1 = bi_contig_data(h2c->dbuf);
+	block1 = b_contig_data(h2c->dbuf, 0);
 	if (block1 > flen)
 		block1 = flen;
 	block2 = flen - block1;

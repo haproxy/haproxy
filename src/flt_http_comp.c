@@ -206,7 +206,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 		len = MIN(tmpbuf->size - buffer_len(tmpbuf), len);
 
 		c_adv(chn, *nxt);
-		block = bi_contig_data(buf);
+		block = ci_contig_data(chn);
 		memcpy(bi_end(tmpbuf), bi_ptr(buf), block);
 		if (len > block)
 			memcpy(bi_end(tmpbuf)+block, buf->data, len-block);
@@ -644,8 +644,8 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 	data_process_len = MIN(out->size - buffer_len(out), sz);
 
 	block1 = data_process_len;
-	if (block1 > bi_contig_data(in))
-		block1 = bi_contig_data(in);
+	if (block1 > b_contig_data(in, in->o))
+		block1 = b_contig_data(in, in->o);
 	block2 = data_process_len - block1;
 
 	/* compressors return < 0 upon error or the amount of bytes read */
@@ -765,7 +765,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	/* copy the remaining data in the tmp buffer. */
 	c_adv(chn, st->consumed);
 	if (ib->i > 0) {
-		left = bi_contig_data(ib);
+		left = ci_contig_data(chn);
 		memcpy(ob->p + ob->i, bi_ptr(ib), left);
 		ob->i += left;
 		if (ib->i - left) {

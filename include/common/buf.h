@@ -278,6 +278,21 @@ static inline int b_space_wraps(const struct buffer *b)
 	return 1;
 }
 
+/* b_contig_data() : returns the amount of data that can contiguously be read
+ * at once starting from a relative offset <start> (which allows to easily
+ * pre-compute blocks for memcpy). The start point will typically contain the
+ * amount of past data already returned by a previous call to this function.
+ */
+static inline size_t b_contig_data(const struct buffer *b, size_t start)
+{
+	size_t data = b_wrap(b) - b_peek(b, start);
+	size_t limit = b_data(b) - start;
+
+	if (data > limit)
+		data = limit;
+	return data;
+}
+
 
 /*********************************************/
 /* Functions used to modify the buffer state */

@@ -309,6 +309,12 @@ static inline const char *ci_stop(const struct channel *c)
 }
 
 
+/* Returns the amount of input data that can contiguously be read at once */
+static inline size_t ci_contig_data(const struct channel *c)
+{
+	return b_contig_data(c->buf, co_data(c));
+}
+
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
 {

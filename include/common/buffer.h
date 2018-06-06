@@ -123,16 +123,6 @@ static inline char *bi_end(const struct buffer *b)
 	return ret;
 }
 
-/* Returns the amount of input data that can contiguously be read at once */
-static inline int bi_contig_data(const struct buffer *b)
-{
-	int data = b->data + b->size - b->p;
-
-	if (data > b->i)
-		data = b->i;
-	return data;
-}
-
 /* Returns the start of the output data in a buffer */
 static inline char *bo_ptr(const struct buffer *b)
 {
