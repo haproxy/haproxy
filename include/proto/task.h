@@ -133,7 +133,7 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 	else
 		root = &rqueue;
 #else
-	struct eb_root *root = &rqueue;
+	struct eb_root *root = &rqueue_local[tid];
 #endif
 
 	state = HA_ATOMIC_OR(&t->state, f);
