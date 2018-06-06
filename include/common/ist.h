@@ -28,6 +28,7 @@
 #ifndef _COMMON_IST_H
 #define _COMMON_IST_H
 
+#include <ctype.h>
 #include <string.h>
 
 #include <common/config.h>
@@ -239,6 +240,24 @@ static inline int isteq(const struct ist ist1, const struct ist ist2)
 	while (l.len--) {
 		if (*l.ptr++ != *r.ptr++)
 			return 0;
+	}
+	return 1;
+}
+
+/* returns non-zero if <ist1> equals <ist2>, ignoring the case (empty strings are equal) */
+static inline int isteqi(const struct ist ist1, const struct ist ist2)
+{
+	struct ist l = ist1;
+	struct ist r = ist2;
+
+	if (l.len != r.len)
+		return 0;
+
+	while (l.len--) {
+		if (tolower(*l.ptr) != tolower(*r.ptr))
+			return 0;
+		l.ptr++;
+		r.ptr++;
 	}
 	return 1;
 }
