@@ -527,52 +527,6 @@ static inline int bi_putchk(struct buffer *b, const struct chunk *chk)
 	return bi_putblk(b, chk->str, chk->len);
 }
 
-/* Gets one full block of data at once from a buffer's input. Return values :
- *   >0 : number of bytes read, equal to requested size.
- *   =0 : not enough data available. <blk> is left undefined.
- * The buffer is left unaffected.
- */
-static inline int bi_getblk(const struct buffer *buf, char *blk, int len)
-{
-	int firstblock;
-
-	if (len > buf->i)
-		return 0;
-
-	firstblock = bi_contig_data(buf);
-	if (firstblock > len)
-		firstblock = len;
-
-	memcpy(blk, bi_ptr(buf), firstblock);
-	if (len > firstblock)
-		memcpy(blk + firstblock, buf->data, len - firstblock);
-	return len;
-}
-
-/* Gets one or two blocks of data at once from a buffer's input.
- * Return values :
- *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
- *   =0 : not enough data available. <blk*> are left undefined.
- * The buffer is left unaffected. Unused buffers are left in an undefined state.
- */
-static inline int bi_getblk_nc(struct buffer *buf, char **blk1, int *len1, char **blk2, int *len2)
-{
-	if (unlikely(buf->i == 0))
-		return 0;
-
-	if (unlikely(buf->p + buf->i > buf->data + buf->size)) {
-		*blk1 = buf->p;
-		*len1 = buf->data + buf->size - buf->p;
-		*blk2 = buf->data;
-		*len2 = buf->i - *len1;
-		return 2;
-	}
-
-	*blk1 = buf->p;
-	*len1 = buf->i;
-	return 1;
-}
-
 /* Allocates a buffer and replaces *buf with this buffer. If no memory is
  * available, &buf_wanted is used instead. No control is made to check if *buf
  * already pointed to another buffer. The allocated buffer is returned, or
