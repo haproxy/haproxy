@@ -379,9 +379,7 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	if (buf == &buf_empty)
 		return 0;
 
-	if (!buf->size || buffer_total_space(buf) < buf->size / 4)
-		return 1;
-	return 0;
+	return b_almost_full(buf);
 }
 
 /* Cut the first <n> pending bytes in a contiguous buffer. It is illegal to
@@ -637,15 +635,6 @@ static inline int bi_getblk_nc(struct buffer *buf, char **blk1, int *len1, char 
 	*blk1 = buf->p;
 	*len1 = buf->i;
 	return 1;
-}
-
-/* Resets a buffer. The size is not touched. */
-static inline void b_reset(struct buffer *buf)
-{
-	buf->o = 0;
-	buf->i = 0;
-	buf->p = buf->data;
-
 }
 
 /* Allocates a buffer and replaces *buf with this buffer. If no memory is
