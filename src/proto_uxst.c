@@ -146,7 +146,12 @@ static int uxst_find_compatible_fd(struct listener *l)
 					after_sockname++;
 				if (!strcmp(after_sockname, ".tmp"))
 					break;
-			}
+			/* abns sockets sun_path starts with a \0 */
+			} else if (un1->sun_path[0] == 0
+			    && un2->sun_path[0] == 0
+			    && !memcmp(&un1->sun_path[1], &un2->sun_path[1],
+			    sizeof(un1->sun_path) - 1))
+				break;
 		}
 		xfer_sock = xfer_sock->next;
 	}
