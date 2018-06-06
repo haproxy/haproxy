@@ -105,29 +105,6 @@ static inline void bo_del(struct buffer *b, unsigned int del)
 	b->o -= del;
 }
 
-/* Advances the buffer by <adv> bytes, which means that the buffer
- * pointer advances, and that as many bytes from in are transferred
- * to out. The caller is responsible for ensuring that adv is always
- * smaller than or equal to b->i.
- */
-static inline void b_adv(struct buffer *b, unsigned int adv)
-{
-	b->i -= adv;
-	b->o += adv;
-	b->p = b_ptr(b, adv);
-}
-
-/* Rewinds the buffer by <adv> bytes, which means that the buffer pointer goes
- * backwards, and that as many bytes from out are moved to in. The caller is
- * responsible for ensuring that adv is always smaller than or equal to b->o.
- */
-static inline void b_rew(struct buffer *b, unsigned int adv)
-{
-	b->i += adv;
-	b->o -= adv;
-	b->p = b_ptr(b, (int)-adv);
-}
-
 /* Returns the start of the input data in a buffer */
 static inline char *bi_ptr(const struct buffer *b)
 {

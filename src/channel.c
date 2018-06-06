@@ -38,7 +38,7 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 	 * regular code paths.
 	 */
 	if (unlikely(chn->to_forward == CHN_INFINITE_FORWARD)) {
-		b_adv(chn->buf, chn->buf->i);
+		c_adv(chn, chn->buf->i);
 		return bytes;
 	}
 
@@ -49,7 +49,7 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 
 	/* transfer as much as we can of buf->i */
 	forwarded = MIN(chn->buf->i, budget);
-	b_adv(chn->buf, forwarded);
+	c_adv(chn, forwarded);
 	budget -= forwarded;
 
 	if (!budget)
@@ -125,7 +125,7 @@ int ci_putchr(struct channel *chn, char c)
 	if (chn->to_forward >= 1) {
 		if (chn->to_forward != CHN_INFINITE_FORWARD)
 			chn->to_forward--;
-		b_adv(chn->buf, 1);
+		c_adv(chn, 1);
 	}
 
 	chn->total++;
@@ -180,7 +180,7 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 				fwd = chn->to_forward;
 			chn->to_forward -= fwd;
 		}
-		b_adv(chn->buf, fwd);
+		c_adv(chn, fwd);
 	}
 
 	/* notify that some data was read from the SI into the buffer */
@@ -223,7 +223,7 @@ struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf)
 				fwd = chn->to_forward;
 			chn->to_forward -= fwd;
 		}
-		b_adv(chn->buf, fwd);
+		c_adv(chn, fwd);
 	}
 
 	/* notify that some data was read from the SI into the buffer */

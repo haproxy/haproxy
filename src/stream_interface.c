@@ -1203,7 +1203,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 					fwd = ic->to_forward;
 				ic->to_forward -= fwd;
 			}
-			b_adv(ic->buf, fwd);
+			c_adv(ic, fwd);
 		}
 
 		ic->flags |= CF_READ_PARTIAL;

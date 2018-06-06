@@ -221,13 +221,13 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 				pool_free(pool_head_cache_st, st);
 			} else {
 				/* Skip remaining headers to fill the cache */
-				b_adv(msg->chn->buf, st->hdrs_len);
+				c_adv(msg->chn, st->hdrs_len);
 				ret = shctx_row_data_append(shctx,
 							    st->first_block,
 							    (unsigned char *)bi_ptr(msg->chn->buf),
 							    MIN(bi_contig_data(msg->chn->buf), len - st->hdrs_len));
 				/* Rewind the buffer to forward all data */
-				b_rew(msg->chn->buf, st->hdrs_len);
+				c_rew(msg->chn, st->hdrs_len);
 				st->hdrs_len = 0;
 				if (ret)
 					goto disable_cache;

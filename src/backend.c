@@ -485,12 +485,12 @@ static struct server *get_server_rch(struct stream *s)
 
 	memset(&smp, 0, sizeof(smp));
 
-	b_rew(s->req.buf, rewind = s->req.buf->o);
+	c_rew(&s->req, rewind = s->req.buf->o);
 
 	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
 	len = smp.data.u.str.len;
 
-	b_adv(s->req.buf, rewind);
+	c_adv(&s->req, rewind);
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
 		return NULL;
@@ -1020,13 +1020,13 @@ static void assign_tproxy_address(struct stream *s)
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
 
-			b_rew(s->req.buf, rewind = http_hdr_rewind(&s->txn->req));
+			c_rew(&s->req, rewind = http_hdr_rewind(&s->txn->req));
 			if (http_get_hdr(&s->txn->req, src->bind_hdr_name, src->bind_hdr_len,
 					 &s->txn->hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
 				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
 					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}
-			b_adv(s->req.buf, rewind);
+			c_adv(&s->req, rewind);
 		}
 		break;
 	default:
@@ -1261,12 +1261,12 @@ int connect_server(struct stream *s)
 			 * output data.
 			 */
 			rewind = s->txn ? http_hdr_rewind(&s->txn->req) : s->req.buf->o;
-			b_rew(s->req.buf, rewind);
+			c_rew(&s->req, rewind);
 
 			smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, srv->ssl_ctx.sni, SMP_T_STR);
 
 			/* restore the pointers */
-			b_adv(s->req.buf, rewind);
+			c_adv(&s->req, rewind);
 
 			if (smp_make_safe(smp)) {
 				ssl_sock_set_servername(srv_conn, smp->data.u.str.str);

@@ -1089,7 +1089,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 		goto end;
 
 	/* Consume data that all filters consider as forwarded. */
-	b_adv(chn->buf, ret);
+	c_adv(chn, ret);
 
 	/* Stop waiting data if the input in closed and no data is pending or if
 	 * the output is closed. */

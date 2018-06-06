@@ -3049,7 +3049,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.
 	 */
-	b_adv(chn->buf, max);
+	c_adv(chn, max);
 
 	l += max;
 	lua_pop(L, 1);

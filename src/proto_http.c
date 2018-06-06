@@ -1108,12 +1108,12 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	 * to temporarily rewind the buffer.
 	 */
 	txn = s->txn;
-	b_rew(s->req.buf, rewind = http_hdr_rewind(&txn->req));
+	c_rew(&s->req, rewind = http_hdr_rewind(&txn->req));
 
 	path = http_get_path(txn);
 	len = buffer_count(s->req.buf, path, b_ptr(s->req.buf, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
 
-	b_adv(s->req.buf, rewind);
+	c_adv(&s->req, rewind);
 
 	if (!path)
 		return;
@@ -4251,7 +4251,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	old_o = http_hdr_rewind(&txn->req);
 	if (old_o) {
 		/* The request was already skipped, let's restore it */
-		b_rew(chn->buf, old_o);
+		c_rew(chn, old_o);
 		txn->req.next += old_o;
 		txn->req.sov += old_o;
 	}
@@ -4278,7 +4278,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 		 * so we don't have to adjust ->sol.
 		 */
 		old_o += chn->buf->i - old_i;
-		b_adv(chn->buf, old_o);
+		c_adv(chn, old_o);
 		txn->req.next -= old_o;
 		txn->req.sov  -= old_o;
 	}
@@ -6289,7 +6289,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			       /* default_ret */ msg->next,
 			       /* on_error    */ goto error);
-	b_adv(chn->buf, ret);
+	c_adv(chn, ret);
 	msg->next -= ret;
 	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
 		msg->sov -= ret;
@@ -6309,7 +6309,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			       /* default_ret */ msg->next,
 			       /* on_error    */ goto error);
-	b_adv(chn->buf, ret);
+	c_adv(chn, ret);
 	msg->next -= ret;
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;
@@ -6420,7 +6420,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
 			  /* on_error    */ goto error);
-	b_adv(chn->buf, ret);
+	c_adv(chn, ret);
 	msg->next -= ret;
 	if (unlikely(!(chn->flags & CF_WROTE_DATA) || msg->sov > 0))
 		msg->sov -= ret;
@@ -6439,7 +6439,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
 			  /* on_error    */ goto error);
-	b_adv(chn->buf, ret);
+	c_adv(chn, ret);
 	msg->next -= ret;
 	if (!(chn->flags & CF_WROTE_DATA) || msg->sov > 0)
 		msg->sov -= ret;

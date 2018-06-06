@@ -177,7 +177,8 @@ static int
 comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
-	struct buffer     *buf = msg->chn->buf;
+	struct channel    *chn = msg->chn;
+	struct buffer     *buf = chn->buf;
 	unsigned int      *nxt = &flt_rsp_nxt(filter);
 	unsigned int       len;
 	int                ret;
@@ -190,9 +191,9 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 		unsigned int fwd = flt_rsp_fwd(filter) + st->hdrs_len;
 
 		b_reset(tmpbuf);
-		b_adv(buf, fwd);
+		c_adv(chn, fwd);
 		ret = http_compression_buffer_init(buf, zbuf);
-		b_rew(buf, fwd);
+		c_rew(chn, fwd);
 		if (ret < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
 			return 0;
@@ -204,20 +205,20 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 
 		len = MIN(tmpbuf->size - buffer_len(tmpbuf), len);
 
-		b_adv(buf, *nxt);
+		c_adv(chn, *nxt);
 		block = bi_contig_data(buf);
 		memcpy(bi_end(tmpbuf), bi_ptr(buf), block);
 		if (len > block)
 			memcpy(bi_end(tmpbuf)+block, buf->data, len-block);
-		b_rew(buf, *nxt);
+		c_rew(chn, *nxt);
 
 		tmpbuf->i += len;
 		ret        = len;
 	}
 	else {
-		b_adv(buf, *nxt);
+		c_adv(chn, *nxt);
 		ret = http_compression_buffer_add_data(st, buf, zbuf, len);
-		b_rew(buf, *nxt);
+		c_rew(chn, *nxt);
 		if (ret < 0)
 			return ret;
 	}
@@ -237,13 +238,13 @@ comp_http_chunk_trailers(struct stream *s, struct filter *filter,
 
 	if (!st->initialized) {
 		if (!st->finished) {
-			struct buffer *buf = msg->chn->buf;
+			struct channel *chn = msg->chn;
 			unsigned int   fwd = flt_rsp_fwd(filter) + st->hdrs_len;
 
 			b_reset(tmpbuf);
-			b_adv(buf, fwd);
-			http_compression_buffer_init(buf, zbuf);
-			b_rew(buf, fwd);
+			c_adv(chn, fwd);
+			http_compression_buffer_init(chn->buf, zbuf);
+			c_rew(chn, fwd);
 			st->initialized = 1;
 		}
 	}
@@ -305,9 +306,9 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 	}
 
 	st->consumed = len - st->hdrs_len - st->tlrs_len;
-	b_adv(msg->chn->buf, flt_rsp_fwd(filter) + st->hdrs_len);
+	c_adv(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
 	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
-	b_rew(msg->chn->buf, flt_rsp_fwd(filter) + st->hdrs_len);
+	c_rew(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
 	if (ret < 0)
 		return ret;
 
@@ -762,7 +763,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	}
 
 	/* copy the remaining data in the tmp buffer. */
-	b_adv(ib, st->consumed);
+	c_adv(chn, st->consumed);
 	if (ib->i > 0) {
 		left = bi_contig_data(ib);
 		memcpy(ob->p + ob->i, bi_ptr(ib), left);

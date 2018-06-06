@@ -341,7 +341,7 @@ static inline unsigned long long channel_forward(struct channel *chn, unsigned l
 
 		if (bytes32 <= chn->buf->i) {
 			/* OK this amount of bytes might be forwarded at once */
-			b_adv(chn->buf, bytes32);
+			c_adv(chn, bytes32);
 			return bytes;
 		}
 	}
@@ -351,7 +351,7 @@ static inline unsigned long long channel_forward(struct channel *chn, unsigned l
 /* Forwards any input data and marks the channel for permanent forwarding */
 static inline void channel_forward_forever(struct channel *chn)
 {
-	b_adv(chn->buf, chn->buf->i);
+	c_adv(chn, chn->buf->i);
 	chn->to_forward = CHN_INFINITE_FORWARD;
 }
 
