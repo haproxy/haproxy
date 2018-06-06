@@ -61,7 +61,7 @@ static int http_compression_buffer_add_data(struct comp_state *st,
 					    struct buffer *in,
 					    struct buffer *out, int sz);
 static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
-				       struct buffer **in, struct buffer **out,
+				       struct channel *chn, struct buffer **out,
 				       int end);
 
 /***********************************************************************/
@@ -306,7 +306,7 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 
 	st->consumed = len - st->hdrs_len - st->tlrs_len;
 	b_adv(msg->chn->buf, flt_rsp_fwd(filter) + st->hdrs_len);
-	ret = http_compression_buffer_end(st, s, &msg->chn->buf, &zbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
+	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 	b_rew(msg->chn->buf, flt_rsp_fwd(filter) + st->hdrs_len);
 	if (ret < 0)
 		return ret;
@@ -666,10 +666,10 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
  */
 static int
 http_compression_buffer_end(struct comp_state *st, struct stream *s,
-			    struct buffer **in, struct buffer **out,
+			    struct channel *chn, struct buffer **out,
 			    int end)
 {
-	struct buffer *ib = *in, *ob = *out;
+	struct buffer *ib = chn->buf, *ob = *out;
 	char *tail;
 	int   to_forward, left;
 
@@ -774,7 +774,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	}
 
 	/* swap the buffers */
-	*in = ob;
+	chn->buf = ob;
 	*out = ib;
 
 
