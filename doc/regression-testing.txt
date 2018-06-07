@@ -1,0 +1,696 @@
+               +---------------------------------------------+
+               | HAProxy regression testing with varnishtest |
+               +---------------------------------------------+
+
+
+The information found in this file are a short starting guide to help you to
+write VTC (Varnish Test Case) scripts (or VTC files) for haproxy regression testing.
+Such VTC files are currently used to test Varnish cache application developed by
+Poul-Henning Kamp. A very big thanks you to him for having helped you to add
+our haproxy C modules to varnishtest tool.
+
+A lot of general information about how to write VTC files may be found in 'man/vtc.7'
+manual. It is *highly* recommended to read this manual before asking. This
+documentation only deals with the varnishtest support for haproxy.
+
+
+varnishtest installation
+------------------------
+
+To use varnishtest you will have to download and compile the recent Varnish cache
+sources found at https://github.com/varnishcache/varnish-cache.
+
+To compile Varnish cache :
+
+    $ ./autogen.sh
+    $ ./configure
+    $ make
+
+The varnishtest sources may be found in 'bin/varnishtest' directory.
+'bin/varnishtest/tests' is plenty of VTC files for Varnish cache. After having
+compiled these sources, the varnishtest executable location is
+'bin/varnishtest/varnishtest'.
+
+varnishtest is able to search for the haproxy executable file it is supposed to
+launch in the PATH environment variable. To force the executable to be used by
+varnishtest, the HAPROXY_PROGRAM environment variable for varnishtest may be
+typically set as follows:
+
+     $ HAPROXY_PROGRAM=~/srcs/haproxy/haproxy varnishtest ...
+
+
+varnistest exectution
+---------------------
+
+varnishtest program comes with interesting options. The most interesting are:
+
+    -t  Timeout in seconds to abort the test if some launched program
+    -v  By default, varnishtest does not dump the outputs of processus it launched
+        when the test passes. With this option the outputs are dumped even
+        when the test passes.
+    -L  to always keep the temporary VTC directories.
+    -l  to keep the temporary VTC directories only when the test fails.
+
+About haproxy when launched by varnishtest, -d option is enabled by default.
+
+
+How to write VTC files
+----------------------
+
+A VTC file must start with a "varnishtest" command line followed by a descriptive
+line enclosed by double quotes. This is not specific to the VTC files for haproxy.
+
+The VTC files for haproxy must also contain a "feature ignore_unknown_macro" line
+if any macro is used for haproxy in this file. This is due to the fact that
+varnishtest parser code for haproxy commands generates macros the varnishtest
+parser code for varnish has no knowledge of. This line prevents varnishtest from
+failing in such cases.
+
+To make varnishtest capable of testing haproxy, two new VTC commands have been
+implemented: "haproxy" and "syslog". "haproxy" is used to start haproxy processus.
+"syslog" is used to start syslog servers (at this time, only used by haproxy).
+
+As haproxy cannot work without configuration file, a VTC file for haproxy must
+embed the configuration files contents for the haproxy instances it declares.
+This may  be done using the following intuitive syntax construction: -conf {...}.
+Here -conf is an argument of "haproxy" VTC command to declare the configuration
+file of the haproxy instances it also declares (see "Basic HAProxy test" VTC file
+below).
+
+As for varnish VTC files, the parser of VTC files for haproxy automatically
+generates macros for the declared frontends to be reused by the clients later
+in the script, so after having written the "haproxy" command sections.
+The syntax "fd@${my_frontend_fd_name}" must be used to bind the frontend
+listeners to localhost address and random ports (see "Environment variables"
+section of haproxy documentation). This is mandatory.
+
+Each time the haproxy command parser finds a "fd@${xyz}" string in a 'ABC'
+"haproxy" command section, it generates three macros: 'ABC_xyz_addr', 'ABC_xyz_port'
+and 'ABC_xyz_sock', with 'ABC_xyz_sock' being resolved as 'ABC_xyz_addr
+ABC_xyz_port' typically used by clients -connect parameter.
+
+Each haproxy instance works in their own temporary working directories located
+at '/tmp/vtc.<varnitest PID>.XXXXXXXX/<haproxy_instance_name>' (with XXXXXXXX
+a random 8 digits hexadecimal integer. This is in this temporary directory that
+the configuration file is temporarily written.
+
+A 'stats.sock' UNIX socket is also created in this directory. There is no need
+to declare such stats sockets in the -conf {...} section. The name of the parent
+directory of the haproxy instances working directories is stored in 'tmpdir'. In
+fact this is the working directory of the current varnishtest processus.
+
+There also exists 'testdir' macro which is the parent directory of the VTC file.
+It may be useful to use other files located in the same directory than the current
+VTC file.
+
+
+
+VTC file examples
+-----------------
+
+The following first VTC file is a real regression test case file for a bug which has
+been fixed by 84c844e commit. We declare a basic configuration for a 'h1' haproxy
+instance.
+
+    varnishtest "SPOE bug: missing configuration file"
+
+    #commit 84c844eb12b250aa86f2aadaff77c42dfc3cb619
+    #Author: Christopher Faulet <cfaulet@haproxy.com>
+    #Date:   Fri Mar 23 14:37:14 2018 +0100
+
+    #   BUG/MINOR: spoe: Initialize variables used during conf parsing before any check
+
+    #   Some initializations must be done at the beginning of parse_spoe_flt to avoid
+    #   segmentaion fault when first errors are catched, when the "filter spoe" line is
+    #   parsed.
+
+    haproxy h1 -conf-BAD {} {
+      defaults
+          timeout connect 5000ms
+          timeout client 50000ms
+          timeout server 50000ms
+
+      frontend my-front
+          filter spoe
+    }
+
+
+-conf-BAD haproxy command argument is used. Its role it to launch haproxy with
+-c option (configuration file checking) and check that 'h1' exit(3) with 1 as
+status. Here is the output when running this VTC file:
+
+
+    **** top   0.0 extmacro def pwd=/home/fred/src/haproxy
+    **** top   0.0 extmacro def localhost=127.0.0.1
+    **** top   0.0 extmacro def bad_backend=127.0.0.1 39564
+    **** top   0.0 extmacro def bad_ip=192.0.2.255
+    **** top   0.0 macro def testdir=//home/fred/src/varnish-cache-haproxy
+    **** top   0.0 macro def tmpdir=/tmp/vtc.6377.64329194
+    *    top   0.0 TEST /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc starting
+    **   top   0.0 === varnishtest "SPOE bug: missing configuration file"
+    *    top   0.0 TEST SPOE bug: missing configuration file
+    **   top   0.0 === haproxy h1 -conf-BAD {} {
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|\tstats socket /tmp/vtc.6377.64329194/h1/stats.sock level admin mode 600
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|\tdefaults
+    **** h1    0.0 conf|        timeout connect 5000ms
+    **** h1    0.0 conf|        timeout client 50000ms
+    **** h1    0.0 conf|        timeout server 50000ms
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|\tfrontend my-front
+    **** h1    0.0 conf|\t\tfilter spoe
+    **** h1    0.0 conf|
+    **   h1    0.0 haproxy_start
+    **** h1    0.0 opt_worker 0 opt_daemon 0 opt_check_mode 1
+    **** h1    0.0 argv|exec /home/fred/src/haproxy/haproxy -c  -f /tmp/vtc.6377.64329194/h1/cfg
+    **** h1    0.0 XXX 5 @277
+    ***  h1    0.0 PID: 6395
+    **** h1    0.0 macro def h1_pid=6395
+    **** h1    0.0 macro def h1_name=/tmp/vtc.6377.64329194/h1
+    **   h1    0.0 Wait
+    **   h1    0.0 Stop HAproxy pid=6395
+    **** h1    0.0 STDOUT poll 0x10
+    **   h1    0.0 WAIT4 pid=6395 status=0x008b (user 0.000000 sys 0.000000)
+    *    h1    0.0 Expected exit: 0x1 signal: 0 core: 0
+    ---- h1    0.0 Bad exit status: 0x008b exit 0x0 signal 11 core 128
+    *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc
+    **   h1    0.0 Reset and free h1 haproxy 6395
+    **   h1    0.0 Wait
+    ---- h1    0.0 Assert error in haproxy_wait(), vtc_haproxy.c line 326:  Condition(*(&h->fds[1]) >= 0) not true.
+
+    *    top   0.0 failure during reset
+    #    top  TEST /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc FAILED (0.008) exit=2
+
+
+'h1' exited with (128 + 11) status and a core file was produced in
+/tmp/vtc.6377.64329194/h1 directory.
+With the patch provided by 84c844e commit, varnishtest makes this VTC file pass
+as expected (verbose mode execution):
+
+    **** top   0.0 extmacro def pwd=/home/fred/src/haproxy
+    **** top   0.0 extmacro def localhost=127.0.0.1
+    **** top   0.0 extmacro def bad_backend=127.0.0.1 42264
+    **** top   0.0 extmacro def bad_ip=192.0.2.255
+    **** top   0.0 macro def testdir=//home/fred/src/varnish-cache-haproxy
+    **** top   0.0 macro def tmpdir=/tmp/vtc.25540.59b6ec5d
+    *    top   0.0 TEST /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc starting
+    **   top   0.0 === varnishtest "SPOE bug: missing configuration file"
+    *    top   0.0 TEST SPOE bug: missing configuration file
+    **   top   0.0 === haproxy h1 -conf-BAD {} {
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|\tstats socket /tmp/vtc.25540.59b6ec5d/h1/stats.sock level admin mode 600
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|\tdefaults
+    **** h1    0.0 conf|        timeout connect 5000ms
+    **** h1    0.0 conf|        timeout client 50000ms
+    **** h1    0.0 conf|        timeout server 50000ms
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|\tfrontend my-front
+    **** h1    0.0 conf|\t\tfilter spoe
+    **** h1    0.0 conf|
+    **   h1    0.0 haproxy_start
+    **** h1    0.0 opt_worker 0 opt_daemon 0 opt_check_mode 1
+    **** h1    0.0 argv|exec /home/fred/src/haproxy/haproxy -c  -f /tmp/vtc.25540.59b6ec5d/h1/cfg
+    **** h1    0.0 XXX 5 @277
+    ***  h1    0.0 PID: 25558
+    **** h1    0.0 macro def h1_pid=25558
+    **** h1    0.0 macro def h1_name=/tmp/vtc.25540.59b6ec5d/h1
+    **   h1    0.0 Wait
+    **   h1    0.0 Stop HAproxy pid=25558
+    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : parsing [/tmp/vtc.25540.59b6ec5d/h1/cfg:10] : 'filter' : ''spoe' : missing config file'
+    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : Error(s) found in configuration file : /tmp/vtc.25540.59b6ec5d/h1/cfg
+    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : Fatal errors found in configuration.
+    **** h1    0.0 STDOUT poll 0x10
+    **   h1    0.0 WAIT4 pid=25558 status=0x0100 (user 0.000000 sys 0.000000)
+    **   h1    0.0 Found expected ''
+    *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc
+    **   h1    0.0 Reset and free h1 haproxy -1
+    *    top   0.0 TEST /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc completed
+    #    top  TEST /home/fred/src/varnish-cache-haproxy/spoe_bug.vtc passed (0.004)
+
+
+The following VTC file does almost nothing except running a shell to list
+the contents of 'tmpdir' directory after having launched a haproxy instance
+and 's1' HTTP server. This shell also prints the content of 'cfg' 'h1' configuration
+file.
+
+    varnishtest "List the contents of 'tmpdir'"
+    feature ignore_unknown_macro
+
+    server s1 {
+    } -start
+
+    haproxy h1 -conf {
+      defaults
+          mode http
+          timeout connect 5s
+          timeout server  30s
+          timeout client  30s
+
+      backend be1
+          server srv1 ${s1_addr}:${s1_port}
+
+      frontend http1
+          use_backend be1
+          bind "fd@${my_frontend_fd}"
+    } -start
+
+    shell {
+      echo "${tmpdir} working directory content:"
+      ls -lR ${tmpdir}
+      cat ${tmpdir}/h1/cfg
+    }
+
+We give only the ouput of the shell to illustrate this example:
+
+    .
+    .
+    .
+    **   top   0.0 === shell {
+    **** top   0.0 shell_cmd|exec 2>&1 ;
+    **** top   0.0 shell_cmd|  echo "tmpdir: /tmp/vtc.32092.479d521e"
+    **** top   0.0 shell_cmd|  ls -lR /tmp/vtc.32092.479d521e
+    **** top   0.0 shell_cmd|  cat /tmp/vtc.32092.479d521e/h1/cfg
+    .
+    .
+    .
+    **** top   0.0 shell_out|/tmp/vtc.3808.448cbfe0 working directory content:
+    **** top   0.0 shell_out|/tmp/vtc.32092.479d521e:
+    **** top   0.0 shell_out|total 8
+    **** top   0.0 shell_out|drwxr-xr-x 2  users 4096 Jun  7 11:09 h1
+    **** top   0.0 shell_out|-rw-r--r-- 1 me users   84 Jun  7 11:09 INFO
+    **** top   0.0 shell_out|
+    **** top   0.0 shell_out|/tmp/vtc.32092.479d521e/h1:
+    **** top   0.0 shell_out|total 4
+    **** top   0.0 shell_out|-rw-r----- 1 fred users 339 Jun  7 11:09 cfg
+    **** top   0.0 shell_out|srw------- 1 fred users   0 Jun  7 11:09 stats.sock
+    **** top   0.0 shell_out|    global
+    **** top   0.0 shell_out|\tstats socket /tmp/vtc.32092.479d521e/h1/stats.sock level admin mode 600
+    **** top   0.0 shell_out|
+    **** top   0.0 shell_out|  defaults
+    **** top   0.0 shell_out|      mode   http
+    **** top   0.0 shell_out|      timeout connect         5s
+    **** top   0.0 shell_out|      timeout server          30s
+    **** top   0.0 shell_out|      timeout client          30s
+    **** top   0.0 shell_out|
+    **** top   0.0 shell_out|  backend be1
+    **** top   0.0 shell_out|      server srv1 127.0.0.1:36984
+    **** top   0.0 shell_out|
+    **** top   0.0 shell_out|  frontend http1
+    **** top   0.0 shell_out|      use_backend be1
+    **** top   0.0 shell_out|      bind "fd@${my_frontend_fd}"
+    **** top   0.0 shell_status = 0x0000
+
+
+The following example illustrate how to run a basic HTTP transaction between 'c1'
+client and 's1' server with 'http1' as haproxy frontend. This frontend listen
+on TCP socket with 'my_frontend_fd' as file descriptor.
+
+    # Mandatory line
+    varnishtest "Basic HAproxy test"
+
+    # As some macros for haproxy are used in this file, this line is mandatory.
+    feature ignore_unknown_macro
+
+    server s1 {
+      rxreq
+      txresp -body "s1 >>> Hello world!"
+    } -start
+
+    haproxy h1 -conf {
+      # Configuration file of 'h1' haproxy instance.
+      defaults
+        mode   http
+        timeout connect         5s
+        timeout server          30s
+        timeout client          30s
+
+      backend be1
+        # declare 'srv1' server to point to 's1' server instance declare above.
+        server srv1 ${s1_addr}:${s1_port}
+
+      frontend http1
+        use_backend be1
+        bind "fd@${my_frontend_fd}"
+    } -start
+
+    client c1 -connect ${h1_my_frontend_fd_sock} {
+      txreq -url "/"
+      rxresp
+      expect resp.status == 200
+      expect resp.body == "s1 >>> Hello world!"
+    } -run
+
+
+It is possible to shorten the previous VTC file haproxy command section as follows:
+
+    haproxy h1 -conf {
+      # Configuration file of 'h1' haproxy instance.
+      defaults
+        mode   http
+        timeout connect         5s
+        timeout server          30s
+        timeout client          30s
+	}
+
+In this latter example, "backend" and "frontend" sections are automatically
+generated depending on the declarations of server instances.
+
+
+Another interesting real regression test case is the following: we declare one
+server 's1', a syslog server 'Slg_1' and a basic haproxy configuration for 'h1'
+haproxy instance. Here we want to check that the syslog message are correctly
+formatted thanks to "expect" "syslog" command (see syslog Slg_1 {...} command)
+below.
+
+    varnishtest "Wrong ip/port logging"
+    feature ignore_unknown_macro
+
+    #commit d02286d6c866e5c0a7eb6fbb127fa57f3becaf16
+    #Author: Willy Tarreau <w@1wt.eu>
+    #Date:   Fri Jun 23 11:23:43 2017 +0200
+    #
+    #    BUG/MINOR: log: pin the front connection when front ip/ports are logged
+    #
+    #    Mathias Weiersmueller reported an interesting issue with logs which Lukas
+    #    diagnosed as dating back from commit 9b061e332 (1.5-dev9). When front
+    #    connection information (ip, port) are logged in TCP mode and the log is
+    #    emitted at the end of the connection (eg: because %B or any log tag
+    #    requiring LW_BYTES is set), the log is emitted after the connection is
+    #    closed, so the address and ports cannot be retrieved anymore.
+    #
+    #    It could be argued that we'd make a special case of these to immediatly
+    #    retrieve the source and destination addresses from the connection, but it
+    #    seems cleaner to simply pin the front connection, marking it "tracked" by
+    #    adding the LW_XPRT flag to mention that we'll need some of these elements
+    #    at the last moment. Only LW_FRTIP and LW_CLIP are affected. Note that after
+    #    this change, LW_FRTIP could simply be removed as it's not used anywhere.
+
+    #    Note that the problem doesn't happen when using %[src] or %[dst] since
+    #    all sample expressions set LW_XPRT.
+
+
+    server s1 {
+        rxreq
+        txresp
+    } -start
+
+    syslog Slg_1 -level notice {
+        recv
+        recv
+        recv info
+        expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_port}.*\"ts\":\"cD\",\"
+    } -start
+
+    haproxy h1 -conf {
+        global
+            log ${Slg_1_addr}:${Slg_1_port} local0
+
+    defaults
+        log global
+        timeout connect 3000
+        timeout client 5
+        timeout server  10000
+
+    frontend fe1
+        bind "fd@${fe_1}"
+        mode tcp
+        log-format {\"dip\":\"%fi\",\"dport\":\"%fp\",\"c_ip\":\"%ci\",\"c_port\":\"%cp\",\"fe_name\":\"%ft\",\"be_name\":\"%b\",\"s_name\":\"%s\",\"ts\":\"%ts\",\"bytes_read\":\"%B\"}
+        default_backend    be_app
+
+    backend be_app
+        server app1 ${s1_addr}:${s1_port} check
+    } -start
+
+    client c1 -connect ${h1_fe_1_sock} {
+        txreq -url "/"
+        delay 0.02
+    } -run
+
+    syslog Slg_1 -wait
+
+
+Here is the output produced by varnishtest with the latter VTC file:
+
+    **** top   0.0 extmacro def pwd=/home/fred/src/haproxy
+    **** top   0.0 extmacro def localhost=127.0.0.1
+    **** top   0.0 extmacro def bad_backend=127.0.0.1 40386
+    **** top   0.0 extmacro def bad_ip=192.0.2.255
+    **** top   0.0 macro def testdir=//home/fred/src/varnish-cache-haproxy
+    **** top   0.0 macro def tmpdir=/tmp/vtc.15752.560ca66b
+    *    top   0.0 TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc starting
+    **   top   0.0 === varnishtest "HAPEE bug 2788"
+    *    top   0.0 TEST HAPEE bug 2788
+    **   top   0.0 === feature ignore_unknown_macro
+    **   top   0.0 === server s1 {
+    **   s1    0.0 Starting server
+    **** s1    0.0 macro def s1_addr=127.0.0.1
+    **** s1    0.0 macro def s1_port=35564
+    **** s1    0.0 macro def s1_sock=127.0.0.1 35564
+    *    s1    0.0 Listen on 127.0.0.1 35564
+    **   top   0.0 === syslog Slg_1 -level notice {
+    **   Slg_1  0.0 Starting syslog server
+    **   s1    0.0 Started on 127.0.0.1 35564
+    **** Slg_1  0.0 macro def Slg_1_addr=127.0.0.1
+    **** Slg_1  0.0 macro def Slg_1_port=33012
+    **** Slg_1  0.0 macro def Slg_1_sock=127.0.0.1 33012
+    *    Slg_1  0.0 Bound on 127.0.0.1 33012
+    **   top   0.0 === haproxy h1 -conf {
+    **   Slg_1  0.0 Started on 127.0.0.1 33012 (level: 5)
+    **   Slg_1  0.0 === recv
+    **** h1    0.0 macro def h1_fe_1_sock=::1 51782
+    **** h1    0.0 macro def h1_fe_1_addr=::1
+    **** h1    0.0 macro def h1_fe_1_port=51782
+    **** h1    0.0 setenv(fe_1, 7)
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|\tstats socket /tmp/vtc.15752.560ca66b/h1/stats.sock level admin mode 600
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|        log 127.0.0.1:33012 local0
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    defaults
+    **** h1    0.0 conf|        log global
+    **** h1    0.0 conf|        timeout connect 3000
+    **** h1    0.0 conf|        timeout client 5
+    **** h1    0.0 conf|        timeout server  10000
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    frontend fe1
+    **** h1    0.0 conf|        bind "fd@${fe_1}"
+    **** h1    0.0 conf|        mode tcp
+    **** h1    0.0 conf|        log-format {\"dip\":\"%fi\",\"dport\":\"%fp\",\"c_ip\":\"%ci\",\"c_port\":\"%cp\",\"fe_name\":\"%ft\",\"be_name\":\"%b\",\"s_name\":\"%s\",\"ts\":\"%ts\",\"bytes_read\":\"%B\"}
+    **** h1    0.0 conf|        default_backend    be_app
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    backend be_app
+    **** h1    0.0 conf|        server app1 127.0.0.1:35564 check
+    **   h1    0.0 haproxy_start
+    **** h1    0.0 opt_worker 0 opt_daemon 0 opt_check_mode 0
+    **** h1    0.0 argv|exec /home/fred/src/haproxy/haproxy -d  -f /tmp/vtc.15752.560ca66b/h1/cfg
+    **** h1    0.0 XXX 9 @277
+    ***  h1    0.0 PID: 15787
+    **** h1    0.0 macro def h1_pid=15787
+    **** h1    0.0 macro def h1_name=/tmp/vtc.15752.560ca66b/h1
+    **   top   0.0 === client c1 -connect ${h1_fe_1_sock} {
+    **   c1    0.0 Starting client
+    **   c1    0.0 Waiting for client
+    ***  c1    0.0 Connect to ::1 51782
+    ***  c1    0.0 connected fd 8 from ::1 46962 to ::1 51782
+    **   c1    0.0 === txreq -url "/"
+    **** c1    0.0 txreq|GET / HTTP/1.1\r
+    **** c1    0.0 txreq|Host: 127.0.0.1\r
+    **** c1    0.0 txreq|\r
+    **   c1    0.0 === delay 0.02
+    ***  c1    0.0 delaying 0.02 second(s)
+    ***  h1    0.0 debug|Note: setting global.maxconn to 2000.
+    ***  h1    0.0 debug|Available polling systems :
+    ***  h1    0.0 debug|      epoll :
+    ***  h1    0.0 debug|pref=300,
+    ***  h1    0.0 debug| test result OK
+    ***  h1    0.0 debug|       poll : pref=200,  test result OK
+    ***  h1    0.0 debug|     select :
+    ***  h1    0.0 debug|pref=150,  test result FAILED
+    ***  h1    0.0 debug|Total: 3 (2 usable), will use epoll.
+    ***  h1    0.0 debug|
+    ***  h1    0.0 debug|Available filters :
+    ***  h1    0.0 debug|\t[SPOE] spoe
+    ***  h1    0.0 debug|\t[COMP] compression
+    ***  h1    0.0 debug|\t[TRACE] trace
+    **** Slg_1  0.0 syslog|<133>Jun  7 14:12:51 haproxy[15787]: Proxy fe1 started.
+    **   Slg_1  0.0 === recv
+    **** Slg_1  0.0 syslog|<133>Jun  7 14:12:51 haproxy[15787]: Proxy be_app started.
+    **   Slg_1  0.0 === recv info
+    ***  h1    0.0 debug|00000000:fe1.accept(0007)=000a from [::1:46962]
+    ***  s1    0.0 accepted fd 6 127.0.0.1 56770
+    **   s1    0.0 === rxreq
+    **** s1    0.0 rxhdr|GET / HTTP/1.1\r
+    **** s1    0.0 rxhdr|Host: 127.0.0.1\r
+    **** s1    0.0 rxhdr|\r
+    **** s1    0.0 rxhdrlen = 35
+    **** s1    0.0 http[ 0] |GET
+    **** s1    0.0 http[ 1] |/
+    **** s1    0.0 http[ 2] |HTTP/1.1
+    **** s1    0.0 http[ 3] |Host: 127.0.0.1
+    **** s1    0.0 bodylen = 0
+    **   s1    0.0 === txresp
+    **** s1    0.0 txresp|HTTP/1.1 200 OK\r
+    **** s1    0.0 txresp|Content-Length: 0\r
+    **** s1    0.0 txresp|\r
+    ***  s1    0.0 shutting fd 6
+    **   s1    0.0 Ending
+    ***  h1    0.0 debug|00000000:be_app.srvcls[000a:000c]
+    ***  h1    0.0 debug|00000000:be_app.clicls[000a:000c]
+    ***  h1    0.0 debug|00000000:be_app.closed[000a:000c]
+    **** Slg_1  0.0 syslog|<134>Jun  7 14:12:51 haproxy[15787]: {"dip":"","dport":"0","c_ip":"::1","c_port":"46962","fe_name":"fe1","be_name":"be_app","s_name":"app1","ts":"cD","bytes_read":"38"}
+    **   Slg_1  0.0 === expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_p...
+    ---- Slg_1  0.0 EXPECT FAILED ~ "\"dip\":\"::1\",\"dport\":\"51782.*\"ts\":\"cD\",\""
+    ***  c1    0.0 closing fd 8
+    **   c1    0.0 Ending
+    *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/d02286d.vtc
+    **   h1    0.0 Reset and free h1 haproxy 15787
+    **   h1    0.0 Wait
+    **   h1    0.0 Stop HAproxy pid=15787
+    **** h1    0.0 Kill(2)=0: Success
+    **** h1    0.0 STDOUT poll 0x10
+    **   h1    0.1 WAIT4 pid=15787 status=0x0002 (user 0.000000 sys 0.004000)
+    **   s1    0.1 Waiting for server (4/-1)
+    **   Slg_1  0.1 Waiting for syslog server (5)
+    *    top   0.1 TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc FAILED
+    #    top  TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc FAILED (0.131) exit=2
+
+This test does not pass without the bug fix of d02286d commit. Indeed the third syslog
+message received by 'Slg_1' syslog server does not match the regular expression
+of the "syslog" "expect" command:
+
+    expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_port}.*\"ts\":\"cD\",\"
+
+(the IP address and port are missing), contrary to what happens with the correct bug fix:
+
+    **** top   0.0 extmacro def pwd=/home/fred/src/haproxy
+    **** top   0.0 extmacro def localhost=127.0.0.1
+    **** top   0.0 extmacro def bad_backend=127.0.0.1 37284
+    **** top   0.0 extmacro def bad_ip=192.0.2.255
+    **** top   0.0 macro def testdir=//home/fred/src/varnish-cache-haproxy
+    **** top   0.0 macro def tmpdir=/tmp/vtc.12696.186b28b0
+    *    top   0.0 TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc starting
+    **   top   0.0 === varnishtest "HAPEE bug 2788"
+    *    top   0.0 TEST HAPEE bug 2788
+    **   top   0.0 === feature ignore_unknown_macro
+    **   top   0.0 === server s1 {
+    **   s1    0.0 Starting server
+    **** s1    0.0 macro def s1_addr=127.0.0.1
+    **** s1    0.0 macro def s1_port=53384
+    **** s1    0.0 macro def s1_sock=127.0.0.1 53384
+    *    s1    0.0 Listen on 127.0.0.1 53384
+    **   top   0.0 === syslog Slg_1 -level notice {
+    **   Slg_1  0.0 Starting syslog server
+    **** Slg_1  0.0 macro def Slg_1_addr=127.0.0.1
+    **   s1    0.0 Started on 127.0.0.1 53384
+    **** Slg_1  0.0 macro def Slg_1_port=36195
+    **** Slg_1  0.0 macro def Slg_1_sock=127.0.0.1 36195
+    *    Slg_1  0.0 Bound on 127.0.0.1 36195
+    **   top   0.0 === haproxy h1 -conf {
+    **   Slg_1  0.0 Started on 127.0.0.1 36195 (level: 5)
+    **   Slg_1  0.0 === recv
+    **** h1    0.0 macro def h1_fe_1_sock=::1 39264
+    **** h1    0.0 macro def h1_fe_1_addr=::1
+    **** h1    0.0 macro def h1_fe_1_port=39264
+    **** h1    0.0 setenv(fe_1, 7)
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|\tstats socket /tmp/vtc.12696.186b28b0/h1/stats.sock level admin mode 600
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    global
+    **** h1    0.0 conf|        log 127.0.0.1:36195 local0
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    defaults
+    **** h1    0.0 conf|        log global
+    **** h1    0.0 conf|        timeout connect 3000
+    **** h1    0.0 conf|        timeout client 5
+    **** h1    0.0 conf|        timeout server  10000
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    frontend fe1
+    **** h1    0.0 conf|        bind "fd@${fe_1}"
+    **** h1    0.0 conf|        mode tcp
+    **** h1    0.0 conf|        log-format {\"dip\":\"%fi\",\"dport\":\"%fp\",\"c_ip\":\"%ci\",\"c_port\":\"%cp\",\"fe_name\":\"%ft\",\"be_name\":\"%b\",\"s_name\":\"%s\",\"ts\":\"%ts\",\"bytes_read\":\"%B\"}
+    **** h1    0.0 conf|        default_backend    be_app
+    **** h1    0.0 conf|
+    **** h1    0.0 conf|    backend be_app
+    **** h1    0.0 conf|        server app1 127.0.0.1:53384 check
+    **   h1    0.0 haproxy_start
+    **** h1    0.0 opt_worker 0 opt_daemon 0 opt_check_mode 0
+    **** h1    0.0 argv|exec /home/fred/src/haproxy/haproxy -d  -f /tmp/vtc.12696.186b28b0/h1/cfg
+    **** h1    0.0 XXX 9 @277
+    ***  h1    0.0 PID: 12728
+    **** h1    0.0 macro def h1_pid=12728
+    **** h1    0.0 macro def h1_name=/tmp/vtc.12696.186b28b0/h1
+    **   top   0.0 === client c1 -connect ${h1_fe_1_sock} {
+    **   c1    0.0 Starting client
+    **   c1    0.0 Waiting for client
+    ***  c1    0.0 Connect to ::1 39264
+    ***  c1    0.0 connected fd 8 from ::1 41245 to ::1 39264
+    **   c1    0.0 === txreq -url "/"
+    **** c1    0.0 txreq|GET / HTTP/1.1\r
+    **** c1    0.0 txreq|Host: 127.0.0.1\r
+    **** c1    0.0 txreq|\r
+    **   c1    0.0 === delay 0.02
+    ***  c1    0.0 delaying 0.02 second(s)
+    ***  h1    0.0 debug|Note: setting global.maxconn to 2000.
+    ***  h1    0.0 debug|Available polling systems :
+    ***  h1    0.0 debug|      epoll : pref=300,
+    ***  h1    0.0 debug| test result OK
+    ***  h1    0.0 debug|       poll : pref=200,  test result OK
+    ***  h1    0.0 debug|     select : pref=150,  test result FAILED
+    ***  h1    0.0 debug|Total: 3 (2 usable), will use epoll.
+    ***  h1    0.0 debug|
+    ***  h1    0.0 debug|Available filters :
+    ***  h1    0.0 debug|\t[SPOE] spoe
+    ***  h1    0.0 debug|\t[COMP] compression
+    ***  h1    0.0 debug|\t[TRACE] trace
+    ***  h1    0.0 debug|Using epoll() as the polling mechanism.
+    **** Slg_1  0.0 syslog|<133>Jun  7 14:10:18 haproxy[12728]: Proxy fe1 started.
+    **   Slg_1  0.0 === recv
+    **** Slg_1  0.0 syslog|<133>Jun  7 14:10:18 haproxy[12728]: Proxy be_app started.
+    **   Slg_1  0.0 === recv info
+    ***  h1    0.0 debug|00000000:fe1.accept(0007)=000c from [::1:41245] ALPN=<none>
+    ***  s1    0.0 accepted fd 6 127.0.0.1 49946
+    **   s1    0.0 === rxreq
+    **** s1    0.0 rxhdr|GET / HTTP/1.1\r
+    **** s1    0.0 rxhdr|Host: 127.0.0.1\r
+    **** s1    0.0 rxhdr|\r
+    **** s1    0.0 rxhdrlen = 35
+    **** s1    0.0 http[ 0] |GET
+    **** s1    0.0 http[ 1] |/
+    **** s1    0.0 http[ 2] |HTTP/1.1
+    **** s1    0.0 http[ 3] |Host: 127.0.0.1
+    **** s1    0.0 bodylen = 0
+    **   s1    0.0 === txresp
+    **** s1    0.0 txresp|HTTP/1.1 200 OK\r
+    **** s1    0.0 txresp|Content-Length: 0\r
+    **** s1    0.0 txresp|\r
+    ***  s1    0.0 shutting fd 6
+    **   s1    0.0 Ending
+    ***  h1    0.0 debug|00000000:be_app.srvcls[000c:adfd]
+    ***  h1    0.0 debug|00000000:be_app.clicls[000c:adfd]
+    ***  h1    0.0 debug|00000000:be_app.closed[000c:adfd]
+    **** Slg_1  0.0 syslog|<134>Jun  7 14:10:18 haproxy[12728]: {"dip":"::1","dport":"39264","c_ip":"::1","c_port":"41245","fe_name":"fe1","be_name":"be_app","s_name":"app1","ts":"cD","bytes_read":"38"}
+    **   Slg_1  0.0 === expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_p...
+    **** Slg_1  0.0 EXPECT MATCH ~ "\"dip\":\"::1\",\"dport\":\"39264.*\"ts\":\"cD\",\""
+    ***  Slg_1  0.0 shutting fd 5
+    **   Slg_1  0.0 Ending
+    ***  c1    0.0 closing fd 8
+    **   c1    0.0 Ending
+    **   top   0.0 === syslog Slg_1 -wait
+    **   Slg_1  0.0 Waiting for syslog server (-1)
+    *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/d02286d.vtc
+    **   h1    0.0 Reset and free h1 haproxy 12728
+    **   h1    0.0 Wait
+    **   h1    0.0 Stop HAproxy pid=12728
+    **** h1    0.0 Kill(2)=0: Success
+    **** h1    0.0 STDOUT poll 0x10
+    **   h1    0.1 WAIT4 pid=12728 status=0x0002 (user 0.000000 sys 0.004000)
+    **   s1    0.1 Waiting for server (4/-1)
+    *    top   0.1 TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc completed
+    #    top  TEST /home/fred/src/varnish-cache-haproxy/d02286d.vtc passed (0.128)
+
+In this latter execution the third syslog message is correct:
+
+    **** Slg_1  0.0 syslog|<134>Jun  7 14:10:18 haproxy[12728]: {"dip":"::1","dport":"39264","c_ip":"::1","c_port":"41245","fe_name":"fe1","be_name":"be_app","s_name":"app1","ts":"cD","bytes_read":"38"}
