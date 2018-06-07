@@ -1220,7 +1220,7 @@ int h1_measure_trailers(const struct buffer *buf)
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
 		const char *start = b_ptr(buf, (int)(count - buf->o));
-		const char *stop  = bo_end(buf);
+		const char *stop  = b_peek(buf, buf->o);
 		const char *ptr   = start;
 		int bytes = 0;
 

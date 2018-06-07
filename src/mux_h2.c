@@ -2988,7 +2988,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.str  = bo_end(h2c->mbuf);
+		outbuf.str  = b_tail(h2c->mbuf);
 		outbuf.size = bo_contig_space(h2c->mbuf);
 		outbuf.len = 0;
 
@@ -3146,7 +3146,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.str  = bo_end(h2c->mbuf);
+		outbuf.str  = b_tail(h2c->mbuf);
 		outbuf.size = bo_contig_space(h2c->mbuf);
 		outbuf.len = 0;
 

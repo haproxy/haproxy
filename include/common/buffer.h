@@ -117,12 +117,6 @@ static inline char *bi_end(const struct buffer *b)
 	return ret;
 }
 
-/* Returns the end of the output data in a buffer */
-static inline char *bo_end(const struct buffer *b)
-{
-	return b->p;
-}
-
 /* Returns the amount of output data that can contiguously be read at once */
 static inline int bo_contig_data(const struct buffer *b)
 {
