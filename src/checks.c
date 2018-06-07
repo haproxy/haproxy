@@ -1618,7 +1618,7 @@ void block_sigchld(void)
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGCHLD);
-	assert(sigprocmask(SIG_BLOCK, &set, NULL) == 0);
+	assert(ha_sigmask(SIG_BLOCK, &set, NULL) == 0);
 }
 
 void unblock_sigchld(void)
@@ -1626,7 +1626,7 @@ void unblock_sigchld(void)
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGCHLD);
-	assert(sigprocmask(SIG_UNBLOCK, &set, NULL) == 0);
+	assert(ha_sigmask(SIG_UNBLOCK, &set, NULL) == 0);
 }
 
 static struct pid_list *pid_list_add(pid_t pid, struct task *t)

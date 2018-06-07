@@ -108,6 +108,9 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 #define HA_RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
 #define HA_RWLOCK_RDUNLOCK(lbl, l) do { /* do nothing */ } while(0)
 
+#define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
+
+
 static inline void __ha_barrier_load(void)
 {
 }
@@ -258,6 +261,9 @@ int  thread_no_sync(void);
 int  thread_need_sync(void);
 
 extern unsigned long all_threads_mask;
+
+#define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
+
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 

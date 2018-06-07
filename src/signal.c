@@ -13,6 +13,8 @@
 #include <signal.h>
 #include <string.h>
 
+#include <common/hathreads.h>
+
 #include <proto/signal.h>
 #include <proto/log.h>
 #include <proto/task.h>
@@ -71,7 +73,7 @@ void __signal_process_queue()
 	sigset_t old_sig;
 
 	/* block signal delivery during processing */
-	sigprocmask(SIG_SETMASK, &blocked_sig, &old_sig);
+	ha_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
 	/* It is important that we scan the queue forwards so that we can
 	 * catch any signal that would have been queued by another signal
@@ -95,7 +97,7 @@ void __signal_process_queue()
 	signal_queue_len = 0;
 
 	/* restore signal delivery */
-	sigprocmask(SIG_SETMASK, &old_sig, NULL);
+	ha_sigmask(SIG_SETMASK, &old_sig, NULL);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -116,7 +118,7 @@ int signal_init()
 	 * parsing We don't want the process to be killed by an unregistered
 	 * USR2 signal when the master-worker is reloading */
 	sigaddset(&blocked_sig, SIGUSR2);
-	sigprocmask(SIG_SETMASK, &blocked_sig, NULL);
+	ha_sigmask(SIG_SETMASK, &blocked_sig, NULL);
 
 	sigfillset(&blocked_sig);
 	sigdelset(&blocked_sig, SIGPROF);
