@@ -287,6 +287,63 @@ const char *hlua_get_top_error_string(lua_State *L)
 	return lua_tostring(L, -1);
 }
 
+__LJMP static const char *hlua_traceback(lua_State *L)
+{
+	lua_Debug ar;
+	int level = 0;
+	struct chunk *msg = get_trash_chunk();
+	int filled = 0;
+
+	while (lua_getstack(L, level++, &ar)) {
+
+		/* Add separator */
+		if (filled)
+			chunk_appendf(msg, ", ");
+		filled = 1;
+
+		/* Fill fields:
+		 * 'S': fills in the fields source, short_src, linedefined, lastlinedefined, and what;
+		 * 'l': fills in the field currentline;
+		 * 'n': fills in the field name and namewhat;
+		 * 't': fills in the field istailcall;
+		 */
+		lua_getinfo(L, "Slnt", &ar);
+
+		/* Append code localisation */
+		if (ar.currentline > 0)
+			chunk_appendf(msg, "%s:%d ", ar.short_src, ar.currentline);
+		else
+			chunk_appendf(msg, "%s ", ar.short_src);
+
+		/*
+		 * Get function name
+		 *
+		 * if namewhat is no empty, name is defined.
+		 * what contains "Lua" for Lua function, "C" for C function,
+		 * or "main" for main code.
+		 */
+		if (*ar.namewhat != '\0' && ar.name != NULL)  /* is there a name from code? */
+			chunk_appendf(msg, "%s '%s'", ar.namewhat, ar.name);  /* use it */
+
+		else if (*ar.what == 'm')  /* "main", the code is not executed in a function */
+			chunk_appendf(msg, "main chunk");
+
+		else if (*ar.what != 'C')  /* for Lua functions, use <file:line> */
+			chunk_appendf(msg, "C function line %d", ar.linedefined);
+
+		else  /* nothing left... */
+			chunk_appendf(msg, "?");
+
+
+		/* Display tailed call */
+		if (ar.istailcall)
+			chunk_appendf(msg, " ...");
+	}
+
+	return msg->str;
+}
+
+
 /* This function check the number of arguments available in the
  * stack. If the number of arguments available is not the same
  * then <nb> an error is throwed.
@@ -992,6 +1049,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 {
 	int ret;
 	const char *msg;
+	const char *trace;
 
 	/* Initialise run time counter. */
 	if (!HLUA_IS_RUNNING(lua))
@@ -1076,10 +1134,11 @@ resume_execution:
 		msg = lua_tostring(lua->T, -1);
 		lua_settop(lua->T, 0); /* Empty the stack. */
 		lua_pop(lua->T, 1);
+		trace = hlua_traceback(lua->T);
 		if (msg)
-			lua_pushfstring(lua->T, "runtime error: %s", msg);
+			lua_pushfstring(lua->T, "runtime error: %s from %s", msg, trace);
 		else
-			lua_pushfstring(lua->T, "unknown runtime error");
+			lua_pushfstring(lua->T, "unknown runtime error from %s", trace);
 		ret = HLUA_E_ERRMSG;
 		break;
 
