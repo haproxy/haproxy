@@ -2402,8 +2402,10 @@ static void run_poll_loop()
 		/* Process a few tasks */
 		process_runnable_tasks();
 
-		/* check if we caught some signals and process them */
-		signal_process_queue();
+		/* check if we caught some signals and process them in the
+		 first thread */
+		if (tid == 0)
+			signal_process_queue();
 
 		/* Check if we can expire some tasks */
 		next = wake_expired_tasks();
@@ -2418,7 +2420,7 @@ static void run_poll_loop()
 			activity[tid].wake_cache++;
 		else if (active_tasks_mask & tid_bit)
 			activity[tid].wake_tasks++;
-		else if (signal_queue_len)
+		else if (signal_queue_len && tid == 0)
 			activity[tid].wake_signal++;
 		else
 			exp = next;
@@ -3008,12 +3010,22 @@ int main(int argc, char **argv)
 		unsigned int *tids    = calloc(global.nbthread, sizeof(unsigned int));
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
+		sigset_t     blocked_sig, old_sig;
 
 		THREAD_SYNC_INIT((1UL << global.nbthread) - 1);
 
 		/* Init tids array */
 		for (i = 0; i < global.nbthread; i++)
 			tids[i] = i;
+
+		/* ensure the signals will be blocked in every thread */
+		sigfillset(&blocked_sig);
+		sigdelset(&blocked_sig, SIGPROF);
+		sigdelset(&blocked_sig, SIGBUS);
+		sigdelset(&blocked_sig, SIGFPE);
+		sigdelset(&blocked_sig, SIGILL);
+		sigdelset(&blocked_sig, SIGSEGV);
+		pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
 		/* Create nbthread-1 thread. The first thread is the current process */
 		threads[0] = pthread_self();
@@ -3047,6 +3059,9 @@ int main(int argc, char **argv)
 			}
 		}
 #endif /* !USE_CPU_AFFINITY */
+
+		/* when multithreading we need to let only the thread 0 handle the signals */
+		pthread_sigmask(SIG_SETMASK, &old_sig, NULL);
 
 		/* Finally, start the poll loop for the first thread */
 		run_thread_poll_loop(&tids[0]);

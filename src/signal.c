@@ -31,7 +31,6 @@ struct pool_head *pool_head_sig_handlers = NULL;
 sigset_t blocked_sig;
 int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
-__decl_hathreads(HA_SPINLOCK_T signals_lock);
 
 /* Common signal handler, used by all signals. Received signals are queued.
  * Signal number zero has a specific status, as it cannot be delivered by the
@@ -71,9 +70,6 @@ void __signal_process_queue()
 	struct signal_descriptor *desc;
 	sigset_t old_sig;
 
-	if (HA_SPIN_TRYLOCK(SIGNALS_LOCK, &signals_lock))
-		return;
-
 	/* block signal delivery during processing */
 	sigprocmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
@@ -100,7 +96,6 @@ void __signal_process_queue()
 
 	/* restore signal delivery */
 	sigprocmask(SIG_SETMASK, &old_sig, NULL);
-	HA_SPIN_UNLOCK(SIGNALS_LOCK, &signals_lock);
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -111,8 +106,6 @@ int signal_init()
 	signal_queue_len = 0;
 	memset(signal_queue, 0, sizeof(signal_queue));
 	memset(signal_state, 0, sizeof(signal_state));
-
-	HA_SPIN_INIT(&signals_lock);
 
 	/* Ensure signals are not blocked. Some shells or service managers may
 	 * accidently block all of our signals unfortunately, causing lots of
@@ -148,7 +141,6 @@ void deinit_signals()
 			pool_free(pool_head_sig_handlers, sh);
 		}
 	}
-	HA_SPIN_DESTROY(&signals_lock);
 }
 
 /* Register a function and an integer argument on a signal. A pointer to the
