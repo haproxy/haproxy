@@ -90,8 +90,8 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 		return 0;  /* no space left */
 
 	if (buffer_not_empty(b) &&
-	    bi_end(b) + delta > bo_ptr(b) &&
-	    bo_ptr(b) >= bi_end(b))
+	    bi_end(b) + delta > b_head(b) &&
+	    b_head(b) >= bi_end(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
@@ -129,8 +129,8 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 		return 0;  /* no space left */
 
 	if (buffer_not_empty(b) &&
-	    bi_end(b) + delta > bo_ptr(b) &&
-	    bo_ptr(b) >= bi_end(b))
+	    bi_end(b) + delta > b_head(b) &&
+	    b_head(b) >= bi_end(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */

@@ -2969,7 +2969,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	 * block does not wrap and we can safely read it this way without
 	 * having to realign the buffer.
 	 */
-	ret = h1_headers_to_hdr_list(bo_ptr(buf), bo_ptr(buf) + buf->o,
+	ret = h1_headers_to_hdr_list(b_head(buf), b_head(buf) + buf->o,
 	                             list, sizeof(list)/sizeof(list[0]), h1m);
 	if (ret <= 0) {
 		/* incomplete or invalid response, this is abnormal coming from

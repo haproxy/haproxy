@@ -5562,7 +5562,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					break;
 				}
 			}
-			ret = SSL_write_early_data(conn->xprt_ctx, bo_ptr(buf), try, &written_data);
+			ret = SSL_write_early_data(conn->xprt_ctx, b_head(buf), try, &written_data);
 			if (ret == 1) {
 				ret = written_data;
 				conn->sent_early_data += ret;
@@ -5575,7 +5575,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 		} else
 #endif
-		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
+		ret = SSL_write(conn->xprt_ctx, b_head(buf), try);
 
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */

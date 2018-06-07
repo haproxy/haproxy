@@ -1844,7 +1844,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		scope_txt[0] = 0;
 		if (appctx->ctx.stats.scope_len) {
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 			scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 		}
 
@@ -2006,7 +2006,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		 * name does not match, skip it.
 		 */
 		if (appctx->ctx.stats.scope_len &&
-		    strnistr(px->id, strlen(px->id), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
+		    strnistr(px->id, strlen(px->id), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
 			return 1;
 
 		if ((appctx->ctx.stats.flags & STAT_BOUND) &&
@@ -2335,7 +2335,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              );
 
 	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-	memcpy(scope_txt, bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+	memcpy(scope_txt, co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 	scope_txt[appctx->ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
@@ -2347,7 +2347,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -2983,7 +2983,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 

@@ -256,7 +256,7 @@ int co_getline(const struct channel *chn, char *str, int len)
 		goto out;
 	}
 
-	p = bo_ptr(chn->buf);
+	p = b_head(chn->buf);
 
 	if (max > chn->buf->o) {
 		max = chn->buf->o;

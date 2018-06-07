@@ -396,7 +396,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		if (try < buf->o || flags & CO_SFL_MSG_MORE)
 			send_flag |= MSG_MORE;
 
-		ret = send(conn->handle.fd, bo_ptr(buf), try, send_flag);
+		ret = send(conn->handle.fd, b_head(buf), try, send_flag);
 
 		if (ret > 0) {
 			buf->o -= ret;

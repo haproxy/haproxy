@@ -117,16 +117,6 @@ static inline char *bi_end(const struct buffer *b)
 	return ret;
 }
 
-/* Returns the start of the output data in a buffer */
-static inline char *bo_ptr(const struct buffer *b)
-{
-	char *ret = b->p - b->o;
-
-	if (ret < b->data)
-		ret += b->size;
-	return ret;
-}
-
 /* Returns the end of the output data in a buffer */
 static inline char *bo_end(const struct buffer *b)
 {
@@ -417,14 +407,14 @@ static inline int bo_getblk(const struct buffer *buf, char *blk, int len, int of
 	if (len + offset > buf->o)
 		return 0;
 
-	firstblock = buf->data + buf->size - bo_ptr(buf);
+	firstblock = buf->data + buf->size - b_head(buf);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, bo_ptr(buf) + offset, len);
+			memcpy(blk, b_head(buf) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, bo_ptr(buf) + offset, firstblock - offset);
+		memcpy(blk, b_head(buf) + offset, firstblock - offset);
 		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
 		return len;
 	}
@@ -452,7 +442,7 @@ static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char 
 		return 2;
 	}
 
-	*blk1 = bo_ptr(buf);
+	*blk1 = b_head(buf);
 	*len1 = buf->o;
 	return 1;
 }
