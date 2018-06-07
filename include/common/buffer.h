@@ -105,12 +105,6 @@ static inline void bo_del(struct buffer *b, unsigned int del)
 	b->o -= del;
 }
 
-/* Returns the start of the input data in a buffer */
-static inline char *bi_ptr(const struct buffer *b)
-{
-	return b->p;
-}
-
 /* Returns the end of the input data in a buffer (pointer to next
  * insertion point).
  */

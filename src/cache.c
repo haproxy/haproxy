@@ -224,7 +224,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 				c_adv(msg->chn, st->hdrs_len);
 				ret = shctx_row_data_append(shctx,
 							    st->first_block,
-							    (unsigned char *)bi_ptr(msg->chn->buf),
+							    (unsigned char *)ci_head(msg->chn),
 							    MIN(ci_contig_data(msg->chn), len - st->hdrs_len));
 				/* Rewind the buffer to forward all data */
 				c_rew(msg->chn, st->hdrs_len);

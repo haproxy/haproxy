@@ -2780,7 +2780,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 		if (h2c->dbuf->i < 1)
 			return 0;
 
-		h2c->dpl = *(uint8_t *)bi_ptr(h2c->dbuf);
+		h2c->dpl = *(uint8_t *)b_head(h2c->dbuf);
 		if (h2c->dpl >= h2c->dfl) {
 			/* RFC7540#6.1 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
