@@ -2712,7 +2712,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
-	outlen = h2_make_h1_request(list, bi_end(buf), try, &msgf);
+	outlen = h2_make_h1_request(list, b_tail(buf), try, &msgf);
 
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);

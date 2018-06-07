@@ -297,7 +297,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		if (try > count)
 			try = count;
 
-		ret = recv(conn->handle.fd, bi_end(buf), try, 0);
+		ret = recv(conn->handle.fd, b_tail(buf), try, 0);
 
 		if (ret > 0) {
 			buf->i += ret;

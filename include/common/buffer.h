@@ -105,18 +105,6 @@ static inline void bo_del(struct buffer *b, unsigned int del)
 	b->o -= del;
 }
 
-/* Returns the end of the input data in a buffer (pointer to next
- * insertion point).
- */
-static inline char *bi_end(const struct buffer *b)
-{
-	char *ret = b->p + b->i;
-
-	if (ret >= b->data + b->size)
-		ret -= b->size;
-	return ret;
-}
-
 /* Returns the amount of output data that can contiguously be read at once */
 static inline int bo_contig_data(const struct buffer *b)
 {
@@ -448,7 +436,7 @@ static inline void bi_putchr(struct buffer *b, char c)
 {
 	if (buffer_len(b) == b->size)
 		return;
-	*bi_end(b) = c;
+	*b_tail(b) = c;
 	b->i++;
 }
 
@@ -470,7 +458,7 @@ static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 	if (half > len)
 		half = len;
 
-	memcpy(bi_end(b), blk, half);
+	memcpy(b_tail(b), blk, half);
 	if (len > half)
 		memcpy(b_ptr(b, b->i + half), blk + half, len - half);
 	b->i += len;

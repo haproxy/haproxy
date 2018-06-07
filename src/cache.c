@@ -552,7 +552,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	/* buffer are aligned there, should be fine */
 	if (appctx->st0 == HTTP_CACHE_INIT) {
 		int len = first->len - sizeof(struct cache_entry);
-		if ((shctx_row_data_get(shctx, first, (unsigned char *)bi_end(res->buf), sizeof(struct cache_entry), len)) != 0) {
+		if ((shctx_row_data_get(shctx, first, (unsigned char *)ci_tail(res), sizeof(struct cache_entry), len)) != 0) {
 			/* should never get there, because at the moment, a
 			 * cache object can never be bigger than a buffer */
 			 abort();

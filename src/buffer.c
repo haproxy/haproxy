@@ -86,16 +86,16 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	delta = len - (end - pos);
 
-	if (bi_end(b) + delta > b->data + b->size)
+	if (b_tail(b) + delta > b->data + b->size)
 		return 0;  /* no space left */
 
 	if (buffer_not_empty(b) &&
-	    bi_end(b) + delta > b_head(b) &&
-	    b_head(b) >= bi_end(b))
+	    b_tail(b) + delta > b_head(b) &&
+	    b_head(b) >= b_tail(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
-	memmove(end + delta, end, bi_end(b) - end);
+	memmove(end + delta, end, b_tail(b) - end);
 
 	/* now, copy str over pos */
 	if (len)
@@ -125,16 +125,16 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (bi_end(b) + delta >= b->data + b->size)
+	if (b_tail(b) + delta >= b->data + b->size)
 		return 0;  /* no space left */
 
 	if (buffer_not_empty(b) &&
-	    bi_end(b) + delta > b_head(b) &&
-	    b_head(b) >= bi_end(b))
+	    b_tail(b) + delta > b_head(b) &&
+	    b_head(b) >= b_tail(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
-	memmove(pos + delta, pos, bi_end(b) - pos);
+	memmove(pos + delta, pos, b_tail(b) - pos);
 
 	/* now, copy str over pos */
 	if (len && str) {

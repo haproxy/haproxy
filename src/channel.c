@@ -117,7 +117,7 @@ int ci_putchr(struct channel *chn, char c)
 	if (!channel_may_recv(chn))
 		return -1;
 
-	*bi_end(chn->buf) = c;
+	*ci_tail(chn) = c;
 
 	chn->buf->i++;
 	chn->flags |= CF_READ_PARTIAL;
@@ -167,7 +167,7 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 
 	/* OK so the data fits in the buffer in one or two blocks */
 	max = bi_contig_space(chn->buf);
-	memcpy(bi_end(chn->buf), blk, MIN(len, max));
+	memcpy(ci_tail(chn), blk, MIN(len, max));
 	if (len > max)
 		memcpy(chn->buf->data, blk + max, len - max);
 

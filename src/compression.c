@@ -221,7 +221,7 @@ static int identity_init(struct comp_ctx **comp_ctx, int level)
  */
 static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
-	char *out_data = bi_end(out);
+	char *out_data = b_tail(out);
 	int out_len = out->size - buffer_len(out);
 
 	if (out_len < in_len)
@@ -307,7 +307,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 				return -1; /* no memory */
 		}
 		b_reset(tmpbuf);
-		memcpy(bi_end(tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
+		memcpy(b_tail(tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
 		tmpbuf->i += comp_ctx->direct_len;
 		comp_ctx->direct_ptr = NULL;
 		comp_ctx->direct_len = 0;
@@ -317,7 +317,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 
 	if (comp_ctx->queued) {
 		/* data already pending */
-		memcpy(bi_end(comp_ctx->queued), in_data, in_len);
+		memcpy(b_tail(comp_ctx->queued), in_data, in_len);
 		comp_ctx->queued->i += in_len;
 		return in_len;
 	}
@@ -350,10 +350,10 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	out_len = out->i;
 
 	if (in_ptr)
-		out->i += slz_encode(strm, bi_end(out), in_ptr, in_len, !finish);
+		out->i += slz_encode(strm, b_tail(out), in_ptr, in_len, !finish);
 
 	if (finish)
-		out->i += slz_finish(strm, bi_end(out));
+		out->i += slz_finish(strm, b_tail(out));
 
 	out_len = out->i - out_len;
 
@@ -569,7 +569,7 @@ static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 {
 	int ret;
 	z_stream *strm = &comp_ctx->strm;
-	char *out_data = bi_end(out);
+	char *out_data = b_tail(out);
 	int out_len = out->size - buffer_len(out);
 
 	if (in_len <= 0)
@@ -602,7 +602,7 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 
 	strm->next_in = NULL;
 	strm->avail_in = 0;
-	strm->next_out = (unsigned char *)bi_end(out);
+	strm->next_out = (unsigned char *)b_tail(out);
 	strm->avail_out = out->size - buffer_len(out);
 
 	ret = deflate(strm, flag);

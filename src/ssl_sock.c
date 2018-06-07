@@ -5376,7 +5376,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			try = count;
 		if (((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_EARLY_SSL_HS) &&
 		    conn->tmp_early_data != -1) {
-			*bi_end(buf) = conn->tmp_early_data;
+			*b_tail(buf) = conn->tmp_early_data;
 			done++;
 			try--;
 			count--;
@@ -5390,7 +5390,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			size_t read_length;
 
 			ret = SSL_read_early_data(conn->xprt_ctx,
-			    bi_end(buf), try, &read_length);
+			    b_tail(buf), try, &read_length);
 			if (ret == SSL_READ_EARLY_DATA_SUCCESS &&
 			    read_length > 0)
 				conn->flags |= CO_FL_EARLY_DATA;
@@ -5411,7 +5411,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			}
 		} else
 #endif
-		ret = SSL_read(conn->xprt_ctx, bi_end(buf), try);
+		ret = SSL_read(conn->xprt_ctx, b_tail(buf), try);
 #ifdef OPENSSL_IS_BORINGSSL
 		if (conn->flags & CO_FL_EARLY_SSL_HS) {
 			if (SSL_in_early_data(conn->xprt_ctx)) {

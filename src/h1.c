@@ -1292,7 +1292,7 @@ int http_forward_trailers(struct http_msg *msg)
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
 		const char *start = b_ptr(buf, msg->next + msg->sol);
-		const char *stop  = bi_end(buf);
+		const char *stop  = b_tail(buf);
 		const char *ptr   = start;
 		int bytes = 0;
 

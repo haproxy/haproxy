@@ -1650,8 +1650,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				req->flags |= CF_WAKE_WRITE;
 				return 0;
 			}
-			if (unlikely(bi_end(req->buf) < b_ptr(req->buf, msg->next) ||
-			             bi_end(req->buf) > req->buf->data + req->buf->size - global.tune.maxrewrite))
+			if (unlikely(ci_tail(req) < b_ptr(req->buf, msg->next) ||
+			             ci_tail(req) > req->buf->data + req->buf->size - global.tune.maxrewrite))
 				channel_slow_realign(req, trash.str);
 		}
 
@@ -5137,8 +5137,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
-		if (unlikely(bi_end(rep->buf) < b_ptr(rep->buf, msg->next) ||
-		             bi_end(rep->buf) > rep->buf->data + rep->buf->size - global.tune.maxrewrite))
+		if (unlikely(ci_tail(rep) < b_ptr(rep->buf, msg->next) ||
+		             ci_tail(rep) > rep->buf->data + rep->buf->size - global.tune.maxrewrite))
 			channel_slow_realign(rep, trash.str);
 
 		if (likely(msg->next < rep->buf->i))

@@ -207,9 +207,9 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 
 		c_adv(chn, *nxt);
 		block = ci_contig_data(chn);
-		memcpy(bi_end(tmpbuf), ci_head(chn), block);
+		memcpy(b_tail(tmpbuf), ci_head(chn), block);
 		if (len > block)
-			memcpy(bi_end(tmpbuf)+block, buf->data, len-block);
+			memcpy(b_tail(tmpbuf)+block, buf->data, len-block);
 		c_rew(chn, *nxt);
 
 		tmpbuf->i += len;
