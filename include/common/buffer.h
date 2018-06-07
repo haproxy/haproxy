@@ -105,16 +105,6 @@ static inline void bo_del(struct buffer *b, unsigned int del)
 	b->o -= del;
 }
 
-/* Returns the amount of output data that can contiguously be read at once */
-static inline int bo_contig_data(const struct buffer *b)
-{
-	char *beg = b->p - b->o;
-
-	if (beg < b->data)
-		return b->data - beg;
-	return b->o;
-}
-
 /* Return the amount of bytes that can be written into the input area at once
  * including reserved space which may be overwritten (this is the caller
  * responsibility to know if the reserved space is protected or not).

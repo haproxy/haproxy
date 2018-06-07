@@ -5526,7 +5526,9 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		size_t written_data;
 #endif
 
-		try = bo_contig_data(buf);
+		try = b_contig_data(buf, 0);
+		if (try > buf->o)
+			try = buf->o;
 
 		if (!(flags & CO_SFL_STREAMER) &&
 		    !(conn->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&

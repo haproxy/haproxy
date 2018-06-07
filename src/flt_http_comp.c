@@ -720,7 +720,10 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 	/* Copy previous data from ib->o into ob->o */
 	if (ib->o > 0) {
-		left = bo_contig_data(ib);
+		left = b_contig_data(ib, 0);
+		if (left > ib->o)
+			left = ib->o;
+
 		memcpy(ob->p - ob->o, b_head(ib), left);
 		if (ib->o - left) /* second part of the buffer */
 			memcpy(ob->p - ob->o + left, ib->data, ib->o - left);
