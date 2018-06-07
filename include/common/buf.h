@@ -293,6 +293,24 @@ static inline size_t b_contig_data(const struct buffer *b, size_t start)
 	return data;
 }
 
+/* b_contig_space() : returns the amount of bytes that can be appended to the
+ * buffer at once.
+ */
+static inline size_t b_contig_space(const struct buffer *b)
+{
+	const char *left, *right;
+
+	right = b_head(b);
+	left  = right + b_data(b);
+
+	if (left >= b_wrap(b))
+		left -= b_size(b);
+	else
+		right = b_wrap(b);
+
+	return right - left;
+}
+
 
 /*********************************************/
 /* Functions used to modify the buffer state */

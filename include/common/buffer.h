@@ -105,46 +105,6 @@ static inline void bo_del(struct buffer *b, unsigned int del)
 	b->o -= del;
 }
 
-/* Return the amount of bytes that can be written into the input area at once
- * including reserved space which may be overwritten (this is the caller
- * responsibility to know if the reserved space is protected or not).
-*/
-static inline int bi_contig_space(const struct buffer *b)
-{
-	const char *left, *right;
-
-	left  = b->p + b->i;
-	right = b->p - b->o;
-	if (left >= b->data + b->size)
-		left -= b->size;
-	else {
-		if (right < b->data)
-			right += b->size;
-		else
-			right = b->data + b->size;
-	}
-	return (right - left);
-}
-
-/* Return the amount of bytes that can be written into the output area at once
- * including reserved space which may be overwritten (this is the caller
- * responsibility to know if the reserved space is protected or not). Input data
- * are assumed to not exist.
-*/
-static inline int bo_contig_space(const struct buffer *b)
-{
-	const char *left, *right;
-
-	left  = b->p;
-	right = b->p - b->o;
-	if (right < b->data)
-		right += b->size;
-	else
-		right = b->data + b->size;
-
-	return (right - left);
-}
-
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
 {
@@ -334,7 +294,7 @@ static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 	if (!len)
 		return 0;
 
-	half = bo_contig_space(b);
+	half = b_contig_space(b);
 	if (half > len)
 		half = len;
 
@@ -444,7 +404,7 @@ static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 	if (!len)
 		return 0;
 
-	half = bi_contig_space(b);
+	half = b_contig_space(b);
 	if (half > len)
 		half = len;
 
