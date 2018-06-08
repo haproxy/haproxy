@@ -231,6 +231,7 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 static inline void task_remove_from_task_list(struct task *t)
 {
 	LIST_DEL(&((struct tasklet *)t)->list);
+	LIST_INIT(&((struct tasklet *)t)->list);
 	task_list_size[tid]--;
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	if (!TASK_IS_TASKLET(t)) {
@@ -272,7 +273,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->nice = -32768;
 	t->calls = 0;
 	t->state = 0;
-	t->list.p = t->list.n = NULL;
+	LIST_INIT(&t->list);
 }
 
 static inline struct tasklet *tasklet_new(void)
@@ -323,9 +324,10 @@ static inline void task_free(struct task *t)
 		t->process = NULL;
 }
 
-
 static inline void tasklet_free(struct tasklet *tl)
 {
+	LIST_DEL(&tl->list);
+
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
 		pool_flush(pool_head_tasklet);
