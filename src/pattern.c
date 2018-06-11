@@ -1815,12 +1815,14 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	list_for_each_entry(elt, &ref->head, list) {
 		if (strcmp(key, elt->pattern) == 0) {
 			if (!pat_ref_set_elt(ref, elt, value, merr)) {
-				if (!found)
-					*err = *merr;
-				else {
-					memprintf(err, "%s, %s", *err, *merr);
-					free(*merr);
-					*merr = NULL;
+				if (err && merr) {
+					if (!found) {
+						*err = *merr;
+					} else {
+						memprintf(err, "%s, %s", *err, *merr);
+						free(*merr);
+						*merr = NULL;
+					}
 				}
 			}
 			found = 1;
