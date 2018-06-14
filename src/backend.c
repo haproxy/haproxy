@@ -1792,6 +1792,46 @@ smp_fetch_be_conn(const struct arg *args, struct sample *smp, const char *kw, vo
 	return 1;
 }
 
+/* set temp integer to the number of available connections across available
+	*	servers on the backend.
+ * Accepts exactly 1 argument. Argument is a backend, other types will lead to
+ * undefined behaviour.
+	*/
+static int
+smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct server *iterator;
+	struct proxy *px;
+	unsigned int maxconn;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
+		if (iterator->cur_state == SRV_ST_STOPPED)
+			continue;
+
+		px = iterator->proxy;
+		if (!srv_currently_usable(iterator) ||
+		    ((iterator->flags & SRV_F_BACKUP) &&
+		     (px->srv_act || (iterator != px->lbprm.fbck && !(px->options & PR_O_USE_ALL_BK)))))
+			continue;
+
+		if (iterator->maxconn == 0) {
+			/* one active server is unlimited, return -1 */
+			smp->data.u.sint = -1;
+			return 1;
+		}
+
+		maxconn = srv_dynamic_maxconn(iterator);
+		if (maxconn > iterator->cur_sess)
+			smp->data.u.sint += maxconn - iterator->cur_sess;
+	}
+
+	return 1;
+}
+
 /* set temp integer to the total number of queued connections on the backend.
  * Accepts exactly 1 argument. Argument is a backend, other types will lead to
  * undefined behaviour.
@@ -1897,6 +1937,7 @@ static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *p
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "be_conn_free",  smp_fetch_be_conn_free,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_name",       smp_fetch_be_name,        0,           NULL, SMP_T_STR,  SMP_USE_BKEND, },
 	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
