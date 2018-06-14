@@ -3179,8 +3179,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 		break;
 	default:          /* te:chunked : parse chunks */
 		if (h1m->state == HTTP_MSG_CHUNK_CRLF) {
-			// FIXME: this one still uses the old buffer API and ignores <ofs>
-			ret = h1_skip_chunk_crlf(buf, -max, 0);
+			ret = h1_skip_chunk_crlf(buf, ofs, ofs + max);
 			if (!ret)
 				goto end;
 

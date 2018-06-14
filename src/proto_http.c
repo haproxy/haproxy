@@ -6353,7 +6353,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
 		case HTTP_MSG_CHUNK_CRLF:
 			/* we want the CRLF after the data */
-			ret = h1_skip_chunk_crlf(chn->buf, msg->next, chn->buf->i);
+			ret = h1_skip_chunk_crlf(chn->buf, co_data(chn) + msg->next, b_data(chn->buf));
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {
