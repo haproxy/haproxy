@@ -174,7 +174,13 @@ static int mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 /* Called from the upper layer, to send data */
 static int mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 {
-	return (cs->conn->xprt->snd_buf(cs->conn, buf, flags));
+	int ret = cs->conn->xprt->snd_buf(cs->conn, buf, buf->o, flags);
+
+	if (ret > 0)
+		b_del(buf, ret);
+
+	b_realign_if_empty(buf);
+	return ret;
 }
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)

@@ -360,19 +360,22 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 }
 
 
-/* Send all pending bytes from buffer <buf> to connection <conn>'s socket.
- * <flags> may contain some CO_SFL_* flags to hint the system about other
- * pending data for example.
+/* Send up to <count> pending bytes from buffer <buf> to connection <conn>'s
+ * socket. <flags> may contain some CO_SFL_* flags to hint the system about
+ * other pending data for example, but this flag is ignored at the moment.
  * Only one call to send() is performed, unless the buffer wraps, in which case
  * a second call may be performed. The connection's flags are updated with
  * whatever special event is detected (error, empty). The caller is responsible
  * for taking care of those events and avoiding the call if inappropriate. The
  * function does not call the connection's polling update function, so the caller
- * is responsible for this.
+ * is responsible for this. It's up to the caller to update the buffer's contents
+ * based on the return value.
  */
-static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int flags)
+static size_t raw_sock_from_buf(struct connection *conn, const struct buffer *buf, size_t count, int flags)
 {
-	int ret, try, done, send_flag;
+	ssize_t ret;
+	size_t try, done;
+	int send_flag;
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
@@ -386,25 +389,20 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	 * to send() unless the buffer wraps and we exactly fill the first hunk,
 	 * in which case we accept to do it once again.
 	 */
-	while (buf->o) {
-		try = buf->o;
-		/* outgoing data may wrap at the end */
-		if (buf->data + try > buf->p)
-			try = buf->data + try - buf->p;
+	while (count) {
+		try = b_contig_data(buf, done);
+		if (try > count)
+			try = count;
 
 		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
-		if (try < buf->o || flags & CO_SFL_MSG_MORE)
+		if (try < count || flags & CO_SFL_MSG_MORE)
 			send_flag |= MSG_MORE;
 
-		ret = send(conn->handle.fd, b_head(buf), try, send_flag);
+		ret = send(conn->handle.fd, b_peek(buf, done), try, send_flag);
 
 		if (ret > 0) {
-			buf->o -= ret;
+			count -= ret;
 			done += ret;
-
-			if (likely(buffer_empty(buf)))
-				/* optimize data alignment in the buffer */
-				buf->p = buf->data;
 
 			/* if the system buffer is full, don't insist */
 			if (ret < try)

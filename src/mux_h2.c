@@ -2213,8 +2213,13 @@ static void h2_send(struct connection *conn)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (h2c->mbuf->o && conn->xprt->snd_buf(conn, h2c->mbuf, flags) <= 0)
-			break;
+		if (h2c->mbuf->o) {
+			int ret = conn->xprt->snd_buf(conn, h2c->mbuf, h2c->mbuf->o, flags);
+			if (!ret)
+				break;
+			b_del(h2c->mbuf, ret);
+			b_realign_if_empty(h2c->mbuf);
+		}
 
 		/* wrote at least one byte, the buffer is not full anymore */
 		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
@@ -2369,8 +2374,13 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (h2c_send_goaway_error(h2c, NULL) <= 0)
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
-	if (h2c->mbuf->o && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn))
-		h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, 0);
+	if (h2c->mbuf->o && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
+		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, h2c->mbuf->o, 0);
+		if (ret > 0) {
+			b_del(h2c->mbuf, ret);
+			b_realign_if_empty(h2c->mbuf);
+		}
+	}
 
 	/* either we can release everything now or it will be done later once
 	 * the last stream closes.

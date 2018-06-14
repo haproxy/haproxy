@@ -5493,19 +5493,22 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 }
 
 
-/* Send all pending bytes from buffer <buf> to connection <conn>'s socket.
- * <flags> may contain some CO_SFL_* flags to hint the system about other
- * pending data for example, but this flag is ignored at the moment.
+/* Send up to <count> pending bytes from buffer <buf> to connection <conn>'s
+ * socket. <flags> may contain some CO_SFL_* flags to hint the system about
+ * other pending data for example, but this flag is ignored at the moment.
  * Only one call to send() is performed, unless the buffer wraps, in which case
  * a second call may be performed. The connection's flags are updated with
  * whatever special event is detected (error, empty). The caller is responsible
  * for taking care of those events and avoiding the call if inappropriate. The
  * function does not call the connection's polling update function, so the caller
- * is responsible for this.
+ * is responsible for this. The buffer's output is not adjusted, it's up to the
+ * caller to take care of this. It's up to the caller to update the buffer's
+ * contents based on the return value.
  */
-static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int flags)
+static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *buf, size_t count, int flags)
 {
-	int ret, try, done;
+	ssize_t ret;
+	size_t try, done;
 
 	done = 0;
 	conn_refresh_polling_flags(conn);
@@ -5521,14 +5524,14 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	 * to send() unless the buffer wraps and we exactly fill the first hunk,
 	 * in which case we accept to do it once again.
 	 */
-	while (buf->o) {
+	while (count) {
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
 		size_t written_data;
 #endif
 
-		try = b_contig_data(buf, 0);
-		if (try > buf->o)
-			try = buf->o;
+		try = b_contig_data(buf, done);
+		if (try > count)
+			try = count;
 
 		if (!(flags & CO_SFL_STREAMER) &&
 		    !(conn->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&
@@ -5564,7 +5567,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					break;
 				}
 			}
-			ret = SSL_write_early_data(conn->xprt_ctx, b_head(buf), try, &written_data);
+			ret = SSL_write_early_data(conn->xprt_ctx, b_peek(buf, done), try, &written_data);
 			if (ret == 1) {
 				ret = written_data;
 				conn->sent_early_data += ret;
@@ -5577,7 +5580,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 		} else
 #endif
-		ret = SSL_write(conn->xprt_ctx, b_head(buf), try);
+			ret = SSL_write(conn->xprt_ctx, b_peek(buf, done), try);
 
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
@@ -5585,13 +5588,8 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		}
 		if (ret > 0) {
 			conn->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
-
-			buf->o -= ret;
+			count -= ret;
 			done += ret;
-
-			if (likely(buffer_empty(buf)))
-				/* optimize data alignment in the buffer */
-				buf->p = buf->data;
 		}
 		else {
 			ret = SSL_get_error(conn->xprt_ctx, ret);
