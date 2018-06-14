@@ -3369,50 +3369,32 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 {
 	struct h2s *h2s = cs->ctx;
+	size_t count = buf->o;
 	size_t total = 0;
 	size_t ret;
 
-	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && buf->o)
+	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
-	while (h2s->res.state < HTTP_MSG_DONE && buf->o) {
+	while (h2s->res.state < HTTP_MSG_DONE && count) {
 		if (h2s->res.state < HTTP_MSG_BODY) {
-			ret = h2s_frt_make_resp_headers(h2s, buf, 0, buf->o);
-			total += ret;
-			b_del(buf, ret);
-
-			if (h2s->st >= H2_SS_ERROR)
-				break;
-
-			if (h2s->flags & H2_SF_BLK_ANY)
-				break;
+			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
 		}
 		else if (h2s->res.state < HTTP_MSG_TRAILERS) {
-			ret = h2s_frt_make_resp_data(h2s, buf, 0, buf->o);
-			total += ret;
-			b_del(buf, ret);
-
-			if (h2s->st >= H2_SS_ERROR)
-				break;
-
-			if (h2s->flags & H2_SF_BLK_ANY)
-				break;
+			ret = h2s_frt_make_resp_data(h2s, buf, total, count);
 		}
 		else if (h2s->res.state == HTTP_MSG_TRAILERS) {
 			/* consume the trailers if any (we don't forward them for now) */
-			ret = h1_measure_trailers(buf, 0, buf->o);
+			ret = h1_measure_trailers(buf, total, count);
 
 			if (unlikely((int)ret <= 0)) {
 				if ((int)ret < 0)
 					h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				break;
 			}
-			total += ret;
-			b_del(buf, ret);
-
 			// trim any possibly pending data (eg: extra CR-LF, ...)
-			b_del(buf, buf->o);
-
+			total += count;
+			count  = 0;
 			h2s->res.state = HTTP_MSG_DONE;
 			break;
 		}
@@ -3420,13 +3402,23 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 			cs->flags |= CS_FL_ERROR;
 			break;
 		}
+
+		total += ret;
+		count -= ret;
+
+		if (h2s->st >= H2_SS_ERROR)
+			break;
+
+		if (h2s->flags & H2_SF_BLK_ANY)
+			break;
 	}
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
 		 */
-		b_del(buf, buf->o);
+		total += count;
+		count = 0;
 	}
 
 	/* RST are sent similarly to frame acks */
@@ -3448,6 +3440,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 			LIST_ADDQ(&h2s->h2c->send_list, &h2s->list);
 	}
 
+	b_del(buf, total);
 	return total;
 }
 
