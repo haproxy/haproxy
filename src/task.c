@@ -358,13 +358,11 @@ void process_runnable_tasks()
 		rqueue_size[tid]--;
 		t->calls++;
 		curr_task = (struct task *)t;
-		if (TASK_IS_TASKLET(t))
-			t = NULL;
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
 		else {
 			if (t->process != NULL)
-				t = process(t, ctx, state);
+				t = process(TASK_IS_TASKLET(t) ? NULL : t, ctx, state);
 			else {
 				__task_free(t);
 				t = NULL;
