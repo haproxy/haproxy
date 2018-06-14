@@ -13690,7 +13690,8 @@ be_conn_free([<backend>]) : integer
   servers are also not included, unless all other servers are down. If no
   backend name is specified, the current one is used. But it is also possible
   to check another backend. It can be used to use a specific farm when the
-  nominal one is full. See also the "be_conn" and "connslots" criteria.
+  nominal one is full. See also the "be_conn", "connslots", and "srv_conn_free"
+  criteria.
 
   OTHER CAVEATS AND NOTES: if any of the server maxconn, or maxqueue is 0
   (meaning unlimited), then this fetch clearly does not make sense, in which
@@ -13908,8 +13909,20 @@ srv_conn([<backend>/]<server>) : integer
   evaluated. If <backend> is omitted, then the server is looked up in the
   current backend. It can be used to use a specific farm when one server is
   full, or to inform the server about our view of the number of active
-  connections with it. See also the "fe_conn", "be_conn" and "queue" fetch
-  methods.
+  connections with it. See also the "fe_conn", "be_conn", "queue", and
+  "srv_conn_free" fetch methods.
+
+srv_conn_free([<backend>/]<server>) : integer
+  Returns an integer value corresponding to the number of available connections
+  on the designated server, possibly including the connection being evaluated.
+  The value does not include queue slots. If <backend> is omitted, then the
+  server is looked up in the current backend. It can be used to use a specific
+  farm when one server is full, or to inform the server about our view of the
+  number of active connections with it. See also the "be_conn_free" and
+  "srv_conn" fetch methods.
+
+  OTHER CAVEATS AND NOTES: If the server maxconn is 0, then this fetch clearly
+  does not make sense, in which case the value returned will be -1.
 
 srv_is_up([<backend>/]<server>) : boolean
   Returns true when the designated server is UP, and false when it is either

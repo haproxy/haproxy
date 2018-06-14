@@ -1886,6 +1886,33 @@ smp_fetch_srv_conn(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+/* set temp integer to the number of available connections on the server in the backend.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+smp_fetch_srv_conn_free(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	unsigned int maxconn;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+
+	if (args->data.srv->maxconn == 0) {
+		/* one active server is unlimited, return -1 */
+		smp->data.u.sint = -1;
+		return 1;
+	}
+
+	maxconn = srv_dynamic_maxconn(args->data.srv);
+	if (maxconn > args->data.srv->cur_sess)
+		smp->data.u.sint = maxconn - args->data.srv->cur_sess;
+	else
+		smp->data.u.sint = 0;
+
+	return 1;
+}
+
 /* set temp integer to the number of connections pending in the server's queue.
  * Accepts exactly 1 argument. Argument is a server, other types will lead to
  * undefined behaviour.
@@ -1945,6 +1972,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "queue",         smp_fetch_queue_size,     ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_conn_free", smp_fetch_srv_conn_free,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_SINT, SMP_USE_SERVR, },
 	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "srv_queue",     smp_fetch_srv_queue,      ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
