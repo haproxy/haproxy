@@ -3271,7 +3271,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 	/* copy whatever we can */
 	blk1 = blk2 = NULL; // silence a maybe-uninitialized warning
-	ret = bo_getblk_nc(buf, &blk1, &len1, &blk2, &len2);
+	ret = b_getblk_nc(buf, &blk1, &len1, &blk2, &len2, 0, buf->o);
 	if (ret == 1)
 		len2 = 0;
 

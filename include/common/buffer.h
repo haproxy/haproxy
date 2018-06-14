@@ -326,30 +326,6 @@ static inline int bo_putchk(struct buffer *b, const struct chunk *chk)
 	return bo_putblk(b, chk->str, chk->len);
 }
 
-/* Gets one or two blocks of data at once from a buffer's output.
- * Return values :
- *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
- *   =0 : not enough data available. <blk*> are left undefined.
- * The buffer is left unaffected. Unused buffers are left in an undefined state.
- */
-static inline int bo_getblk_nc(struct buffer *buf, char **blk1, int *len1, char **blk2, int *len2)
-{
-	if (unlikely(buf->o == 0))
-		return 0;
-
-	if (unlikely(buf->p != buf->data && buf->p - buf->o < buf->data)) {
-		*blk1 = buf->p - buf->o + buf->size;
-		*len1 = buf->data + buf->size - *blk1;
-		*blk2 = buf->data;
-		*len2 = buf->p - buf->data;
-		return 2;
-	}
-
-	*blk1 = b_head(buf);
-	*len1 = buf->o;
-	return 1;
-}
-
 /* Tries to write char <c> into input data at buffer <b>. Supports wrapping.
  * Data are truncated if buffer is full.
  */

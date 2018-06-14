@@ -320,7 +320,7 @@ int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2,
 		return 0;
 	}
 
-	return bo_getblk_nc(chn->buf, blk1, len1, blk2, len2);
+	return b_getblk_nc(chn->buf, blk1, len1, blk2, len2, 0, chn->buf->o);
 }
 
 /* Gets one text line out of a channel's output buffer from a stream interface.

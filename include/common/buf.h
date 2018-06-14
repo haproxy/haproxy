@@ -343,6 +343,34 @@ static inline size_t b_getblk(const struct buffer *buf, char *blk, size_t len, s
 	return len;
 }
 
+/* b_getblk_nc() : gets one or two blocks of data at once from a buffer,
+ * starting from offset <ofs> after the beginning of its output, and limited to
+ * no more than <max> bytes. The caller is responsible for ensuring that
+ * neither <ofs> nor <ofs>+<max> exceed the total number of bytes available in
+ * the buffer. Return values :
+ *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available. <blk*> are left undefined.
+ * The buffer is left unaffected. Unused buffers are left in an undefined state.
+ */
+static inline size_t b_getblk_nc(struct buffer *buf, char **blk1, int *len1, char **blk2, int *len2, size_t ofs, size_t max)
+{
+	size_t l1;
+
+	if (!max)
+		return 0;
+
+	*blk1 = b_peek(buf, ofs);
+	l1 = b_wrap(buf) - *blk1;
+	if (l1 < max) {
+		*len1 = l1;
+		*len2 = max - l1;
+		*blk2 = buf->data;
+		return 2;
+	}
+	*len1 = max;
+	return 1;
+}
+
 
 /*********************************************/
 /* Functions used to modify the buffer state */
