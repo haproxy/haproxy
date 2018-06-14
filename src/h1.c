@@ -1209,19 +1209,19 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 }
 
 /* This function performs a very minimal parsing of the trailers block present
- * in the output part of <buf> for up to <max> bytes, and returns the number of
+ * at offset <ofs> in <buf> for up to <max> bytes, and returns the number of
  * bytes to delete to skip the trailers. It may return 0 if it's missing some
  * input data, or < 0 in case of parse error (in which case the caller may have
  * to decide how to proceed, possibly eating everything).
  */
-int h1_measure_trailers(const struct buffer *buf, unsigned int max)
+int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max)
 {
-	int count = 0;
+	const char *stop = b_peek(buf, ofs + max);
+	int count = ofs;
 
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
 		const char *start = b_peek(buf, count);
-		const char *stop  = b_peek(buf, max);
 		const char *ptr   = start;
 
 		/* scan current line and stop at LF or CRLF */
@@ -1256,7 +1256,7 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int max)
 			break;
 		/* OK, next line then */
 	}
-	return count;
+	return count - ofs;
 }
 
 /* This function skips trailers in the buffer associated with HTTP message

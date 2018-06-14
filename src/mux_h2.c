@@ -3400,7 +3400,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 		}
 		else if (h2s->res.state == HTTP_MSG_TRAILERS) {
 			/* consume the trailers if any (we don't forward them for now) */
-			ret = h1_measure_trailers(buf, buf->o);
+			ret = h1_measure_trailers(buf, 0, buf->o);
 
 			if (unlikely((int)ret <= 0)) {
 				if ((int)ret < 0)

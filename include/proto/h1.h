@@ -43,7 +43,7 @@ int http_forward_trailers(struct http_msg *msg);
 int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
                            struct h1m *h1m);
-int h1_measure_trailers(const struct buffer *buf, unsigned int max);
+int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max);
 
 #define H1_FLG_CTL  0x01
 #define H1_FLG_SEP  0x02
