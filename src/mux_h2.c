@@ -2945,7 +2945,7 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
  * number of bytes sent. The caller must check the stream's status to detect
  * any error which might have happened subsequently to a successful send.
  */
-static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf, size_t ofs, size_t max)
+static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *buf, size_t ofs, size_t max)
 {
 	struct http_hdr list[MAX_HTTP_HDR];
 	struct h2c *h2c = h2s->h2c;
@@ -3118,7 +3118,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf, siz
  * the number of bytes sent. The caller must check the stream's status to
  * detect any error which might have happened subsequently to a successful send.
  */
-static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t ofs, size_t max)
+static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, size_t ofs, size_t max)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->res;
@@ -3127,7 +3127,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 	size_t total = 0;
 	int es_now = 0;
 	int size = 0;
-	char *blk1, *blk2;
+	const char *blk1, *blk2;
 	int len1, len2;
 
 	if (h2c_mux_busy(h2c, h2s)) {

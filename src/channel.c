@@ -312,7 +312,7 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
  * The channel status is not changed. The caller must call co_skip() to
  * update it. Unused buffers are left in an undefined state.
  */
-int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
+int co_getblk_nc(const struct channel *chn, const char **blk1, int *len1, const char **blk2, int *len2)
 {
 	if (unlikely(chn->buf->o == 0)) {
 		if (chn->flags & CF_SHUTW)
@@ -333,8 +333,8 @@ int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2,
  * the '\n'. Unused buffers are left in an undefined state.
  */
 int co_getline_nc(const struct channel *chn,
-                  char **blk1, int *len1,
-                  char **blk2, int *len2)
+                  const char **blk1, int *len1,
+                  const char **blk2, int *len2)
 {
 	int retcode;
 	int l;

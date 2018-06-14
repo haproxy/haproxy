@@ -53,8 +53,8 @@ int ci_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2,
 int co_inject(struct channel *chn, const char *msg, int len);
 int co_getline(const struct channel *chn, char *str, int len);
 int co_getblk(const struct channel *chn, char *blk, int len, int offset);
-int co_getline_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int co_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int co_getline_nc(const struct channel *chn, const char **blk1, int *len1, const char **blk2, int *len2);
+int co_getblk_nc(const struct channel *chn, const char **blk1, int *len1, const char **blk2, int *len2);
 
 
 /* returns a pointer to the stream the channel belongs to */

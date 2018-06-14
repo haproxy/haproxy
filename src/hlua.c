@@ -1738,9 +1738,9 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	struct appctx *appctx;
 	int len;
 	int nblk;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 	int skip_at_end = 0;
 	struct channel *oc;
@@ -3633,9 +3633,9 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream_interface *si = appctx->appctx->owner;
 	int ret;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 
 	/* Read the maximum amount of data avalaible. */
@@ -3688,9 +3688,9 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	struct stream_interface *si = appctx->appctx->owner;
 	int len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 
 	/* Read the maximum amount of data avalaible. */
@@ -4096,9 +4096,9 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	struct stream_interface *si = appctx->appctx->owner;
 	struct channel *chn = si_ic(si);
 	int ret;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 
 	/* Maybe we cant send a 100-continue ? */
@@ -4182,9 +4182,9 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	int len = MAY_LJMP(luaL_checkinteger(L, 2));
 	struct channel *chn = si_ic(si);
 	int ret;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 
 	/* Maybe we cant send a 100-continue ? */
@@ -6626,9 +6626,9 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	struct act_rule *rule = ctx->rule;
 	struct proxy *px = strm->be;
 	struct hlua *hlua = ctx->ctx.hlua_apphttp.hlua;
-	char *blk1;
+	const char *blk1;
 	int len1;
-	char *blk2;
+	const char *blk2;
 	int len2;
 	int ret;
 
