@@ -2939,11 +2939,11 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 }
 
 /* Try to send a HEADERS frame matching HTTP/1 response present in buffer <buf>
- * for the H2 stream <h2s>. Returns 0 if not possible yet, <0 on error (one of
- * the H2_ERR* or h2_status codes), >0 on success in which case it corresponds
- * to the number of buffer bytes consumed.
+ * for the H2 stream <h2s>. Returns the number of bytes sent. The caller must
+ * check the stream's status to detect any error which might have happened
+ * subsequently to a successful send.
  */
-static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
+static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 {
 	struct http_hdr list[MAX_HTTP_HDR];
 	struct h2c *h2c = h2s->h2c;
@@ -3112,17 +3112,17 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 }
 
 /* Try to send a DATA frame matching HTTP/1 response present in the response
- * buffer <buf>, for stream <h2s>. Returns 0 if not possible yet, <0 on error
- * (one of the H2_ERR* or h2_status codes), >0 on success in which case it
- * corresponds to the number of buffer bytes consumed.
+ * buffer <buf>, for stream <h2s>. Returns the number of bytes sent. The caller
+ * must check the stream's status to detect any error which might have happened
+ * subsequently to a successful send.
  */
-static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
+static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->res;
 	struct chunk outbuf;
 	int ret = 0;
-	int total = 0;
+	size_t total = 0;
 	int es_now = 0;
 	int size = 0;
 	char *blk1, *blk2;
@@ -3357,7 +3357,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	}
 
  end:
-	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%d in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) buf->o=%u", h2c->st0, h2s->id, size+9, total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)buf->o);
+	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%u in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) buf->o=%u", h2c->st0, h2s->id, size+9, (unsigned int)total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)buf->o);
 	return total;
 }
 
@@ -3365,7 +3365,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 {
 	struct h2s *h2s = cs->ctx;
-	int total = 0;
+	size_t total = 0;
 
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && buf->o)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
