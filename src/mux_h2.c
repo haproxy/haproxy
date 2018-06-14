@@ -2938,12 +2938,12 @@ static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
 	return ret;
 }
 
-/* Try to send a HEADERS frame matching HTTP/1 response present in buffer <buf>
- * for the H2 stream <h2s>. Returns the number of bytes sent. The caller must
- * check the stream's status to detect any error which might have happened
- * subsequently to a successful send.
+/* Try to send a HEADERS frame matching HTTP/1 response present at offset <ofs>
+ * and for <max> bytes in buffer <buf> for the H2 stream <h2s>. Returns the
+ * number of bytes sent. The caller must check the stream's status to detect
+ * any error which might have happened subsequently to a successful send.
  */
-static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
+static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf, size_t ofs, size_t max)
 {
 	struct http_hdr list[MAX_HTTP_HDR];
 	struct h2c *h2c = h2s->h2c;
@@ -2969,7 +2969,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	 * block does not wrap and we can safely read it this way without
 	 * having to realign the buffer.
 	 */
-	ret = h1_headers_to_hdr_list(b_head(buf), b_head(buf) + buf->o,
+	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
 	                             list, sizeof(list)/sizeof(list[0]), h1m);
 	if (ret <= 0) {
 		/* incomplete or invalid response, this is abnormal coming from
@@ -3075,7 +3075,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		outbuf.str[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* consume incoming H1 response */
-	b_del(buf, ret);
+	max -= ret;
 
 	/* commit the H2 response */
 	h2c->mbuf->o += outbuf.len;
@@ -3087,7 +3087,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	 */
 	if (es_now) {
 		// trim any possibly pending data (eg: inconsistent content-length)
-		b_del(buf, buf->o);
+		ret += max;
 
 		h1m->state = HTTP_MSG_DONE;
 		h2s->flags |= H2_SF_ES_SENT;
@@ -3111,12 +3111,12 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	return ret;
 }
 
-/* Try to send a DATA frame matching HTTP/1 response present in the response
- * buffer <buf>, for stream <h2s>. Returns the number of bytes sent. The caller
- * must check the stream's status to detect any error which might have happened
- * subsequently to a successful send.
+/* Try to send a DATA frame matching HTTP/1 response present at offset <ofs>
+ * for up to <max> bytes in response buffer <buf>, for stream <h2s>. Returns
+ * the number of bytes sent. The caller must check the stream's status to
+ * detect any error which might have happened subsequently to a successful send.
  */
-static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
+static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t ofs, size_t max)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->res;
@@ -3140,7 +3140,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	}
 
  new_frame:
-	if (!buf->o)
+	if (!max)
 		goto end;
 
 	chunk_reset(&outbuf);
@@ -3169,17 +3169,18 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 	switch (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
 	case 0:           /* no content length, read till SHUTW */
-		size = buf->o;
+		size = max;
 		h1m->curr_len = size;
 		break;
 	case H1_MF_CLEN:  /* content-length: read only h2m->body_len */
-		size = buf->o;
+		size = max;
 		if ((long long)size > h1m->curr_len)
 			size = h1m->curr_len;
 		break;
 	default:          /* te:chunked : parse chunks */
 		if (h1m->state == HTTP_MSG_CHUNK_CRLF) {
-			ret = h1_skip_chunk_crlf(buf, -buf->o, 0);
+			// FIXME: this one still uses the old buffer API and ignores <ofs>
+			ret = h1_skip_chunk_crlf(buf, -max, 0);
 			if (!ret)
 				goto end;
 
@@ -3189,15 +3190,16 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				goto end;
 			}
-			b_del(buf, ret);
+			max -= ret;
+			ofs += ret;
 			total += ret;
 			h1m->state = HTTP_MSG_CHUNK_SIZE;
 		}
 
 		if (h1m->state == HTTP_MSG_CHUNK_SIZE) {
 			unsigned int chunk;
-
-			ret = h1_parse_chunk_size(buf, -buf->o, 0, &chunk);
+			// FIXME: this one still uses the old buffer API and ignores <ofs>
+			ret = h1_parse_chunk_size(buf, -max, 0, &chunk);
 			if (!ret)
 				goto end;
 
@@ -3211,7 +3213,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 			size = chunk;
 			h1m->curr_len = chunk;
 			h1m->body_len += chunk;
-			b_del(buf, ret);
+			max -= ret;
+			ofs += ret;
 			total += ret;
 			h1m->state = size ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 			if (!size)
@@ -3232,8 +3235,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	 * unblocked on window opening. Note: we don't implement padding.
 	 */
 
-	if (size > buf->o)
-		size = buf->o;
+	if (size > max)
+		size = max;
 
 	if (size > h2s->mws)
 		size = h2s->mws;
@@ -3271,7 +3274,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 	/* copy whatever we can */
 	blk1 = blk2 = NULL; // silence a maybe-uninitialized warning
-	ret = b_getblk_nc(buf, &blk1, &len1, &blk2, &len2, 0, buf->o);
+	ret = b_getblk_nc(buf, &blk1, &len1, &blk2, &len2, ofs, max);
 	if (ret == 1)
 		len2 = 0;
 
@@ -3328,7 +3331,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 	/* consume incoming H1 response */
 	if (size > 0) {
-		b_del(buf, size);
+		max -= size;
+		ofs += size;
 		total += size;
 		h1m->curr_len -= size;
 		h2s->mws -= size;
@@ -3348,7 +3352,9 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 		if (!(h1m->flags & H1_MF_CHNK)) {
 			// trim any possibly pending data (eg: inconsistent content-length)
-			b_del(buf, buf->o);
+			total += max;
+			ofs += max;
+			max = 0;
 
 			h1m->state = HTTP_MSG_DONE;
 		}
@@ -3366,13 +3372,16 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 {
 	struct h2s *h2s = cs->ctx;
 	size_t total = 0;
+	size_t ret;
 
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && buf->o)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
 	while (h2s->res.state < HTTP_MSG_DONE && buf->o) {
 		if (h2s->res.state < HTTP_MSG_BODY) {
-			total += h2s_frt_make_resp_headers(h2s, buf);
+			ret = h2s_frt_make_resp_headers(h2s, buf, 0, buf->o);
+			total += ret;
+			b_del(buf, ret);
 
 			if (h2s->st >= H2_SS_ERROR)
 				break;
@@ -3381,7 +3390,9 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 				break;
 		}
 		else if (h2s->res.state < HTTP_MSG_TRAILERS) {
-			total += h2s_frt_make_resp_data(h2s, buf);
+			ret = h2s_frt_make_resp_data(h2s, buf, 0, buf->o);
+			total += ret;
+			b_del(buf, ret);
 
 			if (h2s->st >= H2_SS_ERROR)
 				break;
@@ -3391,15 +3402,15 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 		}
 		else if (h2s->res.state == HTTP_MSG_TRAILERS) {
 			/* consume the trailers if any (we don't forward them for now) */
-			int count = h1_measure_trailers(buf, buf->o);
+			ret = h1_measure_trailers(buf, buf->o);
 
-			if (unlikely(count <= 0)) {
-				if (count < 0)
+			if (unlikely((int)ret <= 0)) {
+				if ((int)ret < 0)
 					h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				break;
 			}
-			total += count;
-			b_del(buf, count);
+			total += ret;
+			b_del(buf, ret);
 
 			// trim any possibly pending data (eg: extra CR-LF, ...)
 			b_del(buf, buf->o);
