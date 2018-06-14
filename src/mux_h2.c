@@ -3378,10 +3378,9 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 }
 
 /* Called from the upper layer, to send data */
-static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
+static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
-	size_t count = buf->o;
 	size_t total = 0;
 	size_t ret;
 
@@ -3452,7 +3451,6 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 			LIST_ADDQ(&h2s->h2c->send_list, &h2s->list);
 	}
 
-	b_del(buf, total);
 	return total;
 }
 

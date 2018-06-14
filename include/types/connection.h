@@ -298,7 +298,7 @@ struct mux_ops {
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
 	int  (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, int count); /* Called from the upper layer to get data */
-	int  (*snd_buf)(struct conn_stream *cs, struct buffer *buf, int flags); /* Called from the upper layer to send data */
+	size_t (*snd_buf)(struct conn_stream *cs, const struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
 	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct conn_stream *cs, struct pipe *pipe); /* send-to-pipe callback */
 	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */

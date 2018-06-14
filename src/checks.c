@@ -746,7 +746,9 @@ static void event_srv_chk_w(struct conn_stream *cs)
 		goto out_unlock;
 
 	if (check->bo->o) {
-		conn->mux->snd_buf(cs, check->bo, 0);
+		b_del(check->bo, conn->mux->snd_buf(cs, check->bo, check->bo->o, 0));
+		b_realign_if_empty(check->bo);
+
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
 			__cs_stop_both(cs);
@@ -2669,9 +2671,14 @@ static int tcpcheck_main(struct check *check)
 		    (&check->current_step->list == head ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
+			int ret;
 
 			__cs_want_send(cs);
-			if (conn->mux->snd_buf(cs, check->bo, 0) <= 0) {
+			ret = conn->mux->snd_buf(cs, check->bo, check->bo->o, 0);
+			b_del(check->bo, ret);
+			b_realign_if_empty(check->bo);
+
+			if (ret <= 0) {
 				if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 					chk_report_conn_err(check, errno, 0);
 					__cs_stop_both(cs);

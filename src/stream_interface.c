@@ -683,11 +683,14 @@ static void si_cs_send(struct conn_stream *cs)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		ret = conn->mux->snd_buf(cs, oc->buf, send_flag);
+		ret = conn->mux->snd_buf(cs, oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
-			if (!oc->buf->o) {
+			b_del(oc->buf, ret);
+			c_realign_if_empty(oc);
+
+			if (!co_data(oc)) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				oc->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
 			}
