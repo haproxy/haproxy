@@ -3197,8 +3197,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 
 		if (h1m->state == HTTP_MSG_CHUNK_SIZE) {
 			unsigned int chunk;
-			// FIXME: this one still uses the old buffer API and ignores <ofs>
-			ret = h1_parse_chunk_size(buf, -max, 0, &chunk);
+			ret = h1_parse_chunk_size(buf, ofs, ofs + max, &chunk);
 			if (!ret)
 				goto end;
 

@@ -4142,7 +4142,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		 * TRAILERS state.
 		 */
 		unsigned int chunk;
-		int ret = h1_parse_chunk_size(req->buf, msg->next, req->buf->i, &chunk);
+		int ret = h1_parse_chunk_size(req->buf, co_data(req) + msg->next, b_data(req->buf), &chunk);
 
 		if (!ret)
 			goto missing_data;
@@ -6371,7 +6371,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			 * then set ->next to point to the body and switch to
 			 * DATA or TRAILERS state.
 			 */
-			ret = h1_parse_chunk_size(chn->buf, msg->next, chn->buf->i, &chunk);
+			ret = h1_parse_chunk_size(chn->buf, co_data(chn) + msg->next, b_data(chn->buf), &chunk);
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {

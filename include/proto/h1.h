@@ -175,7 +175,8 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
 	return bytes;
 }
 
-/* Parse the chunk size start at buf->p + start and stops before buf->p + stop.
+/* Parse the chunk size start at buf + start and stops before buf + stop. The
+ * positions are relative to the buffer's head.
  * It returns the chunk size in <res> and the amount of bytes read this way :
  *   < 0 : error at this position relative to <stop>
  *   = 0 : not enough bytes to read a complete chunk size
@@ -189,9 +190,9 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
  */
 static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int stop, unsigned int *res)
 {
-	const char *ptr = b_ptr(buf, start);
+	const char *ptr = b_peek(buf, start);
 	const char *ptr_old = ptr;
-	const char *end = buf->data + buf->size;
+	const char *end = b_wrap(buf);
 	unsigned int chunk = 0;
 
 	stop -= start; // bytes left
