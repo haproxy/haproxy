@@ -1094,7 +1094,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	/* Stop waiting data if the input in closed and no data is pending or if
 	 * the output is closed. */
 	if ((chn->flags & CF_SHUTW) ||
-	    ((chn->flags & CF_SHUTR) && !buffer_pending(chn->buf))) {
+	    ((chn->flags & CF_SHUTR) && !ci_data(chn))) {
 		ret = 1;
 		goto end;
 	}

@@ -6158,7 +6158,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto aborted_xfer;
 		/* If we have some pending data, we continue the processing */
-		if (!buffer_pending(res->buf)) {
+		if (!ci_data(res)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
 			HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);

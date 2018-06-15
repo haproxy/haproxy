@@ -103,14 +103,6 @@ static inline int buffer_count(const struct buffer *buf, const char *from, const
 	return count;
 }
 
-/* returns the amount of pending bytes in the buffer. It is the amount of bytes
- * that is not scheduled to be sent.
- */
-static inline int buffer_pending(const struct buffer *buf)
-{
-	return buf->i;
-}
-
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
 static inline int buffer_almost_full(const struct buffer *buf)
 {
