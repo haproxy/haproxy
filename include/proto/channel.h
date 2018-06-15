@@ -135,7 +135,7 @@ static inline size_t co_data(const struct channel *c)
 /* ci_data() : returns the amount of input data in the channel's buffer */
 static inline size_t ci_data(const struct channel *c)
 {
-	return c->buf->i;
+	return c_data(c) - co_data(c);
 }
 
 /* ci_next() : for an absolute pointer <p> or a relative offset <o> pointing to
@@ -345,7 +345,7 @@ static inline unsigned long long channel_forward(struct channel *chn, unsigned l
 	if (bytes <= ~0U) {
 		unsigned int bytes32 = bytes;
 
-		if (bytes32 <= chn->buf->i) {
+		if (bytes32 <= ci_data(chn)) {
 			/* OK this amount of bytes might be forwarded at once */
 			c_adv(chn, bytes32);
 			return bytes;
@@ -357,7 +357,7 @@ static inline unsigned long long channel_forward(struct channel *chn, unsigned l
 /* Forwards any input data and marks the channel for permanent forwarding */
 static inline void channel_forward_forever(struct channel *chn)
 {
-	c_adv(chn, chn->buf->i);
+	c_adv(chn, ci_data(chn));
 	chn->to_forward = CHN_INFINITE_FORWARD;
 }
 
@@ -372,7 +372,7 @@ static inline void channel_forward_forever(struct channel *chn)
  */
 static inline unsigned int channel_is_empty(const struct channel *c)
 {
-	return !(c->buf->o | (long)c->pipe);
+	return !(co_data(c) | (long)c->pipe);
 }
 
 /* Returns non-zero if the channel is rewritable, which means that the buffer
@@ -384,8 +384,7 @@ static inline int channel_is_rewritable(const struct channel *chn)
 {
 	int rem = chn->buf->size;
 
-	rem -= chn->buf->o;
-	rem -= chn->buf->i;
+	rem -= b_data(chn->buf);
 	rem -= global.tune.maxrewrite;
 	return rem >= 0;
 }
@@ -417,8 +416,7 @@ static inline int channel_may_recv(const struct channel *chn)
 	if (chn->buf == &buf_empty)
 		return 1;
 
-	rem -= chn->buf->o;
-	rem -= chn->buf->i;
+	rem -= b_data(chn->buf);
 	if (!rem)
 		return 0; /* buffer already full */
 
@@ -435,7 +433,7 @@ static inline int channel_may_recv(const struct channel *chn)
 	 * the reserve, and we want to ensure they're covered by scheduled
 	 * forwards.
 	 */
-	rem = chn->buf->i + global.tune.maxrewrite - chn->buf->size;
+	rem = ci_data(chn) + global.tune.maxrewrite - chn->buf->size;
 	return rem < 0 || (unsigned int)rem < chn->to_forward;
 }
 
@@ -628,7 +626,7 @@ static inline int channel_recv_limit(const struct channel *chn)
 	 *   - if o + to_forward >= maxrw   => return size  [ large enough ]
 	 *   - otherwise return size - (maxrw - (o + to_forward))
 	 */
-	transit = chn->buf->o + chn->to_forward;
+	transit = co_data(chn) + chn->to_forward;
 	reserve -= transit;
 	if (transit < chn->to_forward ||                 // addition overflow
 	    transit >= (unsigned)global.tune.maxrewrite) // enough transit data
@@ -651,7 +649,7 @@ static inline int channel_full(const struct channel *c, unsigned int reserve)
 	if (c->buf == &buf_empty)
 		return 0;
 
-	return (b_data(c->buf) - co_data(c) + reserve >= c_size(c));
+	return (ci_data(c) + reserve >= c_size(c));
 }
 
 
@@ -664,7 +662,7 @@ static inline int channel_recv_max(const struct channel *chn)
 {
 	int ret;
 
-	ret = channel_recv_limit(chn) - chn->buf->i - chn->buf->o;
+	ret = channel_recv_limit(chn) - b_data(chn->buf);
 	if (ret < 0)
 		ret = 0;
 	return ret;
@@ -740,11 +738,11 @@ static inline void channel_release_buffer(struct channel *chn, struct buffer_wai
  */
 static inline void channel_truncate(struct channel *chn)
 {
-	if (!chn->buf->o)
+	if (!co_data(chn))
 		return channel_erase(chn);
 
 	chn->to_forward = 0;
-	if (!chn->buf->i)
+	if (!ci_data(chn))
 		return;
 
 	chn->buf->i = 0;

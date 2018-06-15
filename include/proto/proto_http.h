@@ -27,6 +27,7 @@
 #include <types/proto_http.h>
 #include <types/stream.h>
 #include <types/task.h>
+#include <proto/channel.h>
 #include <proto/h1.h>
 
 /*
@@ -221,7 +222,7 @@ static inline int http_body_bytes(const struct http_msg *msg)
 {
 	int len;
 
-	len = msg->chn->buf->i - msg->sov - msg->sol;
+	len = ci_data(msg->chn) - msg->sov - msg->sol;
 	if (len > msg->body_len)
 		len = msg->body_len;
 	return len;
