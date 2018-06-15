@@ -57,21 +57,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 /* These functions are used to compute various buffer area sizes */
 /*****************************************************************/
 
-/* Returns an absolute pointer for a position relative to the current buffer's
- * pointer. It is written so that it is optimal when <ofs> is a const. It is
- * written as a macro instead of an inline function so that the compiler knows
- * when it can optimize out the sign test on <ofs> when passed an unsigned int.
- * Note that callers MUST cast <ofs> to int if they expect negative values.
- */
-#define b_ptr(b, ofs) \
-	({            \
-		char *__ret = (b)->p + (ofs);                   \
-		if ((ofs) > 0 && __ret >= (b)->data + (b)->size)    \
-			__ret -= (b)->size;                     \
-		else if ((ofs) < 0 && __ret < (b)->data)        \
-			__ret += (b)->size;                     \
-		__ret;                                          \
-	})
 
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
@@ -244,7 +229,7 @@ static inline void bo_putchr(struct buffer *b, char c)
 	if (buffer_len(b) == b->size)
 		return;
 	*b->p = c;
-	b->p = b_ptr(b, 1);
+	b->p = b_peek(b, b->o + 1);
 	b->o++;
 }
 
@@ -267,12 +252,13 @@ static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 		half = len;
 
 	memcpy(b->p, blk, half);
-	b->p = b_ptr(b, half);
+	b->p = b_peek(b, b->o + half);
+	b->o += half;
 	if (len > half) {
 		memcpy(b->p, blk + half, len - half);
-		b->p = b_ptr(b, half);
+		b->p = b_peek(b, b->o + len - half);
+		b->o += len - half;
 	}
-	b->o += len;
 	return len;
 }
 
@@ -325,7 +311,7 @@ static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 
 	memcpy(b_tail(b), blk, half);
 	if (len > half)
-		memcpy(b_ptr(b, b->i + half), blk + half, len - half);
+		memcpy(b_peek(b, b->o + b->i + half), blk + half, len - half);
 	b->i += len;
 	return len;
 }
@@ -486,13 +472,13 @@ static inline void offer_buffers(void *from, unsigned int threshold)
 /* functions used to manipulate strings and blocks with wrapping buffers */
 /*************************************************************************/
 
-/* returns > 0 if the first <n> characters of buffer <b> starting at
- * offset <o> relative to b->p match <ist>. (empty strings do match). It is
+/* returns > 0 if the first <n> characters of buffer <b> starting at offset <o>
+ * relative to the buffer's head match <ist>. (empty strings do match). It is
  * designed to be use with reasonably small strings (ie matches a single byte
  * per iteration). This function is usable both with input and output data. To
  * be used like this depending on what to match :
- * - input contents  :  b_isteq(b, 0, b->i, ist);
- * - output contents :  b_isteq(b, -b->o, b->o, ist);
+ * - input contents  :  b_isteq(b, b->o, b->i, ist);
+ * - output contents :  b_isteq(b, 0, b->o, ist);
  * Return value :
  *   >0 : the number of matching bytes
  *   =0 : not enough bytes (or matching of empty string)
@@ -502,12 +488,12 @@ static inline int b_isteq(const struct buffer *b, unsigned int o, size_t n, cons
 {
 	struct ist r = ist;
 	const char *p;
-	const char *end = b->data + b->size;
+	const char *end = b_wrap(b);
 
 	if (n < r.len)
 		return 0;
 
-	p = b_ptr(b, o);
+	p = b_peek(b, o);
 	while (r.len--) {
 		if (*p++ != *r.ptr++)
 			return -1;
@@ -517,22 +503,22 @@ static inline int b_isteq(const struct buffer *b, unsigned int o, size_t n, cons
 	return ist.len;
 }
 
-/* "eats" string <ist> from the input region of buffer <b>. Wrapping data is
- * explicitly supported. It matches a single byte per iteration so strings
- * should remain reasonably small. Returns :
+/* "eats" string <ist> from the head of buffer <b>. Wrapping data is explicitly
+ * supported. It matches a single byte per iteration so strings should remain
+ * reasonably small. Returns :
  *   > 0 : number of bytes matched and eaten
  *   = 0 : not enough bytes (or matching an empty string)
  *   < 0 : non-matching byte found
  */
-static inline int bi_eat(struct buffer *b, const struct ist ist)
+static inline int b_eat(struct buffer *b, const struct ist ist)
 {
-	int ret = b_isteq(b, 0, b->i, ist);
+	int ret = b_isteq(b, 0, b_data(b), ist);
 	if (ret > 0)
 		b_del(b, ret);
 	return ret;
 }
 
-/* injects string <ist> into the input region of buffer <b> provided that it
+/* injects string <ist> at the tail of input buffer <b> provided that it
  * fits. Wrapping is supported. It's designed for small strings as it only
  * writes a single byte per iteration. Returns the number of characters copied
  * (ist.len), 0 if it temporarily does not fit or -1 if it will never fit. It
@@ -542,14 +528,14 @@ static inline int bi_eat(struct buffer *b, const struct ist ist)
  */
 static inline int bi_istput(struct buffer *b, const struct ist ist)
 {
-	const char *end = b->data + b->size;
+	const char *end = b_wrap(b);
 	struct ist r = ist;
 	char *p;
 
-	if (r.len > (size_t)(b->size - b->i - b->o))
+	if (r.len > (size_t)(b->size - b_data(b)))
 		return r.len < b->size ? 0 : -1;
 
-	p = b_ptr(b, b->i);
+	p = b_tail(b);
 	b->i += r.len;
 	while (r.len--) {
 		*p++ = *r.ptr++;
@@ -560,7 +546,7 @@ static inline int bi_istput(struct buffer *b, const struct ist ist)
 }
 
 
-/* injects string <ist> into the output region of buffer <b> provided that it
+/* injects string <ist> at the tail of output buffer <b> provided that it
  * fits. Input data is assumed not to exist and will silently be overwritten.
  * Wrapping is supported. It's designed for small strings as it only writes a
  * single byte per iteration. Returns the number of characters copied (ist.len),
@@ -571,16 +557,16 @@ static inline int bi_istput(struct buffer *b, const struct ist ist)
  */
 static inline int bo_istput(struct buffer *b, const struct ist ist)
 {
-	const char *end = b->data + b->size;
+	const char *end = b_wrap(b);
 	struct ist r = ist;
 	char *p;
 
-	if (r.len > (size_t)(b->size - b->o))
+	if (r.len > (size_t)(b->size - b_data(b)))
 		return r.len < b->size ? 0 : -1;
 
-	p = b->p;
+	p = b_tail(b);
+	b->p = b_peek(b, b->o + r.len);
 	b->o += r.len;
-	b->p = b_ptr(b, r.len);
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
