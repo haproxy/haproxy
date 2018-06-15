@@ -2106,7 +2106,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		channel_auto_read(req);
 		channel_auto_connect(req);
 		channel_auto_close(req);
-		buffer_flush(req->buf);
+		c_adv(req, ci_data(req));
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
@@ -2265,7 +2265,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		 */
 		channel_auto_read(res);
 		channel_auto_close(res);
-		buffer_flush(res->buf);
+		c_adv(res, ci_data(res));
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.

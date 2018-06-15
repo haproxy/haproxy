@@ -124,17 +124,6 @@ static inline void bi_fast_delete(struct buffer *buf, int n)
 	buf->p += n;
 }
 
-/* Schedule all remaining buffer data to be sent. ->o is not touched if it
- * already covers those data. That permits doing a flush even after a forward,
- * although not recommended.
- */
-static inline void buffer_flush(struct buffer *buf)
-{
-	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
-	buf->o += buf->i;
-	buf->i = 0;
-}
-
 /* This function writes the string <str> at position <pos> which must be in
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * (l, r, lr) are updated to be valid after the shift. the shift value
