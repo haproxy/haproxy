@@ -823,7 +823,7 @@ static inline int co_getchr(struct channel *chn)
 			return -2;
 		return -1;
 	}
-	return *buffer_wrap_sub(chn->buf, chn->buf->p - chn->buf->o);
+	return *co_head(chn);
 }
 
 

@@ -61,14 +61,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /***** FIXME: OLD API BELOW *****/
 
-/* Normalizes a pointer after a subtract */
-static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
-{
-	if (ptr < buf->data)
-		ptr += buf->size;
-	return ptr;
-}
-
 /* Normalizes a pointer after an addition */
 static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
 {
