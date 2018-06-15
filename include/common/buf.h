@@ -311,6 +311,38 @@ static inline size_t b_contig_space(const struct buffer *b)
 	return right - left;
 }
 
+/* b_getblk() : gets one full block of data at once from a buffer, starting
+ * from offset <offset> after the buffer's head, and limited to no more than
+ * <len> bytes. The caller is responsible for ensuring that neither <offset>
+ * nor <offset>+<len> exceed the total number of bytes available in the buffer.
+ * Return values :
+ *   >0 : number of bytes read, equal to requested size.
+ *   =0 : not enough data available. <blk> is left undefined.
+ * The buffer is left unaffected.
+ */
+static inline size_t b_getblk(const struct buffer *buf, char *blk, size_t len, size_t offset)
+{
+	size_t firstblock;
+
+	if (len + offset > b_data(buf))
+		return 0;
+
+	firstblock = b_wrap(buf) - b_head(buf);
+	if (firstblock > offset) {
+		if (firstblock >= len + offset) {
+			memcpy(blk, b_head(buf) + offset, len);
+			return len;
+		}
+
+		memcpy(blk, b_head(buf) + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, b_orig(buf), len - firstblock + offset);
+		return len;
+	}
+
+	memcpy(blk, b_orig(buf) + offset - firstblock, len);
+	return len;
+}
+
 
 /*********************************************/
 /* Functions used to modify the buffer state */

@@ -326,35 +326,6 @@ static inline int bo_putchk(struct buffer *b, const struct chunk *chk)
 	return bo_putblk(b, chk->str, chk->len);
 }
 
-/* Gets one full block of data at once from a buffer's output, optionally
- * starting at a specific offset. Return values :
- *   >0 : number of bytes read, equal to requested size.
- *   =0 : not enough data available. <blk> is left undefined.
- * The buffer is left unaffected.
- */
-static inline int bo_getblk(const struct buffer *buf, char *blk, int len, int offset)
-{
-	int firstblock;
-
-	if (len + offset > buf->o)
-		return 0;
-
-	firstblock = buf->data + buf->size - b_head(buf);
-	if (firstblock > offset) {
-		if (firstblock >= len + offset) {
-			memcpy(blk, b_head(buf) + offset, len);
-			return len;
-		}
-
-		memcpy(blk, b_head(buf) + offset, firstblock - offset);
-		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
-		return len;
-	}
-
-	memcpy(blk, buf->data + offset - firstblock, len);
-	return len;
-}
-
 /* Gets one or two blocks of data at once from a buffer's output.
  * Return values :
  *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.

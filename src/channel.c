@@ -295,13 +295,13 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 	if (chn->flags & CF_SHUTW)
 		return -1;
 
-	if (len + offset > chn->buf->o) {
+	if (len + offset > co_data(chn)) {
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}
 
-	return bo_getblk(chn->buf, blk, len, offset);
+	return b_getblk(chn->buf, blk, len, offset);
 }
 
 /* Gets one or two blocks of data at once from a channel's output buffer.
