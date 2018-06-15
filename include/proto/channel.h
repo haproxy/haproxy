@@ -670,6 +670,31 @@ static inline int channel_recv_max(const struct channel *chn)
 	return ret;
 }
 
+/* Returns the amount of bytes that can be written over the input data at once,
+ * including reserved space which may be overwritten. This is used by Lua to
+ * insert data in the input side just before the other data using buffer_replace().
+ * The goal is to transfer these new data in the output buffer.
+ */
+static inline int ci_space_for_replace(const struct channel *chn)
+{
+	const struct buffer *buf = chn->buf;
+	const char *end;
+
+	/* If the input side data overflows, we cannot insert data contiguously. */
+	if (b_head(buf) + b_data(buf) >= b_wrap(buf))
+		return 0;
+
+	/* Check the last byte used in the buffer, it may be a byte of the output
+	 * side if the buffer wraps, or its the end of the buffer.
+	 */
+	end = b_head(buf);
+	if (end <= ci_head(chn))
+		end = b_wrap(buf);
+
+	/* Compute the amount of bytes which can be written. */
+	return end - ci_tail(chn);
+}
+
 /* Allocates a buffer for channel <chn>, but only if it's guaranteed that it's
  * not the last available buffer or it's the response buffer. Unless the buffer
  * is the response buffer, an extra control is made so that we always keep

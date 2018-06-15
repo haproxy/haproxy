@@ -3040,7 +3040,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	/* The buffer avalaible size may be not contiguous. This test
 	 * detects a non contiguous buffer and realign it.
 	 */
-	if (bi_space_for_replace(chn->buf) < max)
+	if (ci_space_for_replace(chn) < max)
 		channel_slow_realign(chn, trash.str);
 
 	/* Copy input data in the buffer. */
