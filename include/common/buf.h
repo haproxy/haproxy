@@ -322,6 +322,13 @@ static inline void b_set_data(struct buffer *b, size_t len)
 	}
 }
 
+/* b_realign_if_empty() : realigns a buffer if it's empty */
+static inline void b_realign_if_empty(struct buffer *b)
+{
+	if (!b_data(b))
+		b->p = b->data;
+}
+
 
 #endif /* _COMMON_BUF_H */
 
