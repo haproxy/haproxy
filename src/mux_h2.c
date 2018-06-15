@@ -510,27 +510,28 @@ static inline __maybe_unused void h2_set_frame_size(void *frame, uint32_t len)
 /* reads <bytes> bytes from buffer <b> starting at relative offset <o> from the
  * current pointer, dealing with wrapping, and stores the result in <dst>. It's
  * the caller's responsibility to verify that there are at least <bytes> bytes
- * available in the buffer's input prior to calling this function.
+ * available in the buffer's input prior to calling this function. The buffer
+ * is assumed not to hold any output data.
  */
 static inline __maybe_unused void h2_get_buf_bytes(void *dst, size_t bytes,
                                     const struct buffer *b, int o)
 {
-	readv_bytes(dst, bytes, b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+	readv_bytes(dst, bytes, b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
 }
 
 static inline __maybe_unused uint16_t h2_get_n16(const struct buffer *b, int o)
 {
-	return readv_n16(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+	return readv_n16(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
 }
 
 static inline __maybe_unused uint32_t h2_get_n32(const struct buffer *b, int o)
 {
-	return readv_n32(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+	return readv_n32(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
 }
 
 static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
 {
-	return readv_n64(b_ptr(b, o), b_end(b) - b_ptr(b, o), b->data);
+	return readv_n64(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
 }
 
 
@@ -548,7 +549,8 @@ static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
  * we get the sid properly aligned and ordered, and 16 bits of len properly
  * ordered as well. The type and flags can be extracted using bit shifts from
  * the word, and only one extra read is needed to fetch len[16:23].
- * Returns zero if some bytes are missing, otherwise non-zero on success.
+ * Returns zero if some bytes are missing, otherwise non-zero on success. The
+ * buffer is assumed not to contain any output data.
  */
 static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
 {
@@ -557,7 +559,7 @@ static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh
 	if (b->i < 9)
 		return 0;
 
-	w = readv_n64(b_ptr(b,1), b_end(b) - b_ptr(b,1), b->data);
+	w = h2_get_n64(b, 1);
 	h->len = *b->p << 16;
 	h->sid = w & 0x7FFFFFFF; /* RFC7540#4.1: R bit must be ignored */
 	h->ff = w >> 32;
@@ -2844,10 +2846,10 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	block2 = flen - block1;
 
 	if (block1)
-		bi_putblk(buf, b_ptr(h2c->dbuf, 0), block1);
+		bi_putblk(buf, b_head(h2c->dbuf), block1);
 
 	if (block2)
-		bi_putblk(buf, b_ptr(h2c->dbuf, block1), block2);
+		bi_putblk(buf, b_peek(h2c->dbuf, block1), block2);
 
 	if (h2s->flags & H2_SF_DATA_CHNK) {
 		/* emit the CRLF */
@@ -3078,8 +3080,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf, siz
 	max -= ret;
 
 	/* commit the H2 response */
+	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + outbuf.len);
 	h2c->mbuf->o += outbuf.len;
-	h2c->mbuf->p = b_ptr(h2c->mbuf, outbuf.len);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	/* for now we don't implemented CONTINUATION, so we wait for a
@@ -3324,8 +3326,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 		outbuf.str[4] |= H2_F_DATA_END_STREAM;
 
 	/* commit the H2 response */
+	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + size + 9);
 	h2c->mbuf->o += size + 9;
-	h2c->mbuf->p = b_ptr(h2c->mbuf, size + 9);
 
 	/* consume incoming H1 response */
 	if (size > 0) {
