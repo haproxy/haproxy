@@ -364,7 +364,7 @@ static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, si
 	if (l1 < max) {
 		*len1 = l1;
 		*len2 = max - l1;
-		*blk2 = buf->data;
+		*blk2 = b_orig(buf);
 		return 2;
 	}
 	*len1 = max;

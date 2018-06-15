@@ -163,7 +163,7 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
 		bytes++;
 		ptr++;
 		if (ptr >= b_wrap(buf))
-			ptr = buf->data;
+			ptr = b_orig(buf);
 	}
 
 	if (bytes > stop - start)
@@ -210,7 +210,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 		if (c < 0) /* not a hex digit anymore */
 			break;
 		if (unlikely(++ptr >= end))
-			ptr = buf->data;
+			ptr = b_orig(buf);
 		if (unlikely(chunk & 0xF8000000)) /* integer overflow will occur if result >= 2GB */
 			goto error;
 		chunk = (chunk << 4) + c;
@@ -223,7 +223,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 
 	while (HTTP_IS_SPHT(*ptr)) {
 		if (++ptr >= end)
-			ptr = buf->data;
+			ptr = b_orig(buf);
 		if (--stop == 0)
 			return 0;
 	}
@@ -236,7 +236,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			/* we now have a CR or an LF at ptr */
 			if (likely(*ptr == '\r')) {
 				if (++ptr >= end)
-					ptr = buf->data;
+					ptr = b_orig(buf);
 				if (--stop == 0)
 					return 0;
 			}
@@ -244,7 +244,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			if (*ptr != '\n')
 				goto error;
 			if (++ptr >= end)
-				ptr = buf->data;
+				ptr = b_orig(buf);
 			--stop;
 			/* done */
 			break;
@@ -252,13 +252,13 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 		else if (likely(*ptr == ';')) {
 			/* chunk extension, ends at next CRLF */
 			if (++ptr >= end)
-				ptr = buf->data;
+				ptr = b_orig(buf);
 			if (--stop == 0)
 				return 0;
 
 			while (!HTTP_IS_CRLF(*ptr)) {
 				if (++ptr >= end)
-					ptr = buf->data;
+					ptr = b_orig(buf);
 				if (--stop == 0)
 					return 0;
 			}

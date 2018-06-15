@@ -5361,16 +5361,13 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 	while (count > 0) {
 		int need_out = 0;
 
-		/* first check if we have some room after p+i */
-		try = buf->data + buf->size - (buf->p + buf->i);
-		/* otherwise continue between data and p-o */
-		if (try <= 0) {
-			try = buf->p - (buf->data + buf->o);
-			if (try <= 0)
-				break;
-		}
+		try = b_contig_space(buf);
+		if (!try)
+			break;
+
 		if (try > count)
 			try = count;
+
 		if (((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_EARLY_SSL_HS) &&
 		    conn->tmp_early_data != -1) {
 			*b_tail(buf) = conn->tmp_early_data;

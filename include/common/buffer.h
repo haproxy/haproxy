@@ -64,7 +64,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 /* Normalizes a pointer after an addition */
 static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
 {
-	if (ptr - buf->size >= buf->data)
+	if (ptr - buf->size >= b_orig(buf))
 		ptr -= buf->size;
 	return ptr;
 }
@@ -77,9 +77,9 @@ static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
  */
 static inline const char *buffer_pointer(const struct buffer *buf, const char *ptr)
 {
-	if (ptr < buf->data)
+	if (ptr < b_orig(buf))
 		ptr += buf->size;
-	else if (ptr - buf->size >= buf->data)
+	else if (ptr - buf->size >= b_orig(buf))
 		ptr -= buf->size;
 	return ptr;
 }
@@ -405,7 +405,7 @@ static inline int b_isteq(const struct buffer *b, unsigned int o, size_t n, cons
 		if (*p++ != *r.ptr++)
 			return -1;
 		if (unlikely(p == end))
-			p = b->data;
+			p = b_orig(b);
 	}
 	return ist.len;
 }
@@ -447,7 +447,7 @@ static inline int bi_istput(struct buffer *b, const struct ist ist)
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
-			p = b->data;
+			p = b_orig(b);
 	}
 	return ist.len;
 }
@@ -477,7 +477,7 @@ static inline int bo_istput(struct buffer *b, const struct ist ist)
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
-			p = b->data;
+			p = b_orig(b);
 	}
 	return ist.len;
 }

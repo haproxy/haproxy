@@ -516,22 +516,22 @@ static inline __maybe_unused void h2_set_frame_size(void *frame, uint32_t len)
 static inline __maybe_unused void h2_get_buf_bytes(void *dst, size_t bytes,
                                     const struct buffer *b, int o)
 {
-	readv_bytes(dst, bytes, b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
+	readv_bytes(dst, bytes, b_peek(b, o), b_wrap(b) - b_peek(b, o), b_orig(b));
 }
 
 static inline __maybe_unused uint16_t h2_get_n16(const struct buffer *b, int o)
 {
-	return readv_n16(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
+	return readv_n16(b_peek(b, o), b_wrap(b) - b_peek(b, o), b_orig(b));
 }
 
 static inline __maybe_unused uint32_t h2_get_n32(const struct buffer *b, int o)
 {
-	return readv_n32(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
+	return readv_n32(b_peek(b, o), b_wrap(b) - b_peek(b, o), b_orig(b));
 }
 
 static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
 {
-	return readv_n64(b_peek(b, o), b_wrap(b) - b_peek(b, o), b->data);
+	return readv_n64(b_peek(b, o), b_wrap(b) - b_peek(b, o), b_orig(b));
 }
 
 

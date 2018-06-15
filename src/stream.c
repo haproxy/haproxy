@@ -2979,9 +2979,9 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->req.buf,
-			     strm->req.buf->data, (unsigned int)strm->req.buf->o,
-			     (int)(strm->req.buf->p - strm->req.buf->data),
-			     strm->txn ? strm->txn->req.next : 0, (unsigned int)strm->req.buf->i,
+		             b_orig(strm->req.buf), (unsigned int)co_data(&strm->req),
+		             (int)(strm->req.buf->p - b_orig(strm->req.buf)),
+		             strm->txn ? strm->txn->req.next : 0, (unsigned int)ci_data(&strm->req),
 			     (unsigned int)strm->req.buf->size);
 
 		chunk_appendf(&trash,
@@ -3008,9 +3008,9 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->res.buf,
-			     strm->res.buf->data, (unsigned int)strm->res.buf->o,
-			     (int)(strm->res.buf->p - strm->res.buf->data),
-			     strm->txn ? strm->txn->rsp.next : 0, (unsigned int)strm->res.buf->i,
+		             b_orig(strm->res.buf), (unsigned int)co_data(&strm->res),
+		             (int)(strm->res.buf->p - b_orig(strm->res.buf)),
+		             strm->txn ? strm->txn->rsp.next : 0, (unsigned int)ci_data(&strm->res),
 			     (unsigned int)strm->res.buf->size);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {

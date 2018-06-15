@@ -169,7 +169,7 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 	max = b_contig_space(chn->buf);
 	memcpy(ci_tail(chn), blk, MIN(len, max));
 	if (len > max)
-		memcpy(chn->buf->data, blk + max, len - max);
+		memcpy(b_orig(chn->buf), blk + max, len - max);
 
 	chn->buf->i += len;
 	chn->total += len;
@@ -386,10 +386,10 @@ int ci_getblk_nc(const struct channel *chn,
 		return 0;
 	}
 
-	if (unlikely(chn->buf->p + chn->buf->i > chn->buf->data + chn->buf->size)) {
+	if (unlikely(chn->buf->p + chn->buf->i > b_wrap(chn->buf))) {
 		*blk1 = chn->buf->p;
-		*len1 = chn->buf->data + chn->buf->size - chn->buf->p;
-		*blk2 = chn->buf->data;
+		*len1 = b_wrap(chn->buf) - chn->buf->p;
+		*blk2 = b_orig(chn->buf);
 		*len2 = chn->buf->i - *len1;
 		return 2;
 	}

@@ -284,14 +284,10 @@ static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 	 * EINTR too.
 	 */
 	while (count > 0) {
-		/* first check if we have some room after p+i */
-		try = buf->data + buf->size - (buf->p + buf->i);
-		/* otherwise continue between data and p-o */
-		if (try <= 0) {
-			try = buf->p - (buf->data + buf->o);
-			if (try <= 0)
-				break;
-		}
+		try = b_contig_space(buf);
+		if (!try)
+			break;
+
 		if (try > count)
 			try = count;
 
