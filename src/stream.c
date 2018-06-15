@@ -2120,7 +2120,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		 * headers.
 		 */
 		if (s->txn)
-			s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - req->buf->o;
+			s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - co_data(req);
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
@@ -2279,7 +2279,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		 * headers.
 		 */
 		if (s->txn)
-			s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - res->buf->o;
+			s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - co_data(res);
 
 		/* if we have no analyser anymore in any direction and have a
 		 * tunnel timeout set, use it now. Note that we must respect
@@ -2974,13 +2974,13 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%d req.next=%d i=%u size=%u\n",
+			     "      buf=%p data=%p o=%u p=%u req.next=%d i=%u size=%u\n",
 			     strm->req.wex ?
 			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->req.buf,
 		             b_orig(strm->req.buf), (unsigned int)co_data(&strm->req),
-		             (int)(strm->req.buf->p - b_orig(strm->req.buf)),
+			     (unsigned int)ci_head_ofs(&strm->req),
 		             strm->txn ? strm->txn->req.next : 0, (unsigned int)ci_data(&strm->req),
 			     (unsigned int)strm->req.buf->size);
 
@@ -3003,13 +3003,13 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%d rsp.next=%d i=%u size=%u\n",
+			     "      buf=%p data=%p o=%u p=%u rsp.next=%d i=%u size=%u\n",
 			     strm->res.wex ?
 			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->res.buf,
 		             b_orig(strm->res.buf), (unsigned int)co_data(&strm->res),
-		             (int)(strm->res.buf->p - b_orig(strm->res.buf)),
+		             (unsigned int)ci_head_ofs(&strm->res),
 		             strm->txn ? strm->txn->rsp.next : 0, (unsigned int)ci_data(&strm->res),
 			     (unsigned int)strm->res.buf->size);
 
@@ -3160,7 +3160,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			chunk_appendf(&trash,
 				     " rq[f=%06xh,i=%u,an=%02xh,rx=%s",
 				     curr_strm->req.flags,
-				     (unsigned int)curr_strm->req.buf->i,
+			             (unsigned int)ci_data(&curr_strm->req),
 				     curr_strm->req.analysers,
 				     curr_strm->req.rex ?
 				     human_time(TICKS_TO_MS(curr_strm->req.rex - now_ms),
@@ -3181,7 +3181,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			chunk_appendf(&trash,
 				     " rp[f=%06xh,i=%u,an=%02xh,rx=%s",
 				     curr_strm->res.flags,
-				     (unsigned int)curr_strm->res.buf->i,
+			             (unsigned int)ci_data(&curr_strm->res),
 				     curr_strm->res.analysers,
 				     curr_strm->res.rex ?
 				     human_time(TICKS_TO_MS(curr_strm->res.rex - now_ms),
