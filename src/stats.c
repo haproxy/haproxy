@@ -3054,7 +3054,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		unsigned int prev_len = si_ib(si)->i;
+		unsigned int prev_len = ci_data(si_ic(si));
 		unsigned int data_len;
 		unsigned int last_len;
 		unsigned int last_fwd = 0;
@@ -3075,11 +3075,11 @@ static void http_stats_io_handler(struct appctx *appctx)
 			}
 		}
 
-		data_len = si_ib(si)->i;
+		data_len = ci_data(si_ic(si));
 		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 
-		last_len = si_ib(si)->i;
+		last_len = ci_data(si_ic(si));
 
 		/* Now we must either adjust or remove the chunk size. This is
 		 * not easy because the chunk size might wrap at the end of the
@@ -3090,7 +3090,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		 */
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			si_ic(si)->total -= (last_len - prev_len);
-			si_ib(si)->i     -= (last_len - prev_len);
+			b_sub(si_ib(si), (last_len - prev_len));
 
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
@@ -3098,7 +3098,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 					si_applet_cant_put(si);
 
 				si_ic(si)->total += (last_len - data_len);
-				si_ib(si)->i     += (last_len - data_len);
+				b_add(si_ib(si), last_len - data_len);
 			}
 			/* now re-enable forwarding */
 			channel_forward(si_ic(si), last_fwd);
@@ -3126,7 +3126,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			}
 		}
 		/* eat the whole request */
-		co_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), co_data(si_oc(si)));
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
