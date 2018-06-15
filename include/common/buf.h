@@ -415,6 +415,23 @@ static inline void b_set_data(struct buffer *b, size_t len)
 	}
 }
 
+/* b_del() : skips <del> bytes in a buffer <b>. Covers both the output and the
+ * input parts so it's up to the caller to know where it plays and that <del>
+ * is always smaller than the amount of data in the buffer.
+ */
+static inline void b_del(struct buffer *b, size_t del)
+{
+	if (del <= b->o) {
+		b->o -= del;
+		del = 0;
+	}
+	if (del) {
+		b->p = b_peek(b, del);
+		b->i -= del;
+		del = 0;
+	}
+}
+
 /* b_realign_if_empty() : realigns a buffer if it's empty */
 static inline void b_realign_if_empty(struct buffer *b)
 {

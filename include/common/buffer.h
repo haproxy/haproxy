@@ -85,26 +85,6 @@ static inline unsigned int b_to_end(const struct buffer *b)
 	return b->data + b->size - b->p;
 }
 
-/* Skips <del> bytes in a one-way buffer <b> : <p> advances by <del>, <i>
- * shrinks by <del> as well, and <o> is left untouched (supposed to be zero).
- * The caller is responsible for ensuring that <del> is always smaller than or
- * equal to b->i.
- */
-static inline void bi_del(struct buffer *b, unsigned int del)
-{
-	b->i -= del;
-	b->p = b_ptr(b, del);
-}
-
-/* Skips <del> bytes from the output of buffer <b> by simply shrinking <o>.
- * The caller is responsible for ensuring that <del> is always smaller than or
- * equal to b->o.
- */
-static inline void bo_del(struct buffer *b, unsigned int del)
-{
-	b->o -= del;
-}
-
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
 {
@@ -560,7 +540,7 @@ static inline int bi_eat(struct buffer *b, const struct ist ist)
 {
 	int ret = b_isteq(b, 0, b->i, ist);
 	if (ret > 0)
-		bi_del(b, ret);
+		b_del(b, ret);
 	return ret;
 }
 

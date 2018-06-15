@@ -727,8 +727,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
  */
 static inline void co_skip(struct channel *chn, int len)
 {
-	chn->buf->o -= len;
-
+	b_del(chn->buf, len);
 	if (buffer_empty(chn->buf))
 		chn->buf->p = chn->buf->data;
 

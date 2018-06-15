@@ -571,7 +571,7 @@ static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh
  */
 static inline __maybe_unused void h2_skip_frame_hdr(struct buffer *b)
 {
-	bi_del(b, 9);
+	b_del(b, 9);
 }
 
 /* same as above, automatically advances the buffer on success */
@@ -760,7 +760,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 
 	ret2 = h2c_snd_settings(h2c);
 	if (ret2 > 0)
-		bi_del(h2c->dbuf, ret1);
+		b_del(h2c->dbuf, ret1);
 
 	return ret2;
 }
@@ -1899,7 +1899,7 @@ static void h2_process_demux(struct h2c *h2c)
 		 */
 		if (unlikely(h2c->last_sid >= 0) && h2c->dsi > h2c->last_sid) {
 			ret = MIN(h2c->dbuf->i, h2c->dfl);
-			bi_del(h2c->dbuf, ret);
+			b_del(h2c->dbuf, ret);
 			h2c->dfl -= ret;
 			ret = h2c->dfl == 0;
 			goto strm_err;
@@ -1979,7 +1979,7 @@ static void h2_process_demux(struct h2c *h2c)
 			 * we reach the end.
 			 */
 			ret = MIN(h2c->dbuf->i, h2c->dfl);
-			bi_del(h2c->dbuf, ret);
+			b_del(h2c->dbuf, ret);
 			h2c->dfl -= ret;
 			ret = h2c->dfl == 0;
 		}
@@ -1997,7 +1997,7 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
-			bi_del(h2c->dbuf, h2c->dfl);
+			b_del(h2c->dbuf, h2c->dfl);
 			h2c->st0 = H2_CS_FRAME_H;
 		}
 	}
@@ -2728,7 +2728,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	}
 
 	/* now consume the input data */
-	bi_del(h2c->dbuf, h2c->dfl);
+	b_del(h2c->dbuf, h2c->dfl);
 	h2c->st0 = H2_CS_FRAME_H;
 	buf->i += outlen;
 
@@ -2788,7 +2788,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 		}
 
 		/* skip the padlen byte */
-		bi_del(h2c->dbuf, 1);
+		b_del(h2c->dbuf, 1);
 		h2c->dfl--;
 		h2c->rcvd_c++; h2c->rcvd_s++;
 		h2c->dff &= ~H2_F_DATA_PADDED;
@@ -2857,7 +2857,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
 	/* now mark the input data as consumed (will be deleted from the buffer
 	 * by the caller when seeing FRAME_A after sending the window update).
 	 */
-	bi_del(h2c->dbuf, flen);
+	b_del(h2c->dbuf, flen);
 	h2c->dfl    -= flen;
 	h2c->rcvd_c += flen;
 	h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
@@ -3075,7 +3075,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		outbuf.str[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* consume incoming H1 response */
-	bo_del(buf, ret);
+	b_del(buf, ret);
 
 	/* commit the H2 response */
 	h2c->mbuf->o += outbuf.len;
@@ -3087,7 +3087,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 	 */
 	if (es_now) {
 		// trim any possibly pending data (eg: inconsistent content-length)
-		bo_del(buf, buf->o);
+		b_del(buf, buf->o);
 
 		h1m->state = HTTP_MSG_DONE;
 		h2s->flags |= H2_SF_ES_SENT;
@@ -3189,7 +3189,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				goto end;
 			}
-			bo_del(buf, ret);
+			b_del(buf, ret);
 			total += ret;
 			h1m->state = HTTP_MSG_CHUNK_SIZE;
 		}
@@ -3211,7 +3211,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 			size = chunk;
 			h1m->curr_len = chunk;
 			h1m->body_len += chunk;
-			bo_del(buf, ret);
+			b_del(buf, ret);
 			total += ret;
 			h1m->state = size ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 			if (!size)
@@ -3328,7 +3328,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 	/* consume incoming H1 response */
 	if (size > 0) {
-		bo_del(buf, size);
+		b_del(buf, size);
 		total += size;
 		h1m->curr_len -= size;
 		h2s->mws -= size;
@@ -3348,7 +3348,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 
 		if (!(h1m->flags & H1_MF_CHNK)) {
 			// trim any possibly pending data (eg: inconsistent content-length)
-			bo_del(buf, buf->o);
+			b_del(buf, buf->o);
 
 			h1m->state = HTTP_MSG_DONE;
 		}
@@ -3399,10 +3399,10 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 				break;
 			}
 			total += count;
-			bo_del(buf, count);
+			b_del(buf, count);
 
 			// trim any possibly pending data (eg: extra CR-LF, ...)
-			bo_del(buf, buf->o);
+			b_del(buf, buf->o);
 
 			h2s->res.state = HTTP_MSG_DONE;
 			break;
@@ -3417,7 +3417,7 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
 		 */
-		bo_del(buf, buf->o);
+		b_del(buf, buf->o);
 	}
 
 	/* RST are sent similarly to frame acks */
