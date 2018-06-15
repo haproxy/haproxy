@@ -2840,7 +2840,7 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 	if (unlikely(ret == -1))
 		return 1;
 
-	chn->buf->i -= ret;
+	b_sub(chn->buf, ret);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
@@ -2888,7 +2888,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 		len += len2;
 	}
 	luaL_pushresult(&b);
-	buffer_replace2(chn->buf, chn->buf->p, chn->buf->p + len,  NULL, 0);
+	buffer_replace2(chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
@@ -2944,7 +2944,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 
 	max = channel_recv_limit(chn) - b_data(chn->buf);
-	if (max == 0 && chn->buf->o == 0) {
+	if (max == 0 && co_data(chn) == 0) {
 		/* There are no space avalaible, and the output buffer is empty.
 		 * in this case, we cannot add more data, so we cannot yield,
 		 * we return the amount of copyied data.
@@ -2987,7 +2987,7 @@ __LJMP static int hlua_channel_set(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, 0);
 
-	chn->buf->i = 0;
+	b_set_data(chn->buf, co_data(chn));
 
 	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
@@ -3030,7 +3030,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * in this case, we cannot add more data, so we cannot yield,
 	 * we return the amount of copyied data.
 	 */
-	if (max == 0 && chn->buf->o == 0)
+	if (max == 0 && co_data(chn) == 0)
 		return 1;
 
 	/* Adjust the real required length. */
@@ -3044,7 +3044,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		channel_slow_realign(chn, trash.str);
 
 	/* Copy input data in the buffer. */
-	max = buffer_replace2(chn->buf, chn->buf->p, chn->buf->p, str + l, max);
+	max = buffer_replace2(chn->buf, ci_head(chn), ci_head(chn), str + l, max);
 
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.
@@ -3060,7 +3060,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * we return the amount of copyied data.
 	 */
 	max = b_room(chn->buf);
-	if (max == 0 && chn->buf->o == 0)
+	if (max == 0 && co_data(chn) == 0)
 		return 1;
 
 	if (l < len) {
@@ -3110,8 +3110,8 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 	l = MAY_LJMP(luaL_checkinteger(L, -1));
 
 	max = len - l;
-	if (max > chn->buf->i)
-		max = chn->buf->i;
+	if (max > ci_data(chn))
+		max = ci_data(chn);
 	channel_forward(chn, max);
 	l += max;
 
@@ -3164,7 +3164,7 @@ __LJMP static int hlua_channel_get_in_len(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "get_in_len"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	lua_pushinteger(L, chn->buf->i);
+	lua_pushinteger(L, ci_data(chn));
 	return 1;
 }
 
@@ -3193,7 +3193,7 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "get_out_len"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	lua_pushinteger(L, chn->buf->o);
+	lua_pushinteger(L, co_data(chn));
 	return 1;
 }
 
@@ -3905,12 +3905,12 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 
 	/* Stores the request method. */
 	lua_pushstring(L, "method");
-	lua_pushlstring(L, txn->req.chn->buf->p, txn->req.sl.rq.m_l);
+	lua_pushlstring(L, ci_head(txn->req.chn), txn->req.sl.rq.m_l);
 	lua_settable(L, -3);
 
 	/* Stores the http version. */
 	lua_pushstring(L, "version");
-	lua_pushlstring(L, txn->req.chn->buf->p + txn->req.sl.rq.v, txn->req.sl.rq.v_l);
+	lua_pushlstring(L, ci_head(txn->req.chn) + txn->req.sl.rq.v, txn->req.sl.rq.v_l);
 	lua_settable(L, -3);
 
 	/* creates an array of headers. hlua_http_get_headers() crates and push
@@ -3927,7 +3927,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	/* Get path and qs */
 	path = http_get_path(txn);
 	if (path) {
-		end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		p = path;
 		while (p < end && *p != '?')
 			p++;
@@ -4669,7 +4669,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 
 	/* Build array of headers. */
 	old_idx = 0;
-	cur_next = msg->chn->buf->p + hdr_idx_first_pos(&htxn->s->txn->hdr_idx);
+	cur_next = ci_head(msg->chn) + hdr_idx_first_pos(&htxn->s->txn->hdr_idx);
 
 	while (1) {
 		cur_idx = htxn->s->txn->hdr_idx.v[old_idx].next;
@@ -4848,7 +4848,7 @@ __LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, 
 		return 0;
 
 	ctx.idx = 0;
-	while (http_find_header2(name, len, msg->chn->buf->p, &txn->hdr_idx, &ctx))
+	while (http_find_header2(name, len, ci_head(msg->chn), &txn->hdr_idx, &ctx))
 		http_remove_header2(msg, &txn->hdr_idx, &ctx);
 	return 0;
 }
@@ -6421,7 +6421,7 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 		strm->logs.tv_request = now;
 
 		/* eat the whole request */
-		co_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), co_data(si_oc(si)));
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 		return;
@@ -6591,7 +6591,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	/* Look for a 100-continue expected. */
 	if (msg->flags & HTTP_MSGF_VER_11) {
 		hdr.idx = 0;
-		if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &hdr) &&
+		if (http_find_header2("Expect", 6, ci_head(req), &txn->hdr_idx, &hdr) &&
 		    unlikely(hdr.vlen == 12 && strncasecmp(hdr.line+hdr.val, "100-continue", 12) == 0))
 			ctx->ctx.hlua_apphttp.flags |= APPLET_100C;
 	}
@@ -6753,7 +6753,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		strm->logs.tv_request = now;
 
 		/* eat the whole request */
-		co_skip(si_oc(si), si_ob(si)->o);
+		co_skip(si_oc(si), co_data(si_oc(si)));
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 
