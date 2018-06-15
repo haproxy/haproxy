@@ -98,7 +98,7 @@ int co_inject(struct channel *chn, const char *msg, int len)
 
 	memcpy(chn->buf->p, msg, len);
 	chn->buf->o += len;
-	chn->buf->p = b_ptr(chn->buf, len);
+	chn->buf->p = c_ptr(chn, len);
 	chn->total += len;
 	return -1;
 }

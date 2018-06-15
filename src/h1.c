@@ -14,6 +14,7 @@
 #include <common/config.h>
 #include <common/http-hdr.h>
 
+#include <proto/channel.h>
 #include <proto/h1.h>
 #include <proto/hdr_idx.h>
 
@@ -1291,7 +1292,7 @@ int http_forward_trailers(struct http_msg *msg)
 	msg->sol = 0;
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
-		const char *start = b_ptr(buf, msg->next + msg->sol);
+		const char *start = c_ptr(msg->chn, msg->next + msg->sol);
 		const char *stop  = b_tail(buf);
 		const char *ptr   = start;
 		int bytes = 0;

@@ -322,7 +322,7 @@ static struct server *get_server_ph_post(struct stream *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = http_body_bytes(msg);
-	const char      *params = b_ptr(req->buf, -http_data_rewind(msg));
+	const char      *params = c_ptr(req, -http_data_rewind(msg));
 	const char      *p    = params;
 	const char      *start, *end;
 
@@ -412,7 +412,7 @@ static struct server *get_server_hh(struct stream *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, b_ptr(s->req.buf, -http_hdr_rewind(&txn->req)), &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, c_ptr(&s->req, -http_hdr_rewind(&txn->req)), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -669,7 +669,7 @@ int assign_server(struct stream *s)
 				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn->req)),
+						    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
 						    s->txn->req.sl.rq.u_l);
 				break;
 
@@ -679,7 +679,7 @@ int assign_server(struct stream *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn->req)),
+						    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
 						    s->txn->req.sl.rq.u_l);
 
 				if (!srv && s->txn->meth == HTTP_METH_POST)

@@ -1111,7 +1111,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	c_rew(&s->req, rewind = http_hdr_rewind(&txn->req));
 
 	path = http_get_path(txn);
-	len = buffer_count(s->req.buf, path, b_ptr(s->req.buf, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
+	len = buffer_count(s->req.buf, path, c_ptr(&s->req, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
 
 	c_adv(&s->req, rewind);
 
@@ -1650,7 +1650,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				req->flags |= CF_WAKE_WRITE;
 				return 0;
 			}
-			if (unlikely(ci_tail(req) < b_ptr(req->buf, msg->next) ||
+			if (unlikely(ci_tail(req) < c_ptr(req, msg->next) ||
 			             ci_tail(req) > req->buf->data + req->buf->size - global.tune.maxrewrite))
 				channel_slow_realign(req, trash.str);
 		}
@@ -5137,7 +5137,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
-		if (unlikely(ci_tail(rep) < b_ptr(rep->buf, msg->next) ||
+		if (unlikely(ci_tail(rep) < c_ptr(rep, msg->next) ||
 		             ci_tail(rep) > rep->buf->data + rep->buf->size - global.tune.maxrewrite))
 			channel_slow_realign(rep, trash.str);
 
@@ -9919,7 +9919,7 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 		msg = &smp->strm->txn->rsp;
 
 	len  = http_body_bytes(msg);
-	body = b_ptr(msg->chn->buf, -http_data_rewind(msg));
+	body = c_ptr(msg->chn, -http_data_rewind(msg));
 
 	block1 = len;
 	if (block1 > msg->chn->buf->data + msg->chn->buf->size - body)
@@ -11390,7 +11390,7 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 			msg = &smp->strm->txn->rsp;
 
 		len  = http_body_bytes(msg);
-		body = b_ptr(msg->chn->buf, -http_data_rewind(msg));
+		body = c_ptr(msg->chn, -http_data_rewind(msg));
 
 		block1 = len;
 		if (block1 > msg->chn->buf->data + msg->chn->buf->size - body)
