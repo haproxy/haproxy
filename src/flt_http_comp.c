@@ -203,7 +203,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 	if (msg->flags & HTTP_MSGF_TE_CHNK) {
 		int block;
 
-		len = MIN(tmpbuf->size - buffer_len(tmpbuf), len);
+		len = MIN(b_room(tmpbuf), len);
 
 		c_adv(chn, *nxt);
 		block = ci_contig_data(chn);
@@ -608,7 +608,7 @@ http_compression_buffer_init(struct buffer *in, struct buffer *out)
 	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
 	 * plus at most 5 bytes per 32kB block and 2 bytes to close the stream.
 	 */
-	if (in->size - buffer_len(in) < 20 + 5 * ((in->i + 32767) >> 15))
+	if (b_room(in) < 20 + 5 * ((in->i + 32767) >> 15))
 		return -1;
 
 	/* prepare an empty output buffer in which we reserve enough room for
@@ -641,7 +641,7 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 	 * data, and the available output buffer size. The compressors are
 	 * assumed to be able to process all the bytes we pass to them at
 	 * once. */
-	data_process_len = MIN(out->size - buffer_len(out), sz);
+	data_process_len = MIN(b_room(out), sz);
 
 	block1 = data_process_len;
 	if (block1 > b_contig_data(in, in->o))

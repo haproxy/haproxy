@@ -2025,7 +2025,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* Check for avalaible space. */
-	len = buffer_total_space(s->req.buf);
+	len = b_room(s->req.buf);
 	if (len <= 0) {
 		goto hlua_socket_write_yield_return;
 	}
@@ -2925,7 +2925,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	}
 
-	max = channel_recv_limit(chn) - buffer_len(chn->buf);
+	max = channel_recv_limit(chn) - b_data(chn->buf);
 	if (max > len - l)
 		max = len - l;
 
@@ -2943,7 +2943,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	lua_pushinteger(L, l);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 
-	max = channel_recv_limit(chn) - buffer_len(chn->buf);
+	max = channel_recv_limit(chn) - b_data(chn->buf);
 	if (max == 0 && chn->buf->o == 0) {
 		/* There are no space avalaible, and the output buffer is empty.
 		 * in this case, we cannot add more data, so we cannot yield,
@@ -3024,7 +3024,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * The reserve is guaranted for the processing of incoming
 	 * data, because the buffer will be flushed.
 	 */
-	max = chn->buf->size - buffer_len(chn->buf);
+	max = b_room(chn->buf);
 
 	/* If there are no space avalaible, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
@@ -3059,7 +3059,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * in this case, we cannot add more data, so we cannot yield,
 	 * we return the amount of copyied data.
 	 */
-	max = chn->buf->size - buffer_len(chn->buf);
+	max = b_room(chn->buf);
 	if (max == 0 && chn->buf->o == 0)
 		return 1;
 
@@ -3177,9 +3177,7 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "is_full"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	rem = chn->buf->size;
-	rem -= chn->buf->o; /* Output size */
-	rem -= chn->buf->i; /* Input size */
+	rem = b_room(chn->buf);
 	rem -= global.tune.maxrewrite; /* Rewrite reserved size */
 
 	lua_pushboolean(L, rem <= 0);

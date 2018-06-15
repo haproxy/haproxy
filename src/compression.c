@@ -222,7 +222,7 @@ static int identity_init(struct comp_ctx **comp_ctx, int level)
 static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	char *out_data = b_tail(out);
-	int out_len = out->size - buffer_len(out);
+	int out_len = b_room(out);
 
 	if (out_len < in_len)
 		return -1;
@@ -570,7 +570,7 @@ static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 	int ret;
 	z_stream *strm = &comp_ctx->strm;
 	char *out_data = b_tail(out);
-	int out_len = out->size - buffer_len(out);
+	int out_len = b_room(out);
 
 	if (in_len <= 0)
 		return 0;
@@ -603,13 +603,13 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	strm->next_in = NULL;
 	strm->avail_in = 0;
 	strm->next_out = (unsigned char *)b_tail(out);
-	strm->avail_out = out->size - buffer_len(out);
+	strm->avail_out = b_room(out);
 
 	ret = deflate(strm, flag);
 	if (ret != Z_OK && ret != Z_STREAM_END)
 		return -1;
 
-	out_len = (out->size - buffer_len(out)) - strm->avail_out;
+	out_len = b_room(out) - strm->avail_out;
 	out->i += out_len;
 
 	/* compression limit */

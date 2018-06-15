@@ -58,11 +58,8 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 /*****************************************************************/
 
 
-/* Return the buffer's length in bytes by summing the input and the output */
-static inline int buffer_len(const struct buffer *buf)
-{
-	return buf->i + buf->o;
-}
+
+/***** FIXME: OLD API BELOW *****/
 
 /* Return non-zero only if the buffer is not empty */
 static inline int buffer_not_empty(const struct buffer *buf)
@@ -107,14 +104,6 @@ static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
 	if (ptr - buf->size >= buf->data)
 		ptr -= buf->size;
 	return ptr;
-}
-
-/* Return the maximum amount of bytes that can be written into the buffer,
- * including reserved space which may be overwritten.
- */
-static inline int buffer_total_space(const struct buffer *buf)
-{
-	return buf->size - buffer_len(buf);
 }
 
 /* Returns the amount of byte that can be written starting from <p> into the
@@ -226,7 +215,7 @@ static inline int buffer_replace(struct buffer *b, char *pos, char *end, const c
  */
 static inline void bo_putchr(struct buffer *b, char c)
 {
-	if (buffer_len(b) == b->size)
+	if (b_data(b) == b->size)
 		return;
 	*b->p = c;
 	b->p = b_peek(b, b->o + 1);
@@ -239,7 +228,7 @@ static inline void bo_putchr(struct buffer *b, char c)
  */
 static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 {
-	int cur_len = buffer_len(b);
+	int cur_len = b_data(b);
 	int half;
 
 	if (len > b->size - cur_len)
@@ -285,7 +274,7 @@ static inline int bo_putchk(struct buffer *b, const struct chunk *chk)
  */
 static inline void bi_putchr(struct buffer *b, char c)
 {
-	if (buffer_len(b) == b->size)
+	if (b_data(b) == b->size)
 		return;
 	*b_tail(b) = c;
 	b->i++;
@@ -297,7 +286,7 @@ static inline void bi_putchr(struct buffer *b, char c)
  */
 static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 {
-	int cur_len = buffer_len(b);
+	int cur_len = b_data(b);
 	int half;
 
 	if (len > b->size - cur_len)
@@ -532,7 +521,7 @@ static inline int bi_istput(struct buffer *b, const struct ist ist)
 	struct ist r = ist;
 	char *p;
 
-	if (r.len > (size_t)(b->size - b_data(b)))
+	if (r.len > (size_t)b_room(b))
 		return r.len < b->size ? 0 : -1;
 
 	p = b_tail(b);
@@ -561,7 +550,7 @@ static inline int bo_istput(struct buffer *b, const struct ist ist)
 	struct ist r = ist;
 	char *p;
 
-	if (r.len > (size_t)(b->size - b_data(b)))
+	if (r.len > (size_t)b_room(b))
 		return r.len < b->size ? 0 : -1;
 
 	p = b_tail(b);

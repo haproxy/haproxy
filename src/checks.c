@@ -2670,7 +2670,7 @@ static int tcpcheck_main(struct check *check)
 		if (check->bo->o &&
 		    (&check->current_step->list == head ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
-		     check->current_step->string_len >= buffer_total_space(check->bo))) {
+		     check->current_step->string_len >= b_room(check->bo))) {
 			int ret;
 
 			__cs_want_send(cs);
@@ -2869,7 +2869,7 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			/* do not try to send if there is no space */
-			if (check->current_step->string_len >= buffer_total_space(check->bo))
+			if (check->current_step->string_len >= b_room(check->bo))
 				continue;
 
 			bo_putblk(check->bo, check->current_step->string, check->current_step->string_len);
