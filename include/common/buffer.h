@@ -73,18 +73,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 		__ret;                                          \
 	})
 
-/* Returns the pointer to the buffer's end (data+size) */
-static inline const char *b_end(const struct buffer *b)
-{
-	return b->data + b->size;
-}
-
-/* Returns the distance between <p> and the buffer's end (data+size) */
-static inline unsigned int b_to_end(const struct buffer *b)
-{
-	return b->data + b->size - b->p;
-}
-
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
 {
