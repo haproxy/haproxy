@@ -61,23 +61,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /***** FIXME: OLD API BELOW *****/
 
-/* Returns non-zero if the buffer's INPUT is considered full, which means that
- * it holds at least as much INPUT data as (size - reserve). This also means
- * that data that are scheduled for output are considered as potential free
- * space, and that the reserved space is always considered as not usable. This
- * information alone cannot be used as a general purpose free space indicator.
- * However it accurately indicates that too many data were fed in the buffer
- * for an analyzer for instance. See the channel_may_recv() function for a more
- * generic function taking everything into account.
- */
-static inline int buffer_full(const struct buffer *b, unsigned int reserve)
-{
-	if (b == &buf_empty)
-		return 0;
-
-	return (b->i + reserve >= b->size);
-}
-
 /* Normalizes a pointer after a subtract */
 static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
 {

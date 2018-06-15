@@ -637,6 +637,24 @@ static inline int channel_recv_limit(const struct channel *chn)
 	return chn->buf->size - reserve;
 }
 
+/* Returns non-zero if the channel's INPUT buffer's is considered full, which
+ * means that it holds at least as much INPUT data as (size - reserve). This
+ * also means that data that are scheduled for output are considered as potential
+ * free space, and that the reserved space is always considered as not usable.
+ * This information alone cannot be used as a general purpose free space indicator.
+ * However it accurately indicates that too many data were fed in the buffer
+ * for an analyzer for instance. See the channel_may_recv() function for a more
+ * generic function taking everything into account.
+ */
+static inline int channel_full(const struct channel *c, unsigned int reserve)
+{
+	if (c->buf == &buf_empty)
+		return 0;
+
+	return (b_data(c->buf) - co_data(c) + reserve >= c_size(c));
+}
+
+
 /* Returns the amount of space available at the input of the buffer, taking the
  * reserved space into account if ->to_forward indicates that an end of transfer
  * is close to happen. The test is optimized to avoid as many operations as

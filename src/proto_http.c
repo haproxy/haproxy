@@ -1717,7 +1717,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 *    later, so the stream will never terminate. We
 		 *    must terminate it now.
 		 */
-		if (unlikely(buffer_full(req->buf, global.tune.maxrewrite))) {
+		if (unlikely(channel_full(req, global.tune.maxrewrite))) {
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
@@ -4177,7 +4177,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	/* we get here if we need to wait for more data. If the buffer is full,
 	 * we have the maximum we can expect.
 	 */
-	if (buffer_full(req->buf, global.tune.maxrewrite))
+	if (channel_full(req, global.tune.maxrewrite))
 		goto http_end;
 
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
@@ -5211,7 +5211,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		/* too large response does not fit in buffer. */
-		else if (buffer_full(rep->buf, global.tune.maxrewrite)) {
+		else if (channel_full(rep, global.tune.maxrewrite)) {
 			if (msg->err_pos < 0)
 				msg->err_pos = rep->buf->i;
 			goto hdr_response_bad;
@@ -9530,7 +9530,7 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 			/* Still no valid request ? */
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 				if ((msg->msg_state == HTTP_MSG_ERROR) ||
-				    buffer_full(s->req.buf, global.tune.maxrewrite)) {
+				    channel_full(&s->req, global.tune.maxrewrite)) {
 					return 0;
 				}
 				/* wait for final state */
