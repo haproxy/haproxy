@@ -3256,7 +3256,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
 	struct hlua_smp *hsmp;
 	struct sample_fetch *f;
-	struct arg args[ARGM_NBARGS + 1];
+	struct arg args[ARGM_NBARGS + 1] = {{0}};
 	int i;
 	struct sample smp;
 
@@ -3370,7 +3370,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 {
 	struct hlua_smp *hsmp;
 	struct sample_conv *conv;
-	struct arg args[ARGM_NBARGS + 1];
+	struct arg args[ARGM_NBARGS + 1] = {{0}};
 	int i;
 	struct sample smp;
 
