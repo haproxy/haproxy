@@ -573,10 +573,10 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 		goto too_big;
 
 	/* Copy encoded messages, if possible */
-	sz = ctx->buffer->i;
+	sz = b_data(ctx->buffer);
 	if (p + sz >= end)
 		goto too_big;
-	memcpy(p, ctx->buffer->p, sz);
+	memcpy(p, b_head(ctx->buffer), sz);
 	p += sz;
 
 	return (p - frame);
@@ -633,10 +633,10 @@ spoe_prepare_hafrag_frame(struct appctx *appctx, struct spoe_context *ctx,
 		goto end;
 
 	/* Copy encoded messages, if possible */
-	sz = ctx->buffer->i;
+	sz = b_data(ctx->buffer);
 	if (p + sz >= end)
 		goto too_big;
-	memcpy(p, ctx->buffer->p, sz);
+	memcpy(p, b_head(ctx->buffer), sz);
 	p += sz;
 
   end:
@@ -1044,8 +1044,8 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 
 	/* Copy encoded actions */
 	len = (end - p);
-	memcpy(SPOE_APPCTX(appctx)->buffer->p, p, len);
-	SPOE_APPCTX(appctx)->buffer->i = len;
+	memcpy(b_head(SPOE_APPCTX(appctx)->buffer), p, len);
+	b_set_data(SPOE_APPCTX(appctx)->buffer, len);
 	p += len;
 
 	/* Transfer the buffer ownership to the SPOE context */
@@ -2212,7 +2212,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	struct spoe_message *msg;
 	char   *p, *end;
 
-	p   = ctx->buffer->p;
+	p   = b_head(ctx->buffer);
 	end =  p + agent->rt[tid].frame_size - FRAME_HDR_SIZE;
 
 	if (type == SPOE_MSGS_BY_EVENT) { /* Loop on messages by event */
@@ -2254,7 +2254,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 
 
 	/* nothing has been encoded for an unfragmented payload */
-	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == ctx->buffer->p)
+	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == b_head(ctx->buffer))
 		goto skip;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
@@ -2266,7 +2266,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    ctx->spoe_appctx, (agent->rt[tid].frame_size - FRAME_HDR_SIZE),
 		    p - ctx->buffer->p);
 
-	ctx->buffer->i = p - ctx->buffer->p;
+	b_set_data(ctx->buffer, p - b_head(ctx->buffer));
 	ctx->frag_ctx.curmsg = NULL;
 	ctx->frag_ctx.curarg = NULL;
 	ctx->frag_ctx.curoff = 0;
@@ -2287,9 +2287,9 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    (int)now.tv_sec, (int)now.tv_usec,
 		    agent->id, __FUNCTION__, s, ctx->spoe_appctx,
 		    ctx->frag_ctx.curmsg, ctx->frag_ctx.curarg, ctx->frag_ctx.curoff,
-		    (agent->rt[tid].frame_size - FRAME_HDR_SIZE), p - ctx->buffer->p);
+		    (agent->rt[tid].frame_size - FRAME_HDR_SIZE), p - b_head(ctx->buffer));
 
-	ctx->buffer->i = p - ctx->buffer->p;
+	b_set_data(ctx->buffer, p - b_head(ctx->buffer));
 	ctx->flags |= SPOE_CTX_FL_FRAGMENTED;
 	ctx->frag_ctx.flags &= ~SPOE_FRM_FL_FIN;
 	return 1;
@@ -2445,8 +2445,8 @@ spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
 	char *p, *end;
 	int   ret;
 
-	p   = ctx->buffer->p;
-	end = p + ctx->buffer->i;
+	p   = b_head(ctx->buffer);
+	end = p + b_data(ctx->buffer);
 
 	while (p < end)  {
 		enum spoe_action_type type;
