@@ -8964,7 +8964,7 @@ static void __ssl_sock_init(void)
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
-	ssl_capture_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
+	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
 	ssl_pkey_info_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	sample_register_fetches(&sample_fetch_keywords);
 	acl_register_keywords(&acl_kws);
