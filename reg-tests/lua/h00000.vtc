@@ -1,0 +1,74 @@
+# commit f874a83
+# BUG/MINOR: lua: Segfaults with wrong usage of types.
+#
+# Patrick reported that this simple configuration made haproxy segfaults:
+#
+#     global
+#         lua-load /tmp/haproxy.lua
+#
+#     frontend f1
+#         mode http
+#         bind :8000
+#         default_backend b1
+#
+#         http-request lua.foo
+#
+#     backend b1
+#         mode http
+#         server s1 127.0.0.1:8080
+#
+# with this '/tmp/haproxy.lua' script:
+#
+#     core.register_action("foo", { "http-req" }, function(txn)
+#         txn.sc:ipmask(txn.f:src(), 24, 112)
+#     end)
+#
+# This is due to missing initialization of the array of arguments
+# passed to hlua_lua2arg_check() which makes it enter code with
+# corrupted arguments.
+#
+# Thanks a lot to Patrick Hemmer for having reported this issue.
+
+
+varnishtest "Basic LUA test h00000"
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/h00000.lua
+
+    frontend fe1
+        mode http
+        bind "fd@${fe1}"
+        default_backend b1
+
+        http-request lua.foo
+
+    backend b1
+        mode http
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq -url "/foo"
+    rxresp
+    expect resp.status == 200
+}
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "/foo"
+    rxresp
+    expect resp.status == 200
+}
+
+client c0 -start
+client c1 -start
+
+client c0 -wait
+client c1 -wait

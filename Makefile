@@ -91,6 +91,8 @@
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
+#
+#   VARNISHTEST_PROGRAM : location of the varnishtest program to run reg-tests.
 
 # Function used to detect support of a given option by the compiler.
 # Usage: CFLAGS += $(call cc-opt,option). Eg: $(call cc-opt,-fwrapv)
@@ -996,3 +998,12 @@ update-version:
 	echo "$(VERSION)" > VERSION
 	echo "$(SUBVERS)" > SUBVERS
 	echo "$(VERDATE)" > VERDATE
+
+reg-tests:
+	@if [ ! -x "$(VARNISHTEST_PROGRAM)" ]; then \
+		echo "Please make the VARNISHTEST_PROGRAM variable point to the location of the varnishtest program."; \
+		exit 1; \
+	fi
+	@find reg-tests -type f -name "*.vtc" -print0 | \
+	   xargs -0 $(VARNISHTEST_PROGRAM) -l -t5
+.PHONY: reg-tests

@@ -22,6 +22,7 @@
 !/tests
 !/debian
 !/scripts
+!/reg-tests
 # Reject some generic files
 *.o
 *~
