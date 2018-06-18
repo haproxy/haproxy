@@ -2064,11 +2064,6 @@ static struct {
 
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 {
-	struct pkey_info *pkinfo;
-
-	pkinfo = SSL_CTX_get_ex_data(ctx, ssl_pkey_info_index);
-	if (pkinfo)
-		SSL_set_ex_data(ssl, ssl_pkey_info_index, pkinfo);
 	SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ctx), ssl_sock_bind_verifycbk);
 	SSL_set_client_CA_list(ssl, SSL_dup_CA_list(SSL_CTX_get_client_CA_list(ctx)));
 	SSL_set_SSL_CTX(ssl, ctx);
@@ -5725,7 +5720,7 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct chunk *out)
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
 
-	pkinfo = SSL_get_ex_data(conn->xprt_ctx, ssl_pkey_info_index);
+	pkinfo = SSL_CTX_get_ex_data(SSL_get_SSL_CTX(conn->xprt_ctx), ssl_pkey_info_index);
 	if (pkinfo) {
 		sig = pkinfo->sig;
 		bits = pkinfo->bits;
