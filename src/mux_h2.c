@@ -239,7 +239,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
  */
 static inline int h2_recv_allowed(const struct h2c *h2c)
 {
-	if (h2c->dbuf->i == 0 &&
+	if (b_data(h2c->dbuf) == 0 &&
 	    (h2c->st0 >= H2_CS_ERROR ||
 	     h2c->conn->flags & CO_FL_ERROR ||
 	     conn_xprt_read0_pending(h2c->conn)))
@@ -556,11 +556,11 @@ static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh
 {
 	uint64_t w;
 
-	if (b->i < 9)
+	if (b_data(b) < 9)
 		return 0;
 
 	w = h2_get_n64(b, 1);
-	h->len = *b->p << 16;
+	h->len = *(uint8_t*)b_head(b) << 16;
 	h->sid = w & 0x7FFFFFFF; /* RFC7540#4.1: R bit must be ignored */
 	h->ff = w >> 32;
 	h->ft = w >> 40;
@@ -752,7 +752,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	int ret1;
 	int ret2;
 
-	ret1 = b_isteq(h2c->dbuf, 0, h2c->dbuf->i, ist(H2_CONN_PREFACE));
+	ret1 = b_isteq(h2c->dbuf, 0, b_data(h2c->dbuf), ist(H2_CONN_PREFACE));
 
 	if (unlikely(ret1 <= 0)) {
 		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn))
@@ -1109,7 +1109,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 	}
 
 	/* process full frame only */
-	if (h2c->dbuf->i < h2c->dfl)
+	if (b_data(h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	/* parse the frame */
@@ -1302,7 +1302,7 @@ static int h2c_ack_ping(struct h2c *h2c)
 	char str[17];
 	int ret = -1;
 
-	if (h2c->dbuf->i < 8)
+	if (b_data(h2c->dbuf) < 8)
 		return 0;
 
 	if (h2c_mux_busy(h2c, NULL)) {
@@ -1355,7 +1355,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	/* process full frame only */
-	if (h2c->dbuf->i < h2c->dfl)
+	if (b_data(h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	inc = h2_get_n32(h2c->dbuf, 0);
@@ -1441,7 +1441,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	}
 
 	/* process full frame only */
-	if (h2c->dbuf->i < h2c->dfl)
+	if (b_data(h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	last = h2_get_n32(h2c->dbuf, 0);
@@ -1475,7 +1475,7 @@ static int h2c_handle_priority(struct h2c *h2c)
 	}
 
 	/* process full frame only */
-	if (h2c->dbuf->i < h2c->dfl)
+	if (b_data(h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	if (h2_get_n32(h2c->dbuf, 0) == h2c->dsi) {
@@ -1509,7 +1509,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	/* process full frame only */
-	if (h2c->dbuf->i < h2c->dfl)
+	if (b_data(h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	/* late RST, already handled */
@@ -1550,10 +1550,10 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
-	if (!h2c->dbuf->size)
+	if (!b_size(h2c->dbuf))
 		return 0; // empty buffer
 
-	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+	if (b_data(h2c->dbuf) < h2c->dfl && !b_full(h2c->dbuf))
 		return 0; // incomplete frame
 
 	if (h2c->flags & H2_CF_DEM_TOOMANY)
@@ -1636,10 +1636,10 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * to signal an end of stream (with the ES flag).
 	 */
 
-	if (!h2c->dbuf->size && h2c->dfl)
+	if (!b_size(h2c->dbuf) && h2c->dfl)
 		return 0; // empty buffer
 
-	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+	if (b_data(h2c->dbuf) < h2c->dfl && !b_full(h2c->dbuf))
 		return 0; // incomplete frame
 
 	/* now either the frame is complete or the buffer is complete */
@@ -1768,7 +1768,7 @@ static void h2_process_demux(struct h2c *h2c)
 	}
 
 	/* process as many incoming frames as possible below */
-	while (h2c->dbuf->i) {
+	while (b_data(h2c->dbuf)) {
 		int ret = 0;
 
 		if (h2c->st0 >= H2_CS_ERROR)
@@ -1900,7 +1900,7 @@ static void h2_process_demux(struct h2c *h2c)
 		 * the one advertised in GOAWAY. RFC7540#6.8.
 		 */
 		if (unlikely(h2c->last_sid >= 0) && h2c->dsi > h2c->last_sid) {
-			ret = MIN(h2c->dbuf->i, h2c->dfl);
+			ret = MIN(b_data(h2c->dbuf), h2c->dfl);
 			b_del(h2c->dbuf, ret);
 			h2c->dfl -= ret;
 			ret = h2c->dfl == 0;
@@ -1980,7 +1980,7 @@ static void h2_process_demux(struct h2c *h2c)
 			 * the buffer so we drain all of their contents until
 			 * we reach the end.
 			 */
-			ret = MIN(h2c->dbuf->i, h2c->dfl);
+			ret = MIN(b_data(h2c->dbuf), h2c->dfl);
 			b_del(h2c->dbuf, ret);
 			h2c->dfl -= ret;
 			ret = h2c->dfl == 0;
@@ -2151,17 +2151,16 @@ static void h2_recv(struct connection *conn)
 		return;
 	}
 
-	/* note: buf->o == 0 */
-	max = buf->size - buf->i;
+	max = buf->size - b_data(buf);
 	if (max)
 		conn->xprt->rcv_buf(conn, buf, max, 0);
 
-	if (!buf->i) {
+	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
 		return;
 	}
 
-	if (buf->i == buf->size)
+	if (b_data(buf) == buf->size)
 		h2c->flags |= H2_CF_DEM_DFULL;
 	return;
 }
@@ -2213,8 +2212,8 @@ static void h2_send(struct connection *conn)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (h2c->mbuf->o) {
-			int ret = conn->xprt->snd_buf(conn, h2c->mbuf, h2c->mbuf->o, flags);
+		if (b_data(h2c->mbuf)) {
+			int ret = conn->xprt->snd_buf(conn, h2c->mbuf, b_data(h2c->mbuf), flags);
 			if (!ret)
 				break;
 			b_del(h2c->mbuf, ret);
@@ -2227,7 +2226,7 @@ static void h2_send(struct connection *conn)
 
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* output closed, nothing to send, clear the buffer to release it */
-		h2c->mbuf->o = 0;
+		b_reset(h2c->mbuf);
 	}
 }
 
@@ -2240,13 +2239,13 @@ static int h2_wake(struct connection *conn)
 	struct h2c *h2c = conn->mux_ctx;
 	struct session *sess = conn->owner;
 
-	if (h2c->dbuf->i && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
+	if (b_data(h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
 
 		if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
-			h2c->dbuf->i = 0;
+			b_reset(h2c->dbuf);
 
-		if (h2c->dbuf->i != h2c->dbuf->size)
+		if (!b_full(h2c->dbuf))
 			h2c->flags &= ~H2_CF_DEM_DFULL;
 	}
 
@@ -2303,7 +2302,7 @@ static int h2_wake(struct connection *conn)
 		}
 	}
 
-	if (!h2c->dbuf->i)
+	if (!b_data(h2c->dbuf))
 		h2_release_buf(h2c, &h2c->dbuf);
 
 	/* stop being notified of incoming data if we can't process them */
@@ -2317,7 +2316,7 @@ static int h2_wake(struct connection *conn)
 	/* adjust output polling */
 	if (!(conn->flags & CO_FL_SOCK_WR_SH) &&
 	    (h2c->st0 == H2_CS_ERROR ||
-	     h2c->mbuf->o ||
+	     b_data(h2c->mbuf) ||
 	     (h2c->mws > 0 && !LIST_ISEMPTY(&h2c->fctl_list)) ||
 	     (!(h2c->flags & H2_CF_MUX_BLOCK_ANY) && !LIST_ISEMPTY(&h2c->send_list)))) {
 		__conn_xprt_want_send(conn);
@@ -2328,7 +2327,7 @@ static int h2_wake(struct connection *conn)
 	}
 
 	if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
+		if (eb_is_empty(&h2c->streams_by_id) || b_data(h2c->mbuf)) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -2364,7 +2363,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	h2c_error(h2c, H2_ERR_NO_ERROR);
 	h2_wake_some_streams(h2c, 0, 0);
 
-	if (h2c->mbuf->o) {
+	if (b_data(h2c->mbuf)) {
 		/* don't even try to send a GOAWAY, the buffer is stuck */
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 	}
@@ -2374,8 +2373,8 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (h2c_send_goaway_error(h2c, NULL) <= 0)
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
-	if (h2c->mbuf->o && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
-		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, h2c->mbuf->o, 0);
+	if (b_data(h2c->mbuf) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
+		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->mbuf, b_data(h2c->mbuf), 0);
 		if (ret > 0) {
 			b_del(h2c->mbuf, ret);
 			b_realign_if_empty(h2c->mbuf);
@@ -2437,7 +2436,7 @@ static void h2_update_poll(struct conn_stream *cs)
 	if (cs->flags & CS_FL_DATA_WR_ENA) {
 		if (LIST_ISEMPTY(&h2s->list)) {
 			if (LIST_ISEMPTY(&h2s->h2c->send_list) &&
-			    !h2s->h2c->mbuf->o && // not yet subscribed
+			    !b_data(h2s->h2c->mbuf) && // not yet subscribed
 			    !(cs->conn->flags & CO_FL_SOCK_WR_SH))
 				conn_xprt_want_send(cs->conn);
 			LIST_ADDQ(&h2s->h2c->send_list, &h2s->list);
@@ -2450,7 +2449,7 @@ static void h2_update_poll(struct conn_stream *cs)
 	}
 
 	/* this can happen from within si_chk_snd() */
-	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
+	if (b_data(h2s->h2c->mbuf) && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
 		conn_xprt_want_send(cs->conn);
 }
 
@@ -2507,14 +2506,14 @@ static void h2_detach(struct conn_stream *cs)
 	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
 	     (h2c->flags & H2_CF_GOAWAY_FAILED) ||
-	     (!h2c->mbuf->o &&  /* mux buffer empty, also process clean events below */
+	     (!b_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      (conn_xprt_read0_pending(h2c->conn) ||
 	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
 		/* no more stream will come, kill it now */
 		h2_release(h2c->conn);
 	}
 	else if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || h2c->mbuf->o) {
+		if (eb_is_empty(&h2c->streams_by_id) || b_data(h2c->mbuf)) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -2547,7 +2546,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	    h2c_send_goaway_error(h2s->h2c, h2s) <= 0)
 		goto add_to_list;
 
-	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
+	if (b_data(h2s->h2c->mbuf) && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
 		conn_xprt_want_send(cs->conn);
 
 	h2s_close(h2s);
@@ -2597,7 +2596,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		h2s_close(h2s);
 	}
 
-	if (h2s->h2c->mbuf->o && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
+	if (b_data(h2s->h2c->mbuf) && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
 		conn_xprt_want_send(cs->conn);
 
  add_to_list:
@@ -2617,7 +2616,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count, int flags)
 {
 	struct h2c *h2c = h2s->h2c;
-	const uint8_t *hdrs = (uint8_t *)h2c->dbuf->p;
+	const uint8_t *hdrs = (uint8_t *)b_head(h2c->dbuf);
 	struct chunk *tmp = get_trash_chunk();
 	struct http_hdr list[MAX_HTTP_HDR * 2];
 	struct chunk *copy = NULL;
@@ -2633,19 +2632,19 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 		return 0;
 	}
 
-	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
+	if (b_data(h2c->dbuf) < h2c->dfl && !b_full(h2c->dbuf))
 		return 0; // incomplete input frame
 
 	/* if the input buffer wraps, take a temporary copy of it (rare) */
-	wrap = h2c->dbuf->data + h2c->dbuf->size - h2c->dbuf->p;
+	wrap = b_wrap(h2c->dbuf) - b_head(h2c->dbuf);
 	if (wrap < h2c->dfl) {
 		copy = alloc_trash_chunk();
 		if (!copy) {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
 			goto fail;
 		}
-		memcpy(copy->str, h2c->dbuf->p, wrap);
-		memcpy(copy->str + wrap, h2c->dbuf->data, h2c->dfl - wrap);
+		memcpy(copy->str, b_head(h2c->dbuf), wrap);
+		memcpy(copy->str + wrap, b_orig(h2c->dbuf), h2c->dfl - wrap);
 		hdrs = (uint8_t *)copy->str;
 	}
 
@@ -2703,15 +2702,10 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 		b_slow_realign(buf, trash.str, 0);
 	}
 
-	/* first check if we have some room after p+i */
-	try = buf->data + buf->size - (buf->p + buf->i);
+	try = b_contig_space(buf);
+	if (!try)
+		goto fail;
 
-	/* otherwise continue between data and p-o */
-	if (try <= 0) {
-		try = buf->p - (buf->data + buf->o);
-		if (try <= 0)
-			goto fail;
-	}
 	if (try > count)
 		try = count;
 
@@ -2789,7 +2783,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	 * after data. padlen+data+padding are included in flen.
 	 */
 	if (h2c->dff & H2_F_DATA_PADDED) {
-		if (h2c->dbuf->i < 1)
+		if (b_data(h2c->dbuf) < 1)
 			return 0;
 
 		h2c->dpl = *(uint8_t *)b_head(h2c->dbuf);
@@ -2810,8 +2804,8 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	if (!flen)
 		goto end_transfer;
 
-	if (flen > h2c->dbuf->i) {
-		flen = h2c->dbuf->i;
+	if (flen > b_data(h2c->dbuf)) {
+		flen = b_data(h2c->dbuf);
 		if (!flen)
 			return 0;
 	}
@@ -2932,7 +2926,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2c->dsi != h2s->id)
 		return 0; // not for us
 
-	if (!h2c->dbuf->size)
+	if (!b_size(h2c->dbuf))
 		return 0; // empty buffer
 
 	switch (h2c->dft) {
@@ -3007,7 +3001,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		if (outbuf.size >= 9 || !b_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
-		b_slow_realign(h2c->mbuf, trash.str, h2c->mbuf->o);
+		b_slow_realign(h2c->mbuf, trash.str, b_data(h2c->mbuf));
 	}
 
 	if (outbuf.size < 9) {
@@ -3090,8 +3084,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	max -= ret;
 
 	/* commit the H2 response */
-	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + outbuf.len);
-	bo_add(h2c->mbuf, outbuf.len);
+	b_add(h2c->mbuf, outbuf.len);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	/* for now we don't implemented CONTINUATION, so we wait for a
@@ -3165,7 +3158,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		if (outbuf.size >= 9 || !b_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
-		b_slow_realign(h2c->mbuf, trash.str, h2c->mbuf->o);
+		b_slow_realign(h2c->mbuf, trash.str, b_data(h2c->mbuf));
 	}
 
 	if (outbuf.size < 9) {
@@ -3336,8 +3329,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		outbuf.str[4] |= H2_F_DATA_END_STREAM;
 
 	/* commit the H2 response */
-	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + size + 9);
-	bo_add(h2c->mbuf, size + 9);
+	b_add(h2c->mbuf, size + 9);
 
 	/* consume incoming H1 response */
 	if (size > 0) {
@@ -3373,7 +3365,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
  end:
-	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%u in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) buf->o=%u", h2c->st0, h2s->id, size+9, (unsigned int)total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)buf->o);
+	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%u in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) data=%u", h2c->st0, h2s->id, size+9, (unsigned int)total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)b_data(buf));
 	return total;
 }
 
@@ -3484,7 +3476,7 @@ static void h2_show_fd(struct chunk *msg, struct connection *conn)
 	}
 
 	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
-		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, (unsigned int)h2c->dbuf->i, (unsigned int)h2c->dbuf->size, (unsigned int)h2c->mbuf->o, (unsigned int)h2c->mbuf->size);
+		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, (unsigned int)b_data(h2c->dbuf), (unsigned int)b_size(h2c->dbuf), (unsigned int)b_data(h2c->mbuf), (unsigned int)b_size(h2c->mbuf));
 }
 
 /*******************************************************/
