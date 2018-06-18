@@ -89,9 +89,9 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER) || defined(OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
 /*
- * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL / BoringSSL
+ * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
  */
 
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
@@ -118,13 +118,6 @@ static inline const OCSP_CERTID *OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP *
 	return single->certId;
 }
 #endif
-
-#endif
-
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
-/*
- * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
- */
 
 static inline pem_password_cb *SSL_CTX_get_default_passwd_cb(SSL_CTX *ctx)
 {
