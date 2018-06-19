@@ -182,7 +182,7 @@ const char *http_parse_stsline(struct http_msg *msg,
                                enum h1_state state, const char *ptr, const char *end,
                                unsigned int *ret_ptr, enum h1_state *ret_state)
 {
-	const char *msg_start = msg->chn->buf->p;
+	const char *msg_start = ci_head(msg->chn);
 
 	switch (state)	{
 	case HTTP_MSG_RPVER:
@@ -295,7 +295,7 @@ const char *http_parse_reqline(struct http_msg *msg,
 			       enum h1_state state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, enum h1_state *ret_state)
 {
-	const char *msg_start = msg->chn->buf->p;
+	const char *msg_start = ci_head(msg->chn);
 
 	switch (state)	{
 	case HTTP_MSG_RQMETH:
@@ -456,13 +456,14 @@ const char *http_parse_reqline(struct http_msg *msg,
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	enum h1_state state;       /* updated only when leaving the FSM */
-	register char *ptr, *end; /* request pointers, to avoid dereferences */
+	register const char *ptr, *end; /* request pointers, to avoid dereferences */
+	char *input = (char *)ci_head(msg->chn);
 	struct buffer *buf;
 
 	state = msg->msg_state;
 	buf = msg->chn->buf;
-	ptr = buf->p + msg->next;
-	end = buf->p + buf->i;
+	ptr = input + msg->next;
+	end = b_stop(buf);
 
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
@@ -480,11 +481,11 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			if (unlikely(ptr != buf->p)) {
-				if (buf->o)
+			if (unlikely(ptr != input)) {
+				if (co_data(msg->chn))
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - buf->p);
+				bi_fast_delete(buf, ptr - input);
 			}
 			msg->sol = 0;
 			msg->sl.st.l = 0; /* used in debug mode */
@@ -526,7 +527,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 */
 		hdr_idx_set_start(idx, msg->sl.st.l, *ptr == '\r');
 
-		msg->sol = ptr - buf->p;
+		msg->sol = ptr - input;
 		if (likely(*ptr == '\r'))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpline_end, http_msg_ood, state, HTTP_MSG_RPLINE_END);
 		goto http_msg_rpline_end;
@@ -548,11 +549,11 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			if (likely(ptr != buf->p)) {
-				if (buf->o)
+			if (likely(ptr != input)) {
+				if (co_data(msg->chn))
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - buf->p);
+				bi_fast_delete(buf, ptr - input);
 			}
 			msg->sol = 0;
 			msg->sl.rq.l = 0; /* used in debug mode */
@@ -593,7 +594,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 */
 		hdr_idx_set_start(idx, msg->sl.rq.l, *ptr == '\r');
 
-		msg->sol = ptr - buf->p;
+		msg->sol = ptr - input;
 		if (likely(*ptr == '\r'))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqline_end, http_msg_ood, state, HTTP_MSG_RQLINE_END);
 		goto http_msg_rqline_end;
@@ -615,7 +616,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	 */
 	case HTTP_MSG_HDR_FIRST:
 	http_msg_hdr_first:
-		msg->sol = ptr - buf->p;
+		msg->sol = ptr - input;
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_name;
 		}
@@ -639,7 +640,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		}
 
 		if (msg->err_pos == -1) /* capture error pointer */
-			msg->err_pos = ptr - buf->p; /* >= 0 now */
+			msg->err_pos = ptr - input; /* >= 0 now */
 
 		/* and we still accept this non-token character */
 		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, HTTP_MSG_HDR_NAME);
@@ -651,7 +652,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, HTTP_MSG_HDR_L1_SP);
 
 		/* header value can be basically anything except CR/LF */
-		msg->sov = ptr - buf->p;
+		msg->sov = ptr - input;
 
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_val;
@@ -670,8 +671,8 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	http_msg_hdr_l1_lws:
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			/* replace HT,CR,LF with spaces */
-			for (; buf->p + msg->sov < ptr; msg->sov++)
-				buf->p[msg->sov] = ' ';
+			for (; input + msg->sov < ptr; msg->sov++)
+				input[msg->sov] = ' ';
 			goto http_msg_hdr_l1_sp;
 		}
 		/* we had a header consisting only in spaces ! */
@@ -713,7 +714,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_val2, http_msg_ood, state, HTTP_MSG_HDR_VAL);
 
-		msg->eol = ptr - buf->p;
+		msg->eol = ptr - input;
 		/* Note: we could also copy eol into ->eoh so that we have the
 		 * real header end in case it ends with lots of LWS, but is this
 		 * really needed ?
@@ -731,8 +732,8 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
 			/* LWS: replace HT,CR,LF with spaces */
-			for (; buf->p + msg->eol < ptr; msg->eol++)
-				buf->p[msg->eol] = ' ';
+			for (; input + msg->eol < ptr; msg->eol++)
+				input[msg->eol] = ' ';
 			goto http_msg_hdr_val;
 		}
 	http_msg_complete_header:
@@ -743,13 +744,13 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 * first CR or LF so we know how the line ends. We insert last
 		 * header into the index.
 		 */
-		if (unlikely(hdr_idx_add(msg->eol - msg->sol, buf->p[msg->eol] == '\r',
+		if (unlikely(hdr_idx_add(msg->eol - msg->sol, input[msg->eol] == '\r',
 					 idx, idx->tail) < 0)) {
 			state = HTTP_MSG_HDR_L2_LWS;
 			goto http_msg_invalid;
 		}
 
-		msg->sol = ptr - buf->p;
+		msg->sol = ptr - input;
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_name;
 		}
@@ -766,7 +767,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 */
 		EXPECT_LF_HERE(ptr, http_msg_invalid, state, HTTP_MSG_LAST_LF);
 		ptr++;
-		msg->sov = msg->next = ptr - buf->p;
+		msg->sov = msg->next = ptr - input;
 		msg->eoh = msg->sol;
 		msg->sol = 0;
 		msg->eol = msg->sov - msg->eoh;
@@ -787,14 +788,14 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  http_msg_ood:
 	/* out of data */
 	msg->msg_state = state;
-	msg->next = ptr - buf->p;
+	msg->next = ptr - input;
 	return;
 
  http_msg_invalid:
 	/* invalid message */
 	msg->err_state = state;
 	msg->msg_state = HTTP_MSG_ERROR;
-	msg->next = ptr - buf->p;
+	msg->next = ptr - input;
 	return;
 }
 
@@ -1276,6 +1277,8 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 int http_forward_trailers(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->chn->buf;
+	const char *parse = ci_head(msg->chn);
+	const char *stop  = b_tail(buf);
 
 	/* we have msg->next which points to next line. Look for CRLF. But
 	 * first, we reset msg->sol */
@@ -1283,9 +1286,7 @@ int http_forward_trailers(struct http_msg *msg)
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
 		const char *start = c_ptr(msg->chn, msg->next + msg->sol);
-		const char *stop  = b_tail(buf);
 		const char *ptr   = start;
-		int bytes = 0;
 
 		/* scan current line and stop at LF or CRLF */
 		while (1) {
@@ -1301,26 +1302,18 @@ int http_forward_trailers(struct http_msg *msg)
 
 			if (*ptr == '\r') {
 				if (p1) {
-					msg->err_pos = buffer_count(buf, buf->p, ptr);
+					msg->err_pos = b_dist(buf, parse, ptr);
 					return -1;
 				}
 				p1 = ptr;
 			}
 
-			ptr++;
-			if (ptr >= buf->data + buf->size)
-				ptr = buf->data;
+			ptr = b_next(buf, ptr);
 		}
 
 		/* after LF; point to beginning of next line */
-		p2++;
-		if (p2 >= buf->data + buf->size)
-			p2 = buf->data;
-
-		bytes = p2 - start;
-		if (bytes < 0)
-			bytes += buf->size;
-		msg->sol += bytes;
+		p2 = b_next(buf, p2);
+		msg->sol += b_dist(buf, start, p2);
 
 		/* LF/CRLF at beginning of line => end of trailers at p2.
 		 * Everything was scheduled for forwarding, there's nothing left
