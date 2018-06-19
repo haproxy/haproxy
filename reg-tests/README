@@ -1,0 +1,63 @@
+                 * Regression testing for HAProxy with varnishtest *
+
+
+This little README file is about how to compile and run varnishtest test case files (VTC files) to test HAProxy for any regression.
+
+To do so, you will have to compile varnishtest program sources which comes with
+Varnish cache application. varnishtest is a very useful program which has been
+developed to test Varnish cache application. varnishtest has been modified in
+collaboration with Varnish cache conceptor Poul-Henning Kamp to support HAProxy in
+addition to Varnish cache.
+
+
+* varnishtest compilation *
+
+  - Clone recent Varnish cache sources which may be found in this GitHub repository
+    https://github.com/varnishcache/varnish-cache:
+
+    $ git clone https://github.com/varnishcache/varnish-cache
+
+  - Compile Varnish cache sources:
+
+    $ cd varnish-cache && ./autogen.sh && ./configure && make
+
+  Then varnishtest program may be found in bin/varnishtest directory.
+  VTC files for Varnish cache may be found in bin/varnishtest/tests directory.
+  The Varnish cache manuals are located in 'man' directory. You will have to
+  have a look at varnishtest(7) and vtc(7) manuals.
+
+  Some information may also be found in doc/regression-testing.txt in HAProxy
+  sources.
+
+
+* varnishtest execution *
+
+  You must set HAPROXY_PROGRAM environment variable to give the location
+  of the HAProxy program to test to varnishtest:
+
+    $ HAPROXY_PROGRAM=<my haproxy program> varnishtest ...
+
+  The HAProxy VTC files found in HAProxy sources may be run with the reg-tests
+  Makefile target. You must set the VARNISHTEST_PROGRAM environment variable to
+  give the location of the varnishtest program which has been previously compiled.
+
+    $ VARNISHTEST_PROGRAM=<my varnishtest program> HAPROXY_PROGRAM=<my haproxy program> make reg-tests
+
+  Note that varnishtest is run with -t5 and -l option. -l option is to keep
+  keep varnishtest temporary directory in case of failed test cases. core files
+  may be found in this directory (if enabled by ulimit).
+
+
+* varnishtest patches for HAProxy VTC files *
+
+  When producing a patch to add a VCT regression testing file to reg-tests directory,
+  please follow these simple rules:
+
+    - Add the commit number on the first line.
+    - Then, copy and paste the commit log.
+    - If your VTC file needs others files, use the same basename as that of the VTC
+      file.
+    - Put these files in a directory with the same name as the code area concerned
+      by the bug ('peers', 'lua', 'acl' etc).
+
+

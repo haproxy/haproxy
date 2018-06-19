@@ -467,6 +467,12 @@ do not think about them anymore after a few patches.
    harm when nobody is able to tell whether or not the patch needs to be
    backported or can be reverted in case of regression.
 
+   When fixing a bug which is reproducible, if possible, the contributors are
+   strongly encouraged to write a regression testing VTC file for varnishtest
+   to add to reg-tests directory. More information about varnishtest may be
+   found in README file of reg-tests directory and in doc/regression-testing.txt
+   file.
+
 12) Discuss on the mailing list
 
    When submitting changes, please always CC the mailing list address so that
@@ -614,6 +620,9 @@ part is being touched. The following tags are suggested but not limitative :
   - examples  example files. Be careful, sometimes these files are packaged.
 
   - tests     regression test files. No code is affected, no need to upgrade.
+
+  - reg-tests regression test files for varnishtest. No code is affected, no
+              need to upgrade.
 
   - init      initialization code, arguments parsing, etc...
 
