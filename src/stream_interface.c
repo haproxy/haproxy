@@ -508,16 +508,16 @@ void stream_int_notify(struct stream_interface *si)
 
 	if (!channel_is_empty(ic) &&
 	    (si_opposite(si)->flags & SI_FL_WAIT_DATA) &&
-	    (ic->buf->i == 0 || ic->pipe)) {
+	    (ci_data(ic) == 0 || ic->pipe)) {
 		int new_len, last_len;
 
-		last_len = ic->buf->o;
+		last_len = co_data(ic);
 		if (ic->pipe)
 			last_len += ic->pipe->data;
 
 		si_chk_snd(si_opposite(si));
 
-		new_len = ic->buf->o;
+		new_len = co_data(ic);
 		if (ic->pipe)
 			new_len += ic->pipe->data;
 
@@ -653,7 +653,7 @@ static void si_cs_send(struct conn_stream *cs)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!oc->buf->o)
+	if (!co_data(oc))
 		return;
 
 	/* when we're here, we already know that there is no spliced
@@ -687,7 +687,7 @@ static void si_cs_send(struct conn_stream *cs)
 		if (ret > 0) {
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
-			b_del(oc->buf, ret);
+			co_set_data(oc, co_data(oc) - ret);
 			c_realign_if_empty(oc);
 
 			if (!co_data(oc)) {
@@ -1097,7 +1097,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 
 	cur_read = 0;
 
-	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !ic->buf->o &&
+	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
 	    (unsigned short)(now_ms - ic->last_read) >= global.tune.idle_timer) {
 		/* The buffer was empty and nothing was transferred for more
