@@ -339,7 +339,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 	ctx.idx = 0;
 
 	/* loop on the Cache-Control values */
-	while (http_find_header2("Cache-Control", 13, s->res.buf->p, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2("Cache-Control", 13, ci_head(&s->res), &txn->hdr_idx, &ctx)) {
 		char *directive = ctx.line + ctx.val;
 		char *value;
 
@@ -426,7 +426,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* Does not manage Vary at the moment. We will need a secondary key later for that */
 	ctx.idx = 0;
-	if (http_find_header2("Vary", 4, txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx))
+	if (http_find_header2("Vary", 4, ci_head(txn->rsp.chn), &txn->hdr_idx, &ctx))
 		goto out;
 
 	check_response_for_cacheability(s, &s->res);
@@ -464,7 +464,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
-	if (shctx_row_data_append(shctx, first, (unsigned char *)s->res.buf->p, msg->sov) < 0)
+	if (shctx_row_data_append(shctx, first, (unsigned char *)ci_head(&s->res), msg->sov) < 0)
 		goto out;
 
 	/* register the buffer in the filter ctx for filling it with data*/
@@ -567,7 +567,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	if (appctx->st0 == HTTP_CACHE_FWD) {
 		/* eat the whole request */
-		co_skip(si_oc(si), si_ob(si)->o);   // NOTE: when disabled does not repport the  correct status code
+		co_skip(si_oc(si), co_data(si_oc(si)));   // NOTE: when disabled does not repport the  correct status code
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
@@ -644,12 +644,12 @@ int sha1_hosturi(struct http_txn *txn)
 
 	/* retrive the host */
 	ctx.idx = 0;
-	if (!http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx))
+	if (!http_find_header2("Host", 4, ci_head(txn->req.chn), &txn->hdr_idx, &ctx))
 		return 0;
 	chunk_strncat(trash, ctx.line + ctx.val, ctx.vlen);
 
 	/* now retrieve the path */
-	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	path = http_get_path(txn);
 	if (!path)
 		return 0;
