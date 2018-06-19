@@ -46,7 +46,6 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 
 /* SI-to-channel functions working with buffers */
 int ci_putblk(struct channel *chn, const char *str, int len);
-struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf);
 int ci_putchr(struct channel *chn, char c);
 int ci_getline_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
 int ci_getblk_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
