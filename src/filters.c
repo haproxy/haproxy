@@ -539,7 +539,7 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	int            delta = 0, ret = 0;
 
 	/* Save buffer state */
-	buf_i = msg->chn->buf->i;
+	buf_i = ci_data(msg->chn);
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		unsigned int *nxt;
@@ -556,12 +556,12 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 			*nxt = msg->next;
 
 		if (FLT_OPS(filter)->http_data) {
-			unsigned int i = msg->chn->buf->i;
+			unsigned int i = ci_data(msg->chn);
 
 			ret = FLT_OPS(filter)->http_data(s, filter, msg);
 			if (ret < 0)
 				break;
-			delta += (int)(msg->chn->buf->i - i);
+			delta += (int)(ci_data(msg->chn) - i);
 
 			/* Update the next offset of the current filter */
 			*nxt += ret;
@@ -569,18 +569,18 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than this
 			 * one. */
-			msg->chn->buf->i = *nxt;
+			b_set_data(msg->chn->buf, co_data(msg->chn) + *nxt);
 		}
 		else {
 			/* Consume all available data and update the next offset
 			 * of the current filter. buf->i is untouched here. */
-			ret = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - *nxt;
+			ret = MIN(msg->chunk_len + msg->next, ci_data(msg->chn)) - *nxt;
 			*nxt += ret;
 		}
 	}
 
 	/* Restore the original buffer state */
-	msg->chn->buf->i = buf_i + delta;
+	b_set_data(msg->chn->buf, co_data(msg->chn) + buf_i + delta);
 
 	return ret;
 }
@@ -957,7 +957,7 @@ flt_data(struct stream *s, struct channel *chn)
 	int            delta = 0, ret = 0;
 
 	/* Save buffer state */
-	buf_i = chn->buf->i;
+	buf_i = ci_data(chn);
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		unsigned int *nxt;
@@ -968,12 +968,12 @@ flt_data(struct stream *s, struct channel *chn)
 
 		nxt = &FLT_NXT(filter, chn);
 		if (FLT_OPS(filter)->tcp_data) {
-			unsigned int i = chn->buf->i;
+			unsigned int i = ci_data(chn);
 
 			ret = FLT_OPS(filter)->tcp_data(s, filter, chn);
 			if (ret < 0)
 				break;
-			delta += (int)(chn->buf->i - i);
+			delta += (int)(ci_data(chn) - i);
 
 			/* Increase next offset of the current filter */
 			*nxt += ret;
@@ -981,11 +981,11 @@ flt_data(struct stream *s, struct channel *chn)
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than the
 			 * current one. */
-			chn->buf->i = *nxt;
+			b_set_data(chn->buf, co_data(chn) + *nxt);
 		}
 		else {
 			/* Consume all available data */
-			*nxt = chn->buf->i;
+			*nxt = ci_data(chn);
 		}
 
 		/* Update <ret> value to be sure to have the last one when we
@@ -995,7 +995,7 @@ flt_data(struct stream *s, struct channel *chn)
 	}
 
 	/* Restore the original buffer state */
-	chn->buf->i = buf_i + delta;
+	b_set_data(chn->buf, co_data(chn) + buf_i + delta);
 
 	return ret;
 }
@@ -1075,7 +1075,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	/* Be sure that the output is still opened. Else we stop the data
 	 * filtering. */
 	if ((chn->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
-	    ((chn->flags & CF_SHUTW) && (chn->to_forward || chn->buf->o)))
+	    ((chn->flags & CF_SHUTW) && (chn->to_forward || co_data(chn))))
 		goto end;
 
 	/* Let all "data" filters parsing incoming data */
