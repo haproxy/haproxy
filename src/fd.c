@@ -371,7 +371,6 @@ static void fd_dodelete(int fd, int do_close)
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
-	fdtab[fd].update_mask &= ~tid_bit;
 	fdtab[fd].thread_mask = 0;
 	if (do_close) {
 		polled_mask[fd] = 0;
