@@ -2154,7 +2154,7 @@ static void h2_recv(struct connection *conn)
 	/* note: buf->o == 0 */
 	max = buf->size - buf->i;
 	if (max)
-		conn->xprt->rcv_buf(conn, buf, max);
+		conn->xprt->rcv_buf(conn, buf, max, 0);
 
 	if (!buf->i) {
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -2920,7 +2920,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
  * caller is responsible for never asking for more data than what is available
  * in the buffer.
  */
-static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count)
+static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;

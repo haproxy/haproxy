@@ -159,11 +159,11 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 /*
  * Called from the upper layer, to get more data
  */
-static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count)
+static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	size_t ret;
 
-	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count);
+	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count, flags);
 	if (conn_xprt_read0_pending(cs->conn))
 		cs->flags |= CS_FL_EOS;
 	if (cs->conn->flags & CO_FL_ERROR)

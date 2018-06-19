@@ -824,7 +824,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 
 	done = 0;
 
-	conn->mux->rcv_buf(cs, check->bi, check->bi->size);
+	conn->mux->rcv_buf(cs, check->bi, check->bi->size, 0);
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 		done = 1;
 		if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !check->bi->i) {
@@ -2889,7 +2889,7 @@ static int tcpcheck_main(struct check *check)
 				goto out_end_tcpcheck;
 
 			__cs_want_recv(cs);
-			if (conn->mux->rcv_buf(cs, check->bi, check->bi->size) <= 0) {
+			if (conn->mux->rcv_buf(cs, check->bi, check->bi->size, 0) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 					done = 1;
 					if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !check->bi->i) {

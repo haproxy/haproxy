@@ -268,7 +268,7 @@ enum {
  * and the other ones are used to setup and release the transport layer.
  */
 struct xprt_ops {
-	size_t (*rcv_buf)(struct connection *conn, struct buffer *buf, size_t count); /* recv callback */
+	size_t (*rcv_buf)(struct connection *conn, struct buffer *buf, size_t count, int flags); /* recv callback */
 	size_t (*snd_buf)(struct connection *conn, const struct buffer *buf, size_t count, int flags); /* send callback */
 	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
@@ -297,7 +297,7 @@ struct mux_ops {
 	void (*send)(struct connection *conn);        /* mux-layer send callback */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
-	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count); /* Called from the upper layer to get data */
+	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
 	size_t (*snd_buf)(struct conn_stream *cs, const struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
 	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct conn_stream *cs, struct pipe *pipe); /* send-to-pipe callback */
