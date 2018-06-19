@@ -151,9 +151,8 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "            data=%p o=%u i=%u p=%p\n"
-                   "            relative:   p=0x%04x\n",
-		b->data, (unsigned int)b->o, (unsigned int)b->i, b->p, (unsigned int)(b->p - b->data));
+	fprintf(o, "            orig=%p size=%u head=%u tail=%u data=%u\n",
+		b_orig(b), (unsigned int)b_size(b), (unsigned int)b_head_ofs(b), (unsigned int)b_tail_ofs(b), (unsigned int)b_data(b));
 
 	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
 	fprintf(o, "         0  1  2  3  4  5  6  7    8  9  a  b  c  d  e  f\n");
@@ -163,7 +162,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 
 		fprintf(o, "  %04x: ", from);
 		for (i = 0; ((from + i) < to) && (i < 16) ; i++) {
-			fprintf(o, "%02x ", (unsigned char)b->data[from + i]);
+			fprintf(o, "%02x ", (unsigned char)b_orig(b)[from + i]);
 			if (((from + i)  & 15) == 7)
 				fprintf(o, "- ");
 		}
@@ -177,7 +176,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 		}
 		fprintf(o, "  ");
 		for (i = 0; (from + i < to) && (i < 16) ; i++) {
-			fprintf(o, "%c", isprint((int)b->data[from + i]) ? b->data[from + i] : '.') ;
+			fprintf(o, "%c", isprint((int)b_orig(b)[from + i]) ? b_orig(b)[from + i] : '.') ;
 			if ((((from + i) & 15) == 15) && ((from + i) != to-1))
 				fprintf(o, "\n");
 		}
