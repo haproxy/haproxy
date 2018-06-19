@@ -52,7 +52,7 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = chn->buf->i;
+	smp->data.u.sint = ci_data(chn);
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -73,8 +73,8 @@ smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char 
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	bleft = chn->buf->i;
-	data = (unsigned char *)chn->buf->p;
+	bleft = ci_data(chn);
+	data = (unsigned char *)ci_head(chn);
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)
@@ -203,8 +203,8 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	bleft = chn->buf->i;
-	data = (unsigned char *)chn->buf->p;
+	bleft = ci_data(chn);
+	data = (unsigned char *)ci_head(chn);
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)
@@ -324,8 +324,8 @@ smp_fetch_ssl_hello_type(const struct arg *args, struct sample *smp, const char 
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	bleft = chn->buf->i;
-	data = (const unsigned char *)chn->buf->p;
+	bleft = ci_data(chn);
+	data = (const unsigned char *)ci_head(chn);
 
 	if (!bleft)
 		goto too_short;
@@ -391,11 +391,11 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 
 	req = &smp->strm->req;
 	msg_len = 0;
-	bleft = req->buf->i;
+	bleft = ci_data(req);
 	if (!bleft)
 		goto too_short;
 
-	data = (const unsigned char *)req->buf->p;
+	data = (const unsigned char *)ci_head(req);
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
 		if (bleft < 11)
@@ -466,8 +466,8 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > channel_recv_limit(req) + req->buf->data - req->buf->p)
-		msg_len = channel_recv_limit(req) + req->buf->data - req->buf->p;
+	if (msg_len > channel_recv_limit(req) + b_orig(req->buf) - ci_head(req))
+		msg_len = channel_recv_limit(req) + b_orig(req->buf) - ci_head(req);
 
 	if (bleft < msg_len)
 		goto too_short;
@@ -530,8 +530,8 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	bleft = chn->buf->i;
-	data = (unsigned char *)chn->buf->p;
+	bleft = ci_data(chn);
+	data = (unsigned char *)ci_head(chn);
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)
@@ -664,11 +664,11 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
-	bleft = s->req.buf->i;
+	bleft = ci_data(&s->req);
 	if (bleft <= 11)
 		goto too_short;
 
-	data = (const unsigned char *)s->req.buf->p + 11;
+	data = (const unsigned char *)ci_head(&s->req) + 11;
 	bleft -= 11;
 
 	if (bleft <= 7)
@@ -789,11 +789,11 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	if (len_offset + len_size > chn->buf->i)
+	if (len_offset + len_size > ci_data(chn))
 		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf->p)[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)ci_head(chn))[i + len_offset];
 	}
 
 	/* buf offset may be implicit, absolute or relative. If the LSB
@@ -813,13 +813,13 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 		return 0;
 	}
 
-	if (buf_offset + buf_size > chn->buf->i)
+	if (buf_offset + buf_size > ci_data(chn))
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.u.str, chn->buf->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.u.str, ci_head(chn) + buf_offset, 0, buf_size);
 	return 1;
 
  too_short:
@@ -845,13 +845,13 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 		return 0;
 	}
 
-	if (buf_offset + buf_size > chn->buf->i)
+	if (buf_offset + buf_size > ci_data(chn))
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.u.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
+	chunk_initlen(&smp->data.u.str, ci_head(chn) + buf_offset, 0, buf_size ? buf_size : (ci_data(chn) - buf_offset));
 	if (!buf_size && channel_may_recv(chn) && !channel_input_closed(chn))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
@@ -933,22 +933,22 @@ smp_fetch_distcc_param(const struct arg *arg_p, struct sample *smp, const char *
 
 	ofs = 0; occ = 0;
 	while (1) {
-		if (ofs + 12 > chn->buf->i) {
+		if (ofs + 12 > ci_data(chn)) {
 			/* not there yet but could it at least fit ? */
 			if (!chn->buf->size)
 				goto too_short;
 
-			if (ofs + 12 <= channel_recv_limit(chn) + chn->buf->data - chn->buf->p)
+			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn))
 				goto too_short;
 
 			goto no_match;
 		}
 
-		token = read_n32(chn->buf->p + ofs);
+		token = read_n32(ci_head(chn) + ofs);
 		ofs += 4;
 
 		for (i = param = 0; i < 8; i++) {
-			int c = hex2i(chn->buf->p[ofs + i]);
+			int c = hex2i(ci_head(chn)[ofs + i]);
 
 			if (c < 0)
 				goto no_match;
@@ -1010,21 +1010,21 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 
 	ofs = 0; occ = 0;
 	while (1) {
-		if (ofs + 12 > chn->buf->i) {
+		if (ofs + 12 > ci_data(chn)) {
 			if (!chn->buf->size)
 				goto too_short;
 
-			if (ofs + 12 <= channel_recv_limit(chn) + chn->buf->data - chn->buf->p)
+			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn))
 				goto too_short;
 
 			goto no_match;
 		}
 
-		token = read_n32(chn->buf->p + ofs);
+		token = read_n32(ci_head(chn) + ofs);
 		ofs += 4;
 
 		for (i = param = 0; i < 8; i++) {
-			int c = hex2i(chn->buf->p[ofs + i]);
+			int c = hex2i(ci_head(chn)[ofs + i]);
 
 			if (c < 0)
 				goto no_match;
@@ -1048,17 +1048,17 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 				smp->data.type = SMP_T_BIN;
 				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 
-				if (ofs + body > chn->buf->p - chn->buf->data + chn->buf->i) {
+				if (ofs + body > ci_head(chn) - b_orig(chn->buf) + ci_data(chn)) {
 					/* incomplete body */
 
-					if (ofs + body > channel_recv_limit(chn) + chn->buf->data - chn->buf->p) {
+					if (ofs + body > channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn)) {
 						/* truncate it to whatever will fit */
 						smp->flags |= SMP_F_MAY_CHANGE;
-						body = channel_recv_limit(chn) + chn->buf->data - chn->buf->p - ofs;
+						body = channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn) - ofs;
 					}
 				}
 
-				chunk_initlen(&smp->data.u.str, chn->buf->p + ofs, 0, body);
+				chunk_initlen(&smp->data.u.str, ci_head(chn) + ofs, 0, body);
 				return 1;
 			}
 		}
