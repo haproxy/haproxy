@@ -329,8 +329,8 @@ static struct server *get_server_ph_post(struct stream *s)
 	if (len == 0)
 		return NULL;
 
-	if (len > req->buf->data + req->buf->size - p)
-		len = req->buf->data + req->buf->size - p;
+	if (len > b_wrap(req->buf) - p)
+		len = b_wrap(req->buf) - p;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
@@ -485,7 +485,8 @@ static struct server *get_server_rch(struct stream *s)
 
 	memset(&smp, 0, sizeof(smp));
 
-	c_rew(&s->req, rewind = s->req.buf->o);
+	rewind = co_data(&s->req);
+	c_rew(&s->req, rewind);
 
 	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
 	len = smp.data.u.str.len;
@@ -1260,7 +1261,7 @@ int connect_server(struct stream *s)
 			 * rewind exactly the headers, otherwise we rewind the
 			 * output data.
 			 */
-			rewind = s->txn ? http_hdr_rewind(&s->txn->req) : s->req.buf->o;
+			rewind = s->txn ? http_hdr_rewind(&s->txn->req) : co_data(&s->req);
 			c_rew(&s->req, rewind);
 
 			smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, srv->ssl_ctx.sni, SMP_T_STR);
