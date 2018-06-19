@@ -2614,7 +2614,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * proceed. Stream errors are reported in h2s->errcode and connection errors
  * in h2c->errcode.
  */
-static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
+static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count, int flags)
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)h2c->dbuf->p;
@@ -2689,7 +2689,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 	 * always empty except maybe for trailers, so these operations almost
 	 * never happen.
 	 */
-	if (unlikely(buf->o)) {
+	if (flags & CO_RFL_BUF_WET) {
 		/* need to let the output buffer flush and
 		 * mark the buffer for later wake up.
 		 */
@@ -2775,7 +2775,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
  * frame header and ensured that the frame was complete or the buffer full. It
  * changes the frame state to FRAME_A once done.
  */
-static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
+static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, int flags)
 {
 	struct h2c *h2c = h2s->h2c;
 	int block1, block2;
@@ -2937,11 +2937,11 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	switch (h2c->dft) {
 	case H2_FT_HEADERS:
-		ret = h2_frt_decode_headers(h2s, buf, count);
+		ret = h2_frt_decode_headers(h2s, buf, count, flags);
 		break;
 
 	case H2_FT_DATA:
-		ret = h2_frt_transfer_data(h2s, buf, count);
+		ret = h2_frt_transfer_data(h2s, buf, count, flags);
 		break;
 
 	default:
