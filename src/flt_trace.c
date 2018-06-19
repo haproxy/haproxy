@@ -78,18 +78,18 @@ filter_type(const struct filter *f)
 }
 
 static void
-trace_hexdump(struct buffer *buf, int len)
+trace_hexdump(struct buffer *buf, int len, int out)
 {
 	unsigned char p[len];
 	int block1, block2, i, j, padding;
 
 	block1 = len;
-	if (block1 > b_contig_data(buf, buf->o))
-		block1 = b_contig_data(buf, buf->o);
+	if (block1 > b_contig_data(buf, out))
+		block1 = b_contig_data(buf, out);
 	block2 = len - block1;
 
-	memcpy(p, buf->p, block1);
-	memcpy(p+block1, buf->data, block2);
+	memcpy(p, b_head(buf), block1);
+	memcpy(p+block1, b_orig(buf), block2);
 
 	padding = ((len % 16) ? (16 - len % 16) : 0);
 	for (i = 0; i < len + padding; i++) {
@@ -368,10 +368,10 @@ trace_http_headers(struct stream *s, struct filter *filter,
 		   __FUNCTION__,
 		   channel_label(msg->chn), proxy_mode(s), stream_pos(s));
 
-	STRM_TRACE(conf, s, "\t%.*s", MIN(msg->sl.rq.l, 74), msg->chn->buf->p);
+	STRM_TRACE(conf, s, "\t%.*s", MIN(msg->sl.rq.l, 74), ci_head(msg->chn));
 	hdr_idx = &s->txn->hdr_idx;
 	cur_idx = hdr_idx_first_idx(hdr_idx);
-	cur_hdr = msg->chn->buf->p + hdr_idx_first_pos(hdr_idx);
+	cur_hdr = ci_head(msg->chn) + hdr_idx_first_pos(hdr_idx);
 	while (cur_idx) {
 		STRM_TRACE(conf, s, "\t%.*s",
 			   MIN(hdr_idx->v[cur_idx].len, 74), cur_hdr);
@@ -386,7 +386,7 @@ trace_http_data(struct stream *s, struct filter *filter,
 		      struct http_msg *msg)
 {
 	struct trace_config *conf = FLT_CONF(filter);
-	int avail = MIN(msg->chunk_len + msg->next, msg->chn->buf->i) - FLT_NXT(filter, msg->chn);
+	int avail = MIN(msg->chunk_len + msg->next, ci_data(msg->chn)) - FLT_NXT(filter, msg->chn);
 	int ret   = avail;
 
 	if (ret && conf->rand_parsing)
@@ -466,7 +466,7 @@ trace_http_forward_data(struct stream *s, struct filter *filter,
 
 	if (conf->hexdump) {
 		c_adv(msg->chn, FLT_FWD(filter, msg->chn));
-		trace_hexdump(msg->chn->buf, ret);
+		trace_hexdump(msg->chn->buf, ret, co_data(msg->chn));
 		c_rew(msg->chn, FLT_FWD(filter, msg->chn));
 	}
 
@@ -483,7 +483,7 @@ static int
 trace_tcp_data(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct trace_config *conf = FLT_CONF(filter);
-	int                  avail = chn->buf->i - FLT_NXT(filter, chn);
+	int                  avail = ci_data(chn) - FLT_NXT(filter, chn);
 	int                  ret  = avail;
 
 	if (ret && conf->rand_parsing)
@@ -516,7 +516,7 @@ trace_tcp_forward_data(struct stream *s, struct filter *filter, struct channel *
 
 	if (conf->hexdump) {
 		c_adv(chn, FLT_FWD(filter, chn));
-		trace_hexdump(chn->buf, ret);
+		trace_hexdump(chn->buf, ret, co_data(chn));
 		c_rew(chn, FLT_FWD(filter, chn));
 	}
 
