@@ -1,0 +1,43 @@
+# commit b4dd15b
+# BUG/MINOR: unix: Make sure we can transfer abns sockets on seamless reload.
+#
+# When checking if a socket we got from the parent is suitable for a listener,
+# we just checked that the path matched sockname.tmp, however this is
+# unsuitable for abns sockets, where we don't have to create a temporary
+# file and rename it later.
+# To detect that, check that the first character of the sun_path is 0 for
+# both, and if so, that &sun_path[1] is the same too.
+
+varnishtest "Seamless reload issue with abns sockets"
+feature ignore_unknown_macro
+
+haproxy h1 -W -conf {
+  global
+    stats socket ${tmpdir}/h1/stats level admin expose-fd listeners
+
+  defaults
+    mode http
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  listen testme
+    bind "fd@${testme}"
+    server test_abns_server abns@wpproc1 send-proxy-v2
+
+  frontend test_abns
+    bind abns@wpproc1 accept-proxy
+    http-request deny deny_status 200
+} -start
+
+shell {
+  kill -USR2 $(cat ${tmpdir}/h1/pid)
+}
+
+client c1 -connect ${h1_testme_sock} {
+    txreq -url "/"
+    rxresp
+} -repeat 50 -run
+

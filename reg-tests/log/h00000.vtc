@@ -1,0 +1,62 @@
+# commit d02286d
+# BUG/MINOR: log: pin the front connection when front ip/ports are logged
+#
+# Mathias Weiersmueller reported an interesting issue with logs which Lukas
+# diagnosed as dating back from commit 9b061e332 (1.5-dev9). When front
+# connection information (ip, port) are logged in TCP mode and the log is
+# emitted at the end of the connection (eg: because %B or any log tag
+# requiring LW_BYTES is set), the log is emitted after the connection is
+# closed, so the address and ports cannot be retrieved anymore.
+#
+# It could be argued that we'd make a special case of these to immediatly
+# retrieve the source and destination addresses from the connection, but it
+# seems cleaner to simply pin the front connection, marking it "tracked" by
+# adding the LW_XPRT flag to mention that we'll need some of these elements
+# at the last moment. Only LW_FRTIP and LW_CLIP are affected. Note that after
+# this change, LW_FRTIP could simply be removed as it's not used anywhere.
+#
+# Note that the problem doesn't happen when using %[src] or %[dst] since
+# all sample expressions set LW_XPRT.
+
+varnishtest "Wrong ip/port logging"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+syslog Slg_1 -level notice {
+    recv
+    recv
+    recv info
+    expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_port}.*\"ts\":\"cD\",\"
+} -start
+
+haproxy h1 -conf {
+    global
+        log ${Slg_1_addr}:${Slg_1_port} local0
+
+defaults
+    log global
+    timeout connect 3000
+    timeout client 5
+    timeout server  10000
+
+frontend fe1
+    bind "fd@${fe_1}"
+    mode tcp
+    log-format {\"dip\":\"%fi\",\"dport\":\"%fp\",\"c_ip\":\"%ci\",\"c_port\":\"%cp\",\"fe_name\":\"%ft\",\"be_name\":\"%b\",\"s_name\":\"%s\",\"ts\":\"%ts\",\"bytes_read\":\"%B\"}
+    default_backend    be_app
+
+backend be_app
+    server app1 ${s1_addr}:${s1_port} check
+} -start
+
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/"
+    delay 0.02
+} -run
+
+syslog Slg_1 -wait
+

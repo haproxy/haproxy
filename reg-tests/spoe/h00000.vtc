@@ -1,0 +1,18 @@
+# commit 84c844eb12b250aa86f2aadaff77c42dfc3cb619
+# BUG/MINOR: spoe: Initialize variables used during conf parsing before any check
+#
+# Some initializations must be done at the beginning of parse_spoe_flt to avoid
+# segmentaion fault when first errors are catched, when the "filter spoe" line is
+# parsed.
+
+varnishtest "SPOE bug: missing configuration file"
+
+haproxy h1 -conf-BAD {} {
+	defaults
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+
+	frontend my-front
+		filter spoe
+}
