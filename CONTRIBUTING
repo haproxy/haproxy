@@ -566,6 +566,9 @@ patch types include :
 
   - LICENSE  licensing updates (may impact distro packagers).
 
+  - REGTEST  updates to any of the regression testing files found in reg-tests
+             directory, including README or any documentation file.
+
 
 When the patch cannot be categorized, it's best not to put any type tag, and to
 only use a risk or complexity information only as below. This is commonly the
