@@ -949,7 +949,6 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
  * For both cases above, dns_validate_dns_response is required
  * returns one of the DNS_UPD_* code
  */
-#define DNS_MAX_IP_REC 20
 int dns_get_ip_from_response(struct dns_response_packet *dns_p,
                              struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,
