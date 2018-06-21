@@ -92,7 +92,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the
- * capabilities in <cap>. An optionnal <hint> may be added at the end
+ * capabilities in <cap>. An optional <hint> may be added at the end
  * of the warning to help the user. Returns 1 if a warning was emitted
  * or 0 if the condition is valid.
  */

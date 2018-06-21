@@ -114,11 +114,11 @@ static void session_count_new(struct session *sess)
 }
 
 /* This function is called from the protocol layer accept() in order to
- * instanciate a new session on behalf of a given listener and frontend. It
+ * instantiate a new session on behalf of a given listener and frontend. It
  * returns a positive value upon success, 0 if the connection can be ignored,
  * or a negative value upon critical failure. The accepted file descriptor is
  * closed if we return <= 0. If no handshake is needed, it immediately tries
- * to instanciate a new stream. The created connection's owner points to the
+ * to instantiate a new stream. The created connection's owner points to the
  * new session until the upper layers are created.
  */
 int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr)
