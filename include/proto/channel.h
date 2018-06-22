@@ -128,7 +128,7 @@ static inline size_t c_full(const struct channel *c)
 /* co_data() : returns the amount of output data in the channel's buffer */
 static inline size_t co_data(const struct channel *c)
 {
-	return c->buf->output;
+	return c->output;
 }
 
 /* ci_data() : returns the amount of input data in the channel's buffer */
@@ -170,7 +170,7 @@ static inline char *c_ptr(const struct channel *c, ssize_t ofs)
  */
 static inline void c_adv(struct channel *c, size_t adv)
 {
-	c->buf->output += adv;
+	c->output += adv;
 }
 
 /* c_rew() : rewinds the channel's buffer by <adv> bytes, which means that the
@@ -180,7 +180,7 @@ static inline void c_adv(struct channel *c, size_t adv)
  */
 static inline void c_rew(struct channel *c, size_t adv)
 {
-	c->buf->output -= adv;
+	c->output -= adv;
 }
 
 /* c_realign_if_empty() : realign the channel's buffer if it's empty */
@@ -192,8 +192,8 @@ static inline void c_realign_if_empty(struct channel *chn)
 /* Sets the amount of output for the channel */
 static inline void co_set_data(struct channel *c, size_t output)
 {
-	c->buf->len += output - c->buf->output;
-	c->buf->output = output;
+	c->buf->len += output - c->output;
+	c->output = output;
 }
 
 
@@ -324,6 +324,7 @@ static inline void channel_init(struct channel *chn)
 	chn->pipe = NULL;
 	chn->analysers = 0;
 	chn->flags = 0;
+	chn->output = 0;
 }
 
 /* Schedule up to <bytes> more bytes to be forwarded via the channel without
@@ -767,7 +768,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
 static inline void co_skip(struct channel *chn, int len)
 {
 	b_del(chn->buf, len);
-	chn->buf->output -= len;
+	chn->output -= len;
 	c_realign_if_empty(chn);
 
 	/* notify that some data was written to the SI from the buffer */

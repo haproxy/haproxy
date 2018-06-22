@@ -784,8 +784,8 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	/* swap the buffers */
 	*out = chn->buf;
 	chn->buf = ob;
-	tmp_out = chn->buf->output;
-	chn->buf->output = *buf_out;
+	tmp_out = chn->output;
+	chn->output = *buf_out;
 	*buf_out = tmp_out;
 
 

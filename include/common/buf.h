@@ -35,7 +35,6 @@ struct buffer {
 	size_t head;                /* start offset of remaining data relative to area */
 	size_t len;                 /* length of data after head */
 	size_t size;                /* buffer size in bytes */
-	size_t output;              /* TEMPORARY: part of <len> which is to be forwarded */
 	char   area[0];             /* <size> bytes of stored data */
 };
 
@@ -367,7 +366,6 @@ static inline void b_reset(struct buffer *b)
 {
 	b->head = 0;
 	b->len  = 0;
-	b->output = 0;
 }
 
 /* b_sub() : decreases the buffer length by <count> */

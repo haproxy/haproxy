@@ -135,7 +135,6 @@ static inline void bo_putchr(struct buffer *b, char c)
 		return;
 	*b_tail(b) = c;
 	b->len++;
-	b->output++;
 }
 
 /* Tries to append block <blk> at the end of buffer <b>. Supports wrapping.
@@ -161,7 +160,6 @@ static inline unsigned int bo_putblk(struct buffer *b, const char *blk, unsigned
 		memcpy(b_tail(b), blk + half, len - half);
 		b->len += len - half;
 	}
-	b->output += len;
 	return len;
 }
 
@@ -470,7 +468,6 @@ static inline int bo_istput(struct buffer *b, const struct ist ist)
 
 	p = b_tail(b);
 	b->len += r.len;
-	b->output += r.len;
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
