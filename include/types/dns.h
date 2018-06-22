@@ -245,6 +245,8 @@ struct dns_options {
 		} mask;
 	} pref_net[SRV_MAX_PREF_NET];
 	int pref_net_nb; /* The number of registered prefered networks. */
+	int accept_duplicate_ip; /* flag to indicate whether the associated object can use an IP address
+				    already set to an other object of the same group */
 };
 
 /* Resolution structure associated to single server and used to manage name

@@ -11682,6 +11682,40 @@ rise <count>
   after <count> consecutive successful health checks. This value defaults to 2
   if unspecified. See also the "check", "inter" and "fall" parameters.
 
+resolve-opts <option>,<option>,...
+  Comma separated list of options to apply to DNS resolution linked to this
+  server.
+
+  Available options:
+
+  * allow-dup-ip
+    By default, HAProxy prevents IP address duplication in a backend when DNS
+    resolution at runtime is in operation.
+    That said, for some cases, it makes sense that two servers (in the same
+    backend, being resolved by the same FQDN) have the same IP address.
+    For such case, simply enable this option.
+    This is the opposite of prevent-dup-ip.
+
+  * prevent-dup-ip
+    Ensure HAProxy's default behavior is enforced on a server: prevent re-using
+    an IP address already set to a server in the same backend and sharing the
+    same fqdn.
+    This is the opposite of allow-dup-ip.
+
+  Example:
+    backend b_myapp
+      default-server init-addr none resolvers dns
+      server s1 myapp.example.com:80 check resolve-opts allow-dup-ip
+      server s2 myapp.example.com:81 check resolve-opts allow-dup-ip
+
+  With the option allow-dup-ip set:
+  * if the nameserver returns a single IP address, then both servers will use
+    it
+  * If the nameserver returns 2 IP addresses, then each server will pick up a
+    different address
+
+  Default value: not set
+
 resolve-prefer <family>
   When DNS resolution is enabled for a server and multiple IP addresses from
   different families are returned, HAProxy will prefer using an IP address

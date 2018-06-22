@@ -1544,6 +1544,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	if (src->resolvers_id != NULL)
 		srv->resolvers_id = strdup(src->resolvers_id);
 	srv->dns_opts.family_prio = src->dns_opts.family_prio;
+	srv->dns_opts.accept_duplicate_ip = src->dns_opts.accept_duplicate_ip;
 	if (srv->dns_opts.family_prio == AF_UNSPEC)
 		srv->dns_opts.family_prio = AF_INET6;
 	memcpy(srv->dns_opts.pref_net,
@@ -2082,6 +2083,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv = &curproxy->defsrv;
 			cur_arg = 1;
 			newsrv->dns_opts.family_prio = AF_INET6;
+			newsrv->dns_opts.accept_duplicate_ip = 0;
 		}
 
 		while (*args[cur_arg]) {
@@ -2175,6 +2177,31 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "resolvers")) {
 				free(newsrv->resolvers_id);
 				newsrv->resolvers_id = strdup(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "resolve-opts")) {
+				char *p, *end;
+
+				for (p = args[cur_arg + 1]; *p; p = end) {
+					/* cut on next comma */
+					for (end = p; *end && *end != ','; end++);
+					if (*end)
+						*(end++) = 0;
+
+					if (!strcmp(p, "allow-dup-ip")) {
+						newsrv->dns_opts.accept_duplicate_ip = 1;
+					}
+					else if (!strcmp(p, "prevent-dup-ip")) {
+						newsrv->dns_opts.accept_duplicate_ip = 0;
+					}
+					else {
+						ha_alert("parsing [%s:%d]: '%s' : unknown resolve-opts option '%s', supported methods are 'allow-dup-ip' and 'prevent-dup-ip'.\n",
+								file, linenum, args[cur_arg], p);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
+
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "resolve-prefer")) {
