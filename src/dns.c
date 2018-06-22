@@ -1024,10 +1024,13 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 		}
 
 		/* Check if the IP found in the record is already affected to a
-		 * member of a group.  If yes, the score should be incremented
+		 * member of a group.  If not, the score should be incremented
 		 * by 2. */
-		if (owner && snr_check_ip_callback(owner, ip, &ip_type))
+		if (owner && snr_check_ip_callback(owner, ip, &ip_type)) {
 			continue;
+		} else {
+			score += 2;
+		}
 
 		/* Check for current ip matching. */
 		if (ip_type == currentip_sin_family &&
