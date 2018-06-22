@@ -976,7 +976,7 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	 *
 	 * For these three priorities, a score is calculated. The
 	 * weight are:
-	 *  8 - prefered netwok ip version.
+	 *  8 - prefered ip version.
 	 *  4 - prefered network.
 	 *  2 - if the ip in the record is not affected to any other server in the same backend (duplication)
 	 *  1 - current ip.
