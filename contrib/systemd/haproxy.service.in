@@ -10,6 +10,7 @@ ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always
+SuccessExitStatus=143
 Type=notify
 
 # The following lines leverage SystemD's sandboxing options to provide
