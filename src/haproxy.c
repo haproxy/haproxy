@@ -2473,9 +2473,8 @@ static void *run_thread_poll_loop(void *data)
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
 		ptdf->fct();
 
-	HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
-
 #ifdef USE_THREAD
+	HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
 	if (tid > 0)
 		pthread_exit(NULL);
 #endif
