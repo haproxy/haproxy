@@ -1005,5 +1005,5 @@ reg-tests:
 		exit 1; \
 	fi
 	@find reg-tests -type f -name "*.vtc" -print0 | \
-	   xargs -0 $(VARNISHTEST_PROGRAM) -l -t5
+	   HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} xargs -0 $(VARNISHTEST_PROGRAM) -l -t5
 .PHONY: reg-tests
