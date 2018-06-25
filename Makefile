@@ -1004,6 +1004,16 @@ reg-tests:
 		echo "Please make the VARNISHTEST_PROGRAM variable point to the location of the varnishtest program."; \
 		exit 1; \
 	fi
-	@find reg-tests -type f -name "*.vtc" -print0 | \
-	   HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} xargs -0 $(VARNISHTEST_PROGRAM) -l -t5
+	@export LEVEL=$${LEVEL:-1}; \
+	if [ $$LEVEL = 1 ] ; then \
+	   EXPR='h*.vtc'; \
+	elif [ $$LEVEL = 2 ] ; then \
+	   EXPR='s*.vtc'; \
+	elif [ $$LEVEL = 3 ] ; then \
+	   EXPR='l*.vtc'; \
+	fi ; \
+	if [ -n "$$EXPR" ] ; then \
+	   find reg-tests -type f -name "$$EXPR" -print0 | \
+	      HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} xargs -r -0 $(VARNISHTEST_PROGRAM) -l -t5 ; \
+	fi
 .PHONY: reg-tests
