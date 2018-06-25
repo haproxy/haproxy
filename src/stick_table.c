@@ -875,7 +875,8 @@ static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, voi
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = !!ts;
 	smp->flags = SMP_F_VOL_TEST;
-	stktable_release(t, ts);
+	if (ts)
+		stktable_release(t, ts);
 	return 1;
 }
 
