@@ -1596,8 +1596,10 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (ts)
-		smp->data.u.sint = ts->ref_cnt;
+	if (!ts)
+		return 1;
+
+	smp->data.u.sint = ts->ref_cnt;
 
 	stktable_release(t, ts);
 	return 1;
