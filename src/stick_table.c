@@ -412,9 +412,11 @@ void stktable_touch_local(struct stktable *t, struct stksess *ts, int decrefcnt)
 		ts->ref_cnt--;
 	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 }
-/* Just decrease the ref_cnt of the current session */
-void stktable_release(struct stktable *t, struct stksess *ts)
+/* Just decrease the ref_cnt of the current session. Does nothing if <ts> is NULL */
+static void stktable_release(struct stktable *t, struct stksess *ts)
 {
+	if (!ts)
+		return;
 	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	ts->ref_cnt--;
 	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
@@ -875,8 +877,7 @@ static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, voi
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = !!ts;
 	smp->flags = SMP_F_VOL_TEST;
-	if (ts)
-		stktable_release(t, ts);
+	stktable_release(t, ts);
 	return 1;
 }
 
@@ -2014,7 +2015,7 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 	smp->data.u.sint = !!stkctr;
 
 	/* release the ref count */
-	if ((stkctr == &tmpstkctr) &&  stkctr_entry(stkctr))
+	if ((stkctr == &tmpstkctr))
 		stktable_release(stkctr->table, stkctr_entry(stkctr));
 
 	return 1;
