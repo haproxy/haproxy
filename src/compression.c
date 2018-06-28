@@ -229,7 +229,7 @@ static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int
 
 	memcpy(out_data, in_data, in_len);
 
-	out->i += in_len;
+	b_add(out, in_len);
 
 	return in_len;
 }
@@ -308,7 +308,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 		}
 		b_reset(tmpbuf);
 		memcpy(b_tail(tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
-		tmpbuf->i += comp_ctx->direct_len;
+		b_add(tmpbuf, comp_ctx->direct_len);
 		comp_ctx->direct_ptr = NULL;
 		comp_ctx->direct_len = 0;
 		comp_ctx->queued = tmpbuf;
@@ -318,7 +318,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 	if (comp_ctx->queued) {
 		/* data already pending */
 		memcpy(b_tail(comp_ctx->queued), in_data, in_len);
-		comp_ctx->queued->i += in_len;
+		b_add(comp_ctx->queued, in_len);
 		return in_len;
 	}
 
@@ -350,10 +350,10 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	out_len = out->i;
 
 	if (in_ptr)
-		out->i += slz_encode(strm, b_tail(out), in_ptr, in_len, !finish);
+		b_add(out, slz_encode(strm, b_tail(out), in_ptr, in_len, !finish));
 
 	if (finish)
-		out->i += slz_finish(strm, b_tail(out));
+		b_add(out, slz_finish(strm, b_tail(out)));
 
 	out_len = out->i - out_len;
 
@@ -589,7 +589,7 @@ static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 		return -1;
 
 	/* deflate update the available data out */
-	out->i += out_len - strm->avail_out;
+	b_add(out, out_len - strm->avail_out);
 
 	return in_len - strm->avail_in;
 }
@@ -610,7 +610,7 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 		return -1;
 
 	out_len = b_room(out) - strm->avail_out;
-	out->i += out_len;
+	b_add(out, out_len);
 
 	/* compression limit */
 	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */

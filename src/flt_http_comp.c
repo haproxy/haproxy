@@ -212,7 +212,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 			memcpy(b_tail(tmpbuf)+block, buf->data, len-block);
 		c_rew(chn, *nxt);
 
-		tmpbuf->i += len;
+		b_add(tmpbuf, len);
 		ret        = len;
 	}
 	else {
@@ -770,10 +770,10 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	if (ib->i > 0) {
 		left = ci_contig_data(chn);
 		memcpy(ob->p + ob->i, ci_head(chn), left);
-		ob->i += left;
+		b_add(ob, left);
 		if (ib->i - left) {
 			memcpy(ob->p + ob->i, ib->data, ib->i - left);
-			ob->i += ib->i - left;
+			b_add(ob, ib->i - left);
 		}
 	}
 

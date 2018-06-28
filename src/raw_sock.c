@@ -294,7 +294,7 @@ static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 		ret = recv(conn->handle.fd, b_tail(buf), try, 0);
 
 		if (ret > 0) {
-			buf->i += ret;
+			b_add(buf, ret);
 			done += ret;
 			if (ret < try) {
 				/* unfortunately, on level-triggered events, POLL_HUP

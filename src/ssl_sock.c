@@ -5374,7 +5374,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 			done++;
 			try--;
 			count--;
-			buf->i++;
+			b_add(buf, 1);
 			conn->tmp_early_data = -1;
 			continue;
 		}
@@ -5421,7 +5421,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 			goto out_error;
 		}
 		if (ret > 0) {
-			buf->i += ret;
+			b_add(buf, ret);
 			done += ret;
 			count -= ret;
 		}

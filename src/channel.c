@@ -96,9 +96,9 @@ int co_inject(struct channel *chn, const char *msg, int len)
 	if (len > max)
 		return max;
 
-	memcpy(chn->buf->p, msg, len);
-	chn->buf->o += len;
-	chn->buf->p = c_ptr(chn, len);
+	memcpy(b_tail(chn->buf), msg, len);
+	b_add(chn->buf, len);
+	c_adv(chn, len);
 	chn->total += len;
 	return -1;
 }
@@ -171,7 +171,7 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 	if (len > max)
 		memcpy(b_orig(chn->buf), blk + max, len - max);
 
-	chn->buf->i += len;
+	b_add(chn->buf, len);
 	chn->total += len;
 	if (chn->to_forward) {
 		unsigned long fwd = len;

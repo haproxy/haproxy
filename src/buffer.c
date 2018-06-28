@@ -101,7 +101,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (len)
 		memcpy(pos, str, len);
 
-	b->i += delta;
+	b_add(b, delta);
 	b_realign_if_empty(b);
 
 	return delta;
@@ -141,7 +141,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 		pos[len + 1] = '\n';
 	}
 
-	b->i += delta;
+	b_add(b, delta);
 	return delta;
 }
 

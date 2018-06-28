@@ -2742,7 +2742,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 	/* now consume the input data */
 	b_del(h2c->dbuf, h2c->dfl);
 	h2c->st0 = H2_CS_FRAME_H;
-	buf->i += outlen;
+	b_add(buf, outlen);
 
 	/* don't send it before returning data!
 	 * FIXME: should we instead try to send it much later, after the
@@ -3091,7 +3091,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 
 	/* commit the H2 response */
 	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + outbuf.len);
-	h2c->mbuf->o += outbuf.len;
+	bo_add(h2c->mbuf, outbuf.len);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	/* for now we don't implemented CONTINUATION, so we wait for a
@@ -3337,7 +3337,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 	/* commit the H2 response */
 	h2c->mbuf->p = b_peek(h2c->mbuf, h2c->mbuf->o + size + 9);
-	h2c->mbuf->o += size + 9;
+	bo_add(h2c->mbuf, size + 9);
 
 	/* consume incoming H1 response */
 	if (size > 0) {

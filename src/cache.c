@@ -560,7 +560,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 			si_applet_cant_put(si);
 			goto out;
 		}
-		res->buf->i += len;
+		b_add(res->buf, len);
 		res->total += len;
 		appctx->st0 = HTTP_CACHE_FWD;
 	}
