@@ -291,6 +291,26 @@ static inline void b_reset(struct buffer *b)
 	b->p = b_orig(b);
 }
 
+/* b_sub() : decreases the buffer length by <count> */
+static inline void b_sub(struct buffer *b, size_t count)
+{
+	b->i -= count;
+}
+
+/* b_add() : increase the buffer length by <count> */
+static inline void b_add(struct buffer *b, size_t count)
+{
+	b->i += count;
+}
+
+/* bo_add() : increase the buffer output and length by <count>
+ * (LEGACY API)
+ */
+static inline void bo_add(struct buffer *b, size_t count)
+{
+	b->o += count;
+}
+
 
 #endif /* _COMMON_BUF_H */
 
