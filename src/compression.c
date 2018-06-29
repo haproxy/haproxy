@@ -343,11 +343,11 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	in_len = comp_ctx->direct_len;
 
 	if (comp_ctx->queued) {
-		in_ptr = comp_ctx->queued->p;
-		in_len = comp_ctx->queued->i;
+		in_ptr = b_head(comp_ctx->queued);
+		in_len = b_data(comp_ctx->queued);
 	}
 
-	out_len = out->i;
+	out_len = b_data(out);
 
 	if (in_ptr)
 		b_add(out, slz_encode(strm, b_tail(out), in_ptr, in_len, !finish));
@@ -355,7 +355,7 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	if (finish)
 		b_add(out, slz_finish(strm, b_tail(out)));
 
-	out_len = out->i - out_len;
+	out_len = b_data(out) - out_len;
 
 	/* very important, we must wipe the data we've just flushed */
 	comp_ctx->direct_len = 0;

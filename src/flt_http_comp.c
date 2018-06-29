@@ -56,7 +56,7 @@ static int select_compression_response_header(struct comp_state *st,
 					      struct stream *s,
 					      struct http_msg *msg);
 
-static int http_compression_buffer_init(struct buffer *in, struct buffer *out);
+static int http_compression_buffer_init(struct channel *inc, struct buffer *out);
 static int http_compression_buffer_add_data(struct comp_state *st,
 					    struct buffer *in,
 					    struct buffer *out, int sz);
@@ -178,12 +178,11 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
 	struct channel    *chn = msg->chn;
-	struct buffer     *buf = chn->buf;
 	unsigned int      *nxt = &flt_rsp_nxt(filter);
 	unsigned int       len;
 	int                ret;
 
-	len = MIN(msg->chunk_len + msg->next, buf->i) - *nxt;
+	len = MIN(msg->chunk_len + msg->next, ci_data(chn)) - *nxt;
 	if (!len)
 		return len;
 
@@ -192,7 +191,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 
 		b_reset(tmpbuf);
 		c_adv(chn, fwd);
-		ret = http_compression_buffer_init(buf, zbuf);
+		ret = http_compression_buffer_init(chn, zbuf);
 		c_rew(chn, fwd);
 		if (ret < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
@@ -209,7 +208,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 		block = ci_contig_data(chn);
 		memcpy(b_tail(tmpbuf), ci_head(chn), block);
 		if (len > block)
-			memcpy(b_tail(tmpbuf)+block, buf->data, len-block);
+			memcpy(b_tail(tmpbuf)+block, b_orig(chn->buf), len-block);
 		c_rew(chn, *nxt);
 
 		b_add(tmpbuf, len);
@@ -217,7 +216,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 	}
 	else {
 		c_adv(chn, *nxt);
-		ret = http_compression_buffer_add_data(st, buf, zbuf, len);
+		ret = http_compression_buffer_add_data(st, chn->buf, zbuf, len);
 		c_rew(chn, *nxt);
 		if (ret < 0)
 			return ret;
@@ -243,7 +242,7 @@ comp_http_chunk_trailers(struct stream *s, struct filter *filter,
 
 			b_reset(tmpbuf);
 			c_adv(chn, fwd);
-			http_compression_buffer_init(chn->buf, zbuf);
+			http_compression_buffer_init(chn, zbuf);
 			c_rew(chn, fwd);
 			st->initialized = 1;
 		}
@@ -348,7 +347,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 				  struct http_msg *msg)
 {
 	struct http_txn *txn = s->txn;
-	struct buffer *req = msg->chn->buf;
+	struct channel *req = msg->chn;
 	struct hdr_ctx ctx;
 	struct comp_algo *comp_algo = NULL;
 	struct comp_algo *comp_algo_back = NULL;
@@ -358,7 +357,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 	 * See http://zoompf.com/2012/02/lose-the-wait-http-compression for more details.
 	 */
 	ctx.idx = 0;
-	if (http_find_header2("User-Agent", 10, req->p, &txn->hdr_idx, &ctx) &&
+	if (http_find_header2("User-Agent", 10, ci_head(req), &txn->hdr_idx, &ctx) &&
 	    ctx.vlen >= 9 &&
 	    memcmp(ctx.line + ctx.val, "Mozilla/4", 9) == 0 &&
 	    (ctx.vlen < 31 ||
@@ -376,7 +375,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 		int best_q = 0;
 
 		ctx.idx = 0;
-		while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
+		while (http_find_header2("Accept-Encoding", 15, ci_head(req), &txn->hdr_idx, &ctx)) {
 			const char *qval;
 			int q;
 			int toklen;
@@ -434,7 +433,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 		    (strm_fe(s)->comp && strm_fe(s)->comp->offload)) {
 			http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			ctx.idx = 0;
-			while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
+			while (http_find_header2("Accept-Encoding", 15, ci_head(req), &txn->hdr_idx, &ctx)) {
 				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			}
 		}
@@ -464,7 +463,7 @@ static int
 select_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct http_txn *txn = s->txn;
-	struct buffer *res = msg->chn->buf;
+	struct channel *c = msg->chn;
 	struct hdr_ctx ctx;
 	struct comp_type *comp_type;
 
@@ -493,12 +492,12 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 
 	/* content is already compressed */
 	ctx.idx = 0;
-	if (http_find_header2("Content-Encoding", 16, res->p, &txn->hdr_idx, &ctx))
+	if (http_find_header2("Content-Encoding", 16, ci_head(c), &txn->hdr_idx, &ctx))
 		goto fail;
 
 	/* no compression when Cache-Control: no-transform is present in the message */
 	ctx.idx = 0;
-	while (http_find_header2("Cache-Control", 13, res->p, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2("Cache-Control", 13, ci_head(c), &txn->hdr_idx, &ctx)) {
 		if (word_match(ctx.line + ctx.val, ctx.vlen, "no-transform", 12))
 			goto fail;
 	}
@@ -511,7 +510,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	 * the priority.
 	 */
 	ctx.idx = 0;
-	if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
+	if (http_find_header2("Content-Type", 12, ci_head(c), &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 9 && strncasecmp("multipart", ctx.line+ctx.val, 9) == 0)
 			goto fail;
 
@@ -549,7 +548,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 
 	/* remove Content-Length header */
 	ctx.idx = 0;
-	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))
+	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, ci_head(c), &txn->hdr_idx, &ctx))
 		http_remove_header2(msg, &txn->hdr_idx, &ctx);
 
 	/* add Transfer-Encoding header */
@@ -602,13 +601,13 @@ http_emit_chunk_size(char *end, unsigned int chksz)
  * Init HTTP compression
  */
 static int
-http_compression_buffer_init(struct buffer *in, struct buffer *out)
+http_compression_buffer_init(struct channel *inc, struct buffer *out)
 {
 	/* output stream requires at least 10 bytes for the gzip header, plus
 	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
 	 * plus at most 5 bytes per 32kB block and 2 bytes to close the stream.
 	 */
-	if (b_room(in) < 20 + 5 * ((in->i + 32767) >> 15))
+	if (c_room(inc) < 20 + 5 * ((ci_data(inc) + 32767) >> 15))
 		return -1;
 
 	/* prepare an empty output buffer in which we reserve enough room for
@@ -617,7 +616,7 @@ http_compression_buffer_init(struct buffer *in, struct buffer *out)
 	 * cancel the operation later, it's cheap.
 	 */
 	b_reset(out);
-	out->o = in->o;
+	out->o = co_data(inc);
 	out->p += out->o;
 	out->i = 10;
 	return 0;
@@ -687,7 +686,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 		return -1; /* flush failed */
 
 #endif /* USE_ZLIB */
-	if (ob->i == 10) {
+	if (b_data(ob) == 0) {
 		/* No data were appended, let's drop the output buffer and
 		 * keep the input buffer unchanged.
 		 */
