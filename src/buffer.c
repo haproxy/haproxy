@@ -28,8 +28,8 @@ struct pool_head *pool_head_buffer;
  * what channel wants a buffer. They can reliably be exchanged, the split
  * between the two is only an optimization.
  */
-struct buffer buf_empty  = { .p = buf_empty.data };
-struct buffer buf_wanted = { .p = buf_wanted.data };
+struct buffer buf_empty  = {  };
+struct buffer buf_wanted = {  };
 
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);

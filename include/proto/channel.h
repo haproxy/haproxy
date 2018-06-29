@@ -128,7 +128,7 @@ static inline size_t c_full(const struct channel *c)
 /* co_data() : returns the amount of output data in the channel's buffer */
 static inline size_t co_data(const struct channel *c)
 {
-	return c->buf->o;
+	return c->buf->output;
 }
 
 /* ci_data() : returns the amount of input data in the channel's buffer */
@@ -170,11 +170,7 @@ static inline char *c_ptr(const struct channel *c, ssize_t ofs)
  */
 static inline void c_adv(struct channel *c, size_t adv)
 {
-	struct buffer *b = c->buf;
-
-	b->p = c_ptr(c, adv);
-	b->i -= adv;
-	b->o += adv;
+	c->buf->output += adv;
 }
 
 /* c_rew() : rewinds the channel's buffer by <adv> bytes, which means that the
@@ -184,11 +180,7 @@ static inline void c_adv(struct channel *c, size_t adv)
  */
 static inline void c_rew(struct channel *c, size_t adv)
 {
-	struct buffer *b = c->buf;
-
-	b->p = c_ptr(c, (int)-adv);
-	b->i += adv;
-	b->o -= adv;
+	c->buf->output -= adv;
 }
 
 /* c_realign_if_empty() : realign the channel's buffer if it's empty */
@@ -200,7 +192,8 @@ static inline void c_realign_if_empty(struct channel *chn)
 /* Sets the amount of output for the channel */
 static inline void co_set_data(struct channel *c, size_t output)
 {
-	c->buf->o = output;
+	c->buf->len += output - c->buf->output;
+	c->buf->output = output;
 }
 
 
@@ -750,7 +743,7 @@ static inline void channel_truncate(struct channel *chn)
 	if (!ci_data(chn))
 		return;
 
-	chn->buf->i = 0;
+	chn->buf->len = co_data(chn);
 }
 
 /* This function realigns a possibly wrapping channel buffer so that the input

@@ -32,10 +32,10 @@
 
 /* Structure defining a buffer's head */
 struct buffer {
-	char *p;                    /* buffer's start pointer, separates in and out data */
+	size_t head;                /* start offset of remaining data relative to data */
+	size_t len;                 /* length of data after head */
 	size_t size;                /* buffer size in bytes */
-	size_t i;                   /* number of input bytes pending for analysis in the buffer */
-	size_t o;                   /* number of out bytes the sender can consume from this buffer */
+	size_t output;              /* TEMPORARY: part of <len> which is to be forwarded */
 	char data[0];               /* <size> bytes of stored data */
 };
 
@@ -73,7 +73,7 @@ static inline char *b_wrap(const struct buffer *b)
 /* b_data() : returns the number of bytes present in the buffer. */
 static inline size_t b_data(const struct buffer *b)
 {
-	return b->i + b->o;
+	return b->len;
 }
 
 /* b_room() : returns the amount of room left in the buffer */
@@ -95,12 +95,12 @@ static inline size_t b_full(const struct buffer *b)
  */
 static inline size_t __b_stop_ofs(const struct buffer *b)
 {
-	return b->p - b->data + b->i;
+	return b->head + b->len;
 }
 
 static inline const char *__b_stop(const struct buffer *b)
 {
-	return b->p + b->i;
+	return b_orig(b) + __b_stop_ofs(b);
 }
 
 static inline size_t b_stop_ofs(const struct buffer *b)
@@ -114,7 +114,7 @@ static inline size_t b_stop_ofs(const struct buffer *b)
 
 static inline const char *b_stop(const struct buffer *b)
 {
-	return b->data + b_stop_ofs(b);
+	return b_orig(b) + b_stop_ofs(b);
 }
 
 
@@ -125,32 +125,27 @@ static inline const char *b_stop(const struct buffer *b)
  */
 static inline size_t __b_peek_ofs(const struct buffer *b, size_t ofs)
 {
-	return b->p - b->data + ofs - b->o;
+	return b->head + ofs;
 }
 
 static inline char *__b_peek(const struct buffer *b, size_t ofs)
 {
-	return b->p - b->o + ofs;
+	return b_orig(b) + __b_peek_ofs(b, ofs);
 }
 
 static inline size_t b_peek_ofs(const struct buffer *b, size_t ofs)
 {
 	size_t ret = __b_peek_ofs(b, ofs);
 
-	if (ret >= b->size) {
-		/* wraps either up or down */
-		if ((ssize_t)ret < 0)
-			ret += b->size;
-		else
-			ret -= b->size;
-	}
+	if (ret >= b->size)
+		ret -= b->size;
 
 	return ret;
 }
 
 static inline char *b_peek(const struct buffer *b, size_t ofs)
 {
-	return (char *)b->data + b_peek_ofs(b, ofs);
+	return b_orig(b) + b_peek_ofs(b, ofs);
 }
 
 
@@ -160,22 +155,22 @@ static inline char *b_peek(const struct buffer *b, size_t ofs)
  */
 static inline size_t __b_head_ofs(const struct buffer *b)
 {
-	return __b_peek_ofs(b, 0);
+	return b->head;
 }
 
 static inline char *__b_head(const struct buffer *b)
 {
-	return __b_peek(b, 0);
+	return b_orig(b) + __b_head_ofs(b);
 }
 
 static inline size_t b_head_ofs(const struct buffer *b)
 {
-	return b_peek_ofs(b, 0);
+	return __b_head_ofs(b);
 }
 
 static inline char *b_head(const struct buffer *b)
 {
-	return b_peek(b, 0);
+	return __b_head(b);
 }
 
 
@@ -248,20 +243,11 @@ static inline int b_almost_full(const struct buffer *b)
 }
 
 /* b_space_wraps() : returns non-zero only if the buffer's free space wraps :
- *  [     |oooo|           ]    => yes
- *  [          |iiii|      ]    => yes
- *  [     |oooo|iiii|      ]    => yes
- *  [oooo|                 ]    => no
- *  [                 |oooo]    => no
- *  [iiii|                 ]    => no
- *  [                 |iiii]    => no
- *  [oooo|iiii|            ]    => no
- *  [            |oooo|iiii]    => no
- *  [iiii|            |oooo]    => no
- *  [oo|iiii|           |oo]    => no
- *  [iiii|           |oo|ii]    => no
- *  [oooooooooo|iiiiiiiiiii]    => no
- *  [iiiiiiiiiiiii|oooooooo]    => no
+ *  [     |xxxx|           ]    => yes
+ *  [xxxx|                 ]    => no
+ *  [                 |xxxx]    => no
+ *  [xxxx|            |xxxx]    => no
+ *  [xxxxxxxxxx|xxxxxxxxxxx]    => no
  *
  *  So the only case where the buffer does not wrap is when there's data either
  *  at the beginning or at the end of the buffer. Thus we have this :
@@ -379,32 +365,29 @@ static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, si
 /* b_reset() : resets a buffer. The size is not touched. */
 static inline void b_reset(struct buffer *b)
 {
-	b->o = 0;
-	b->i = 0;
-	b->p = b_orig(b);
+	b->head = 0;
+	b->len  = 0;
+	b->output = 0;
 }
 
 /* b_sub() : decreases the buffer length by <count> */
 static inline void b_sub(struct buffer *b, size_t count)
 {
-	b->i -= count;
+	b->len -= count;
 }
 
 /* b_add() : increase the buffer length by <count> */
 static inline void b_add(struct buffer *b, size_t count)
 {
-	b->i += count;
+	b->len += count;
 }
 
 /* b_set_data() : sets the buffer's length */
 static inline void b_set_data(struct buffer *b, size_t len)
 {
-	if (len >= b->o)
-		b->i = len - b->o;
-	else {
-		b->o = len;
-		b->i = 0;
-	}
+	if (len < b->output)
+		b->output = len;
+	b->len = len;
 }
 
 /* b_del() : skips <del> bytes in a buffer <b>. Covers both the output and the
@@ -413,22 +396,21 @@ static inline void b_set_data(struct buffer *b, size_t len)
  */
 static inline void b_del(struct buffer *b, size_t del)
 {
-	if (del <= b->o) {
-		b->o -= del;
-		del = 0;
-	}
-	if (del) {
-		b->p = b_peek(b, del);
-		b->i -= del;
-		del = 0;
-	}
+	if (del >= b->output)
+		b->output = 0;
+	else
+		b->output -= del;
+	b->len  -= del;
+	b->head += del;
+	if (b->head >= b->size)
+		b->head -= b->size;
 }
 
 /* b_realign_if_empty() : realigns a buffer if it's empty */
 static inline void b_realign_if_empty(struct buffer *b)
 {
 	if (!b_data(b))
-		b->p = b->data;
+		b->head = 0;
 }
 
 /* b_slow_realign() : this function realigns a possibly wrapping buffer so that
@@ -470,7 +452,7 @@ static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
 	memcpy(b_orig(b), swap, b_data(b) - output);
 	memcpy(b_wrap(b) - output, swap + b_size(b) - output, output);
 
-	b->p = b->data;
+	b->head = b_size(b) - output;
 }
 
 #endif /* _COMMON_BUF_H */

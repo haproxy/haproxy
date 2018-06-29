@@ -104,16 +104,14 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	return b_almost_full(buf);
 }
 
-/* Cut the first <n> pending bytes in a contiguous buffer. It is illegal to
- * call this function with remaining data waiting to be sent (o > 0). The
- * caller must ensure that <n> is smaller than the actual buffer's length.
- * This is mainly used to remove empty lines at the beginning of a request
- * or a response.
+/* Cut the first <n> pending bytes in a contiguous buffer. The caller must
+ * ensure that <n> is smaller than the actual buffer's length. This is mainly
+ * used to remove empty lines at the beginning of a request or a response.
  */
 static inline void bi_fast_delete(struct buffer *buf, int n)
 {
-	buf->i -= n;
-	buf->p += n;
+	buf->len  -= n;
+	buf->head += n;
 }
 
 /* This function writes the string <str> at position <pos> which must be in
@@ -128,16 +126,16 @@ static inline int buffer_replace(struct buffer *b, char *pos, char *end, const c
 	return buffer_replace2(b, pos, end, str, strlen(str));
 }
 
-/* Tries to write char <c> into output data at buffer <b>. Supports wrapping.
- * Data are truncated if buffer is full.
+/* Tries to append char <c> at the end of buffer <b>. Supports wrapping. Data
+ * are truncated if buffer is full.
  */
 static inline void bo_putchr(struct buffer *b, char c)
 {
 	if (b_data(b) == b->size)
 		return;
 	*b_tail(b) = c;
-	b->p = b_peek(b, b->o + 1);
-	b->o++;
+	b->len++;
+	b->output++;
 }
 
 /* Tries to append block <blk> at the end of buffer <b>. Supports wrapping.
@@ -158,13 +156,12 @@ static inline unsigned int bo_putblk(struct buffer *b, const char *blk, unsigned
 		half = len;
 
 	memcpy(b_tail(b), blk, half);
-	b->p = b_peek(b, b->o + half);
-	b->o += half;
+	b->len += half;
 	if (len > half) {
 		memcpy(b_tail(b), blk + half, len - half);
-		b->p = b_peek(b, b->o + len - half);
-		b->o += len - half;
+		b->len += len - half;
 	}
+	b->output += len;
 	return len;
 }
 
@@ -194,7 +191,7 @@ static inline void bi_putchr(struct buffer *b, char c)
 	if (b_data(b) == b->size)
 		return;
 	*b_tail(b) = c;
-	b->i++;
+	b->len++;
 }
 
 /* Tries to append block <blk> at the end of buffer <b>. Supports wrapping.
@@ -215,10 +212,10 @@ static inline unsigned int bi_putblk(struct buffer *b, const char *blk, unsigned
 		half = len;
 
 	memcpy(b_tail(b), blk, half);
-	b->i += half;
+	b->len += half;
 	if (len > half) {
 		memcpy(b_tail(b), blk + half, len - half);
-		b->i += len - half;
+		b->len += len - half;
 	}
 	return len;
 }
@@ -443,7 +440,7 @@ static inline int bi_istput(struct buffer *b, const struct ist ist)
 		return r.len < b->size ? 0 : -1;
 
 	p = b_tail(b);
-	b->i += r.len;
+	b->len += r.len;
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
@@ -472,8 +469,8 @@ static inline int bo_istput(struct buffer *b, const struct ist ist)
 		return r.len < b->size ? 0 : -1;
 
 	p = b_tail(b);
-	b->p = b_peek(b, b->o + r.len);
-	b->o += r.len;
+	b->len += r.len;
+	b->output += r.len;
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))

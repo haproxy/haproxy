@@ -38,6 +38,7 @@ static struct pool_head *pool_head_comp_state = NULL;
 
 static THREAD_LOCAL struct buffer *tmpbuf = &buf_empty;
 static THREAD_LOCAL struct buffer *zbuf   = &buf_empty;
+static THREAD_LOCAL unsigned int buf_output;
 
 struct comp_state {
 	struct comp_ctx  *comp_ctx;   /* compression context */
@@ -56,13 +57,14 @@ static int select_compression_response_header(struct comp_state *st,
 					      struct stream *s,
 					      struct http_msg *msg);
 
-static int http_compression_buffer_init(struct channel *inc, struct buffer *out);
+static int http_compression_buffer_init(struct channel *inc, struct buffer *out, unsigned int *out_len);
 static int http_compression_buffer_add_data(struct comp_state *st,
 					    struct buffer *in,
+					    int in_out,
 					    struct buffer *out, int sz);
 static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 				       struct channel *chn, struct buffer **out,
-				       int end);
+				       unsigned int *out_len, int end);
 
 /***********************************************************************/
 static int
@@ -191,7 +193,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 
 		b_reset(tmpbuf);
 		c_adv(chn, fwd);
-		ret = http_compression_buffer_init(chn, zbuf);
+		ret = http_compression_buffer_init(chn, zbuf, &buf_output);
 		c_rew(chn, fwd);
 		if (ret < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
@@ -216,7 +218,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 	}
 	else {
 		c_adv(chn, *nxt);
-		ret = http_compression_buffer_add_data(st, chn->buf, zbuf, len);
+		ret = http_compression_buffer_add_data(st, chn->buf, co_data(chn), zbuf, len);
 		c_rew(chn, *nxt);
 		if (ret < 0)
 			return ret;
@@ -242,7 +244,7 @@ comp_http_chunk_trailers(struct stream *s, struct filter *filter,
 
 			b_reset(tmpbuf);
 			c_adv(chn, fwd);
-			http_compression_buffer_init(chn, zbuf);
+			http_compression_buffer_init(chn, zbuf, &buf_output);
 			c_rew(chn, fwd);
 			st->initialized = 1;
 		}
@@ -296,17 +298,18 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 	}
 
 	if (msg->flags & HTTP_MSGF_TE_CHNK) {
-		ret = http_compression_buffer_add_data(st, tmpbuf, zbuf, tmpbuf->i);
-		if (ret != tmpbuf->i) {
+		ret = http_compression_buffer_add_data(st, tmpbuf, 0,
+		    zbuf, b_data(tmpbuf));
+		if (ret != b_data(tmpbuf)) {
 			ha_warning("HTTP compression failed: Must consume %u bytes but only %d bytes consumed\n",
-				   (unsigned int)tmpbuf->i, ret);
+				   (unsigned int)b_data(tmpbuf), ret);
 			return -1;
 		}
 	}
 
 	st->consumed = len - st->hdrs_len - st->tlrs_len;
 	c_adv(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
-	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
+	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, &buf_output, msg->msg_state >= HTTP_MSG_TRAILERS);
 	c_rew(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
 	if (ret < 0)
 		return ret;
@@ -601,7 +604,7 @@ http_emit_chunk_size(char *end, unsigned int chksz)
  * Init HTTP compression
  */
 static int
-http_compression_buffer_init(struct channel *inc, struct buffer *out)
+http_compression_buffer_init(struct channel *inc, struct buffer *out, unsigned int *out_len)
 {
 	/* output stream requires at least 10 bytes for the gzip header, plus
 	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
@@ -616,9 +619,8 @@ http_compression_buffer_init(struct channel *inc, struct buffer *out)
 	 * cancel the operation later, it's cheap.
 	 */
 	b_reset(out);
-	out->o = co_data(inc);
-	out->p += out->o;
-	out->i = 10;
+	*out_len = co_data(inc);
+	out->head += *out_len + 10;
 	return 0;
 }
 
@@ -627,7 +629,7 @@ http_compression_buffer_init(struct channel *inc, struct buffer *out)
  */
 static int
 http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
-				 struct buffer *out, int sz)
+				 int in_out, struct buffer *out, int sz)
 {
 	int consumed_data = 0;
 	int data_process_len;
@@ -643,15 +645,15 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 	data_process_len = MIN(b_room(out), sz);
 
 	block1 = data_process_len;
-	if (block1 > b_contig_data(in, in->o))
-		block1 = b_contig_data(in, in->o);
+	if (block1 > b_contig_data(in, in_out))
+		block1 = b_contig_data(in, in_out);
 	block2 = data_process_len - block1;
 
 	/* compressors return < 0 upon error or the amount of bytes read */
-	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_peek(in, in->o), block1, out);
+	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_head(in) + in_out, block1, out);
 	if (consumed_data != block1 || !block2)
 		goto end;
-	consumed_data = st->comp_algo->add_data(st->comp_ctx, in->data, block2, out);
+	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_peek(in, 0), block2, out);
 	if (consumed_data < 0)
 		goto end;
 	consumed_data += block1;
@@ -667,11 +669,12 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 static int
 http_compression_buffer_end(struct comp_state *st, struct stream *s,
 			    struct channel *chn, struct buffer **out,
-			    int end)
+			    unsigned int *buf_out, int end)
 {
-	struct buffer *ib = chn->buf, *ob = *out;
+	struct buffer *ob = *out;
 	char *tail;
 	int   to_forward, left;
+	unsigned int tmp_out;
 
 #if defined(USE_SLZ) || defined(USE_ZLIB)
 	int ret;
@@ -701,35 +704,38 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	 *       +---------+---+------------+-----------+
 	 *     data        p                           size
 	 *
-	 * <out> is the room reserved to copy ib->o. It starts at ob->data and
-	 * has not yet been filled. <c> is the room reserved to write the chunk
-	 * size (10 bytes). <comp_in> is the compressed equivalent of the data
-	 * part of ib->i. <empty> is the amount of empty bytes at the end of
-	 * the buffer, into which we may have to copy the remaining bytes from
-	 * ib->i after the data (chunk size, trailers, ...).
+	 * <out> is the room reserved to copy the channel output. It starts at
+	 * ob->data and has not yet been filled. <c> is the room reserved to
+	 * write the chunk size (10 bytes). <comp_in> is the compressed
+	 * equivalent of the data part of ib->len. <empty> is the amount of
+	 * empty bytes at the end of  the buffer, into which we may have to
+	 * copy the remaining bytes from ib->len after the data
+	 * (chunk size, trailers, ...).
 	 */
 
 	/* Write real size at the begining of the chunk, no need of wrapping.
 	 * We write the chunk using a dynamic length and adjust ob->p and ob->i
 	 * accordingly afterwards. That will move <out> away from <data>.
 	 */
-	left = 10 - http_emit_chunk_size(ob->p + 10, ob->i - 10);
-	ob->p += left;
-	ob->i -= left;
+	left = http_emit_chunk_size(b_head(ob), b_data(ob));
+	b_add(ob, left);
+	ob->head -= *buf_out + (left);
+	/* Copy previous data from chn into ob */
+	if (co_data(chn) > 0) {
+		left = b_contig_data(chn->buf, 0);
+		if (left > *buf_out)
+			left = *buf_out;
 
-	/* Copy previous data from ib->o into ob->o */
-	if (ib->o > 0) {
-		left = b_contig_data(ib, 0);
-		if (left > ib->o)
-			left = ib->o;
-
-		memcpy(ob->p - ob->o, b_head(ib), left);
-		if (ib->o - left) /* second part of the buffer */
-			memcpy(ob->p - ob->o + left, ib->data, ib->o - left);
+		memcpy(b_head(ob), co_head(chn), left);
+		b_add(ob, left);
+		if (co_data(chn) - left) {/* second part of the buffer */
+			memcpy(b_head(ob) + left, b_orig(chn->buf), co_data(chn) - left);
+			b_add(ob, co_data(chn) - left);
+		}
 	}
 
 	/* chunked encoding requires CRLF after data */
-	tail = ob->p + ob->i;
+	tail = b_tail(ob);
 	*tail++ = '\r';
 	*tail++ = '\n';
 
@@ -751,8 +757,8 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 		}
 	}
 
-	ob->i = tail - ob->p;
-	to_forward = ob->i;
+	b_add(ob, tail - b_tail(ob));
+	to_forward = b_data(ob) - *buf_out;
 
 	/* update input rate */
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
@@ -766,19 +772,22 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 
 	/* copy the remaining data in the tmp buffer. */
 	c_adv(chn, st->consumed);
-	if (ib->i > 0) {
+	if (b_data(chn->buf) - co_data(chn) > 0) {
 		left = ci_contig_data(chn);
-		memcpy(ob->p + ob->i, ci_head(chn), left);
+		memcpy(b_tail(ob), ci_head(chn), left);
 		b_add(ob, left);
-		if (ib->i - left) {
-			memcpy(ob->p + ob->i, ib->data, ib->i - left);
-			b_add(ob, ib->i - left);
+		if (b_data(chn->buf) - (co_data(chn) + left)) {
+			memcpy(b_tail(ob), b_orig(chn->buf), b_data(chn->buf) - left);
+			b_add(ob, b_data(chn->buf) - left);
 		}
 	}
-
 	/* swap the buffers */
+	*out = chn->buf;
 	chn->buf = ob;
-	*out = ib;
+	tmp_out = chn->buf->output;
+	chn->buf->output = *buf_out;
+	*buf_out = tmp_out;
+
 
 
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
