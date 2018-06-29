@@ -198,6 +198,12 @@ static inline void c_realign_if_empty(struct channel *chn)
 	b_realign_if_empty(chn->buf);
 }
 
+/* Sets the amount of output for the channel */
+static inline void co_set_data(struct channel *c, size_t output)
+{
+	c->buf->o = output;
+}
+
 
 /* co_head() : returns a pointer to the beginning of output data in the buffer.
  *             The "__" variants don't support wrapping, "ofs" are relative to
