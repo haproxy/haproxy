@@ -6663,13 +6663,13 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 			len2 = 0;
 		if (ret == 0)
 			len1 = 0;
-		if (len1 + len2 < strm->txn->req.eoh + 2) {
+		if (len1 + len2 < strm->txn->req.eoh + strm->txn->req.eol) {
 			si_applet_cant_get(si);
 			return;
 		}
 
 		/* skip the requests bytes. */
-		co_skip(si_oc(si), strm->txn->req.eoh + 2);
+		co_skip(si_oc(si), strm->txn->req.eoh + strm->txn->req.eol);
 	}
 
 	/* Executes The applet if it is not done. */
