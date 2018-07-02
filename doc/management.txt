@@ -2130,6 +2130,7 @@ show servers state [<backend>]
                                   configuration.
      srv_fqdn:                    Server FQDN.
      srv_port:                    Server port.
+     srvrecord:                   DNS SRV record associated to this SRV.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can

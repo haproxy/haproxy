@@ -126,10 +126,11 @@ enum srv_initaddr {
     "bk_f_forced_id "             \
     "srv_f_forced_id "            \
     "srv_fqdn "                   \
-    "srv_port"
+    "srv_port "                   \
+    "srvrecord"
 
-#define SRV_STATE_FILE_MAX_FIELDS 19
-#define SRV_STATE_FILE_NB_FIELDS_VERSION_1 18
+#define SRV_STATE_FILE_MAX_FIELDS 20
+#define SRV_STATE_FILE_NB_FIELDS_VERSION_1 19
 #define SRV_STATE_LINE_MAXLEN 512
 
 /* server flags -- 32 bits */

@@ -2758,6 +2758,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	const char *fqdn;
 	const char *port_str;
 	unsigned int port;
+	char *srvrecord;
 
 	fqdn = NULL;
 	port = 0;
@@ -2781,6 +2782,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 * srv_f_forced_id:      params[12]
 			 * srv_fqdn:             params[13]
 			 * srv_port:             params[14]
+			 * srvrecord:            params[15]
 			 */
 
 			/* validating srv_op_state */
@@ -2913,6 +2915,13 @@ static void srv_update_state(struct server *srv, int version, char **params)
 				}
 			}
 
+			/* SRV record
+			 * NOTE: in HAProxy, SRV records must start with an underscore '_'
+			 */
+			srvrecord = params[15];
+			if (srvrecord && *srvrecord != '_')
+				srvrecord = NULL;
+
 			/* don't apply anything if one error has been detected */
 			if (msg->data)
 				goto out;
@@ -3044,6 +3053,48 @@ static void srv_update_state(struct server *srv, int version, char **params)
 						srv->next_admin |= SRV_ADMF_HMAINT;
 					}
 				}
+			}
+			/* If all the conditions below are validated, this means
+			 * we're evaluating a server managed by SRV resolution
+			 */
+			else if (fqdn && !srv->hostname && srvrecord) {
+				int res;
+
+				/* we can't apply previous state if SRV record has changed */
+				if (srv->srvrq && strcmp(srv->srvrq->name, srvrecord) != 0) {
+					chunk_appendf(msg, ", SRV record mismatch between configuration ('%s') and state file ('%s) for server '%s'. Previous state not applied", srv->srvrq->name, srvrecord, srv->id);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					goto out;
+				}
+
+				/* create or find a SRV resolution for this srv record */
+				if (srv->srvrq == NULL && (srv->srvrq = find_srvrq_by_name(srvrecord, srv->proxy)) == NULL)
+					srv->srvrq = new_dns_srvrq(srv, srvrecord);
+				if (srv->srvrq == NULL) {
+					chunk_appendf(msg, ", can't create or find SRV resolution '%s' for server '%s'", srvrecord, srv->id);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					goto out;
+				}
+
+				/* prepare DNS resolution for this server */
+				res = srv_prepare_for_resolution(srv, fqdn);
+				if (res == -1) {
+					chunk_appendf(msg, ", can't allocate memory for DNS resolution for server '%s'", srv->id);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					goto out;
+				}
+
+				/* configure check.port accordingly */
+				if ((srv->check.state & CHK_ST_CONFIGURED) &&
+				    !(srv->flags & SRV_F_CHECKPORT))
+					srv->check.port = port;
+
+				/* Unset SRV_F_MAPPORTS for SRV records.
+				 * SRV_F_MAPPORTS is unfortunately set by parse_server()
+				 * because no ports are provided in the configuration file.
+				 * This is because HAProxy will use the port found into the SRV record.
+				 */
+				srv->flags &= ~SRV_F_MAPPORTS;
 			}
 
 			if (port_str)
@@ -3301,6 +3352,7 @@ void apply_server_state(void)
 							 * srv_f_forced_id:      params[16] => srv_params[12]
 							 * srv_fqdn:             params[17] => srv_params[13]
 							 * srv_port:             params[18] => srv_params[14]
+							 * srvrecord:            params[19] => srv_params[15]
 							 */
 							if (arg >= 4) {
 								srv_params[srv_arg] = cur;
