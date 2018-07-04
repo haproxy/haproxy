@@ -2775,10 +2775,10 @@ int main(int argc, char **argv)
 				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
 				protocol_unbind_all();
 				exit(1); /* there has been an error */
-			}
-			/* parent leave to daemonize */
-			if (ret > 0)
+			} else if (ret > 0) { /* parent leave to daemonize */
 				exit(0);
+			} else /* change the process group ID in the child (master process) */
+				setsid();
 		}
 
 		if (global.mode & MODE_MWORKER) {
@@ -2880,7 +2880,6 @@ int main(int argc, char **argv)
 
 					global.mode &= ~MODE_VERBOSE;
 					global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-					setsid();
 				}
 
 				mworker_wait();
@@ -3005,7 +3004,8 @@ int main(int argc, char **argv)
 			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 		}
 		pid = getpid(); /* update child's pid */
-		setsid();
+		if (!(global.mode & MODE_MWORKER)) /* in mworker mode we don't want a new pgid for the children */
+			setsid();
 		fork_poller();
 	}
 
