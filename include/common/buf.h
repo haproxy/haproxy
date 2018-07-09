@@ -396,14 +396,6 @@ static inline void b_add(struct buffer *b, size_t count)
 	b->i += count;
 }
 
-/* bo_add() : increase the buffer output and length by <count>
- * (LEGACY API)
- */
-static inline void bo_add(struct buffer *b, size_t count)
-{
-	b->o += count;
-}
-
 /* b_set_data() : sets the buffer's length */
 static inline void b_set_data(struct buffer *b, size_t len)
 {
