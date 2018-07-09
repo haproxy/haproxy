@@ -205,7 +205,7 @@ static inline void bo_putchr(struct buffer *b, char c)
 {
 	if (b_data(b) == b->size)
 		return;
-	*b->p = c;
+	*b_tail(b) = c;
 	b->p = b_peek(b, b->o + 1);
 	b->o++;
 }
