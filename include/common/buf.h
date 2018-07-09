@@ -396,10 +396,6 @@ static inline void b_set_data(struct buffer *b, size_t len)
  */
 static inline void b_del(struct buffer *b, size_t del)
 {
-	if (del >= b->output)
-		b->output = 0;
-	else
-		b->output -= del;
 	b->len  -= del;
 	b->head += del;
 	if (b->head >= b->size)

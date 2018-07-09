@@ -767,6 +767,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
 static inline void co_skip(struct channel *chn, int len)
 {
 	b_del(chn->buf, len);
+	chn->buf->output -= len;
 	c_realign_if_empty(chn);
 
 	/* notify that some data was written to the SI from the buffer */
