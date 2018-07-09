@@ -385,8 +385,6 @@ static inline void b_add(struct buffer *b, size_t count)
 /* b_set_data() : sets the buffer's length */
 static inline void b_set_data(struct buffer *b, size_t len)
 {
-	if (len < b->output)
-		b->output = len;
 	b->len = len;
 }
 
