@@ -140,17 +140,16 @@ static inline void bo_putchr(struct buffer *b, char c)
 	b->o++;
 }
 
-/* Tries to copy block <blk> into output data at buffer <b>. Supports wrapping.
+/* Tries to append block <blk> at the end of buffer <b>. Supports wrapping.
  * Data are truncated if buffer is too short. It returns the number of bytes
  * copied.
  */
-static inline int bo_putblk(struct buffer *b, const char *blk, int len)
+static inline unsigned int bo_putblk(struct buffer *b, const char *blk, unsigned int len)
 {
-	int cur_len = b_data(b);
-	int half;
+	unsigned int half;
 
-	if (len > b->size - cur_len)
-		len = (b->size - cur_len);
+	if (len > b_room(b))
+		len = b_room(b);
 	if (!len)
 		return 0;
 
@@ -158,11 +157,11 @@ static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 	if (half > len)
 		half = len;
 
-	memcpy(b->p, blk, half);
+	memcpy(b_tail(b), blk, half);
 	b->p = b_peek(b, b->o + half);
 	b->o += half;
 	if (len > half) {
-		memcpy(b->p, blk + half, len - half);
+		memcpy(b_tail(b), blk + half, len - half);
 		b->p = b_peek(b, b->o + len - half);
 		b->o += len - half;
 	}
@@ -198,17 +197,16 @@ static inline void bi_putchr(struct buffer *b, char c)
 	b->i++;
 }
 
-/* Tries to copy block <blk> into input data at buffer <b>. Supports wrapping.
+/* Tries to append block <blk> at the end of buffer <b>. Supports wrapping.
  * Data are truncated if buffer is too short. It returns the number of bytes
  * copied.
  */
-static inline int bi_putblk(struct buffer *b, const char *blk, int len)
+static inline unsigned int bi_putblk(struct buffer *b, const char *blk, unsigned int len)
 {
-	int cur_len = b_data(b);
 	int half;
 
-	if (len > b->size - cur_len)
-		len = (b->size - cur_len);
+	if (len > b_room(b))
+		len = b_room(b);
 	if (!len)
 		return 0;
 
@@ -217,9 +215,11 @@ static inline int bi_putblk(struct buffer *b, const char *blk, int len)
 		half = len;
 
 	memcpy(b_tail(b), blk, half);
-	if (len > half)
-		memcpy(b_peek(b, b->o + b->i + half), blk + half, len - half);
-	b->i += len;
+	b->i += half;
+	if (len > half) {
+		memcpy(b_tail(b), blk + half, len - half);
+		b->i += len - half;
+	}
 	return len;
 }
 
