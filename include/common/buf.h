@@ -32,11 +32,11 @@
 
 /* Structure defining a buffer's head */
 struct buffer {
-	size_t head;                /* start offset of remaining data relative to data */
+	size_t head;                /* start offset of remaining data relative to area */
 	size_t len;                 /* length of data after head */
 	size_t size;                /* buffer size in bytes */
 	size_t output;              /* TEMPORARY: part of <len> which is to be forwarded */
-	char data[0];               /* <size> bytes of stored data */
+	char   area[0];             /* <size> bytes of stored data */
 };
 
 
@@ -53,7 +53,7 @@ struct buffer {
  */
 static inline char *b_orig(const struct buffer *b)
 {
-	return (char *)b->data;
+	return (char *)b->area;
 }
 
 /* b_size() : returns the size of the buffer. */
@@ -67,7 +67,7 @@ static inline size_t b_size(const struct buffer *b)
  */
 static inline char *b_wrap(const struct buffer *b)
 {
-	return (char *)b->data + b->size;
+	return (char *)b->area + b->size;
 }
 
 /* b_data() : returns the number of bytes present in the buffer. */

@@ -705,7 +705,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	 *     data        p                           size
 	 *
 	 * <out> is the room reserved to copy the channel output. It starts at
-	 * ob->data and has not yet been filled. <c> is the room reserved to
+	 * ob->area and has not yet been filled. <c> is the room reserved to
 	 * write the chunk size (10 bytes). <comp_in> is the compressed
 	 * equivalent of the data part of ib->len. <empty> is the amount of
 	 * empty bytes at the end of  the buffer, into which we may have to
