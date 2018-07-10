@@ -193,7 +193,7 @@ static inline void c_realign_if_empty(struct channel *chn)
 /* Sets the amount of output for the channel */
 static inline void co_set_data(struct channel *c, size_t output)
 {
-	c->buf->len += output - c->output;
+	c->buf->data += output - c->output;
 	c->output = output;
 }
 
@@ -745,7 +745,7 @@ static inline void channel_truncate(struct channel *chn)
 	if (!ci_data(chn))
 		return;
 
-	chn->buf->len = co_data(chn);
+	chn->buf->data = co_data(chn);
 }
 
 /* This function realigns a possibly wrapping channel buffer so that the input

@@ -33,7 +33,7 @@
 /* Structure defining a buffer's head */
 struct buffer {
 	size_t head;                /* start offset of remaining data relative to area */
-	size_t len;                 /* length of data after head */
+	size_t data;                /* amount of data after head including wrapping */
 	size_t size;                /* buffer size in bytes */
 	char   area[0];             /* <size> bytes of stored data */
 };
@@ -72,7 +72,7 @@ static inline char *b_wrap(const struct buffer *b)
 /* b_data() : returns the number of bytes present in the buffer. */
 static inline size_t b_data(const struct buffer *b)
 {
-	return b->len;
+	return b->data;
 }
 
 /* b_room() : returns the amount of room left in the buffer */
@@ -94,7 +94,7 @@ static inline size_t b_full(const struct buffer *b)
  */
 static inline size_t __b_stop_ofs(const struct buffer *b)
 {
-	return b->head + b->len;
+	return b->head + b->data;
 }
 
 static inline const char *__b_stop(const struct buffer *b)
@@ -365,25 +365,25 @@ static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, si
 static inline void b_reset(struct buffer *b)
 {
 	b->head = 0;
-	b->len  = 0;
+	b->data = 0;
 }
 
 /* b_sub() : decreases the buffer length by <count> */
 static inline void b_sub(struct buffer *b, size_t count)
 {
-	b->len -= count;
+	b->data -= count;
 }
 
 /* b_add() : increase the buffer length by <count> */
 static inline void b_add(struct buffer *b, size_t count)
 {
-	b->len += count;
+	b->data += count;
 }
 
 /* b_set_data() : sets the buffer's length */
 static inline void b_set_data(struct buffer *b, size_t len)
 {
-	b->len = len;
+	b->data = len;
 }
 
 /* b_del() : skips <del> bytes in a buffer <b>. Covers both the output and the
@@ -392,7 +392,7 @@ static inline void b_set_data(struct buffer *b, size_t len)
  */
 static inline void b_del(struct buffer *b, size_t del)
 {
-	b->len  -= del;
+	b->data -= del;
 	b->head += del;
 	if (b->head >= b->size)
 		b->head -= b->size;
@@ -455,7 +455,7 @@ static inline void b_putchr(struct buffer *b, char c)
 	if (b_full(b))
 		return;
 	*b_tail(b) = c;
-	b->len++;
+	b->data++;
 }
 
 /* b_putblk() : tries to append block <blk> at the end of buffer <b>. Supports
@@ -476,10 +476,10 @@ static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 		half = len;
 
 	memcpy(b_tail(b), blk, half);
-	b->len += half;
+	b->data += half;
 	if (len > half) {
 		memcpy(b_tail(b), blk + half, len - half);
-		b->len += len - half;
+		b->data += len - half;
 	}
 	return len;
 }

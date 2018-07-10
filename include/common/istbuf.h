@@ -98,7 +98,7 @@ static inline ssize_t b_istput(struct buffer *b, const struct ist ist)
 		return r.len < b->size ? 0 : -1;
 
 	p = b_tail(b);
-	b->len += r.len;
+	b->data += r.len;
 	while (r.len--) {
 		*p++ = *r.ptr++;
 		if (unlikely(p == end))
