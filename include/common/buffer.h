@@ -104,16 +104,6 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	return b_almost_full(buf);
 }
 
-/* Cut the first <n> pending bytes in a contiguous buffer. The caller must
- * ensure that <n> is smaller than the actual buffer's length. This is mainly
- * used to remove empty lines at the beginning of a request or a response.
- */
-static inline void bi_fast_delete(struct buffer *buf, int n)
-{
-	buf->len  -= n;
-	buf->head += n;
-}
-
 /* This function writes the string <str> at position <pos> which must be in
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * (l, r, lr) are updated to be valid after the shift. the shift value

@@ -5405,7 +5405,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 	if (htxn->s->txn) {
 		/* HTTP mode, let's stay in sync with the stream */
-		bi_fast_delete(ic->buf, htxn->s->txn->req.sov);
+		b_del(ic->buf, htxn->s->txn->req.sov);
 		htxn->s->txn->req.next -= htxn->s->txn->req.sov;
 		htxn->s->txn->req.sov = 0;
 		ic->analysers &= AN_REQ_HTTP_XFER_BODY;

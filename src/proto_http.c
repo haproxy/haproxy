@@ -3385,7 +3385,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
 		co_inject(res->chn, chunk->str, chunk->len);
 		/* "eat" the request */
-		bi_fast_delete(req->chn->buf, req->sov);
+		b_del(req->chn->buf, req->sov);
 		req->next -= req->sov;
 		req->sov = 0;
 		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_REQ_FLT_END);

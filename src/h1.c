@@ -485,7 +485,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				if (co_data(msg->chn))
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - input);
+				b_del(buf, ptr - input);
 			}
 			msg->sol = 0;
 			msg->sl.st.l = 0; /* used in debug mode */
@@ -553,7 +553,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				if (co_data(msg->chn))
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - input);
+				b_del(buf, ptr - input);
 			}
 			msg->sol = 0;
 			msg->sl.rq.l = 0; /* used in debug mode */
