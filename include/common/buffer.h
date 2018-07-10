@@ -58,44 +58,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 /* These functions are used to compute various buffer area sizes */
 /*****************************************************************/
 
-
-
-/***** FIXME: OLD API BELOW *****/
-
-/* Normalizes a pointer after an addition */
-static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
-{
-	if (ptr - buf->size >= b_orig(buf))
-		ptr -= buf->size;
-	return ptr;
-}
-
-/* Normalizes a pointer which is supposed to be relative to the beginning of a
- * buffer, so that wrapping is correctly handled. The intent is to use this
- * when increasing a pointer. Note that the wrapping test is only performed
- * once, so the original pointer must be between ->data-size and ->data+2*size-1,
- * otherwise an invalid pointer might be returned.
- */
-static inline const char *buffer_pointer(const struct buffer *buf, const char *ptr)
-{
-	if (ptr < b_orig(buf))
-		ptr += buf->size;
-	else if (ptr - buf->size >= b_orig(buf))
-		ptr -= buf->size;
-	return ptr;
-}
-
-/* Returns the distance between two pointers, taking into account the ability
- * to wrap around the buffer's end.
- */
-static inline int buffer_count(const struct buffer *buf, const char *from, const char *to)
-{
-	int count = to - from;
-
-	count += count < 0 ? buf->size : 0;
-	return count;
-}
-
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
 static inline int buffer_almost_full(const struct buffer *buf)
 {
@@ -105,17 +67,9 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	return b_almost_full(buf);
 }
 
-/* This function writes the string <str> at position <pos> which must be in
- * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
- * (l, r, lr) are updated to be valid after the shift. the shift value
- * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o because it does not make sense
- * to use it on data scheduled to be sent.
- */
-static inline int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
-{
-	return buffer_replace2(b, pos, end, str, strlen(str));
-}
+/**************************************************/
+/* Functions below are used for buffer allocation */
+/**************************************************/
 
 /* Allocates a buffer and replaces *buf with this buffer. If no memory is
  * available, &buf_wanted is used instead. No control is made to check if *buf
