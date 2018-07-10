@@ -5351,10 +5351,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 		/* a handshake was requested */
 		return 0;
 
-	/* let's realign the buffer to optimize I/O */
-	if (buffer_empty(buf)) {
-		buf->p = buf->data;
-	}
+	b_realign_if_empty(buf);
 
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,

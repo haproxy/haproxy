@@ -456,11 +456,11 @@ void stream_release_buffers(struct stream *s)
 {
 	int offer = 0;
 
-	if (s->req.buf->size && buffer_empty(s->req.buf)) {
+	if (c_size(&s->req) && c_empty(&s->req)) {
 		offer = 1;
 		b_free(&s->req.buf);
 	}
-	if (s->res.buf->size && buffer_empty(s->res.buf)) {
+	if (c_size(&s->res) && c_empty(&s->res)) {
 		offer = 1;
 		b_free(&s->res.buf);
 	}

@@ -61,12 +61,6 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /***** FIXME: OLD API BELOW *****/
 
-/* Return non-zero only if the buffer is empty */
-static inline int buffer_empty(const struct buffer *buf)
-{
-	return !b_data(buf);
-}
-
 /* Returns non-zero if the buffer's INPUT is considered full, which means that
  * it holds at least as much INPUT data as (size - reserve). This also means
  * that data that are scheduled for output are considered as potential free

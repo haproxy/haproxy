@@ -205,7 +205,7 @@ struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf)
 	if (unlikely(channel_input_closed(chn)))
 		return NULL;
 
-	if (!chn->buf->size || !buffer_empty(chn->buf))
+	if (!c_size(chn) || !c_empty(chn))
 		return buf;
 
 	old = chn->buf;

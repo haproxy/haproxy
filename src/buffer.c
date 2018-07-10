@@ -102,9 +102,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 		memcpy(pos, str, len);
 
 	b->i += delta;
-
-	if (buffer_empty(b))
-		b->p = b->data;
+	b_realign_if_empty(b);
 
 	return delta;
 }

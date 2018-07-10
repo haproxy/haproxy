@@ -685,7 +685,7 @@ static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *
  * to wake up as many streams/applets as possible. */
 static inline void channel_release_buffer(struct channel *chn, struct buffer_wait *wait)
 {
-	if (chn->buf->size && buffer_empty(chn->buf)) {
+	if (c_size(chn) && c_empty(chn)) {
 		b_free(&chn->buf);
 		offer_buffers(wait->target, tasks_run_queue);
 	}
@@ -728,8 +728,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
 static inline void co_skip(struct channel *chn, int len)
 {
 	b_del(chn->buf, len);
-	if (buffer_empty(chn->buf))
-		chn->buf->p = chn->buf->data;
+	c_realign_if_empty(chn);
 
 	/* notify that some data was written to the SI from the buffer */
 	chn->flags |= CF_WRITE_PARTIAL | CF_WRITE_EVENT;
