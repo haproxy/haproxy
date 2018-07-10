@@ -447,6 +447,53 @@ static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
 	b->head = b_size(b) - output;
 }
 
+/* b_putchar() : tries to append char <c> at the end of buffer <b>. Supports
+ * wrapping. Data are truncated if buffer is full.
+ */
+static inline void b_putchr(struct buffer *b, char c)
+{
+	if (b_full(b))
+		return;
+	*b_tail(b) = c;
+	b->len++;
+}
+
+/* b_putblk() : tries to append block <blk> at the end of buffer <b>. Supports
+ * wrapping. Data are truncated if buffer is too short. It returns the number
+ * of bytes copied.
+ */
+static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
+{
+	size_t half;
+
+	if (len > b_room(b))
+		len = b_room(b);
+	if (!len)
+		return 0;
+
+	half = b_contig_space(b);
+	if (half > len)
+		half = len;
+
+	memcpy(b_tail(b), blk, half);
+	b->len += half;
+	if (len > half) {
+		memcpy(b_tail(b), blk + half, len - half);
+		b->len += len - half;
+	}
+	return len;
+}
+
+/* b_putstr() : tries to copy string <str> into output data at buffer <b>.
+ * Supports wrapping. Data are truncated if buffer is too short. It returns the
+ * number of bytes copied.
+ */
+static inline size_t b_putstr(struct buffer *b, const char *str)
+{
+	return b_putblk(b, str, strlen(str));
+}
+
+
 #endif /* _COMMON_BUF_H */
 
 /*

@@ -2838,7 +2838,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 		do {
 			*--beg = hextab[chksz & 0xF];
 		} while (chksz >>= 4);
-		bi_putblk(buf, beg, str + sizeof(str) - beg);
+		b_putblk(buf, beg, str + sizeof(str) - beg);
 	}
 
 	/* Block1 is the length of the first block before the buffer wraps,
@@ -2850,14 +2850,14 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 	block2 = flen - block1;
 
 	if (block1)
-		bi_putblk(buf, b_head(h2c->dbuf), block1);
+		b_putblk(buf, b_head(h2c->dbuf), block1);
 
 	if (block2)
-		bi_putblk(buf, b_peek(h2c->dbuf, block1), block2);
+		b_putblk(buf, b_peek(h2c->dbuf, block1), block2);
 
 	if (h2s->flags & H2_SF_DATA_CHNK) {
 		/* emit the CRLF */
-		bi_putblk(buf, "\r\n", 2);
+		b_putblk(buf, "\r\n", 2);
 	}
 
 	/* now mark the input data as consumed (will be deleted from the buffer
@@ -2883,7 +2883,7 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count, 
 		if (count < 5)
 			goto more;
 		chklen += 5;
-		bi_putblk(buf, "0\r\n\r\n", 5);
+		b_putblk(buf, "0\r\n\r\n", 5);
 	}
 
 	h2c->rcvd_c += h2c->dpl;

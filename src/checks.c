@@ -1518,7 +1518,7 @@ static int connect_conn_chk(struct task *t)
 	 * its own strings.
 	 */
 	if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
-		bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
+		b_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
 
 		/* we want to check if this host replies to HTTP or SSLv3 requests
 		 * so we'll send the request, and won't wake the checker up now.
@@ -1530,17 +1530,17 @@ static int connect_conn_chk(struct task *t)
 		}
 		else if ((check->type) == PR_O2_HTTP_CHK) {
 			if (s->proxy->options2 & PR_O2_CHK_SNDST)
-				bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
+				b_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
-				bo_putstr(check->bo, "Connection: close\r\n");
-			bo_putstr(check->bo, "\r\n");
+				b_putstr(check->bo, "Connection: close\r\n");
+			b_putstr(check->bo, "\r\n");
 			*b_tail(check->bo) = '\0'; /* to make gdb output easier to read */
 		}
 	}
 
 	if ((check->type & PR_O2_LB_AGENT_CHK) && check->send_string_len) {
-		bo_putblk(check->bo, check->send_string, check->send_string_len);
+		b_putblk(check->bo, check->send_string, check->send_string_len);
 	}
 
 	/* for tcp-checks, the initial connection setup is handled separately as
@@ -2868,7 +2868,7 @@ static int tcpcheck_main(struct check *check)
 			if (check->current_step->string_len >= b_room(check->bo))
 				continue;
 
-			bo_putblk(check->bo, check->current_step->string, check->current_step->string_len);
+			b_putblk(check->bo, check->current_step->string, check->current_step->string_len);
 			*b_tail(check->bo) = '\0'; /* to make gdb output easier to read */
 
 			/* go to next rule and try to send */
