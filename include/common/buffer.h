@@ -61,16 +61,10 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /***** FIXME: OLD API BELOW *****/
 
-/* Return non-zero only if the buffer is not empty */
-static inline int buffer_not_empty(const struct buffer *buf)
-{
-	return buf->i | buf->o;
-}
-
 /* Return non-zero only if the buffer is empty */
 static inline int buffer_empty(const struct buffer *buf)
 {
-	return !buffer_not_empty(buf);
+	return !b_data(buf);
 }
 
 /* Returns non-zero if the buffer's INPUT is considered full, which means that

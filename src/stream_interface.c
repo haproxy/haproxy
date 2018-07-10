@@ -1115,7 +1115,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	if (conn->xprt->rcv_pipe && conn->mux->rcv_pipe &&
 	    (ic->pipe || ic->to_forward >= MIN_SPLICE_FORWARD) &&
 	    ic->flags & CF_KERN_SPLICING) {
-		if (buffer_not_empty(ic->buf)) {
+		if (c_data(ic)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
 			 * locations at a time. Let's indicate we need some

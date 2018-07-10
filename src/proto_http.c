@@ -1631,7 +1631,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	s->srv_error = http_return_srv_error;
 
 	/* If there is data available for analysis, log the end of the idle time. */
-	if (buffer_not_empty(req->buf) && s->logs.t_idle == -1)
+	if (c_data(req) && s->logs.t_idle == -1)
 		s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
 
 	/* There's a protected area at the end of the buffer for rewriting
@@ -1639,7 +1639,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (buffer_not_empty(req->buf) && msg->msg_state < HTTP_MSG_ERROR) {
+	if (c_data(req) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (txn->flags & TX_NOT_FIRST) {
 			if (unlikely(!channel_is_rewritable(req))) {
 				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
@@ -4142,7 +4142,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		 * TRAILERS state.
 		 */
 		unsigned int chunk;
-		int ret = h1_parse_chunk_size(req->buf, co_data(req) + msg->next, b_data(req->buf), &chunk);
+		int ret = h1_parse_chunk_size(req->buf, co_data(req) + msg->next, c_data(req), &chunk);
 
 		if (!ret)
 			goto missing_data;
@@ -5126,7 +5126,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (buffer_not_empty(rep->buf) && msg->msg_state < HTTP_MSG_ERROR) {
+	if (c_data(rep) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (unlikely(!channel_is_rewritable(rep))) {
 			/* some data has still not left the buffer, wake us once that's done */
 			if (rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
@@ -6353,7 +6353,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
 		case HTTP_MSG_CHUNK_CRLF:
 			/* we want the CRLF after the data */
-			ret = h1_skip_chunk_crlf(chn->buf, co_data(chn) + msg->next, b_data(chn->buf));
+			ret = h1_skip_chunk_crlf(chn->buf, co_data(chn) + msg->next, c_data(chn));
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {
@@ -6371,7 +6371,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			 * then set ->next to point to the body and switch to
 			 * DATA or TRAILERS state.
 			 */
-			ret = h1_parse_chunk_size(chn->buf, co_data(chn) + msg->next, b_data(chn->buf), &chunk);
+			ret = h1_parse_chunk_size(chn->buf, co_data(chn) + msg->next, c_data(chn), &chunk);
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {
