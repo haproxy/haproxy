@@ -466,7 +466,7 @@ trace_http_forward_data(struct stream *s, struct filter *filter,
 
 	if (conf->hexdump) {
 		c_adv(msg->chn, FLT_FWD(filter, msg->chn));
-		trace_hexdump(msg->chn->buf, ret, co_data(msg->chn));
+		trace_hexdump(&msg->chn->buf, ret, co_data(msg->chn));
 		c_rew(msg->chn, FLT_FWD(filter, msg->chn));
 	}
 
@@ -516,7 +516,7 @@ trace_tcp_forward_data(struct stream *s, struct filter *filter, struct channel *
 
 	if (conf->hexdump) {
 		c_adv(chn, FLT_FWD(filter, chn));
-		trace_hexdump(chn->buf, ret, co_data(chn));
+		trace_hexdump(&chn->buf, ret, co_data(chn));
 		c_rew(chn, FLT_FWD(filter, chn));
 	}
 

@@ -2204,10 +2204,10 @@ void deinit(void)
 
 			free(s->id);
 			free(s->cookie);
-			free(s->check.bi);
-			free(s->check.bo);
-			free(s->agent.bi);
-			free(s->agent.bo);
+			free(s->check.bi.area);
+			free(s->check.bo.area);
+			free(s->agent.bi.area);
+			free(s->agent.bo.area);
 			free(s->agent.send_string);
 			free(s->hostname_dn);
 			free((char*)s->conf.file);

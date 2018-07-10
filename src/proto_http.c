@@ -880,7 +880,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	hdr = &idx->v[cur_idx];
 	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen + ctx->tws == hdr->len) {
 		/* This was the only value of the header, we must now remove it entirely. */
-		delta = b_rep_blk(msg->chn->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
+		delta = b_rep_blk(&msg->chn->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
 		http_msg_move_end(msg, delta);
 		idx->used--;
 		hdr->len = 0;   /* unused entry */
@@ -900,7 +900,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	 */
 
 	skip_comma = (ctx->val + ctx->vlen + ctx->tws == hdr->len) ? 0 : 1;
-	delta = b_rep_blk(msg->chn->buf, sol + ctx->del + skip_comma,
+	delta = b_rep_blk(&msg->chn->buf, sol + ctx->del + skip_comma,
 				sol + ctx->val + ctx->vlen + ctx->tws + skip_comma,
 				NULL, 0);
 	hdr->len += delta;
@@ -1103,7 +1103,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	c_rew(&s->req, rewind = http_hdr_rewind(&txn->req));
 
 	path = http_get_path(txn);
-	len = b_dist(s->req.buf, path, c_ptr(&s->req, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
+	len = b_dist(&s->req.buf, path, c_ptr(&s->req, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
 
 	c_adv(&s->req, rewind);
 
@@ -1354,7 +1354,7 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 		return 0;
 	}
 	/* add HTTP version */
-	delta = b_rep_blk(msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+	delta = b_rep_blk(&msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
 	cur_end = (char *)http_parse_reqline(msg,
@@ -1616,7 +1616,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		req->buf.i,
 		req->analysers);
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
@@ -1643,7 +1643,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				return 0;
 			}
 			if (unlikely(ci_tail(req) < c_ptr(req, msg->next) ||
-			             ci_tail(req) > b_wrap(req->buf) - global.tune.maxrewrite))
+			             ci_tail(req) > b_wrap(&req->buf) - global.tune.maxrewrite))
 				channel_slow_realign(req, trash.str);
 		}
 
@@ -1870,7 +1870,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* OK now we have a complete HTTP request with indexed headers. Let's
 	 * complete the request parsing by setting a few fields we will need
-	 * later. At this point, we have the last CRLF at req->buf->data + msg->eoh.
+	 * later. At this point, we have the last CRLF at req->buf.data + msg->eoh.
 	 * If the request is in HTTP/0.9 form, the rule is still true, and eoh
 	 * points to the CRLF of the request line. msg->next points to the first
 	 * byte after the last LF. msg->sov points to the first byte of data.
@@ -2429,7 +2429,7 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 		if (output->len == -1)
 			return -1;
 
-		delta = b_rep_blk(msg->chn->buf, val, val_end, output->str, output->len);
+		delta = b_rep_blk(&msg->chn->buf, val, val_end, output->str, output->len);
 
 		hdr->len += delta;
 		http_msg_move_end(msg, delta);
@@ -3377,7 +3377,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
 		co_inject(res->chn, chunk->str, chunk->len);
 		/* "eat" the request */
-		b_del(req->chn->buf, req->sov);
+		b_del(&req->chn->buf, req->sov);
 		req->next -= req->sov;
 		req->sov = 0;
 		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_REQ_FLT_END);
@@ -3385,7 +3385,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		req->msg_state = HTTP_MSG_CLOSED;
 		res->msg_state = HTTP_MSG_DONE;
 		/* Trim any possible response */
-		b_set_data(res->chn->buf, co_data(res->chn));
+		b_set_data(&res->chn->buf, co_data(res->chn));
 		res->next = res->sov = 0;
 		/* let the server side turn to SI_ST_CLO */
 		channel_shutw_now(req->chn);
@@ -3442,7 +3442,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		req->buf.i,
 		req->analysers);
 
 	/* just in case we have some per-backend tracking */
@@ -3714,7 +3714,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		req->buf.i,
 		req->analysers);
 
 	/*
@@ -3765,7 +3765,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			char *cur_end = cur_ptr + txn->req.sl.rq.l;
 			int delta;
 
-			delta = b_rep_blk(req->buf, cur_ptr + msg->sl.rq.u, path, NULL, 0);
+			delta = b_rep_blk(&req->buf, cur_ptr + msg->sl.rq.u, path, NULL, 0);
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
 			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
@@ -3776,7 +3776,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			char *cur_end = cur_ptr + txn->req.sl.rq.l;
 			int delta;
 
-			delta = b_rep_blk(req->buf, cur_ptr + msg->sl.rq.u,
+			delta = b_rep_blk(&req->buf, cur_ptr + msg->sl.rq.u,
 						cur_ptr + msg->sl.rq.u + msg->sl.rq.u_l, "/", 1);
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
@@ -4134,14 +4134,14 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		 * TRAILERS state.
 		 */
 		unsigned int chunk;
-		int ret = h1_parse_chunk_size(req->buf, co_data(req) + msg->next, c_data(req), &chunk);
+		int ret = h1_parse_chunk_size(&req->buf, co_data(req) + msg->next, c_data(req), &chunk);
 
 		if (!ret)
 			goto missing_data;
 		else if (ret < 0) {
 			msg->err_pos = ci_data(req) + ret;
 			if (msg->err_pos < 0)
-				msg->err_pos += req->buf->size;
+				msg->err_pos += req->buf.size;
 			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
 		}
@@ -4857,7 +4857,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		req->buf.i,
 		req->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
@@ -5130,7 +5130,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		if (unlikely(ci_tail(rep) < c_ptr(rep, msg->next) ||
-		             ci_tail(rep) > b_wrap(rep->buf) - global.tune.maxrewrite))
+		             ci_tail(rep) > b_wrap(&rep->buf) - global.tune.maxrewrite))
 			channel_slow_realign(rep, trash.str);
 
 		if (likely(msg->next < ci_data(rep)))
@@ -6072,7 +6072,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		res,
 		res->rex, res->wex,
 		res->flags,
-		res->buf->i,
+		res->buf.i,
 		res->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
@@ -6276,7 +6276,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	msg->msg_state = HTTP_MSG_ENDING;
 
   ending:
-	/* we may have some pending data starting at res->buf->p such as a last
+	/* we may have some pending data starting at res->buf.p such as a last
 	 * chunk of data or trailers. */
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			       /* default_ret */ msg->next,
@@ -6297,7 +6297,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	return 1;
 
   missing_data_or_waiting:
-	/* we may have some pending data starting at chn->buf->p */
+	/* we may have some pending data starting at chn->buf.p */
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			       /* default_ret */ msg->next,
 			       /* on_error    */ goto error);
@@ -6345,13 +6345,13 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
 		case HTTP_MSG_CHUNK_CRLF:
 			/* we want the CRLF after the data */
-			ret = h1_skip_chunk_crlf(chn->buf, co_data(chn) + msg->next, c_data(chn));
+			ret = h1_skip_chunk_crlf(&chn->buf, co_data(chn) + msg->next, c_data(chn));
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {
 				msg->err_pos = ci_data(chn) + ret;
 				if (msg->err_pos < 0)
-					msg->err_pos += chn->buf->size;
+					msg->err_pos += chn->buf.size;
 				goto chunk_parsing_error;
 			}
 			msg->next += ret;
@@ -6363,13 +6363,13 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			 * then set ->next to point to the body and switch to
 			 * DATA or TRAILERS state.
 			 */
-			ret = h1_parse_chunk_size(chn->buf, co_data(chn) + msg->next, c_data(chn), &chunk);
+			ret = h1_parse_chunk_size(&chn->buf, co_data(chn) + msg->next, c_data(chn), &chunk);
 			if (ret == 0)
 				goto missing_data_or_waiting;
 			if (ret < 0) {
 				msg->err_pos = ci_data(chn) + ret;
 				if (msg->err_pos < 0)
-					msg->err_pos += chn->buf->size;
+					msg->err_pos += chn->buf.size;
 				goto chunk_parsing_error;
 			}
 
@@ -6407,7 +6407,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 
 	msg->msg_state = HTTP_MSG_ENDING;
   ending:
-	/* we may have some pending data starting at res->buf->p such as a last
+	/* we may have some pending data starting at res->buf.p such as a last
 	 * chunk of data or trailers. */
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
@@ -6427,7 +6427,7 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	return 1;
 
   missing_data_or_waiting:
-	/* we may have some pending data starting at chn->buf->p */
+	/* we may have some pending data starting at chn->buf.p */
 	ret = FLT_STRM_DATA_CB(s, chn, flt_http_forward_data(s, msg, msg->next),
 			  /* default_ret */ msg->next,
 			  /* on_error    */ goto error);
@@ -6516,7 +6516,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				if (trash.len < 0)
 					return -1;
 
-				delta = b_rep_blk(req->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.str, trash.len);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -6529,7 +6529,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				break;
 
 			case ACT_REMOVE:
-				delta = b_rep_blk(req->buf, cur_ptr, cur_next, NULL, 0);
+				delta = b_rep_blk(&req->buf, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
 				http_msg_move_end(&txn->req, delta);
@@ -6604,7 +6604,7 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			if (trash.len < 0)
 				return -1;
 
-			delta = b_rep_blk(req->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.str, trash.len);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -6912,7 +6912,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				 */
 				preserve_hdr = 1;
 				if (del_from != NULL) {
-					int delta = del_hdr_value(req->buf, &del_from, prev);
+					int delta = del_hdr_value(&req->buf, &del_from, prev);
 					val_end  += delta;
 					next     += delta;
 					hdr_end  += delta;
@@ -6935,13 +6935,13 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				int stripped_after = 0;
 
 				if (att_end != equal) {
-					stripped_before = b_rep_blk(req->buf, att_end, equal, NULL, 0);
+					stripped_before = b_rep_blk(&req->buf, att_end, equal, NULL, 0);
 					equal   += stripped_before;
 					val_beg += stripped_before;
 				}
 
 				if (val_beg > equal + 1) {
-					stripped_after = b_rep_blk(req->buf, equal + 1, val_beg, NULL, 0);
+					stripped_after = b_rep_blk(&req->buf, equal + 1, val_beg, NULL, 0);
 					val_beg += stripped_after;
 					stripped_before += stripped_after;
 				}
@@ -7122,7 +7122,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
 					int delta; /* negative */
 
-					delta = b_rep_blk(req->buf, val_beg, delim + 1, NULL, 0);
+					delta = b_rep_blk(&req->buf, val_beg, delim + 1, NULL, 0);
 					val_end  += delta;
 					next     += delta;
 					hdr_end  += delta;
@@ -7145,7 +7145,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				preserve_hdr = 1;
 
 				if (del_from != NULL) {
-					int delta = del_hdr_value(req->buf, &del_from, prev);
+					int delta = del_hdr_value(&req->buf, &del_from, prev);
 					if (att_beg >= del_from)
 						att_beg += delta;
 					if (att_end >= del_from)
@@ -7176,11 +7176,11 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 		if (del_from) {
 			int delta;
 			if (preserve_hdr) {
-				delta = del_hdr_value(req->buf, &del_from, hdr_end);
+				delta = del_hdr_value(&req->buf, &del_from, hdr_end);
 				hdr_end = del_from;
 				cur_hdr->len += delta;
 			} else {
-				delta = b_rep_blk(req->buf, hdr_beg, hdr_next, NULL, 0);
+				delta = b_rep_blk(&req->buf, hdr_beg, hdr_next, NULL, 0);
 
 				/* FIXME: this should be a separate function */
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
@@ -7252,7 +7252,7 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				if (trash.len < 0)
 					return -1;
 
-				delta = b_rep_blk(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -7265,7 +7265,7 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				break;
 
 			case ACT_REMOVE:
-				delta = b_rep_blk(rtr->buf, cur_ptr, cur_next, NULL, 0);
+				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
 				http_msg_move_end(&txn->rsp, delta);
@@ -7333,7 +7333,7 @@ int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_e
 			if (trash.len < 0)
 				return -1;
 
-			delta = b_rep_blk(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -7588,13 +7588,13 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 				int stripped_after = 0;
 
 				if (att_end != equal) {
-					stripped_before = b_rep_blk(res->buf, att_end, equal, NULL, 0);
+					stripped_before = b_rep_blk(&res->buf, att_end, equal, NULL, 0);
 					equal   += stripped_before;
 					val_beg += stripped_before;
 				}
 
 				if (val_beg > equal + 1) {
-					stripped_after = b_rep_blk(res->buf, equal + 1, val_beg, NULL, 0);
+					stripped_after = b_rep_blk(&res->buf, equal + 1, val_beg, NULL, 0);
 					val_beg += stripped_after;
 					stripped_before += stripped_after;
 				}
@@ -7652,7 +7652,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {
 						/* whole header */
-						delta = b_rep_blk(res->buf, hdr_beg, hdr_next, NULL, 0);
+						delta = b_rep_blk(&res->buf, hdr_beg, hdr_next, NULL, 0);
 						txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 						txn->hdr_idx.used--;
 						cur_hdr->len = 0;
@@ -7664,7 +7664,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 						 */
 					} else {
 						/* just remove the value */
-						int delta = del_hdr_value(res->buf, &prev, next);
+						int delta = del_hdr_value(&res->buf, &prev, next);
 						next      = prev;
 						hdr_end  += delta;
 						hdr_next += delta;
@@ -7679,7 +7679,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* replace bytes val_beg->val_end with the cookie name associated
 					 * with this server since we know it.
 					 */
-					delta = b_rep_blk(res->buf, val_beg, val_end, srv->cookie, srv->cklen);
+					delta = b_rep_blk(&res->buf, val_beg, val_end, srv->cookie, srv->cklen);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
@@ -7693,7 +7693,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* insert the cookie name associated with this server
 					 * before existing cookie, and insert a delimiter between them..
 					 */
-					delta = b_rep_blk(res->buf, val_beg, val_beg, srv->cookie, srv->cklen + 1);
+					delta = b_rep_blk(&res->buf, val_beg, val_beg, srv->cookie, srv->cklen + 1);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
@@ -7955,7 +7955,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 
 	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
 	es->len = MIN(ci_data(chn), global.tune.bufsize);
-	len1 = b_wrap(chn->buf) - ci_head(chn);
+	len1 = b_wrap(&chn->buf) - ci_head(chn);
 	len1 = MIN(len1, es->len);
 	len2 = es->len - len1; /* remaining data if buffer wraps */
 
@@ -7965,7 +7965,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	if (es->buf) {
 		memcpy(es->buf, ci_head(chn), len1);
 		if (len2)
-			memcpy(es->buf + len1, b_orig(chn->buf), len2);
+			memcpy(es->buf + len1, b_orig(&chn->buf), len2);
 	}
 
 	if (msg->err_pos >= 0)
@@ -7989,7 +7989,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	es->t_flags = s->txn->flags;
 	es->m_flags = msg->flags;
 	es->b_out = co_data(chn);
-	es->b_wrap = b_wrap(chn->buf) - ci_head(chn);
+	es->b_wrap = b_wrap(&chn->buf) - ci_head(chn);
 	es->b_tot = chn->total;
 	es->m_clen = msg->chunk_len;
 	es->m_blen = msg->body_len;
@@ -8307,7 +8307,7 @@ void http_reset_txn(struct stream *s)
 	 * content-length.
 	 */
 	if (unlikely(ci_data(&s->res)))
-		b_set_data(s->res.buf, co_data(&s->res));
+		b_set_data(&s->res.buf, co_data(&s->res));
 
 	/* Now we can realign the response buffer */
 	c_realign_if_empty(&s->res);
@@ -9507,8 +9507,8 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 		/* If the buffer does not leave enough free space at the end,
 		 * we must first realign it.
 		 */
-		if (ci_head(&s->req) > b_orig(s->req.buf) &&
-		    ci_head(&s->req) + ci_data(&s->req) > b_wrap(s->req.buf) - global.tune.maxrewrite)
+		if (ci_head(&s->req) > b_orig(&s->req.buf) &&
+		    ci_head(&s->req) + ci_data(&s->req) > b_wrap(&s->req.buf) - global.tune.maxrewrite)
 			channel_slow_realign(&s->req, trash.str);
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
@@ -9541,7 +9541,7 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 			 * we want this check to be maintained.
 			 */
 			if (unlikely(ci_head(&s->req) + ci_data(&s->req) >
-				     b_wrap(s->req.buf) - global.tune.maxrewrite)) {
+				     b_wrap(&s->req.buf) - global.tune.maxrewrite)) {
 				msg->err_state = msg->msg_state;
 				msg->msg_state = HTTP_MSG_ERROR;
 				smp->data.u.sint = 1;
@@ -9914,8 +9914,8 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 	body = c_ptr(msg->chn, -http_data_rewind(msg));
 
 	block1 = len;
-	if (block1 > b_wrap(msg->chn->buf) - body)
-		block1 = b_wrap(msg->chn->buf) - body;
+	if (block1 > b_wrap(&msg->chn->buf) - body)
+		block1 = b_wrap(&msg->chn->buf) - body;
 
 	if (block1 == len) {
 		/* buffer is not wrapped (or empty) */
@@ -9928,7 +9928,7 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 		/* buffer is wrapped, we need to defragment it */
 		temp = get_trash_chunk();
 		memcpy(temp->str, body, block1);
-		memcpy(temp->str + block1, b_orig(msg->chn->buf), len - block1);
+		memcpy(temp->str + block1, b_orig(&msg->chn->buf), len - block1);
 		smp->data.type = SMP_T_BIN;
 		smp->data.u.str.str = temp->str;
 		smp->data.u.str.len = len;
@@ -11385,8 +11385,8 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 		body = c_ptr(msg->chn, -http_data_rewind(msg));
 
 		block1 = len;
-		if (block1 > b_wrap(msg->chn->buf) - body)
-			block1 = b_wrap(msg->chn->buf) - body;
+		if (block1 > b_wrap(&msg->chn->buf) - body)
+			block1 = b_wrap(&msg->chn->buf) - body;
 
 		if (block1 == len) {
 			/* buffer is not wrapped (or empty) */
@@ -11403,8 +11403,8 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 			/* buffer is wrapped, we need to defragment it */
 			smp->ctx.a[0] = body;
 			smp->ctx.a[1] = body + block1;
-			smp->ctx.a[2] = b_orig(msg->chn->buf);
-			smp->ctx.a[3] = b_orig(msg->chn->buf) + ( len - block1 );
+			smp->ctx.a[2] = b_orig(&msg->chn->buf);
+			smp->ctx.a[3] = b_orig(&msg->chn->buf) + ( len - block1 );
 		}
 	}
 	return smp_fetch_param('&', name, name_len, args, smp, kw, private);
@@ -11927,7 +11927,7 @@ int http_replace_req_line(int action, const char *replace, int len,
 	}
 
 	/* commit changes and adjust end of message */
-	delta = b_rep_blk(s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
+	delta = b_rep_blk(&s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
 	txn->req.sl.rq.l += delta;
 	txn->hdr_idx.v[0].len += delta;
 	http_msg_move_end(&txn->req, delta);
@@ -11966,7 +11966,7 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 	cur_end = ci_head(&s->res) + txn->rsp.sl.st.r + txn->rsp.sl.st.r_l;
 
 	/* commit changes and adjust message */
-	delta = b_rep_blk(s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
+	delta = b_rep_blk(&s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
 
 	/* adjust res line offsets and lengths */
 	txn->rsp.sl.st.r += c_l - txn->rsp.sl.st.c_l;

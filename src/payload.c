@@ -466,8 +466,8 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > channel_recv_limit(req) + b_orig(req->buf) - ci_head(req))
-		msg_len = channel_recv_limit(req) + b_orig(req->buf) - ci_head(req);
+	if (msg_len > channel_recv_limit(req) + b_orig(&req->buf) - ci_head(req))
+		msg_len = channel_recv_limit(req) + b_orig(&req->buf) - ci_head(req);
 
 	if (bleft < msg_len)
 		goto too_short;
@@ -935,10 +935,10 @@ smp_fetch_distcc_param(const struct arg *arg_p, struct sample *smp, const char *
 	while (1) {
 		if (ofs + 12 > ci_data(chn)) {
 			/* not there yet but could it at least fit ? */
-			if (!chn->buf->size)
+			if (!chn->buf.size)
 				goto too_short;
 
-			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn))
+			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn))
 				goto too_short;
 
 			goto no_match;
@@ -1011,10 +1011,10 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 	ofs = 0; occ = 0;
 	while (1) {
 		if (ofs + 12 > ci_data(chn)) {
-			if (!chn->buf->size)
+			if (!chn->buf.size)
 				goto too_short;
 
-			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn))
+			if (ofs + 12 <= channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn))
 				goto too_short;
 
 			goto no_match;
@@ -1048,13 +1048,13 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 				smp->data.type = SMP_T_BIN;
 				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 
-				if (ofs + body > ci_head(chn) - b_orig(chn->buf) + ci_data(chn)) {
+				if (ofs + body > ci_head(chn) - b_orig(&chn->buf) + ci_data(chn)) {
 					/* incomplete body */
 
-					if (ofs + body > channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn)) {
+					if (ofs + body > channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn)) {
 						/* truncate it to whatever will fit */
 						smp->flags |= SMP_F_MAY_CHANGE;
-						body = channel_recv_limit(chn) + b_orig(chn->buf) - ci_head(chn) - ofs;
+						body = channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn) - ofs;
 					}
 				}
 

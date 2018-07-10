@@ -105,8 +105,8 @@ static struct pool_head *pool_head_spoe_appctx = NULL;
 struct flt_ops spoe_ops;
 
 static int  spoe_queue_context(struct spoe_context *ctx);
-static int  spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait);
-static void spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait);
+static int  spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait);
+static void spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait);
 
 /********************************************************************
  * helper functions/globals
@@ -573,10 +573,10 @@ spoe_prepare_hanotify_frame(struct appctx *appctx, struct spoe_context *ctx,
 		goto too_big;
 
 	/* Copy encoded messages, if possible */
-	sz = b_data(ctx->buffer);
+	sz = b_data(&ctx->buffer);
 	if (p + sz >= end)
 		goto too_big;
-	memcpy(p, b_head(ctx->buffer), sz);
+	memcpy(p, b_head(&ctx->buffer), sz);
 	p += sz;
 
 	return (p - frame);
@@ -633,10 +633,10 @@ spoe_prepare_hafrag_frame(struct appctx *appctx, struct spoe_context *ctx,
 		goto end;
 
 	/* Copy encoded messages, if possible */
-	sz = b_data(ctx->buffer);
+	sz = b_data(&ctx->buffer);
 	if (p + sz >= end)
 		goto too_big;
-	memcpy(p, b_head(ctx->buffer), sz);
+	memcpy(p, b_head(&ctx->buffer), sz);
 	p += sz;
 
   end:
@@ -1044,13 +1044,13 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 
 	/* Copy encoded actions */
 	len = (end - p);
-	memcpy(b_head(SPOE_APPCTX(appctx)->buffer), p, len);
-	b_set_data(SPOE_APPCTX(appctx)->buffer, len);
+	memcpy(b_head(&SPOE_APPCTX(appctx)->buffer), p, len);
+	b_set_data(&SPOE_APPCTX(appctx)->buffer, len);
 	p += len;
 
 	/* Transfer the buffer ownership to the SPOE context */
 	(*ctx)->buffer = SPOE_APPCTX(appctx)->buffer;
-	SPOE_APPCTX(appctx)->buffer = &buf_empty;
+	SPOE_APPCTX(appctx)->buffer = BUF_NULL;
 
 	(*ctx)->state = SPOE_CTX_ST_DONE;
 
@@ -1154,7 +1154,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	memcpy(buf, (char *)&netint, 4);
 	ret = ci_putblk(si_ic(si), buf, framesz+4);
 	if (ret <= 0) {
-		if ((ret == -3 && si_ic(si)->buf == &buf_empty) || ret == -1) {
+		if ((ret == -3 && b_is_null(&si_ic(si)->buf)) || ret == -1) {
 			si_applet_cant_put(si);
 			return 1; /* retry */
 		}
@@ -1976,7 +1976,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	SPOE_APPCTX(appctx)->max_frame_size  = conf->agent->max_frame_size;
 	SPOE_APPCTX(appctx)->flags           = 0;
 	SPOE_APPCTX(appctx)->status_code     = SPOE_FRM_ERR_NONE;
-	SPOE_APPCTX(appctx)->buffer          = &buf_empty;
+	SPOE_APPCTX(appctx)->buffer          = BUF_NULL;
 	SPOE_APPCTX(appctx)->cur_fpa         = 0;
 
 	LIST_INIT(&SPOE_APPCTX(appctx)->buffer_wait.list);
@@ -2212,7 +2212,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	struct spoe_message *msg;
 	char   *p, *end;
 
-	p   = b_head(ctx->buffer);
+	p   = b_head(&ctx->buffer);
 	end =  p + agent->rt[tid].frame_size - FRAME_HDR_SIZE;
 
 	if (type == SPOE_MSGS_BY_EVENT) { /* Loop on messages by event */
@@ -2254,7 +2254,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 
 
 	/* nothing has been encoded for an unfragmented payload */
-	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == b_head(ctx->buffer))
+	if (!(ctx->flags & SPOE_CTX_FL_FRAGMENTED) && p == b_head(&ctx->buffer))
 		goto skip;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
@@ -2266,7 +2266,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    ctx->spoe_appctx, (agent->rt[tid].frame_size - FRAME_HDR_SIZE),
 		    p - ctx->buffer->p);
 
-	b_set_data(ctx->buffer, p - b_head(ctx->buffer));
+	b_set_data(&ctx->buffer, p - b_head(&ctx->buffer));
 	ctx->frag_ctx.curmsg = NULL;
 	ctx->frag_ctx.curarg = NULL;
 	ctx->frag_ctx.curoff = 0;
@@ -2287,9 +2287,9 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    (int)now.tv_sec, (int)now.tv_usec,
 		    agent->id, __FUNCTION__, s, ctx->spoe_appctx,
 		    ctx->frag_ctx.curmsg, ctx->frag_ctx.curarg, ctx->frag_ctx.curoff,
-		    (agent->rt[tid].frame_size - FRAME_HDR_SIZE), p - b_head(ctx->buffer));
+		    (agent->rt[tid].frame_size - FRAME_HDR_SIZE), p - b_head(&ctx->buffer));
 
-	b_set_data(ctx->buffer, p - b_head(ctx->buffer));
+	b_set_data(&ctx->buffer, p - b_head(&ctx->buffer));
 	ctx->flags |= SPOE_CTX_FL_FRAGMENTED;
 	ctx->frag_ctx.flags &= ~SPOE_FRM_FL_FIN;
 	return 1;
@@ -2445,8 +2445,8 @@ spoe_process_actions(struct stream *s, struct spoe_context *ctx, int dir)
 	char *p, *end;
 	int   ret;
 
-	p   = b_head(ctx->buffer);
-	end = p + b_data(ctx->buffer);
+	p   = b_head(&ctx->buffer);
+	end = p + b_data(&ctx->buffer);
 
 	while (p < end)  {
 		enum spoe_action_type type;
@@ -2809,9 +2809,9 @@ spoe_process_event(struct stream *s, struct spoe_context *ctx,
  * Functions that create/destroy SPOE contexts
  **************************************************************************/
 static int
-spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
+spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
-	if ((*buf)->size)
+	if (buf->size)
 		return 1;
 
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
@@ -2831,7 +2831,7 @@ spoe_acquire_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 }
 
 static void
-spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
+spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
 	if (!LIST_ISEMPTY(&buffer_wait->list)) {
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
@@ -2841,7 +2841,7 @@ spoe_release_buffer(struct buffer **buf, struct buffer_wait *buffer_wait)
 	}
 
 	/* Release the buffer if needed */
-	if ((*buf)->size) {
+	if (buf->size) {
 		b_free(buf);
 		offer_buffers(buffer_wait->target, tasks_run_queue);
 	}
@@ -2871,7 +2871,7 @@ spoe_create_context(struct stream *s, struct filter *filter)
 	ctx->flags       = 0;
 	ctx->events      = conf->agent->events;
 	ctx->groups      = &conf->agent->groups;
-	ctx->buffer      = &buf_empty;
+	ctx->buffer      = BUF_NULL;
 	LIST_INIT(&ctx->buffer_wait.list);
 	ctx->buffer_wait.target = ctx;
 	ctx->buffer_wait.wakeup_cb = (int (*)(void *))spoe_wakeup_context;

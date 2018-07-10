@@ -45,7 +45,7 @@ struct comp_ctx {
 	struct slz_stream strm;
 	const void *direct_ptr; /* NULL or pointer to beginning of data */
 	int direct_len;         /* length of direct_ptr if not NULL */
-	struct buffer *queued;  /* if not NULL, data already queued */
+	struct buffer queued;   /* if not NULL, data already queued */
 #elif defined(USE_ZLIB)
 	z_stream strm; /* zlib stream */
 	void *zlib_deflate_state;

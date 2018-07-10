@@ -43,8 +43,6 @@ struct buffer_wait {
 };
 
 extern struct pool_head *pool_head_buffer;
-extern struct buffer buf_empty;
-extern struct buffer buf_wanted;
 extern struct list buffer_wq;
 __decl_hathreads(extern HA_SPINLOCK_T buffer_wq_lock);
 
@@ -59,7 +57,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
 static inline int buffer_almost_full(const struct buffer *buf)
 {
-	if (buf == &buf_empty)
+	if (b_is_null(buf))
 		return 0;
 
 	return b_almost_full(buf);
@@ -69,65 +67,64 @@ static inline int buffer_almost_full(const struct buffer *buf)
 /* Functions below are used for buffer allocation */
 /**************************************************/
 
-/* Allocates a buffer and replaces *buf with this buffer. If no memory is
- * available, &buf_wanted is used instead. No control is made to check if *buf
- * already pointed to another buffer. The allocated buffer is returned, or
- * NULL in case no memory is available.
+/* Allocates a buffer and assigns it to *buf. If no memory is available,
+ * ((char *)1) is assigned instead with a zero size. No control is made to
+ * check if *buf already pointed to another buffer. The allocated buffer is
+ * returned, or NULL in case no memory is available.
  */
-static inline struct buffer *b_alloc(struct buffer **buf)
+static inline struct buffer *b_alloc(struct buffer *buf)
 {
-	struct buffer *b;
+	char *area;
 
-	*buf = &buf_wanted;
-	b = pool_alloc_dirty(pool_head_buffer);
-	if (likely(b)) {
-		b->size = pool_head_buffer->size - sizeof(struct buffer);
-		b_reset(b);
-		*buf = b;
-	}
-	return b;
+	*buf = BUF_WANTED;
+	area = pool_alloc_dirty(pool_head_buffer);
+	if (unlikely(!area))
+		return NULL;
+
+	buf->area = area;
+	buf->size = pool_head_buffer->size;
+	return buf;
 }
 
-/* Allocates a buffer and replaces *buf with this buffer. If no memory is
- * available, &buf_wanted is used instead. No control is made to check if *buf
- * already pointed to another buffer. The allocated buffer is returned, or
- * NULL in case no memory is available. The difference with b_alloc() is that
- * this function only picks from the pool and never calls malloc(), so it can
- * fail even if some memory is available.
+/* Allocates a buffer and assigns it to *buf. If no memory is available,
+ * ((char *)1) is assigned instead with a zero size. No control is made to
+ * check if *buf already pointed to another buffer. The allocated buffer is
+ * returned, or NULL in case no memory is available. The difference with
+ * b_alloc() is that this function only picks from the pool and never calls
+ * malloc(), so it can fail even if some memory is available.
  */
-static inline struct buffer *b_alloc_fast(struct buffer **buf)
+static inline struct buffer *b_alloc_fast(struct buffer *buf)
 {
-	struct buffer *b;
+	char *area;
 
-	*buf = &buf_wanted;
-	b = pool_get_first(pool_head_buffer);
-	if (likely(b)) {
-		b->size = pool_head_buffer->size - sizeof(struct buffer);
-		b_reset(b);
-		*buf = b;
-	}
-	return b;
+	*buf = BUF_WANTED;
+	area = pool_get_first(pool_head_buffer);
+	if (unlikely(!area))
+		return NULL;
+
+	buf->area = area;
+	buf->size = pool_head_buffer->size;
+	return buf;
 }
 
-/* Releases buffer *buf (no check of emptiness) */
-static inline void __b_drop(struct buffer **buf)
+/* Releases buffer <buf> (no check of emptiness) */
+static inline void __b_drop(struct buffer *buf)
 {
-	pool_free(pool_head_buffer, *buf);
+	pool_free(pool_head_buffer, buf->area);
 }
 
-/* Releases buffer *buf if allocated. */
-static inline void b_drop(struct buffer **buf)
+/* Releases buffer <buf> if allocated. */
+static inline void b_drop(struct buffer *buf)
 {
-	if (!(*buf)->size)
-		return;
-	__b_drop(buf);
+	if (buf->size)
+		__b_drop(buf);
 }
 
-/* Releases buffer *buf if allocated, and replaces it with &buf_empty. */
-static inline void b_free(struct buffer **buf)
+/* Releases buffer <buf> if allocated, and marks it empty. */
+static inline void b_free(struct buffer *buf)
 {
 	b_drop(buf);
-	*buf = &buf_empty;
+	*buf = BUF_NULL;
 }
 
 /* Ensures that <buf> is allocated. If an allocation is needed, it ensures that
@@ -141,45 +138,44 @@ static inline void b_free(struct buffer **buf)
  * after the allocation, regardless how many threads that doing it in the same
  * time. So, we use internal and lockless memory functions (prefixed with '__').
  */
-static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
+static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 {
-	struct buffer *b;
+	char *area;
 
-	if ((*buf)->size)
-		return *buf;
+	if (buf->size)
+		return buf;
 
-	*buf = &buf_wanted;
+	*buf = BUF_WANTED;
+
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 	HA_SPIN_LOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
 
 	/* fast path */
 	if ((pool_head_buffer->allocated - pool_head_buffer->used) > margin) {
-		b = __pool_get_first(pool_head_buffer);
-		if (likely(b)) {
+		area = __pool_get_first(pool_head_buffer);
+		if (likely(area)) {
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
-			b->size = pool_head_buffer->size - sizeof(struct buffer);
-			b_reset(b);
-			*buf = b;
-			return b;
+			goto done;
 		}
 	}
 
 	/* slow path, uses malloc() */
-	b = __pool_refill_alloc(pool_head_buffer, margin);
+	area = __pool_refill_alloc(pool_head_buffer, margin);
 
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool_head_buffer->lock);
 #endif
 
-	if (b) {
-		b->size = pool_head_buffer->size - sizeof(struct buffer);
-		b_reset(b);
-		*buf = b;
-	}
-	return b;
+	if (unlikely(!area))
+		return NULL;
+
+ done:
+	buf->area = area;
+	buf->size = pool_head_buffer->size;
+	return buf;
 }
 
 

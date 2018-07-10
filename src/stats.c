@@ -2045,7 +2045,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
 		for (; appctx->ctx.stats.l != &px->conf.listeners; appctx->ctx.stats.l = l->by_fe.n) {
-			if (buffer_almost_full(rep->buf)) {
+			if (buffer_almost_full(&rep->buf)) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2078,7 +2078,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_SV:
 		/* stats.sv has been initialized above */
 		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
-			if (buffer_almost_full(rep->buf)) {
+			if (buffer_almost_full(&rep->buf)) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -2570,7 +2570,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_LIST:
 		/* dump proxies */
 		while (appctx->ctx.stats.px) {
-			if (buffer_almost_full(rep->buf)) {
+			if (buffer_almost_full(&rep->buf)) {
 				si_applet_cant_put(si);
 				return 0;
 			}
@@ -3034,7 +3034,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		goto out;
 
 	/* Check if the input buffer is avalaible. */
-	if (res->buf->size == 0) {
+	if (res->buf.size == 0) {
 		si_applet_cant_put(si);
 		goto out;
 	}

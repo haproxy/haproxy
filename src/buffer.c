@@ -22,15 +22,6 @@
 
 struct pool_head *pool_head_buffer;
 
-/* These buffers are used to always have a valid pointer to an empty buffer in
- * channels. The first buffer is set once a buffer is empty. The second one is
- * set when a buffer is desired but no more are available. It helps knowing
- * what channel wants a buffer. They can reliably be exchanged, the split
- * between the two is only an optimization.
- */
-struct buffer buf_empty  = {  };
-struct buffer buf_wanted = {  };
-
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) buffer_wq_lock);
@@ -40,7 +31,7 @@ int init_buffer()
 {
 	void *buffer;
 
-	pool_head_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
+	pool_head_buffer = create_pool("buffer", global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
 		return 0;
 

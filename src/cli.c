@@ -524,7 +524,7 @@ static void cli_io_handler(struct appctx *appctx)
 		goto out;
 
 	/* Check if the input buffer is avalaible. */
-	if (res->buf->size == 0) {
+	if (res->buf.size == 0) {
 		si_applet_cant_put(si);
 		goto out;
 	}

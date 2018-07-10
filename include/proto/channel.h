@@ -87,31 +87,31 @@ static inline struct stream_interface *chn_cons(const struct channel *chn)
 /* c_orig() : returns the pointer to the channel buffer's origin */
 static inline char *c_orig(const struct channel *c)
 {
-	return b_orig(c->buf);
+	return b_orig(&c->buf);
 }
 
 /* c_size() : returns the size of the channel's buffer */
 static inline size_t c_size(const struct channel *c)
 {
-	return b_size(c->buf);
+	return b_size(&c->buf);
 }
 
 /* c_wrap() : returns the pointer to the channel buffer's wrapping point */
 static inline char *c_wrap(const struct channel *c)
 {
-	return b_wrap(c->buf);
+	return b_wrap(&c->buf);
 }
 
 /* c_data() : returns the amount of data in the channel's buffer */
 static inline size_t c_data(const struct channel *c)
 {
-	return b_data(c->buf);
+	return b_data(&c->buf);
 }
 
 /* c_room() : returns the room left in the channel's buffer */
 static inline size_t c_room(const struct channel *c)
 {
-	return b_size(c->buf) - b_data(c->buf);
+	return b_size(&c->buf) - b_data(&c->buf);
 }
 
 /* c_empty() : returns a boolean indicating if the channel's buffer is empty */
@@ -145,11 +145,11 @@ static inline size_t ci_data(const struct channel *c)
  */
 static inline size_t ci_next_ofs(const struct channel *c, size_t o)
 {
-	return b_next_ofs(c->buf, o);
+	return b_next_ofs(&c->buf, o);
 }
 static inline char *ci_next(const struct channel *c, const char *p)
 {
-	return b_next(c->buf, p);
+	return b_next(&c->buf, p);
 }
 
 
@@ -161,7 +161,7 @@ static inline char *ci_next(const struct channel *c, const char *p)
  */
 static inline char *c_ptr(const struct channel *c, ssize_t ofs)
 {
-	return b_peek(c->buf, co_data(c) + ofs);
+	return b_peek(&c->buf, co_data(c) + ofs);
 }
 
 /* c_adv() : advances the channel's buffer by <adv> bytes, which means that the
@@ -187,13 +187,13 @@ static inline void c_rew(struct channel *c, size_t adv)
 /* c_realign_if_empty() : realign the channel's buffer if it's empty */
 static inline void c_realign_if_empty(struct channel *chn)
 {
-	b_realign_if_empty(chn->buf);
+	b_realign_if_empty(&chn->buf);
 }
 
 /* Sets the amount of output for the channel */
 static inline void co_set_data(struct channel *c, size_t output)
 {
-	c->buf->data += output - c->output;
+	c->buf.data += output - c->output;
 	c->output = output;
 }
 
@@ -204,19 +204,19 @@ static inline void co_set_data(struct channel *c, size_t output)
  */
 static inline size_t __co_head_ofs(const struct channel *c)
 {
-	return __b_peek_ofs(c->buf, 0);
+	return __b_peek_ofs(&c->buf, 0);
 }
 static inline char *__co_head(const struct channel *c)
 {
-	return __b_peek(c->buf, 0);
+	return __b_peek(&c->buf, 0);
 }
 static inline size_t co_head_ofs(const struct channel *c)
 {
-	return b_peek_ofs(c->buf, 0);
+	return b_peek_ofs(&c->buf, 0);
 }
 static inline char *co_head(const struct channel *c)
 {
-	return b_peek(c->buf, 0);
+	return b_peek(&c->buf, 0);
 }
 
 
@@ -226,19 +226,19 @@ static inline char *co_head(const struct channel *c)
  */
 static inline size_t __co_tail_ofs(const struct channel *c)
 {
-	return __b_peek_ofs(c->buf, co_data(c));
+	return __b_peek_ofs(&c->buf, co_data(c));
 }
 static inline char *__co_tail(const struct channel *c)
 {
-	return __b_peek(c->buf, co_data(c));
+	return __b_peek(&c->buf, co_data(c));
 }
 static inline size_t co_tail_ofs(const struct channel *c)
 {
-	return b_peek_ofs(c->buf, co_data(c));
+	return b_peek_ofs(&c->buf, co_data(c));
 }
 static inline char *co_tail(const struct channel *c)
 {
-	return b_peek(c->buf, co_data(c));
+	return b_peek(&c->buf, co_data(c));
 }
 
 
@@ -248,19 +248,19 @@ static inline char *co_tail(const struct channel *c)
  */
 static inline size_t __ci_head_ofs(const struct channel *c)
 {
-	return __b_peek_ofs(c->buf, co_data(c));
+	return __b_peek_ofs(&c->buf, co_data(c));
 }
 static inline char *__ci_head(const struct channel *c)
 {
-	return __b_peek(c->buf, co_data(c));
+	return __b_peek(&c->buf, co_data(c));
 }
 static inline size_t ci_head_ofs(const struct channel *c)
 {
-	return b_peek_ofs(c->buf, co_data(c));
+	return b_peek_ofs(&c->buf, co_data(c));
 }
 static inline char *ci_head(const struct channel *c)
 {
-	return b_peek(c->buf, co_data(c));
+	return b_peek(&c->buf, co_data(c));
 }
 
 
@@ -270,19 +270,19 @@ static inline char *ci_head(const struct channel *c)
  */
 static inline size_t __ci_tail_ofs(const struct channel *c)
 {
-	return __b_peek_ofs(c->buf, c_data(c));
+	return __b_peek_ofs(&c->buf, c_data(c));
 }
 static inline char *__ci_tail(const struct channel *c)
 {
-	return __b_peek(c->buf, c_data(c));
+	return __b_peek(&c->buf, c_data(c));
 }
 static inline size_t ci_tail_ofs(const struct channel *c)
 {
-	return b_peek_ofs(c->buf, c_data(c));
+	return b_peek_ofs(&c->buf, c_data(c));
 }
 static inline char *ci_tail(const struct channel *c)
 {
-	return b_peek(c->buf, c_data(c));
+	return b_peek(&c->buf, c_data(c));
 }
 
 
@@ -292,32 +292,32 @@ static inline char *ci_tail(const struct channel *c)
  */
 static inline size_t __ci_stop_ofs(const struct channel *c)
 {
-	return __b_stop_ofs(c->buf);
+	return __b_stop_ofs(&c->buf);
 }
 static inline const char *__ci_stop(const struct channel *c)
 {
-	return __b_stop(c->buf);
+	return __b_stop(&c->buf);
 }
 static inline size_t ci_stop_ofs(const struct channel *c)
 {
-	return b_stop_ofs(c->buf);
+	return b_stop_ofs(&c->buf);
 }
 static inline const char *ci_stop(const struct channel *c)
 {
-	return b_stop(c->buf);
+	return b_stop(&c->buf);
 }
 
 
 /* Returns the amount of input data that can contiguously be read at once */
 static inline size_t ci_contig_data(const struct channel *c)
 {
-	return b_contig_data(c->buf, co_data(c));
+	return b_contig_data(&c->buf, co_data(c));
 }
 
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
 {
-	chn->buf = &buf_empty;
+	chn->buf = BUF_NULL;
 	chn->to_forward = 0;
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
@@ -382,9 +382,9 @@ static inline unsigned int channel_is_empty(const struct channel *c)
  */
 static inline int channel_is_rewritable(const struct channel *chn)
 {
-	int rem = chn->buf->size;
+	int rem = chn->buf.size;
 
-	rem -= b_data(chn->buf);
+	rem -= b_data(&chn->buf);
 	rem -= global.tune.maxrewrite;
 	return rem >= 0;
 }
@@ -402,7 +402,7 @@ static inline int channel_may_send(const struct channel *chn)
  * decide when to stop reading into a buffer when we want to ensure that we
  * leave the reserve untouched after all pending outgoing data are forwarded.
  * The reserved space is taken into account if ->to_forward indicates that an
- * end of transfer is close to happen. Note that both ->buf->o and ->to_forward
+ * end of transfer is close to happen. Note that both ->buf.o and ->to_forward
  * are considered as available since they're supposed to leave the buffer. The
  * test is optimized to avoid as many operations as possible for the fast case
  * and to be used as an "if" condition. Just like channel_recv_limit(), we
@@ -411,12 +411,12 @@ static inline int channel_may_send(const struct channel *chn)
  */
 static inline int channel_may_recv(const struct channel *chn)
 {
-	int rem = chn->buf->size;
+	int rem = chn->buf.size;
 
-	if (chn->buf == &buf_empty)
+	if (b_is_null(&chn->buf))
 		return 1;
 
-	rem -= b_data(chn->buf);
+	rem -= b_data(&chn->buf);
 	if (!rem)
 		return 0; /* buffer already full */
 
@@ -433,7 +433,7 @@ static inline int channel_may_recv(const struct channel *chn)
 	 * the reserve, and we want to ensure they're covered by scheduled
 	 * forwards.
 	 */
-	rem = ci_data(chn) + global.tune.maxrewrite - chn->buf->size;
+	rem = ci_data(chn) + global.tune.maxrewrite - chn->buf.size;
 	return rem < 0 || (unsigned int)rem < chn->to_forward;
 }
 
@@ -476,7 +476,7 @@ static inline void channel_check_timeouts(struct channel *chn)
 static inline void channel_erase(struct channel *chn)
 {
 	chn->to_forward = 0;
-	b_reset(chn->buf);
+	b_reset(&chn->buf);
 }
 
 /* marks the channel as "shutdown" ASAP for reads */
@@ -608,8 +608,8 @@ static inline int channel_recv_limit(const struct channel *chn)
 	int reserve;
 
 	/* return zero if empty */
-	reserve = chn->buf->size;
-	if (chn->buf == &buf_empty)
+	reserve = chn->buf.size;
+	if (b_is_null(&chn->buf))
 		goto end;
 
 	/* return size - maxrewrite if we can't send */
@@ -630,9 +630,9 @@ static inline int channel_recv_limit(const struct channel *chn)
 	reserve -= transit;
 	if (transit < chn->to_forward ||                 // addition overflow
 	    transit >= (unsigned)global.tune.maxrewrite) // enough transit data
-		return chn->buf->size;
+		return chn->buf.size;
  end:
-	return chn->buf->size - reserve;
+	return chn->buf.size - reserve;
 }
 
 /* Returns non-zero if the channel's INPUT buffer's is considered full, which
@@ -646,7 +646,7 @@ static inline int channel_recv_limit(const struct channel *chn)
  */
 static inline int channel_full(const struct channel *c, unsigned int reserve)
 {
-	if (c->buf == &buf_empty)
+	if (b_is_null(&c->buf))
 		return 0;
 
 	return (ci_data(c) + reserve >= c_size(c));
@@ -662,7 +662,7 @@ static inline int channel_recv_max(const struct channel *chn)
 {
 	int ret;
 
-	ret = channel_recv_limit(chn) - b_data(chn->buf);
+	ret = channel_recv_limit(chn) - b_data(&chn->buf);
 	if (ret < 0)
 		ret = 0;
 	return ret;
@@ -675,7 +675,7 @@ static inline int channel_recv_max(const struct channel *chn)
  */
 static inline int ci_space_for_replace(const struct channel *chn)
 {
-	const struct buffer *buf = chn->buf;
+	const struct buffer *buf = &chn->buf;
 	const char *end;
 
 	/* If the input side data overflows, we cannot insert data contiguously. */
@@ -745,7 +745,7 @@ static inline void channel_truncate(struct channel *chn)
 	if (!ci_data(chn))
 		return;
 
-	chn->buf->data = co_data(chn);
+	chn->buf.data = co_data(chn);
 }
 
 /* This function realigns a possibly wrapping channel buffer so that the input
@@ -756,7 +756,7 @@ static inline void channel_truncate(struct channel *chn)
  */
 static inline void channel_slow_realign(struct channel *chn, char *swap)
 {
-	return b_slow_realign(chn->buf, swap, co_data(chn));
+	return b_slow_realign(&chn->buf, swap, co_data(chn));
 }
 
 /*
@@ -768,7 +768,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
  */
 static inline void co_skip(struct channel *chn, int len)
 {
-	b_del(chn->buf, len);
+	b_del(&chn->buf, len);
 	chn->output -= len;
 	c_realign_if_empty(chn);
 

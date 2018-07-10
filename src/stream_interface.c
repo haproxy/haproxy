@@ -683,7 +683,7 @@ static void si_cs_send(struct conn_stream *cs)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		ret = conn->mux->snd_buf(cs, oc->buf, co_data(oc), send_flag);
+		ret = conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
@@ -1189,7 +1189,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 			break;
 		}
 
-		ret = conn->mux->rcv_buf(cs, ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
+		ret = conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
 		if (cs->flags & CS_FL_RCV_MORE)
 			si->flags |= SI_FL_WAIT_ROOM;
 
@@ -1250,7 +1250,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 
 	if (cur_read) {
 		if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-		    (cur_read <= ic->buf->size / 2)) {
+		    (cur_read <= ic->buf.size / 2)) {
 			ic->xfer_large = 0;
 			ic->xfer_small++;
 			if (ic->xfer_small >= 3) {
@@ -1269,7 +1269,7 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 			}
 		}
 		else if (!(ic->flags & CF_STREAMER_FAST) &&
-			 (cur_read >= ic->buf->size - global.tune.maxrewrite)) {
+			 (cur_read >= ic->buf.size - global.tune.maxrewrite)) {
 			/* we read a full buffer at once */
 			ic->xfer_small = 0;
 			ic->xfer_large++;

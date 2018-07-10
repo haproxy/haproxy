@@ -576,7 +576,7 @@ static void peer_io_handler(struct appctx *appctx)
 	unsigned int maj_ver, min_ver;
 
 	/* Check if the input buffer is avalaible. */
-	if (si_ic(si)->buf->size == 0)
+	if (si_ic(si)->buf.size == 0)
 		goto full;
 
 	while (1) {

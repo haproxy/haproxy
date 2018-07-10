@@ -329,8 +329,8 @@ static struct server *get_server_ph_post(struct stream *s)
 	if (len == 0)
 		return NULL;
 
-	if (len > b_wrap(req->buf) - p)
-		len = b_wrap(req->buf) - p;
+	if (len > b_wrap(&req->buf) - p)
+		len = b_wrap(&req->buf) - p;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;

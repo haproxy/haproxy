@@ -32,11 +32,24 @@
 
 /* Structure defining a buffer's head */
 struct buffer {
-	size_t head;                /* start offset of remaining data relative to area */
-	size_t data;                /* amount of data after head including wrapping */
 	size_t size;                /* buffer size in bytes */
-	char   area[0];             /* <size> bytes of stored data */
+	char  *area;                /* points to <size> bytes */
+	size_t data;                /* amount of data after head including wrapping */
+	size_t head;                /* start offset of remaining data relative to area */
 };
+
+/* A buffer may be in 3 different states :
+ *   - unallocated : size == 0, area == 0  (b_is_null() is true)
+ *   - waiting     : size == 0, area != 0
+ *   - allocated   : size  > 0, area  > 0
+ */
+
+/* initializers for certain buffer states. It is important that the NULL buffer
+ * remains the one with all fields initialized to zero so that a calloc() or a
+ * memset() on a struct automatically sets a NULL buffer.
+ */
+#define BUF_NULL   ((struct buffer){ })
+#define BUF_WANTED ((struct buffer){ .area = (char *)1 })
 
 
 /***************************************************************************/
@@ -46,13 +59,21 @@ struct buffer {
 /* offset relative to the storage area.                                    */
 /***************************************************************************/
 
+/* b_is_null() : returns true if (and only if) the buffer is not yet allocated
+ * and thus points to a NULL area.
+ */
+static inline int b_is_null(const struct buffer *buf)
+{
+	return buf->area == NULL;
+}
+
 /* b_orig() : returns the pointer to the origin of the storage, which is the
  * location of byte at offset zero. This is mostly used by functions which
  * handle the wrapping by themselves.
  */
 static inline char *b_orig(const struct buffer *b)
 {
-	return (char *)b->area;
+	return b->area;
 }
 
 /* b_size() : returns the size of the buffer. */
@@ -66,7 +87,7 @@ static inline size_t b_size(const struct buffer *b)
  */
 static inline char *b_wrap(const struct buffer *b)
 {
-	return (char *)b->area + b->size;
+	return b->area + b->size;
 }
 
 /* b_data() : returns the number of bytes present in the buffer. */

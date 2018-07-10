@@ -92,12 +92,12 @@ int co_inject(struct channel *chn, const char *msg, int len)
 	}
 
 	c_realign_if_empty(chn);
-	max = b_contig_space(chn->buf);
+	max = b_contig_space(&chn->buf);
 	if (len > max)
 		return max;
 
 	memcpy(ci_tail(chn), msg, len);
-	b_add(chn->buf, len);
+	b_add(&chn->buf, len);
 	c_adv(chn, len);
 	chn->total += len;
 	return -1;
@@ -119,7 +119,7 @@ int ci_putchr(struct channel *chn, char c)
 
 	*ci_tail(chn) = c;
 
-	b_add(chn->buf, 1);
+	b_add(&chn->buf, 1);
 	chn->flags |= CF_READ_PARTIAL;
 
 	if (chn->to_forward >= 1) {
@@ -166,12 +166,12 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = b_contig_space(chn->buf);
+	max = b_contig_space(&chn->buf);
 	memcpy(ci_tail(chn), blk, MIN(len, max));
 	if (len > max)
 		memcpy(c_orig(chn), blk + max, len - max);
 
-	b_add(chn->buf, len);
+	b_add(&chn->buf, len);
 	chn->total += len;
 	if (chn->to_forward) {
 		unsigned long fwd = len;
@@ -226,7 +226,7 @@ int co_getline(const struct channel *chn, char *str, int len)
 
 		if (*p == '\n')
 			break;
-		p = b_next(chn->buf, p);
+		p = b_next(&chn->buf, p);
 	}
 	if (ret > 0 && ret < len &&
 	    (ret < co_data(chn) || channel_may_recv(chn)) &&
@@ -258,7 +258,7 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 		return 0;
 	}
 
-	return b_getblk(chn->buf, blk, len, offset);
+	return b_getblk(&chn->buf, blk, len, offset);
 }
 
 /* Gets one or two blocks of data at once from a channel's output buffer.
@@ -277,7 +277,7 @@ int co_getblk_nc(const struct channel *chn, const char **blk1, size_t *len1, con
 		return 0;
 	}
 
-	return b_getblk_nc(chn->buf, blk1, len1, blk2, len2, 0, co_data(chn));
+	return b_getblk_nc(&chn->buf, blk1, len1, blk2, len2, 0, co_data(chn));
 }
 
 /* Gets one text line out of a channel's output buffer from a stream interface.
@@ -411,7 +411,7 @@ int ci_getline_nc(const struct channel *chn,
  */
 int ci_insert_line2(struct channel *c, int pos, const char *str, int len)
 {
-	struct buffer *b = c->buf;
+	struct buffer *b = &c->buf;
 	char *dst = c_ptr(c, pos);
 	int delta;
 

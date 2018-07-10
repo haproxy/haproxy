@@ -172,7 +172,7 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 #if defined(USE_SLZ)
 	(*comp_ctx)->direct_ptr = NULL;
 	(*comp_ctx)->direct_len = 0;
-	(*comp_ctx)->queued = NULL;
+	(*comp_ctx)->queued = BUF_NULL;
 #elif defined(USE_ZLIB)
 	HA_ATOMIC_ADD(&zlib_used_memory, sizeof(struct comp_ctx));
 
@@ -291,34 +291,34 @@ static int rfc1950_init(struct comp_ctx **comp_ctx, int level)
  */
 static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
-	static THREAD_LOCAL struct buffer *tmpbuf = &buf_empty;
+	static THREAD_LOCAL struct buffer tmpbuf = BUF_NULL;
 
 	if (in_len <= 0)
 		return 0;
 
-	if (comp_ctx->direct_ptr && !comp_ctx->queued) {
+	if (comp_ctx->direct_ptr && b_is_null(&comp_ctx->queued)) {
 		/* data already being pointed to, we're in front of fragmented
 		 * data and need a buffer now. We reuse the same buffer, as it's
 		 * not used out of the scope of a series of add_data()*, end().
 		 */
-		if (unlikely(!tmpbuf->size)) {
+		if (unlikely(!tmpbuf.size)) {
 			/* this is the first time we need the compression buffer */
 			if (b_alloc(&tmpbuf) == NULL)
 				return -1; /* no memory */
 		}
-		b_reset(tmpbuf);
-		memcpy(b_tail(tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
-		b_add(tmpbuf, comp_ctx->direct_len);
+		b_reset(&tmpbuf);
+		memcpy(b_tail(&tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
+		b_add(&tmpbuf, comp_ctx->direct_len);
 		comp_ctx->direct_ptr = NULL;
 		comp_ctx->direct_len = 0;
 		comp_ctx->queued = tmpbuf;
 		/* fall through buffer copy */
 	}
 
-	if (comp_ctx->queued) {
+	if (!b_is_null(&comp_ctx->queued)) {
 		/* data already pending */
-		memcpy(b_tail(comp_ctx->queued), in_data, in_len);
-		b_add(comp_ctx->queued, in_len);
+		memcpy(b_tail(&comp_ctx->queued), in_data, in_len);
+		b_add(&comp_ctx->queued, in_len);
 		return in_len;
 	}
 
@@ -342,9 +342,9 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	in_ptr = comp_ctx->direct_ptr;
 	in_len = comp_ctx->direct_len;
 
-	if (comp_ctx->queued) {
-		in_ptr = b_head(comp_ctx->queued);
-		in_len = b_data(comp_ctx->queued);
+	if (!b_is_null(&comp_ctx->queued)) {
+		in_ptr = b_head(&comp_ctx->queued);
+		in_len = b_data(&comp_ctx->queued);
 	}
 
 	out_len = b_data(out);
@@ -360,7 +360,7 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	/* very important, we must wipe the data we've just flushed */
 	comp_ctx->direct_len = 0;
 	comp_ctx->direct_ptr = NULL;
-	comp_ctx->queued     = NULL;
+	comp_ctx->queued     = BUF_NULL;
 
 	/* Verify compression rate limiting and CPU usage */
 	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */

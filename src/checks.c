@@ -745,16 +745,16 @@ static void event_srv_chk_w(struct conn_stream *cs)
 	if (check->type == PR_O2_TCPCHK_CHK)
 		goto out_unlock;
 
-	if (b_data(check->bo)) {
-		b_del(check->bo, conn->mux->snd_buf(cs, check->bo, b_data(check->bo), 0));
-		b_realign_if_empty(check->bo);
+	if (b_data(&check->bo)) {
+		b_del(&check->bo, conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0));
+		b_realign_if_empty(&check->bo);
 
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
 			__cs_stop_both(cs);
 			goto out_wakeup;
 		}
-		if (b_data(check->bo))
+		if (b_data(&check->bo))
 			goto out_unlock;
 	}
 
@@ -824,10 +824,10 @@ static void event_srv_chk_r(struct conn_stream *cs)
 
 	done = 0;
 
-	conn->mux->rcv_buf(cs, check->bi, check->bi->size, 0);
+	conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0);
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 		done = 1;
-		if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(check->bi)) {
+		if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
 			/* Report network errors only if we got no other data. Otherwise
 			 * we'll let the upper layers decide whether the response is OK
 			 * or not. It is very common that an RST sent by the server is
@@ -840,35 +840,35 @@ static void event_srv_chk_r(struct conn_stream *cs)
 
 
 	/* Intermediate or complete response received.
-	 * Terminate string in b_head(check->bi) buffer.
+	 * Terminate string in b_head(&check->bi) buffer.
 	 */
-	if (b_data(check->bi) < check->bi->size)
-		b_head(check->bi)[b_data(check->bi)] = '\0';
+	if (b_data(&check->bi) < b_size(&check->bi))
+		b_head(&check->bi)[b_data(&check->bi)] = '\0';
 	else {
-		b_head(check->bi)[b_data(check->bi) - 1] = '\0';
+		b_head(&check->bi)[b_data(&check->bi) - 1] = '\0';
 		done = 1; /* buffer full, don't wait for more data */
 	}
 
 	/* Run the checks... */
 	switch (check->type) {
 	case PR_O2_HTTP_CHK:
-		if (!done && b_data(check->bi) < strlen("HTTP/1.0 000\r"))
+		if (!done && b_data(&check->bi) < strlen("HTTP/1.0 000\r"))
 			goto wait_more_data;
 
 		/* Check if the server speaks HTTP 1.X */
-		if ((b_data(check->bi) < strlen("HTTP/1.0 000\r")) ||
-		    (memcmp(b_head(check->bi), "HTTP/1.", 7) != 0 ||
-		    (*(b_head(check->bi) + 12) != ' ' && *(b_head(check->bi) + 12) != '\r')) ||
-		    !isdigit((unsigned char) *(b_head(check->bi) + 9)) || !isdigit((unsigned char) *(b_head(check->bi) + 10)) ||
-		    !isdigit((unsigned char) *(b_head(check->bi) + 11))) {
-			cut_crlf(b_head(check->bi));
-			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(check->bi));
+		if ((b_data(&check->bi) < strlen("HTTP/1.0 000\r")) ||
+		    (memcmp(b_head(&check->bi), "HTTP/1.", 7) != 0 ||
+		    (*(b_head(&check->bi) + 12) != ' ' && *(b_head(&check->bi) + 12) != '\r')) ||
+		    !isdigit((unsigned char) *(b_head(&check->bi) + 9)) || !isdigit((unsigned char) *(b_head(&check->bi) + 10)) ||
+		    !isdigit((unsigned char) *(b_head(&check->bi) + 11))) {
+			cut_crlf(b_head(&check->bi));
+			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
 
 			goto out_wakeup;
 		}
 
-		check->code = str2uic(b_head(check->bi) + 9);
-		desc = ltrim(b_head(check->bi) + 12, ' ');
+		check->code = str2uic(b_head(&check->bi) + 9);
+		desc = ltrim(b_head(&check->bi) + 12, ' ');
 
 		if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->next_state != SRV_ST_STOPPED) && (check->code == 404)) {
@@ -882,7 +882,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 				goto wait_more_data;
 		}
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		else if (*(b_head(check->bi) + 9) == '2' || *(b_head(check->bi) + 9) == '3') {
+		else if (*(b_head(&check->bi) + 9) == '2' || *(b_head(&check->bi) + 9) == '3') {
 			cut_crlf(desc);
 			set_server_check_status(check,  HCHK_STATUS_L7OKD, desc);
 		}
@@ -893,37 +893,37 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		break;
 
 	case PR_O2_SSL3_CHK:
-		if (!done && b_data(check->bi) < 5)
+		if (!done && b_data(&check->bi) < 5)
 			goto wait_more_data;
 
 		/* Check for SSLv3 alert or handshake */
-		if ((b_data(check->bi) >= 5) && (*b_head(check->bi) == 0x15 || *b_head(check->bi) == 0x16))
+		if ((b_data(&check->bi) >= 5) && (*b_head(&check->bi) == 0x15 || *b_head(&check->bi) == 0x16))
 			set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 		else
 			set_server_check_status(check, HCHK_STATUS_L6RSP, NULL);
 		break;
 
 	case PR_O2_SMTP_CHK:
-		if (!done && b_data(check->bi) < strlen("000\r"))
+		if (!done && b_data(&check->bi) < strlen("000\r"))
 			goto wait_more_data;
 
 		/* Check if the server speaks SMTP */
-		if ((b_data(check->bi) < strlen("000\r")) ||
-		    (*(b_head(check->bi) + 3) != ' ' && *(b_head(check->bi) + 3) != '\r') ||
-		    !isdigit((unsigned char) *b_head(check->bi)) || !isdigit((unsigned char) *(b_head(check->bi) + 1)) ||
-		    !isdigit((unsigned char) *(b_head(check->bi) + 2))) {
-			cut_crlf(b_head(check->bi));
-			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(check->bi));
+		if ((b_data(&check->bi) < strlen("000\r")) ||
+		    (*(b_head(&check->bi) + 3) != ' ' && *(b_head(&check->bi) + 3) != '\r') ||
+		    !isdigit((unsigned char) *b_head(&check->bi)) || !isdigit((unsigned char) *(b_head(&check->bi) + 1)) ||
+		    !isdigit((unsigned char) *(b_head(&check->bi) + 2))) {
+			cut_crlf(b_head(&check->bi));
+			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
 			goto out_wakeup;
 		}
 
-		check->code = str2uic(b_head(check->bi));
+		check->code = str2uic(b_head(&check->bi));
 
-		desc = ltrim(b_head(check->bi) + 3, ' ');
+		desc = ltrim(b_head(&check->bi) + 3, ' ');
 		cut_crlf(desc);
 
 		/* Check for SMTP code 2xx (should be 250) */
-		if (*b_head(check->bi) == '2')
+		if (*b_head(&check->bi) == '2')
 			set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 		else
 			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
@@ -963,7 +963,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		 * same category appear, the last one wins.
 		 */
 
-		p = b_head(check->bi);
+		p = b_head(&check->bi);
 		while (*p && *p != '\n' && *p != '\r')
 			p++;
 
@@ -977,7 +977,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		}
 
 		*p = 0;
-		cmd = b_head(check->bi);
+		cmd = b_head(&check->bi);
 
 		while (*cmd) {
 			/* look for next word */
@@ -1135,15 +1135,15 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	}
 
 	case PR_O2_PGSQL_CHK:
-		if (!done && b_data(check->bi) < 9)
+		if (!done && b_data(&check->bi) < 9)
 			goto wait_more_data;
 
-		if (b_head(check->bi)[0] == 'R') {
+		if (b_head(&check->bi)[0] == 'R') {
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
 		}
 		else {
-			if ((b_head(check->bi)[0] == 'E') && (b_head(check->bi)[5]!=0) && (b_head(check->bi)[6]!=0))
-				desc = &b_head(check->bi)[6];
+			if ((b_head(&check->bi)[0] == 'E') && (b_head(&check->bi)[5]!=0) && (b_head(&check->bi)[6]!=0))
+				desc = &b_head(&check->bi)[6];
 			else
 				desc = "PostgreSQL unknown error";
 
@@ -1152,29 +1152,29 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		break;
 
 	case PR_O2_REDIS_CHK:
-		if (!done && b_data(check->bi) < 7)
+		if (!done && b_data(&check->bi) < 7)
 			goto wait_more_data;
 
-		if (strcmp(b_head(check->bi), "+PONG\r\n") == 0) {
+		if (strcmp(b_head(&check->bi), "+PONG\r\n") == 0) {
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "Redis server is ok");
 		}
 		else {
-			set_server_check_status(check, HCHK_STATUS_L7STS, b_head(check->bi));
+			set_server_check_status(check, HCHK_STATUS_L7STS, b_head(&check->bi));
 		}
 		break;
 
 	case PR_O2_MYSQL_CHK:
-		if (!done && b_data(check->bi) < 5)
+		if (!done && b_data(&check->bi) < 5)
 			goto wait_more_data;
 
 		if (s->proxy->check_len == 0) { // old mode
-			if (*(b_head(check->bi) + 4) != '\xff') {
+			if (*(b_head(&check->bi) + 4) != '\xff') {
 				/* We set the MySQL Version in description for information purpose
 				 * FIXME : it can be cool to use MySQL Version for other purpose,
 				 * like mark as down old MySQL server.
 				 */
-				if (b_data(check->bi) > 51) {
-					desc = ltrim(b_head(check->bi) + 5, ' ');
+				if (b_data(&check->bi) > 51) {
+					desc = ltrim(b_head(&check->bi) + 5, ' ');
 					set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 				}
 				else {
@@ -1184,48 +1184,48 @@ static void event_srv_chk_r(struct conn_stream *cs)
 					/* it seems we have a OK packet but without a valid length,
 					 * it must be a protocol error
 					 */
-					set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(check->bi));
+					set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
 				}
 			}
 			else {
 				/* An error message is attached in the Error packet */
-				desc = ltrim(b_head(check->bi) + 7, ' ');
+				desc = ltrim(b_head(&check->bi) + 7, ' ');
 				set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 			}
 		} else {
-			unsigned int first_packet_len = ((unsigned int) *b_head(check->bi)) +
-			                                (((unsigned int) *(b_head(check->bi) + 1)) << 8) +
-			                                (((unsigned int) *(b_head(check->bi) + 2)) << 16);
+			unsigned int first_packet_len = ((unsigned int) *b_head(&check->bi)) +
+			                                (((unsigned int) *(b_head(&check->bi) + 1)) << 8) +
+			                                (((unsigned int) *(b_head(&check->bi) + 2)) << 16);
 
-			if (b_data(check->bi) == first_packet_len + 4) {
+			if (b_data(&check->bi) == first_packet_len + 4) {
 				/* MySQL Error packet always begin with field_count = 0xff */
-				if (*(b_head(check->bi) + 4) != '\xff') {
+				if (*(b_head(&check->bi) + 4) != '\xff') {
 					/* We have only one MySQL packet and it is a Handshake Initialization packet
 					* but we need to have a second packet to know if it is alright
 					*/
-					if (!done && b_data(check->bi) < first_packet_len + 5)
+					if (!done && b_data(&check->bi) < first_packet_len + 5)
 						goto wait_more_data;
 				}
 				else {
 					/* We have only one packet and it is an Error packet,
 					* an error message is attached, so we can display it
 					*/
-					desc = &b_head(check->bi)[7];
+					desc = &b_head(&check->bi)[7];
 					//ha_warning("onlyoneERR: %s\n", desc);
 					set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 				}
-			} else if (b_data(check->bi) > first_packet_len + 4) {
-				unsigned int second_packet_len = ((unsigned int) *(b_head(check->bi) + first_packet_len + 4)) +
-				                                 (((unsigned int) *(b_head(check->bi) + first_packet_len + 5)) << 8) +
-				                                 (((unsigned int) *(b_head(check->bi) + first_packet_len + 6)) << 16);
+			} else if (b_data(&check->bi) > first_packet_len + 4) {
+				unsigned int second_packet_len = ((unsigned int) *(b_head(&check->bi) + first_packet_len + 4)) +
+				                                 (((unsigned int) *(b_head(&check->bi) + first_packet_len + 5)) << 8) +
+				                                 (((unsigned int) *(b_head(&check->bi) + first_packet_len + 6)) << 16);
 
-				if (b_data(check->bi) == first_packet_len + 4 + second_packet_len + 4 ) {
+				if (b_data(&check->bi) == first_packet_len + 4 + second_packet_len + 4 ) {
 					/* We have 2 packets and that's good */
 					/* Check if the second packet is a MySQL Error packet or not */
-					if (*(b_head(check->bi) + first_packet_len + 8) != '\xff') {
+					if (*(b_head(&check->bi) + first_packet_len + 8) != '\xff') {
 						/* No error packet */
 						/* We set the MySQL Version in description for information purpose */
-						desc = &b_head(check->bi)[5];
+						desc = &b_head(&check->bi)[5];
 						//ha_warning("2packetOK: %s\n", desc);
 						set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 					}
@@ -1233,7 +1233,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 						/* An error message is attached in the Error packet
 						* so we can display it ! :)
 						*/
-						desc = &b_head(check->bi)[first_packet_len+11];
+						desc = &b_head(&check->bi)[first_packet_len+11];
 						//ha_warning("2packetERR: %s\n", desc);
 						set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 					}
@@ -1246,7 +1246,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 				/* it seems we have a Handshake Initialization packet but without a valid length,
 				 * it must be a protocol error
 				 */
-				desc = &b_head(check->bi)[5];
+				desc = &b_head(&check->bi)[5];
 				//ha_warning("protoerr: %s\n", desc);
 				set_server_check_status(check, HCHK_STATUS_L7RSP, desc);
 			}
@@ -1254,7 +1254,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		break;
 
 	case PR_O2_LDAP_CHK:
-		if (!done && b_data(check->bi) < 14)
+		if (!done && b_data(&check->bi) < 14)
 			goto wait_more_data;
 
 		/* Check if the server speaks LDAP (ASN.1/BER)
@@ -1265,31 +1265,31 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		/* http://tools.ietf.org/html/rfc4511#section-4.1.1
 		 *   LDAPMessage: 0x30: SEQUENCE
 		 */
-		if ((b_data(check->bi) < 14) || (*(b_head(check->bi)) != '\x30')) {
+		if ((b_data(&check->bi) < 14) || (*(b_head(&check->bi)) != '\x30')) {
 			set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 		}
 		else {
 			 /* size of LDAPMessage */
-			msglen = (*(b_head(check->bi) + 1) & 0x80) ? (*(b_head(check->bi) + 1) & 0x7f) : 0;
+			msglen = (*(b_head(&check->bi) + 1) & 0x80) ? (*(b_head(&check->bi) + 1) & 0x7f) : 0;
 
 			/* http://tools.ietf.org/html/rfc4511#section-4.2.2
 			 *   messageID: 0x02 0x01 0x01: INTEGER 1
 			 *   protocolOp: 0x61: bindResponse
 			 */
 			if ((msglen > 2) ||
-			    (memcmp(b_head(check->bi) + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
+			    (memcmp(b_head(&check->bi) + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
 				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 				goto out_wakeup;
 			}
 
 			/* size of bindResponse */
-			msglen += (*(b_head(check->bi) + msglen + 6) & 0x80) ? (*(b_head(check->bi) + msglen + 6) & 0x7f) : 0;
+			msglen += (*(b_head(&check->bi) + msglen + 6) & 0x80) ? (*(b_head(&check->bi) + msglen + 6) & 0x7f) : 0;
 
 			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 			 *   ldapResult: 0x0a 0x01: ENUMERATION
 			 */
 			if ((msglen > 4) ||
-			    (memcmp(b_head(check->bi) + 7 + msglen, "\x0a\x01", 2) != 0)) {
+			    (memcmp(b_head(&check->bi) + 7 + msglen, "\x0a\x01", 2) != 0)) {
 				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 				goto out_wakeup;
 			}
@@ -1297,7 +1297,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 			 *   resultCode
 			 */
-			check->code = *(b_head(check->bi) + msglen + 9);
+			check->code = *(b_head(&check->bi) + msglen + 9);
 			if (check->code) {
 				set_server_check_status(check, HCHK_STATUS_L7STS, "See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
 			} else {
@@ -1310,16 +1310,16 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		unsigned int framesz;
 		char	     err[HCHK_DESC_LEN];
 
-		if (!done && b_data(check->bi) < 4)
+		if (!done && b_data(&check->bi) < 4)
 			goto wait_more_data;
 
-		memcpy(&framesz, b_head(check->bi), 4);
+		memcpy(&framesz, b_head(&check->bi), 4);
 		framesz = ntohl(framesz);
 
-		if (!done && b_data(check->bi) < (4+framesz))
+		if (!done && b_data(&check->bi) < (4+framesz))
 		    goto wait_more_data;
 
-		if (!spoe_handle_healthcheck_response(b_head(check->bi)+4, framesz, err, HCHK_DESC_LEN-1))
+		if (!spoe_handle_healthcheck_response(b_head(&check->bi)+4, framesz, err, HCHK_DESC_LEN-1))
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
 		else
 			set_server_check_status(check, HCHK_STATUS_L7STS, err);
@@ -1337,8 +1337,8 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		chk_report_conn_err(check, 0, 0);
 
 	/* Reset the check buffer... */
-	*b_head(check->bi) = '\0';
-	b_reset(check->bi);
+	*b_head(&check->bi) = '\0';
+	b_reset(&check->bi);
 
 	/* Close the connection... We still attempt to nicely close if,
 	 * for instance, SSL needs to send a "close notify." Later, we perform
@@ -1518,7 +1518,7 @@ static int connect_conn_chk(struct task *t)
 	 * its own strings.
 	 */
 	if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
-		b_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
+		b_putblk(&check->bo, s->proxy->check_req, s->proxy->check_len);
 
 		/* we want to check if this host replies to HTTP or SSLv3 requests
 		 * so we'll send the request, and won't wake the checker up now.
@@ -1526,21 +1526,21 @@ static int connect_conn_chk(struct task *t)
 		if ((check->type) == PR_O2_SSL3_CHK) {
 			/* SSL requires that we put Unix time in the request */
 			int gmt_time = htonl(date.tv_sec);
-			memcpy(b_head(check->bo) + 11, &gmt_time, 4);
+			memcpy(b_head(&check->bo) + 11, &gmt_time, 4);
 		}
 		else if ((check->type) == PR_O2_HTTP_CHK) {
 			if (s->proxy->options2 & PR_O2_CHK_SNDST)
-				b_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
+				b_putblk(&check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
-				b_putist(check->bo, ist("Connection: close\r\n"));
-			b_putist(check->bo, ist("\r\n"));
-			*b_tail(check->bo) = '\0'; /* to make gdb output easier to read */
+				b_putist(&check->bo, ist("Connection: close\r\n"));
+			b_putist(&check->bo, ist("\r\n"));
+			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
 		}
 	}
 
 	if ((check->type & PR_O2_LB_AGENT_CHK) && check->send_string_len) {
-		b_putblk(check->bo, check->send_string, check->send_string_len);
+		b_putblk(&check->bo, check->send_string, check->send_string_len);
 	}
 
 	/* for tcp-checks, the initial connection setup is handled separately as
@@ -2129,8 +2129,8 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
 		check->state |= CHK_ST_INPROGRESS;
-		b_reset(check->bi);
-		b_reset(check->bo);
+		b_reset(&check->bi);
+		b_reset(&check->bo);
 
 		ret = connect_conn_chk(t);
 		cs = check->cs;
@@ -2424,8 +2424,8 @@ static int httpchk_expect(struct server *s, int done)
 	switch (s->proxy->options2 & PR_O2_EXP_TYPE) {
 	case PR_O2_EXP_STS:
 	case PR_O2_EXP_RSTS:
-		memcpy(status_code, b_head(s->check.bi) + 9, 3);
-		memcpy(status_msg + strlen(status_msg) - 4, b_head(s->check.bi) + 9, 3);
+		memcpy(status_code, b_head(&s->check.bi) + 9, 3);
+		memcpy(status_msg + strlen(status_msg) - 4, b_head(&s->check.bi) + 9, 3);
 
 		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STS)
 			ret = strncmp(s->proxy->expect_str, status_code, 3) == 0;
@@ -2446,7 +2446,7 @@ static int httpchk_expect(struct server *s, int done)
 		 * to '\0' if crlf < 2.
 		 */
 		crlf = 0;
-		for (contentptr = b_head(s->check.bi); *contentptr; contentptr++) {
+		for (contentptr = b_head(&s->check.bi); *contentptr; contentptr++) {
 			if (crlf >= 2)
 				break;
 			if (*contentptr == '\r')
@@ -2645,8 +2645,8 @@ static int tcpcheck_main(struct check *check)
 	/* no step means first step initialisation */
 	if (check->current_step == NULL) {
 		check->last_started_step = NULL;
-		b_reset(check->bo);
-		b_reset(check->bi);
+		b_reset(&check->bo);
+		b_reset(&check->bi);
 		check->current_step = next;
 		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 		if (s->proxy->timeout.check)
@@ -2663,16 +2663,16 @@ static int tcpcheck_main(struct check *check)
 		 * in the remaining space. That explains why we break out of the
 		 * loop after this control. If we have data, conn is valid.
 		 */
-		if (b_data(check->bo) &&
+		if (b_data(&check->bo) &&
 		    (&check->current_step->list == head ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
-		     check->current_step->string_len >= b_room(check->bo))) {
+		     check->current_step->string_len >= b_room(&check->bo))) {
 			int ret;
 
 			__cs_want_send(cs);
-			ret = conn->mux->snd_buf(cs, check->bo, b_data(check->bo), 0);
-			b_del(check->bo, ret);
-			b_realign_if_empty(check->bo);
+			ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+			b_del(&check->bo, ret);
+			b_realign_if_empty(&check->bo);
 
 			if (ret <= 0) {
 				if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
@@ -2845,9 +2845,9 @@ static int tcpcheck_main(struct check *check)
 			check->last_started_step = check->current_step;
 
 			/* reset the read buffer */
-			if (*b_head(check->bi) != '\0') {
-				*b_head(check->bi) = '\0';
-				b_reset(check->bi);
+			if (*b_head(&check->bi) != '\0') {
+				*b_head(&check->bi) = '\0';
+				b_reset(&check->bi);
 			}
 
 			if (conn->flags & CO_FL_SOCK_WR_SH) {
@@ -2856,20 +2856,20 @@ static int tcpcheck_main(struct check *check)
 				goto out_end_tcpcheck;
 			}
 
-			if (check->current_step->string_len >= check->bo->size) {
+			if (check->current_step->string_len >= b_size(&check->bo)) {
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
-					     check->current_step->string_len, (unsigned int)check->bo->size,
+					     check->current_step->string_len, (unsigned int)b_size(&check->bo),
 					     tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 				goto out_end_tcpcheck;
 			}
 
 			/* do not try to send if there is no space */
-			if (check->current_step->string_len >= b_room(check->bo))
+			if (check->current_step->string_len >= b_room(&check->bo))
 				continue;
 
-			b_putblk(check->bo, check->current_step->string, check->current_step->string_len);
-			*b_tail(check->bo) = '\0'; /* to make gdb output easier to read */
+			b_putblk(&check->bo, check->current_step->string, check->current_step->string_len);
+			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
 
 			/* go to next rule and try to send */
 			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
@@ -2885,10 +2885,10 @@ static int tcpcheck_main(struct check *check)
 				goto out_end_tcpcheck;
 
 			__cs_want_recv(cs);
-			if (conn->mux->rcv_buf(cs, check->bi, check->bi->size, 0) <= 0) {
+			if (conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 					done = 1;
-					if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(check->bi)) {
+					if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
 						/* Report network errors only if we got no other data. Otherwise
 						 * we'll let the upper layers decide whether the response is OK
 						 * or not. It is very common that an RST sent by the server is
@@ -2907,20 +2907,20 @@ static int tcpcheck_main(struct check *check)
 
 
 			/* Intermediate or complete response received.
-			 * Terminate string in b_head(check->bi) buffer.
+			 * Terminate string in b_head(&check->bi) buffer.
 			 */
-			if (b_data(check->bi) < check->bi->size) {
-				b_head(check->bi)[b_data(check->bi)] = '\0';
+			if (b_data(&check->bi) < b_size(&check->bi)) {
+				b_head(&check->bi)[b_data(&check->bi)] = '\0';
 			}
 			else {
-				b_head(check->bi)[b_data(check->bi) - 1] = '\0';
+				b_head(&check->bi)[b_data(&check->bi) - 1] = '\0';
 				done = 1; /* buffer full, don't wait for more data */
 			}
 
-			contentptr = b_head(check->bi);
+			contentptr = b_head(&check->bi);
 
 			/* Check that response body is not empty... */
-			if (!b_data(check->bi)) {
+			if (!b_data(&check->bi)) {
 				if (!done)
 					continue;
 
@@ -2935,12 +2935,12 @@ static int tcpcheck_main(struct check *check)
 				goto out_end_tcpcheck;
 			}
 
-			if (!done && (check->current_step->string != NULL) && (b_data(check->bi) < check->current_step->string_len) )
+			if (!done && (check->current_step->string != NULL) && (b_data(&check->bi) < check->current_step->string_len) )
 				continue; /* try to read more */
 
 		tcpcheck_expect:
 			if (check->current_step->string != NULL)
-				ret = my_memmem(contentptr, b_data(check->bi), check->current_step->string, check->current_step->string_len) != NULL;
+				ret = my_memmem(contentptr, b_data(&check->bi), check->current_step->string, check->current_step->string_len) != NULL;
 			else if (check->current_step->expect_regex != NULL)
 				ret = regex_exec(check->current_step->expect_regex, contentptr);
 
@@ -3048,13 +3048,13 @@ static int tcpcheck_main(struct check *check)
 	/* We're waiting for some I/O to complete, we've reached the end of the
 	 * rules, or both. Do what we have to do, otherwise we're done.
 	 */
-	if (&check->current_step->list == head && !b_data(check->bo)) {
+	if (&check->current_step->list == head && !b_data(&check->bo)) {
 		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 		goto out_end_tcpcheck;
 	}
 
 	/* warning, current_step may now point to the head */
-	if (b_data(check->bo))
+	if (b_data(&check->bo))
 		__cs_want_send(cs);
 
 	if (&check->current_step->list != head &&
@@ -3083,26 +3083,22 @@ const char *init_check(struct check *check, int type)
 {
 	check->type = type;
 
-	/* Allocate buffer for requests... */
-	if ((check->bi = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
-		return "out of memory while allocating check buffer";
-	}
-	check->bi->size = global.tune.chksize;
+	b_reset(&check->bi); check->bi.size = global.tune.chksize;
+	b_reset(&check->bo); check->bo.size = global.tune.chksize;
 
-	/* Allocate buffer for responses... */
-	if ((check->bo = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
+	check->bi.area = calloc(check->bi.size, sizeof(char));
+	check->bo.area = calloc(check->bo.size, sizeof(char));
+
+	if (!check->bi.area || !check->bo.area)
 		return "out of memory while allocating check buffer";
-	}
-	check->bo->size = global.tune.chksize;
+
 	return NULL;
 }
 
 void free_check(struct check *check)
 {
-	free(check->bi);
-	check->bi = NULL;
-	free(check->bo);
-	check->bo = NULL;
+	free(check->bi.area);
+	free(check->bo.area);
 	if (check->cs) {
 		free(check->cs->conn);
 		check->cs->conn = NULL;

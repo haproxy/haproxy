@@ -461,7 +461,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	struct buffer *buf;
 
 	state = msg->msg_state;
-	buf = msg->chn->buf;
+	buf = &msg->chn->buf;
 	ptr = input + msg->next;
 	end = b_stop(buf);
 
@@ -1276,7 +1276,7 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
  */
 int http_forward_trailers(struct http_msg *msg)
 {
-	const struct buffer *buf = msg->chn->buf;
+	const struct buffer *buf = &msg->chn->buf;
 	const char *parse = ci_head(msg->chn);
 	const char *stop  = b_tail(buf);
 

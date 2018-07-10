@@ -306,7 +306,7 @@ struct spoe_context {
 	struct list        *events;       /* List of messages that will be sent during the stream processing */
 	struct list        *groups;       /* List of available SPOE group */
 
-	struct buffer      *buffer;       /* Buffer used to store a encoded messages */
+	struct buffer       buffer;       /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;  /* position in the list of ressources waiting for a buffer */
 	struct list         list;
 
@@ -357,7 +357,7 @@ struct spoe_appctx {
 	int                 rlen;           /* reason length */
 #endif
 
-	struct buffer      *buffer;         /* Buffer used to store a encoded messages */
+	struct buffer       buffer;         /* Buffer used to store a encoded messages */
 	struct buffer_wait  buffer_wait;    /* position in the list of ressources waiting for a buffer */
 	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
 	struct list         list;           /* next spoe appctx for the same agent */

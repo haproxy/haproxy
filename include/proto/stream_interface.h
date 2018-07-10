@@ -74,13 +74,13 @@ static inline struct channel *si_oc(struct stream_interface *si)
 /* returns the buffer which receives data from this stream interface (input channel's buffer) */
 static inline struct buffer *si_ib(struct stream_interface *si)
 {
-	return si_ic(si)->buf;
+	return &si_ic(si)->buf;
 }
 
 /* returns the buffer which feeds data to this stream interface (output channel's buffer) */
 static inline struct buffer *si_ob(struct stream_interface *si)
 {
-	return si_oc(si)->buf;
+	return &si_oc(si)->buf;
 }
 
 /* returns the stream associated to a stream interface */

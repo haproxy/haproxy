@@ -180,7 +180,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	 * when the default backend is assigned.
 	 */
 	s->be  = sess->fe;
-	s->req.buf = s->res.buf = NULL;
+	s->req.buf = BUF_NULL;
+	s->res.buf = BUF_NULL;
 	s->req_cap = NULL;
 	s->res_cap = NULL;
 
@@ -336,7 +337,7 @@ static void stream_free(struct stream *s)
 		LIST_INIT(&s->buffer_wait.list);
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
-	if (s->req.buf->size || s->res.buf->size) {
+	if (s->req.buf.size || s->res.buf.size) {
 		b_drop(&s->req.buf);
 		b_drop(&s->res.buf);
 		offer_buffers(NULL, tasks_run_queue);
@@ -856,7 +857,7 @@ static void sess_update_stream_int(struct stream *s)
 		req, &s->res,
 		req->rex, s->res.wex,
 		req->flags, s->res.flags,
-		req->buf->i, req->buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, s->si[1].state);
+		req->buf->i, req->buf->o, s->res.buf.i, s->res.buf.o, s->si[0].state, s->si[1].state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -1051,7 +1052,7 @@ static void sess_prepare_conn_req(struct stream *s)
 		&s->req, &s->res,
 		s->req.rex, s->res.wex,
 		s->req.flags, s->res.flags,
-		s->req.buf->i, s->req.buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, s->si[1].state);
+		s->req.buf.i, s->req.buf.o, s->res.buf.i, s->res.buf.o, s->si[0].state, s->si[1].state);
 
 	if (si->state != SI_ST_REQ)
 		return;
@@ -2978,11 +2979,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->req.wex ?
 			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->req.buf,
-		             b_orig(strm->req.buf), (unsigned int)co_data(&strm->req),
+			     &strm->req.buf,
+		             b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
 			     (unsigned int)ci_head_ofs(&strm->req),
 		             strm->txn ? strm->txn->req.next : 0, (unsigned int)ci_data(&strm->req),
-			     (unsigned int)strm->req.buf->size);
+			     (unsigned int)strm->req.buf.size);
 
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
@@ -3007,11 +3008,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm->res.wex ?
 			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->res.buf,
-		             b_orig(strm->res.buf), (unsigned int)co_data(&strm->res),
+			     &strm->res.buf,
+		             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
 		             (unsigned int)ci_head_ofs(&strm->res),
 		             strm->txn ? strm->txn->rsp.next : 0, (unsigned int)ci_data(&strm->res),
-			     (unsigned int)strm->res.buf->size);
+			     (unsigned int)strm->res.buf.size);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);

@@ -2019,13 +2019,13 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* Check if the buffer is avalaible because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
-	if (s->req.buf->size == 0) {
+	if (s->req.buf.size == 0) {
 		if (!channel_alloc_buffer(&s->req, &appctx->buffer_wait))
 			goto hlua_socket_write_yield_return;
 	}
 
 	/* Check for avalaible space. */
-	len = b_room(s->req.buf);
+	len = b_room(&s->req.buf);
 	if (len <= 0) {
 		goto hlua_socket_write_yield_return;
 	}
@@ -2840,7 +2840,7 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 	if (unlikely(ret == -1))
 		return 1;
 
-	b_sub(chn->buf, ret);
+	b_sub(&chn->buf, ret);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
@@ -2888,7 +2888,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 		len += len2;
 	}
 	luaL_pushresult(&b);
-	b_rep_blk(chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
+	b_rep_blk(&chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
@@ -2920,12 +2920,12 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	/* Check if the buffer is avalaible because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
-	if (chn->buf->size == 0) {
+	if (chn->buf.size == 0) {
 		si_applet_cant_put(chn_prod(chn));
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	}
 
-	max = channel_recv_limit(chn) - b_data(chn->buf);
+	max = channel_recv_limit(chn) - b_data(&chn->buf);
 	if (max > len - l)
 		max = len - l;
 
@@ -2943,7 +2943,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	lua_pushinteger(L, l);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 
-	max = channel_recv_limit(chn) - b_data(chn->buf);
+	max = channel_recv_limit(chn) - b_data(&chn->buf);
 	if (max == 0 && co_data(chn) == 0) {
 		/* There are no space avalaible, and the output buffer is empty.
 		 * in this case, we cannot add more data, so we cannot yield,
@@ -2987,7 +2987,7 @@ __LJMP static int hlua_channel_set(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, 0);
 
-	b_set_data(chn->buf, co_data(chn));
+	b_set_data(&chn->buf, co_data(chn));
 
 	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
@@ -3014,7 +3014,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	/* Check if the buffer is avalaible because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
-	if (chn->buf->size == 0) {
+	if (chn->buf.size == 0) {
 		si_applet_cant_put(chn_prod(chn));
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 	}
@@ -3024,7 +3024,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * The reserve is guaranted for the processing of incoming
 	 * data, because the buffer will be flushed.
 	 */
-	max = b_room(chn->buf);
+	max = b_room(&chn->buf);
 
 	/* If there are no space avalaible, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
@@ -3044,7 +3044,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		channel_slow_realign(chn, trash.str);
 
 	/* Copy input data in the buffer. */
-	max = b_rep_blk(chn->buf, ci_head(chn), ci_head(chn), str + l, max);
+	max = b_rep_blk(&chn->buf, ci_head(chn), ci_head(chn), str + l, max);
 
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.
@@ -3059,7 +3059,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * in this case, we cannot add more data, so we cannot yield,
 	 * we return the amount of copyied data.
 	 */
-	max = b_room(chn->buf);
+	max = b_room(&chn->buf);
 	if (max == 0 && co_data(chn) == 0)
 		return 1;
 
@@ -3177,7 +3177,7 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "is_full"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	rem = b_room(chn->buf);
+	rem = b_room(&chn->buf);
 	rem -= global.tune.maxrewrite; /* Rewrite reserved size */
 
 	lua_pushboolean(L, rem <= 0);
@@ -5405,7 +5405,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 	if (htxn->s->txn) {
 		/* HTTP mode, let's stay in sync with the stream */
-		b_del(ic->buf, htxn->s->txn->req.sov);
+		b_del(&ic->buf, htxn->s->txn->req.sov);
 		htxn->s->txn->req.next -= htxn->s->txn->req.sov;
 		htxn->s->txn->req.sov = 0;
 		ic->analysers &= AN_REQ_HTTP_XFER_BODY;

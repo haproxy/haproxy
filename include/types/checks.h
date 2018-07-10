@@ -18,6 +18,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
+#include <common/buffer.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>
@@ -157,7 +158,7 @@ enum {
 struct check {
 	struct xprt_ops *xprt;			/* transport layer operations for health checks */
 	struct conn_stream *cs;			/* conn_stream state for health checks */
-	struct buffer *bi, *bo;			/* input and output buffers to send/recv check */
+	struct buffer bi, bo;			/* input and output buffers to send/recv check */
 	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
 	struct timeval start;			/* last health check start time */
 	long duration;				/* time in ms took to finish last health check */

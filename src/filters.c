@@ -569,7 +569,7 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than this
 			 * one. */
-			b_set_data(msg->chn->buf, co_data(msg->chn) + *nxt);
+			b_set_data(&msg->chn->buf, co_data(msg->chn) + *nxt);
 		}
 		else {
 			/* Consume all available data and update the next offset
@@ -580,7 +580,7 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 	}
 
 	/* Restore the original buffer state */
-	b_set_data(msg->chn->buf, co_data(msg->chn) + buf_i + delta);
+	b_set_data(&msg->chn->buf, co_data(msg->chn) + buf_i + delta);
 
 	return ret;
 }
@@ -981,7 +981,7 @@ flt_data(struct stream *s, struct channel *chn)
 			/* And set this value as the bound for the next
 			 * filter. It will not able to parse more data than the
 			 * current one. */
-			b_set_data(chn->buf, co_data(chn) + *nxt);
+			b_set_data(&chn->buf, co_data(chn) + *nxt);
 		}
 		else {
 			/* Consume all available data */
@@ -995,7 +995,7 @@ flt_data(struct stream *s, struct channel *chn)
 	}
 
 	/* Restore the original buffer state */
-	b_set_data(chn->buf, co_data(chn) + buf_i + delta);
+	b_set_data(&chn->buf, co_data(chn) + buf_i + delta);
 
 	return ret;
 }

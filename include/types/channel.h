@@ -187,7 +187,7 @@
 struct channel {
 	unsigned int flags;             /* CF_* */
 	unsigned int analysers;         /* bit field indicating what to do on the channel */
-	struct buffer *buf;		/* buffer attached to the channel, always present but may move */
+	struct buffer buf;		/* buffer attached to the channel, always present but may move */
 	struct pipe *pipe;		/* non-NULL only when data present */
 	size_t output;                  /* part of buffer which is to be forwarded */
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
