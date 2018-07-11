@@ -26,19 +26,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <common/buf.h>
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/ist.h>
 #include <common/memory.h>
 
-
-struct buffer {
-	char *p;                        /* buffer's start pointer, separates in and out data */
-	unsigned int size;              /* buffer size in bytes */
-	unsigned int i;                 /* number of input bytes pending for analysis in the buffer */
-	unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
-	char data[0];                   /* <size> bytes */
-};
 
 /* an element of the <buffer_wq> list. It represents an object that need to
  * acquire a buffer to continue its process. */
