@@ -1652,7 +1652,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			}
 			if (unlikely(bi_end(req->buf) < b_ptr(req->buf, msg->next) ||
 			             bi_end(req->buf) > req->buf->data + req->buf->size - global.tune.maxrewrite))
-				channel_slow_realign(req);
+				channel_slow_realign(req, trash.str);
 		}
 
 		if (likely(msg->next < req->buf->i)) /* some unparsed data are available */
@@ -5139,7 +5139,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		if (unlikely(bi_end(rep->buf) < b_ptr(rep->buf, msg->next) ||
 		             bi_end(rep->buf) > rep->buf->data + rep->buf->size - global.tune.maxrewrite))
-			channel_slow_realign(rep);
+			channel_slow_realign(rep, trash.str);
 
 		if (likely(msg->next < rep->buf->i))
 			http_msg_analyzer(msg, &txn->hdr_idx);
@@ -9517,7 +9517,7 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 		 */
 		if (s->req.buf->p > s->req.buf->data &&
 		    s->req.buf->i + s->req.buf->p > s->req.buf->data + s->req.buf->size - global.tune.maxrewrite)
-			channel_slow_realign(&s->req);
+			channel_slow_realign(&s->req, trash.str);
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if (msg->msg_state == HTTP_MSG_ERROR)

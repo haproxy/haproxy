@@ -707,9 +707,9 @@ static inline void channel_truncate(struct channel *chn)
  * it allows the largest inputs to be processed at once and ensures that once
  * the output data leaves, the whole buffer is available at once.
  */
-static inline void channel_slow_realign(struct channel *chn)
+static inline void channel_slow_realign(struct channel *chn, char *swap)
 {
-	return buffer_slow_realign(chn->buf, co_data(chn));
+	return b_slow_realign(chn->buf, swap, co_data(chn));
 }
 
 /*
