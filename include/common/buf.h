@@ -484,15 +484,6 @@ static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 	return len;
 }
 
-/* b_putstr() : tries to copy string <str> into output data at buffer <b>.
- * Supports wrapping. Data are truncated if buffer is too short. It returns the
- * number of bytes copied.
- */
-static inline size_t b_putstr(struct buffer *b, const char *str)
-{
-	return b_putblk(b, str, strlen(str));
-}
-
 
 #endif /* _COMMON_BUF_H */
 
