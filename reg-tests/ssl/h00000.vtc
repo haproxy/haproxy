@@ -31,14 +31,13 @@ haproxy h1 -conf {
     http-request redirect location /
 } -start
 
-process p1 "curl -i -k https://${h1_frt_addr}:${h1_frt_port}" -start
-process p2 "curl -i -k https://${h1_frt_addr}:${h1_frt_port}" -start
-process p3 "curl -i -k https://${h1_frt_addr}:${h1_frt_port}" -start
-process p4 "curl -i -k https://${h1_frt_addr}:${h1_frt_port}" -start
-process p5 "curl -i -k https://${h1_frt_addr}:${h1_frt_port}" -start
-
-process p1 -wait
-process p2 -wait
-process p3 -wait
-process p4 -wait
-process p5 -wait
+shell {
+    HOST=${h1_frt_addr}
+    if [ "${h1_frt_addr}" = "::1" ] ; then
+        HOST="[::1]"
+    fi
+    for i in 1 2 3 4 5; do
+        curl -i -k https://$HOST:${h1_frt_port} & pids="$pids $!"
+    done
+    wait $pids
+}
