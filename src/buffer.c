@@ -35,24 +35,6 @@ struct buffer buf_wanted = { .p = buf_wanted.data };
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) buffer_wq_lock);
 
-/* this buffer is always the same size as standard buffers and is used for
- * swapping data inside a buffer.
- */
-static THREAD_LOCAL char *swap_buffer = NULL;
-
-static int init_buffer_per_thread()
-{
-	swap_buffer = calloc(1, global.tune.bufsize);
-	if (swap_buffer == NULL)
-		return 0;
-	return 1;
-}
-
-static void deinit_buffer_per_thread()
-{
-	free(swap_buffer); swap_buffer = NULL;
-}
-
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
@@ -80,9 +62,6 @@ int init_buffer()
 		return 0;
 
 	pool_free(pool_head_buffer, buffer);
-
-	hap_register_per_thread_init(init_buffer_per_thread);
-	hap_register_per_thread_deinit(deinit_buffer_per_thread);
 	return 1;
 }
 
@@ -166,21 +145,6 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	b->i += delta;
 	return delta;
-}
-
-/* This function realigns a possibly wrapping buffer so that the input part is
- * contiguous and starts at the beginning of the buffer and the output part
- * ends at the end of the buffer. This provides the best conditions since it
- * allows the largest inputs to be processed at once and ensures that once the
- * output data leaves, the whole buffer is available at once. The number of
- * output bytes supposedly present at the beginning of the buffer and which
- * need to be moved to the end must be passed in <output>. It's up to the
- * caller to ensure <output> is no larger than the difference between the
- * while buffer's length and its input.
- */
-void buffer_slow_realign(struct buffer *buf, size_t output)
-{
-	return b_slow_realign(buf, swap_buffer, output);
 }
 
 /*
