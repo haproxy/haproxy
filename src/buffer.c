@@ -108,44 +108,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 }
 
 /*
- * Inserts <str> followed by "\r\n" at position <pos> in buffer <b>. The <len>
- * argument informs about the length of string <str> so that we don't have to
- * measure it. It does not include the "\r\n". If <str> is NULL, then the buffer
- * is only opened for len+2 bytes but nothing is copied in. It may be useful in
- * some circumstances. The send limit is *not* adjusted. Same comments as above
- * for the valid use cases.
- *
- * The number of bytes added is returned on success. 0 is returned on failure.
- */
-int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
-{
-	int delta;
-
-	delta = len + 2;
-
-	if (b_tail(b) + delta >= b_wrap(b))
-		return 0;  /* no space left */
-
-	if (b_data(b) &&
-	    b_tail(b) + delta > b_head(b) &&
-	    b_head(b) >= b_tail(b))
-		return 0;  /* no space left before wrapping data */
-
-	/* first, protect the end of the buffer */
-	memmove(pos + delta, pos, b_tail(b) - pos);
-
-	/* now, copy str over pos */
-	if (len && str) {
-		memcpy(pos, str, len);
-		pos[len] = '\r';
-		pos[len + 1] = '\n';
-	}
-
-	b_add(b, delta);
-	return delta;
-}
-
-/*
  * Dumps part or all of a buffer.
  */
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)

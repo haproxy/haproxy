@@ -537,27 +537,19 @@ const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
 
 /*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
- * the last CRLF. Text length is measured first, so it cannot be NULL.
+ * the last CRLF.
  * The header is also automatically added to the index <hdr_idx>, and the end
  * of headers is automatically adjusted. The number of bytes added is returned
  * on success, otherwise <0 is returned indicating an error.
  */
-int http_header_add_tail(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text)
+static inline int http_header_add_tail(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text)
 {
-	int bytes, len;
-
-	len = strlen(text);
-	bytes = buffer_insert_line2(msg->chn->buf, ci_head(msg->chn) + msg->eoh, text, len);
-	if (!bytes)
-		return -1;
-	http_msg_move_end(msg, bytes);
-	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
+	return http_header_add_tail2(msg, hdr_idx, text, strlen(text));
 }
 
 /*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
- * the last CRLF. <len> bytes are copied, not counting the CRLF. If <text> is NULL, then
- * the buffer is only opened and the space reserved, but nothing is copied.
+ * the last CRLF. <len> bytes are copied, not counting the CRLF.
  * The header is also automatically added to the index <hdr_idx>, and the end
  * of headers is automatically adjusted. The number of bytes added is returned
  * on success, otherwise <0 is returned indicating an error.
@@ -567,7 +559,7 @@ int http_header_add_tail2(struct http_msg *msg,
 {
 	int bytes;
 
-	bytes = buffer_insert_line2(msg->chn->buf, ci_head(msg->chn) + msg->eoh, text, len);
+	bytes = ci_insert_line2(msg->chn, msg->eoh, text, len);
 	if (!bytes)
 		return -1;
 	http_msg_move_end(msg, bytes);
