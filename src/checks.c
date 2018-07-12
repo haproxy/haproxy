@@ -1533,8 +1533,8 @@ static int connect_conn_chk(struct task *t)
 				b_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
-				b_putstr(check->bo, "Connection: close\r\n");
-			b_putstr(check->bo, "\r\n");
+				b_putist(check->bo, ist("Connection: close\r\n"));
+			b_putist(check->bo, ist("\r\n"));
 			*b_tail(check->bo) = '\0'; /* to make gdb output easier to read */
 		}
 	}
