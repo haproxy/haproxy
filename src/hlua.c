@@ -2888,7 +2888,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 		len += len2;
 	}
 	luaL_pushresult(&b);
-	buffer_replace2(chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
+	b_rep_blk(chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
 	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
@@ -3044,7 +3044,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		channel_slow_realign(chn, trash.str);
 
 	/* Copy input data in the buffer. */
-	max = buffer_replace2(chn->buf, ci_head(chn), ci_head(chn), str + l, max);
+	max = b_rep_blk(chn->buf, ci_head(chn), ci_head(chn), str + l, max);
 
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.

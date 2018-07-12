@@ -484,6 +484,42 @@ static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 	return len;
 }
 
+/* b_rep_blk() : writes the block <blk> at position <pos> which must be in
+ * buffer <b>, and moves the part between <end> and the buffer's tail just
+ * after the end of the copy of <blk>. This effectively replaces the part
+ * located between <pos> and <end> with a copy of <blk> of length <len>. The
+ * buffer's length is automatically updated. This is used to replace a block
+ * with another one inside a buffer. The shift value (positive or negative) is
+ * returned. If there's no space left, the move is not done. If <len> is null,
+ * the <blk> pointer is allowed to be null, in order to erase a block.
+ */
+static inline int b_rep_blk(struct buffer *b, char *pos, char *end, const char *blk, size_t len)
+{
+	int delta;
+
+	delta = len - (end - pos);
+
+	if (b_tail(b) + delta > b_wrap(b))
+		return 0;  /* no space left */
+
+	if (b_data(b) &&
+	    b_tail(b) + delta > b_head(b) &&
+	    b_head(b) >= b_tail(b))
+		return 0;  /* no space left before wrapping data */
+
+	/* first, protect the end of the buffer */
+	memmove(end + delta, end, b_tail(b) - end);
+
+	/* now, copy blk over pos */
+	if (len)
+		memcpy(pos, blk, len);
+
+	b_add(b, delta);
+	b_realign_if_empty(b);
+
+	return delta;
+}
+
 
 #endif /* _COMMON_BUF_H */
 

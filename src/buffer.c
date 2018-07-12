@@ -70,43 +70,6 @@ void deinit_buffer()
 	pool_destroy(pool_head_buffer);
 }
 
-/* This function writes the string <str> at position <pos> which must be in
- * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
- * <l> and <r> are updated to be valid after the shift. The shift value
- * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o because it does not make sense to
- * use it on data scheduled to be sent. For the same reason, it does not make
- * sense to call this function on unparsed data, so <orig> is not updated. The
- * string length is taken from parameter <len>. If <len> is null, the <str>
- * pointer is allowed to be null.
- */
-int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
-{
-	int delta;
-
-	delta = len - (end - pos);
-
-	if (b_tail(b) + delta > b_wrap(b))
-		return 0;  /* no space left */
-
-	if (b_data(b) &&
-	    b_tail(b) + delta > b_head(b) &&
-	    b_head(b) >= b_tail(b))
-		return 0;  /* no space left before wrapping data */
-
-	/* first, protect the end of the buffer */
-	memmove(end + delta, end, b_tail(b) - end);
-
-	/* now, copy str over pos */
-	if (len)
-		memcpy(pos, str, len);
-
-	b_add(b, delta);
-	b_realign_if_empty(b);
-
-	return delta;
-}
-
 /*
  * Dumps part or all of a buffer.
  */

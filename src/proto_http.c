@@ -880,7 +880,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	hdr = &idx->v[cur_idx];
 	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen + ctx->tws == hdr->len) {
 		/* This was the only value of the header, we must now remove it entirely. */
-		delta = buffer_replace2(msg->chn->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
+		delta = b_rep_blk(msg->chn->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
 		http_msg_move_end(msg, delta);
 		idx->used--;
 		hdr->len = 0;   /* unused entry */
@@ -900,7 +900,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	 */
 
 	skip_comma = (ctx->val + ctx->vlen + ctx->tws == hdr->len) ? 0 : 1;
-	delta = buffer_replace2(msg->chn->buf, sol + ctx->del + skip_comma,
+	delta = b_rep_blk(msg->chn->buf, sol + ctx->del + skip_comma,
 				sol + ctx->val + ctx->vlen + ctx->tws + skip_comma,
 				NULL, 0);
 	hdr->len += delta;
@@ -1354,7 +1354,7 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 		return 0;
 	}
 	/* add HTTP version */
-	delta = buffer_replace2(msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+	delta = b_rep_blk(msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
 	cur_end = (char *)http_parse_reqline(msg,
@@ -2429,7 +2429,7 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 		if (output->len == -1)
 			return -1;
 
-		delta = buffer_replace2(msg->chn->buf, val, val_end, output->str, output->len);
+		delta = b_rep_blk(msg->chn->buf, val, val_end, output->str, output->len);
 
 		hdr->len += delta;
 		http_msg_move_end(msg, delta);
@@ -3765,7 +3765,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			char *cur_end = cur_ptr + txn->req.sl.rq.l;
 			int delta;
 
-			delta = buffer_replace2(req->buf, cur_ptr + msg->sl.rq.u, path, NULL, 0);
+			delta = b_rep_blk(req->buf, cur_ptr + msg->sl.rq.u, path, NULL, 0);
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
 			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
@@ -3776,7 +3776,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			char *cur_end = cur_ptr + txn->req.sl.rq.l;
 			int delta;
 
-			delta = buffer_replace2(req->buf, cur_ptr + msg->sl.rq.u,
+			delta = b_rep_blk(req->buf, cur_ptr + msg->sl.rq.u,
 						cur_ptr + msg->sl.rq.u + msg->sl.rq.u_l, "/", 1);
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
@@ -6516,7 +6516,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				if (trash.len < 0)
 					return -1;
 
-				delta = buffer_replace2(req->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(req->buf, cur_ptr, cur_end, trash.str, trash.len);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -6529,7 +6529,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				break;
 
 			case ACT_REMOVE:
-				delta = buffer_replace2(req->buf, cur_ptr, cur_next, NULL, 0);
+				delta = b_rep_blk(req->buf, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
 				http_msg_move_end(&txn->req, delta);
@@ -6604,7 +6604,7 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			if (trash.len < 0)
 				return -1;
 
-			delta = buffer_replace2(req->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(req->buf, cur_ptr, cur_end, trash.str, trash.len);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -6764,7 +6764,7 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
 				next++;
 		}
 	}
-	return buffer_replace2(buf, prev, next, NULL, 0);
+	return b_rep_blk(buf, prev, next, NULL, 0);
 }
 
 /*
@@ -6935,13 +6935,13 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				int stripped_after = 0;
 
 				if (att_end != equal) {
-					stripped_before = buffer_replace2(req->buf, att_end, equal, NULL, 0);
+					stripped_before = b_rep_blk(req->buf, att_end, equal, NULL, 0);
 					equal   += stripped_before;
 					val_beg += stripped_before;
 				}
 
 				if (val_beg > equal + 1) {
-					stripped_after = buffer_replace2(req->buf, equal + 1, val_beg, NULL, 0);
+					stripped_after = b_rep_blk(req->buf, equal + 1, val_beg, NULL, 0);
 					val_beg += stripped_after;
 					stripped_before += stripped_after;
 				}
@@ -7122,7 +7122,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
 					int delta; /* negative */
 
-					delta = buffer_replace2(req->buf, val_beg, delim + 1, NULL, 0);
+					delta = b_rep_blk(req->buf, val_beg, delim + 1, NULL, 0);
 					val_end  += delta;
 					next     += delta;
 					hdr_end  += delta;
@@ -7180,7 +7180,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				hdr_end = del_from;
 				cur_hdr->len += delta;
 			} else {
-				delta = buffer_replace2(req->buf, hdr_beg, hdr_next, NULL, 0);
+				delta = b_rep_blk(req->buf, hdr_beg, hdr_next, NULL, 0);
 
 				/* FIXME: this should be a separate function */
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
@@ -7252,7 +7252,7 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				if (trash.len < 0)
 					return -1;
 
-				delta = buffer_replace2(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -7265,7 +7265,7 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				break;
 
 			case ACT_REMOVE:
-				delta = buffer_replace2(rtr->buf, cur_ptr, cur_next, NULL, 0);
+				delta = b_rep_blk(rtr->buf, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
 				http_msg_move_end(&txn->rsp, delta);
@@ -7333,7 +7333,7 @@ int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_e
 			if (trash.len < 0)
 				return -1;
 
-			delta = buffer_replace2(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -7588,13 +7588,13 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 				int stripped_after = 0;
 
 				if (att_end != equal) {
-					stripped_before = buffer_replace2(res->buf, att_end, equal, NULL, 0);
+					stripped_before = b_rep_blk(res->buf, att_end, equal, NULL, 0);
 					equal   += stripped_before;
 					val_beg += stripped_before;
 				}
 
 				if (val_beg > equal + 1) {
-					stripped_after = buffer_replace2(res->buf, equal + 1, val_beg, NULL, 0);
+					stripped_after = b_rep_blk(res->buf, equal + 1, val_beg, NULL, 0);
 					val_beg += stripped_after;
 					stripped_before += stripped_after;
 				}
@@ -7652,7 +7652,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {
 						/* whole header */
-						delta = buffer_replace2(res->buf, hdr_beg, hdr_next, NULL, 0);
+						delta = b_rep_blk(res->buf, hdr_beg, hdr_next, NULL, 0);
 						txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 						txn->hdr_idx.used--;
 						cur_hdr->len = 0;
@@ -7679,7 +7679,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* replace bytes val_beg->val_end with the cookie name associated
 					 * with this server since we know it.
 					 */
-					delta = buffer_replace2(res->buf, val_beg, val_end, srv->cookie, srv->cklen);
+					delta = b_rep_blk(res->buf, val_beg, val_end, srv->cookie, srv->cklen);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
@@ -7693,7 +7693,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					/* insert the cookie name associated with this server
 					 * before existing cookie, and insert a delimiter between them..
 					 */
-					delta = buffer_replace2(res->buf, val_beg, val_beg, srv->cookie, srv->cklen + 1);
+					delta = b_rep_blk(res->buf, val_beg, val_beg, srv->cookie, srv->cklen + 1);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
@@ -11927,7 +11927,7 @@ int http_replace_req_line(int action, const char *replace, int len,
 	}
 
 	/* commit changes and adjust end of message */
-	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
+	delta = b_rep_blk(s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
 	txn->req.sl.rq.l += delta;
 	txn->hdr_idx.v[0].len += delta;
 	http_msg_move_end(&txn->req, delta);
@@ -11966,7 +11966,7 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 	cur_end = ci_head(&s->res) + txn->rsp.sl.st.r + txn->rsp.sl.st.r_l;
 
 	/* commit changes and adjust message */
-	delta = buffer_replace2(s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
+	delta = b_rep_blk(s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
 
 	/* adjust res line offsets and lengths */
 	txn->rsp.sl.st.r += c_l - txn->rsp.sl.st.c_l;
