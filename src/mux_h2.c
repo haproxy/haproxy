@@ -728,7 +728,7 @@ static int h2c_snd_settings(struct h2c *h2c)
 	}
 
 	h2_set_frame_size(buf.str, buf.len - 9);
-	ret = bo_istput(res, ist2(buf.str, buf.len));
+	ret = b_istput(res, ist2(buf.str, buf.len));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -811,7 +811,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 
 	write_n32(str + 9, h2c->last_sid);
 	write_n32(str + 13, h2c->errcode);
-	ret = bo_istput(res, ist2(str, 17));
+	ret = b_istput(res, ist2(str, 17));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -876,7 +876,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	memcpy(str, "\x00\x00\x04\x03\x00", 5);
 	write_n32(str + 5, h2s->id);
 	write_n32(str + 9, h2s->errcode);
-	ret = bo_istput(res, ist2(str, 13));
+	ret = b_istput(res, ist2(str, 13));
 
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
@@ -939,7 +939,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	write_n32(str + 5, h2c->dsi);
 	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) ?
 		  h2s->errcode : H2_ERR_STREAM_CLOSED);
-	ret = bo_istput(res, ist2(str, 13));
+	ret = b_istput(res, ist2(str, 13));
 
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
@@ -993,7 +993,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	/* len: 0x000000, type: 0(DATA), flags: ES=1 */
 	memcpy(str, "\x00\x00\x00\x00\x01", 5);
 	write_n32(str + 5, h2s->id);
-	ret = bo_istput(res, ist2(str, 9));
+	ret = b_istput(res, ist2(str, 9));
 	if (likely(ret > 0)) {
 		h2s->flags |= H2_SF_ES_SENT;
 	}
@@ -1179,7 +1179,7 @@ static int h2c_ack_settings(struct h2c *h2c)
 	       "\x04" "\x01"      /* type   : 4, flags : ACK */
 	       "\x00\x00\x00\x00" /* stream ID */, 9);
 
-	ret = bo_istput(res, ist2(str, 9));
+	ret = b_istput(res, ist2(str, 9));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -1239,7 +1239,7 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 	write_n32(str + 5, sid);
 	write_n32(str + 9, increment);
 
-	ret = bo_istput(res, ist2(str, 13));
+	ret = b_istput(res, ist2(str, 13));
 
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
@@ -1325,7 +1325,7 @@ static int h2c_ack_ping(struct h2c *h2c)
 	/* copy the original payload */
 	h2_get_buf_bytes(str + 9, 8, h2c->dbuf, 0);
 
-	ret = bo_istput(res, ist2(str, 17));
+	ret = b_istput(res, ist2(str, 17));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;

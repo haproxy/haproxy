@@ -30,6 +30,7 @@
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/ist.h>
+#include <common/istbuf.h>
 #include <common/memory.h>
 
 
@@ -248,112 +249,6 @@ static inline void offer_buffers(void *from, unsigned int threshold)
 	}
 	__offer_buffer(from, threshold);
 	HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-}
-
-/*************************************************************************/
-/* functions used to manipulate strings and blocks with wrapping buffers */
-/*************************************************************************/
-
-/* returns > 0 if the first <n> characters of buffer <b> starting at offset <o>
- * relative to the buffer's head match <ist>. (empty strings do match). It is
- * designed to be use with reasonably small strings (ie matches a single byte
- * per iteration). This function is usable both with input and output data. To
- * be used like this depending on what to match :
- * - input contents  :  b_isteq(b, b->o, b->i, ist);
- * - output contents :  b_isteq(b, 0, b->o, ist);
- * Return value :
- *   >0 : the number of matching bytes
- *   =0 : not enough bytes (or matching of empty string)
- *   <0 : non-matching byte found
- */
-static inline int b_isteq(const struct buffer *b, unsigned int o, size_t n, const struct ist ist)
-{
-	struct ist r = ist;
-	const char *p;
-	const char *end = b_wrap(b);
-
-	if (n < r.len)
-		return 0;
-
-	p = b_peek(b, o);
-	while (r.len--) {
-		if (*p++ != *r.ptr++)
-			return -1;
-		if (unlikely(p == end))
-			p = b_orig(b);
-	}
-	return ist.len;
-}
-
-/* "eats" string <ist> from the head of buffer <b>. Wrapping data is explicitly
- * supported. It matches a single byte per iteration so strings should remain
- * reasonably small. Returns :
- *   > 0 : number of bytes matched and eaten
- *   = 0 : not enough bytes (or matching an empty string)
- *   < 0 : non-matching byte found
- */
-static inline int b_eat(struct buffer *b, const struct ist ist)
-{
-	int ret = b_isteq(b, 0, b_data(b), ist);
-	if (ret > 0)
-		b_del(b, ret);
-	return ret;
-}
-
-/* injects string <ist> at the tail of input buffer <b> provided that it
- * fits. Wrapping is supported. It's designed for small strings as it only
- * writes a single byte per iteration. Returns the number of characters copied
- * (ist.len), 0 if it temporarily does not fit or -1 if it will never fit. It
- * will only modify the buffer upon success. In all cases, the contents are
- * copied prior to reporting an error, so that the destination at least
- * contains a valid but truncated string.
- */
-static inline int bi_istput(struct buffer *b, const struct ist ist)
-{
-	const char *end = b_wrap(b);
-	struct ist r = ist;
-	char *p;
-
-	if (r.len > (size_t)b_room(b))
-		return r.len < b->size ? 0 : -1;
-
-	p = b_tail(b);
-	b->len += r.len;
-	while (r.len--) {
-		*p++ = *r.ptr++;
-		if (unlikely(p == end))
-			p = b_orig(b);
-	}
-	return ist.len;
-}
-
-
-/* injects string <ist> at the tail of output buffer <b> provided that it
- * fits. Input data is assumed not to exist and will silently be overwritten.
- * Wrapping is supported. It's designed for small strings as it only writes a
- * single byte per iteration. Returns the number of characters copied (ist.len),
- * 0 if it temporarily does not fit or -1 if it will never fit. It will only
- * modify the buffer upon success. In all cases, the contents are copied prior
- * to reporting an error, so that the destination at least contains a valid
- * but truncated string.
- */
-static inline int bo_istput(struct buffer *b, const struct ist ist)
-{
-	const char *end = b_wrap(b);
-	struct ist r = ist;
-	char *p;
-
-	if (r.len > (size_t)b_room(b))
-		return r.len < b->size ? 0 : -1;
-
-	p = b_tail(b);
-	b->len += r.len;
-	while (r.len--) {
-		*p++ = *r.ptr++;
-		if (unlikely(p == end))
-			p = b_orig(b);
-	}
-	return ist.len;
 }
 
 
