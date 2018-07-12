@@ -2684,7 +2684,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count)
 		goto fail;
 	}
 
-	if (unlikely(buffer_space_wraps(buf))) {
+	if (unlikely(b_space_wraps(buf))) {
 		/* it doesn't fit and the buffer is fragmented,
 		 * so let's defragment it and try again.
 		 */
@@ -2992,7 +2992,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		outbuf.size = bo_contig_space(h2c->mbuf);
 		outbuf.len = 0;
 
-		if (outbuf.size >= 9 || !buffer_space_wraps(h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
 		b_slow_realign(h2c->mbuf, trash.str, h2c->mbuf->o);
@@ -3030,7 +3030,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 		outbuf.str[outbuf.len++] = list[0].v.ptr[2];
 	}
 	else {
-		if (buffer_space_wraps(h2c->mbuf))
+		if (b_space_wraps(h2c->mbuf))
 			goto realign_again;
 
 		h2c->flags |= H2_CF_MUX_MFULL;
@@ -3054,7 +3054,7 @@ static int h2s_frt_make_resp_headers(struct h2s *h2s, struct buffer *buf)
 
 		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
 			/* output full */
-			if (buffer_space_wraps(h2c->mbuf))
+			if (b_space_wraps(h2c->mbuf))
 				goto realign_again;
 
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -3150,7 +3150,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 		outbuf.size = bo_contig_space(h2c->mbuf);
 		outbuf.len = 0;
 
-		if (outbuf.size >= 9 || !buffer_space_wraps(h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(h2c->mbuf))
 			break;
 	realign_again:
 		b_slow_realign(h2c->mbuf, trash.str, h2c->mbuf->o);
@@ -3250,7 +3250,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 		/* we have an opportunity for enlarging the too small
 		 * available space, let's try.
 		 */
-		if (buffer_space_wraps(h2c->mbuf))
+		if (b_space_wraps(h2c->mbuf))
 			goto realign_again;
 		size = outbuf.size - 9;
 	}
