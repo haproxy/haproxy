@@ -1,0 +1,669 @@
+2018-07-13 - HAProxy Internal Buffer API
+
+
+1. Background
+
+HAProxy uses a "struct buffer" internally to store data received from external
+agents, as well as data to be sent to external agents. These buffers are also
+used during data transformation such as compression, header insertion or
+defragmentation, and are used to carry intermediary representations between the
+various internal layers. They support wrapping at the end, and they carry their
+own size information so that in theory it would be possible to use different
+buffer sizes in parallel eventhough this is not currently implemented.
+
+The format of this structure has evolved over time, to reach a point where it
+is convenient and versatile enough to have permitted to make several internal
+types converge into a single one (specifically the struct chunk disappeared).
+
+
+2. Representation as of 1.9-dev1
+
+The current buffer representation consists in a linear storage area of known
+size, with a head position indicating the oldest data, and a total data count
+expressed in bytes. The head position, data count and size are expressed as
+integers and are positive or null. By convention, the head position is strictly
+smaller than the buffer size and the data count is smaller than or equal to the
+size, so that wrapping can be resolved with a single subtract. A buffer not
+respecting these rules is said to be degenerate. Unless specified otherwise,
+the various API functions will adopt an undefined behaviour when passed such a
+degenerate buffer.
+
+ Buffer declaration :
+
+    struct buffer {
+        size_t size;     // size of the storage area (wrapping point)
+        char  *area;     // start of the storage area
+        size_t data;     // contents length after head
+        size_t head;     // start offset of remaining data relative to area
+    };
+
+
+ Linear buffer representation :
+
+    area
+      |
+      V<--------------------------------------------------------->| size
+      +-----------+---------------------------------+-------------+
+      |           |/////////////////////////////////|             |
+      +-----------+---------------------------------+-------------+
+      |<--------->|<------------------------------->|
+           head                 data                ^
+                                                    |
+                                                   tail
+
+
+ Wrapping buffer representation :
+
+    area
+      |
+      V<--------------------------------------------------------->| size
+      +---------------+------------------------+------------------+
+      |///////////////|                        |//////////////////|
+      +---------------+------------------------+------------------+
+      |<-------------------------------------->| head
+      |-------------->| ...data         data...|<-----------------|
+                      ^
+                      |
+                     tail
+
+
+3. Terminology
+
+Manipulating a buffer just based on a head and a wrapping data count is not
+very convenient, so we define a certain number of terms for important elements
+characterizing a buffer :
+
+   - origin    : pointer to relative position 0 in the storage area. Undefined
+                 when the buffer is not allocated.
+
+   - size      : the allocated size of the storage area starting at the origin,
+                 expressed in bytes. A buffer whose size is zero is said not to
+                 be allocated, and its origin in this case is undefined.
+
+   - data      : the amount of data the buffer contains, in bytes. It is always
+                 lower than or equal to the buffer's size, hence it is always 0
+                 for an unallocated buffer.
+
+   - emptiness : a buffer is said to be empty when it contains no data, hence
+                 data == 0. It is possible for such buffers not to be allocated
+                 and to have size == 0 as well.
+
+   - room      : the available space in the buffer. This is its size minus data.
+
+   - head      : position relative to origin where the oldest data byte is found
+                 (it typically is what send() uses to pick outgoing data). The
+                 head is strictly smaller than the size.
+
+   - tail      : position relative to origin where the first spare byte is found
+                 (it typically is what recv() uses to store incoming data). It
+                 is always equal to the buffer's data added to its head modulo
+                 the buffer's size.
+
+   - wrapping  : the byte following the last one of the storage area loops back
+                 to position 0. This is called wrapping. The wrapping point is
+                 the first position relative to origin which doesn't belong to
+                 the storage area. There is no wrapping when a buffer is not
+                 allocated. Wrapping requires special care and means that the
+                 regular string manipulation functions are not usable on most
+                 buffers, unless it is known that no wrapping happens. Free
+                 space may wrap as well if the buffer only contains data in the
+                 middle.
+
+   - alignment : a buffer is said to be aligned if its data do not wrap. That
+                 is, its head is strictly before the tail, or the buffer is
+                 empty and the head is null. Aligning a buffer may be required
+                 to use regular string manipulation functions which have no
+                 support for wrapping.
+
+
+A buffer may be in three different states :
+   - unallocated : size == 0, area == 0 (b_is_null() is true)
+   - waiting     : size == 0, area != 0
+   - allocated   : size  > 0, area  > 0
+
+It is not permitted to have area == 0 with a non-null size. In addition, the
+waiting state may also be used to indicate a read-only buffer which does not
+wrap and which must not be freed (e.g. for use with error messages).
+
+The basic API only covers allocated buffers. Switching to/from the other states
+is covered by the management API since it requires specific allocation and free
+calls.
+
+
+4. Using buffers
+
+Buffers are defined in a few files :
+   - include/common/buf.h    : structure definition, and manipulation functions
+   - include/common/buffer.h : resource management (alloc/free/wait lists)
+   - include/common/istbuf.h : advanced string manipulation
+
+
+4.1. Basic API
+
+The basic API is made of the functions which abstract accesses to the buffers
+and which help calculating their state, free space or used space.
+
+====================+==================+=======================================
+Function            | Arguments/Return | Description
+--------------------+------------------+---------------------------------------
+b_is_null()         | const buffer *buf| returns true if (and only if) the
+                    | ret: int         | buffer is not yet allocated and thus
+                    |                  | points to a NULL area
+--------------------+------------------+---------------------------------------
+b_orig()            | const buffer *buf| returns the pointer to the origin of
+                    | ret: char *      | the storage, which is the location of
+                    |                  | byte at offset zero. This is mostly
+                    |                  | used by functions which handle the
+                    |                  | wrapping by themselves
+--------------------+------------------+---------------------------------------
+b_size()            | const buffer *buf| returns the size of the buffer
+                    | ret: size_t      |
+--------------------+------------------+---------------------------------------
+b_wrap()            | const buffer *buf| returns the pointer to the wrapping
+                    | ret: char *      | position of the buffer area, which is
+                    |                  | by definition the first byte not part
+                    |                  | of the buffer
+--------------------+------------------+---------------------------------------
+b_data()            | const buffer *buf| returns the number of bytes present in
+                    | ret: size_t      | the buffer
+--------------------+------------------+---------------------------------------
+b_room()            | const buffer *buf| returns the amount of room left in the
+                    | ret: size_t      | buffer
+--------------------+------------------+---------------------------------------
+b_full()            | const buffer *buf| returns true if the buffer is full
+                    | ret: int         |
+--------------------+------------------+---------------------------------------
+__b_stop()          | const buffer *buf| returns a pointer to the byte
+                    | ret: char *      | following the end of the buffer, which
+                    |                  | may be out of the buffer if the buffer
+                    |                  | ends on the last byte of the area. It
+                    |                  | is the caller's responsibility to
+                    |                  | either know that the buffer does not
+                    |                  | wrap or to check that the result does
+                    |                  | not wrap
+--------------------+------------------+---------------------------------------
+__b_stop_ofs()      | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the byte following the end
+                    |                  | of the buffer, which may be out of the
+                    |                  | buffer if the buffer ends on the last
+                    |                  | byte of the area. It's the caller's
+                    |                  | responsibility to either know that the
+                    |                  | buffer does not wrap or to check that
+                    |                  | the result does not wrap
+--------------------+------------------+---------------------------------------
+b_stop()            | const buffer *buf| returns the pointer to the byte
+                    | ret: char *      | following the end of the buffer, which
+                    |                  | may be out of the buffer if the buffer
+                    |                  | ends on the last byte of the area
+--------------------+------------------+---------------------------------------
+b_stop_ofs()        | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the byte following the end
+                    |                  | of the buffer, which may be out of the
+                    |                  | buffer if the buffer ends on the last
+                    |                  | byte of the area
+--------------------+------------------+---------------------------------------
+__b_peek()          | const buffer *buf| returns a pointer to the data at
+                    | size_t ofs       | position <ofs> relative to the head of
+                    | ret: char *      | the buffer. Will typically point to
+                    |                  | input data if called with the amount
+                    |                  | of output data. It's the caller's
+                    |                  | responsibility to either know that the
+                    |                  | buffer does not wrap or to check that
+                    |                  | the result does not wrap
+--------------------+------------------+---------------------------------------
+__b_peek_ofs()      | const buffer *buf| returns an origin-relative offset
+                    | size_t ofs       | pointing to the data at position <ofs>
+                    | ret: size_t      | relative to the head of the
+                    |                  | buffer. Will typically point to input
+                    |                  | data if called with the amount of
+                    |                  | output data. It's the caller's
+                    |                  | responsibility to either know that the
+                    |                  | buffer does not wrap or to check that
+                    |                  | the result does not wrap
+--------------------+------------------+---------------------------------------
+b_peek()            | const buffer *buf| returns a pointer to the data at
+                    | size_t ofs       | position <ofs> relative to the head of
+                    | ret: char *      | the buffer. Will typically point to
+                    |                  | input data if called with the amount
+                    |                  | of output data. If applying <ofs> to
+                    |                  | the buffers' head results in a
+                    |                  | position between <size> and 2*>size>-1
+                    |                  | included, a wrapping compensation is
+                    |                  | applied to the result
+--------------------+------------------+---------------------------------------
+b_peek_ofs()        | const buffer *buf| returns an origin-relative offset
+                    | size_t ofs       | pointing to the data at position <ofs>
+                    | ret: size_t      | relative to the head of the
+                    |                  | buffer. Will typically point to input
+                    |                  | data if called with the amount of
+                    |                  | output data. If applying <ofs> to the
+                    |                  | buffers' head results in a position
+                    |                  | between <size> and 2*>size>-1
+                    |                  | included, a wrapping compensation is
+                    |                  | applied to the result
+--------------------+------------------+---------------------------------------
+__b_head()          | const buffer *buf| returns the pointer to the buffer's
+                    | ret: char *      | head, which is the location of the
+                    |                  | next byte to be dequeued. The result
+                    |                  | is undefined for unallocated buffers
+--------------------+------------------+---------------------------------------
+__b_head_ofs()      | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the buffer's head, which
+                    |                  | is the location of the next byte to be
+                    |                  | dequeued. The result is undefined for
+                    |                  | unallocated buffers
+--------------------+------------------+---------------------------------------
+b_head()            | const buffer *buf| returns the pointer to the buffer's
+                    | ret: char *      | head, which is the location of the
+                    |                  | next byte to be dequeued. The result
+                    |                  | is undefined for unallocated
+                    |                  | buffers. If applying <ofs> to the
+                    |                  | buffers' head results in a position
+                    |                  | between <size> and 2*>size>-1
+                    |                  | included, a wrapping compensation is
+                    |                  | applied to the result
+--------------------+------------------+---------------------------------------
+b_head_ofs()        | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the buffer's head, which
+                    |                  | is the location of the next byte to be
+                    |                  | dequeued. The result is undefined for
+                    |                  | unallocated buffers.  If applying
+                    |                  | <ofs> to the buffers' head results in
+                    |                  | a position between <size> and
+                    |                  | 2*>size>-1 included, a wrapping
+                    |                  | compensation is applied to the result
+--------------------+------------------+---------------------------------------
+__b_tail()          | const buffer *buf| returns the pointer to the tail of the
+                    | ret: char *      | buffer, which is the location of the
+                    |                  | first byte where it is possible to
+                    |                  | enqueue new data. The result is
+                    |                  | undefined for unallocated buffers
+--------------------+------------------+---------------------------------------
+__b_tail_ofs()      | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the tail of the buffer,
+                    |                  | which is the location of the first
+                    |                  | byte where it is possible to enqueue
+                    |                  | new data. The result is undefined for
+                    |                  | unallocated buffers
+--------------------+------------------+---------------------------------------
+b_tail()            | const buffer *buf| returns the pointer to the tail of the
+                    | ret: char *      | buffer, which is the location of the
+                    |                  | first byte where it is possible to
+                    |                  | enqueue new data. The result is
+                    |                  | undefined for unallocated buffers
+--------------------+------------------+---------------------------------------
+b_tail_ofs()        | const buffer *buf| returns an origin-relative offset
+                    | ret: size_t      | pointing to the tail of the buffer,
+                    |                  | which is the location of the first
+                    |                  | byte where it is possible to enqueue
+                    |                  | new data. The result is undefined for
+                    |                  | unallocated buffers
+--------------------+------------------+---------------------------------------
+b_next()            | const buffer *buf| for an absolute pointer <p> pointing
+                    | const char *p    | to a valid location within buffer <b>,
+                    | ret: char *      | returns the absolute pointer to the
+                    |                  | next byte, which usually is at (p + 1)
+                    |                  | unless p reaches the wrapping point
+                    |                  | and wrapping is needed
+--------------------+------------------+---------------------------------------
+b_next_ofs()        | const buffer *buf| for an origin-relative offset <o>
+                    | size_t o         | pointing to a valid location within
+                    | ret: size_t      | buffer <b>, returns either the
+                    |                  | relative offset pointing to the next
+                    |                  | byte, which usually is at (o + 1)
+                    |                  | unless o reaches the wrapping point
+                    |                  | and wrapping is needed
+--------------------+------------------+---------------------------------------
+b_dist()            | const buffer *buf| returns the distance between two
+                    | const char *from | pointers, taking into account the
+                    | const char *to   | ability to wrap around the buffer's
+                    | ret: size_t      | end. The operation is not defined if
+                    |                  | either of the pointers does not belong
+                    |                  | to the buffer or if their distance is
+                    |                  | greater than the buffer's size
+--------------------+------------------+---------------------------------------
+b_almost_full()     | const buffer *buf| returns 1 if the buffer uses at least
+                    | ret: int         | 3/4 of its capacity, otherwise
+                    |                  | zero. Buffers of size zero are
+                    |                  | considered full
+--------------------+------------------+---------------------------------------
+b_space_wraps()     | const buffer *buf| returns non-zero only if the buffer's
+                    | ret: int         | free space wraps, which means that the
+                    |                  | buffer contains data that are not
+                    |                  | touching at least one edge
+--------------------+------------------+---------------------------------------
+b_contig_data()     | const buffer *buf| returns the amount of data that can
+                    | size_t start     | contiguously be read at once starting
+                    | ret: size_t      | from a relative offset <start> (which
+                    |                  | allows to easily pre-compute blocks
+                    |                  | for memcpy). The start point will
+                    |                  | typically contain the amount of past
+                    |                  | data already returned by a previous
+                    |                  | call to this function
+--------------------+------------------+---------------------------------------
+b_contig_space()    | const buffer *buf| returns the amount of bytes that can
+                    | ret: size_t      | be appended to the buffer at once
+--------------------+------------------+---------------------------------------
+b_getblk()          | const buffer *buf| gets one full block of data at once
+                    | char *blk        | from a buffer, starting from offset
+                    | size_t len       | <offset> after the buffer's head, and
+                    | size_t offset    | limited to no more than <len> bytes.
+                    | ret: size_t      | The caller is responsible for ensuring
+                    |                  | that neither <offset> nor <offset> +
+                    |                  | <len> exceed the total number of bytes
+                    |                  | available in the buffer.  Return zero
+                    |                  | if not enough data was available, in
+                    |                  | which case blk is left undefined, or
+                    |                  | the number of bytes read which is
+                    |                  | equal to the requested size
+--------------------+------------------+---------------------------------------
+b_getblk_nc()       | const buffer *buf| gets one or two blocks of data at once
+                    | const char **blk1| from a buffer, starting from offset
+                    | size_t *len1     | <ofs> after the beginning of its
+                    | const char **blk2| output, and limited to no more than
+                    | size_t *len2     | <max> bytes. The caller is responsible
+                    | size_t ofs       | for ensuring that neither <ofs> nor
+                    | size_t max       | <ofs>+<max> exceed the total number of
+                    | ret: int         | bytes available in the buffer. Returns
+                    |                  | 0 if not enough data were available,
+                    |                  | or the number of blocks filled (1 or
+                    |                  | 2). <blk1> is always filled before
+                    |                  | <blk2>. The unused blocks are left
+                    |                  | undefined, and the buffer is left
+                    |                  | unaffected. Unused buffers are left in
+                    |                  | an undefined state
+--------------------+------------------+---------------------------------------
+b_reset()           | buffer *buf      | resets a buffer. The size is not
+                    | ret: void        | touched. In practice it resets the
+                    |                  | head and the data length
+--------------------+------------------+---------------------------------------
+b_sub()             | buffer *buf      | decreases the buffer length by <count>
+                    | size_t count     | without touching the head position
+                    | ret: void        | (only the tail moves). this may mostly
+                    |                  | be used to trim pending data before
+                    |                  | reusing a buffer. The caller is
+                    |                  | responsible for not removing more than
+                    |                  | the available data
+--------------------+------------------+---------------------------------------
+b_add()             | buffer *buf      | increase the buffer length by <count>
+                    | size_t count     | without touching the head position
+                    | ret: void        | (only the tail moves). This is used
+                    |                  | when adding data at the tail of a
+                    |                  | buffer. The caller is responsible for
+                    |                  | not adding more than the available
+                    |                  | room
+--------------------+------------------+---------------------------------------
+b_set_data()        | buffer *buf      | sets the buffer's length, by adjusting
+                    | size_t len       | the buffer's tail only. The caller is
+                    | ret: void        | responsible for passing a valid length
+--------------------+------------------+---------------------------------------
+b_del()             | buffer *buf      | deletes <del> bytes at the head of
+                    | size_t del       | buffer <b> and updates the head. The
+                    | ret: void        | caller is responsible for not removing
+                    |                  | more than the available data. This is
+                    |                  | used after sending data from the
+                    |                  | buffer
+--------------------+------------------+---------------------------------------
+b_realign_if_empty()| buffer *buf      | realigns a buffer if it's empty, does
+                    | ret: void        | nothing otherwise. This is mostly used
+                    |                  | after b_del() to make an empty
+                    |                  | buffer's free space contiguous
+--------------------+------------------+---------------------------------------
+b_slow_realign()    | buffer *buf      | realigns a possibly wrapping buffer so
+                    | size_t output    | that the part remaining to be parsed
+                    | ret: void        | is contiguous and starts at the
+                    |                  | beginning of the buffer and the
+                    |                  | already parsed output part ends at the
+                    |                  | end of the buffer. This provides the
+                    |                  | best conditions since it allows the
+                    |                  | largest inputs to be processed at once
+                    |                  | and ensures that once the output data
+                    |                  | leaves, the whole buffer is available
+                    |                  | at once. The number of output bytes
+                    |                  | supposedly present at the beginning of
+                    |                  | the buffer and which need to be moved
+                    |                  | to the end must be passed in <output>.
+                    |                  | It will effectively make this offset
+                    |                  | the new wrapping point. A temporary
+                    |                  | swap area at least as large as b->size
+                    |                  | must be provided in <swap>.  It's up
+                    |                  | to the caller to ensure <output> is no
+                    |                  | larger than the difference between the
+                    |                  | whole buffer's length and its input
+--------------------+------------------+---------------------------------------
+b_putchar()         | buffer *buf      | tries to append char <c> at the end of
+                    | char c           | buffer <b>. Supports wrapping. New
+                    | ret: void        | data are silently discarded if the
+                    |                  | buffer is already full
+--------------------+------------------+---------------------------------------
+b_putblk()          | buffer *buf      | tries to append block <blk> at the end
+                    | const char *blk  | of buffer <b>. Supports wrapping. Data
+                    | size_t len       | are truncated if the buffer is too
+                    | ret: size_t      | short or if not enough space is
+                    |                  | available. It returns the number of
+                    |                  | bytes really copied
+--------------------+------------------+---------------------------------------
+b_rep_blk()         | buffer *buf      | writes the block <blk> at position
+                    | char *pos        | <pos> which must be in buffer <b>, and
+                    | char *end        | moves the part between <end> and the
+                    | const char *blk  | buffer's tail just after the end of
+                    | size_t len       | the copy of <blk>. This effectively
+                    | ret: int         | replaces the part located between
+                    |                  | <pos> and <end> with a copy of <blk>
+                    |                  | of length <len>. The buffer's length
+                    |                  | is automatically updated. This is used
+                    |                  | to replace a block with another one
+                    |                  | inside a buffer. The shift value
+                    |                  | (positive or negative) is returned. If
+                    |                  | there's no space left, the move is not
+                    |                  | done. If <len> is null, the <blk>
+                    |                  | pointer is allowed to be null, in
+                    |                  | order to erase a block
+====================+==================+=======================================
+
+
+4.2. String API
+
+The string API aims at providing both convenient and efficient ways to read and
+write to/from buffers using indirect strings (ist). These strings and some
+associated functions are defined in ist.h.
+
+====================+==================+=======================================
+Function            | Arguments/Return | Description
+--------------------+------------------+---------------------------------------
+b_isteq()           | const buffer *b  | b_isteq() : returns > 0 if the first
+                    | size_t o         | <n> characters of buffer <b> starting
+                    | size_t n         | at offset <o> relative to the buffer's
+                    | const ist ist    | head match <ist>. (empty strings do
+                    | ret: int         | match). It is designed to be used with
+                    |                  | reasonably small strings (it matches a
+                    |                  | single byte per loop iteration). It is
+                    |                  | expected to be used with an offset to
+                    |                  | skip old data. Return value number of
+                    |                  | matching bytes if >0, not enough bytes
+                    |                  | or empty string if 0, or non-matching
+                    |                  | byte found if <0.
+--------------------+------------------+---------------------------------------
+b_isteat            | struct buffer *b | b_isteat() : "eats" string <ist> from
+                    | const ist ist    | the head of buffer <b>. Wrapping data
+                    | ret: ssize_t     | is explicitly supported. It matches a
+                    |                  | single byte per iteration so strings
+                    |                  | should remain reasonably small.
+                    |                  | Returns the number of bytes matched
+                    |                  | and eaten if >0, not enough bytes or
+                    |                  | matched empty string if 0, or non
+                    |                  | matching byte found if <0.
+--------------------+------------------+---------------------------------------
+b_istput            | struct buffer *b | b_istput() : injects string <ist> at
+                    | const ist ist    | the tail of output buffer <b> provided
+                    | ret: ssize_t     | that it fits. Wrapping is supported.
+                    |                  | It's designed for small strings as it
+                    |                  | only writes a single byte per
+                    |                  | iteration. Returns the number of
+                    |                  | characters copied (ist.len), 0 if it
+                    |                  | temporarily does not fit, or -1 if it
+                    |                  | will never fit. It will only modify
+                    |                  | the buffer upon success. In all cases,
+                    |                  | the contents are copied prior to
+                    |                  | reporting an error, so that the
+                    |                  | destination at least contains a valid
+                    |                  | but truncated string.
+--------------------+------------------+---------------------------------------
+b_putist            | struct buffer *b | b_putist() : tries to copy as much as
+                    | const ist ist    | possible of string <ist> into buffer
+                    | ret: size_t      | <b> and returns the number of bytes
+                    |                  | copied (truncation is possible). It
+                    |                  | uses b_putblk() and is suitable for
+                    |                  | large blocks.
+====================+==================+=======================================
+
+
+4.3. Management API
+
+The management API makes a distinction between an empty buffer, which by
+definition is not allocated but is ready to be allocated at any time, and a
+buffer which failed an allocation and is waiting for an available area to be
+offered. The functions allow to register on a list to be notified about buffer
+availability, to notify others of a number of buffers just released, and to be
+and to be notified of buffer availability. All allocations are made through the
+standard buffer pools.
+
+====================+==================+=======================================
+Function            | Arguments/Return | Description
+--------------------+------------------+---------------------------------------
+buffer_almost_full  | const buffer *buf| returns true if the buffer is not null
+                    | ret: int         | and at least 3/4 of the buffer's space
+                    |                  | are used. A waiting buffer will match.
+--------------------+------------------+---------------------------------------
+b_alloc             | buffer *buf      | allocates a buffer and assigns it to
+                    | ret: buffer *    | *buf. If no memory is available, (1)
+                    |                  | is assigned instead with a zero size.
+                    |                  | No control is made to check if *buf
+                    |                  | already pointed to another buffer. The
+                    |                  | allocated buffer is returned, or NULL
+                    |                  | in case no memory is available
+--------------------+------------------+---------------------------------------
+b_alloc_fast        | buffer *buf      | allocates a buffer and assigns it to
+                    | ret: buffer *    | *buf. If no memory is available, (1)
+                    |                  | is assigned instead with a zero size.
+                    |                  | No control is made to check if *buf
+                    |                  | already pointed to another buffer. The
+                    |                  | allocated buffer is returned, or NULL
+                    |                  | in case no memory is available. The
+                    |                  | difference with b_alloc() is that this
+                    |                  | function only picks from the pool and
+                    |                  | never calls malloc(), so it can fail
+                    |                  | even if some memory is available
+--------------------+------------------+---------------------------------------
+__b_drop            | buffer *buf      | releases <buf> which must be allocated
+                    | ret: void        |
+--------------------+------------------+---------------------------------------
+b_drop              | buffer *buf      | releases <buf> only if it is allocated
+                    | ret: void        |
+--------------------+------------------+---------------------------------------
+b_free              | buffer *buf      | releases <buf> only if it is allocated
+                    | ret: void        | and marks it empty
+--------------------+------------------+---------------------------------------
+b_alloc_margin      | buffer *buf      | ensures that <buf> is allocated. If an
+                    | int margin       | allocation is needed, it ensures that
+                    | ret: buffer *    | there are still at least <margin>
+                    |                  | buffers available in the pool after
+                    |                  | this allocation so that we don't leave
+                    |                  | the pool in a condition where a
+                    |                  | session or a response buffer could not
+                    |                  | be allocated anymore, resulting in a
+                    |                  | deadlock. This means that we sometimes
+                    |                  | need to try to allocate extra entries
+                    |                  | even if only one buffer is needed
+--------------------+------------------+---------------------------------------
+offer_buffers()     | void *from       | offer a buffer currently belonging to
+                    | uint threshold   | target <from> to whoever needs
+                    | ret: void        | one. Any pointer is valid for <from>,
+                    |                  | including NULL. Its purpose is to
+                    |                  | avoid passing a buffer to oneself in
+                    |                  | case of failed allocations (e.g. need
+                    |                  | two buffers, get one, fail, release it
+                    |                  | and wake up self again). In case of
+                    |                  | normal buffer release where it is
+                    |                  | expected that the caller is not
+                    |                  | waiting for a buffer, NULL is fine
+====================+==================+=======================================
+
+
+5. Porting code from older versions
+
+The previous buffer API introduced in 1.5-dev9 (May 2012) used to look like the
+following (with the struct renamed to old_buffer here to avoid confusion during
+quick lookups at the doc). It's worth noting that the "data" field used to be
+part of the struct but with a different type and meaning. It's important to be
+careful about potential code making use of &b->data as it will silently compile
+but fail.
+
+ Previous buffer declaration :
+
+    struct old_buffer {
+        char *p;                        /* buffer's start pointer, separates in and out data */
+        unsigned int size;              /* buffer size in bytes */
+        unsigned int i;                 /* number of input bytes pending for analysis in the buffer */
+        unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
+        char data[0];                   /* <size> bytes */
+    };
+
+ Previous linear buffer representation :
+
+    data                               p
+      |                                |
+      V                                V
+      +-----------+--------------------+------------+-------------+
+      |           |////////////////////|////////////|             |
+      +-----------+--------------------+------------+-------------+
+       <---------------------------------------------------------> size
+                   <------------------> <---------->
+                            o                i
+
+There is this correspondance between old and new fields (some will involve a
+knowledge of a channel when the output byte count is required) :
+
+     Old    | New
+    --------+----------------------------------------------------
+     p      | data + head + co_data(channel) // ci_head(channel)
+     size   | size
+     i      | data - co_data(channel) // ci_data(channel)
+     o      | co_data(channel) // channel->output
+     data   | area
+    --------+-----------------------------------------------------
+
+Then some common expressions can be mapped like this :
+
+     Old                   | New
+    -----------------------+---------------------------------------
+     b->data               | b_orig(b)
+     &b->data              | b_orig(b)
+     bi_ptr(b)             | ci_head(channel)
+     bi_end(b)             | b_tail(b)
+     bo_ptr(b)             | b_head(b)
+     bo_end(b)             | co_tail(channel)
+     bi_putblk(b,s,l)      | b_putblk(b,s,l)
+     bo_getblk(b,s,l,o)    | b_getblk(b,s,l,o)
+     bo_getblk_nc(b,s,l,o) | b_getblk_nc(b,s,l,o,0,co_data(channel))
+     b->i + b->o           | b_data(b)
+     b->data + b->size     | b_wrap(b)
+     b->i += len           | b_add(b, len)
+     b->i -= len           | b_sub(b, len)
+     b->i = len            | b_set_data(b, co_data(channel) + len)
+     b->o += len           | b_add(b, len); channel->output += len
+     b->o -= len           | b_del(b, len); channel->output -= len
+    -----------------------+---------------------------------------
+
+The buffer modification functions are less straightforward and depend a lot on
+the context where they are used. It is strongly advised to figure in the list
+of functions above what is available based on what is attempted to be done in
+the existing code.
+
+Note that it is very likely that any out-of-tree code relying on buffers will
+not use both ->i and ->o but instead will use exclusively ->i on the side
+producing data and use exclusively ->o on the side consuming data (such as in a
+mux or in an applet). In both cases, it should be assumed that the other side
+is always zero and that either ->i or ->o is replaced with ->data, making the
+remaining code much simpler (no more code duplication based on the data
+direction).
