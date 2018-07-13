@@ -34,7 +34,7 @@ haproxy h1 -conf {
 shell {
     HOST=${h1_frt_addr}
     if [ "${h1_frt_addr}" = "::1" ] ; then
-        HOST="[::1]"
+        HOST="\[::1\]"
     fi
     for i in 1 2 3 4 5; do
         curl -i -k https://$HOST:${h1_frt_port} & pids="$pids $!"
