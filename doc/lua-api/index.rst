@@ -852,6 +852,10 @@ Proxy class
   Contain a table with the attached servers. The table is indexed by server
   name, and each server entry is an object of type :ref:`server_class`.
 
+.. js:attribute:: Proxy.stktable
+
+  Contains a stick table object attached to the proxy.
+
 .. js:attribute:: Proxy.listeners
 
   Contain a table with the attached listeners. The table is indexed by listener
@@ -2488,6 +2492,74 @@ AppletTCP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :see: :js:func:`AppletTCP.unset_var`
   :see: :js:func:`AppletTCP.set_var`
+
+StickTable class
+================
+
+.. js:class:: StickTable
+
+  **context**: task, action, sample-fetch
+
+  This class can be used to access the HAProxy stick tables from Lua.
+
+.. js:function:: StickTable.info()
+
+  Returns stick table attributes as a Lua table. See HAProxy documentation for
+  "stick-table" for canonical info, or check out example bellow.
+
+  :returns: Lua table
+
+  Assume our table has IPv4 key and gpc0 and conn_rate "columns":
+
+.. code-block:: lua
+
+  {
+    expire=<int>,  # Value in ms
+    size=<int>,    # Maximum table size
+    used=<int>,    # Actual number of entries in table
+    data={         # Data columns, with types as key, and periods as values
+                     (-1 if type is not rate counter)
+      conn_rate=<int>,
+      gpc0=-1
+    },
+    length=<int>,  # max string length for string table keys, key length
+                   # otherwise
+    nopurge=<boolean>, # purge oldest entries when table is full
+    type="ip"      # can be "ip", "ipv6", "integer", "string", "binary"
+  }
+
+.. js:function:: StickTable.lookup(key)
+
+   Returns stick table entry for given <key>
+
+   :param string key: Stick table key (IP addresses and strings are supported)
+   :returns: Lua table
+
+.. js:function:: StickTable.dump([filter])
+
+   Returns all entries in stick table. An optional filter can be used
+   to extract entries with specific data values. Filter is a table with valid
+   comparison operators as keys followed by data type name and value pairs.
+   Check out the HAProxy docs for "show table" for more details. For the
+   reference, the supported operators are:
+     "eq", "ne", "le", "lt", "ge", "gt"
+
+   For large tables, execution of this function can take a long time (for
+   HAProxy standards). That's also true when filter is used, so take care and
+   measure the impact.
+
+   :param table filter: Stick table filter
+   :returns: Stick table entries (table)
+
+   See below for example filter, which contains 4 entries (or comparisons).
+   (Maximum number of filter entries is 4, defined in the source code)
+
+.. code-block:: lua
+
+    local filter = {
+      {"gpc0", "gt", 30}, {"gpc1", "gt", 20}}, {"conn_rate", "le", 10}
+    }
+
 
 External Lua libraries
 ======================

@@ -26,6 +26,7 @@
 #define CLASS_SERVER       "Server"
 #define CLASS_LISTENER     "Listener"
 #define CLASS_REGEX        "Regex"
+#define CLASS_STKTABLE     "StickTable"
 
 struct stream;
 

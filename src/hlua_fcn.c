@@ -30,6 +30,7 @@
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/stats.h>
+#include <proto/stick_table.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
@@ -37,7 +38,9 @@ static int class_proxy_ref;
 static int class_server_ref;
 static int class_listener_ref;
 static int class_regex_ref;
+static int class_stktable_ref;
 
+#define MAX_STK_FILTER_LEN 4
 #define STATS_LEN (MAX((int)ST_F_TOTAL_FIELDS, (int)INF_TOTAL_FIELDS))
 
 static THREAD_LOCAL struct field stats[STATS_LEN];
@@ -47,6 +50,38 @@ int hlua_checkboolean(lua_State *L, int index)
 	if (!lua_isboolean(L, index))
 		luaL_argerror(L, index, "boolean expected");
 	return lua_toboolean(L, index);
+}
+
+/* Helper to push unsigned integers to Lua stack, respecting Lua limitations  */
+static int hlua_fcn_pushunsigned(lua_State *L, unsigned int val)
+{
+#if (LUA_MAXINTEGER == LLONG_MAX || ((LUA_MAXINTEGER == LONG_MAX) && (__WORDSIZE == 64)))
+	lua_pushinteger(L, val);
+#else
+	if (val > INT_MAX)
+		lua_pushnumber(L, (lua_Number)val);
+	else
+		lua_pushinteger(L, (int)val);
+#endif
+	return 1;
+}
+
+/* Helper to push unsigned long long to Lua stack, respecting Lua limitations  */
+static int hlua_fcn_pushunsigned_ll(lua_State *L, unsigned long long val) {
+#if (LUA_MAXINTEGER == LLONG_MAX || ((LUA_MAXINTEGER == LONG_MAX) && (__WORDSIZE == 64)))
+	/* 64 bits case, U64 is supported until LLONG_MAX */
+	if (val > LLONG_MAX)
+		lua_pushnumber(L, (lua_Number)val);
+	else
+		lua_pushinteger(L, val);
+#else
+	/* 32 bits case, U64 is supported until INT_MAX */
+	if (val > INT_MAX)
+		lua_pushnumber(L, (lua_Number)val);
+	else
+		lua_pushinteger(L, (int)val);
+#endif
+	return 1;
 }
 
 /* This function gets a struct field and convert it in Lua
@@ -442,6 +477,354 @@ static int hlua_concat_init(lua_State *L)
 
 	lua_settable(L, -3); /* Sets the __index entry. */
 	class_concat_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+	return 1;
+}
+
+int hlua_fcn_new_stktable(lua_State *L, struct stktable *tbl)
+{
+	lua_newtable(L);
+
+	/* Pop a class stktbl metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_stktable_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, tbl);
+	lua_rawseti(L, -2, 0);
+	return 1;
+}
+
+static struct stktable *hlua_check_stktable(lua_State *L, int ud)
+{
+	return hlua_checkudata(L, ud, class_stktable_ref);
+}
+
+/* Extract stick table attributes into Lua table */
+int hlua_stktable_info(lua_State *L)
+{
+	struct stktable *tbl;
+	int dt;
+
+	tbl = hlua_check_stktable(L, 1);
+
+	if (!tbl->id) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	lua_newtable(L);
+
+	lua_pushstring(L, "type");
+	lua_pushstring(L, stktable_types[tbl->type].kw);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "length");
+	lua_pushinteger(L, tbl->key_size);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "size");
+	hlua_fcn_pushunsigned(L, tbl->size);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "used");
+	hlua_fcn_pushunsigned(L, tbl->current);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "nopurge");
+	lua_pushboolean(L, tbl->nopurge > 0);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "expire");
+	lua_pushinteger(L, tbl->expire);
+	lua_settable(L, -3);
+
+	/* Save data types periods (if applicable) in 'data' table */
+	lua_pushstring(L, "data");
+	lua_newtable(L);
+
+	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
+		if (tbl->data_ofs[dt] == 0)
+			continue;
+
+		lua_pushstring(L, stktable_data_types[dt].name);
+
+		if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
+			lua_pushinteger(L, tbl->data_arg[dt].u);
+		else
+			lua_pushinteger(L, -1);
+
+		lua_settable(L, -3);
+	}
+
+	lua_settable(L, -3);
+
+	return 1;
+}
+
+/* Helper to get extract stick table entry into Lua table */
+static void hlua_stktable_entry(lua_State *L, struct stktable *t, struct stksess *ts)
+{
+	int dt;
+	void *ptr;
+
+	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
+
+		if (t->data_ofs[dt] == 0)
+			continue;
+
+		lua_pushstring(L, stktable_data_types[dt].name);
+
+		ptr = stktable_data_ptr(t, ts, dt);
+		switch (stktable_data_types[dt].std_type) {
+		case STD_T_SINT:
+			lua_pushinteger(L, stktable_data_cast(ptr, std_t_sint));
+			break;
+		case STD_T_UINT:
+			hlua_fcn_pushunsigned(L, stktable_data_cast(ptr, std_t_uint));
+			break;
+		case STD_T_ULL:
+			hlua_fcn_pushunsigned_ll(L, stktable_data_cast(ptr, std_t_ull));
+			break;
+		case STD_T_FRQP:
+			lua_pushinteger(L, read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+			                t->data_arg[dt].u));
+			break;
+		}
+
+		lua_settable(L, -3);
+	}
+}
+
+/* Looks in table <t> for a sticky session matching key <key>
+ * Returns table with session data or nil
+ *
+ * The returned table always contains 'use' and 'expire' (integer) fields.
+ * For frequency/rate counters, each data entry is returned as table with
+ * 'value' and 'period' fields.
+ */
+int hlua_stktable_lookup(lua_State *L)
+{
+	struct stktable *t;
+	struct sample smp;
+	struct stktable_key *skey;
+	struct stksess *ts;
+
+	t = hlua_check_stktable(L, 1);
+	smp.data.type = SMP_T_STR;
+	smp.flags = SMP_F_CONST;
+	smp.data.u.str.area = (char *)luaL_checkstring(L, 2);
+
+	skey = smp_to_stkey(&smp, t);
+	if (!skey) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	ts = stktable_lookup_key(t, skey);
+	if (!ts) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	lua_newtable(L);
+	lua_pushstring(L, "use");
+	lua_pushinteger(L, ts->ref_cnt - 1);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "expire");
+	lua_pushinteger(L, tick_remain(now_ms, ts->expire));
+	lua_settable(L, -3);
+
+	hlua_stktable_entry(L, t, ts);
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	ts->ref_cnt--;
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	return 1;
+}
+
+struct stk_filter {
+	long long val;
+	int type;
+	int op;
+};
+
+
+/* Helper for returning errors to callers using Lua convention (nil, err) */
+static int hlua_error(lua_State *L, const char *fmt, ...)  {
+	char buf[256];
+	int len;
+	va_list args;
+	va_start(args, fmt);
+        len = vsnprintf(buf, sizeof(buf), fmt, args);
+	va_end(args);
+
+	if (len < 0) {
+		ha_alert("hlua_error(): Could not write error message.\n");
+		lua_pushnil(L);
+		return 1;
+	} else if (len >= sizeof(buf))
+		ha_alert("hlua_error(): Error message was truncated.\n");
+
+	lua_pushnil(L);
+	lua_pushstring(L, buf);
+
+	return 2;
+}
+
+/* Dump the contents of stick table <t>*/
+int hlua_stktable_dump(lua_State *L)
+{
+	struct stktable *t;
+	struct ebmb_node *eb;
+	struct ebmb_node *n;
+	struct stksess *ts;
+	int type;
+	int op;
+	int dt;
+	long long val;
+	struct stk_filter filter[MAX_STK_FILTER_LEN];
+	int filter_count = 0;
+	int i;
+	int skip_entry;
+	void *ptr;
+
+	t = hlua_check_stktable(L, 1);
+	type = lua_type(L, 2);
+
+	switch (type) {
+	case LUA_TNONE:
+	case LUA_TNIL:
+		break;
+	case LUA_TTABLE:
+		lua_pushnil(L);
+		while (lua_next(L, 2) != 0) {
+			int entry_idx = 0;
+
+			if (filter_count >= MAX_STK_FILTER_LEN)
+				return hlua_error(L, "Filter table too large (len > %d)", MAX_STK_FILTER_LEN);
+
+			if (lua_type(L, -1) != LUA_TTABLE  || lua_rawlen(L, -1) != 3)
+				return hlua_error(L, "Filter table entry must be a triplet: {\"data_col\", \"op\", val} (entry #%d)", filter_count + 1);
+
+			lua_pushnil(L);
+			while (lua_next(L, -2) != 0) {
+				switch (entry_idx) {
+				case 0:
+					if (lua_type(L, -1) != LUA_TSTRING)
+						return hlua_error(L, "Filter table data column must be string (entry #%d)", filter_count + 1);
+
+					dt = stktable_get_data_type((char *)lua_tostring(L, -1));
+					if (dt < 0 || t->data_ofs[dt] == 0)
+						return hlua_error(L, "Filter table data column not present in stick table (entry #%d)", filter_count + 1);
+					filter[filter_count].type = dt;
+					break;
+				case 1:
+					if (lua_type(L, -1) != LUA_TSTRING)
+						return hlua_error(L, "Filter table operator must be string (entry #%d)", filter_count + 1);
+
+					op = get_std_op(lua_tostring(L, -1));
+					if (op < 0)
+						return hlua_error(L, "Unknown operator in filter table (entry #%d)", filter_count + 1);
+					filter[filter_count].op = op;
+					break;
+				case 2:
+					val = lua_tointeger(L, -1);
+					filter[filter_count].val = val;
+					filter_count++;
+					break;
+				default:
+					break;
+				}
+				entry_idx++;
+				lua_pop(L, 1);
+			}
+			lua_pop(L, 1);
+		}
+		break;
+	default:
+		return hlua_error(L, "filter table expected");
+	}
+
+	lua_newtable(L);
+
+	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+	eb = ebmb_first(&t->keys);
+	for (n = eb; n; n = ebmb_next(n)) {
+		ts = ebmb_entry(n, struct stksess, key);
+		if (!ts) {
+			HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+			return 1;
+		}
+		ts->ref_cnt++;
+		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
+
+		/* multi condition/value filter */
+		skip_entry = 0;
+		for (i = 0; i < filter_count; i++) {
+			if (t->data_ofs[filter[i].type] == 0)
+				continue;
+
+			ptr = stktable_data_ptr(t, ts, filter[i].type);
+
+			switch (stktable_data_types[filter[i].type].std_type) {
+			case STD_T_SINT:
+				val = stktable_data_cast(ptr, std_t_sint);
+				break;
+			case STD_T_UINT:
+				val = stktable_data_cast(ptr, std_t_uint);
+				break;
+			case STD_T_ULL:
+				val = stktable_data_cast(ptr, std_t_ull);
+				break;
+			case STD_T_FRQP:
+				val = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+						           t->data_arg[filter[i].type].u);
+				break;
+			default:
+				continue;
+				break;
+			}
+
+			op = filter[i].op;
+
+			if ((val < filter[i].val && (op == STD_OP_EQ || op == STD_OP_GT || op == STD_OP_GE)) ||
+			    (val == filter[i].val && (op == STD_OP_NE || op == STD_OP_GT || op == STD_OP_LT)) ||
+			    (val > filter[i].val && (op == STD_OP_EQ || op == STD_OP_LT || op == STD_OP_LE))) {
+				skip_entry = 1;
+				break;
+			}
+		}
+
+		if (skip_entry) {
+			HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+			ts->ref_cnt--;
+			continue;
+		}
+
+		if (t->type == SMP_T_IPV4) {
+			char addr[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, (const void *)&ts->key.key, addr, sizeof(addr));
+			lua_pushstring(L, addr);
+		} else if (t->type == SMP_T_IPV6) {
+			char addr[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6, (const void *)&ts->key.key, addr, sizeof(addr));
+			lua_pushstring(L, addr);
+		} else if (t->type == SMP_T_SINT) {
+			lua_pushinteger(L, *ts->key.key);
+		} else if (t->type == SMP_T_STR) {
+			lua_pushstring(L, (const char *)ts->key.key);
+		} else {
+			return hlua_error(L, "Unsupported stick table key type");
+		}
+
+		lua_newtable(L);
+		hlua_stktable_entry(L, t, ts);
+		lua_settable(L, -3);
+		HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
+		ts->ref_cnt--;
+	}
+	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	return 1;
 }
@@ -887,6 +1270,12 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	}
 	lua_settable(L, -3);
 
+	if (px->table.id) {
+		lua_pushstring(L, "stktable");
+		hlua_fcn_new_stktable(L, &px->table);
+		lua_settable(L, -3);
+	}
+
 	return 1;
 }
 
@@ -1288,6 +1677,16 @@ int hlua_fcn_reg_core_fcn(lua_State *L)
 
 	lua_setmetatable(L, -2);
 	lua_setglobal(L, CLASS_REGEX); /* Create global object called Regex */
+
+	/* Create stktable object. */
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "info", hlua_stktable_info);
+	hlua_class_function(L, "lookup", hlua_stktable_lookup);
+	hlua_class_function(L, "dump", hlua_stktable_dump);
+	lua_settable(L, -3); /* -> META["__index"] = TABLE */
+	class_stktable_ref = hlua_register_metatable(L, CLASS_STKTABLE);
 
 	/* Create listener object. */
 	lua_newtable(L);
