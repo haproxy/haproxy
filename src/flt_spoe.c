@@ -387,7 +387,7 @@ spoe_str_to_vsn(const char *str, size_t len)
 static int
 spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 {
-	struct chunk      *chk;
+	struct buffer      *chk;
 	struct spoe_agent *agent = SPOE_APPCTX(appctx)->agent;
 	char              *p, *end;
 	unsigned int       flags = SPOE_FRM_FL_FIN;

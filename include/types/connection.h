@@ -311,7 +311,7 @@ struct mux_ops {
 
 	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
-	void (*show_fd)(struct chunk *, struct connection *); /* append some data about connection into chunk for "show fd" */
+	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };

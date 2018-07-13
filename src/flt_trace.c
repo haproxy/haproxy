@@ -440,7 +440,7 @@ trace_http_reset(struct stream *s, struct filter *filter,
 
 static void
 trace_http_reply(struct stream *s, struct filter *filter, short status,
-		 const struct chunk *msg)
+		 const struct buffer *msg)
 {
 	struct trace_config *conf = FLT_CONF(filter);
 

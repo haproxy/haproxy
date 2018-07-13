@@ -172,7 +172,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 {
 	struct map_descriptor *desc;
 	struct pattern *pat;
-	struct chunk *str;
+	struct buffer *str;
 
 	/* get config */
 	desc = arg_p[0].data.map;

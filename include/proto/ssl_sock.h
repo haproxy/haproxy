@@ -57,15 +57,17 @@ const char *ssl_sock_get_proto_version(struct connection *conn);
 void ssl_sock_set_servername(struct connection *conn, const char *hostname);
 int ssl_sock_get_cert_used_sess(struct connection *conn);
 int ssl_sock_get_cert_used_conn(struct connection *conn);
-int ssl_sock_get_remote_common_name(struct connection *conn, struct chunk *out);
-int ssl_sock_get_pkey_algo(struct connection *conn, struct chunk *out);
+int ssl_sock_get_remote_common_name(struct connection *conn,
+				    struct buffer *out);
+int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out);
 unsigned int ssl_sock_get_verify_result(struct connection *conn);
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err);
+int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err);
 #endif
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
-void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey);
-int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err);
+void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
+				struct buffer *tlskey);
+int ssl_sock_update_tlskey(char *filename, struct buffer *tlskey, char **err);
 struct tls_keys_ref *tlskeys_ref_lookup(const char *filename);
 struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id);
 #endif

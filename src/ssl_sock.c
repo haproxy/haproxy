@@ -368,7 +368,7 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
-	struct chunk response;
+	struct buffer response;
 	long expire;
 };
 
@@ -644,7 +644,9 @@ static struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
  *
  * Returns 0 on success, 1 in error case.
  */
-static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certificate_ocsp *ocsp, OCSP_CERTID *cid, char **err)
+static int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
+				       struct certificate_ocsp *ocsp,
+				       OCSP_CERTID *cid, char **err)
 {
 	OCSP_RESPONSE *resp;
 	OCSP_BASICRESP *bs = NULL;
@@ -766,7 +768,7 @@ out:
  *
  * Returns 0 on success, 1 in error case.
  */
-int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err)
+int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 {
 	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, err);
 }
@@ -886,7 +888,8 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id)
         return NULL;
 }
 
-void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey)
+void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
+				struct buffer *tlskey)
 {
 	HA_RWLOCK_WRLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)),
@@ -895,7 +898,7 @@ void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey)
 	HA_RWLOCK_WRUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 }
 
-int ssl_sock_update_tlskey(char *filename, struct chunk *tlskey, char **err)
+int ssl_sock_update_tlskey(char *filename, struct buffer *tlskey, char **err)
 {
 	struct tls_keys_ref *ref = tlskeys_ref_lookup(filename);
 
@@ -1267,7 +1270,7 @@ static int sctl_ex_index = -1;
  * makes only basic test if the data seems like SCTL. No signature validation
  * is performed.
  */
-static int ssl_sock_parse_sctl(struct chunk *sctl)
+static int ssl_sock_parse_sctl(struct buffer *sctl)
 {
 	int ret = 1;
 	int len, pos, sct_len;
@@ -1301,7 +1304,8 @@ out:
 	return ret;
 }
 
-static int ssl_sock_load_sctl_from_file(const char *sctl_path, struct chunk **sctl)
+static int ssl_sock_load_sctl_from_file(const char *sctl_path,
+					struct buffer **sctl)
 {
 	int fd = -1;
 	int r = 0;
@@ -1348,7 +1352,7 @@ end:
 
 int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
 {
-	struct chunk *sctl = add_arg;
+	struct buffer *sctl = add_arg;
 
 	*out = (unsigned char *) sctl->area;
 	*outlen = sctl->data;
@@ -1366,7 +1370,7 @@ static int ssl_sock_load_sctl(SSL_CTX *ctx, const char *cert_path)
 	char sctl_path[MAXPATHLEN+1];
 	int ret = -1;
 	struct stat st;
-	struct chunk *sctl = NULL;
+	struct buffer *sctl = NULL;
 
 	snprintf(sctl_path, MAXPATHLEN+1, "%s.sctl", cert_path);
 
@@ -5708,7 +5712,7 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 }
 
 /* used for ppv2 pkey alog (can be used for logging) */
-int ssl_sock_get_pkey_algo(struct connection *conn, struct chunk *out)
+int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 {
 	struct pkey_info *pkinfo;
 	int bits = 0;
@@ -5815,7 +5819,7 @@ const char *ssl_sock_get_proto_version(struct connection *conn)
  * -1 if output is not large enough.
  */
 static int
-ssl_sock_get_serial(X509 *crt, struct chunk *out)
+ssl_sock_get_serial(X509 *crt, struct buffer *out)
 {
 	ASN1_INTEGER *serial;
 
@@ -5836,7 +5840,7 @@ ssl_sock_get_serial(X509 *crt, struct chunk *out)
  * -1 if output is not large enough.
  */
 static int
-ssl_sock_crt2der(X509 *crt, struct chunk *out)
+ssl_sock_crt2der(X509 *crt, struct buffer *out)
 {
 	int len;
 	unsigned char *p = (unsigned char *) out->area;;
@@ -5854,12 +5858,12 @@ ssl_sock_crt2der(X509 *crt, struct chunk *out)
 }
 
 
-/* Copy Date in ASN1_UTCTIME format in struct chunk out.
+/* Copy Date in ASN1_UTCTIME format in struct buffer out.
  * Returns 1 if serial is found and copied, 0 if no valid time found
  * and -1 if output is not large enough.
  */
 static int
-ssl_sock_get_time(ASN1_TIME *tm, struct chunk *out)
+ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 {
 	if (tm->type == V_ASN1_GENERALIZEDTIME) {
 		ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
@@ -5897,7 +5901,8 @@ ssl_sock_get_time(ASN1_TIME *tm, struct chunk *out)
  * Returns 1 if entry found, 0 if entry not found, or -1 if output not large enough.
  */
 static int
-ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct chunk *out)
+ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+		      struct buffer *out)
 {
 	X509_NAME_ENTRY *ne;
 	ASN1_OBJECT *obj;
@@ -5957,7 +5962,7 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct c
  * Returns 1 if dn entries exits, 0 if no dn entry found or -1 if output is not large enough.
  */
 static int
-ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
+ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out)
 {
 	X509_NAME_ENTRY *ne;
 	ASN1_OBJECT *obj;
@@ -6039,12 +6044,13 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
  *  or 0 if no CN found in DN
  *  or -1 on error case (i.e. no peer certificate)
  */
-int ssl_sock_get_remote_common_name(struct connection *conn, struct chunk *dest)
+int ssl_sock_get_remote_common_name(struct connection *conn,
+				    struct buffer *dest)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
 	const char find_cn[] = "CN";
-	const struct chunk find_cn_chunk = {
+	const struct buffer find_cn_chunk = {
 		.area = (char *)&find_cn,
 		.data = sizeof(find_cn)-1
 	};
@@ -6182,7 +6188,7 @@ smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, 
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6226,7 +6232,7 @@ smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *k
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6271,7 +6277,7 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 	X509 *crt = NULL;
 	const EVP_MD *digest;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6315,7 +6321,7 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6359,7 +6365,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	X509 *crt = NULL;
 	X509_NAME *name;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6415,7 +6421,7 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 	int cert_peer = (kw[4] == 'c') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6459,7 +6465,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 	X509 *crt = NULL;
 	X509_NAME *name;
 	int ret = 0;
-	struct chunk *smp_trash;
+	struct buffer *smp_trash;
 	struct connection *conn;
 
 	conn = objt_conn(smp->sess->origin);
@@ -6904,7 +6910,7 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	SSL_SESSION *ssl_sess;
-	struct chunk *data;
+	struct buffer *data;
 
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
@@ -6974,7 +6980,7 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct chunk *data;
+	struct buffer *data;
 
 	if (!smp_fetch_ssl_fc_cl_bin(args, smp, kw, private))
 		return 0;
@@ -7009,7 +7015,7 @@ static int
 smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(LIBRESSL_VERSION_NUMBER)
-	struct chunk *data;
+	struct buffer *data;
 	int i;
 
 	if (!smp_fetch_ssl_fc_cl_bin(args, smp, kw, private))
@@ -7048,7 +7054,7 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 	                                    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	int finished_len;
-	struct chunk *finished_trash;
+	struct buffer *finished_trash;
 
 	smp->flags = 0;
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
@@ -8487,7 +8493,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 				head = ref->tls_ticket_enc_index;
 				while (appctx->ctx.cli.i1 < TLS_TICKETS_NO) {
-					struct chunk *t2 = get_trash_chunk();
+					struct buffer *t2 = get_trash_chunk();
 
 					chunk_reset(t2);
 					/* should never fail here because we dump only a key in the t2 buffer */

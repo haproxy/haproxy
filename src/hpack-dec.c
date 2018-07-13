@@ -114,7 +114,8 @@ static inline int hpack_idx_to_phdr(uint32_t idx)
  * allocated there. In case of allocation failure, returns a string whose
  * pointer is NULL.
  */
-static inline struct ist hpack_alloc_string(struct chunk *store, int idx, struct ist in)
+static inline struct ist hpack_alloc_string(struct buffer *store, int idx,
+					    struct ist in)
 {
 	struct ist out;
 
@@ -148,7 +149,8 @@ static inline struct ist hpack_alloc_string(struct chunk *store, int idx, struct
  * can use list[].n.len == 0 as a marker for the end of list.
  */
 int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
-                       struct http_hdr *list, int list_size, struct chunk *tmp)
+                       struct http_hdr *list, int list_size,
+                       struct buffer *tmp)
 {
 	uint32_t idx;
 	uint32_t nlen;

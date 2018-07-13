@@ -76,7 +76,8 @@ static inline int hpack_encode_len(char *out, int pos, int len)
 /* Tries to encode header whose name is <n> and value <v> into the chunk <out>.
  * Returns non-zero on success, 0 on failure (buffer full).
  */
-int hpack_encode_header(struct chunk *out, const struct ist n, const struct ist v)
+int hpack_encode_header(struct buffer *out, const struct ist n,
+			const struct ist v)
 {
 	int len = out->data;
 	int size = out->size;

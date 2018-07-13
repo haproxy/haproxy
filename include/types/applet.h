@@ -57,7 +57,7 @@ struct appctx {
 	unsigned short state;      /* Internal appctx state */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
-	struct chunk *chunk;       /* used to store unfinished commands */
+	struct buffer *chunk;       /* used to store unfinished commands */
 	unsigned int st2;          /* output state for stats, unused by peers  */
 	struct applet *applet;     /* applet this context refers to */
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
@@ -150,7 +150,7 @@ struct appctx {
 			struct pat_ref *ref;
 			struct bref bref;	/* back-reference from the pat_ref_elt being dumped */
 			struct pattern_expr *expr;
-			struct chunk chunk;
+			struct buffer chunk;
 		} map;
 		struct {
 			struct hlua *hlua;

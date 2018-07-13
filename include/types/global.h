@@ -127,7 +127,7 @@ struct global {
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
-	struct chunk log_tag;           /* name for syslog */
+	struct buffer log_tag;           /* name for syslog */
 	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */
 	char *server_state_base;   /* path to a directory where server state files can be found */
@@ -207,7 +207,7 @@ extern unsigned long pid_bit;   /* bit corresponding to the process id */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
-extern THREAD_LOCAL struct chunk trash;
+extern THREAD_LOCAL struct buffer trash;
 extern int nb_oldpids;          /* contains the number of old pids found */
 extern const int zero;
 extern const int one;

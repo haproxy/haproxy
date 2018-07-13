@@ -75,7 +75,7 @@ static const apr_bucket_type_t apr_bucket_type_defender = {
 
 struct apr_bucket_defender {
 	apr_bucket_refcount refcount;
-	struct chunk buf;
+	struct buffer buf;
 };
 
 static apr_status_t defender_bucket_read(apr_bucket *b, const char **str,
@@ -97,7 +97,8 @@ static void defender_bucket_destroy(void *data)
 		apr_bucket_free(d);
 }
 
-static apr_bucket *defender_bucket_make(apr_bucket *b, const struct chunk *buf)
+static apr_bucket *defender_bucket_make(apr_bucket *b,
+					const struct buffer *buf)
 {
 	struct apr_bucket_defender *d;
 
@@ -112,7 +113,7 @@ static apr_bucket *defender_bucket_make(apr_bucket *b, const struct chunk *buf)
 	return b;
 }
 
-static apr_bucket *defender_bucket_create(const struct chunk *buf,
+static apr_bucket *defender_bucket_create(const struct buffer *buf,
                                           apr_bucket_alloc_t *list)
 {
 	apr_bucket *b = apr_bucket_alloc(sizeof(*b), list);
@@ -458,11 +459,11 @@ int defender_process_request(struct worker *worker, struct defender_request *req
 	struct apr_bucket_brigade *bb = NULL;
 	struct apr_bucket *d = NULL, *e = NULL;
 
-	struct chunk *method;
-	struct chunk *path;
-	struct chunk *query;
-	struct chunk *version;
-	struct chunk *body;
+	struct buffer *method;
+	struct buffer *path;
+	struct buffer *query;
+	struct buffer *version;
+	struct buffer *body;
 
 	struct defender_header hdr;
 	char *hdr_ptr, *hdr_end;

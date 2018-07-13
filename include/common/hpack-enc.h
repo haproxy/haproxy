@@ -33,6 +33,7 @@
 #include <common/config.h>
 #include <common/ist.h>
 
-int hpack_encode_header(struct chunk *out, const struct ist n, const struct ist v);
+int hpack_encode_header(struct buffer *out, const struct ist n,
+			const struct ist v);
 
 #endif /* _COMMON_HPACK_ENC_H */

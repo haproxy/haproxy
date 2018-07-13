@@ -96,8 +96,8 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 {
 	struct cli_kw_list *kw_list;
 	struct cli_kw *kw;
-	struct chunk *tmp = get_trash_chunk();
-	struct chunk out;
+	struct buffer *tmp = get_trash_chunk();
+	struct buffer out;
 
 	free(dynamic_usage_msg);
 	dynamic_usage_msg = NULL;
@@ -474,7 +474,7 @@ static int cli_parse_request(struct appctx *appctx)
 /* prepends then outputs the argument msg with a syslog-type severity depending on severity_output value */
 static int cli_output_msg(struct channel *chn, const char *msg, int severity, int severity_output)
 {
-	struct chunk *tmp;
+	struct buffer *tmp;
 
 	if (likely(severity_output == CLI_SEVERITY_NONE))
 		return ci_putblk(chn, msg, strlen(msg));

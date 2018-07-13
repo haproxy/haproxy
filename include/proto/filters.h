@@ -111,7 +111,7 @@ int  flt_http_end(struct stream *s, struct http_msg *msg);
 int  flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len);
 
 void flt_http_reset(struct stream *s, struct http_msg *msg);
-void flt_http_reply(struct stream *s, short status, const struct chunk *msg);
+void flt_http_reply(struct stream *s, short status, const struct buffer *msg);
 
 int  flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);
 int  flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit);

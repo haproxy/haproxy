@@ -183,7 +183,7 @@ static void deinit_deviceatlas(void)
 
 static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_t *devinfo)
 {
-	struct chunk *tmp;
+	struct buffer *tmp;
 	da_propid_t prop, *pprop;
 	da_status_t status;
 	da_type_t proptype;

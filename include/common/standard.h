@@ -486,7 +486,7 @@ char *encode_string(char *start, char *stop,
  */
 char *encode_chunk(char *start, char *stop,
                    const char escape, const fd_set *map,
-                   const struct chunk *chunk);
+                   const struct buffer *chunk);
 
 /*
  * Tries to prefix characters tagged in the <map> with the <escape>
@@ -509,7 +509,7 @@ char *escape_string(char *start, char *stop,
  */
 char *escape_chunk(char *start, char *stop,
                    const char escape, const fd_set *map,
-                   const struct chunk *chunk);
+                   const struct buffer *chunk);
 
 
 /* Check a string for using it in a CSV output format. If the string contains
@@ -539,10 +539,11 @@ char *escape_chunk(char *start, char *stop,
  * This function appends the encoding to the existing output chunk. Please
  * use csv_enc() instead if you want to replace the output chunk.
  */
-const char *csv_enc_append(const char *str, int quote, struct chunk *output);
+const char *csv_enc_append(const char *str, int quote, struct buffer *output);
 
 /* same as above but the output chunk is reset first */
-static inline const char *csv_enc(const char *str, int quote, struct chunk *output)
+static inline const char *csv_enc(const char *str, int quote,
+				  struct buffer *output)
 {
 	chunk_reset(output);
 	return csv_enc_append(str, quote, output);
@@ -1317,9 +1318,9 @@ static inline unsigned long long rdtsc()
 struct list;
 int list_append_word(struct list *li, const char *str, char **err);
 
-int dump_text(struct chunk *out, const char *buf, int bsize);
-int dump_binary(struct chunk *out, const char *buf, int bsize);
-int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
+int dump_text(struct buffer *out, const char *buf, int bsize);
+int dump_binary(struct buffer *out, const char *buf, int bsize);
+int dump_text_line(struct buffer *out, const char *buf, int bsize, int len,
                    int *line, int ptr);
 
 /* same as realloc() except that ptr is also freed upon failure */

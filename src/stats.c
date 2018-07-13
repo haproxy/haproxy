@@ -267,7 +267,7 @@ static void stats_dump_csv_header()
 /* Emits a stats field without any surrounding element and properly encoded to
  * resist CSV output. Returns non-zero on success, 0 if the buffer is full.
  */
-int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
+int stats_emit_raw_data_field(struct buffer *out, const struct field *f)
 {
 	switch (field_format(f, 0)) {
 	case FF_EMPTY: return 1;
@@ -284,7 +284,7 @@ int stats_emit_raw_data_field(struct chunk *out, const struct field *f)
  * output is supposed to be used on its own line. Returns non-zero on success, 0
  * if the buffer is full.
  */
-int stats_emit_typed_data_field(struct chunk *out, const struct field *f)
+int stats_emit_typed_data_field(struct buffer *out, const struct field *f)
 {
 	switch (field_format(f, 0)) {
 	case FF_EMPTY: return 1;
@@ -306,7 +306,7 @@ int stats_emit_typed_data_field(struct chunk *out, const struct field *f)
 /* Emits a stats field value and its type in JSON.
  * Returns non-zero on success, 0 on error.
  */
-int stats_emit_json_data_field(struct chunk *out, const struct field *f)
+int stats_emit_json_data_field(struct buffer *out, const struct field *f)
 {
 	int old_len;
 	char buf[20];
@@ -352,7 +352,8 @@ int stats_emit_json_data_field(struct chunk *out, const struct field *f)
 /* Emits an encoding of the field type on 3 characters followed by a delimiter.
  * Returns non-zero on success, 0 if the buffer is full.
  */
-int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim)
+int stats_emit_field_tags(struct buffer *out, const struct field *f,
+			  char delim)
 {
 	char origin, nature, scope;
 
@@ -395,7 +396,7 @@ int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim)
 /* Emits an encoding of the field type as JSON.
   * Returns non-zero on success, 0 if the buffer is full.
   */
-int stats_emit_json_field_tags(struct chunk *out, const struct field *f)
+int stats_emit_json_field_tags(struct buffer *out, const struct field *f)
 {
 	const char *origin, *nature, *scope;
 	int old_len;
@@ -443,7 +444,8 @@ int stats_emit_json_field_tags(struct chunk *out, const struct field *f)
 }
 
 /* Dump all fields from <stats> into <out> using CSV format */
-static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
+static int stats_dump_fields_csv(struct buffer *out,
+				 const struct field *stats)
 {
 	int field;
 
@@ -458,7 +460,8 @@ static int stats_dump_fields_csv(struct chunk *out, const struct field *stats)
 }
 
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
-static int stats_dump_fields_typed(struct chunk *out, const struct field *stats)
+static int stats_dump_fields_typed(struct buffer *out,
+				   const struct field *stats)
 {
 	int field;
 
@@ -486,7 +489,7 @@ static int stats_dump_fields_typed(struct chunk *out, const struct field *stats)
 }
 
 /* Dump all fields from <stats> into <out> using the "show info json" format */
-static int stats_dump_json_info_fields(struct chunk *out,
+static int stats_dump_json_info_fields(struct buffer *out,
 				       const struct field *info)
 {
 	int field;
@@ -535,7 +538,8 @@ err:
 }
 
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
-static int stats_dump_fields_json(struct chunk *out, const struct field *stats,
+static int stats_dump_fields_json(struct buffer *out,
+				  const struct field *stats,
 				  int first_stat)
 {
 	int field;
@@ -606,9 +610,11 @@ err:
  * reserved for the checkbox is ST_SHOWADMIN is set in <flags>. Some extra info
  * are provided if ST_SHLGNDS is present in <flags>.
  */
-static int stats_dump_fields_html(struct chunk *out, const struct field *stats, unsigned int flags)
+static int stats_dump_fields_html(struct buffer *out,
+				  const struct field *stats,
+				  unsigned int flags)
 {
-	struct chunk src;
+	struct buffer src;
 
 	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
 		chunk_appendf(out,
@@ -1366,7 +1372,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
                         struct field *stats, int len)
 {
-	struct chunk *out = get_trash_chunk();
+	struct buffer *out = get_trash_chunk();
 
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
@@ -1483,7 +1489,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 {
 	struct server *via, *ref;
 	char str[INET6_ADDRSTRLEN];
-	struct chunk *out = get_trash_chunk();
+	struct buffer *out = get_trash_chunk();
 	enum srv_stats_state state;
 	char *fld_status;
 
@@ -2638,7 +2644,7 @@ static int stats_process_http_post(struct stream_interface *si)
 	char *st_cur_param = NULL;
 	char *st_next_param = NULL;
 
-	struct chunk *temp;
+	struct buffer *temp;
 	int reql;
 
 	temp = get_trash_chunk();
@@ -3146,7 +3152,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
-static int stats_dump_info_fields(struct chunk *out, const struct field *info)
+static int stats_dump_info_fields(struct buffer *out,
+				  const struct field *info)
 {
 	int field;
 
@@ -3165,7 +3172,8 @@ static int stats_dump_info_fields(struct chunk *out, const struct field *info)
 }
 
 /* Dump all fields from <info> into <out> using the "show info typed" format */
-static int stats_dump_typed_info_fields(struct chunk *out, const struct field *info)
+static int stats_dump_typed_info_fields(struct buffer *out,
+					const struct field *info)
 {
 	int field;
 
@@ -3193,7 +3201,7 @@ static int stats_dump_typed_info_fields(struct chunk *out, const struct field *i
 int stats_fill_info(struct field *info, int len)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
-	struct chunk *out = get_trash_chunk();
+	struct buffer *out = get_trash_chunk();
 
 #ifdef USE_OPENSSL
 	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
@@ -3315,7 +3323,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
  * Integer values bouned to the range [-(2**53)+1, (2**53)-1] as
  * per the recommendation for interoperable integers in section 6 of RFC 7159.
  */
-static void stats_dump_json_schema(struct chunk *out)
+static void stats_dump_json_schema(struct buffer *out)
 {
 
 	int old_len = out->data;

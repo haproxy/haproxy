@@ -22,9 +22,9 @@
 #include <types/global.h>
 
 /* trash chunks used for various conversions */
-static THREAD_LOCAL struct chunk *trash_chunk;
-static THREAD_LOCAL struct chunk trash_chunk1;
-static THREAD_LOCAL struct chunk trash_chunk2;
+static THREAD_LOCAL struct buffer *trash_chunk;
+static THREAD_LOCAL struct buffer trash_chunk1;
+static THREAD_LOCAL struct buffer trash_chunk2;
 
 /* trash buffers used for various conversions */
 static int trash_size;
@@ -35,7 +35,7 @@ static THREAD_LOCAL char *trash_buf2;
 struct pool_head *pool_head_trash = NULL;
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
-THREAD_LOCAL struct chunk trash = { };
+THREAD_LOCAL struct buffer trash = { };
 
 /*
 * Returns a pre-allocated and initialized trash chunk that can be used for any
@@ -46,7 +46,7 @@ THREAD_LOCAL struct chunk trash = { };
 * a zero is always emitted at the beginning of the string so that it may be
 * used as an empty string as well.
 */
-struct chunk *get_trash_chunk(void)
+struct buffer *get_trash_chunk(void)
 {
 	char *trash_buf;
 
@@ -97,7 +97,9 @@ int init_trash_buffers(int first)
 		hap_register_per_thread_deinit(deinit_trash_buffers_per_thread);
 	}
 	pool_destroy(pool_head_trash);
-	pool_head_trash = create_pool("trash", sizeof(struct chunk) + global.tune.bufsize, MEM_F_EXACT);
+	pool_head_trash = create_pool("trash",
+				      sizeof(struct buffer) + global.tune.bufsize,
+				      MEM_F_EXACT);
 	if (!pool_head_trash || !alloc_trash_buffers(global.tune.bufsize))
 		return 0;
 	return 1;
@@ -117,15 +119,16 @@ void deinit_trash_buffers(void)
  * call may fail and the caller is responsible for checking that the returned
  * pointer is not NULL.
  */
-struct chunk *alloc_trash_chunk(void)
+struct buffer *alloc_trash_chunk(void)
 {
-	struct chunk *chunk;
+	struct buffer *chunk;
 
 	chunk = pool_alloc(pool_head_trash);
 	if (chunk) {
-		char *buf = (char *)chunk + sizeof(struct chunk);
+		char *buf = (char *)chunk + sizeof(struct buffer);
 		*buf = 0;
-		chunk_init(chunk, buf, pool_head_trash->size - sizeof(struct chunk));
+		chunk_init(chunk, buf,
+			   pool_head_trash->size - sizeof(struct buffer));
 	}
 	return chunk;
 }
@@ -135,7 +138,7 @@ struct chunk *alloc_trash_chunk(void)
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns
  * the new chunk size, or < 0 in case of failure.
  */
-int chunk_printf(struct chunk *chk, const char *fmt, ...)
+int chunk_printf(struct buffer *chk, const char *fmt, ...)
 {
 	va_list argp;
 	int ret;
@@ -160,7 +163,7 @@ int chunk_printf(struct chunk *chk, const char *fmt, ...)
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns
  * the new chunk size.
  */
-int chunk_appendf(struct chunk *chk, const char *fmt, ...)
+int chunk_appendf(struct buffer *chk, const char *fmt, ...)
 {
 	va_list argp;
 	int ret;
@@ -185,7 +188,7 @@ int chunk_appendf(struct chunk *chk, const char *fmt, ...)
  * chk->size chars. Replace non-printable or special chracters with "&#%d;".
  * If the chk->len is over, nothing is added. Returns the new chunk size.
  */
-int chunk_htmlencode(struct chunk *dst, struct chunk *src)
+int chunk_htmlencode(struct buffer *dst, struct buffer *src)
 {
 	int i, l;
 	int olen, free;
@@ -230,7 +233,7 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src)
  * chk->size chars. Replace non-printable or char passed in qc with "<%02X>".
  * If the chk->len is over, nothing is added. Returns the new chunk size.
  */
-int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
+int chunk_asciiencode(struct buffer *dst, struct buffer *src, char qc)
 {
 	int i, l;
 	int olen, free;
@@ -274,7 +277,7 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
  * zero-terminated. Return is the same as with strcmp(). Neither is allowed
  * to be null.
  */
-int chunk_strcmp(const struct chunk *chk, const char *str)
+int chunk_strcmp(const struct buffer *chk, const char *str)
 {
 	const char *s1 = chk->area;
 	int len = chk->data;
@@ -294,7 +297,7 @@ int chunk_strcmp(const struct chunk *chk, const char *str)
  * <str> which must be zero-terminated. Return is the same as with strcmp().
  * Neither is allowed to be null.
  */
-int chunk_strcasecmp(const struct chunk *chk, const char *str)
+int chunk_strcasecmp(const struct buffer *chk, const char *str)
 {
 	const char *s1 = chk->area;
 	int len = chk->data;

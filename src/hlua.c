@@ -291,7 +291,7 @@ __LJMP static const char *hlua_traceback(lua_State *L)
 {
 	lua_Debug ar;
 	int level = 0;
-	struct chunk *msg = get_trash_chunk();
+	struct buffer *msg = get_trash_chunk();
 	int filled = 0;
 
 	while (lua_getstack(L, level++, &ar)) {
@@ -4466,7 +4466,7 @@ __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status
 
 __LJMP static int hlua_applet_http_start_response(lua_State *L)
 {
-	struct chunk *tmp = get_trash_chunk();
+	struct buffer *tmp = get_trash_chunk();
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	const char *name;
 	size_t name_len;
@@ -5847,7 +5847,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
-	const struct chunk msg = { };
+	const struct buffer msg = { };
 
 	if (!stream)
 		return 0;
@@ -6116,7 +6116,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	unsigned int analyzer;
 	int dir;
 	const char *error;
-	const struct chunk msg = { };
+	const struct buffer msg = { };
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = SMP_OPT_DIR_REQ; break;

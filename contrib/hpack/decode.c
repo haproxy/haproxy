@@ -29,8 +29,8 @@ uint8_t buf[MAX_RQ_SIZE];
 char trash_buf[MAX_RQ_SIZE];
 char tmp_buf[MAX_RQ_SIZE];
 
-struct chunk trash = { .area = trash_buf, .data = 0, .size = sizeof(trash_buf) };
-struct chunk tmp   = { .area = tmp_buf,   .data = 0, .size = sizeof(tmp_buf)   };
+struct buffer trash = { .area = trash_buf, .data = 0, .size = sizeof(trash_buf) };
+struct buffer tmp   = { .area = tmp_buf,   .data = 0, .size = sizeof(tmp_buf)   };
 
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
  * has address <baseaddr>. String <pfx> may be placed as a prefix in front of

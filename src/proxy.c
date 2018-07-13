@@ -1421,7 +1421,7 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
  * It uses the proxy pointer from cli.p0, the proxy's id from cli.i0 and the server's
  * pointer from cli.p1.
  */
-static int dump_servers_state(struct stream_interface *si, struct chunk *buf)
+static int dump_servers_state(struct stream_interface *si, struct buffer *buf)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px = appctx->ctx.cli.p0;

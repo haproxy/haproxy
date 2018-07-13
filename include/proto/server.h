@@ -150,7 +150,8 @@ void srv_shutdown_streams(struct server *srv, int why);
  */
 void srv_shutdown_backup_streams(struct proxy *px, int why);
 
-void srv_append_status(struct chunk *msg, struct server *s, struct check *, int xferred, int forced);
+void srv_append_status(struct buffer *msg, struct server *s, struct check *,
+		       int xferred, int forced);
 
 void srv_set_stopped(struct server *s, const char *reason, struct check *check);
 void srv_set_running(struct server *s, const char *reason, struct check *check);

@@ -78,7 +78,7 @@
 const char HTTP_100[] =
 	"HTTP/1.1 100 Continue\r\n\r\n";
 
-const struct chunk http_100_chunk = {
+const struct buffer http_100_chunk = {
 	.area = (char *)&HTTP_100,
 	.data = sizeof(HTTP_100)-1
 };
@@ -275,7 +275,7 @@ struct action_kw_list http_res_keywords = {
 /* We must put the messages here since GCC cannot initialize consts depending
  * on strlen().
  */
-struct chunk http_err_chunks[HTTP_ERR_SIZE];
+struct buffer http_err_chunks[HTTP_ERR_SIZE];
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct hdr_ctx static_hdr_ctx;
@@ -917,7 +917,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
  * in this buffer will be lost.
  */
 static void http_server_error(struct stream *s, struct stream_interface *si,
-			      int err, int finst, const struct chunk *msg)
+			      int err, int finst, const struct buffer *msg)
 {
 	FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
 	channel_auto_read(si_oc(si));
@@ -938,7 +938,7 @@ static void http_server_error(struct stream *s, struct stream_interface *si,
  * and message.
  */
 
-struct chunk *http_error_message(struct stream *s)
+struct buffer *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
@@ -951,7 +951,7 @@ struct chunk *http_error_message(struct stream *s)
 }
 
 void
-http_reply_and_close(struct stream *s, short status, struct chunk *msg)
+http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 {
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 	FLT_STRM_CB(s, flt_http_reply(s, status, msg));
@@ -1264,7 +1264,7 @@ get_http_auth(struct stream *s)
 {
 
 	struct http_txn *txn = s->txn;
-	struct chunk auth_method;
+	struct buffer auth_method;
 	struct hdr_ctx ctx;
 	char *h, *p;
 	int len;
@@ -1304,7 +1304,7 @@ get_http_auth(struct stream *s)
 	chunk_initlen(&txn->auth.method_data, p + 1, 0, ctx.vlen - len - 1);
 
 	if (!strncasecmp("Basic", auth_method.area, auth_method.data)) {
-		struct chunk *http_auth = get_trash_chunk();
+		struct buffer *http_auth = get_trash_chunk();
 
 		len = base64dec(txn->auth.method_data.area,
 				txn->auth.method_data.data,
@@ -2403,7 +2403,7 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 	struct hdr_idx *idx = &s->txn->hdr_idx;
 	int (*http_find_hdr_func)(const char *name, int len, char *sol,
 	                          struct hdr_idx *idx, struct hdr_ctx *ctx);
-	struct chunk *output = get_trash_chunk();
+	struct buffer *output = get_trash_chunk();
 
 	ctx.idx = 0;
 
@@ -2451,7 +2451,7 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
                                  struct list *fmt, struct my_regex *re,
                                  int action)
 {
-	struct chunk *replace;
+	struct buffer *replace;
 	int ret = -1;
 
 	replace = alloc_trash_chunk();
@@ -2607,7 +2607,7 @@ resume_execution:
 			 * buffer, we build first the header value using build_logline, and
 			 * after we store the header name.
 			 */
-			struct chunk *replace;
+			struct buffer *replace;
 
 			replace = alloc_trash_chunk();
 			if (!replace)
@@ -2655,7 +2655,7 @@ resume_execution:
 		case ACT_HTTP_DEL_ACL:
 		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
-			struct chunk *key;
+			struct buffer *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -2684,7 +2684,7 @@ resume_execution:
 
 		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
-			struct chunk *key;
+			struct buffer *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -2714,7 +2714,7 @@ resume_execution:
 
 		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
-			struct chunk *key, *value;
+			struct buffer *key, *value;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -2929,7 +2929,7 @@ resume_execution:
 
 		case ACT_HTTP_SET_HDR:
 		case ACT_HTTP_ADD_HDR: {
-			struct chunk *replace;
+			struct buffer *replace;
 
 			replace = alloc_trash_chunk();
 			if (!replace)
@@ -2980,7 +2980,7 @@ resume_execution:
 		case ACT_HTTP_DEL_ACL:
 		case ACT_HTTP_DEL_MAP: {
 			struct pat_ref *ref;
-			struct chunk *key;
+			struct buffer *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -3009,7 +3009,7 @@ resume_execution:
 
 		case ACT_HTTP_ADD_ACL: {
 			struct pat_ref *ref;
-			struct chunk *key;
+			struct buffer *key;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -3037,7 +3037,7 @@ resume_execution:
 
 		case ACT_HTTP_SET_MAP: {
 			struct pat_ref *ref;
-			struct chunk *key, *value;
+			struct buffer *key, *value;
 
 			/* collect reference */
 			ref = pat_ref_lookup(rule->arg.map.ref);
@@ -3185,7 +3185,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	struct http_msg *req = &txn->req;
 	struct http_msg *res = &txn->rsp;
 	const char *msg_fmt;
-	struct chunk *chunk;
+	struct buffer *chunk;
 	int ret = 0;
 
 	chunk = alloc_trash_chunk();
@@ -9870,7 +9870,7 @@ static int
 smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_msg *msg;
-	struct chunk *temp;
+	struct buffer *temp;
 	struct hdr_idx *idx;
 	const char *cur_ptr, *cur_next, *p;
 	int old_idx, cur_idx;
@@ -9973,7 +9973,7 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 	unsigned long len;
 	unsigned long block1;
 	char *body;
-	struct chunk *temp;
+	struct buffer *temp;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -10213,7 +10213,7 @@ smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, 
 	struct hdr_idx *idx;
 	struct hdr_ctx ctx;
 	const struct http_msg *msg;
-	struct chunk *temp;
+	struct buffer *temp;
 	char del = ',';
 
 	if (args && args->type == ARGT_STR)
@@ -10367,7 +10367,7 @@ smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, voi
 			smp->data.type = SMP_T_IPV4;
 			break;
 		} else {
-			struct chunk *temp = get_trash_chunk();
+			struct buffer *temp = get_trash_chunk();
 			if (smp->data.u.str.data < temp->size - 1) {
 				memcpy(temp->area, smp->data.u.str.area,
 				       smp->data.u.str.data);
@@ -10428,7 +10428,7 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 	struct http_txn *txn;
 	char *ptr, *end, *beg;
 	struct hdr_ctx ctx;
-	struct chunk *temp;
+	struct buffer *temp;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -10521,7 +10521,7 @@ smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
@@ -10807,7 +10807,7 @@ smp_fetch_capture_header_res(const struct arg *args, struct sample *smp, const c
 static int
 smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	struct http_txn *txn = smp->strm->txn;
 	char *ptr;
 
@@ -10834,7 +10834,7 @@ smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const c
 static int
 smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	struct http_txn *txn = smp->strm->txn;
 	char *ptr;
 
@@ -11334,7 +11334,7 @@ static int
 smp_fetch_param(char delim, const char *name, int name_len, const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	const char *vstart, *vend;
-	struct chunk *temp;
+	struct buffer *temp;
 	const char **chunks = (const char **)smp->ctx.a;
 
 	if (!find_next_url_param(chunks,
@@ -11571,7 +11571,7 @@ smp_fetch_url32(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
@@ -11631,7 +11631,7 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 {
 	const char day[7][4] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 	const char mon[12][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-	struct chunk *temp;
+	struct buffer *temp;
 	struct tm *tm;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
 	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
@@ -11836,7 +11836,7 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	  * before decoding.
 	 */
 	if (smp->flags & SMP_F_CONST || smp->data.u.str.size <= smp->data.u.str.data) {
-		struct chunk *str = get_trash_chunk();
+		struct buffer *str = get_trash_chunk();
 		memcpy(str->area, smp->data.u.str.area, smp->data.u.str.data);
 		smp->data.u.str.area = str->area;
 		smp->data.u.str.size = str->size;
@@ -12079,7 +12079,7 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
-	struct chunk *replace;
+	struct buffer *replace;
 	enum act_return ret = ACT_RET_ERR;
 
 	replace = alloc_trash_chunk();

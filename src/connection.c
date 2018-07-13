@@ -1096,7 +1096,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 					tlv->client |= PP2_CLIENT_CERT_CONN;
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
-				struct chunk *cn_trash = get_trash_chunk();
+				struct buffer *cn_trash = get_trash_chunk();
 				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
 					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN,
 								cn_trash->data,
@@ -1104,7 +1104,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 				}
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_KEY_ALG) {
-				struct chunk *pkey_trash = get_trash_chunk();
+				struct buffer *pkey_trash = get_trash_chunk();
 				if (ssl_sock_get_pkey_algo(remote, pkey_trash) > 0) {
 					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_KEY_ALG,
 								pkey_trash->data,

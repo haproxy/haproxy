@@ -1191,7 +1191,7 @@ static int hlua_regex_exec(struct lua_State *L)
 	struct my_regex *regex;
 	const char *str;
 	size_t len;
-	struct chunk *tmp;
+	struct buffer *tmp;
 
 	regex = hlua_check_regex(L, 1);
 	str = luaL_checklstring(L, 2, &len);
@@ -1219,7 +1219,7 @@ static int hlua_regex_match(struct lua_State *L)
 	regmatch_t pmatch[20];
 	int ret;
 	int i;
-	struct chunk *tmp;
+	struct buffer *tmp;
 
 	regex = hlua_check_regex(L, 1);
 	str = luaL_checklstring(L, 2, &len);

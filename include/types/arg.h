@@ -92,7 +92,7 @@ struct my_regex;
 
 union arg_data {
 	long long int sint;
-	struct chunk str;
+	struct buffer str;
 	struct in_addr ipv4;
 	struct in6_addr ipv6;
 	struct proxy *prx; /* used for fe, be, tables */

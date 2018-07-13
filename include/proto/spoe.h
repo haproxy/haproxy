@@ -164,7 +164,7 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 
 		case SMP_T_STR:
 		case SMP_T_BIN: {
-			struct chunk *chk = &smp->data.u.str;
+			struct buffer *chk = &smp->data.u.str;
 
 			/* Here, we need to know if the sample has already been
 			 * partially encoded. If yes, we only need to encode the
@@ -175,7 +175,7 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 				 * type (string or binary), the buffer length
 				 * (as a varint) and at least 1 byte of the
 				 * buffer. */
-				struct chunk *chk = &smp->data.u.str;
+				struct buffer *chk = &smp->data.u.str;
 
 				*p++ = (smp->data.type == SMP_T_STR)
 					? SPOE_DATA_T_STR

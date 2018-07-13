@@ -587,7 +587,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	const char *err_msg;
-	struct chunk *chk;
+	struct buffer *chk;
 	int step;
 	char *comment;
 
@@ -1103,7 +1103,7 @@ static void event_srv_chk_r(struct conn_stream *cs)
 			 * ERR first, then WARN.
 			 */
 			const char *msg = cmd;
-			struct chunk *t;
+			struct buffer *t;
 
 			if (!*msg || status == HCHK_STATUS_L7OKD) {
 				if (err && *err)

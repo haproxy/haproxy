@@ -229,7 +229,7 @@ existing callbacks. Available callbacks are listed in the following structure:
                                     struct http_msg *msg);
         void (*http_reply)         (struct stream *s, struct filter *f,
                                     short status,
-                                    const struct chunk *msg);
+                                    const struct buffer *msg);
 
         /*
          * TCP callbacks

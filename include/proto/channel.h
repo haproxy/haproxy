@@ -784,7 +784,7 @@ static inline void co_skip(struct channel *chn, int len)
  * Channel flag READ_PARTIAL is updated if some data can be transferred. The
  * chunk's length is updated with the number of bytes sent.
  */
-static inline int ci_putchk(struct channel *chn, struct chunk *chunk)
+static inline int ci_putchk(struct channel *chn, struct buffer *chunk)
 {
 	int ret;
 

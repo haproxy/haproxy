@@ -667,7 +667,7 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
  * decides to stop the HTTP message processing.
  */
 void
-flt_http_reply(struct stream *s, short status, const struct chunk *msg)
+flt_http_reply(struct stream *s, short status, const struct buffer *msg)
 {
 	struct filter *filter;
 

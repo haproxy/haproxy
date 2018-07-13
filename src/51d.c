@@ -27,7 +27,7 @@ static struct {
 	struct list property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
 	char *data_file_path;
 	int header_count; /* number of HTTP headers related to device detection. */
-	struct chunk *header_names; /* array of HTTP header names. */
+	struct buffer *header_names; /* array of HTTP header names. */
 	fiftyoneDegreesDataSet data_set; /* data set used with the pattern and trie detection methods. */
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 	fiftyoneDegreesWorksetPool *pool; /* pool of worksets to avoid creating a new one for each request. */
@@ -155,7 +155,7 @@ static int _51d_conv_check(struct arg *arg, struct sample_conv *conv,
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
 static void _51d_lru_free(void *cache_entry)
 {
-	struct chunk *ptr = cache_entry;
+	struct buffer *ptr = cache_entry;
 
 	if (!ptr)
 		return;
@@ -184,7 +184,7 @@ static void *_51d_malloc(int size)
  */
 static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru, void* domain)
 {
-	struct chunk *cache_entry = _51d_malloc(sizeof(*cache_entry));
+	struct buffer *cache_entry = _51d_malloc(sizeof(*cache_entry));
 
 	if (!cache_entry)
 		return;
@@ -205,7 +205,7 @@ static void _51d_insert_cache_entry(struct sample *smp, struct lru64 *lru, void*
  */
 static void _51d_retrieve_cache_entry(struct sample *smp, struct lru64 *lru)
 {
-	struct chunk *cache_entry = lru->data;
+	struct buffer *cache_entry = lru->data;
 	smp->data.u.str.area = cache_entry->area;
 	smp->data.u.str.data = cache_entry->data;
 }
@@ -300,7 +300,7 @@ static void _51d_process_match(const struct arg *args, struct sample *smp)
 #endif
 
 	char no_data[] = "NoData";  /* response when no data could be found */
-	struct chunk *temp = get_trash_chunk();
+	struct buffer *temp = get_trash_chunk();
 	int j, i = 0, found;
 	const char* property_name;
 
@@ -503,7 +503,7 @@ void _51d_init_http_headers()
 	const fiftyoneDegreesAsciiString *headerName;
 	fiftyoneDegreesDataSet *ds = &global_51degrees.data_set;
 	global_51degrees.header_count = ds->httpHeadersCount;
-	global_51degrees.header_names = malloc(global_51degrees.header_count * sizeof(struct chunk));
+	global_51degrees.header_names = malloc(global_51degrees.header_count * sizeof(struct buffer));
 	for (index = 0; index < global_51degrees.header_count; index++) {
 		headerName = fiftyoneDegreesGetString(ds, ds->httpHeaders[index].headerNameOffset);
 		(global_51degrees.header_names + index)->area = (char*)&headerName->firstByte;
@@ -521,7 +521,7 @@ void _51d_init_http_headers()
 	global_51degrees.header_count = fiftyoneDegreesGetHttpHeaderCount(ds);
 	global_51degrees.device_offsets.firstOffset = malloc(
 		global_51degrees.header_count * sizeof(fiftyoneDegreesDeviceOffset));
-	global_51degrees.header_names = malloc(global_51degrees.header_count * sizeof(struct chunk));
+	global_51degrees.header_names = malloc(global_51degrees.header_count * sizeof(struct buffer));
 	global_51degrees.header_offsets = malloc(global_51degrees.header_count * sizeof(int32_t));
 	for (index = 0; index < global_51degrees.header_count; index++) {
 		global_51degrees.header_offsets[index] = fiftyoneDegreesGetHttpHeaderNameOffset(ds, index);
@@ -538,7 +538,7 @@ void _51d_init_http_headers()
 static int init_51degrees(void)
 {
 	int i = 0;
-	struct chunk *temp;
+	struct buffer *temp;
 	struct _51d_property_names *name;
 	char **_51d_property_list = NULL;
 	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;

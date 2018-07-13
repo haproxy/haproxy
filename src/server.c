@@ -844,7 +844,8 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
  * If <xferred> is non-negative, some information about requeued sessions are
  * provided.
  */
-void srv_append_status(struct chunk *msg, struct server *s, struct check *check, int xferred, int forced)
+void srv_append_status(struct buffer *msg, struct server *s,
+		       struct check *check, int xferred, int forced)
 {
 	short status = s->op_st_chg.status;
 	short code = s->op_st_chg.code;
@@ -865,7 +866,7 @@ void srv_append_status(struct chunk *msg, struct server *s, struct check *check,
 			chunk_appendf(msg, ", code: %d", code);
 
 		if (desc && *desc) {
-			struct chunk src;
+			struct buffer src;
 
 			chunk_appendf(msg, ", info: \"");
 
@@ -2686,7 +2687,7 @@ static void srv_register_update(struct server *srv)
 static void srv_update_state(struct server *srv, int version, char **params)
 {
 	char *p;
-	struct chunk *msg;
+	struct buffer *msg;
 
 	/* fields since version 1
 	 * and common to all other upcoming versions
@@ -3415,7 +3416,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 	int ret, port_change_required;
 	char current_addr[INET6_ADDRSTRLEN];
 	uint16_t current_port, new_port;
-	struct chunk *msg;
+	struct buffer *msg;
 	int changed = 0;
 
 	msg = get_trash_chunk();
@@ -3674,7 +3675,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	void *serverip, *firstip;
 	short server_sin_family, firstip_sin_family;
 	int ret;
-	struct chunk *chk = get_trash_chunk();
+	struct buffer *chk = get_trash_chunk();
 	int has_no_ip = 0;
 
 	s = objt_server(requester->owner);
@@ -4035,7 +4036,7 @@ int srv_init_addr(void)
 const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked)
 {
 
-	struct chunk *msg;
+	struct buffer *msg;
 
 	msg = get_trash_chunk();
 	chunk_reset(msg);
@@ -4524,7 +4525,7 @@ void srv_update_status(struct server *s)
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
 	int log_level;
-	struct chunk *tmptrash = NULL;
+	struct buffer *tmptrash = NULL;
 
 
 	/* If currently main is not set we try to apply pending state changes */

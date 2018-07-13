@@ -36,7 +36,8 @@
 /* main event functions used to move data between sockets and buffers */
 int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
-void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
+void stream_int_retnclose(struct stream_interface *si,
+			  const struct buffer *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 void stream_sock_read0(struct stream_interface *si);
 

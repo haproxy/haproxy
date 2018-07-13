@@ -44,7 +44,8 @@ static inline struct action_kw *action_lookup(struct list *keywords, const char 
 	return NULL;
 }
 
-static inline void action_build_list(struct list *keywords, struct chunk *chk)
+static inline void action_build_list(struct list *keywords,
+				     struct buffer *chk)
 {
 	struct action_kw_list *kw_list;
 	int i;

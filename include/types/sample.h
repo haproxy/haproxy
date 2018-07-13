@@ -244,14 +244,14 @@ union smp_ctx {
  */
 struct meth {
 	enum http_meth_t meth;
-	struct chunk str;
+	struct buffer str;
 };
 
 union sample_value {
 	long long int   sint;  /* used for signed 64bits integers */
 	struct in_addr  ipv4;  /* used for ipv4 addresses */
 	struct in6_addr ipv6;  /* used for ipv6 addresses */
-	struct chunk    str;   /* used for char strings or buffers */
+	struct buffer    str;   /* used for char strings or buffers */
 	struct meth     meth;  /* used for http method */
 };
 

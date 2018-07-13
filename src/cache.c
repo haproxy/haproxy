@@ -345,7 +345,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 		value = directive_value(directive, ctx.vlen, "s-maxage", 8);
 		if (value) {
-			struct chunk *chk = get_trash_chunk();
+			struct buffer *chk = get_trash_chunk();
 
 			chunk_strncat(chk, value, ctx.vlen - 8 + 1);
 			chunk_strncat(chk, "", 1);
@@ -354,7 +354,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 		value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
 		if (value) {
-			struct chunk *chk = get_trash_chunk();
+			struct buffer *chk = get_trash_chunk();
 
 			chunk_strncat(chk, value, ctx.vlen - 7 + 1);
 			chunk_strncat(chk, "", 1);
@@ -637,7 +637,7 @@ int sha1_hosturi(struct http_txn *txn)
 	struct hdr_ctx ctx;
 
 	blk_SHA_CTX sha1_ctx;
-	struct chunk *trash;
+	struct buffer *trash;
 	char *path;
 	char *end;
 	trash = get_trash_chunk();

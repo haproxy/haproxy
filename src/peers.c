@@ -387,7 +387,7 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 {
 	int len;
 	unsigned short datalen;
-	struct chunk *chunk;
+	struct buffer *chunk;
 	char *cursor, *datamsg, *chunkp, *chunkq;
 	uint64_t data = 0;
 	unsigned int data_type;

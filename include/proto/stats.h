@@ -101,9 +101,10 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 extern struct applet http_stats_applet;
 
 void stats_io_handler(struct stream_interface *si);
-int stats_emit_raw_data_field(struct chunk *out, const struct field *f);
-int stats_emit_typed_data_field(struct chunk *out, const struct field *f);
-int stats_emit_field_tags(struct chunk *out, const struct field *f, char delim);
+int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
+int stats_emit_typed_data_field(struct buffer *out, const struct field *f);
+int stats_emit_field_tags(struct buffer *out, const struct field *f,
+			  char delim);
 
 #endif /* _PROTO_STATS_H */
 

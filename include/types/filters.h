@@ -189,7 +189,7 @@ struct flt_ops {
 
 	void (*http_reset)         (struct stream *s, struct filter *f, struct http_msg *msg);
 	void (*http_reply)         (struct stream *s, struct filter *f, short status,
-				    const struct chunk *msg);
+				    const struct buffer *msg);
 
 	/*
 	 * TCP callbacks

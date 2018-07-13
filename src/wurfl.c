@@ -520,7 +520,7 @@ static void ha_wurfl_deinit(void)
 static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	wurfl_device_handle dHandle;
-	struct chunk *temp;
+	struct buffer *temp;
 	wurfl_information_t *wi;
 	ha_wurfl_header_t wh;
 
@@ -584,7 +584,7 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	wurfl_device_handle dHandle;
-	struct chunk *temp;
+	struct buffer *temp;
 	wurfl_data_t *wn = NULL;
 	struct ebmb_node *node;
 	ha_wurfl_header_t wh;

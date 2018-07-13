@@ -1555,7 +1555,7 @@ char *encode_string(char *start, char *stop,
  */
 char *encode_chunk(char *start, char *stop,
 		    const char escape, const fd_set *map,
-		    const struct chunk *chunk)
+		    const struct buffer *chunk)
 {
 	char *str = chunk->area;
 	char *end = chunk->area + chunk->data;
@@ -1618,7 +1618,7 @@ char *escape_string(char *start, char *stop,
  */
 char *escape_chunk(char *start, char *stop,
 		   const char escape, const fd_set *map,
-		   const struct chunk *chunk)
+		   const struct buffer *chunk)
 {
 	char *str = chunk->area;
 	char *end = chunk->area + chunk->data;
@@ -1656,7 +1656,7 @@ char *escape_chunk(char *start, char *stop,
  * If <quote> is 1, the converter puts the quotes only if any reserved character
  * is present. If <quote> is 2, the converter always puts the quotes.
  *
- * <output> is a struct chunk used for storing the output string.
+ * <output> is a struct buffer used for storing the output string.
  *
  * The function returns the converted string on its output. If an error
  * occurs, the function returns an empty string. This type of output is useful
@@ -1670,7 +1670,7 @@ char *escape_chunk(char *start, char *stop,
  * the chunk. Please use csv_enc() instead if you want to replace the output
  * chunk.
  */
-const char *csv_enc_append(const char *str, int quote, struct chunk *output)
+const char *csv_enc_append(const char *str, int quote, struct buffer *output)
 {
 	char *end = output->area + output->size;
 	char *out = output->area + output->data;
@@ -3825,7 +3825,7 @@ fail_wl:
  * Other non-printable chars are encoded "\xHH". Space, '\', and '=' are also escaped.
  * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
  */
-int dump_text(struct chunk *out, const char *buf, int bsize)
+int dump_text(struct buffer *out, const char *buf, int bsize)
 {
 	unsigned char c;
 	int ptr = 0;
@@ -3869,7 +3869,7 @@ int dump_text(struct chunk *out, const char *buf, int bsize)
 /* print a buffer in hexa.
  * Print stopped if <bsize> is reached, or if no more place in the chunk.
  */
-int dump_binary(struct chunk *out, const char *buf, int bsize)
+int dump_binary(struct buffer *out, const char *buf, int bsize)
 {
 	unsigned char c;
 	int ptr = 0;
@@ -3895,7 +3895,7 @@ int dump_binary(struct chunk *out, const char *buf, int bsize)
  * continuation of a previous truncated line begin with "+" instead of " "
  * after the offset. The new pointer is returned.
  */
-int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
+int dump_text_line(struct buffer *out, const char *buf, int bsize, int len,
                    int *line, int ptr)
 {
 	int end;

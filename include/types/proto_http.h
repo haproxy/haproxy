@@ -301,7 +301,7 @@ struct http_msg {
 struct http_auth_data {
 	enum ht_auth_m method;                /* one of HTTP_AUTH_* */
 	/* 7 bytes unused here */
-	struct chunk method_data;             /* points to the creditial part from 'Authorization:' header */
+	struct buffer method_data;             /* points to the creditial part from 'Authorization:' header */
 	char *user, *pass;                    /* extracted username & password */
 };
 

@@ -508,7 +508,7 @@ static int c_ip2int(struct sample *smp)
 
 static int c_ip2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 
 	if (!inet_ntop(AF_INET, (void *)&smp->data.u.ipv4, trash->area, trash->size))
 		return 0;
@@ -538,7 +538,7 @@ static int c_ipv62ip(struct sample *smp)
 
 static int c_ipv62str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 
 	if (!inet_ntop(AF_INET6, (void *)&smp->data.u.ipv6, trash->area, trash->size))
 		return 0;
@@ -623,7 +623,7 @@ static int c_bin2str(struct sample *smp)
 
 static int c_int2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	char *pos;
 
 	pos = lltoa_r(smp->data.u.sint, trash->area, trash->size);
@@ -647,7 +647,7 @@ static int c_int2str(struct sample *smp)
  */
 int smp_dup(struct sample *smp)
 {
-	struct chunk *trash;
+	struct buffer *trash;
 
 	switch (smp->data.type) {
 	case SMP_T_BOOL:
@@ -763,7 +763,7 @@ static int c_meth2str(struct sample *smp)
 
 static int c_addr2bin(struct sample *smp)
 {
-	struct chunk *chk = get_trash_chunk();
+	struct buffer *chk = get_trash_chunk();
 
 	if (smp->data.type == SMP_T_IPV4) {
 		chk->data = 4;
@@ -783,7 +783,7 @@ static int c_addr2bin(struct sample *smp)
 
 static int c_int2bin(struct sample *smp)
 {
-	struct chunk *chk = get_trash_chunk();
+	struct buffer *chk = get_trash_chunk();
 
 	*(unsigned long long int *) chk->area = my_htonll(smp->data.u.sint);
 	chk->data = 8;
@@ -1474,7 +1474,7 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 
 static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	int bin_len;
 
 	trash->data = 0;
@@ -1492,7 +1492,7 @@ static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, v
 
 static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	int b64_len;
 
 	trash->data = 0;
@@ -1511,7 +1511,7 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, v
 static int sample_conv_sha1(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	blk_SHA_CTX ctx;
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 
 	memset(&ctx, 0, sizeof(ctx));
 
@@ -1528,7 +1528,7 @@ static int sample_conv_sha1(const struct arg *arg_p, struct sample *smp, void *p
 
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	unsigned char c;
 	int ptr = 0;
 
@@ -1640,7 +1640,7 @@ static int sample_conv_ipmask(const struct arg *args, struct sample *smp, void *
  */
 static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
 	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
@@ -1677,7 +1677,7 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *p
  */
 static int sample_conv_utime(const struct arg *args, struct sample *smp, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
 	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
 	struct tm *tm;
@@ -1840,7 +1840,7 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 
 static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct chunk *temp;
+	struct buffer *temp;
 	char _str[7]; /* \u + 4 hex digit + null char for sprintf. */
 	const char *str;
 	int len;
@@ -2227,7 +2227,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	char *start, *end;
 	struct my_regex *reg = arg_p[0].data.reg;
 	regmatch_t pmatch[MAX_MATCH];
-	struct chunk *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk();
 	int flag, max;
 	int found;
 
@@ -2629,7 +2629,7 @@ static int sample_conv_arith_even(const struct arg *arg_p,
  */
 static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct chunk *trash;
+	struct buffer *trash;
 	struct sample tmp;
 	int max;
 

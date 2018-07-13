@@ -132,7 +132,8 @@ void stream_int_report_error(struct stream_interface *si)
  * not need to be empty before this, and its contents will not be overwritten.
  * The primary goal of this function is to return error messages to a client.
  */
-void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
+void stream_int_retnclose(struct stream_interface *si,
+			  const struct buffer *msg)
 {
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);

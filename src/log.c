@@ -48,8 +48,8 @@
 struct log_fmt {
 	char *name;
 	struct {
-		struct chunk sep1; /* first pid separator */
-		struct chunk sep2; /* second pid separator */
+		struct buffer sep1; /* first pid separator */
+		struct buffer sep2; /* second pid separator */
 	} pid;
 };
 
@@ -1006,7 +1006,7 @@ static char *lf_encode_string(char *start, char *stop,
  */
 static char *lf_encode_chunk(char *start, char *stop,
                              const char escape, const fd_set *map,
-                             const struct chunk *chunk,
+                             const struct buffer *chunk,
                              struct logformat_node *node)
 {
 	char *str, *end;
@@ -1158,7 +1158,7 @@ static char *update_log_hdr(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
 	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
-	static THREAD_LOCAL struct chunk host = { };
+	static THREAD_LOCAL struct buffer host = { };
 	static THREAD_LOCAL int sep = 0;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
@@ -1280,10 +1280,10 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
 	time_t time = date.tv_sec;
-	struct chunk *tag = &global.log_tag;
+	struct buffer *tag = &global.log_tag;
 	static THREAD_LOCAL int curr_pid;
 	static THREAD_LOCAL char pidstr[100];
-	static THREAD_LOCAL struct chunk pid;
+	static THREAD_LOCAL struct buffer pid;
 
 	msghdr.msg_iov = iovec;
 
@@ -1574,7 +1574,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = s->txn;
-	struct chunk chunk;
+	struct buffer chunk;
 	char *uri;
 	char *spc;
 	char *qmark;
@@ -1606,7 +1606,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 		struct connection *conn;
 		const char *src = NULL;
 		struct sample *key;
-		const struct chunk empty = { };
+		const struct buffer empty = { };
 
 		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:

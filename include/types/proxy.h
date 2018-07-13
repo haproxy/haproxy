@@ -356,7 +356,7 @@ struct proxy {
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
 	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
-	struct chunk log_tag;                   /* override default syslog tag */
+	struct buffer log_tag;                   /* override default syslog tag */
 	char *header_unique_id; 		/* unique-id header */
 	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
@@ -384,7 +384,7 @@ struct proxy {
 	char *check_path;			/* PATH environment to use for external agent checks */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */
 	struct my_regex *expect_regex;		/* http-check expected content */
-	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
+	struct buffer errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned long bind_proc;		/* bitmask of processes using this proxy */

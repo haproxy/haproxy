@@ -221,7 +221,7 @@ int pat_parse_str(const char *text, struct pattern *pattern, int mflags, char **
 /* Parse a binary written in hexa. It is allocated. */
 int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **err)
 {
-	struct chunk *trash;
+	struct buffer *trash;
 
 	pattern->type = SMP_T_BIN;
 	trash = get_trash_chunk();

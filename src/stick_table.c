@@ -3030,7 +3030,8 @@ enum {
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */
-static int table_dump_head_to_buffer(struct chunk *msg, struct stream_interface *si,
+static int table_dump_head_to_buffer(struct buffer *msg,
+                                     struct stream_interface *si,
                                      struct proxy *proxy, struct proxy *target)
 {
 	struct stream *s = si_strm(si);
@@ -3055,7 +3056,8 @@ static int table_dump_head_to_buffer(struct chunk *msg, struct stream_interface 
  * read buffer. It returns 0 if the output buffer is full
  * and needs to be called again, otherwise non-zero.
  */
-static int table_dump_entry_to_buffer(struct chunk *msg, struct stream_interface *si,
+static int table_dump_entry_to_buffer(struct buffer *msg,
+                                      struct stream_interface *si,
                                       struct proxy *proxy, struct stksess *entry)
 {
 	int dt;

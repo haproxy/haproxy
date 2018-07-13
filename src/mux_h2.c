@@ -670,7 +670,7 @@ static int h2c_snd_settings(struct h2c *h2c)
 {
 	struct buffer *res;
 	char buf_data[100]; // enough for 15 settings
-	struct chunk buf;
+	struct buffer buf;
 	int ret;
 
 	if (h2c_mux_busy(h2c, NULL)) {
@@ -2617,9 +2617,9 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
-	struct chunk *tmp = get_trash_chunk();
+	struct buffer *tmp = get_trash_chunk();
 	struct http_hdr list[MAX_HTTP_HDR * 2];
-	struct chunk *copy = NULL;
+	struct buffer *copy = NULL;
 	unsigned int msgf;
 	int flen = h2c->dfl;
 	int outlen = 0;
@@ -2954,7 +2954,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	struct http_hdr list[MAX_HTTP_HDR];
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->res;
-	struct chunk outbuf;
+	struct buffer outbuf;
 	int es_now = 0;
 	int ret = 0;
 	int hdr;
@@ -3125,7 +3125,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 {
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->res;
-	struct chunk outbuf;
+	struct buffer outbuf;
 	int ret = 0;
 	size_t total = 0;
 	int es_now = 0;
@@ -3447,7 +3447,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_
 }
 
 /* for debugging with CLI's "show fd" command */
-static void h2_show_fd(struct chunk *msg, struct connection *conn)
+static void h2_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct h2c *h2c = conn->mux_ctx;
 	struct h2s *h2s;

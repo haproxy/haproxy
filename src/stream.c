@@ -1226,7 +1226,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 				struct proxy *backend = NULL;
 
 				if (rule->dynamic) {
-					struct chunk *tmp;
+					struct buffer *tmp;
 
 					tmp = alloc_trash_chunk();
 					if (!tmp)
