@@ -489,7 +489,7 @@ static struct server *get_server_rch(struct stream *s)
 	c_rew(&s->req, rewind);
 
 	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
-	len = smp.data.u.str.len;
+	len = smp.data.u.str.data;
 
 	c_adv(&s->req, rewind);
 
@@ -503,7 +503,7 @@ static struct server *get_server_rch(struct stream *s)
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
-	hash = gen_hash(px, smp.data.u.str.str, len);
+	hash = gen_hash(px, smp.data.u.str.area, len);
 
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
@@ -1013,7 +1013,7 @@ static void assign_tproxy_address(struct stream *s)
 	case CO_SRC_TPROXY_DYN:
 		if (src->bind_hdr_occ && s->txn) {
 			char *vptr;
-			int vlen;
+			size_t vlen;
 			int rewind;
 
 			/* bind to the IP in a header */
@@ -1270,7 +1270,8 @@ int connect_server(struct stream *s)
 			c_adv(&s->req, rewind);
 
 			if (smp_make_safe(smp)) {
-				ssl_sock_set_servername(srv_conn, smp->data.u.str.str);
+				ssl_sock_set_servername(srv_conn,
+							smp->data.u.str.area);
 				srv_conn->flags |= CO_FL_PRIVATE;
 			}
 		}
@@ -1413,7 +1414,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	memset(&smp, 0, sizeof(smp));
 
 	ret = fetch_rdp_cookie_name(s, &smp, s->be->rdp_cookie_name, s->be->rdp_cookie_len);
-	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.u.str.len == 0)
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.u.str.data == 0)
 		goto no_cookie;
 
 	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return.
@@ -1421,7 +1422,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	 * server's IP address in network order, and "port" is the integer corresponding to the
 	 * server's port in network order. Comments please Emeric.
 	 */
-	addr = strtoul(smp.data.u.str.str, &p, 10);
+	addr = strtoul(smp.data.u.str.area, &p, 10);
 	if (*p != '.')
 		goto no_cookie;
 	p++;
@@ -1741,13 +1742,13 @@ smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, vo
 	if (!smp->strm)
 		return 0;
 
-	smp->data.u.str.str = (char *)smp->strm->be->id;
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)smp->strm->be->id;
+	if (!smp->data.u.str.area)
 	        return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
 }
@@ -1882,7 +1883,7 @@ static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *p
 	if (!smp_make_safe(smp))
 		return 0;
 
-	px = proxy_find_by_name(smp->data.u.str.str, PR_CAP_BE, 0);
+	px = proxy_find_by_name(smp->data.u.str.area, PR_CAP_BE, 0);
 	if (!px)
 		return 0;
 

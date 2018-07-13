@@ -113,9 +113,9 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 		if (arg->type == ARGT_STOP)
 			break;
 		if (arg->type == ARGT_STR || arg->unresolved) {
-			free(arg->data.str.str);
-			arg->data.str.str = NULL;
-			arg->data.str.len = 0;
+			free(arg->data.str.area);
+			arg->data.str.area = NULL;
+			arg->data.str.data = 0;
 			unresolved |= arg->unresolved;
 			arg->unresolved = 0;
 		}
@@ -525,11 +525,12 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* Create displayed reference */
-	snprintf(trash.str, trash.size, "acl '%s' file '%s' line %d", expr->kw, file, line);
-	trash.str[trash.size - 1] = '\0';
+	snprintf(trash.area, trash.size, "acl '%s' file '%s' line %d",
+		 expr->kw, file, line);
+	trash.area[trash.size - 1] = '\0';
 
 	/* Create new patern reference. */
-	ref = pat_ref_newid(unique_id, trash.str, PAT_REF_ACL);
+	ref = pat_ref_newid(unique_id, trash.area, PAT_REF_ACL);
 	if (!ref) {
 		memprintf(err, "memory error");
 		goto out_free_expr;
@@ -1272,7 +1273,8 @@ int acl_find_targets(struct proxy *p)
 				 */
 				if (expr->smp->arg_p->unresolved) {
 					ha_alert("Internal bug in proxy %s: %sacl %s %s() makes use of unresolved userlist '%s'. Please report this.\n",
-						 p->id, *acl->name ? "" : "anonymous ", acl->name, expr->kw, expr->smp->arg_p->data.str.str);
+						 p->id, *acl->name ? "" : "anonymous ", acl->name, expr->kw,
+						 expr->smp->arg_p->data.str.area);
 					cfgerr++;
 					continue;
 				}

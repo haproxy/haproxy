@@ -727,8 +727,8 @@ static int h2c_snd_settings(struct h2c *h2c)
 		chunk_memcat(&buf, str, 6);
 	}
 
-	h2_set_frame_size(buf.str, buf.len - 9);
-	ret = b_istput(res, ist2(buf.str, buf.len));
+	h2_set_frame_size(buf.area, buf.data - 9);
+	ret = b_istput(res, ist2(buf.area, buf.data));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -2643,9 +2643,9 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
 			goto fail;
 		}
-		memcpy(copy->str, b_head(&h2c->dbuf), wrap);
-		memcpy(copy->str + wrap, b_orig(&h2c->dbuf), h2c->dfl - wrap);
-		hdrs = (uint8_t *)copy->str;
+		memcpy(copy->area, b_head(&h2c->dbuf), wrap);
+		memcpy(copy->area + wrap, b_orig(&h2c->dbuf), h2c->dfl - wrap);
+		hdrs = (uint8_t *) copy->area;
 	}
 
 	/* The padlen is the first byte before data, and the padding appears
@@ -2699,7 +2699,7 @@ static int h2_frt_decode_headers(struct h2s *h2s, struct buffer *buf, int count,
 		/* it doesn't fit and the buffer is fragmented,
 		 * so let's defragment it and try again.
 		 */
-		b_slow_realign(buf, trash.str, 0);
+		b_slow_realign(buf, trash.area, 0);
 	}
 
 	try = b_contig_space(buf);
@@ -2994,14 +2994,14 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.str  = b_tail(&h2c->mbuf);
+		outbuf.area  = b_tail(&h2c->mbuf);
 		outbuf.size = b_contig_space(&h2c->mbuf);
-		outbuf.len = 0;
+		outbuf.data = 0;
 
 		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.str, b_data(&h2c->mbuf));
+		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
 	}
 
 	if (outbuf.size < 9) {
@@ -3012,28 +3012,28 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 
 	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4 */
-	memcpy(outbuf.str, "\x00\x00\x00\x01\x04", 5);
-	write_n32(outbuf.str + 5, h2s->id); // 4 bytes
-	outbuf.len = 9;
+	memcpy(outbuf.area, "\x00\x00\x00\x01\x04", 5);
+	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
+	outbuf.data = 9;
 
 	/* encode status, which necessarily is the first one */
-	if (outbuf.len < outbuf.size && h1m->status == 200)
-		outbuf.str[outbuf.len++] = 0x88; // indexed field : idx[08]=(":status", "200")
-	else if (outbuf.len < outbuf.size && h1m->status == 304)
-		outbuf.str[outbuf.len++] = 0x8b; // indexed field : idx[11]=(":status", "304")
+	if (outbuf.data < outbuf.size && h1m->status == 200)
+		outbuf.area[outbuf.data++] = 0x88; // indexed field : idx[08]=(":status", "200")
+	else if (outbuf.data < outbuf.size && h1m->status == 304)
+		outbuf.area[outbuf.data++] = 0x8b; // indexed field : idx[11]=(":status", "304")
 	else if (unlikely(list[0].v.len != 3)) {
 		/* this is an unparsable response */
 		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 		ret = 0;
 		goto end;
 	}
-	else if (unlikely(outbuf.len + 2 + 3 <= outbuf.size)) {
+	else if (unlikely(outbuf.data + 2 + 3 <= outbuf.size)) {
 		/* basic encoding of the status code */
-		outbuf.str[outbuf.len++] = 0x48; // indexed name -- name=":status" (idx 8)
-		outbuf.str[outbuf.len++] = 0x03; // 3 bytes status
-		outbuf.str[outbuf.len++] = list[0].v.ptr[0];
-		outbuf.str[outbuf.len++] = list[0].v.ptr[1];
-		outbuf.str[outbuf.len++] = list[0].v.ptr[2];
+		outbuf.area[outbuf.data++] = 0x48; // indexed name -- name=":status" (idx 8)
+		outbuf.area[outbuf.data++] = 0x03; // 3 bytes status
+		outbuf.area[outbuf.data++] = list[0].v.ptr[0];
+		outbuf.area[outbuf.data++] = list[0].v.ptr[1];
+		outbuf.area[outbuf.data++] = list[0].v.ptr[2];
 	}
 	else {
 		if (b_space_wraps(&h2c->mbuf))
@@ -3075,16 +3075,16 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		es_now = 1;
 
 	/* update the frame's size */
-	h2_set_frame_size(outbuf.str, outbuf.len - 9);
+	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
 	if (es_now)
-		outbuf.str[4] |= H2_F_HEADERS_END_STREAM;
+		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* consume incoming H1 response */
 	max -= ret;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, outbuf.len);
+	b_add(&h2c->mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	/* for now we don't implemented CONTINUATION, so we wait for a
@@ -3151,14 +3151,14 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.str  = b_tail(&h2c->mbuf);
+		outbuf.area  = b_tail(&h2c->mbuf);
 		outbuf.size = b_contig_space(&h2c->mbuf);
-		outbuf.len = 0;
+		outbuf.data = 0;
 
 		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.str, b_data(&h2c->mbuf));
+		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
 	}
 
 	if (outbuf.size < 9) {
@@ -3168,9 +3168,9 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
 	/* len: 0x000000 (fill later), type: 0(DATA), flags: none=0 */
-	memcpy(outbuf.str, "\x00\x00\x00\x00\x00", 5);
-	write_n32(outbuf.str + 5, h2s->id); // 4 bytes
-	outbuf.len = 9;
+	memcpy(outbuf.area, "\x00\x00\x00\x00\x00", 5);
+	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
+	outbuf.data = 9;
 
 	switch (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
 	case 0:           /* no content length, read till SHUTW */
@@ -3301,9 +3301,9 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
 	/* now let's copy this this into the output buffer */
-	memcpy(outbuf.str + 9, blk1, len1);
+	memcpy(outbuf.area + 9, blk1, len1);
 	if (len2)
-		memcpy(outbuf.str + 9 + len1, blk2, len2);
+		memcpy(outbuf.area + 9 + len1, blk2, len2);
 
  send_empty:
 	/* we may need to add END_STREAM */
@@ -3323,10 +3323,10 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		es_now = 1;
 
 	/* update the frame's size */
-	h2_set_frame_size(outbuf.str, size);
+	h2_set_frame_size(outbuf.area, size);
 
 	if (es_now)
-		outbuf.str[4] |= H2_F_DATA_END_STREAM;
+		outbuf.area[4] |= H2_F_DATA_END_STREAM;
 
 	/* commit the H2 response */
 	b_add(&h2c->mbuf, size + 9);

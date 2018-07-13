@@ -124,7 +124,7 @@ int frontend_accept(struct stream *s)
 			break;
 		}
 
-		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
+		shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
 	}
 
 	if (fe->mode == PR_MODE_HTTP)
@@ -184,13 +184,13 @@ smp_fetch_fe_id(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_fe_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.u.str.str = (char *)smp->sess->fe->id;
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)smp->sess->fe->id;
+	if (!smp->data.u.str.area)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
 }
 
@@ -200,13 +200,13 @@ smp_fetch_fe_defbe(const struct arg *args, struct sample *smp, const char *kw, v
 {
 	if (!smp->sess->fe->defbe.be)
 		return 0;
-	smp->data.u.str.str = (char *)smp->sess->fe->defbe.be->id;
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)smp->sess->fe->defbe.be->id;
+	if (!smp->data.u.str.area)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
 }
 

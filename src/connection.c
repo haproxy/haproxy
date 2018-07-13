@@ -409,8 +409,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		return 0;
 
 	do {
-		trash.len = recv(conn->handle.fd, trash.str, trash.size, MSG_PEEK);
-		if (trash.len < 0) {
+		trash.data = recv(conn->handle.fd, trash.area, trash.size,
+				 MSG_PEEK);
+		if (trash.data < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
@@ -421,24 +422,24 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		}
 	} while (0);
 
-	if (!trash.len) {
+	if (!trash.data) {
 		/* client shutdown */
 		conn->err_code = CO_ER_PRX_EMPTY;
 		goto fail;
 	}
 
-	if (trash.len < 6)
+	if (trash.data < 6)
 		goto missing;
 
-	line = trash.str;
-	end = trash.str + trash.len;
+	line = trash.area;
+	end = trash.area + trash.data;
 
 	/* Decode a possible proxy request, fail early if it does not match */
 	if (strncmp(line, "PROXY ", 6) != 0)
 		goto not_v1;
 
 	line += 6;
-	if (trash.len < 9) /* shortest possible line */
+	if (trash.data < 9) /* shortest possible line */
 		goto missing;
 
 	if (memcmp(line, "TCP4 ", 5) == 0) {
@@ -553,15 +554,15 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto fail;
 	}
 
-	trash.len = line - trash.str;
+	trash.data = line - trash.area;
 	goto eat_header;
 
  not_v1:
 	/* try PPv2 */
-	if (trash.len < PP2_HEADER_LEN)
+	if (trash.data < PP2_HEADER_LEN)
 		goto missing;
 
-	hdr_v2 = (struct proxy_hdr_v2 *)trash.str;
+	hdr_v2 = (struct proxy_hdr_v2 *) trash.area;
 
 	if (memcmp(hdr_v2->sig, v2sig, PP2_SIGNATURE_LEN) != 0 ||
 	    (hdr_v2->ver_cmd & PP2_VERSION_MASK) != PP2_VERSION) {
@@ -569,7 +570,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto fail;
 	}
 
-	if (trash.len < PP2_HEADER_LEN + ntohs(hdr_v2->len))
+	if (trash.data < PP2_HEADER_LEN + ntohs(hdr_v2->len))
 		goto missing;
 
 	switch (hdr_v2->ver_cmd & PP2_CMD_MASK) {
@@ -607,8 +608,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 		/* TLV parsing */
 		if (tlv_length > 0) {
-			while (tlv_offset + TLV_HEADER_SIZE <= trash.len) {
-				const struct tlv *tlv_packet = (struct tlv *) &trash.str[tlv_offset];
+			while (tlv_offset + TLV_HEADER_SIZE <= trash.data) {
+				const struct tlv *tlv_packet = (struct tlv *) &trash.area[tlv_offset];
 				const int tlv_len = get_tlv_length(tlv_packet);
 				tlv_offset += tlv_len + TLV_HEADER_SIZE;
 
@@ -617,7 +618,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 					void *tlv_crc32c_p = (void *)tlv_packet->value;
 					uint32_t n_crc32c = ntohl(read_u32(tlv_crc32c_p));
 					write_u32(tlv_crc32c_p, 0);
-					if (hash_crc32c(trash.str, PP2_HEADER_LEN + ntohs(hdr_v2->len)) != n_crc32c)
+					if (hash_crc32c(trash.area, PP2_HEADER_LEN + ntohs(hdr_v2->len)) != n_crc32c)
 						goto bad_header;
 					break;
 				}
@@ -645,7 +646,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto bad_header; /* not a supported command */
 	}
 
-	trash.len = PP2_HEADER_LEN + ntohs(hdr_v2->len);
+	trash.data = PP2_HEADER_LEN + ntohs(hdr_v2->len);
 	goto eat_header;
 
  eat_header:
@@ -654,10 +655,10 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * fail.
 	 */
 	do {
-		int len2 = recv(conn->handle.fd, trash.str, trash.len, 0);
+		int len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
-		if (len2 != trash.len)
+		if (len2 != trash.data)
 			goto recv_abort;
 	} while (0);
 
@@ -722,8 +723,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		return 0;
 
 	do {
-		trash.len = recv(conn->handle.fd, trash.str, trash.size, MSG_PEEK);
-		if (trash.len < 0) {
+		trash.data = recv(conn->handle.fd, trash.area, trash.size,
+				 MSG_PEEK);
+		if (trash.data < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
@@ -734,7 +736,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		}
 	} while (0);
 
-	if (!trash.len) {
+	if (!trash.data) {
 		/* client shutdown */
 		conn->err_code = CO_ER_CIP_EMPTY;
 		goto fail;
@@ -743,10 +745,10 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	/* Fail if buffer length is not large enough to contain
 	 * CIP magic, header length or
 	 * CIP magic, CIP length, CIP type, header length */
-	if (trash.len < 12)
+	if (trash.data < 12)
 		goto missing;
 
-	line = trash.str;
+	line = trash.area;
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
@@ -754,12 +756,12 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto bad_magic;
 
 	/* Legacy CIP protocol */
-	if ((trash.str[8] & 0xD0) == 0x40) {
+	if ((trash.area[8] & 0xD0) == 0x40) {
 		hdr_len = ntohl(*(uint32_t *)(line+4));
 		line += 8;
 	}
 	/* Standard CIP protocol */
-	else if (trash.str[8] == 0x00) {
+	else if (trash.area[8] == 0x00) {
 		hdr_len = ntohs(*(uint32_t *)(line+10));
 		line += 12;
 	}
@@ -771,7 +773,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 	/* Fail if buffer length is not large enough to contain
 	 * a minimal IP header */
-	if (trash.len < 20)
+	if (trash.data < 20)
 		goto missing;
 
 	/* Get IP version from the first four bits */
@@ -783,7 +785,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip4 = (struct ip *)line;
 
-		if (trash.len < 40 || trash.len < hdr_len) {
+		if (trash.data < 40 || trash.data < hdr_len) {
 			/* Fail if buffer length is not large enough to contain
 			 * IPv4 header, TCP header */
 			goto missing;
@@ -813,7 +815,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		hdr_ip6 = (struct ip6_hdr *)line;
 
-		if (trash.len < 60 || trash.len < hdr_len) {
+		if (trash.data < 60 || trash.data < hdr_len) {
 			/* Fail if buffer length is not large enough to contain
 			 * IPv6 header, TCP header */
 			goto missing;
@@ -844,17 +846,17 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	}
 
 	line += hdr_len;
-	trash.len = line - trash.str;
+	trash.data = line - trash.area;
 
 	/* remove the NetScaler Client IP header from the request. For this
 	 * we re-read the exact line at once. If we don't get the exact same
 	 * result, we fail.
 	 */
 	do {
-		int len2 = recv(conn->handle.fd, trash.str, trash.len, 0);
+		int len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
-		if (len2 != trash.len)
+		if (len2 != trash.data)
 			goto recv_abort;
 	} while (0);
 
@@ -1096,13 +1098,17 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
 				struct chunk *cn_trash = get_trash_chunk();
 				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
-					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN, cn_trash->len, cn_trash->str);
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_CN,
+								cn_trash->data,
+								cn_trash->area);
 				}
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_KEY_ALG) {
 				struct chunk *pkey_trash = get_trash_chunk();
 				if (ssl_sock_get_pkey_algo(remote, pkey_trash) > 0) {
-					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_KEY_ALG, pkey_trash->len, pkey_trash->str);
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_SUBTYPE_SSL_KEY_ALG,
+								pkey_trash->data,
+								pkey_trash->area);
 				}
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_SIG_ALG) {

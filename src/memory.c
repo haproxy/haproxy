@@ -394,7 +394,7 @@ void dump_pools_to_trash()
 void dump_pools(void)
 {
 	dump_pools_to_trash();
-	qfprintf(stderr, "%s", trash.str);
+	qfprintf(stderr, "%s", trash.area);
 }
 
 /* This function returns the total number of failed pool allocations */

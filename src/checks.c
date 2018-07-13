@@ -289,9 +289,9 @@ static void set_server_check_status(struct check *check, short status, const cha
 		             (check->health >= check->rise) ? check->fall : check->rise,
 			     (check->health >= check->rise) ? (s->uweight ? "UP" : "DRAIN") : "DOWN");
 
-		ha_warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		send_email_alert(s, LOG_INFO, "%s", trash.str);
+		ha_warning("%s.\n", trash.area);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.area);
+		send_email_alert(s, LOG_INFO, "%s", trash.area);
 	}
 }
 
@@ -434,14 +434,16 @@ void __health_adjust(struct server *s, short status)
 
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
-			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
+			set_server_check_status(&s->check, HCHK_STATUS_HANA,
+						trash.area);
 			check_notify_failure(&s->check);
 			break;
 
 		case HANA_ONERR_MARKDWN:
 		/* mark server down */
 			s->check.health = s->check.rise;
-			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
+			set_server_check_status(&s->check, HCHK_STATUS_HANA,
+						trash.area);
 			check_notify_failure(&s->check);
 			break;
 
@@ -638,18 +640,21 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 
 	if (conn && conn->err_code) {
 		if (errno && errno != EAGAIN)
-			chunk_printf(&trash, "%s (%s)%s", conn_err_code_str(conn), strerror(errno), chk->str);
+			chunk_printf(&trash, "%s (%s)%s", conn_err_code_str(conn), strerror(errno),
+				     chk->area);
 		else
-			chunk_printf(&trash, "%s%s", conn_err_code_str(conn), chk->str);
-		err_msg = trash.str;
+			chunk_printf(&trash, "%s%s", conn_err_code_str(conn),
+				     chk->area);
+		err_msg = trash.area;
 	}
 	else {
 		if (errno && errno != EAGAIN) {
-			chunk_printf(&trash, "%s%s", strerror(errno), chk->str);
-			err_msg = trash.str;
+			chunk_printf(&trash, "%s%s", strerror(errno),
+				     chk->area);
+			err_msg = trash.area;
 		}
 		else {
-			err_msg = chk->str;
+			err_msg = chk->area;
 		}
 	}
 
@@ -1112,14 +1117,15 @@ static void event_srv_chk_r(struct conn_stream *cs)
 				     hs, *msg ? " (" : "",
 				     msg, *msg ? ")" : "");
 
-			set_server_check_status(check, status, t->str);
+			set_server_check_status(check, status, t->area);
 		}
 		else if (err && *err) {
 			/* No status change but we'd like to report something odd.
 			 * Just report the current state and copy the message.
 			 */
 			chunk_printf(&trash, "agent reports an error : %s", err);
-			set_server_check_status(check, status/*check->status*/, trash.str);
+			set_server_check_status(check, status/*check->status*/,
+                                                trash.area);
 
 		}
 		else if (wrn && *wrn) {
@@ -1127,7 +1133,8 @@ static void event_srv_chk_r(struct conn_stream *cs)
 			 * Just report the current state and copy the message.
 			 */
 			chunk_printf(&trash, "agent warns : %s", wrn);
-			set_server_check_status(check, status/*check->status*/, trash.str);
+			set_server_check_status(check, status/*check->status*/,
+                                                trash.area);
 		}
 		else
 			set_server_check_status(check, status, NULL);
@@ -1530,7 +1537,8 @@ static int connect_conn_chk(struct task *t)
 		}
 		else if ((check->type) == PR_O2_HTTP_CHK) {
 			if (s->proxy->options2 & PR_O2_CHK_SNDST)
-				b_putblk(&check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
+				b_putblk(&check->bo, trash.area,
+					 httpchk_build_status_header(s, trash.area, trash.size));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
 				b_putist(&check->bo, ist("Connection: close\r\n"));
@@ -2729,7 +2737,8 @@ static int tcpcheck_main(struct check *check)
 				comment = tcpcheck_get_step_comment(check, step);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
+				set_server_check_status(check, HCHK_STATUS_SOCKERR,
+							trash.area);
 				check->current_step = NULL;
 				goto out;
 			}
@@ -2814,7 +2823,8 @@ static int tcpcheck_main(struct check *check)
 				comment = tcpcheck_get_step_comment(check, step);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_L4CON, trash.str);
+				set_server_check_status(check, HCHK_STATUS_L4CON,
+							trash.area);
 				goto out_end_tcpcheck;
 			case SF_ERR_PRXCOND:
 			case SF_ERR_RESOURCE:
@@ -2824,7 +2834,8 @@ static int tcpcheck_main(struct check *check)
 				comment = tcpcheck_get_step_comment(check, step);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
+				set_server_check_status(check, HCHK_STATUS_SOCKERR,
+							trash.area);
 				goto out_end_tcpcheck;
 			}
 
@@ -2860,7 +2871,8 @@ static int tcpcheck_main(struct check *check)
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
 					     check->current_step->string_len, (unsigned int)b_size(&check->bo),
 					     tcpcheck_get_step_id(check));
-				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
+				set_server_check_status(check, HCHK_STATUS_L7RSP,
+							trash.area);
 				goto out_end_tcpcheck;
 			}
 
@@ -2930,7 +2942,8 @@ static int tcpcheck_main(struct check *check)
 				comment = tcpcheck_get_step_comment(check, step);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
+				set_server_check_status(check, HCHK_STATUS_L7RSP,
+							trash.area);
 
 				goto out_end_tcpcheck;
 			}
@@ -2964,7 +2977,8 @@ static int tcpcheck_main(struct check *check)
 					comment = tcpcheck_get_step_comment(check, step);
 					if (comment)
 						chunk_appendf(&trash, " comment: '%s'", comment);
-					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
+					set_server_check_status(check, HCHK_STATUS_L7RSP,
+								trash.area);
 					goto out_end_tcpcheck;
 				}
 				/* matched and was supposed to => OK, next step */
@@ -3019,7 +3033,8 @@ static int tcpcheck_main(struct check *check)
 					comment = tcpcheck_get_step_comment(check, step);
 					if (comment)
 						chunk_appendf(&trash, " comment: '%s'", comment);
-					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
+					set_server_check_status(check, HCHK_STATUS_L7RSP,
+								trash.area);
 					goto out_end_tcpcheck;
 				}
 			}

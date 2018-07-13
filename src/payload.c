@@ -630,8 +630,8 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 
 			if (name_type == 0) { /* hostname */
 				smp->data.type = SMP_T_STR;
-				smp->data.u.str.str = (char *)data + 9;
-				smp->data.u.str.len = name_len;
+				smp->data.u.str.area = (char *)data + 9;
+				smp->data.u.str.data = name_len;
 				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 				return 1;
 			}
@@ -714,8 +714,8 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	}
 
 	/* data points to cookie value */
-	smp->data.u.str.str = (char *)data;
-	smp->data.u.str.len = 0;
+	smp->data.u.str.area = (char *)data;
+	smp->data.u.str.data = 0;
 
 	while (bleft > 0 && *data != '\r') {
 		data++;
@@ -728,7 +728,7 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	if (data[0] != '\r' || data[1] != '\n')
 		goto not_cookie;
 
-	smp->data.u.str.len = (char *)data - smp->data.u.str.str;
+	smp->data.u.str.data = (char *)data - smp->data.u.str.area;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	return 1;
 
@@ -750,7 +750,9 @@ smp_fetch_rdp_cookie(const struct arg *args, struct sample *smp, const char *kw,
 	if (!smp->strm)
 		return 0;
 
-	return fetch_rdp_cookie_name(smp->strm, smp, args ? args->data.str.str : NULL, args ? args->data.str.len : 0);
+	return fetch_rdp_cookie_name(smp->strm, smp,
+				     args ? args->data.str.area : NULL,
+				     args ? args->data.str.data : 0);
 }
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
@@ -890,12 +892,13 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 		return 0;
 	}
 
-	if (arg[2].type == ARGT_STR && arg[2].data.str.len > 0) {
-		if (arg[2].data.str.str[0] == '+' || arg[2].data.str.str[0] == '-')
+	if (arg[2].type == ARGT_STR && arg[2].data.str.data > 0) {
+		if (arg[2].data.str.area[0] == '+' || arg[2].data.str.area[0] == '-')
 			relative = 1;
-		str = arg[2].data.str.str;
+		str = arg[2].data.str.area;
 		arg[2].type = ARGT_SINT;
-		arg[2].data.sint = read_int64(&str, str + arg[2].data.str.len);
+		arg[2].data.sint = read_int64(&str,
+					      str + arg[2].data.str.data);
 		if (*str != '\0') {
 			memprintf(err_msg, "payload offset2 is not a number");
 			return 0;
@@ -1087,7 +1090,7 @@ int val_distcc(struct arg *arg, char **err_msg)
 {
 	unsigned int token;
 
-	if (arg[0].data.str.len != 4) {
+	if (arg[0].data.str.data != 4) {
 		memprintf(err_msg, "token name must be exactly 4 characters");
 		return 0;
 	}
@@ -1095,8 +1098,8 @@ int val_distcc(struct arg *arg, char **err_msg)
 	/* convert the token name to an unsigned int (one byte per character,
 	 * big endian format).
 	 */
-	token = (arg[0].data.str.str[0] << 24) + (arg[0].data.str.str[1] << 16) +
-		(arg[0].data.str.str[2] << 8) + (arg[0].data.str.str[3] << 0);
+	token = (arg[0].data.str.area[0] << 24) + (arg[0].data.str.area[1] << 16) +
+		(arg[0].data.str.area[2] << 8) + (arg[0].data.str.area[3] << 0);
 
 	arg[0].type      = ARGT_SINT;
 	arg[0].data.sint = token;

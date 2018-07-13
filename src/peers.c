@@ -413,7 +413,7 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 	intencode(st->table->key_size, &cursor);
 
 	chunk = get_trash_chunk();
-	chunkp = chunkq = chunk->str;
+	chunkp = chunkq = chunk->area;
 	/* encode available known data types in table */
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		if (st->table->data_ofs[data_type]) {
@@ -437,9 +437,9 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 	intencode(st->table->expire, &cursor);
 
 	if (chunkq > chunkp) {
-		chunk->len = chunkq - chunkp;
-		memcpy(cursor, chunk->str, chunk->len);
-		cursor += chunk->len;
+		chunk->data = chunkq - chunkp;
+		memcpy(cursor, chunk->area, chunk->data);
+		cursor += chunk->data;
 	}
 
 	/* Compute datalen */
@@ -588,31 +588,32 @@ switchstate:
 				appctx->st0 = PEER_SESS_ST_GETVERSION;
 				/* fall through */
 			case PEER_SESS_ST_GETVERSION:
-				reql = co_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.area,
+						  trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				if (trash.str[reql-1] != '\n') {
+				if (trash.area[reql-1] != '\n') {
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash.str[reql-2] == '\r'))
-					trash.str[reql-2] = 0;
+				else if (reql > 1 && (trash.area[reql-2] == '\r'))
+					trash.area[reql-2] = 0;
 				else
-					trash.str[reql-1] = 0;
+					trash.area[reql-1] = 0;
 
 				co_skip(si_oc(si), reql);
 
 				/* test protocol */
-				if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.str, proto_len + 1) != 0) {
+				if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.area, proto_len + 1) != 0) {
 					appctx->st0 = PEER_SESS_ST_EXIT;
 					appctx->st1 = PEER_SESS_SC_ERRPROTO;
 					goto switchstate;
 				}
-				if (peer_get_version(trash.str + proto_len + 1, &maj_ver, &min_ver) == -1 ||
+				if (peer_get_version(trash.area + proto_len + 1, &maj_ver, &min_ver) == -1 ||
 				    maj_ver != PEER_MAJOR_VER || min_ver > PEER_MINOR_VER) {
 					appctx->st0 = PEER_SESS_ST_EXIT;
 					appctx->st1 = PEER_SESS_SC_ERRVERSION;
@@ -622,26 +623,27 @@ switchstate:
 				appctx->st0 = PEER_SESS_ST_GETHOST;
 				/* fall through */
 			case PEER_SESS_ST_GETHOST:
-				reql = co_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.area,
+						  trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				if (trash.str[reql-1] != '\n') {
+				if (trash.area[reql-1] != '\n') {
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash.str[reql-2] == '\r'))
-					trash.str[reql-2] = 0;
+				else if (reql > 1 && (trash.area[reql-2] == '\r'))
+					trash.area[reql-2] = 0;
 				else
-					trash.str[reql-1] = 0;
+					trash.area[reql-1] = 0;
 
 				co_skip(si_oc(si), reql);
 
 				/* test hostname match */
-				if (strcmp(localpeer, trash.str) != 0) {
+				if (strcmp(localpeer, trash.area) != 0) {
 					appctx->st0 = PEER_SESS_ST_EXIT;
 					appctx->st1 = PEER_SESS_SC_ERRHOST;
 					goto switchstate;
@@ -651,27 +653,28 @@ switchstate:
 				/* fall through */
 			case PEER_SESS_ST_GETPEER: {
 				char *p;
-				reql = co_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.area,
+						  trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				if (trash.str[reql-1] != '\n') {
+				if (trash.area[reql-1] != '\n') {
 					/* Incomplete line, we quit */
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash.str[reql-2] == '\r'))
-					trash.str[reql-2] = 0;
+				else if (reql > 1 && (trash.area[reql-2] == '\r'))
+					trash.area[reql-2] = 0;
 				else
-					trash.str[reql-1] = 0;
+					trash.area[reql-1] = 0;
 
 				co_skip(si_oc(si), reql);
 
 				/* parse line "<peer name> <pid> <relative_pid>" */
-				p = strchr(trash.str, ' ');
+				p = strchr(trash.area, ' ');
 				if (!p) {
 					appctx->st0 = PEER_SESS_ST_EXIT;
 					appctx->st1 = PEER_SESS_SC_ERRPROTO;
@@ -681,7 +684,7 @@ switchstate:
 
 				/* lookup known peer */
 				for (curpeer = curpeers->remote; curpeer; curpeer = curpeer->next) {
-					if (strcmp(curpeer->id, trash.str) == 0)
+					if (strcmp(curpeer->id, trash.area) == 0)
 						break;
 				}
 
@@ -732,8 +735,10 @@ switchstate:
 						goto switchstate;
 					}
 				}
-				repl = snprintf(trash.str, trash.size, "%d\n", PEER_SESS_SC_SUCCESSCODE);
-				repl = ci_putblk(si_ic(si), trash.str, repl);
+				repl = snprintf(trash.area, trash.size,
+						"%d\n",
+						PEER_SESS_SC_SUCCESSCODE);
+				repl = ci_putblk(si_ic(si), trash.area, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto full;
@@ -795,7 +800,7 @@ switchstate:
 				}
 
 				/* Send headers */
-				repl = snprintf(trash.str, trash.size,
+				repl = snprintf(trash.area, trash.size,
 				                PEER_SESSION_PROTO_NAME " %u.%u\n%s\n%s %d %d\n",
 				                PEER_MAJOR_VER,
 				                (curpeer->flags & PEER_F_DWNGRD) ? PEER_DWNGRD_MINOR_VER : PEER_MINOR_VER,
@@ -809,7 +814,7 @@ switchstate:
 					goto switchstate;
 				}
 
-				repl = ci_putblk(si_ic(si), trash.str, repl);
+				repl = ci_putblk(si_ic(si), trash.area, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto full;
@@ -836,27 +841,28 @@ switchstate:
 				if (si_ic(si)->flags & CF_WRITE_PARTIAL)
 					curpeer->statuscode = PEER_SESS_SC_CONNECTEDCODE;
 
-				reql = co_getline(si_oc(si), trash.str, trash.size);
+				reql = co_getline(si_oc(si), trash.area,
+						  trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				if (trash.str[reql-1] != '\n') {
+				if (trash.area[reql-1] != '\n') {
 					/* Incomplete line, we quit */
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash.str[reql-2] == '\r'))
-					trash.str[reql-2] = 0;
+				else if (reql > 1 && (trash.area[reql-2] == '\r'))
+					trash.area[reql-2] = 0;
 				else
-					trash.str[reql-1] = 0;
+					trash.area[reql-1] = 0;
 
 				co_skip(si_oc(si), reql);
 
 				/* Register status code */
-				curpeer->statuscode = atoi(trash.str);
+				curpeer->statuscode = atoi(trash.area);
 
 				/* Awake main task */
 				task_wakeup(curpeers->sync_task, TASK_WOKEN_MSG);
@@ -906,8 +912,8 @@ switchstate:
 			case PEER_SESS_ST_WAITMSG: {
 				struct stksess *ts, *newts = NULL;
 				uint32_t msg_len = 0;
-				char *msg_cur = trash.str;
-				char *msg_end = trash.str;
+				char *msg_cur = trash.area;
+				char *msg_end = trash.area;
 				unsigned char msg_head[7];
 				int totl = 0;
 
@@ -978,7 +984,10 @@ switchstate:
 							goto switchstate;
 						}
 
-						reql = co_getblk(si_oc(si), trash.str, msg_len, totl);
+						reql = co_getblk(si_oc(si),
+								 trash.area,
+								 msg_len,
+								 totl);
 						if (reql <= 0) /* closed */
 							goto incomplete;
 						totl += reql;
@@ -1443,7 +1452,9 @@ incomplete:
 						if (st->last_get != st->last_acked) {
 							int msglen;
 
-							msglen = peer_prepare_ackmsg(st, trash.str, trash.size);
+							msglen = peer_prepare_ackmsg(st,
+										     trash.area,
+										     trash.size);
 							if (!msglen) {
 								/* internal error: message does not fit in trash */
 								appctx->st0 = PEER_SESS_ST_END;
@@ -1451,7 +1462,9 @@ incomplete:
 							}
 
 							/* message to buffer */
-							repl = ci_putblk(si_ic(si), trash.str, msglen);
+							repl = ci_putblk(si_ic(si),
+									 trash.area,
+									 msglen);
 							if (repl <= 0) {
 								/* no more write possible */
 								if (repl == -1) {
@@ -1473,7 +1486,9 @@ incomplete:
 								if (st != curpeer->last_local_table) {
 									int msglen;
 
-									msglen = peer_prepare_switchmsg(st, trash.str, trash.size);
+									msglen = peer_prepare_switchmsg(st,
+													trash.area,
+													trash.size);
 									if (!msglen) {
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										/* internal error: message does not fit in trash */
@@ -1482,7 +1497,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 										/* no more write possible */
@@ -1522,7 +1539,11 @@ incomplete:
 									ts->ref_cnt++;
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
-									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, 0);
+									msglen = peer_prepare_updatemsg(ts, st, updateid,
+													trash.area,
+													trash.size,
+													new_pushed,
+													0);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1533,7 +1554,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1565,7 +1588,9 @@ incomplete:
 								if (st != curpeer->last_local_table) {
 									int msglen;
 
-									msglen = peer_prepare_switchmsg(st, trash.str, trash.size);
+									msglen = peer_prepare_switchmsg(st,
+													trash.area,
+													trash.size);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
 										appctx->st0 = PEER_SESS_ST_END;
@@ -1573,7 +1598,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1610,7 +1637,11 @@ incomplete:
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
+									msglen = peer_prepare_updatemsg(ts, st, updateid,
+													trash.area,
+													trash.size,
+													new_pushed,
+													use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1621,7 +1652,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1649,7 +1682,9 @@ incomplete:
 								if (st != curpeer->last_local_table) {
 									int msglen;
 
-									msglen = peer_prepare_switchmsg(st, trash.str, trash.size);
+									msglen = peer_prepare_switchmsg(st,
+													trash.area,
+													trash.size);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
 										appctx->st0 = PEER_SESS_ST_END;
@@ -1657,7 +1692,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										if (repl == -1) {
@@ -1693,7 +1730,11 @@ incomplete:
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, updateid, trash.str, trash.size, new_pushed, use_timed);
+									msglen = peer_prepare_updatemsg(ts, st, updateid,
+													trash.area,
+													trash.size,
+													new_pushed,
+													use_timed);
 									if (!msglen) {
 										/* internal error: message does not fit in trash */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1704,7 +1745,9 @@ incomplete:
 									}
 
 									/* message to buffer */
-									repl = ci_putblk(si_ic(si), trash.str, msglen);
+									repl = ci_putblk(si_ic(si),
+											 trash.area,
+											 msglen);
 									if (repl <= 0) {
 										/* no more write possible */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -1777,8 +1820,9 @@ incomplete:
 				goto out;
 			}
 			case PEER_SESS_ST_EXIT:
-				repl = snprintf(trash.str, trash.size, "%d\n", appctx->st1);
-				if (ci_putblk(si_ic(si), trash.str, repl) == -1)
+				repl = snprintf(trash.area, trash.size,
+						"%d\n", appctx->st1);
+				if (ci_putblk(si_ic(si), trash.area, repl) == -1)
 					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
 				goto switchstate;

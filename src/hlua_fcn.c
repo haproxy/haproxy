@@ -1204,9 +1204,9 @@ static int hlua_regex_exec(struct lua_State *L)
 		lua_pushboolean(L, 0);
 		return 1;
 	}
-	memcpy(tmp->str, str, len);
+	memcpy(tmp->area, str, len);
 
-	lua_pushboolean(L, regex_exec2(regex, tmp->str, len));
+	lua_pushboolean(L, regex_exec2(regex, tmp->area, len));
 
 	return 1;
 }
@@ -1232,9 +1232,9 @@ static int hlua_regex_match(struct lua_State *L)
 		lua_pushboolean(L, 0);
 		return 1;
 	}
-	memcpy(tmp->str, str, len);
+	memcpy(tmp->area, str, len);
 
-	ret = regex_exec_match2(regex, tmp->str, len, 20, pmatch, 0);
+	ret = regex_exec_match2(regex, tmp->area, len, 20, pmatch, 0);
 	lua_pushboolean(L, ret);
 	lua_newtable(L);
 	if (ret) {

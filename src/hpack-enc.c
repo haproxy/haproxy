@@ -78,7 +78,7 @@ static inline int hpack_encode_len(char *out, int pos, int len)
  */
 int hpack_encode_header(struct chunk *out, const struct ist n, const struct ist v)
 {
-	int len = out->len;
+	int len = out->data;
 	int size = out->size;
 
 	if (len >= size)
@@ -89,28 +89,28 @@ int hpack_encode_header(struct chunk *out, const struct ist n, const struct ist 
 	 * compiler factor out the common sizes.
 	 */
 	if (isteq(n, ist("date")))
-		out->str[len++] = 0x61; // literal with indexing -- name="date" (idx 33)
+		out->area[len++] = 0x61; // literal with indexing -- name="date" (idx 33)
 	else if (isteq(n, ist("etag")))
-		out->str[len++] = 0x62; // literal with indexing -- name="etag" (idx 34)
+		out->area[len++] = 0x62; // literal with indexing -- name="etag" (idx 34)
 	else if (isteq(n, ist("server")))
-		out->str[len++] = 0x76; // literal with indexing -- name="server" (idx 54)
+		out->area[len++] = 0x76; // literal with indexing -- name="server" (idx 54)
 	else if (isteq(n, ist("location")))
-		out->str[len++] = 0x6e; // literal with indexing -- name="location" (idx 46)
+		out->area[len++] = 0x6e; // literal with indexing -- name="location" (idx 46)
 	else if (isteq(n, ist("content-type")))
-		out->str[len++] = 0x5f; // literal with indexing -- name="content-type" (idx 31)
+		out->area[len++] = 0x5f; // literal with indexing -- name="content-type" (idx 31)
 	else if (isteq(n, ist("last-modified")))
-		out->str[len++] = 0x6c; // literal with indexing -- name="last-modified" (idx 44)
+		out->area[len++] = 0x6c; // literal with indexing -- name="last-modified" (idx 44)
 	else if (isteq(n, ist("accept-ranges")))
-		out->str[len++] = 0x51; // literal with indexing -- name="accept-ranges" (idx 17)
+		out->area[len++] = 0x51; // literal with indexing -- name="accept-ranges" (idx 17)
 	else if (isteq(n, ist("cache-control")))
-		out->str[len++] = 0x58; // literal with indexing -- name="cache-control" (idx 24)
+		out->area[len++] = 0x58; // literal with indexing -- name="cache-control" (idx 24)
 	else if (isteq(n, ist("content-length")))
-		out->str[len++] = 0x5c; // literal with indexing -- name="content-length" (idx 28)
+		out->area[len++] = 0x5c; // literal with indexing -- name="content-length" (idx 28)
 	else if (len_to_bytes(n.len) && len + len_to_bytes(n.len) + n.len <= size) {
-		out->str[len++] = 0x00;      /* literal without indexing -- new name */
+		out->area[len++] = 0x00;      /* literal without indexing -- new name */
 
-		len = hpack_encode_len(out->str, len, n.len);
-		memcpy(out->str + len, n.ptr, n.len);
+		len = hpack_encode_len(out->area, len, n.len);
+		memcpy(out->area + len, n.ptr, n.len);
 		len += n.len;
 	}
 	else {
@@ -124,10 +124,10 @@ int hpack_encode_header(struct chunk *out, const struct ist n, const struct ist 
 		return 0;
 	}
 
-	len = hpack_encode_len(out->str, len, v.len);
-	memcpy(out->str + len, v.ptr, v.len);
+	len = hpack_encode_len(out->area, len, v.len);
+	memcpy(out->area + len, v.ptr, v.len);
 	len += v.len;
 
-	out->len = len;
+	out->data = len;
 	return 1;
 }

@@ -87,7 +87,8 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 	int fqdn_len, hostname_dn_len;
 
 	fqdn_len = strlen(fqdn);
-	hostname_dn_len = dns_str_to_dn_label(fqdn, fqdn_len + 1, trash.str, trash.size);
+	hostname_dn_len = dns_str_to_dn_label(fqdn, fqdn_len + 1, trash.area,
+					      trash.size);
 	if (hostname_dn_len == -1) {
 		ha_alert("config : %s '%s', server '%s': failed to parse FQDN '%s'\n",
 			 proxy_type_str(px), px->id, srv->id, fqdn);
@@ -102,7 +103,7 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 	srvrq->obj_type        = OBJ_TYPE_SRVRQ;
 	srvrq->proxy           = px;
 	srvrq->name            = strdup(fqdn);
-	srvrq->hostname_dn     = strdup(trash.str);
+	srvrq->hostname_dn     = strdup(trash.area);
 	srvrq->hostname_dn_len = hostname_dn_len;
 	if (!srvrq->name || !srvrq->hostname_dn) {
 		ha_alert("config : %s '%s', server '%s': out of memory\n",
@@ -1678,15 +1679,15 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		if (res->nb_queries == resolvers->nb_nameservers)
 			continue;
 
-		trash.len = dns_build_query(res->query_id, res->query_type,
+		trash.data = dns_build_query(res->query_id, res->query_type,
 					    resolvers->accepted_payload_size,
 					    res->hostname_dn, res->hostname_dn_len,
-					    trash.str, trash.size);
-		if (trash.len == -1)
+					    trash.area, trash.size);
+		if (trash.data == -1)
 			goto snd_error;
 
-		ret = send(fd, trash.str, trash.len, 0);
-		if (ret != trash.len)
+		ret = send(fd, trash.area, trash.data, 0);
+		if (ret != trash.data)
 			goto snd_error;
 
 		ns->counters.sent++;

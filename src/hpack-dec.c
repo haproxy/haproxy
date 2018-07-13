@@ -126,12 +126,12 @@ static inline struct ist hpack_alloc_string(struct chunk *store, int idx, struct
 	if (unlikely(!out.ptr))
 		return out;
 
-	if (unlikely(store->len + out.len > store->size)) {
+	if (unlikely(store->data + out.len > store->size)) {
 		out.ptr = NULL;
 		return out;
 	}
 
-	store->len += out.len;
+	store->data += out.len;
 	memcpy(out.ptr, in.ptr, out.len);
 	return out;
 }
@@ -277,7 +277,8 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 					goto leave;
 				}
 
-				nlen = huff_dec((const uint8_t *)name.ptr, name.len, ntrash, tmp->size - tmp->len);
+				nlen = huff_dec((const uint8_t *)name.ptr, name.len, ntrash,
+						tmp->size - tmp->data);
 				if (nlen == (uint32_t)-1) {
 					hpack_debug_printf("2: can't decode huffman.\n");
 					ret = -HPACK_ERR_HUFFMAN;
@@ -285,7 +286,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 				}
 				hpack_debug_printf(" [name huff %d->%d] ", (int)name.len, (int)nlen);
 
-				tmp->len += nlen; // make room for the value
+				tmp->data += nlen; // make room for the value
 				name = ist2(ntrash, nlen);
 			}
 
@@ -317,7 +318,8 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 					goto leave;
 				}
 
-				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash, tmp->size - tmp->len);
+				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash,
+						tmp->size - tmp->data);
 				if (vlen == (uint32_t)-1) {
 					hpack_debug_printf("3: can't decode huffman.\n");
 					ret = -HPACK_ERR_HUFFMAN;
@@ -325,7 +327,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 				}
 				hpack_debug_printf(" [value huff %d->%d] ", (int)value.len, (int)vlen);
 
-				tmp->len += vlen; // make room for the value
+				tmp->data += vlen; // make room for the value
 				value = ist2(vtrash, vlen);
 			}
 
@@ -386,15 +388,17 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 					goto leave;
 				}
 
-				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash, tmp->size - tmp->len);
+				vlen = huff_dec((const uint8_t *)value.ptr, value.len, vtrash,
+						tmp->size - tmp->data);
 				if (vlen == (uint32_t)-1) {
 					hpack_debug_printf("##ERR@%d## can't decode huffman : ilen=%d osize=%d\n",
-					                   __LINE__, (int)value.len, (int)(tmp->size - tmp->len));
+					                   __LINE__, (int)value.len,
+					                   (int)(tmp->size - tmp->data));
 					hpack_debug_hexdump(stderr, "[HUFFMAN] ", value.ptr, 0, value.len);
 					ret = -HPACK_ERR_HUFFMAN;
 					goto leave;
 				}
-				tmp->len += vlen; // make room for the value
+				tmp->data += vlen; // make room for the value
 				value = ist2(vtrash, vlen);
 			}
 
@@ -436,10 +440,11 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 		}
 
 		hpack_debug_printf("\e[1;34m%s\e[0m: ",
-				   name.ptr ? istpad(trash.str, name).ptr : h2_phdr_to_str(name.len));
+				   name.ptr ? istpad(trash.area, name).ptr : h2_phdr_to_str(name.len));
 
 		hpack_debug_printf("\e[1;35m%s\e[0m [mustidx=%d, used=%d] [n=(%p,%d) v=(%p,%d)]\n",
-				   istpad(trash.str, value).ptr, must_index, dht->used,
+				   istpad(trash.area, value).ptr, must_index,
+				   dht->used,
 				   name.ptr, (int)name.len, value.ptr, (int)value.len);
 	}
 

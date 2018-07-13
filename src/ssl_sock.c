@@ -64,6 +64,7 @@
 #include <import/xxhash.h>
 
 #include <common/buffer.h>
+#include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -649,13 +650,14 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 	OCSP_BASICRESP *bs = NULL;
 	OCSP_SINGLERESP *sr;
 	OCSP_CERTID *id;
-	unsigned char *p = (unsigned char *)ocsp_response->str;
+	unsigned char *p = (unsigned char *) ocsp_response->area;
 	int rc , count_sr;
 	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd = NULL;
 	int reason;
 	int ret = 1;
 
-	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p, ocsp_response->len);
+	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
+				 ocsp_response->data);
 	if (!resp) {
 		memprintf(err, "Unable to parse OCSP response");
 		goto out;
@@ -787,9 +789,9 @@ static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct c
 		goto end;
 	}
 
-	trash.len = 0;
-	while (trash.len < trash.size) {
-		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+	trash.data = 0;
+	while (trash.data < trash.size) {
+		r = read(fd, trash.area + trash.data, trash.size - trash.data);
 		if (r < 0) {
 			if (errno == EINTR)
 				continue;
@@ -800,7 +802,7 @@ static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct c
 		else if (r == 0) {
 			break;
 		}
-		trash.len += r;
+		trash.data += r;
 	}
 
 	close(fd);
@@ -887,7 +889,8 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id)
 void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref, struct chunk *tlskey)
 {
 	HA_RWLOCK_WRLOCK(TLSKEYS_REF_LOCK, &ref->lock);
-	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)), tlskey->str, tlskey->len);
+	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)),
+	       tlskey->area, tlskey->data);
 	ref->tls_ticket_enc_index = (ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
 	HA_RWLOCK_WRUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 }
@@ -1005,17 +1008,17 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	}
 
 	if (!ocsp ||
-	    !ocsp->response.str ||
-	    !ocsp->response.len ||
+	    !ocsp->response.area ||
+	    !ocsp->response.data ||
 	    (ocsp->expire < now.tv_sec))
 		return SSL_TLSEXT_ERR_NOACK;
 
-	ssl_buf = OPENSSL_malloc(ocsp->response.len);
+	ssl_buf = OPENSSL_malloc(ocsp->response.data);
 	if (!ssl_buf)
 		return SSL_TLSEXT_ERR_NOACK;
 
-	memcpy(ssl_buf, ocsp->response.str, ocsp->response.len);
-	SSL_set_tlsext_status_ocsp_resp(ssl, ssl_buf, ocsp->response.len);
+	memcpy(ssl_buf, ocsp->response.area, ocsp->response.data);
+	SSL_set_tlsext_status_ocsp_resp(ssl, ssl_buf, ocsp->response.data);
 
 	return SSL_TLSEXT_ERR_OK;
 }
@@ -1232,9 +1235,9 @@ static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_p
 		return -1;
 	}
 
-	trash.len = 0;
-	while (trash.len < trash.size) {
-		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+	trash.data = 0;
+	while (trash.data < trash.size) {
+		r = read(fd, trash.area + trash.data, trash.size - trash.data);
 		if (r < 0) {
 			if (errno == EINTR)
 				continue;
@@ -1245,10 +1248,11 @@ static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_p
 		else if (r == 0) {
 			break;
 		}
-		trash.len += r;
+		trash.data += r;
 	}
 	close(fd);
-	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)trash.str, trash.len);
+	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *) trash.area,
+					 trash.data);
 }
 #endif
 
@@ -1269,13 +1273,13 @@ static int ssl_sock_parse_sctl(struct chunk *sctl)
 	int len, pos, sct_len;
 	unsigned char *data;
 
-	if (sctl->len < 2)
+	if (sctl->data < 2)
 		goto out;
 
-	data = (unsigned char *)sctl->str;
+	data = (unsigned char *) sctl->area;
 	len = (data[0] << 8) | data[1];
 
-	if (len + 2 != sctl->len)
+	if (len + 2 != sctl->data)
 		goto out;
 
 	data = data + 2;
@@ -1309,9 +1313,9 @@ static int ssl_sock_load_sctl_from_file(const char *sctl_path, struct chunk **sc
 	if (fd == -1)
 		goto end;
 
-	trash.len = 0;
-	while (trash.len < trash.size) {
-		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+	trash.data = 0;
+	while (trash.data < trash.size) {
+		r = read(fd, trash.area + trash.data, trash.size - trash.data);
 		if (r < 0) {
 			if (errno == EINTR)
 				continue;
@@ -1321,7 +1325,7 @@ static int ssl_sock_load_sctl_from_file(const char *sctl_path, struct chunk **sc
 		else if (r == 0) {
 			break;
 		}
-		trash.len += r;
+		trash.data += r;
 	}
 
 	ret = ssl_sock_parse_sctl(&trash);
@@ -1346,8 +1350,8 @@ int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out
 {
 	struct chunk *sctl = add_arg;
 
-	*out = (unsigned char *)sctl->str;
-	*outlen = sctl->len;
+	*out = (unsigned char *) sctl->area;
+	*outlen = sctl->data;
 
 	return 1;
 }
@@ -2219,14 +2223,14 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	}
 
 	for (i = 0; i < trash.size && i < servername_len; i++) {
-		trash.str[i] = tolower(servername[i]);
-		if (!wildp && (trash.str[i] == '.'))
-			wildp = &trash.str[i];
+		trash.area[i] = tolower(servername[i]);
+		if (!wildp && (trash.area[i] == '.'))
+			wildp = &trash.area[i];
 	}
-	trash.str[i] = 0;
+	trash.area[i] = 0;
 
 	/* lookup in full qualified names */
-	node = ebst_lookup(&s->sni_ctx, trash.str);
+	node = ebst_lookup(&s->sni_ctx, trash.area);
 
 	/* lookup a not neg filter */
 	for (n = node; n; n = ebmb_next_dup(n)) {
@@ -2296,7 +2300,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			goto allow_early;
 	}
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-	if (s->generate_certs && ssl_sock_generate_certificate(trash.str, s, ssl)) {
+	if (s->generate_certs && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
 		goto allow_early;
 	}
@@ -2355,14 +2359,14 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	for (i = 0; i < trash.size; i++) {
 		if (!servername[i])
 			break;
-		trash.str[i] = tolower(servername[i]);
-		if (!wildp && (trash.str[i] == '.'))
-			wildp = &trash.str[i];
+		trash.area[i] = tolower(servername[i]);
+		if (!wildp && (trash.area[i] == '.'))
+			wildp = &trash.area[i];
 	}
-	trash.str[i] = 0;
+	trash.area[i] = 0;
 
 	/* lookup in full qualified names */
-	node = ebst_lookup(&s->sni_ctx, trash.str);
+	node = ebst_lookup(&s->sni_ctx, trash.area);
 
 	/* lookup a not neg filter */
 	for (n = node; n; n = ebmb_next_dup(n)) {
@@ -2685,16 +2689,16 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 		int j, len;
 		len = strlen(name);
 		for (j = 0; j < len && j < trash.size; j++)
-			trash.str[j] = tolower(name[j]);
+			trash.area[j] = tolower(name[j]);
 		if (j >= trash.size)
 			return order;
-		trash.str[j] = 0;
+		trash.area[j] = 0;
 
 		/* Check for duplicates. */
 		if (wild)
-			node = ebst_lookup(&s->sni_w_ctx, trash.str);
+			node = ebst_lookup(&s->sni_w_ctx, trash.area);
 		else
-			node = ebst_lookup(&s->sni_ctx, trash.str);
+			node = ebst_lookup(&s->sni_ctx, trash.area);
 		for (; node; node = ebmb_next_dup(node)) {
 			sc = ebmb_entry(node, struct sni_ctx, name);
 			if (sc->ctx == ctx && sc->conf == conf && sc->neg == neg)
@@ -2704,7 +2708,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 		sc = malloc(sizeof(struct sni_ctx) + len + 1);
 		if (!sc)
 			return order;
-		memcpy(sc->name.key, trash.str, len + 1);
+		memcpy(sc->name.key, trash.area, len + 1);
 		sc->ctx = ctx;
 		sc->conf = conf;
 		sc->kinfo = kinfo;
@@ -2929,10 +2933,10 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 	for (i = 0; i < trash.size; i++) {
 		if (!str[i])
 			break;
-		trash.str[i] = tolower(str[i]);
+		trash.area[i] = tolower(str[i]);
 	}
-	trash.str[i] = 0;
-	node = ebst_lookup(sni_keytypes, trash.str);
+	trash.area[i] = 0;
+	node = ebst_lookup(sni_keytypes, trash.area);
 	if (!node) {
 		/* CN not found in tree */
 		s_kt = malloc(sizeof(struct sni_keytype) + i + 1);
@@ -2940,7 +2944,7 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 		 * strncpy will cause sig_abrt errors under certain versions of gcc with -O2
 		 * See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60792
 		 */
-		memcpy(s_kt->name.key, trash.str, i+1);
+		memcpy(s_kt->name.key, trash.area, i+1);
 		s_kt->keytypes = 0;
 		ebst_insert(sni_keytypes, &s_kt->name);
 	} else {
@@ -5822,8 +5826,8 @@ ssl_sock_get_serial(X509 *crt, struct chunk *out)
 	if (out->size < serial->length)
 		return -1;
 
-	memcpy(out->str, serial->data, serial->length);
-	out->len = serial->length;
+	memcpy(out->area, serial->data, serial->length);
+	out->data = serial->length;
 	return 1;
 }
 
@@ -5835,7 +5839,7 @@ static int
 ssl_sock_crt2der(X509 *crt, struct chunk *out)
 {
 	int len;
-	unsigned char *p = (unsigned char *)out->str;;
+	unsigned char *p = (unsigned char *) out->area;;
 
 	len =i2d_X509(crt, NULL);
 	if (len <= 0)
@@ -5845,7 +5849,7 @@ ssl_sock_crt2der(X509 *crt, struct chunk *out)
 		return -1;
 
 	i2d_X509(crt,&p);
-	out->len = len;
+	out->data = len;
 	return 1;
 }
 
@@ -5867,8 +5871,8 @@ ssl_sock_get_time(ASN1_TIME *tm, struct chunk *out)
 		if (out->size < gentm->length-2)
 			return -1;
 
-		memcpy(out->str, gentm->data+2, gentm->length-2);
-		out->len = gentm->length-2;
+		memcpy(out->area, gentm->data+2, gentm->length-2);
+		out->data = gentm->length-2;
 		return 1;
 	}
 	else if (tm->type == V_ASN1_UTCTIME) {
@@ -5881,8 +5885,8 @@ ssl_sock_get_time(ASN1_TIME *tm, struct chunk *out)
 		if (out->size < utctm->length)
 			return -1;
 
-		memcpy(out->str, utctm->data, utctm->length);
-		out->len = utctm->length;
+		memcpy(out->area, utctm->data, utctm->length);
+		out->data = utctm->length;
 		return 1;
 	}
 
@@ -5908,7 +5912,7 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct c
 
 	name_count = X509_NAME_entry_count(a);
 
-	out->len = 0;
+	out->data = 0;
 	for (i = 0; i < name_count; i++) {
 		if (pos < 0)
 			j = (name_count-1) - i;
@@ -5940,8 +5944,8 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct chunk *entry, int pos, struct c
 		if (data_len > out->size)
 			return -1;
 
-		memcpy(out->str, data_ptr, data_len);
-		out->len = data_len;
+		memcpy(out->area, data_ptr, data_len);
+		out->data = data_len;
 		return 1;
 	}
 
@@ -5970,8 +5974,8 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 
 	name_count = X509_NAME_entry_count(a);
 
-	out->len = 0;
-	p = out->str;
+	out->data = 0;
+	p = out->area;
 	for (i = 0; i < name_count; i++) {
 		ne = X509_NAME_get_entry(a, i);
 		obj = X509_NAME_ENTRY_get_object(ne);
@@ -5988,7 +5992,7 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 		l += 1 + ln + 1 + data_len;
 		if (l > out->size)
 			return -1;
-		out->len = l;
+		out->data = l;
 
 		*(p++)='/';
 		memcpy(p, s, ln);
@@ -5998,7 +6002,7 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 		p += data_len;
 	}
 
-	if (!out->len)
+	if (!out->data)
 		return 0;
 
 	return 1;
@@ -6041,8 +6045,8 @@ int ssl_sock_get_remote_common_name(struct connection *conn, struct chunk *dest)
 	X509_NAME *name;
 	const char find_cn[] = "CN";
 	const struct chunk find_cn_chunk = {
-		.str = (char *)&find_cn,
-		.len = sizeof(find_cn)-1
+		.area = (char *)&find_cn,
+		.data = sizeof(find_cn)-1
 	};
 	int result = -1;
 
@@ -6288,7 +6292,8 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 
 	smp_trash = get_trash_chunk();
 	digest = EVP_sha1();
-	X509_digest(crt, digest, (unsigned char *)smp_trash->str, (unsigned int *)&smp_trash->len);
+	X509_digest(crt, digest, (unsigned char *) smp_trash->area,
+		    (unsigned int *)&smp_trash->data);
 
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_BIN;
@@ -6595,8 +6600,8 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 	X509_ALGOR_get0(&algorithm, NULL, NULL, X509_get0_tbs_sigalg(crt));
 	nid = OBJ_obj2nid(algorithm);
 
-	smp->data.u.str.str = (char *)OBJ_nid2sn(nid);
-	if (!smp->data.u.str.str) {
+	smp->data.u.str.area = (char *)OBJ_nid2sn(nid);
+	if (!smp->data.u.str.area) {
 		/* SSL_get_peer_certificate increase X509 * ref count  */
 		if (cert_peer)
 			X509_free(crt);
@@ -6605,7 +6610,7 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	/* SSL_get_peer_certificate increase X509 * ref count  */
 	if (cert_peer)
 		X509_free(crt);
@@ -6645,8 +6650,8 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 	X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(crt));
 	nid = OBJ_obj2nid(algorithm);
 
-	smp->data.u.str.str = (char *)OBJ_nid2sn(nid);
-	if (!smp->data.u.str.str) {
+	smp->data.u.str.area = (char *)OBJ_nid2sn(nid);
+	if (!smp->data.u.str.area) {
 		/* SSL_get_peer_certificate increase X509 * ref count  */
 		if (cert_peer)
 			X509_free(crt);
@@ -6655,7 +6660,7 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	if (cert_peer)
 		X509_free(crt);
 
@@ -6726,13 +6731,13 @@ smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.u.str.str = (char *)SSL_get_cipher_name(conn->xprt_ctx);
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)SSL_get_cipher_name(conn->xprt_ctx);
+	if (!smp->data.u.str.area)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
 }
@@ -6798,11 +6803,12 @@ smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw,
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.u.str.str = NULL;
+	smp->data.u.str.area = NULL;
 	SSL_get0_next_proto_negotiated(conn->xprt_ctx,
-	                                (const unsigned char **)&smp->data.u.str.str, (unsigned *)&smp->data.u.str.len);
+	                                (const unsigned char **)&smp->data.u.str.area,
+	                                (unsigned *)&smp->data.u.str.data);
 
-	if (!smp->data.u.str.str)
+	if (!smp->data.u.str.area)
 		return 0;
 
 	return 1;
@@ -6822,11 +6828,12 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.u.str.str = NULL;
+	smp->data.u.str.area = NULL;
 	SSL_get0_alpn_selected(conn->xprt_ctx,
-	                         (const unsigned char **)&smp->data.u.str.str, (unsigned *)&smp->data.u.str.len);
+	                         (const unsigned char **)&smp->data.u.str.area,
+	                         (unsigned *)&smp->data.u.str.data);
 
-	if (!smp->data.u.str.str)
+	if (!smp->data.u.str.area)
 		return 0;
 
 	return 1;
@@ -6847,13 +6854,13 @@ smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.u.str.str = (char *)SSL_get_version(conn->xprt_ctx);
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)SSL_get_version(conn->xprt_ctx);
+	if (!smp->data.u.str.area)
 		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
 }
@@ -6880,8 +6887,9 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 	if (!ssl_sess)
 		return 0;
 
-	smp->data.u.str.str = (char *)SSL_SESSION_get_id(ssl_sess, (unsigned int *)&smp->data.u.str.len);
-	if (!smp->data.u.str.str || !smp->data.u.str.len)
+	smp->data.u.str.area = (char *)SSL_SESSION_get_id(ssl_sess,
+							  (unsigned int *)&smp->data.u.str.data);
+	if (!smp->data.u.str.area || !smp->data.u.str.data)
 		return 0;
 
 	return 1;
@@ -6906,8 +6914,10 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 		return 0;
 
 	data = get_trash_chunk();
-	data->len = SSL_SESSION_get_master_key(ssl_sess, (unsigned char *)data->str, data->size);
-	if (!data->len)
+	data->data = SSL_SESSION_get_master_key(ssl_sess,
+					       (unsigned char *) data->area,
+					       data->size);
+	if (!data->data)
 		return 0;
 
 	smp->flags = 0;
@@ -6931,11 +6941,11 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
-	smp->data.u.str.str = (char *)SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
-	if (!smp->data.u.str.str)
+	smp->data.u.str.area = (char *)SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
+	if (!smp->data.u.str.area)
 		return 0;
 
-	smp->data.u.str.len = strlen(smp->data.u.str.str);
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
 }
 #endif
@@ -6956,8 +6966,8 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.str = capture->ciphersuite;
-	smp->data.u.str.len = capture->ciphersuite_len;
+	smp->data.u.str.area = capture->ciphersuite;
+	smp->data.u.str.data = capture->ciphersuite_len;
 	return 1;
 }
 
@@ -6970,7 +6980,7 @@ smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *
 		return 0;
 
 	data = get_trash_chunk();
-	dump_binary(data, smp->data.u.str.str, smp->data.u.str.len);
+	dump_binary(data, smp->data.u.str.area, smp->data.u.str.data);
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str = *data;
 	return 1;
@@ -7006,10 +7016,10 @@ smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *
 		return 0;
 
 	data = get_trash_chunk();
-	for (i = 0; i + 1 < smp->data.u.str.len; i += 2) {
+	for (i = 0; i + 1 < smp->data.u.str.data; i += 2) {
 		const char *str;
 		const SSL_CIPHER *cipher;
-		const unsigned char *bin = (const unsigned char *)smp->data.u.str.str + i;
+		const unsigned char *bin = (const unsigned char *) smp->data.u.str.area + i;
 		uint16_t id = (bin[0] << 8) | bin[1];
 #if defined(OPENSSL_IS_BORINGSSL)
 		cipher = SSL_get_cipher_by_value(id);
@@ -7051,14 +7061,18 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 
 	finished_trash = get_trash_chunk();
 	if (!SSL_session_reused(conn->xprt_ctx))
-		finished_len = SSL_get_peer_finished(conn->xprt_ctx, finished_trash->str, finished_trash->size);
+		finished_len = SSL_get_peer_finished(conn->xprt_ctx,
+						     finished_trash->area,
+						     finished_trash->size);
 	else
-		finished_len = SSL_get_finished(conn->xprt_ctx, finished_trash->str, finished_trash->size);
+		finished_len = SSL_get_finished(conn->xprt_ctx,
+						finished_trash->area,
+						finished_trash->size);
 
 	if (!finished_len)
 		return 0;
 
-	finished_trash->len = finished_len;
+	finished_trash->data = finished_len;
 	smp->data.u.str = *finished_trash;
 	smp->data.type = SMP_T_BIN;
 
@@ -8477,9 +8491,11 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
 					chunk_reset(t2);
 					/* should never fail here because we dump only a key in the t2 buffer */
-					t2->len = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
-					                   sizeof(struct tls_sess_key), t2->str, t2->size);
-					chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1, t2->str);
+					t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
+					                   sizeof(struct tls_sess_key),
+					                   t2->area, t2->size);
+					chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
+						      t2->area);
 
 					if (ci_putchk(si_ic(si), &trash) == -1) {
 						/* let's try again later from this stream. We add ourselves into
@@ -8565,8 +8581,9 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 		return 1;
 	}
 
-	trash.len = base64dec(args[4], strlen(args[4]), trash.str, trash.size);
-	if (trash.len != sizeof(struct tls_sess_key)) {
+	trash.data = base64dec(args[4], strlen(args[4]), trash.area,
+			      trash.size);
+	if (trash.data != sizeof(struct tls_sess_key)) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
 		appctx->st0 = CLI_ST_PRINT;
@@ -8606,8 +8623,8 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 	}
 	payload[j] = 0;
 
-	trash.len = base64dec(payload, j, trash.str, trash.size);
-	if (trash.len < 0) {
+	trash.data = base64dec(payload, j, trash.area, trash.size);
+	if (trash.data < 0) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
 		appctx->st0 = CLI_ST_PRINT;

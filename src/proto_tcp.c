@@ -631,7 +631,8 @@ int tcp_drain(int fd)
 		len = recv(fd, NULL, INT_MAX, MSG_DONTWAIT | MSG_NOSIGNAL | MSG_TRUNC);
 		if (len == -1 && errno == EFAULT)
 #endif
-			len = recv(fd, trash.str, trash.size, MSG_DONTWAIT | MSG_NOSIGNAL);
+			len = recv(fd, trash.area, trash.size,
+				   MSG_DONTWAIT | MSG_NOSIGNAL);
 
 		if (len == 0) {
 			/* cool, shutdown received */
@@ -1636,9 +1637,9 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* Convert the value as expected. */
 	if (args) {
 		if (args[0].type == ARGT_STR) {
-			if (strcmp(args[0].data.str.str, "us") == 0) {
+			if (strcmp(args[0].data.str.area, "us") == 0) {
 				/* Do nothing. */
-			} else if (strcmp(args[0].data.str.str, "ms") == 0) {
+			} else if (strcmp(args[0].data.str.area, "ms") == 0) {
 				smp->data.u.sint = (smp->data.u.sint + 500) / 1000;
 			} else
 				return 0;

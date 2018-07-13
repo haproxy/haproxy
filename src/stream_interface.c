@@ -143,8 +143,8 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	channel_erase(ic);
 	channel_truncate(oc);
 
-	if (likely(msg && msg->len))
-		co_inject(oc, msg->str, msg->len);
+	if (likely(msg && msg->data))
+		co_inject(oc, msg->area, msg->data);
 
 	oc->wex = tick_add_ifset(now_ms, oc->wto);
 	channel_auto_read(oc);
@@ -354,7 +354,9 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		if (conn->mux == &mux_pt_ops && cs->data_cb == &si_conn_cb) {
 			struct stream_interface *si = cs->data;
 			struct conn_stream *remote_cs = objt_cs(si_opposite(si)->end);
-			ret = make_proxy_line(trash.str, trash.size, objt_server(conn->target), remote_cs ? remote_cs->conn : NULL);
+			ret = make_proxy_line(trash.area, trash.size,
+					      objt_server(conn->target),
+					      remote_cs ? remote_cs->conn : NULL);
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
@@ -368,7 +370,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			if (!(conn->flags & CO_FL_ADDR_TO_SET))
 				goto out_wait;
 
-			ret = make_proxy_line(trash.str, trash.size, objt_server(conn->target), conn);
+			ret = make_proxy_line(trash.area, trash.size,
+					      objt_server(conn->target), conn);
 		}
 
 		if (!ret)
@@ -380,7 +383,9 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* we have to send trash from (ret+sp for -sp bytes). If the
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = conn_sock_send(conn, trash.str + ret + conn->send_proxy_ofs, -conn->send_proxy_ofs,
+		ret = conn_sock_send(conn,
+				     trash.area + ret + conn->send_proxy_ofs,
+		                     -conn->send_proxy_ofs,
 		                     (conn->flags & CO_FL_XPRT_WR_ENA) ? MSG_MORE : 0);
 
 		if (ret < 0)

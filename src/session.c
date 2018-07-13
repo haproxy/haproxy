@@ -282,9 +282,10 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) && p->mode == PR_MODE_HTTP) {
 		/* critical error, no more memory, try to emit a 500 response */
 		struct chunk *err_msg = &p->errmsg[HTTP_ERR_500];
-		if (!err_msg->str)
+		if (!err_msg->area)
 			err_msg = &http_err_chunks[HTTP_ERR_500];
-		send(cfd, err_msg->str, err_msg->len, MSG_DONTWAIT|MSG_NOSIGNAL);
+		send(cfd, err_msg->area, err_msg->data,
+		     MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
 	if (fdtab[cfd].owner)
@@ -316,8 +317,9 @@ static void session_prepare_log_prefix(struct session *sess)
 		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&cli_conn->addr.from));
 
 	get_localtime(sess->accept_date.tv_sec, &tm);
-	end = date2str_log(trash.str + trash.len, &tm, &(sess->accept_date), trash.size - trash.len);
-	trash.len = end - trash.str;
+	end = date2str_log(trash.area + trash.data, &tm, &(sess->accept_date),
+		           trash.size - trash.data);
+	trash.data = end - trash.area;
 	if (sess->listener->name)
 		chunk_appendf(&trash, "] %s/%s", sess->fe->id, sess->listener->name);
 	else
@@ -362,10 +364,11 @@ static void session_kill_embryonic(struct session *sess)
 		session_prepare_log_prefix(sess);
 		err_msg = conn_err_code_str(conn);
 		if (err_msg)
-			send_log(sess->fe, level, "%s: %s\n", trash.str, err_msg);
+			send_log(sess->fe, level, "%s: %s\n", trash.area,
+				 err_msg);
 		else
 			send_log(sess->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
-				 trash.str, conn->err_code, conn->flags);
+				 trash.area, conn->err_code, conn->flags);
 	}
 
 	/* kill the connection now */

@@ -1778,10 +1778,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				memcpy(trash.str, *env, delim - *env);
-				trash.str[delim - *env] = 0;
+				memcpy(trash.area, *env, delim - *env);
+				trash.area[delim - *env] = 0;
 
-				if (unsetenv(trash.str) != 0) {
+				if (unsetenv(trash.area) != 0) {
 					ha_alert("parsing [%s:%d]: '%s' failed to unset variable '%s' : %s.\n", file, linenum, args[0], *env, strerror(errno));
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;

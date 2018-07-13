@@ -180,18 +180,20 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 				*p++ = (smp->data.type == SMP_T_STR)
 					? SPOE_DATA_T_STR
 					: SPOE_DATA_T_BIN;
-				ret = spoe_encode_frag_buffer(chk->str, chk->len, &p, end);
+				ret = spoe_encode_frag_buffer(chk->area,
+							      chk->data, &p,
+							      end);
 				if (ret == -1)
 					return -1;
 			}
 			else {
 				/* The sample has been fragmented, encode remaining data */
-				ret = MIN(chk->len - *off, end - p);
-				memcpy(p, chk->str + *off, ret);
+				ret = MIN(chk->data - *off, end - p);
+				memcpy(p, chk->area + *off, ret);
 				p += ret;
 			}
 			/* Now update <*off> */
-			if (ret + *off != chk->len)
+			if (ret + *off != chk->data)
 				*off += ret;
 			else
 				*off = 0;
@@ -214,8 +216,8 @@ spoe_encode_data(struct sample *smp, unsigned int *off, char **buf, char *end)
 				case HTTP_METH_CONNECT: m = "CONNECT"; len = 7; break;
 
 				default :
-					m   = smp->data.u.meth.str.str;
-					len = smp->data.u.meth.str.len;
+					m   = smp->data.u.meth.str.area;
+					len = smp->data.u.meth.str.data;
 			}
 			if (spoe_encode_buffer(m, len, &p, end) == -1)
 				return -1;
@@ -333,8 +335,8 @@ spoe_decode_data(char **buf, char *end, struct sample *smp)
 			/* All the buffer must be decoded */
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				return -1;
-			smp->data.u.str.str = str;
-			smp->data.u.str.len = sz;
+			smp->data.u.str.area = str;
+			smp->data.u.str.data = sz;
 			smp->data.type = (type == SPOE_DATA_T_STR) ? SMP_T_STR : SMP_T_BIN;
 			break;
 	}

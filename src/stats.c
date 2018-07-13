@@ -343,10 +343,10 @@ int stats_emit_json_data_field(struct chunk *out, const struct field *f)
 		       break;
 	}
 
-	old_len = out->len;
+	old_len = out->data;
 	chunk_appendf(out, ",\"value\":{\"type\":%s,\"value\":%s%s%s}",
 		      type, quote, value, quote);
-	return !(old_len == out->len);
+	return !(old_len == out->data);
 }
 
 /* Emits an encoding of the field type on 3 characters followed by a delimiter.
@@ -433,13 +433,13 @@ int stats_emit_json_field_tags(struct chunk *out, const struct field *f)
 	default:         scope = "Unknown"; break;
 	}
 
-	old_len = out->len;
+	old_len = out->data;
 	chunk_appendf(out, "\"tags\":{"
 			    "\"origin\":\"%s\","
 			    "\"nature\":\"%s\","
 			    "\"scope\":\"%s\""
 			   "}", origin, nature, scope);
-	return !(old_len == out->len);
+	return !(old_len == out->data);
 }
 
 /* Dump all fields from <stats> into <out> using CSV format */
@@ -505,13 +505,13 @@ static int stats_dump_json_info_fields(struct chunk *out,
 			goto err;
 		started = 1;
 
-		old_len = out->len;
+		old_len = out->data;
 		chunk_appendf(out,
 			      "{\"field\":{\"pos\":%d,\"name\":\"%s\"},"
 			      "\"processNum\":%u,",
 			      field, info_field_names[field],
 			      info[INF_PROCESS_NUM].u.u32);
-		if (old_len == out->len)
+		if (old_len == out->data)
 			goto err;
 
 		if (!stats_emit_json_field_tags(out, &info[field]))
@@ -565,7 +565,7 @@ static int stats_dump_fields_json(struct chunk *out, const struct field *stats,
 		default:            obj_type = "Unknown";  break;
 		}
 
-		old_len = out->len;
+		old_len = out->data;
 		chunk_appendf(out,
 			      "{"
 				"\"objType\":\"%s\","
@@ -576,7 +576,7 @@ static int stats_dump_fields_json(struct chunk *out, const struct field *stats,
 			       obj_type, stats[ST_F_IID].u.u32,
 			       stats[ST_F_SID].u.u32, field,
 			       stat_field_names[field], stats[ST_F_PID].u.u32);
-		if (old_len == out->len)
+		if (old_len == out->data)
 			goto err;
 
 		if (!stats_emit_json_field_tags(out, &stats[field]))
@@ -2648,15 +2648,16 @@ static int stats_process_http_post(struct stream_interface *si)
 		goto out;
 	}
 
-	reql = co_getblk(si_oc(si), temp->str, s->txn->req.body_len, s->txn->req.eoh + 2);
+	reql = co_getblk(si_oc(si), temp->area, s->txn->req.body_len,
+			 s->txn->req.eoh + 2);
 	if (reql <= 0) {
 		/* we need more data */
 		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
 		return 0;
 	}
 
-	first_param = temp->str;
-	end_params  = temp->str + reql;
+	first_param = temp->area;
+	end_params  = temp->area + reql;
 	cur_param = next_param = end_params;
 	*end_params = '\0';
 
@@ -3317,7 +3318,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 static void stats_dump_json_schema(struct chunk *out)
 {
 
-	int old_len = out->len;
+	int old_len = out->data;
 
 	chunk_strcat(out,
 		     "{"
@@ -3510,7 +3511,7 @@ static void stats_dump_json_schema(struct chunk *out)
 		      "}"
 		     "}");
 
-	if (old_len == out->len) {
+	if (old_len == out->data) {
 		chunk_reset(out);
 		chunk_appendf(out,
 			      "{\"errorStr\":\"output buffer too short\"}");

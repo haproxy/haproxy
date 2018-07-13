@@ -87,7 +87,7 @@ int http_find_next_header(char *sol, struct hdr_idx *idx,
                           struct hdr_ctx *ctx);
 char *find_hdr_value_end(char *s, const char *e);
 char *extract_cookie_value(char *hdr, const char *hdr_end, char *cookie_name,
-                           size_t cookie_name_l, int list, char **value, int *value_l);
+                           size_t cookie_name_l, int list, char **value, size_t *value_l);
 int http_header_match2(const char *hdr, const char *end, const char *name, int len);
 int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx);
 int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
@@ -104,7 +104,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 			      enum h1_state state, struct proxy *other_end);
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
-			  struct hdr_ctx *ctx, char **vptr, int *vlen);
+			  struct hdr_ctx *ctx, char **vptr, size_t *vlen);
 char *http_get_path(struct http_txn *txn);
 const char *get_reason(unsigned int status);
 

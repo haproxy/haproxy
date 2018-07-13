@@ -57,9 +57,9 @@ int map_parse_ip(const char *text, struct sample_data *data)
  */
 int map_parse_str(const char *text, struct sample_data *data)
 {
-	data->u.str.str = (char *)text;
-	data->u.str.len = strlen(text);
-	data->u.str.size = data->u.str.len + 1;
+	data->u.str.area = (char *)text;
+	data->u.str.data = strlen(text);
+	data->u.str.size = data->u.str.data + 1;
 	data->type = SMP_T_STR;
 	return 1;
 }
@@ -138,7 +138,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	}
 
 	/* Load map. */
-	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, PAT_MF_NO_DNS,
+	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.area, PAT_MF_NO_DNS,
 	                            1, err, file, line))
 		return 0;
 
@@ -147,8 +147,9 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	 */
 	if (desc->conv->out_type == SMP_T_ADDR) {
 		struct sample_data data;
-		if (!map_parse_ip(arg[1].data.str.str, &data)) {
-			memprintf(err, "map: cannot parse default ip <%s>.", arg[1].data.str.str);
+		if (!map_parse_ip(arg[1].data.str.area, &data)) {
+			memprintf(err, "map: cannot parse default ip <%s>.",
+				  arg[1].data.str.area);
 			return 0;
 		}
 		if (data.type == SMP_T_IPV4) {
@@ -185,10 +186,11 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 			/* In the regm case, merge the sample with the input. */
 			if ((long)private == PAT_MATCH_REGM) {
 				str = get_trash_chunk();
-				str->len = exp_replace(str->str, str->size, smp->data.u.str.str,
-				                       pat->data->u.str.str,
+				str->data = exp_replace(str->area, str->size,
+				                       smp->data.u.str.area,
+				                       pat->data->u.str.area,
 				                       (regmatch_t *)smp->ctx.a[0]);
-				if (str->len == -1)
+				if (str->data == -1)
 					return 0;
 				smp->data.u.str = *str;
 				return 1;
@@ -463,8 +465,8 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 			/* execute pattern matching */
 			sample.data.type = SMP_T_STR;
 			sample.flags = SMP_F_CONST;
-			sample.data.u.str.len = appctx->ctx.map.chunk.len;
-			sample.data.u.str.str = appctx->ctx.map.chunk.str;
+			sample.data.u.str.data = appctx->ctx.map.chunk.data;
+			sample.data.u.str.area = appctx->ctx.map.chunk.area;
 
 			if (appctx->ctx.map.expr->pat_head->match &&
 			    sample_convert(&sample, appctx->ctx.map.expr->pat_head->expect_type))
@@ -560,8 +562,8 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 
 static void cli_release_mlook(struct appctx *appctx)
 {
-	free(appctx->ctx.map.chunk.str);
-	appctx->ctx.map.chunk.str = NULL;
+	free(appctx->ctx.map.chunk.area);
+	appctx->ctx.map.chunk.area = NULL;
 }
 
 
@@ -607,10 +609,10 @@ static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, 
 		 * it may be used over multiple iterations. It's released
 		 * at the end and upon abort anyway.
 		 */
-		appctx->ctx.map.chunk.len = strlen(args[3]);
-		appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.len + 1;
-		appctx->ctx.map.chunk.str = strdup(args[3]);
-		if (!appctx->ctx.map.chunk.str) {
+		appctx->ctx.map.chunk.data = strlen(args[3]);
+		appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.data + 1;
+		appctx->ctx.map.chunk.area = strdup(args[3]);
+		if (!appctx->ctx.map.chunk.area) {
 			appctx->ctx.cli.severity = LOG_ERR;
 			appctx->ctx.cli.msg = "Out of memory error.\n";
 			appctx->st0 = CLI_ST_PRINT;

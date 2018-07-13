@@ -219,11 +219,12 @@ resume_execution:
 				if (cap[h->index] == NULL) /* no more capture memory */
 					continue;
 
-				len = key->data.u.str.len;
+				len = key->data.u.str.data;
 				if (len > h->len)
 					len = h->len;
 
-				memcpy(cap[h->index], key->data.u.str.str, len);
+				memcpy(cap[h->index], key->data.u.str.area,
+				       len);
 				cap[h->index][len] = 0;
 			}
 			else {
@@ -600,7 +601,8 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 			action_build_list(&tcp_res_cont_keywords, &trash);
 			memprintf(err,
 			          "'%s %s' expects 'accept', 'close', 'reject', %s in %s '%s' (got '%s')",
-			          args[0], args[1], trash.str, proxy_type_str(curpx), curpx->id, args[arg]);
+			          args[0], args[1], trash.area,
+			          proxy_type_str(curpx), curpx->id, args[arg]);
 			return -1;
 		}
 	}
@@ -849,7 +851,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			memprintf(err,
 			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d', %s "
 			          "in %s '%s' (got '%s').\n",
-			          args[0], args[1], MAX_SESS_STKCTR-1, trash.str, proxy_type_str(curpx),
+			          args[0], args[1], MAX_SESS_STKCTR-1,
+			          trash.area, proxy_type_str(curpx),
 			          curpx->id, args[arg]);
 			return -1;
 		}

@@ -31,9 +31,9 @@
 
 /* describes a chunk of string */
 struct chunk {
-	char *str;	/* beginning of the string itself. Might not be 0-terminated */
-	int size;	/* total size of the buffer, 0 if the *str is read-only */
-	int len;	/* current size of the string from first to last char. <0 = uninit. */
+	char *area;                 /* points to <size> bytes */
+	size_t size;              /* buffer size in bytes */
+	size_t data;              /* amount of data after head including wrapping */
 };
 
 struct pool_head *pool_head_trash;
@@ -66,13 +66,13 @@ static inline void free_trash_chunk(struct chunk *chunk)
 
 static inline void chunk_reset(struct chunk *chk)
 {
-	chk->len  = 0;
+	chk->data  = 0;
 }
 
 static inline void chunk_init(struct chunk *chk, char *str, size_t size)
 {
-	chk->str  = str;
-	chk->len  = 0;
+	chk->area  = str;
+	chk->data  = 0;
 	chk->size = size;
 }
 
@@ -83,8 +83,8 @@ static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, int l
 	if (len < 0 || (size && len > size))
 		return 0;
 
-	chk->str  = str;
-	chk->len  = len;
+	chk->area  = str;
+	chk->data  = len;
 	chk->size = size;
 
 	return 1;
@@ -93,8 +93,8 @@ static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, int l
 /* this is only for temporary manipulation, the chunk is read-only */
 static inline void chunk_initstr(struct chunk *chk, const char *str)
 {
-	chk->str = (char *)str;
-	chk->len = strlen(str);
+	chk->area = (char *)str;
+	chk->data = strlen(str);
 	chk->size = 0;			/* mark it read-only */
 }
 
@@ -106,8 +106,8 @@ static inline int chunk_memcpy(struct chunk *chk, const char *src, size_t len)
 	if (unlikely(len >= chk->size))
 		return 0;
 
-	chk->len  = len;
-	memcpy(chk->str, src, len);
+	chk->data  = len;
+	memcpy(chk->area, src, len);
 
 	return 1;
 }
@@ -117,11 +117,11 @@ static inline int chunk_memcpy(struct chunk *chk, const char *src, size_t len)
  */
 static inline int chunk_memcat(struct chunk *chk, const char *src, size_t len)
 {
-	if (unlikely(chk->len < 0 || chk->len + len >= chk->size))
+	if (unlikely(chk->data < 0 || chk->data + len >= chk->size))
 		return 0;
 
-	memcpy(chk->str + chk->len, src, len);
-	chk->len += len;
+	memcpy(chk->area + chk->data, src, len);
+	chk->data += len;
 	return 1;
 }
 
@@ -137,8 +137,8 @@ static inline int chunk_strcpy(struct chunk *chk, const char *str)
 	if (unlikely(len >= chk->size))
 		return 0;
 
-	chk->len  = len;
-	memcpy(chk->str, str, len + 1);
+	chk->data  = len;
+	memcpy(chk->area, str, len + 1);
 
 	return 1;
 }
@@ -152,11 +152,11 @@ static inline int chunk_strcat(struct chunk *chk, const char *str)
 
 	len = strlen(str);
 
-	if (unlikely(chk->len < 0 || chk->len + len >= chk->size))
+	if (unlikely(chk->data < 0 || chk->data + len >= chk->size))
 		return 0;
 
-	memcpy(chk->str + chk->len, str, len + 1);
-	chk->len += len;
+	memcpy(chk->area + chk->data, str, len + 1);
+	chk->data += len;
 	return 1;
 }
 
@@ -165,11 +165,11 @@ static inline int chunk_strcat(struct chunk *chk, const char *str)
  */
 static inline int chunk_strncat(struct chunk *chk, const char *str, int nb)
 {
-	if (unlikely(chk->len < 0 || chk->len + nb >= chk->size))
+	if (unlikely(chk->data < 0 || chk->data + nb >= chk->size))
 		return 0;
 
-	memcpy(chk->str + chk->len, str, nb);
-	chk->len += nb;
+	memcpy(chk->area + chk->data, str, nb);
+	chk->data += nb;
 	return 1;
 }
 
@@ -187,17 +187,17 @@ static inline int chunk_strncat(struct chunk *chk, const char *str, int nb)
  */
 static inline char *chunk_newstr(struct chunk *chk)
 {
-	if (chk->len < 0 || chk->len + 1 >= chk->size)
+	if (chk->data < 0 || chk->data + 1 >= chk->size)
 		return NULL;
 
-	chk->str[chk->len++] = 0;
-	return chk->str + chk->len;
+	chk->area[chk->data++] = 0;
+	return chk->area + chk->data;
 }
 
 static inline void chunk_drop(struct chunk *chk)
 {
-	chk->str  = NULL;
-	chk->len  = -1;
+	chk->area  = NULL;
+	chk->data  = -1;
 	chk->size = 0;
 }
 
@@ -206,7 +206,7 @@ static inline void chunk_destroy(struct chunk *chk)
 	if (!chk->size)
 		return;
 
-	free(chk->str);
+	free(chk->area);
 	chunk_drop(chk);
 }
 
@@ -219,28 +219,28 @@ static inline void chunk_destroy(struct chunk *chk)
  */
 static inline char *chunk_dup(struct chunk *dst, const struct chunk *src)
 {
-	if (!dst || !src || src->len < 0 || !src->str)
+	if (!dst || !src || src->data < 0 || !src->area)
 		return NULL;
 
 	if (dst->size)
-		free(dst->str);
-	dst->len = src->len;
-	dst->size = src->len;
+		free(dst->area);
+	dst->data = src->data;
+	dst->size = src->data;
 	if (dst->size < src->size || !src->size)
 		dst->size++;
 
-	dst->str = (char *)malloc(dst->size);
-	if (!dst->str) {
-		dst->len = 0;
+	dst->area = (char *)malloc(dst->size);
+	if (!dst->area) {
+		dst->data = 0;
 		dst->size = 0;
 		return NULL;
 	}
 
-	memcpy(dst->str, src->str, dst->len);
-	if (dst->len < dst->size)
-		dst->str[dst->len] = 0;
+	memcpy(dst->area, src->area, dst->data);
+	if (dst->data < dst->size)
+		dst->area[dst->data] = 0;
 
-	return dst->str;
+	return dst->area;
 }
 
 #endif /* _TYPES_CHUNK_H */

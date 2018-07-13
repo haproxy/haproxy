@@ -565,12 +565,14 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	 * header.
 	 */
 	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
-		trash.len = 18;
-		memcpy(trash.str, "Content-Encoding: ", trash.len);
-		memcpy(trash.str + trash.len, st->comp_algo->ua_name, st->comp_algo->ua_name_len);
-		trash.len += st->comp_algo->ua_name_len;
-		trash.str[trash.len] = '\0';
-		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
+		trash.data = 18;
+		memcpy(trash.area, "Content-Encoding: ", trash.data);
+		memcpy(trash.area + trash.data, st->comp_algo->ua_name,
+		       st->comp_algo->ua_name_len);
+		trash.data += st->comp_algo->ua_name_len;
+		trash.area[trash.data] = '\0';
+		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.area,
+				      trash.data);
 	}
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
@@ -977,8 +979,8 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 
 		smp->data.type = SMP_T_STR;
 		smp->flags = SMP_F_CONST;
-		smp->data.u.str.str = st->comp_algo->cfg_name;
-		smp->data.u.str.len = st->comp_algo->cfg_name_len;
+		smp->data.u.str.area = st->comp_algo->cfg_name;
+		smp->data.u.str.data = st->comp_algo->cfg_name_len;
 		return 1;
 	}
 	return 0;

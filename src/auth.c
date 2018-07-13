@@ -277,7 +277,7 @@ pat_match_auth(struct sample *smp, struct pattern_expr *expr, int fill)
 
 	/* Browse the userlist for searching user. */
 	for (u = ul->users; u; u = u->next) {
-		if (strcmp(smp->data.u.str.str, u->user) == 0)
+		if (strcmp(smp->data.u.str.area, u->user) == 0)
 			break;
 	}
 	if (!u)

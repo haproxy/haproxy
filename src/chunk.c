@@ -35,7 +35,7 @@ static THREAD_LOCAL char *trash_buf2;
 struct pool_head *pool_head_trash = NULL;
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
-THREAD_LOCAL struct chunk trash = { .str = NULL };
+THREAD_LOCAL struct chunk trash = { };
 
 /*
 * Returns a pre-allocated and initialized trash chunk that can be used for any
@@ -68,11 +68,11 @@ struct chunk *get_trash_chunk(void)
  */
 static int alloc_trash_buffers(int bufsize)
 {
-	chunk_init(&trash, my_realloc2(trash.str, bufsize), bufsize);
+	chunk_init(&trash, my_realloc2(trash.area, bufsize), bufsize);
 	trash_size = bufsize;
 	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
 	trash_buf2 = (char *)my_realloc2(trash_buf2, bufsize);
-	return trash.str && trash_buf1 && trash_buf2;
+	return trash.area && trash_buf1 && trash_buf2;
 }
 
 static int init_trash_buffers_per_thread()
@@ -140,19 +140,19 @@ int chunk_printf(struct chunk *chk, const char *fmt, ...)
 	va_list argp;
 	int ret;
 
-	if (!chk->str || !chk->size)
+	if (!chk->area || !chk->size)
 		return 0;
 
 	va_start(argp, fmt);
-	ret = vsnprintf(chk->str, chk->size, fmt, argp);
+	ret = vsnprintf(chk->area, chk->size, fmt, argp);
 	va_end(argp);
-	chk->len = ret;
+	chk->data = ret;
 
 	if (ret >= chk->size)
 		ret = -1;
 
-	chk->len = ret;
-	return chk->len;
+	chk->data = ret;
+	return chk->data;
 }
 
 /*
@@ -165,18 +165,19 @@ int chunk_appendf(struct chunk *chk, const char *fmt, ...)
 	va_list argp;
 	int ret;
 
-	if (chk->len < 0 || !chk->str || !chk->size)
+	if (chk->data < 0 || !chk->area || !chk->size)
 		return 0;
 
 	va_start(argp, fmt);
-	ret = vsnprintf(chk->str + chk->len, chk->size - chk->len, fmt, argp);
-	if (ret >= chk->size - chk->len)
+	ret = vsnprintf(chk->area + chk->data, chk->size - chk->data, fmt,
+			argp);
+	if (ret >= chk->size - chk->data)
 		/* do not copy anything in case of truncation */
-		chk->str[chk->len] = 0;
+		chk->area[chk->data] = 0;
 	else
-		chk->len += ret;
+		chk->data += ret;
 	va_end(argp);
-	return chk->len;
+	return chk->data;
 }
 
 /*
@@ -190,37 +191,38 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src)
 	int olen, free;
 	char c;
 
-	if (dst->len < 0)
-		return dst->len;
+	if (dst->data < 0)
+		return dst->data;
 
-	olen = dst->len;
+	olen = dst->data;
 
-	for (i = 0; i < src->len; i++) {
-		free = dst->size - dst->len;
+	for (i = 0; i < src->data; i++) {
+		free = dst->size - dst->data;
 
 		if (!free) {
-			dst->len = olen;
-			return dst->len;
+			dst->data = olen;
+			return dst->data;
 		}
 
-		c = src->str[i];
+		c = src->area[i];
 
 		if (!isascii(c) || !isprint((unsigned char)c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
-			l = snprintf(dst->str + dst->len, free, "&#%u;", (unsigned char)c);
+			l = snprintf(dst->area + dst->data, free, "&#%u;",
+				     (unsigned char)c);
 
 			if (free < l) {
-				dst->len = olen;
-				return dst->len;
+				dst->data = olen;
+				return dst->data;
 			}
 
-			dst->len += l;
+			dst->data += l;
 		} else {
-			dst->str[dst->len] = c;
-			dst->len++;
+			dst->area[dst->data] = c;
+			dst->data++;
 		}
 	}
 
-	return dst->len;
+	return dst->data;
 }
 
 /*
@@ -234,37 +236,38 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
 	int olen, free;
 	char c;
 
-	if (dst->len < 0)
-		return dst->len;
+	if (dst->data < 0)
+		return dst->data;
 
-	olen = dst->len;
+	olen = dst->data;
 
-	for (i = 0; i < src->len; i++) {
-		free = dst->size - dst->len;
+	for (i = 0; i < src->data; i++) {
+		free = dst->size - dst->data;
 
 		if (!free) {
-			dst->len = olen;
-			return dst->len;
+			dst->data = olen;
+			return dst->data;
 		}
 
-		c = src->str[i];
+		c = src->area[i];
 
 		if (!isascii(c) || !isprint((unsigned char)c) || c == '<' || c == '>' || c == qc) {
-			l = snprintf(dst->str + dst->len, free, "<%02X>", (unsigned char)c);
+			l = snprintf(dst->area + dst->data, free, "<%02X>",
+				     (unsigned char)c);
 
 			if (free < l) {
-				dst->len = olen;
-				return dst->len;
+				dst->data = olen;
+				return dst->data;
 			}
 
-			dst->len += l;
+			dst->data += l;
 		} else {
-			dst->str[dst->len] = c;
-			dst->len++;
+			dst->area[dst->data] = c;
+			dst->data++;
 		}
 	}
 
-	return dst->len;
+	return dst->data;
 }
 
 /* Compares the string in chunk <chk> with the string in <str> which must be
@@ -273,8 +276,8 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
  */
 int chunk_strcmp(const struct chunk *chk, const char *str)
 {
-	const char *s1 = chk->str;
-	int len = chk->len;
+	const char *s1 = chk->area;
+	int len = chk->data;
 	int diff = 0;
 
 	do {
@@ -293,8 +296,8 @@ int chunk_strcmp(const struct chunk *chk, const char *str)
  */
 int chunk_strcasecmp(const struct chunk *chk, const char *str)
 {
-	const char *s1 = chk->str;
-	int len = chk->len;
+	const char *s1 = chk->area;
+	int len = chk->data;
 	int diff = 0;
 
 	do {

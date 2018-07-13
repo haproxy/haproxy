@@ -117,7 +117,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 	}
 	chunk_init(&out, NULL, 0);
 	chunk_dup(&out, tmp);
-	dynamic_usage_msg = out.str;
+	dynamic_usage_msg = out.area;
 
 end:
 	if (dynamic_usage_msg) {
@@ -403,8 +403,8 @@ static int cli_parse_request(struct appctx *appctx)
 	appctx->st2 = 0;
 	memset(&appctx->ctx.cli, 0, sizeof(appctx->ctx.cli));
 
-	p = appctx->chunk->str;
-	end = p + appctx->chunk->len;
+	p = appctx->chunk->area;
+	end = p + appctx->chunk->data;
 
 	/*
 	 * Get the payload start if there is one.
@@ -454,7 +454,7 @@ static int cli_parse_request(struct appctx *appctx)
 		i++;
 	}
 	/* fill unused slots */
-	p = appctx->chunk->str + appctx->chunk->len;
+	p = appctx->chunk->area + appctx->chunk->data;
 	for (; i < MAX_STATS_ARGS + 1; i++)
 		args[i] = p;
 
@@ -500,7 +500,7 @@ static int cli_output_msg(struct channel *chn, const char *msg, int severity, in
 	}
 	chunk_appendf(tmp, "%s", msg);
 
-	return ci_putblk(chn, tmp->str, strlen(tmp->str));
+	return ci_putblk(chn, tmp->area, strlen(tmp->area));
 }
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
@@ -557,7 +557,7 @@ static void cli_io_handler(struct appctx *appctx)
 				}
 			}
 
-			str = appctx->chunk->str + appctx->chunk->len;
+			str = appctx->chunk->area + appctx->chunk->data;
 
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
@@ -568,7 +568,8 @@ static void cli_io_handler(struct appctx *appctx)
 			}
 
 			/* '- 1' is to ensure a null byte can always be inserted at the end */
-			reql = co_getline(si_oc(si), str, appctx->chunk->size - appctx->chunk->len - 1);
+			reql = co_getline(si_oc(si), str,
+					  appctx->chunk->size - appctx->chunk->data - 1);
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -607,12 +608,12 @@ static void cli_io_handler(struct appctx *appctx)
 				len--;
 
 			str[len] = '\0';
-			appctx->chunk->len += len;
+			appctx->chunk->data += len;
 
 			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
-				appctx->chunk->str[appctx->chunk->len] = '\n';
-				appctx->chunk->str[appctx->chunk->len + 1] = 0;
-				appctx->chunk->len++;
+				appctx->chunk->area[appctx->chunk->data] = '\n';
+				appctx->chunk->area[appctx->chunk->data + 1] = 0;
+				appctx->chunk->data++;
 			}
 
 			appctx->st0 = CLI_ST_PROMPT;
@@ -621,8 +622,8 @@ static void cli_io_handler(struct appctx *appctx)
 				/* empty line */
 				if (!len) {
 					/* remove the last two \n */
-					appctx->chunk->len -= 2;
-					appctx->chunk->str[appctx->chunk->len] = 0;
+					appctx->chunk->data -= 2;
+					appctx->chunk->area[appctx->chunk->data] = 0;
 
 					if (!cli_parse_request(appctx))
 						cli_gen_usage_msg(appctx);
@@ -641,7 +642,7 @@ static void cli_io_handler(struct appctx *appctx)
 				 * Its location is not remembered here, this is just to switch
 				 * to a gathering mode.
 				 */
-				if (!strcmp(appctx->chunk->str + appctx->chunk->len - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN))
+				if (!strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN))
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				else {
 					/* no payload, the command is complete: parse the request */
@@ -705,7 +706,7 @@ static void cli_io_handler(struct appctx *appctx)
 					 * when entering a payload with interactive mode, change the prompt
 					 * to emphasize that more data can still be sent
 					 */
-					if (appctx->chunk->len && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
+					if (appctx->chunk->data && appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)
 						prompt = "+ ";
 					else
 						prompt = "\n> ";
@@ -1053,7 +1054,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 								}
 							}
 							/* replace the latest comma by a newline */
-							trash.str[trash.len-1] = '\n';
+							trash.area[trash.data-1] = '\n';
 
 						} else {
 							chunk_appendf(&trash, "all\n");

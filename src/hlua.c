@@ -340,7 +340,7 @@ __LJMP static const char *hlua_traceback(lua_State *L)
 			chunk_appendf(msg, " ...");
 	}
 
-	return msg->str;
+	return msg->area;
 }
 
 
@@ -386,7 +386,7 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 		break;
 
 	case ARGT_STR:
-		lua_pushlstring(L, arg->data.str.str, arg->data.str.len);
+		lua_pushlstring(L, arg->data.str.area, arg->data.str.data);
 		break;
 
 	case ARGT_IPV4:
@@ -423,7 +423,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
 
 	case LUA_TSTRING:
 		arg->type = ARGT_STR;
-		arg->data.str.str = (char *)lua_tolstring(L, ud, (size_t *)&arg->data.str.len);
+		arg->data.str.area = (char *)lua_tolstring(L, ud, (size_t *)&arg->data.str.data);
 		break;
 
 	case LUA_TUSERDATA:
@@ -453,7 +453,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 
 	case SMP_T_BIN:
 	case SMP_T_STR:
-		lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
+		lua_pushlstring(L, smp->data.u.str.area, smp->data.u.str.data);
 		break;
 
 	case SMP_T_METH:
@@ -467,7 +467,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
 		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
 		case HTTP_METH_OTHER:
-			lua_pushlstring(L, smp->data.u.meth.str.str, smp->data.u.meth.str.len);
+			lua_pushlstring(L, smp->data.u.meth.str.area, smp->data.u.meth.str.data);
 			break;
 		default:
 			lua_pushnil(L);
@@ -480,7 +480,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
 		if (sample_casts[smp->data.type][SMP_T_STR] &&
 		    sample_casts[smp->data.type][SMP_T_STR](smp))
-			lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
+			lua_pushlstring(L, smp->data.u.str.area, smp->data.u.str.data);
 		else
 			lua_pushnil(L);
 		break;
@@ -501,7 +501,7 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 
 	case SMP_T_BIN:
 	case SMP_T_STR:
-		lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
+		lua_pushlstring(L, smp->data.u.str.area, smp->data.u.str.data);
 		break;
 
 	case SMP_T_METH:
@@ -515,7 +515,7 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
 		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
 		case HTTP_METH_OTHER:
-			lua_pushlstring(L, smp->data.u.meth.str.str, smp->data.u.meth.str.len);
+			lua_pushlstring(L, smp->data.u.meth.str.area, smp->data.u.meth.str.data);
 			break;
 		default:
 			lua_pushstring(L, "");
@@ -530,7 +530,7 @@ static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
 		if (sample_casts[smp->data.type][SMP_T_STR] &&
 		    sample_casts[smp->data.type][SMP_T_STR](smp))
-			lua_pushlstring(L, smp->data.u.str.str, smp->data.u.str.len);
+			lua_pushlstring(L, smp->data.u.str.area, smp->data.u.str.data);
 		else
 			lua_pushstring(L, "");
 		break;
@@ -563,7 +563,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 	case LUA_TSTRING:
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->data.u.str.str = (char *)lua_tolstring(L, ud, (size_t *)&smp->data.u.str.len);
+		smp->data.u.str.area = (char *)lua_tolstring(L, ud, (size_t *)&smp->data.u.str.data);
 		break;
 
 	case LUA_TUSERDATA:
@@ -684,9 +684,10 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		case ARGT_FE:
 			if (argp[idx].type != ARGT_STR)
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			argp[idx].data.prx = proxy_fe_by_name(trash.str);
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			argp[idx].data.prx = proxy_fe_by_name(trash.area);
 			if (!argp[idx].data.prx)
 				WILL_LJMP(luaL_argerror(L, first + idx, "frontend doesn't exist"));
 			argp[idx].type = ARGT_FE;
@@ -695,9 +696,10 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		case ARGT_BE:
 			if (argp[idx].type != ARGT_STR)
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			argp[idx].data.prx = proxy_be_by_name(trash.str);
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			argp[idx].data.prx = proxy_be_by_name(trash.area);
 			if (!argp[idx].data.prx)
 				WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
 			argp[idx].type = ARGT_BE;
@@ -706,9 +708,10 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		case ARGT_TAB:
 			if (argp[idx].type != ARGT_STR)
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			argp[idx].data.prx = proxy_tbl_by_name(trash.str);
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			argp[idx].data.prx = proxy_tbl_by_name(trash.area);
 			if (!argp[idx].data.prx)
 				WILL_LJMP(luaL_argerror(L, first + idx, "table doesn't exist"));
 			argp[idx].type = ARGT_TAB;
@@ -717,18 +720,19 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 		case ARGT_SRV:
 			if (argp[idx].type != ARGT_STR)
 				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			sname = strrchr(trash.str, '/');
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			sname = strrchr(trash.area, '/');
 			if (sname) {
 				*sname++ = '\0';
-				pname = trash.str;
+				pname = trash.area;
 				px = proxy_be_by_name(pname);
 				if (!px)
 					WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
 			}
 			else {
-				sname = trash.str;
+				sname = trash.area;
 				px = p;
 			}
 			argp[idx].data.srv = findserver(px, sname);
@@ -738,33 +742,37 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			break;
 
 		case ARGT_IPV4:
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			if (inet_pton(AF_INET, trash.str, &argp[idx].data.ipv4))
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			if (inet_pton(AF_INET, trash.area, &argp[idx].data.ipv4))
 				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 address"));
 			argp[idx].type = ARGT_IPV4;
 			break;
 
 		case ARGT_MSK4:
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			if (!str2mask(trash.str, &argp[idx].data.ipv4))
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			if (!str2mask(trash.area, &argp[idx].data.ipv4))
 				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 mask"));
 			argp[idx].type = ARGT_MSK4;
 			break;
 
 		case ARGT_IPV6:
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			if (inet_pton(AF_INET6, trash.str, &argp[idx].data.ipv6))
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			if (inet_pton(AF_INET6, trash.area, &argp[idx].data.ipv6))
 				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 address"));
 			argp[idx].type = ARGT_IPV6;
 			break;
 
 		case ARGT_MSK6:
-			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
-			trash.str[argp[idx].data.str.len] = 0;
-			if (!str2mask6(trash.str, &argp[idx].data.ipv6))
+			memcpy(trash.area, argp[idx].data.str.area,
+			       argp[idx].data.str.data);
+			trash.area[argp[idx].data.str.data] = 0;
+			if (!str2mask6(trash.area, &argp[idx].data.ipv6))
 				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 mask"));
 			argp[idx].type = ARGT_MSK6;
 			break;
@@ -817,9 +825,9 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 	char *p;
 
 	/* Cleanup the log message. */
-	p = trash.str;
+	p = trash.area;
 	for (; *msg != '\0'; msg++, p++) {
-		if (p >= trash.str + trash.size - 1) {
+		if (p >= trash.area + trash.size - 1) {
 			/* Break the message if exceed the buffer size. */
 			*(p-4) = ' ';
 			*(p-3) = '.';
@@ -834,12 +842,12 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 	}
 	*p = '\0';
 
-	send_log(px, level, "%s\n", trash.str);
+	send_log(px, level, "%s\n", trash.area);
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		get_localtime(date.tv_sec, &tm);
 		fprintf(stderr, "[%s] %03d/%02d%02d%02d (%d) : %s\n",
 		        log_levels[level], tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-		        (int)getpid(), trash.str);
+		        (int)getpid(), trash.area);
 		fflush(stderr);
 	}
 }
@@ -1479,7 +1487,7 @@ __LJMP static int hlua_map_new(struct lua_State *L)
 
 	/* fill fake args. */
 	args[0].type = ARGT_STR;
-	args[0].data.str.str = (char *)fn;
+	args[0].data.str.area = (char *)fn;
 	args[1].type = ARGT_STOP;
 
 	/* load the map. */
@@ -1522,7 +1530,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	else {
 		smp.data.type = SMP_T_STR;
 		smp.flags = SMP_F_CONST;
-		smp.data.u.str.str = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.u.str.len));
+		smp.data.u.str.area = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.u.str.data));
 	}
 
 	pat = pattern_exec_match(&desc->pat, &smp, 1);
@@ -1535,7 +1543,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 	}
 
 	/* The Lua pattern must return a string, so we can't check the returned type */
-	lua_pushlstring(L, pat->data->u.str.str, pat->data->u.str.len);
+	lua_pushlstring(L, pat->data->u.str.area, pat->data->u.str.data);
 	return 1;
 }
 
@@ -3041,7 +3049,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * detects a non contiguous buffer and realign it.
 	 */
 	if (ci_space_for_replace(chn) < max)
-		channel_slow_realign(chn, trash.str);
+		channel_slow_realign(chn, trash.area);
 
 	/* Copy input data in the buffer. */
 	max = b_rep_blk(&chn->buf, ci_head(chn), ci_head(chn), str + l, max);
@@ -3279,7 +3287,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 		hlua_lua2arg(L, i + 2, &args[i]);
 	}
 	args[i].type = ARGT_STOP;
-	args[i].data.str.str = NULL;
+	args[i].data.str.area = NULL;
 
 	/* Check arguments. */
 	MAY_LJMP(hlua_lua2arg_check(L, 2, args, f->arg_mask, hsmp->p));
@@ -3385,7 +3393,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 		hlua_lua2arg(L, i + 3, &args[i]);
 	}
 	args[i].type = ARGT_STOP;
-	args[i].data.str.str = NULL;
+	args[i].data.str.area = NULL;
 
 	/* Check arguments. */
 	MAY_LJMP(hlua_lua2arg_check(L, 3, args, conv->arg_mask, hsmp->p));
@@ -4533,16 +4541,17 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 			value = lua_tolstring(L, -1, &value_len);
 
 			/* Catenate a new header. */
-			if (tmp->len + name_len + 2 + value_len + 2 < tmp->size) {
-				memcpy(tmp->str + tmp->len, name, name_len);
-				tmp->len += name_len;
-				tmp->str[tmp->len++] = ':';
-				tmp->str[tmp->len++] = ' ';
+			if (tmp->data + name_len + 2 + value_len + 2 < tmp->size) {
+				memcpy(tmp->area + tmp->data, name, name_len);
+				tmp->data += name_len;
+				tmp->area[tmp->data++] = ':';
+				tmp->area[tmp->data++] = ' ';
 
-				memcpy(tmp->str + tmp->len, value, value_len);
-				tmp->len += value_len;
-				tmp->str[tmp->len++] = '\r';
-				tmp->str[tmp->len++] = '\n';
+				memcpy(tmp->area + tmp->data, value,
+				       value_len);
+				tmp->data += value_len;
+				tmp->area[tmp->data++] = '\r';
+				tmp->area[tmp->data++] = '\n';
 			}
 
 			/* Protocol checks. */
@@ -4591,7 +4600,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	lua_pop(L, 2);
 
 	/* Push the headers block. */
-	lua_pushlstring(L, tmp->str, tmp->len);
+	lua_pushlstring(L, tmp->area, tmp->data);
 
 	return MAY_LJMP(hlua_applet_http_start_response_yield(L, 0, 0));
 }
@@ -4705,7 +4714,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 		 * the size of one buffer and the input data contains in one
 		 * buffer.
 		 */
-		out = trash.str;
+		out = trash.area;
 		for (in=hn; in<hn+hnl; in++, out++)
 			*out = tolower(*in);
 		*out = '\0';
@@ -4715,7 +4724,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 		 * push the key in the stack, the function lua_gettable()
 		 * perform the lookup.
 		 */
-		lua_pushlstring(L, trash.str, hnl);
+		lua_pushlstring(L, trash.area, hnl);
 		lua_gettable(L, -2);
 		type = lua_type(L, -1);
 
@@ -4723,7 +4732,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 		case LUA_TNIL:
 			/* Table not found, create it. */
 			lua_pop(L, 1); /* remove the nil value. */
-			lua_pushlstring(L, trash.str, hnl);  /* push the header name as key. */
+			lua_pushlstring(L, trash.area, hnl);  /* push the header name as key. */
 			lua_newtable(L); /* create and push empty table. */
 			lua_pushlstring(L, hv, hvl); /* push header value. */
 			lua_rawseti(L, -2, 0); /* index header value (pop it). */
@@ -4889,12 +4898,12 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, 
 		return 0;
 
 	/* Check length. */
-	trash.len = value_len + name_len + 2;
-	if (trash.len > trash.size)
+	trash.data = value_len + name_len + 2;
+	if (trash.data > trash.size)
 		return 0;
 
 	/* Creates the header string. */
-	p = trash.str;
+	p = trash.area;
 	memcpy(p, name, name_len);
 	p += name_len;
 	*p = ':';
@@ -4904,7 +4913,7 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, 
 	memcpy(p, value, value_len);
 
 	lua_pushboolean(L, http_header_add_tail2(msg, &htxn->s->txn->hdr_idx,
-	                                         trash.str, trash.len) != 0);
+	                                         trash.area, trash.data) != 0);
 
 	return 0;
 }
@@ -5006,11 +5015,12 @@ static int hlua_http_req_set_query(lua_State *L)
 
 	/* Add the mark question as prefix. */
 	chunk_reset(&trash);
-	trash.str[trash.len++] = '?';
-	memcpy(trash.str + trash.len, name, name_len);
-	trash.len += name_len;
+	trash.area[trash.data++] = '?';
+	memcpy(trash.area + trash.data, name, name_len);
+	trash.data += name_len;
 
-	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, htxn->p, htxn->s) != -1);
+	lua_pushboolean(L,
+			http_replace_req_line(2, trash.area, trash.data, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -5837,7 +5847,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
-	const struct chunk msg = { .len = 0 };
+	const struct chunk msg = { };
 
 	if (!stream)
 		return 0;
@@ -6106,7 +6116,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	unsigned int analyzer;
 	int dir;
 	const char *error;
-	const struct chunk msg = { .len = 0 };
+	const struct chunk msg = { };
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT: analyzer = AN_REQ_INSPECT_FE     ; dir = SMP_OPT_DIR_REQ; break;
@@ -7654,8 +7664,8 @@ void hlua_init(void)
 	for (i=0; i<PAT_MATCH_NUM; i++)
 		hlua_class_const_int(gL.T, pat_match_names[i], i);
 	for (i=0; i<PAT_MATCH_NUM; i++) {
-		snprintf(trash.str, trash.size, "_%s", pat_match_names[i]);
-		hlua_class_const_int(gL.T, trash.str, i);
+		snprintf(trash.area, trash.size, "_%s", pat_match_names[i]);
+		hlua_class_const_int(gL.T, trash.area, i);
 	}
 
 	/* register constructor. */
@@ -7747,14 +7757,14 @@ void hlua_init(void)
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
-		strncpy(trash.str, sf->kw, trash.size);
-		trash.str[trash.size - 1] = '\0';
-		for (p = trash.str; *p; p++)
+		strncpy(trash.area, sf->kw, trash.size);
+		trash.area[trash.size - 1] = '\0';
+		for (p = trash.area; *p; p++)
 			if (*p == '.' || *p == '-' || *p == '+')
 				*p = '_';
 
 		/* Register the function. */
-		lua_pushstring(gL.T, trash.str);
+		lua_pushstring(gL.T, trash.area);
 		lua_pushlightuserdata(gL.T, sf);
 		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
 		lua_rawset(gL.T, -3);
@@ -7792,14 +7802,14 @@ void hlua_init(void)
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
-		strncpy(trash.str, sc->kw, trash.size);
-		trash.str[trash.size - 1] = '\0';
-		for (p = trash.str; *p; p++)
+		strncpy(trash.area, sc->kw, trash.size);
+		trash.area[trash.size - 1] = '\0';
+		for (p = trash.area; *p; p++)
 			if (*p == '.' || *p == '-' || *p == '+')
 				*p = '_';
 
 		/* Register the function. */
-		lua_pushstring(gL.T, trash.str);
+		lua_pushstring(gL.T, trash.area);
 		lua_pushlightuserdata(gL.T, sc);
 		lua_pushcclosure(gL.T, hlua_run_sample_conv, 1);
 		lua_rawset(gL.T, -3);

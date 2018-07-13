@@ -349,7 +349,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 			chunk_strncat(chk, value, ctx.vlen - 8 + 1);
 			chunk_strncat(chk, "", 1);
-			maxage = atoi(chk->str);
+			maxage = atoi(chk->area);
 		}
 
 		value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
@@ -358,7 +358,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 			chunk_strncat(chk, value, ctx.vlen - 7 + 1);
 			chunk_strncat(chk, "", 1);
-			smaxage = atoi(chk->str);
+			smaxage = atoi(chk->area);
 		}
 	}
 
@@ -657,7 +657,7 @@ int sha1_hosturi(struct http_txn *txn)
 
 	/* hash everything */
 	blk_SHA1_Init(&sha1_ctx);
-	blk_SHA1_Update(&sha1_ctx, trash->str, trash->len);
+	blk_SHA1_Update(&sha1_ctx, trash->area, trash->data);
 	blk_SHA1_Final((unsigned char *)txn->cache_hash, &sha1_ctx);
 
 	return 1;

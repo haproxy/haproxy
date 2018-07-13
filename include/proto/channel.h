@@ -788,9 +788,9 @@ static inline int ci_putchk(struct channel *chn, struct chunk *chunk)
 {
 	int ret;
 
-	ret = ci_putblk(chn, chunk->str, chunk->len);
+	ret = ci_putblk(chn, chunk->area, chunk->data);
 	if (ret > 0)
-		chunk->len -= ret;
+		chunk->data -= ret;
 	return ret;
 }
 

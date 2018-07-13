@@ -697,12 +697,12 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 	case SMP_T_STR:
 		if (!smp_make_safe(smp))
 			return NULL;
-		static_table_key.key = smp->data.u.str.str;
-		static_table_key.key_len = smp->data.u.str.len;
+		static_table_key.key = smp->data.u.str.area;
+		static_table_key.key_len = smp->data.u.str.data;
 		break;
 
 	case SMP_T_BIN:
-		if (smp->data.u.str.len < t->key_size) {
+		if (smp->data.u.str.data < t->key_size) {
 			/* This type needs padding with 0. */
 			if (!smp_make_rw(smp))
 				return NULL;
@@ -712,12 +712,12 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 					return NULL;
 			if (smp->data.u.str.size < t->key_size)
 				return NULL;
-			memset(smp->data.u.str.str + smp->data.u.str.len, 0,
-			       t->key_size - smp->data.u.str.len);
-			smp->data.u.str.len = t->key_size;
+			memset(smp->data.u.str.area + smp->data.u.str.data, 0,
+			       t->key_size - smp->data.u.str.data);
+			smp->data.u.str.data = t->key_size;
 		}
-		static_table_key.key = smp->data.u.str.str;
-		static_table_key.key_len = smp->data.u.str.len;
+		static_table_key.key = smp->data.u.str.area;
+		static_table_key.key_len = smp->data.u.str.data;
 		break;
 
 	default: /* impossible case. */

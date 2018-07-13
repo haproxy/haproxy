@@ -83,8 +83,8 @@ static apr_status_t defender_bucket_read(apr_bucket *b, const char **str,
 {
 	struct apr_bucket_defender *d = b->data;
 
-	*str = d->buf.str;
-	*len = d->buf.len;
+	*str = d->buf.area;
+	*len = d->buf.data;
 
 	return APR_SUCCESS;
 }
@@ -103,11 +103,11 @@ static apr_bucket *defender_bucket_make(apr_bucket *b, const struct chunk *buf)
 
 	d = apr_bucket_alloc(sizeof(*d), b->list);
 
-	d->buf.str = buf->str;
-	d->buf.len = buf->len;
+	d->buf.area = buf->area;
+	d->buf.data = buf->data;
 	d->buf.size = 0;
 
-	b = apr_bucket_shared_make(b, d, 0, buf->len);
+	b = apr_bucket_shared_make(b, d, 0, buf->data);
 	b->type = &apr_bucket_type_defender;
 	return b;
 }
@@ -487,10 +487,10 @@ int defender_process_request(struct worker *worker, struct defender_request *req
 	if (!(r->useragent_ip = defender_addr2str(r->pool, &request->clientip)))
 		goto out;
 
-	if (request->id.data.u.str.str && request->id.data.u.str.len > 0) {
+	if (request->id.data.u.str.area && request->id.data.u.str.data > 0) {
 		apr_table_setn(r->subprocess_env, "UNIQUE_ID",
-		               defender_strdup(r->pool, request->id.data.u.str.str,
-		                               request->id.data.u.str.len));
+		               defender_strdup(r->pool, request->id.data.u.str.area,
+		                               request->id.data.u.str.data));
 	}
 	else {
 		apr_table_setn(r->subprocess_env, "UNIQUE_ID",
@@ -502,37 +502,37 @@ int defender_process_request(struct worker *worker, struct defender_request *req
 	query = &request->query.data.u.str;
 	version = &request->version.data.u.str;
 
-	r->method_number = lookup_builtin_method(method->str, method->len);
-	if (!(r->method = defender_strdup(r->pool, method->str, method->len)))
+	r->method_number = lookup_builtin_method(method->area, method->data);
+	if (!(r->method = defender_strdup(r->pool, method->area, method->data)))
 		goto out;
 
 	r->unparsed_uri = defender_printf(r->pool, "%.*s%s%.*s",
-	                                  path->len, path->str,
-	                                  query->len > 0 ? "?" : "",
-	                                  query->len, query->str);
+	                                  path->data, path->area,
+	                                  query->data > 0 ? "?" : "",
+	                                  query->data, query->area);
 	if (!r->unparsed_uri)
 		goto out;
 
-	if (!(r->uri = defender_strdup(r->pool, path->str, path->len)))
+	if (!(r->uri = defender_strdup(r->pool, path->area, path->data)))
 		goto out;
 
 	r->parsed_uri.path = r->filename = r->uri;
 
-	if (!(r->args = defender_strdup(r->pool, query->str, query->len)))
+	if (!(r->args = defender_strdup(r->pool, query->area, query->data)))
 		goto out;
 
 	r->parsed_uri.query = r->args;
 
 	r->protocol = defender_printf(r->pool, "%s%.*s",
-	                              version->len > 0 ? "HTTP/" : "",
-	                              version->len, version->str);
+	                              version->data > 0 ? "HTTP/" : "",
+	                              version->data, version->area);
 	if (!r->protocol)
 		goto out;
 
 	r->the_request = defender_printf(r->pool, "%.*s %s%s%s",
-	                                 method->len, method->str,
+	                                 method->data, method->area,
 	                                 r->unparsed_uri,
-	                                 version->len > 0 ? " " : "",
+	                                 version->data > 0 ? " " : "",
 	                                 r->protocol);
 	if (!r->the_request)
 		goto out;
@@ -541,8 +541,8 @@ int defender_process_request(struct worker *worker, struct defender_request *req
 	if (request->headers.data.type != SMP_T_BIN)
 		goto misc;
 
-	hdr_ptr = request->headers.data.u.str.str;
-	hdr_end = hdr_ptr + request->headers.data.u.str.len;
+	hdr_ptr = request->headers.data.u.str.area;
+	hdr_end = hdr_ptr + request->headers.data.u.str.data;
 
 	while (1) {
 		memset(&hdr, 0, sizeof(hdr));

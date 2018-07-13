@@ -852,8 +852,8 @@ static void sig_dump_state(struct sig_handler *sh)
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
 			             s->cur_sess, s->nbpend, s->counters.cum_sess);
-			ha_warning("%s\n", trash.str);
-			send_log(p, LOG_NOTICE, "%s\n", trash.str);
+			ha_warning("%s\n", trash.area);
+			send_log(p, LOG_NOTICE, "%s\n", trash.area);
 			s = s->next;
 		}
 
@@ -876,8 +876,8 @@ static void sig_dump_state(struct sig_handler *sh)
 			             p->id, p->srv_act, p->srv_bck,
 			             p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		}
-		ha_warning("%s\n", trash.str);
-		send_log(p, LOG_NOTICE, "%s\n", trash.str);
+		ha_warning("%s\n", trash.area);
+		send_log(p, LOG_NOTICE, "%s\n", trash.area);
 
 		p = p->next;
 	}

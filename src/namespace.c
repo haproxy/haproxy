@@ -26,7 +26,7 @@ static int open_named_namespace(const char *ns_name)
 {
 	if (chunk_printf(&trash, "/var/run/netns/%s", ns_name) < 0)
 		return -1;
-	return open(trash.str, O_RDONLY);
+	return open(trash.area, O_RDONLY);
 }
 
 static int default_namespace = -1;
@@ -35,7 +35,7 @@ static int init_default_namespace()
 {
 	if (chunk_printf(&trash, "/proc/%d/ns/net", getpid()) < 0)
 		return -1;
-	default_namespace = open(trash.str, O_RDONLY);
+	default_namespace = open(trash.area, O_RDONLY);
 	return default_namespace;
 }
 

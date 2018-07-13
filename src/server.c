@@ -142,7 +142,7 @@ void srv_set_dyncookie(struct server *s)
 	 * on the safe side.
 	 */
 	buffer_len = key_len + addr_len + 4;
-	tmpbuf = trash.str;
+	tmpbuf = trash.area;
 	memcpy(tmpbuf, p->dyncookie_key, key_len);
 	memcpy(&(tmpbuf[key_len]),
 	    s->addr.ss_family == AF_INET ?
@@ -1437,7 +1437,7 @@ static int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 		return 0;
 
 	hostname_len    = strlen(hostname);
-	hostname_dn     = trash.str;
+	hostname_dn     = trash.area;
 	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
 					      hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
@@ -1826,9 +1826,9 @@ static int srv_tmpl_parse_range(struct server *srv, const char *arg, int *nb_low
 
 	*nb_high = 0;
 	chunk_printf(&trash, "%s", arg);
-	*nb_low = atoi(trash.str);
+	*nb_low = atoi(trash.area);
 
-	if ((nb_high_arg = strchr(trash.str, '-'))) {
+	if ((nb_high_arg = strchr(trash.area, '-'))) {
 		*nb_high_arg++ = '\0';
 		*nb_high = atoi(nb_high_arg);
 	}
@@ -1847,7 +1847,7 @@ static inline void srv_set_id_from_prefix(struct server *srv, const char *prefix
 {
 	chunk_printf(&trash, "%s%d", prefix, nb);
 	free(srv->id);
-	srv->id = strdup(trash.str);
+	srv->id = strdup(trash.area);
 }
 
 /*
@@ -2861,7 +2861,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			}
 
 			/* don't apply anything if one error has been detected */
-			if (msg->len)
+			if (msg->data)
 				goto out;
 
 			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -3003,10 +3003,10 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	}
 
  out:
-	if (msg->len) {
+	if (msg->data) {
 		chunk_appendf(msg, "\n");
 		ha_warning("server-state application failed for server '%s/%s'%s",
-			   srv->proxy->id, srv->id, msg->str);
+			   srv->proxy->id, srv->id, msg->area);
 	}
 }
 
@@ -3370,10 +3370,10 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 				s->proxy->id, s->id, oldip, newip, updater);
 
 		/* write the buffer on stderr */
-		ha_warning("%s.\n", trash.str);
+		ha_warning("%s.\n", trash.area);
 
 		/* send a log */
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.area);
 	}
 
 	/* save the new IP family */
@@ -3559,7 +3559,7 @@ out:
 	if (updater)
 		chunk_appendf(msg, " by '%s'", updater);
 	chunk_appendf(msg, "\n");
-	return msg->str;
+	return msg->area;
 }
 
 
@@ -3600,8 +3600,8 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 			chunk_printf(&trash, "Server %s/%s administratively READY thanks to valid DNS answer",
 			             s->proxy->id, s->id);
 
-			ha_warning("%s.\n", trash.str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			ha_warning("%s.\n", trash.area);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.area);
 			return 0;
 
 		case RSLV_STATUS_NX:
@@ -3743,7 +3743,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	}
 	else
 		chunk_printf(chk, "DNS cache");
-	update_server_addr(s, firstip, firstip_sin_family, (char *)chk->str);
+	update_server_addr(s, firstip, firstip_sin_family, (char *) chk->area);
 
  update_status:
 	snr_update_srv_status(s, has_no_ip);
@@ -3873,7 +3873,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 
 	chunk_reset(&trash);
 	hostname_len    = strlen(hostname);
-	hostname_dn     = trash.str;
+	hostname_dn     = trash.area;
 	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
 					      hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
@@ -4068,7 +4068,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 		chunk_appendf(msg, " by '%s'", updater);
 	chunk_appendf(msg, "\n");
 
-	return msg->str;
+	return msg->area;
 }
 
 
@@ -4329,8 +4329,9 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 	}
 
 	/* return server's effective weight at the moment */
-	snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
-	if (ci_putstr(si_ic(si), trash.str) == -1) {
+	snprintf(trash.area, trash.size, "%d (initial %d)\n", sv->uweight,
+		 sv->iweight);
+	if (ci_putstr(si_ic(si), trash.area) == -1) {
 		si_applet_cant_put(si);
 		return 0;
 	}
@@ -4557,12 +4558,14 @@ void srv_update_status(struct server *s)
 				             s->proxy->id, s->id);
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
-				ha_warning("%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
 
 				/* we don't send an alert if the server was previously paused */
 				log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
-				send_log(s->proxy, log_level, "%s.\n", tmptrash->str);
-				send_email_alert(s, log_level, "%s", tmptrash->str);
+				send_log(s->proxy, log_level, "%s.\n",
+					 tmptrash->area);
+				send_email_alert(s, log_level, "%s",
+						 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4590,8 +4593,9 @@ void srv_update_status(struct server *s)
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
 
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4648,9 +4652,11 @@ void srv_update_status(struct server *s)
 				             s->proxy->id, s->id);
 
 				srv_append_status(tmptrash, s, NULL, xferred, 0);
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
-				send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
+				send_email_alert(s, LOG_NOTICE, "%s",
+						 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4703,8 +4709,9 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, -1, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
-					ha_warning("%s.\n", tmptrash->str);
-					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->area);
+					send_log(s->proxy, LOG_NOTICE, "%s.\n",
+						 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4741,8 +4748,9 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FMAINT));
 
 				if (!(global.mode & MODE_STARTING)) {
-					ha_warning("%s.\n", tmptrash->str);
-					send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->area);
+					send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n",
+						 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4817,8 +4825,9 @@ void srv_update_status(struct server *s)
 					     (s->next_state == SRV_ST_STOPPED) ? "DOWN" : "UP",
 					     (s->next_admin & SRV_ADMF_DRAIN) ? "DRAIN" : "READY");
 			}
-			ha_warning("%s.\n", tmptrash->str);
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+			ha_warning("%s.\n", tmptrash->area);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n",
+				 tmptrash->area);
 			free_trash_chunk(tmptrash);
 			tmptrash = NULL;
 		}
@@ -4855,8 +4864,9 @@ void srv_update_status(struct server *s)
 				if (s->track) /* normally it's mandatory here */
 					chunk_appendf(tmptrash, " via %s/%s",
 				              s->track->proxy->id, s->track->id);
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4872,8 +4882,9 @@ void srv_update_status(struct server *s)
 				if (s->track) /* normally it's mandatory here */
 					chunk_appendf(tmptrash, " via %s/%s",
 				              s->track->proxy->id, s->track->id);
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4885,8 +4896,9 @@ void srv_update_status(struct server *s)
 				             "%sServer %s/%s remains in forced maintenance",
 				             s->flags & SRV_F_BACKUP ? "Backup " : "",
 				             s->proxy->id, s->id);
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -4919,9 +4931,11 @@ void srv_update_status(struct server *s)
 				srv_append_status(tmptrash, s, NULL, xferred, (s->next_admin & SRV_ADMF_FDRAIN));
 
 				if (!(global.mode & MODE_STARTING)) {
-					ha_warning("%s.\n", tmptrash->str);
-					send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
-					send_email_alert(s, LOG_NOTICE, "%s", tmptrash->str);
+					ha_warning("%s.\n", tmptrash->area);
+					send_log(s->proxy, LOG_NOTICE, "%s.\n",
+						 tmptrash->area);
+					send_email_alert(s, LOG_NOTICE, "%s",
+							 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
@@ -4963,8 +4977,9 @@ void srv_update_status(struct server *s)
 					s->track->proxy->id, s->track->id);
 				}
 
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}
@@ -5002,8 +5017,9 @@ void srv_update_status(struct server *s)
 					             s->flags & SRV_F_BACKUP ? "Backup " : "",
 					             s->proxy->id, s->id);
 				}
-				ha_warning("%s.\n", tmptrash->str);
-				send_log(s->proxy, LOG_NOTICE, "%s.\n", tmptrash->str);
+				ha_warning("%s.\n", tmptrash->area);
+				send_log(s->proxy, LOG_NOTICE, "%s.\n",
+					 tmptrash->area);
 				free_trash_chunk(tmptrash);
 				tmptrash = NULL;
 			}

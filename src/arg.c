@@ -174,9 +174,9 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			 * during the parsing. The caller must at one point resolve
 			 * them and free the string.
 			 */
-			arg->data.str.str = word;
-			arg->data.str.len = in - beg;
-			arg->data.str.size = arg->data.str.len + 1;
+			arg->data.str.area = word;
+			arg->data.str.data = in - beg;
+			arg->data.str.size = arg->data.str.data + 1;
 			word = NULL;
 			break;
 

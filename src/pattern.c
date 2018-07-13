@@ -226,7 +226,7 @@ int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **
 	pattern->type = SMP_T_BIN;
 	trash = get_trash_chunk();
 	pattern->len = trash->size;
-	pattern->ptr.str = trash->str;
+	pattern->ptr.str = trash->area;
 	return !!parse_binary(text, &pattern->ptr.str, &pattern->len, err);
 }
 
@@ -463,12 +463,12 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
 		/* we may have to force a trailing zero on the test pattern */
-		prev = smp->data.u.str.str[smp->data.u.str.len];
+		prev = smp->data.u.str.area[smp->data.u.str.data];
 		if (prev)
-			smp->data.u.str.str[smp->data.u.str.len] = '\0';
-		node = ebst_lookup(&expr->pattern_tree, smp->data.u.str.str);
+			smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		node = ebst_lookup(&expr->pattern_tree, smp->data.u.str.area);
 		if (prev)
-			smp->data.u.str.str[smp->data.u.str.len] = prev;
+			smp->data.u.str.area[smp->data.u.str.data] = prev;
 
 		if (node) {
 			if (fill) {
@@ -488,7 +488,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -504,12 +504,12 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->len != smp->data.u.str.len)
+		if (pattern->len != smp->data.u.str.data)
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.str, smp->data.u.str.len) == 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.str, smp->data.u.str.len) == 0)) {
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.area, smp->data.u.str.data) == 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.area, smp->data.u.str.data) == 0)) {
 			ret = pattern;
 			break;
 		}
@@ -535,7 +535,7 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -550,10 +550,10 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->len != smp->data.u.str.len)
+		if (pattern->len != smp->data.u.str.data)
 			continue;
 
-		if (memcmp(pattern->ptr.str, smp->data.u.str.str, smp->data.u.str.len) == 0) {
+		if (memcmp(pattern->ptr.str, smp->data.u.str.area, smp->data.u.str.data) == 0) {
 			ret = pattern;
 			break;
 		}
@@ -580,7 +580,7 @@ struct pattern *pat_match_regm(struct sample *smp, struct pattern_expr *expr, in
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (regex_exec_match2(pattern->ptr.reg, smp->data.u.str.str, smp->data.u.str.len,
+		if (regex_exec_match2(pattern->ptr.reg, smp->data.u.str.area, smp->data.u.str.data,
 		                      MAX_MATCH, pmatch, 0)) {
 			ret = pattern;
 			smp->ctx.a[0] = pmatch;
@@ -605,7 +605,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -620,7 +620,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (regex_exec2(pattern->ptr.reg, smp->data.u.str.str, smp->data.u.str.len)) {
+		if (regex_exec2(pattern->ptr.reg, smp->data.u.str.area, smp->data.u.str.data)) {
 			ret = pattern;
 			break;
 		}
@@ -649,12 +649,13 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
 		/* we may have to force a trailing zero on the test pattern */
-		prev = smp->data.u.str.str[smp->data.u.str.len];
+		prev = smp->data.u.str.area[smp->data.u.str.data];
 		if (prev)
-			smp->data.u.str.str[smp->data.u.str.len] = '\0';
-		node = ebmb_lookup_longest(&expr->pattern_tree, smp->data.u.str.str);
+			smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		node = ebmb_lookup_longest(&expr->pattern_tree,
+					   smp->data.u.str.area);
 		if (prev)
-			smp->data.u.str.str[smp->data.u.str.len] = prev;
+			smp->data.u.str.area[smp->data.u.str.data] = prev;
 
 		if (node) {
 			if (fill) {
@@ -674,7 +675,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -689,12 +690,12 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->len > smp->data.u.str.len)
+		if (pattern->len > smp->data.u.str.data)
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.str, pattern->len) != 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.str, pattern->len) != 0))
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.area, pattern->len) != 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.area, pattern->len) != 0))
 			continue;
 
 		ret = pattern;
@@ -722,7 +723,7 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -737,12 +738,12 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->len > smp->data.u.str.len)
+		if (pattern->len > smp->data.u.str.data)
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.str + smp->data.u.str.len - pattern->len, pattern->len) != 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.str + smp->data.u.str.len - pattern->len, pattern->len) != 0))
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.str.area + smp->data.u.str.data - pattern->len, pattern->len) != 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.u.str.area + smp->data.u.str.data - pattern->len, pattern->len) != 0))
 			continue;
 
 		ret = pattern;
@@ -774,7 +775,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
 		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.str, smp->data.u.str.len, seed),
+		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
 		if (!lru) {
 			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
@@ -789,13 +790,13 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->len > smp->data.u.str.len)
+		if (pattern->len > smp->data.u.str.data)
 			continue;
 
-		end = smp->data.u.str.str + smp->data.u.str.len - pattern->len;
+		end = smp->data.u.str.area + smp->data.u.str.data - pattern->len;
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if (icase) {
-			for (c = smp->data.u.str.str; c <= end; c++) {
+			for (c = smp->data.u.str.area; c <= end; c++) {
 				if (tolower(*c) != tolower(*pattern->ptr.str))
 					continue;
 				if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0) {
@@ -804,7 +805,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 				}
 			}
 		} else {
-			for (c = smp->data.u.str.str; c <= end; c++) {
+			for (c = smp->data.u.str.area; c <= end; c++) {
 				if (*c != *pattern->ptr.str)
 					continue;
 				if (strncmp(pattern->ptr.str, c, pattern->len) == 0) {
@@ -847,13 +848,13 @@ static int match_word(struct sample *smp, struct pattern *pattern, int mflags, u
 	while (pl > 0 && is_delimiter(ps[pl - 1], delimiters))
 		pl--;
 
-	if (pl > smp->data.u.str.len)
+	if (pl > smp->data.u.str.data)
 		return PAT_NOMATCH;
 
 	may_match = 1;
 	icase = mflags & PAT_MF_IGNORE_CASE;
-	end = smp->data.u.str.str + smp->data.u.str.len - pl;
-	for (c = smp->data.u.str.str; c <= end; c++) {
+	end = smp->data.u.str.area + smp->data.u.str.data - pl;
+	for (c = smp->data.u.str.area; c <= end; c++) {
 		if (is_delimiter(*c, delimiters)) {
 			may_match = 1;
 			continue;
@@ -935,8 +936,8 @@ struct pattern *pat_match_len(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
-		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.u.str.len) &&
-		    (!pattern->val.range.max_set || smp->data.u.str.len <= pattern->val.range.max))
+		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.u.str.data) &&
+		    (!pattern->val.range.max_set || smp->data.u.str.data <= pattern->val.range.max))
 			return pattern;
 	}
 	return NULL;
@@ -2332,9 +2333,9 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 	 * followed by one value per line. The start spaces, separator spaces
 	 * and and spaces are stripped. Each can contain comment started by '#'
 	 */
-	while (fgets(trash.str, trash.size, file) != NULL) {
+	while (fgets(trash.area, trash.size, file) != NULL) {
 		line++;
-		c = trash.str;
+		c = trash.area;
 
 		/* ignore lines beginning with a dash */
 		if (*c == '#')
@@ -2409,9 +2410,9 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 	 * line. If the line contains spaces, they will be part of the pattern.
 	 * The pattern stops at the first CR, LF or EOF encountered.
 	 */
-	while (fgets(trash.str, trash.size, file) != NULL) {
+	while (fgets(trash.area, trash.size, file) != NULL) {
 		line++;
-		c = trash.str;
+		c = trash.area;
 
 		/* ignore lines beginning with a dash */
 		if (*c == '#')
@@ -2462,7 +2463,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		             "pattern loaded from file '%s' used by %s at file '%s' line %d",
 		             filename, refflags & PAT_REF_MAP ? "map" : "acl", file, line);
 
-		ref = pat_ref_new(filename, trash.str, refflags);
+		ref = pat_ref_new(filename, trash.area, refflags);
 		if (!ref) {
 			memprintf(err, "out of memory");
 			return 0;
@@ -2509,7 +2510,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		chunk_appendf(&trash, ", by %s at file '%s' line %d",
 		              refflags & PAT_REF_MAP ? "map" : "acl", file, line);
 		free(ref->display);
-		ref->display = strdup(trash.str);
+		ref->display = strdup(trash.area);
 		if (!ref->display) {
 			memprintf(err, "out of memory");
 			return 0;
@@ -2596,11 +2597,13 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 					case SMP_T_STR:
 						static_sample_data.type = SMP_T_STR;
 						static_sample_data.u.str = *get_trash_chunk();
-						static_sample_data.u.str.len = pat->data->u.str.len;
-						if (static_sample_data.u.str.len >= static_sample_data.u.str.size)
-							static_sample_data.u.str.len = static_sample_data.u.str.size - 1;
-						memcpy(static_sample_data.u.str.str, pat->data->u.str.str, static_sample_data.u.str.len);
-						static_sample_data.u.str.str[static_sample_data.u.str.len] = 0;
+						static_sample_data.u.str.data = pat->data->u.str.data;
+						if (static_sample_data.u.str.data >= static_sample_data.u.str.size)
+							static_sample_data.u.str.data = static_sample_data.u.str.size - 1;
+						memcpy(static_sample_data.u.str.area,
+						       pat->data->u.str.area,
+						       static_sample_data.u.str.data);
+						static_sample_data.u.str.area[static_sample_data.u.str.data] = 0;
 					case SMP_T_IPV4:
 					case SMP_T_IPV6:
 					case SMP_T_SINT:

@@ -1300,7 +1300,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 			return -1;
 
 		/* Look for ']' and copy the address in a trash buffer. */
-		p = trash.str;
+		p = trash.area;
 		for (end = curr;
 		     end < url + ulen && *end != ']';
 		     end++, p++)
@@ -1316,7 +1316,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 		}
 
 		/* Try IPv6 decoding. */
-		if (!inet_pton(AF_INET6, trash.str, &((struct sockaddr_in6 *)addr)->sin6_addr))
+		if (!inet_pton(AF_INET6, trash.area, &((struct sockaddr_in6 *)addr)->sin6_addr))
 			return -1;
 		end++;
 
@@ -1365,11 +1365,11 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 			for (end = curr;
 			     end < url + ulen && *end != '/' && *end != ':';
 			     end++);
-			memcpy(trash.str, curr, end - curr);
-			trash.str[end - curr] = '\0';
+			memcpy(trash.area, curr, end - curr);
+			trash.area[end - curr] = '\0';
 
 			/* try to resolve an IPv4/IPv6 hostname */
-			he = gethostbyname(trash.str);
+			he = gethostbyname(trash.area);
 			if (!he)
 				return -1;
 
@@ -1557,8 +1557,8 @@ char *encode_chunk(char *start, char *stop,
 		    const char escape, const fd_set *map,
 		    const struct chunk *chunk)
 {
-	char *str = chunk->str;
-	char *end = chunk->str + chunk->len;
+	char *str = chunk->area;
+	char *end = chunk->area + chunk->data;
 
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
@@ -1620,8 +1620,8 @@ char *escape_chunk(char *start, char *stop,
 		   const char escape, const fd_set *map,
 		   const struct chunk *chunk)
 {
-	char *str = chunk->str;
-	char *end = chunk->str + chunk->len;
+	char *str = chunk->area;
+	char *end = chunk->area + chunk->data;
 
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
@@ -1672,8 +1672,8 @@ char *escape_chunk(char *start, char *stop,
  */
 const char *csv_enc_append(const char *str, int quote, struct chunk *output)
 {
-	char *end = output->str + output->size;
-	char *out = output->str + output->len;
+	char *end = output->area + output->size;
+	char *out = output->area + output->data;
 	char *ptr = out;
 
 	if (quote == 1) {
@@ -1703,7 +1703,7 @@ const char *csv_enc_append(const char *str, int quote, struct chunk *output)
 		*ptr++ = '"';
 
 	*ptr = '\0';
-	output->len = ptr - output->str;
+	output->data = ptr - output->area;
 	return out;
 }
 
@@ -3833,14 +3833,14 @@ int dump_text(struct chunk *out, const char *buf, int bsize)
 	while (buf[ptr] && ptr < bsize) {
 		c = buf[ptr];
 		if (isprint(c) && isascii(c) && c != '\\' && c != ' ' && c != '=') {
-			if (out->len > out->size - 1)
+			if (out->data > out->size - 1)
 				break;
-			out->str[out->len++] = c;
+			out->area[out->data++] = c;
 		}
 		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ' || c == '=') {
-			if (out->len > out->size - 2)
+			if (out->data > out->size - 2)
 				break;
-			out->str[out->len++] = '\\';
+			out->area[out->data++] = '\\';
 			switch (c) {
 			case ' ': c = ' '; break;
 			case '\t': c = 't'; break;
@@ -3850,15 +3850,15 @@ int dump_text(struct chunk *out, const char *buf, int bsize)
 			case '\\': c = '\\'; break;
 			case '=': c = '='; break;
 			}
-			out->str[out->len++] = c;
+			out->area[out->data++] = c;
 		}
 		else {
-			if (out->len > out->size - 4)
+			if (out->data > out->size - 4)
 				break;
-			out->str[out->len++] = '\\';
-			out->str[out->len++] = 'x';
-			out->str[out->len++] = hextab[(c >> 4) & 0xF];
-			out->str[out->len++] = hextab[c & 0xF];
+			out->area[out->data++] = '\\';
+			out->area[out->data++] = 'x';
+			out->area[out->data++] = hextab[(c >> 4) & 0xF];
+			out->area[out->data++] = hextab[c & 0xF];
 		}
 		ptr++;
 	}
@@ -3877,10 +3877,10 @@ int dump_binary(struct chunk *out, const char *buf, int bsize)
 	while (ptr < bsize) {
 		c = buf[ptr];
 
-		if (out->len > out->size - 2)
+		if (out->data > out->size - 2)
 			break;
-		out->str[out->len++] = hextab[(c >> 4) & 0xF];
-		out->str[out->len++] = hextab[c & 0xF];
+		out->area[out->data++] = hextab[(c >> 4) & 0xF];
+		out->area[out->data++] = hextab[c & 0xF];
 
 		ptr++;
 	}
@@ -3901,7 +3901,7 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 	int end;
 	unsigned char c;
 
-	end = out->len + 80;
+	end = out->data + 80;
 	if (end > out->size)
 		return ptr;
 
@@ -3910,13 +3910,13 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 	while (ptr < len && ptr < bsize) {
 		c = buf[ptr];
 		if (isprint(c) && isascii(c) && c != '\\') {
-			if (out->len > end - 2)
+			if (out->data > end - 2)
 				break;
-			out->str[out->len++] = c;
+			out->area[out->data++] = c;
 		} else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\') {
-			if (out->len > end - 3)
+			if (out->data > end - 3)
 				break;
-			out->str[out->len++] = '\\';
+			out->area[out->data++] = '\\';
 			switch (c) {
 			case '\t': c = 't'; break;
 			case '\n': c = 'n'; break;
@@ -3924,24 +3924,24 @@ int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
 			case '\e': c = 'e'; break;
 			case '\\': c = '\\'; break;
 			}
-			out->str[out->len++] = c;
+			out->area[out->data++] = c;
 		} else {
-			if (out->len > end - 5)
+			if (out->data > end - 5)
 				break;
-			out->str[out->len++] = '\\';
-			out->str[out->len++] = 'x';
-			out->str[out->len++] = hextab[(c >> 4) & 0xF];
-			out->str[out->len++] = hextab[c & 0xF];
+			out->area[out->data++] = '\\';
+			out->area[out->data++] = 'x';
+			out->area[out->data++] = hextab[(c >> 4) & 0xF];
+			out->area[out->data++] = hextab[c & 0xF];
 		}
 		if (buf[ptr++] == '\n') {
 			/* we had a line break, let's return now */
-			out->str[out->len++] = '\n';
+			out->area[out->data++] = '\n';
 			*line = ptr;
 			return ptr;
 		}
 	}
 	/* we have an incomplete line, we return it as-is */
-	out->str[out->len++] = '\n';
+	out->area[out->data++] = '\n';
 	return ptr;
 }
 

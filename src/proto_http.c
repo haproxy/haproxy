@@ -79,8 +79,8 @@ const char HTTP_100[] =
 	"HTTP/1.1 100 Continue\r\n\r\n";
 
 const struct chunk http_100_chunk = {
-	.str = (char *)&HTTP_100,
-	.len = sizeof(HTTP_100)-1
+	.area = (char *)&HTTP_100,
+	.data = sizeof(HTTP_100)-1
 };
 
 /* Warning: no "connection" header is provided with the 3xx messages below */
@@ -422,8 +422,8 @@ void init_proto_http()
 			abort();
 		}
 
-		http_err_chunks[msg].str = (char *)http_err_msgs[msg];
-		http_err_chunks[msg].len = strlen(http_err_msgs[msg]);
+		http_err_chunks[msg].area = (char *)http_err_msgs[msg];
+		http_err_chunks[msg].data = strlen(http_err_msgs[msg]);
 	}
 
 	/* initialize the log header encoding map : '{|}"#' should be encoded with
@@ -927,7 +927,7 @@ static void http_server_error(struct stream *s, struct stream_interface *si,
 	channel_auto_close(si_ic(si));
 	channel_auto_read(si_ic(si));
 	if (msg)
-		co_inject(si_ic(si), msg->str, msg->len);
+		co_inject(si_ic(si), msg->area, msg->data);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
 	if (!(s->flags & SF_FINST_MASK))
@@ -942,9 +942,9 @@ struct chunk *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
-	if (s->be->errmsg[msgnum].str)
+	if (s->be->errmsg[msgnum].area)
 		return &s->be->errmsg[msgnum];
-	else if (strm_fe(s)->errmsg[msgnum].str)
+	else if (strm_fe(s)->errmsg[msgnum].area)
 		return &strm_fe(s)->errmsg[msgnum];
 	else
 		return &http_err_chunks[msgnum];
@@ -1081,19 +1081,19 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	int len, rewind;
 
 	/* 1: create the response header */
-	trash.len = strlen(HTTP_302);
-	memcpy(trash.str, HTTP_302, trash.len);
+	trash.data = strlen(HTTP_302);
+	memcpy(trash.area, HTTP_302, trash.data);
 
 	srv = objt_server(s->target);
 
 	/* 2: add the server's prefix */
-	if (trash.len + srv->rdr_len > trash.size)
+	if (trash.data + srv->rdr_len > trash.size)
 		return;
 
 	/* special prefix "/" means don't change URL */
 	if (srv->rdr_len != 1 || *srv->rdr_pfx != '/') {
-		memcpy(trash.str + trash.len, srv->rdr_pfx, srv->rdr_len);
-		trash.len += srv->rdr_len;
+		memcpy(trash.area + trash.data, srv->rdr_pfx, srv->rdr_len);
+		trash.data += srv->rdr_len;
 	}
 
 	/* 3: add the request URI. Since it was already forwarded, we need
@@ -1110,18 +1110,20 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	if (!path)
 		return;
 
-	if (trash.len + len > trash.size - 4) /* 4 for CRLF-CRLF */
+	if (trash.data + len > trash.size - 4) /* 4 for CRLF-CRLF */
 		return;
 
-	memcpy(trash.str + trash.len, path, len);
-	trash.len += len;
+	memcpy(trash.area + trash.data, path, len);
+	trash.data += len;
 
 	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-		memcpy(trash.str + trash.len, "\r\nProxy-Connection: close\r\n\r\n", 29);
-		trash.len += 29;
+		memcpy(trash.area + trash.data,
+		       "\r\nProxy-Connection: close\r\n\r\n", 29);
+		trash.data += 29;
 	} else {
-		memcpy(trash.str + trash.len, "\r\nConnection: close\r\n\r\n", 23);
-		trash.len += 23;
+		memcpy(trash.area + trash.data,
+		       "\r\nConnection: close\r\n\r\n", 23);
+		trash.data += 23;
 	}
 
 	/* prepare to return without error. */
@@ -1301,24 +1303,25 @@ get_http_auth(struct stream *s)
 
 	chunk_initlen(&txn->auth.method_data, p + 1, 0, ctx.vlen - len - 1);
 
-	if (!strncasecmp("Basic", auth_method.str, auth_method.len)) {
+	if (!strncasecmp("Basic", auth_method.area, auth_method.data)) {
 		struct chunk *http_auth = get_trash_chunk();
 
-		len = base64dec(txn->auth.method_data.str, txn->auth.method_data.len,
-				http_auth->str, global.tune.bufsize - 1);
+		len = base64dec(txn->auth.method_data.area,
+				txn->auth.method_data.data,
+				http_auth->area, global.tune.bufsize - 1);
 
 		if (len < 0)
 			return 0;
 
 
-		http_auth->str[len] = '\0';
+		http_auth->area[len] = '\0';
 
-		p = strchr(http_auth->str, ':');
+		p = strchr(http_auth->area, ':');
 
 		if (!p)
 			return 0;
 
-		txn->auth.user = http_auth->str;
+		txn->auth.user = http_auth->area;
 		*p = '\0';
 		txn->auth.pass = p+1;
 
@@ -1644,7 +1647,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			}
 			if (unlikely(ci_tail(req) < c_ptr(req, msg->next) ||
 			             ci_tail(req) > b_wrap(&req->buf) - global.tune.maxrewrite))
-				channel_slow_realign(req, trash.str);
+				channel_slow_realign(req, trash.area);
 		}
 
 		if (likely(msg->next < ci_data(req))) /* some unparsed data are available */
@@ -2425,11 +2428,13 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 		if (!regex_exec_match2(re, val, val_end-val, MAX_MATCH, pmatch, 0))
 			continue;
 
-		output->len = exp_replace(output->str, output->size, val, str, pmatch);
-		if (output->len == -1)
+		output->data = exp_replace(output->area, output->size, val,
+					  str, pmatch);
+		if (output->data == -1)
 			return -1;
 
-		delta = b_rep_blk(&msg->chn->buf, val, val_end, output->str, output->len);
+		delta = b_rep_blk(&msg->chn->buf, val, val_end, output->area,
+				  output->data);
 
 		hdr->len += delta;
 		http_msg_move_end(msg, delta);
@@ -2453,11 +2458,12 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
 	if (!replace)
 		goto leave;
 
-	replace->len = build_logline(s, replace->str, replace->size, fmt);
-	if (replace->len >= replace->size - 1)
+	replace->data = build_logline(s, replace->area, replace->size, fmt);
+	if (replace->data >= replace->size - 1)
 		goto leave;
 
-	ret = http_transform_header_str(s, msg, name, name_len, replace->str, re, action);
+	ret = http_transform_header_str(s, msg, name, name_len, replace->area,
+					re, action);
 
   leave:
 	free_trash_chunk(replace);
@@ -2608,11 +2614,14 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			len = rule->arg.hdr_add.name_len + 2,
-			len += build_logline(s, replace->str + len, replace->size - len, &rule->arg.hdr_add.fmt);
-			memcpy(replace->str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
-			replace->str[rule->arg.hdr_add.name_len] = ':';
-			replace->str[rule->arg.hdr_add.name_len + 1] = ' ';
-			replace->len = len;
+			len += build_logline(s, replace->area + len,
+					     replace->size - len,
+					     &rule->arg.hdr_add.fmt);
+			memcpy(replace->area, rule->arg.hdr_add.name,
+			       rule->arg.hdr_add.name_len);
+			replace->area[rule->arg.hdr_add.name_len] = ':';
+			replace->area[rule->arg.hdr_add.name_len + 1] = ' ';
+			replace->data = len;
 
 			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
@@ -2623,12 +2632,13 @@ resume_execution:
 				}
 			}
 
-			if (http_header_add_tail2(&txn->req, &txn->hdr_idx, replace->str, replace->len) < 0) {
+			if (http_header_add_tail2(&txn->req, &txn->hdr_idx, replace->area, replace->data) < 0) {
 				static unsigned char rate_limit = 0;
 
 				if ((rate_limit++ & 255) == 0) {
-					replace->str[rule->arg.hdr_add.name_len] = 0;
-					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the request header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id, replace->str, s->uniq_id);
+					replace->area[rule->arg.hdr_add.name_len] = 0;
+					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the request header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id,
+						 replace->area, s->uniq_id);
 				}
 
 				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
@@ -2658,13 +2668,14 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
 			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
-			pat_ref_delete(ref, key->str);
+			pat_ref_delete(ref, key->area);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
@@ -2686,14 +2697,15 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* perform update */
 			/* add entry only if it does not already exist */
 			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
-			if (pat_ref_find_elt(ref, key->str) == NULL)
-				pat_ref_add(ref, key->str, NULL, NULL);
+			if (pat_ref_find_elt(ref, key->area) == NULL)
+				pat_ref_add(ref, key->area, NULL, NULL);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
@@ -2722,20 +2734,23 @@ resume_execution:
 			}
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* collect value */
-			value->len = build_logline(s, value->str, value->size, &rule->arg.map.value);
-			value->str[value->len] = '\0';
+			value->data = build_logline(s, value->area,
+						   value->size,
+						   &rule->arg.map.value);
+			value->area[value->data] = '\0';
 
 			/* perform update */
-			if (pat_ref_find_elt(ref, key->str) != NULL)
+			if (pat_ref_find_elt(ref, key->area) != NULL)
 				/* update entry if it exists */
-				pat_ref_set(ref, key->str, value->str, NULL);
+				pat_ref_set(ref, key->area, value->area, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key->str, value->str, NULL);
+				pat_ref_add(ref, key->area, value->area, NULL);
 
 			free_trash_chunk(key);
 			free_trash_chunk(value);
@@ -2921,12 +2936,15 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			chunk_printf(replace, "%s: ", rule->arg.hdr_add.name);
-			memcpy(replace->str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
-			replace->len = rule->arg.hdr_add.name_len;
-			replace->str[replace->len++] = ':';
-			replace->str[replace->len++] = ' ';
-			replace->len += build_logline(s, replace->str + replace->len, replace->size - replace->len,
-			                              &rule->arg.hdr_add.fmt);
+			memcpy(replace->area, rule->arg.hdr_add.name,
+			       rule->arg.hdr_add.name_len);
+			replace->data = rule->arg.hdr_add.name_len;
+			replace->area[replace->data++] = ':';
+			replace->area[replace->data++] = ' ';
+			replace->data += build_logline(s,
+						      replace->area + replace->data,
+						      replace->size - replace->data,
+						      &rule->arg.hdr_add.fmt);
 
 			if (rule->action == ACT_HTTP_SET_HDR) {
 				/* remove all occurrences of the header */
@@ -2937,12 +2955,13 @@ resume_execution:
 				}
 			}
 
-			if (http_header_add_tail2(&txn->rsp, &txn->hdr_idx, replace->str, replace->len) < 0) {
+			if (http_header_add_tail2(&txn->rsp, &txn->hdr_idx, replace->area, replace->data) < 0) {
 				static unsigned char rate_limit = 0;
 
 				if ((rate_limit++ & 255) == 0) {
-					replace->str[rule->arg.hdr_add.name_len] = 0;
-					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the response header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id, replace->str, s->uniq_id);
+					replace->area[rule->arg.hdr_add.name_len] = 0;
+					send_log(px, LOG_WARNING, "Proxy %s failed to add or set the response header '%s' for request #%u. You might need to increase tune.maxrewrite.", px->id,
+						 replace->area, s->uniq_id);
 				}
 
 				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
@@ -2974,13 +2993,14 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* perform update */
 			/* returned code: 1=ok, 0=ko */
 			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
-			pat_ref_delete(ref, key->str);
+			pat_ref_delete(ref, key->area);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 
 			free_trash_chunk(key);
@@ -3002,13 +3022,14 @@ resume_execution:
 				return HTTP_RULE_RES_BADREQ;
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* perform update */
 			/* check if the entry already exists */
-			if (pat_ref_find_elt(ref, key->str) == NULL)
-				pat_ref_add(ref, key->str, NULL, NULL);
+			if (pat_ref_find_elt(ref, key->area) == NULL)
+				pat_ref_add(ref, key->area, NULL, NULL);
 
 			free_trash_chunk(key);
 			break;
@@ -3036,21 +3057,24 @@ resume_execution:
 			}
 
 			/* collect key */
-			key->len = build_logline(s, key->str, key->size, &rule->arg.map.key);
-			key->str[key->len] = '\0';
+			key->data = build_logline(s, key->area, key->size,
+						 &rule->arg.map.key);
+			key->area[key->data] = '\0';
 
 			/* collect value */
-			value->len = build_logline(s, value->str, value->size, &rule->arg.map.value);
-			value->str[value->len] = '\0';
+			value->data = build_logline(s, value->area,
+						   value->size,
+						   &rule->arg.map.value);
+			value->area[value->data] = '\0';
 
 			/* perform update */
 			HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
-			if (pat_ref_find_elt(ref, key->str) != NULL)
+			if (pat_ref_find_elt(ref, key->area) != NULL)
 				/* update entry if it exists */
-				pat_ref_set(ref, key->str, value->str, NULL);
+				pat_ref_set(ref, key->area, value->area, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key->str, value->str, NULL);
+				pat_ref_add(ref, key->area, value->area, NULL);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 			free_trash_chunk(key);
 			free_trash_chunk(value);
@@ -3228,40 +3252,44 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
 			/* check if we can add scheme + "://" + host + path */
-			if (chunk->len + rule->rdr_len + 3 + hostlen + pathlen > chunk->size - 4)
+			if (chunk->data + rule->rdr_len + 3 + hostlen + pathlen > chunk->size - 4)
 				goto leave;
 
 			/* add scheme */
-			memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
-			chunk->len += rule->rdr_len;
+			memcpy(chunk->area + chunk->data, rule->rdr_str,
+			       rule->rdr_len);
+			chunk->data += rule->rdr_len;
 		}
 		else {
 			/* add scheme with executing log format */
-			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
 
 			/* check if we can add scheme + "://" + host + path */
-			if (chunk->len + 3 + hostlen + pathlen > chunk->size - 4)
+			if (chunk->data + 3 + hostlen + pathlen > chunk->size - 4)
 				goto leave;
 		}
 		/* add "://" */
-		memcpy(chunk->str + chunk->len, "://", 3);
-		chunk->len += 3;
+		memcpy(chunk->area + chunk->data, "://", 3);
+		chunk->data += 3;
 
 		/* add host */
-		memcpy(chunk->str + chunk->len, host, hostlen);
-		chunk->len += hostlen;
+		memcpy(chunk->area + chunk->data, host, hostlen);
+		chunk->data += hostlen;
 
 		/* add path */
-		memcpy(chunk->str + chunk->len, path, pathlen);
-		chunk->len += pathlen;
+		memcpy(chunk->area + chunk->data, path, pathlen);
+		chunk->data += pathlen;
 
 		/* append a slash at the end of the location if needed and missing */
-		if (chunk->len && chunk->str[chunk->len - 1] != '/' &&
+		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (chunk->len > chunk->size - 5)
+			if (chunk->data > chunk->size - 5)
 				goto leave;
-			chunk->str[chunk->len] = '/';
-			chunk->len++;
+			chunk->area[chunk->data] = '/';
+			chunk->data++;
 		}
 
 		break;
@@ -3290,7 +3318,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		}
 
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			if (chunk->len + rule->rdr_len + pathlen > chunk->size - 4)
+			if (chunk->data + rule->rdr_len + pathlen > chunk->size - 4)
 				goto leave;
 
 			/* add prefix. Note that if prefix == "/", we don't want to
@@ -3298,30 +3326,34 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			 * configure a self-redirection.
 			 */
 			if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
-				memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
-				chunk->len += rule->rdr_len;
+				memcpy(chunk->area + chunk->data,
+				       rule->rdr_str, rule->rdr_len);
+				chunk->data += rule->rdr_len;
 			}
 		}
 		else {
 			/* add prefix with executing log format */
-			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
 
 			/* Check length */
-			if (chunk->len + pathlen > chunk->size - 4)
+			if (chunk->data + pathlen > chunk->size - 4)
 				goto leave;
 		}
 
 		/* add path */
-		memcpy(chunk->str + chunk->len, path, pathlen);
-		chunk->len += pathlen;
+		memcpy(chunk->area + chunk->data, path, pathlen);
+		chunk->data += pathlen;
 
 		/* append a slash at the end of the location if needed and missing */
-		if (chunk->len && chunk->str[chunk->len - 1] != '/' &&
+		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (chunk->len > chunk->size - 5)
+			if (chunk->data > chunk->size - 5)
 				goto leave;
-			chunk->str[chunk->len] = '/';
-			chunk->len++;
+			chunk->area[chunk->data] = '/';
+			chunk->data++;
 		}
 
 		break;
@@ -3329,29 +3361,34 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	case REDIRECT_TYPE_LOCATION:
 	default:
 		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			if (chunk->len + rule->rdr_len > chunk->size - 4)
+			if (chunk->data + rule->rdr_len > chunk->size - 4)
 				goto leave;
 
 			/* add location */
-			memcpy(chunk->str + chunk->len, rule->rdr_str, rule->rdr_len);
-			chunk->len += rule->rdr_len;
+			memcpy(chunk->area + chunk->data, rule->rdr_str,
+			       rule->rdr_len);
+			chunk->data += rule->rdr_len;
 		}
 		else {
 			/* add location with executing log format */
-			chunk->len += build_logline(s, chunk->str + chunk->len, chunk->size - chunk->len, &rule->rdr_fmt);
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
 
 			/* Check left length */
-			if (chunk->len > chunk->size - 4)
+			if (chunk->data > chunk->size - 4)
 				goto leave;
 		}
 		break;
 	}
 
 	if (rule->cookie_len) {
-		memcpy(chunk->str + chunk->len, "\r\nSet-Cookie: ", 14);
-		chunk->len += 14;
-		memcpy(chunk->str + chunk->len, rule->cookie_str, rule->cookie_len);
-		chunk->len += rule->cookie_len;
+		memcpy(chunk->area + chunk->data, "\r\nSet-Cookie: ", 14);
+		chunk->data += 14;
+		memcpy(chunk->area + chunk->data, rule->cookie_str,
+		       rule->cookie_len);
+		chunk->data += rule->cookie_len;
 	}
 
 	/* add end of headers and the keep-alive/close status. */
@@ -3365,17 +3402,19 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		/* keep-alive possible */
 		if (!(req->flags & HTTP_MSGF_VER_11)) {
 			if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-				memcpy(chunk->str + chunk->len, "\r\nProxy-Connection: keep-alive", 30);
-				chunk->len += 30;
+				memcpy(chunk->area + chunk->data,
+				       "\r\nProxy-Connection: keep-alive", 30);
+				chunk->data += 30;
 			} else {
-				memcpy(chunk->str + chunk->len, "\r\nConnection: keep-alive", 24);
-				chunk->len += 24;
+				memcpy(chunk->area + chunk->data,
+				       "\r\nConnection: keep-alive", 24);
+				chunk->data += 24;
 			}
 		}
-		memcpy(chunk->str + chunk->len, "\r\n\r\n", 4);
-		chunk->len += 4;
+		memcpy(chunk->area + chunk->data, "\r\n\r\n", 4);
+		chunk->data += 4;
 		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
-		co_inject(res->chn, chunk->str, chunk->len);
+		co_inject(res->chn, chunk->area, chunk->data);
 		/* "eat" the request */
 		b_del(&req->chn->buf, req->sov);
 		req->next -= req->sov;
@@ -3392,11 +3431,13 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 	} else {
 		/* keep-alive not possible */
 		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-			memcpy(chunk->str + chunk->len, "\r\nProxy-Connection: close\r\n\r\n", 29);
-			chunk->len += 29;
+			memcpy(chunk->area + chunk->data,
+			       "\r\nProxy-Connection: close\r\n\r\n", 29);
+			chunk->data += 29;
 		} else {
-			memcpy(chunk->str + chunk->len, "\r\nConnection: close\r\n\r\n", 23);
-			chunk->len += 23;
+			memcpy(chunk->area + chunk->data,
+			       "\r\nConnection: close\r\n\r\n", 23);
+			chunk->data += 23;
 		}
 		http_reply_and_close(s, txn->status, chunk);
 		req->chn->analysers &= AN_REQ_FLT_END;
@@ -3805,9 +3846,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	if (sess->fe->header_unique_id && s->unique_id) {
 		chunk_printf(&trash, "%s: %s", sess->fe->header_unique_id, s->unique_id);
-		if (trash.len < 0)
+		if (trash.data < 0)
 			goto return_bad_req;
-		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len) < 0))
+		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, trash.data) < 0))
 		   goto return_bad_req;
 	}
 
@@ -3846,14 +3887,19 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				if (s->be->fwdfor_hdr_len) {
 					len = s->be->fwdfor_hdr_len;
-					memcpy(trash.str, s->be->fwdfor_hdr_name, len);
+					memcpy(trash.area,
+					       s->be->fwdfor_hdr_name, len);
 				} else {
 					len = sess->fe->fwdfor_hdr_len;
-					memcpy(trash.str, sess->fe->fwdfor_hdr_name, len);
+					memcpy(trash.area,
+					       sess->fe->fwdfor_hdr_name, len);
 				}
-				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				len += snprintf(trash.area + len,
+						trash.size - len,
+						": %d.%d.%d.%d", pn[0], pn[1],
+						pn[2], pn[3]);
 
-				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
+				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -3874,14 +3920,17 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			 */
 			if (s->be->fwdfor_hdr_len) {
 				len = s->be->fwdfor_hdr_len;
-				memcpy(trash.str, s->be->fwdfor_hdr_name, len);
+				memcpy(trash.area, s->be->fwdfor_hdr_name,
+				       len);
 			} else {
 				len = sess->fe->fwdfor_hdr_len;
-				memcpy(trash.str, sess->fe->fwdfor_hdr_name, len);
+				memcpy(trash.area, sess->fe->fwdfor_hdr_name,
+				       len);
 			}
-			len += snprintf(trash.str + len, trash.size - len, ": %s", pn);
+			len += snprintf(trash.area + len, trash.size - len,
+					": %s", pn);
 
-			if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
+			if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
 				goto return_bad_req;
 		}
 	}
@@ -3917,14 +3966,19 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				if (s->be->orgto_hdr_len) {
 					len = s->be->orgto_hdr_len;
-					memcpy(trash.str, s->be->orgto_hdr_name, len);
+					memcpy(trash.area,
+					       s->be->orgto_hdr_name, len);
 				} else {
 					len = sess->fe->orgto_hdr_len;
-					memcpy(trash.str, sess->fe->orgto_hdr_name, len);
+					memcpy(trash.area,
+					       sess->fe->orgto_hdr_name, len);
 				}
-				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				len += snprintf(trash.area + len,
+						trash.size - len,
+						": %d.%d.%d.%d", pn[0], pn[1],
+						pn[2], pn[3]);
 
-				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
+				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -4097,7 +4151,9 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 				/* Expect is allowed in 1.1, look for it */
 				if (http_find_header2("Expect", 6, ci_head(req), &txn->hdr_idx, &ctx) &&
 				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-					co_inject(&s->res, http_100_chunk.str, http_100_chunk.len);
+					co_inject(&s->res,
+						  http_100_chunk.area,
+						  http_100_chunk.data);
 					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 				}
 			}
@@ -4255,13 +4311,15 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	}
 
 	/* Add the new header requested with the server value */
-	hdr_val = trash.str;
+	hdr_val = trash.area;
 	memcpy(hdr_val, hdr_name, hdr_name_len);
 	hdr_val += hdr_name_len;
 	*hdr_val++ = ':';
 	*hdr_val++ = ' ';
-	hdr_val += strlcpy2(hdr_val, srv_name, trash.str + trash.size - hdr_val);
-	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, hdr_val - trash.str);
+	hdr_val += strlcpy2(hdr_val, srv_name,
+			    trash.area + trash.size - hdr_val);
+	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area,
+			      hdr_val - trash.area);
 
 	if (old_o) {
 		/* If this was a forwarded request, we must readjust the amount of
@@ -5131,7 +5189,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		if (unlikely(ci_tail(rep) < c_ptr(rep, msg->next) ||
 		             ci_tail(rep) > b_wrap(&rep->buf) - global.tune.maxrewrite))
-			channel_slow_realign(rep, trash.str);
+			channel_slow_realign(rep, trash.area);
 
 		if (likely(msg->next < ci_data(rep)))
 			http_msg_analyzer(msg, &txn->hdr_idx);
@@ -5897,19 +5955,21 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 			if (s->be->cookie_maxidle || s->be->cookie_maxlife) {
 				/* emit last_date, which is mandatory */
-				trash.str[trash.len++] = COOKIE_DELIM_DATE;
-				s30tob64((date.tv_sec+3) >> 2, trash.str + trash.len);
-				trash.len += 5;
+				trash.area[trash.data++] = COOKIE_DELIM_DATE;
+				s30tob64((date.tv_sec+3) >> 2,
+					 trash.area + trash.data);
+				trash.data += 5;
 
 				if (s->be->cookie_maxlife) {
 					/* emit first_date, which is either the original one or
 					 * the current date.
 					 */
-					trash.str[trash.len++] = COOKIE_DELIM_DATE;
+					trash.area[trash.data++] = COOKIE_DELIM_DATE;
 					s30tob64(txn->cookie_first_date ?
 						 txn->cookie_first_date >> 2 :
-						 (date.tv_sec+3) >> 2, trash.str + trash.len);
-					trash.len += 5;
+						 (date.tv_sec+3) >> 2,
+						 trash.area + trash.data);
+					trash.data += 5;
 				}
 			}
 			chunk_appendf(&trash, "; path=/");
@@ -5924,7 +5984,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		if (s->be->ck_opts & PR_CK_SECURE)
 			chunk_appendf(&trash, "; Secure");
 
-		if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len) < 0))
+		if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.area, trash.data) < 0))
 			goto return_bad_resp;
 
 		txn->flags &= ~TX_SCK_MASK;
@@ -6512,11 +6572,14 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				break;
 
 			case ACT_REPLACE:
-				trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
-				if (trash.len < 0)
+				trash.data = exp_replace(trash.area,
+							trash.size, cur_ptr,
+							exp->replace, pmatch);
+				if (trash.data < 0)
 					return -1;
 
-				delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(&req->buf, cur_ptr, cur_end,
+						  trash.area, trash.data);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -6600,11 +6663,13 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			break;
 
 		case ACT_REPLACE:
-			trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
-			if (trash.len < 0)
+			trash.data = exp_replace(trash.area, trash.size,
+						cur_ptr, exp->replace, pmatch);
+			if (trash.data < 0)
 				return -1;
 
-			delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(&req->buf, cur_ptr, cur_end,
+					  trash.area, trash.data);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -7248,11 +7313,14 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				break;
 
 			case ACT_REPLACE:
-				trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
-				if (trash.len < 0)
+				trash.data = exp_replace(trash.area,
+							trash.size, cur_ptr,
+							exp->replace, pmatch);
+				if (trash.data < 0)
 					return -1;
 
-				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end,
+						  trash.area, trash.data);
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -7329,11 +7397,13 @@ int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_e
 			break;
 
 		case ACT_REPLACE:
-			trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
-			if (trash.len < 0)
+			trash.data = exp_replace(trash.area, trash.size,
+						cur_ptr, exp->replace, pmatch);
+			if (trash.data < 0)
 				return -1;
 
-			delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.str, trash.len);
+			delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end,
+					  trash.area, trash.data);
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -8009,11 +8079,11 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
  */
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
-			  struct hdr_ctx *ctx, char **vptr, int *vlen)
+			  struct hdr_ctx *ctx, char **vptr, size_t *vlen)
 {
 	struct hdr_ctx local_ctx;
 	char *ptr_hist[MAX_HDR_HISTORY];
-	int len_hist[MAX_HDR_HISTORY];
+	unsigned int len_hist[MAX_HDR_HISTORY];
 	unsigned int hist_ptr;
 	int found;
 
@@ -8075,11 +8145,11 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
  */
 unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hlen,
 			   struct hdr_idx *idx, int occ,
-			   struct hdr_ctx *ctx, char **vptr, int *vlen)
+			   struct hdr_ctx *ctx, char **vptr, size_t *vlen)
 {
 	struct hdr_ctx local_ctx;
 	char *ptr_hist[MAX_HDR_HISTORY];
-	int len_hist[MAX_HDR_HISTORY];
+	unsigned int len_hist[MAX_HDR_HISTORY];
 	unsigned int hist_ptr;
 	int found;
 
@@ -8148,10 +8218,10 @@ void debug_hdr(const char *dir, struct stream *s, const char *start, const char 
 		if (start[max] == '\r' || start[max] == '\n')
 			break;
 
-	UBOUND(max, trash.size - trash.len - 3);
-	trash.len += strlcpy2(trash.str + trash.len, start, max + 1);
-	trash.str[trash.len++] = '\n';
-	shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
+	UBOUND(max, trash.size - trash.data - 3);
+	trash.data += strlcpy2(trash.area + trash.data, start, max + 1);
+	trash.area[trash.data++] = '\n';
+	shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
 }
 
 
@@ -8816,7 +8886,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			 "'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
 			 "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
 			 "%s%s, but got '%s'%s.\n",
-			 file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
+			 file, linenum, *trash.area ? ", " : "", trash.area,
+			 args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
@@ -9268,7 +9339,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 			 "'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', "
 			 "'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', 'track-sc*'"
 			 "%s%s, but got '%s'%s.\n",
-			 file, linenum, *trash.str ? ", " : "", trash.str, args[0], *args[0] ? "" : " (missing argument)");
+			 file, linenum, *trash.area ? ", " : "", trash.area,
+			 args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
 
@@ -9509,7 +9581,7 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 		 */
 		if (ci_head(&s->req) > b_orig(&s->req.buf) &&
 		    ci_head(&s->req) + ci_data(&s->req) > b_wrap(&s->req.buf) - global.tune.maxrewrite)
-			channel_slow_realign(&s->req, trash.str);
+			channel_slow_realign(&s->req, trash.area);
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if (msg->msg_state == HTTP_MSG_ERROR)
@@ -9623,8 +9695,8 @@ smp_fetch_meth(const struct arg *args, struct sample *smp, const char *kw, void 
 			/* ensure the indexes are not affected */
 			return 0;
 		smp->flags |= SMP_F_CONST;
-		smp->data.u.meth.str.len = txn->req.sl.rq.m_l;
-		smp->data.u.meth.str.str = ci_head(txn->req.chn);
+		smp->data.u.meth.str.data = txn->req.sl.rq.m_l;
+		smp->data.u.meth.str.area = ci_head(txn->req.chn);
 	}
 	smp->flags |= SMP_F_VOL_1ST;
 	return 1;
@@ -9649,12 +9721,12 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 		}
 
 		/* Other method, we must compare the strings */
-		if (pattern->len != smp->data.u.meth.str.len)
+		if (pattern->len != smp->data.u.meth.str.data)
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.meth.str.str, smp->data.u.meth.str.len) == 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.u.meth.str.str, smp->data.u.meth.str.len) == 0))
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.u.meth.str.area, smp->data.u.meth.str.data) == 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.u.meth.str.area, smp->data.u.meth.str.data) == 0))
 			return pattern;
 	}
 	return NULL;
@@ -9678,8 +9750,8 @@ smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = ptr;
-	smp->data.u.str.len = len;
+	smp->data.u.str.area = ptr;
+	smp->data.u.str.data = len;
 
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
@@ -9706,8 +9778,8 @@ smp_fetch_stver(const struct arg *args, struct sample *smp, const char *kw, void
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = ptr;
-	smp->data.u.str.len = len;
+	smp->data.u.str.area = ptr;
+	smp->data.u.str.data = len;
 
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
@@ -9747,11 +9819,11 @@ smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, v
 			return 0;
 		smp->strm->unique_id[0] = '\0';
 	}
-	smp->data.u.str.len = build_logline(smp->strm, smp->strm->unique_id,
+	smp->data.u.str.data = build_logline(smp->strm, smp->strm->unique_id,
 	                                    UNIQUEID_LEN, &smp->sess->fe->format_unique_id);
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = smp->strm->unique_id;
+	smp->data.u.str.area = smp->strm->unique_id;
 	smp->flags = SMP_F_CONST;
 	return 1;
 }
@@ -9774,8 +9846,8 @@ smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char *kw, void 
 	msg = &txn->req;
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = ci_head(msg->chn) + hdr_idx_first_pos(idx);
-	smp->data.u.str.len = msg->eoh - hdr_idx_first_pos(idx) + 1 +
+	smp->data.u.str.area = ci_head(msg->chn) + hdr_idx_first_pos(idx);
+	smp->data.u.str.data = msg->eoh - hdr_idx_first_pos(idx) + 1 +
 	                      (ci_head(msg->chn)[msg->eoh] == '\r');
 
 	return 1;
@@ -9813,8 +9885,8 @@ smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const char *kw, v
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	temp = get_trash_chunk();
-	buf = temp->str;
-	end = temp->str + temp->size;
+	buf = temp->area;
+	end = temp->area + temp->size;
 
 	txn = smp->strm->txn;
 	idx = &txn->hdr_idx;
@@ -9884,8 +9956,8 @@ smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const char *kw, v
 
 	/* Initialise sample data which will be filled. */
 	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.str = temp->str;
-	smp->data.u.str.len = buf - temp->str;
+	smp->data.u.str.area = temp->area;
+	smp->data.u.str.data = buf - temp->area;
 	smp->data.u.str.size = temp->size;
 
 	return 1;
@@ -9920,18 +9992,19 @@ smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void 
 	if (block1 == len) {
 		/* buffer is not wrapped (or empty) */
 		smp->data.type = SMP_T_BIN;
-		smp->data.u.str.str = body;
-		smp->data.u.str.len = len;
+		smp->data.u.str.area = body;
+		smp->data.u.str.data = len;
 		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
 	}
 	else {
 		/* buffer is wrapped, we need to defragment it */
 		temp = get_trash_chunk();
-		memcpy(temp->str, body, block1);
-		memcpy(temp->str + block1, b_orig(&msg->chn->buf), len - block1);
+		memcpy(temp->area, body, block1);
+		memcpy(temp->area + block1, b_orig(&msg->chn->buf),
+		       len - block1);
 		smp->data.type = SMP_T_BIN;
-		smp->data.u.str.str = temp->str;
-		smp->data.u.str.len = len;
+		smp->data.u.str.area = temp->area;
+		smp->data.u.str.data = len;
 		smp->flags = SMP_F_VOL_TEST;
 	}
 	return 1;
@@ -9995,8 +10068,8 @@ smp_fetch_url(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	txn = smp->strm->txn;
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.len = txn->req.sl.rq.u_l;
-	smp->data.u.str.str = ci_head(txn->req.chn) + txn->req.sl.rq.u;
+	smp->data.u.str.data = txn->req.sl.rq.u_l;
+	smp->data.u.str.area = ci_head(txn->req.chn) + txn->req.sl.rq.u;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10066,8 +10139,8 @@ smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void 
 	if (args) {
 		if (args[0].type != ARGT_STR)
 			return 0;
-		name_str = args[0].data.str.str;
-		name_len = args[0].data.str.len;
+		name_str = args[0].data.str.area;
+		name_len = args[0].data.str.data;
 
 		if (args[1].type == ARGT_SINT)
 			occ = args[1].data.sint;
@@ -10092,7 +10165,7 @@ smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
-	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.u.str.str, &smp->data.u.str.len))
+	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.u.str.area, &smp->data.u.str.data))
 		return 1;
 
 	smp->flags &= ~SMP_F_NOT_LAST;
@@ -10114,8 +10187,8 @@ smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const char *kw, v
 	int len = 0;
 
 	if (args && args->type == ARGT_STR) {
-		name = args->data.str.str;
-		len = args->data.str.len;
+		name = args->data.str.area;
+		len = args->data.str.data;
 	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
@@ -10144,7 +10217,7 @@ smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, 
 	char del = ',';
 
 	if (args && args->type == ARGT_STR)
-		del = *args[0].data.str.str;
+		del = *args[0].data.str.area;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -10155,15 +10228,15 @@ smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, 
 
 	ctx.idx = 0;
 	while (http_find_next_header(ci_head(msg->chn), idx, &ctx)) {
-		if (temp->len)
-			temp->str[temp->len++] = del;
-		memcpy(temp->str + temp->len, ctx.line, ctx.del);
-		temp->len += ctx.del;
+		if (temp->data)
+			temp->area[temp->data++] = del;
+		memcpy(temp->area + temp->data, ctx.line, ctx.del);
+		temp->data += ctx.del;
 	}
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = temp->str;
-	smp->data.u.str.len = temp->len;
+	smp->data.u.str.area = temp->area;
+	smp->data.u.str.data = temp->data;
 	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
@@ -10194,8 +10267,8 @@ smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *
 	if (args) {
 		if (args[0].type != ARGT_STR)
 			return 0;
-		name_str = args[0].data.str.str;
-		name_len = args[0].data.str.len;
+		name_str = args[0].data.str.area;
+		name_len = args[0].data.str.data;
 
 		if (args[1].type == ARGT_SINT)
 			occ = args[1].data.sint;
@@ -10220,7 +10293,7 @@ smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
-	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.u.str.str, &smp->data.u.str.len))
+	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.u.str.area, &smp->data.u.str.data))
 		return 1;
 
 	smp->flags &= ~SMP_F_NOT_LAST;
@@ -10241,8 +10314,8 @@ smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const char *kw, vo
 	int len = 0;
 
 	if (args && args->type == ARGT_STR) {
-		name = args->data.str.str;
-		len = args->data.str.len;
+		name = args->data.str.area;
+		len = args->data.str.data;
 	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
@@ -10273,7 +10346,8 @@ smp_fetch_hdr_val(const struct arg *args, struct sample *smp, const char *kw, vo
 
 	if (ret > 0) {
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = strl2ic(smp->data.u.str.str, smp->data.u.str.len);
+		smp->data.u.sint = strl2ic(smp->data.u.str.area,
+					   smp->data.u.str.data);
 	}
 
 	return ret;
@@ -10289,15 +10363,16 @@ smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, voi
 	int ret;
 
 	while ((ret = smp_fetch_hdr(args, smp, kw, private)) > 0) {
-		if (url2ipv4((char *)smp->data.u.str.str, &smp->data.u.ipv4)) {
+		if (url2ipv4((char *) smp->data.u.str.area, &smp->data.u.ipv4)) {
 			smp->data.type = SMP_T_IPV4;
 			break;
 		} else {
 			struct chunk *temp = get_trash_chunk();
-			if (smp->data.u.str.len < temp->size - 1) {
-				memcpy(temp->str, smp->data.u.str.str, smp->data.u.str.len);
-				temp->str[smp->data.u.str.len] = '\0';
-				if (inet_pton(AF_INET6, temp->str, &smp->data.u.ipv6)) {
+			if (smp->data.u.str.data < temp->size - 1) {
+				memcpy(temp->area, smp->data.u.str.area,
+				       smp->data.u.str.data);
+				temp->area[smp->data.u.str.data] = '\0';
+				if (inet_pton(AF_INET6, temp->area, &smp->data.u.ipv6)) {
 					smp->data.type = SMP_T_IPV6;
 					break;
 				}
@@ -10330,12 +10405,12 @@ smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	/* OK, we got the '/' ! */
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = ptr;
+	smp->data.u.str.area = ptr;
 
 	while (ptr < end && *ptr != '?')
 		ptr++;
 
-	smp->data.u.str.len = ptr - smp->data.u.str.str;
+	smp->data.u.str.data = ptr - smp->data.u.str.area;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10364,10 +10439,10 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 	temp = get_trash_chunk();
-	memcpy(temp->str, ctx.line + ctx.val, ctx.vlen);
+	memcpy(temp->area, ctx.line + ctx.val, ctx.vlen);
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = temp->str;
-	smp->data.u.str.len = ctx.vlen;
+	smp->data.u.str.area = temp->area;
+	smp->data.u.str.data = ctx.vlen;
 
 	/* now retrieve the path */
 	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
@@ -10378,8 +10453,9 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 	for (ptr = beg; ptr < end && *ptr != '?'; ptr++);
 
 	if (beg < ptr && *beg == '/') {
-		memcpy(smp->data.u.str.str + smp->data.u.str.len, beg, ptr - beg);
-		smp->data.u.str.len += ptr - beg;
+		memcpy(smp->data.u.str.area + smp->data.u.str.data, beg,
+		       ptr - beg);
+		smp->data.u.str.data += ptr - beg;
 	}
 
 	smp->flags = SMP_F_VOL_1ST;
@@ -10455,17 +10531,21 @@ smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 
 	temp = get_trash_chunk();
-	*(unsigned int *)temp->str = htonl(smp->data.u.sint);
-	temp->len += sizeof(unsigned int);
+	*(unsigned int *) temp->area = htonl(smp->data.u.sint);
+	temp->data += sizeof(unsigned int);
 
 	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr, 4);
-		temp->len += 4;
+		memcpy(temp->area + temp->data,
+		       &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr,
+		       4);
+		temp->data += 4;
 		break;
 	case AF_INET6:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, 16);
-		temp->len += 16;
+		memcpy(temp->area + temp->data,
+		       &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr,
+		       16);
+		temp->data += 16;
 		break;
 	default:
 		return 0;
@@ -10499,8 +10579,8 @@ smp_fetch_query(const struct arg *args, struct sample *smp, const char *kw, void
 	} while (*ptr++ != '?');
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.str = ptr;
-	smp->data.u.str.len = end - ptr;
+	smp->data.u.str.area = ptr;
+	smp->data.u.str.data = end - ptr;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
@@ -10572,8 +10652,8 @@ smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.str = smp->strm->txn->auth.user;
-	smp->data.u.str.len = strlen(smp->strm->txn->auth.user);
+	smp->data.u.str.area = smp->strm->txn->auth.user;
+	smp->data.u.str.data = strlen(smp->strm->txn->auth.user);
 
 	return 1;
 }
@@ -10592,7 +10672,7 @@ smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *
 char *
 extract_cookie_value(char *hdr, const char *hdr_end,
 		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, int *value_l)
+		  char **value, size_t *value_l)
 {
 	char *equal, *att_end, *att_beg, *val_beg, *val_end;
 	char *next;
@@ -10692,8 +10772,8 @@ smp_fetch_capture_header_req(const struct arg *args, struct sample *smp, const c
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.str = smp->strm->req_cap[idx];
-	smp->data.u.str.len = strlen(smp->strm->req_cap[idx]);
+	smp->data.u.str.area = smp->strm->req_cap[idx];
+	smp->data.u.str.data = strlen(smp->strm->req_cap[idx]);
 
 	return 1;
 }
@@ -10717,8 +10797,8 @@ smp_fetch_capture_header_res(const struct arg *args, struct sample *smp, const c
 
 	smp->data.type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.u.str.str = smp->strm->res_cap[idx];
-	smp->data.u.str.len = strlen(smp->strm->res_cap[idx]);
+	smp->data.u.str.area = smp->strm->res_cap[idx];
+	smp->data.u.str.data = strlen(smp->strm->res_cap[idx]);
 
 	return 1;
 }
@@ -10740,8 +10820,8 @@ smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const c
 		ptr++;
 
 	temp = get_trash_chunk();
-	temp->str = txn->uri;
-	temp->len = ptr - txn->uri;
+	temp->area = txn->uri;
+	temp->data = ptr - txn->uri;
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
@@ -10772,14 +10852,14 @@ smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char
 	ptr++;  /* skip the space */
 
 	temp = get_trash_chunk();
-	ptr = temp->str = http_get_path_from_string(ptr);
+	ptr = temp->area = http_get_path_from_string(ptr);
 	if (!ptr)
 		return 0;
 	while (*ptr != ' ' && *ptr != '\0')  /* find space after URI */
 		ptr++;
 
 	smp->data.u.str = *temp;
-	smp->data.u.str.len = ptr - temp->str;
+	smp->data.u.str.data = ptr - temp->area;
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 
@@ -10798,11 +10878,11 @@ smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	if (txn->req.flags & HTTP_MSGF_VER_11)
-		smp->data.u.str.str = "HTTP/1.1";
+		smp->data.u.str.area = "HTTP/1.1";
 	else
-		smp->data.u.str.str = "HTTP/1.0";
+		smp->data.u.str.area = "HTTP/1.0";
 
-	smp->data.u.str.len = 8;
+	smp->data.u.str.data = 8;
 	smp->data.type  = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
@@ -10821,11 +10901,11 @@ smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	if (txn->rsp.flags & HTTP_MSGF_VER_11)
-		smp->data.u.str.str = "HTTP/1.1";
+		smp->data.u.str.area = "HTTP/1.1";
 	else
-		smp->data.u.str.str = "HTTP/1.0";
+		smp->data.u.str.area = "HTTP/1.0";
 
-	smp->data.u.str.len = 8;
+	smp->data.u.str.data = 8;
 	smp->data.type  = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
@@ -10906,7 +10986,7 @@ int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw,
 			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, ctx))
 				goto out;
 
-			if (ctx->vlen < args->data.str.len + 1)
+			if (ctx->vlen < args->data.str.data + 1)
 				continue;
 
 			smp->ctx.a[0] = ctx->line + ctx->val;
@@ -10916,10 +10996,11 @@ int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw,
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
-						 args->data.str.str, args->data.str.len,
+						 args->data.str.area,
+						 args->data.str.data,
 						 (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						 &smp->data.u.str.str,
-						 &smp->data.u.str.len);
+						 &smp->data.u.str.area,
+						 &smp->data.u.str.data);
 		if (smp->ctx.a[0]) {
 			found = 1;
 			if (occ >= 0) {
@@ -10985,7 +11066,7 @@ smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw,
 			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, &ctx))
 				break;
 
-			if (ctx.vlen < args->data.str.len + 1)
+			if (ctx.vlen < args->data.str.data + 1)
 				continue;
 
 			val_beg = ctx.line + ctx.val;
@@ -10995,10 +11076,10 @@ smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw,
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
-						       args->data.str.str, args->data.str.len,
+						       args->data.str.area, args->data.str.data,
 						       (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						       &smp->data.u.str.str,
-						       &smp->data.u.str.len))) {
+						       &smp->data.u.str.area,
+						       &smp->data.u.str.data))) {
 			cnt++;
 		}
 	}
@@ -11019,7 +11100,8 @@ smp_fetch_cookie_val(const struct arg *args, struct sample *smp, const char *kw,
 
 	if (ret > 0) {
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = strl2ic(smp->data.u.str.str, smp->data.u.str.len);
+		smp->data.u.sint = strl2ic(smp->data.u.str.area,
+					   smp->data.u.str.data);
 	}
 
 	return ret;
@@ -11270,14 +11352,15 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 	    vend >= chunks[2] && vend <= chunks[3]) {
 		/* Wrapped case. */
 		temp = get_trash_chunk();
-		memcpy(temp->str, vstart, chunks[1] - vstart);
-		memcpy(temp->str + ( chunks[1] - vstart ), chunks[2], vend - chunks[2]);
-		smp->data.u.str.str = temp->str;
-		smp->data.u.str.len = ( chunks[1] - vstart ) + ( vend - chunks[2] );
+		memcpy(temp->area, vstart, chunks[1] - vstart);
+		memcpy(temp->area + ( chunks[1] - vstart ), chunks[2],
+		       vend - chunks[2]);
+		smp->data.u.str.area = temp->area;
+		smp->data.u.str.data = ( chunks[1] - vstart ) + ( vend - chunks[2] );
 	} else {
 		/* Contiguous case. */
-		smp->data.u.str.str = (char *)vstart;
-		smp->data.u.str.len = vend - vstart;
+		smp->data.u.str.area = (char *)vstart;
+		smp->data.u.str.data = vend - vstart;
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	}
 
@@ -11317,12 +11400,12 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 	name = "";
 	name_len = 0;
 	if (args->type == ARGT_STR) {
-		name     = args->data.str.str;
-		name_len = args->data.str.len;
+		name     = args->data.str.area;
+		name_len = args->data.str.data;
 	}
 
 	if (args[1].type)
-		delim = *args[1].data.str.str;
+		delim = *args[1].data.str.area;
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		CHECK_HTTP_MESSAGE_FIRST();
@@ -11369,8 +11452,8 @@ smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw,
 	name = "";
 	name_len = 0;
 	if (args[0].type == ARGT_STR) {
-		name     = args[0].data.str.str;
-		name_len = args[0].data.str.len;
+		name     = args[0].data.str.area;
+		name_len = args[0].data.str.data;
 	}
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
@@ -11420,7 +11503,8 @@ smp_fetch_url_param_val(const struct arg *args, struct sample *smp, const char *
 
 	if (ret > 0) {
 		smp->data.type = SMP_T_SINT;
-		smp->data.u.sint = strl2ic(smp->data.u.str.str, smp->data.u.str.len);
+		smp->data.u.sint = strl2ic(smp->data.u.str.area,
+					   smp->data.u.str.data);
 	}
 
 	return ret;
@@ -11497,17 +11581,21 @@ smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 
 	temp = get_trash_chunk();
-	*(unsigned int *)temp->str = htonl(smp->data.u.sint);
-	temp->len += sizeof(unsigned int);
+	*(unsigned int *) temp->area = htonl(smp->data.u.sint);
+	temp->data += sizeof(unsigned int);
 
 	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr, 4);
-		temp->len += 4;
+		memcpy(temp->area + temp->data,
+		       &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr,
+		       4);
+		temp->data += 4;
 		break;
 	case AF_INET6:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, 16);
-		temp->len += 16;
+		memcpy(temp->area + temp->data,
+		       &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr,
+		       16);
+		temp->data += 16;
 		break;
 	default:
 		return 0;
@@ -11557,10 +11645,11 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 		return 0;
 
 	temp = get_trash_chunk();
-	temp->len = snprintf(temp->str, temp->size - temp->len,
-			     "%s, %02d %s %04d %02d:%02d:%02d GMT",
-			     day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon], 1900+tm->tm_year,
-			     tm->tm_hour, tm->tm_min, tm->tm_sec);
+	temp->data = snprintf(temp->area, temp->size - temp->data,
+			      "%s, %02d %s %04d %02d:%02d:%02d GMT",
+			      day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon],
+			      1900+tm->tm_year,
+			      tm->tm_hour, tm->tm_min, tm->tm_sec);
 
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
@@ -11595,8 +11684,8 @@ static inline int language_range_match(const char *range, int range_len,
 /* Arguments: The list of expected value, the number of parts returned and the separator */
 static int sample_conv_q_prefered(const struct arg *args, struct sample *smp, void *private)
 {
-	const char *al = smp->data.u.str.str;
-	const char *end = al + smp->data.u.str.len;
+	const char *al = smp->data.u.str.area;
+	const char *end = al + smp->data.u.str.data;
 	const char *token;
 	int toklen;
 	int qvalue;
@@ -11609,8 +11698,8 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp, vo
 	 */
 	smp->flags |= SMP_F_CONST;
 	smp->data.u.str.size = 0;
-	smp->data.u.str.str = "";
-	smp->data.u.str.len = 0;
+	smp->data.u.str.area = "";
+	smp->data.u.str.data = 0;
 
 	/* Parse the accept language */
 	while (1) {
@@ -11637,7 +11726,7 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp, vo
 		/* Check if the token exists in the list. If the token not exists,
 		 * jump to the next token.
 		 */
-		str = args[0].data.str.str;
+		str = args[0].data.str.area;
 		w = str;
 		while (1) {
 			if (*str == ';' || *str == '\0') {
@@ -11710,8 +11799,8 @@ process_value:
 		 * break the process.
 		 */
 		if (qvalue > best_q) {
-			smp->data.u.str.str = (char *)w;
-			smp->data.u.str.len = str - w;
+			smp->data.u.str.area = (char *)w;
+			smp->data.u.str.data = str - w;
 			if (qvalue >= 1000)
 				break;
 			best_q = qvalue;
@@ -11730,13 +11819,13 @@ expect_comma:
 	}
 
 	/* Set default value if required. */
-	if (smp->data.u.str.len == 0 && args[1].type == ARGT_STR) {
-		smp->data.u.str.str = args[1].data.str.str;
-		smp->data.u.str.len = args[1].data.str.len;
+	if (smp->data.u.str.data == 0 && args[1].type == ARGT_STR) {
+		smp->data.u.str.area = args[1].data.str.area;
+		smp->data.u.str.data = args[1].data.str.data;
 	}
 
 	/* Return true only if a matching language was found. */
-	return smp->data.u.str.len != 0;
+	return smp->data.u.str.data != 0;
 }
 
 /* This fetch url-decode any input string. */
@@ -11746,18 +11835,18 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	 * the end of the buffer, copy the string in other buffer
 	  * before decoding.
 	 */
-	if (smp->flags & SMP_F_CONST || smp->data.u.str.size <= smp->data.u.str.len) {
+	if (smp->flags & SMP_F_CONST || smp->data.u.str.size <= smp->data.u.str.data) {
 		struct chunk *str = get_trash_chunk();
-		memcpy(str->str, smp->data.u.str.str, smp->data.u.str.len);
-		smp->data.u.str.str = str->str;
+		memcpy(str->area, smp->data.u.str.area, smp->data.u.str.data);
+		smp->data.u.str.area = str->area;
 		smp->data.u.str.size = str->size;
 		smp->flags &= ~SMP_F_CONST;
 	}
 
 	/* Add final \0 required by url_decode(), and convert the input string. */
-	smp->data.u.str.str[smp->data.u.str.len] = '\0';
-	smp->data.u.str.len = url_decode(smp->data.u.str.str);
-	return (smp->data.u.str.len >= 0);
+	smp->data.u.str.area[smp->data.u.str.data] = '\0';
+	smp->data.u.str.data = url_decode(smp->data.u.str.area);
+	return (smp->data.u.str.data >= 0);
 }
 
 static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void *private)
@@ -11790,12 +11879,12 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 		return 0;
 
 	/* Check length. */
-	len = smp->data.u.str.len;
+	len = smp->data.u.str.data;
 	if (len > hdr->len)
 		len = hdr->len;
 
 	/* Capture input data. */
-	memcpy(smp->strm->req_cap[idx], smp->data.u.str.str, len);
+	memcpy(smp->strm->req_cap[idx], smp->data.u.str.area, len);
 	smp->strm->req_cap[idx][len] = '\0';
 
 	return 1;
@@ -11831,12 +11920,12 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 		return 0;
 
 	/* Check length. */
-	len = smp->data.u.str.len;
+	len = smp->data.u.str.data;
 	if (len > hdr->len)
 		len = hdr->len;
 
 	/* Capture input data. */
-	memcpy(smp->strm->res_cap[idx], smp->data.u.str.str, len);
+	memcpy(smp->strm->res_cap[idx], smp->data.u.str.area, len);
 	smp->strm->res_cap[idx][len] = '\0';
 
 	return 1;
@@ -11949,31 +12038,32 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 
 	chunk_reset(&trash);
 
-	res = ultoa_o(status, trash.str, trash.size);
-	c_l = res - trash.str;
+	res = ultoa_o(status, trash.area, trash.size);
+	c_l = res - trash.area;
 
-	trash.str[c_l] = ' ';
-	trash.len = c_l + 1;
+	trash.area[c_l] = ' ';
+	trash.data = c_l + 1;
 
 	/* Do we have a custom reason format string? */
 	if (msg == NULL)
 		msg = get_reason(status);
 	msg_len = strlen(msg);
-	strncpy(&trash.str[trash.len], msg, trash.size - trash.len);
-	trash.len += msg_len;
+	strncpy(&trash.area[trash.data], msg, trash.size - trash.data);
+	trash.data += msg_len;
 
 	cur_ptr = ci_head(&s->res) + txn->rsp.sl.st.c;
 	cur_end = ci_head(&s->res) + txn->rsp.sl.st.r + txn->rsp.sl.st.r_l;
 
 	/* commit changes and adjust message */
-	delta = b_rep_blk(&s->res.buf, cur_ptr, cur_end, trash.str, trash.len);
+	delta = b_rep_blk(&s->res.buf, cur_ptr, cur_end, trash.area,
+			  trash.data);
 
 	/* adjust res line offsets and lengths */
 	txn->rsp.sl.st.r += c_l - txn->rsp.sl.st.c_l;
 	txn->rsp.sl.st.c_l = c_l;
 	txn->rsp.sl.st.r_l = msg_len;
 
-	delta = trash.len - (cur_end - cur_ptr);
+	delta = trash.data - (cur_end - cur_ptr);
 	txn->rsp.sl.st.l += delta;
 	txn->hdr_idx.v[0].len += delta;
 	http_msg_move_end(&txn->rsp, delta);
@@ -11998,11 +12088,13 @@ enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px
 
 	/* If we have to create a query string, prepare a '?'. */
 	if (rule->arg.http.action == 2)
-		replace->str[replace->len++] = '?';
-	replace->len += build_logline(s, replace->str + replace->len, replace->size - replace->len,
-	                              &rule->arg.http.logfmt);
+		replace->area[replace->data++] = '?';
+	replace->data += build_logline(s, replace->area + replace->data,
+				       replace->size - replace->data,
+				       &rule->arg.http.logfmt);
 
-	http_replace_req_line(rule->arg.http.action, replace->str, replace->len, px, s);
+	http_replace_req_line(rule->arg.http.action, replace->area,
+			      replace->data, px, s);
 
 	ret = ACT_RET_CONT;
 
@@ -12179,11 +12271,11 @@ enum act_return http_action_req_capture(struct act_rule *rule, struct proxy *px,
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;
 
-	len = key->data.u.str.len;
+	len = key->data.u.str.data;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.u.str.str, len);
+	memcpy(cap[h->index], key->data.u.str.area, len);
 	cap[h->index][len] = 0;
 	return ACT_RET_CONT;
 }
@@ -12220,11 +12312,11 @@ enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct prox
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;
 
-	len = key->data.u.str.len;
+	len = key->data.u.str.data;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.u.str.str, len);
+	memcpy(cap[h->index], key->data.u.str.area, len);
 	cap[h->index][len] = 0;
 	return ACT_RET_CONT;
 }
@@ -12408,11 +12500,11 @@ enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct prox
 	if (cap[h->index] == NULL) /* no more capture memory */
 		return ACT_RET_CONT;
 
-	len = key->data.u.str.len;
+	len = key->data.u.str.data;
 	if (len > h->len)
 		len = h->len;
 
-	memcpy(cap[h->index], key->data.u.str.str, len);
+	memcpy(cap[h->index], key->data.u.str.area, len);
 	cap[h->index][len] = 0;
 	return ACT_RET_CONT;
 }

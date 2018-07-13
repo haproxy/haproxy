@@ -52,7 +52,7 @@ static inline void action_build_list(struct list *keywords, struct chunk *chk)
 	char *end;
 	int l;
 
-	p = chk->str;
+	p = chk->area;
 	end = p + chk->size - 1;
 	list_for_each_entry(kw_list, keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
@@ -62,7 +62,7 @@ static inline void action_build_list(struct list *keywords, struct chunk *chk)
 			p += l;
 		}
 	}
-	if (p > chk->str)
+	if (p > chk->area)
 		*(p-2) = '\0';
 	else
 		*p = '\0';

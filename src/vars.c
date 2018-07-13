@@ -95,12 +95,12 @@ unsigned int var_clear(struct var *var)
 	unsigned int size = 0;
 
 	if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN) {
-		free(var->data.u.str.str);
-		size += var->data.u.str.len;
+		free(var->data.u.str.area);
+		size += var->data.u.str.data;
 	}
 	else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-		free(var->data.u.meth.str.str);
-		size += var->data.u.meth.str.len;
+		free(var->data.u.meth.str.area);
+		size += var->data.u.meth.str.data;
 	}
 	LIST_DEL(&var->l);
 	pool_free(var_pool, var);
@@ -343,12 +343,14 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		/* free its used memory. */
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
-			free(var->data.u.str.str);
-			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.str.len);
+			free(var->data.u.str.area);
+			var_accounting_diff(vars, smp->sess, smp->strm,
+					    -var->data.u.str.data);
 		}
 		else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-			free(var->data.u.meth.str.str);
-			var_accounting_diff(vars, smp->sess, smp->strm, -var->data.u.meth.str.len);
+			free(var->data.u.meth.str.area);
+			var_accounting_diff(vars, smp->sess, smp->strm,
+					    -var->data.u.meth.str.data);
 		}
 	} else {
 
@@ -381,37 +383,41 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		break;
 	case SMP_T_STR:
 	case SMP_T_BIN:
-		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.len)) {
+		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.u.str.str = malloc(smp->data.u.str.len);
-		if (!var->data.u.str.str) {
-			var_accounting_diff(vars, smp->sess, smp->strm, -smp->data.u.str.len);
+		var->data.u.str.area = malloc(smp->data.u.str.data);
+		if (!var->data.u.str.area) {
+			var_accounting_diff(vars, smp->sess, smp->strm,
+					    -smp->data.u.str.data);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.u.str.len = smp->data.u.str.len;
-		memcpy(var->data.u.str.str, smp->data.u.str.str, var->data.u.str.len);
+		var->data.u.str.data = smp->data.u.str.data;
+		memcpy(var->data.u.str.area, smp->data.u.str.area,
+		       var->data.u.str.data);
 		break;
 	case SMP_T_METH:
 		var->data.u.meth.meth = smp->data.u.meth.meth;
 		if (smp->data.u.meth.meth != HTTP_METH_OTHER)
 			break;
 
-		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.meth.str.len)) {
+		if (!var_accounting_add(vars, smp->sess, smp->strm, smp->data.u.meth.str.data)) {
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.u.meth.str.str = malloc(smp->data.u.meth.str.len);
-		if (!var->data.u.meth.str.str) {
-			var_accounting_diff(vars, smp->sess, smp->strm, -smp->data.u.meth.str.len);
+		var->data.u.meth.str.area = malloc(smp->data.u.meth.str.data);
+		if (!var->data.u.meth.str.area) {
+			var_accounting_diff(vars, smp->sess, smp->strm,
+					    -smp->data.u.meth.str.data);
 			var->data.type = SMP_T_BOOL; /* This type doesn't use additional memory. */
 			return 0;
 		}
-		var->data.u.meth.str.len = smp->data.u.meth.str.len;
-		var->data.u.meth.str.size = smp->data.u.meth.str.len;
-		memcpy(var->data.u.meth.str.str, smp->data.u.meth.str.str, var->data.u.meth.str.len);
+		var->data.u.meth.str.data = smp->data.u.meth.str.data;
+		var->data.u.meth.str.size = smp->data.u.meth.str.data;
+		memcpy(var->data.u.meth.str.area, smp->data.u.meth.str.area,
+		       var->data.u.meth.str.data);
 		break;
 	}
 	return 1;
@@ -497,7 +503,9 @@ int vars_check_arg(struct arg *arg, char **err)
 	}
 
 	/* Register new variable name. */
-	name = register_name(arg->data.str.str, arg->data.str.len, &scope, 1, err);
+	name = register_name(arg->data.str.area, arg->data.str.data, &scope,
+			     1,
+			     err);
 	if (!name)
 		return 0;
 

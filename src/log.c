@@ -57,15 +57,15 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 	[LOG_FORMAT_RFC3164] = {
 		.name = "rfc3164",
 		.pid = {
-			.sep1 = { .str = "[",   .len = 1 },
-			.sep2 = { .str = "]: ", .len = 3 }
+			.sep1 = { .area = "[",   .data = 1 },
+			.sep2 = { .area = "]: ", .data = 3 }
 		}
 	},
 	[LOG_FORMAT_RFC5424] = {
 		.name = "rfc5424",
 		.pid = {
-			.sep1 = { .str = " ",   .len = 1 },
-			.sep2 = { .str = " - ", .len = 3 }
+			.sep1 = { .area = " ",   .data = 1 },
+			.sep2 = { .area = " - ", .data = 3 }
 		}
 	}
 };
@@ -1013,8 +1013,8 @@ static char *lf_encode_chunk(char *start, char *stop,
 
 	if (node->options & LOG_OPT_ESC) {
 		if (start < stop) {
-			str = chunk->str;
-			end = chunk->str + chunk->len;
+			str = chunk->area;
+			end = chunk->area + chunk->data;
 
 			stop--; /* reserve one byte for the final '\0' */
 			while (start < stop && str < end) {
@@ -1158,7 +1158,7 @@ static char *update_log_hdr(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
 	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
-	static THREAD_LOCAL struct chunk host = { NULL, 0, 0 };
+	static THREAD_LOCAL struct chunk host = { };
 	static THREAD_LOCAL int sep = 0;
 
 	if (unlikely(time != tvsec || dataptr == NULL)) {
@@ -1169,17 +1169,17 @@ static char *update_log_hdr(const time_t time)
 		tvsec = time;
 		get_localtime(tvsec, &tm);
 
-		if (unlikely(global.log_send_hostname != host.str)) {
-			host.str = global.log_send_hostname;
-			host.len = host.str ? strlen(host.str) : 0;
-			sep = host.len ? 1 : 0;
+		if (unlikely(global.log_send_hostname != host.area)) {
+			host.area = global.log_send_hostname;
+			host.data = host.area ? strlen(host.area) : 0;
+			sep = host.data ? 1 : 0;
 		}
 
 		hdr_len = snprintf(logheader, global.max_syslog_len,
 				   "<<<<>%s %2d %02d:%02d:%02d %.*s%*s",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   host.len, host.str, sep, "");
+				   (int)host.data, host.area, sep, "");
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
@@ -1297,7 +1297,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		if (!LIST_ISEMPTY(&p->logsrvs)) {
 			logsrvs = &p->logsrvs;
 		}
-		if (p->log_tag.str) {
+		if (p->log_tag.area) {
 			tag = &p->log_tag;
 		}
 	}
@@ -1401,7 +1401,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		maxlen = logsrv->maxlen - hdr_max;
 
 		/* tag */
-		tag_max = tag->len;
+		tag_max = tag->data;
 		if (unlikely(tag_max >= maxlen)) {
 			tag_max = maxlen - 1;
 			sd_max = 0;
@@ -1411,18 +1411,18 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		maxlen -= tag_max;
 
 		/* first pid separator */
-		pid_sep1_max = log_formats[logsrv->format].pid.sep1.len;
+		pid_sep1_max = log_formats[logsrv->format].pid.sep1.data;
 		if (unlikely(pid_sep1_max >= maxlen)) {
 			pid_sep1_max = maxlen - 1;
 			sd_max = 0;
 			goto send;
 		}
 
-		pid_sep1 = log_formats[logsrv->format].pid.sep1.str;
+		pid_sep1 = log_formats[logsrv->format].pid.sep1.area;
 		maxlen -= pid_sep1_max;
 
 		/* pid */
-		pid_max = pid.len;
+		pid_max = pid.data;
 		if (unlikely(pid_max >= maxlen)) {
 			pid_max = maxlen - 1;
 			sd_max = 0;
@@ -1432,14 +1432,14 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		maxlen -= pid_max;
 
 		/* second pid separator */
-		pid_sep2_max = log_formats[logsrv->format].pid.sep2.len;
+		pid_sep2_max = log_formats[logsrv->format].pid.sep2.data;
 		if (unlikely(pid_sep2_max >= maxlen)) {
 			pid_sep2_max = maxlen - 1;
 			sd_max = 0;
 			goto send;
 		}
 
-		pid_sep2 = log_formats[logsrv->format].pid.sep2.str;
+		pid_sep2 = log_formats[logsrv->format].pid.sep2.area;
 		maxlen -= pid_sep2_max;
 
 		/* structured-data */
@@ -1452,11 +1452,11 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 send:
 		iovec[0].iov_base = hdr_ptr;
 		iovec[0].iov_len  = hdr_max;
-		iovec[1].iov_base = tag->str;
+		iovec[1].iov_base = tag->area;
 		iovec[1].iov_len  = tag_max;
 		iovec[2].iov_base = pid_sep1;
 		iovec[2].iov_len  = pid_sep1_max;
-		iovec[3].iov_base = pid.str;
+		iovec[3].iov_base = pid.area;
 		iovec[3].iov_len  = pid_max;
 		iovec[4].iov_base = pid_sep2;
 		iovec[4].iov_len  = pid_sep2_max;
@@ -1606,7 +1606,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 		struct connection *conn;
 		const char *src = NULL;
 		struct sample *key;
-		const struct chunk empty = { NULL, 0, 0 };
+		const struct chunk empty = { };
 
 		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:
@@ -1635,7 +1635,11 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					ret = lf_encode_chunk(tmplog, dst + maxsize,
 					                      '%', http_encode_map, key ? &key->data.u.str : &empty, tmp);
 				else
-					ret = lf_text_len(tmplog, key ? key->data.u.str.str : NULL, key ? key->data.u.str.len : 0, dst + maxsize - tmplog, tmp);
+					ret = lf_text_len(tmplog,
+							  key ? key->data.u.str.area : NULL,
+							  key ? key->data.u.str.data : 0,
+							  dst + maxsize - tmplog,
+							  tmp);
 				if (ret == 0)
 					goto out;
 				tmplog = ret;
@@ -2278,11 +2282,11 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					spc++;
 
 				if (!txn || !txn->uri || nspaces == 0) {
-					chunk.str = "<BADREQ>";
-					chunk.len = strlen("<BADREQ>");
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
 				} else {
-					chunk.str = uri;
-					chunk.len = spc - uri;
+					chunk.area = uri;
+					chunk.data = spc - uri;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
@@ -2301,8 +2305,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					LOGCHAR('"');
 
 				if (!txn || !txn->uri) {
-					chunk.str = "<BADREQ>";
-					chunk.len = strlen("<BADREQ>");
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
 				} else {
 					uri = txn->uri;
 					end = uri + strlen(uri);
@@ -2315,8 +2319,8 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					while (uri < end && !HTTP_IS_SPHT(*uri))
 						uri++;
 
-					chunk.str = qmark;
-					chunk.len = uri - qmark;
+					chunk.area = qmark;
+					chunk.data = uri - qmark;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
@@ -2352,11 +2356,11 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					spc++;
 
 				if (!txn || !txn->uri || nspaces == 0) {
-					chunk.str = "<BADREQ>";
-					chunk.len = strlen("<BADREQ>");
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
 				} else {
-					chunk.str = uri;
-					chunk.len = spc - uri;
+					chunk.area = uri;
+					chunk.data = spc - uri;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
@@ -2382,11 +2386,11 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					spc++;
 
 				if (spc == end) { // odd case, we have txn->uri, but we only got a verb
-					chunk.str = "<BADREQ>";
-					chunk.len = strlen("<BADREQ>");
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
 				} else {
-					chunk.str = uri;
-					chunk.len = spc - uri;
+					chunk.area = uri;
+					chunk.data = spc - uri;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
@@ -2424,14 +2428,14 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					uri++;
 
 				if (!txn || !txn->uri || nspaces == 0) {
-					chunk.str = "<BADREQ>";
-					chunk.len = strlen("<BADREQ>");
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
 				} else if (uri == end) {
-					chunk.str = "HTTP/0.9";
-					chunk.len = strlen("HTTP/0.9");
+					chunk.area = "HTTP/0.9";
+					chunk.data = strlen("HTTP/0.9");
 				} else {
-					chunk.str = uri;
-					chunk.len = end - uri;
+					chunk.area = uri;
+					chunk.data = end - uri;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);

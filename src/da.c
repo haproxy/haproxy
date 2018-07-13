@@ -193,10 +193,11 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 	tmp = get_trash_chunk();
 	chunk_reset(tmp);
 
-	propname = (const char *)args[0].data.str.str;
+	propname = (const char *) args[0].data.str.area;
 	i = 0;
 
-	for (; propname != 0; i ++, propname = (const char *)args[i].data.str.str) {
+	for (; propname != 0; i ++,
+	     propname = (const char *) args[i].data.str.area) {
 		status = da_atlas_getpropid(&global_deviceatlas.atlas,
 			propname, &prop);
 		if (status != DA_OK) {
@@ -241,13 +242,13 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 
 	da_close(devinfo);
 
-	if (tmp->len) {
-		--tmp->len;
-		tmp->str[tmp->len] = 0;
+	if (tmp->data) {
+		--tmp->data;
+		tmp->area[tmp->data] = 0;
 	}
 
-	smp->data.u.str.str = tmp->str;
-	smp->data.u.str.len = tmp->len;
+	smp->data.u.str.area = tmp->area;
+	smp->data.u.str.data = tmp->data;
 
 	return 1;
 }
@@ -260,12 +261,12 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 	char useragentbuf[1024] = { 0 };
 	int i;
 
-	if (global_deviceatlas.daset == 0 || smp->data.u.str.len == 0) {
+	if (global_deviceatlas.daset == 0 || smp->data.u.str.data == 0) {
 		return 1;
 	}
 
-	i = smp->data.u.str.len > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.u.str.len;
-	memcpy(useragentbuf, smp->data.u.str.str, i - 1);
+	i = smp->data.u.str.data > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.u.str.data;
+	memcpy(useragentbuf, smp->data.u.str.area, i - 1);
 	useragentbuf[i - 1] = 0;
 
 	useragent = (const char *)useragentbuf;

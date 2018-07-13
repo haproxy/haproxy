@@ -437,20 +437,20 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	*p++ = SPOE_DATA_T_STR;
 	chk = get_trash_chunk();
 	if (agent != NULL && (agent->flags & SPOE_FL_PIPELINING)) {
-		memcpy(chk->str, "pipelining", 10);
-		chk->len += 10;
+		memcpy(chk->area, "pipelining", 10);
+		chk->data += 10;
 	}
 	if (agent != NULL && (agent->flags & SPOE_FL_ASYNC)) {
-		if (chk->len) chk->str[chk->len++] = ',';
-		memcpy(chk->str+chk->len, "async", 5);
-		chk->len += 5;
+		if (chk->data) chk->area[chk->data++] = ',';
+		memcpy(chk->area+chk->data, "async", 5);
+		chk->data += 5;
 	}
 	if (agent != NULL && (agent->flags & SPOE_FL_RCV_FRAGMENTATION)) {
-		if (chk->len) chk->str[chk->len++] = ',';
-		memcpy(chk->str+chk->len, "fragmentation", 13);
-		chk->len += 5;
+		if (chk->data) chk->area[chk->data++] = ',';
+		memcpy(chk->area+chk->data, "fragmentation", 13);
+		chk->data += 5;
 	}
-	if (spoe_encode_buffer(chk->str, chk->len, &p, end) == -1)
+	if (spoe_encode_buffer(chk->area, chk->data, &p, end) == -1)
 		goto too_big;
 
 	/* (optionnal) "engine-id" K/V item, if present */
@@ -1361,7 +1361,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
-	buf = trash.str; frame = buf+4;
+	buf = trash.area; frame = buf+4;
 	ret = spoe_prepare_hahello_frame(appctx, frame,
 					 SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1)
@@ -1414,7 +1414,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 		goto exit;
 	}
 
-	frame = trash.str; trash.len = 0;
+	frame = trash.area; trash.data = 0;
 	ret = spoe_recv_frame(appctx, frame,
 			      SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1) {
@@ -1422,7 +1422,7 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECTING;
 			goto next;
 		}
-		trash.len = ret + 4;
+		trash.data = ret + 4;
 		ret = spoe_handle_agenthello_frame(appctx, frame, ret);
 	}
 
@@ -1450,8 +1450,8 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 
   next:
 	/* Do not forget to remove processed frame from the output buffer */
-	if (trash.len)
-		co_skip(si_oc(si), trash.len);
+	if (trash.data)
+		co_skip(si_oc(si), trash.data);
 
 	SPOE_APPCTX(appctx)->task->expire =
 		tick_add_ifset(now_ms, agent->timeout.idle);
@@ -1474,7 +1474,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
-	buf = trash.str; frame = buf+4;
+	buf = trash.area; frame = buf+4;
 
 	if (appctx->st0 == SPOE_APPCTX_ST_SENDING_FRAG_NOTIFY) {
 		ctx = SPOE_APPCTX(appctx)->frag_ctx.ctx;
@@ -1592,7 +1592,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 	char *frame;
 	int   ret;
 
-	frame = trash.str; trash.len = 0;
+	frame = trash.area; trash.data = 0;
 	ret = spoe_recv_frame(appctx, frame,
 			      SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1) {
@@ -1601,7 +1601,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 			ret = -1;
 			goto end;
 		}
-		trash.len = ret + 4;
+		trash.data = ret + 4;
 		ret = spoe_handle_agentack_frame(appctx, &ctx, frame, ret);
 	}
 	switch (ret) {
@@ -1640,8 +1640,8 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 	}
 
 	/* Do not forget to remove processed frame from the output buffer */
-	if (trash.len)
-		co_skip(si_oc(appctx->owner), trash.len);
+	if (trash.data)
+		co_skip(si_oc(appctx->owner), trash.data);
   end:
 	return ret;
 }
@@ -1756,7 +1756,7 @@ spoe_handle_disconnect_appctx(struct appctx *appctx)
 
 	/* 4 bytes are reserved at the beginning of <buf> to store the frame
 	 * length. */
-	buf = trash.str; frame = buf+4;
+	buf = trash.area; frame = buf+4;
 	ret = spoe_prepare_hadiscon_frame(appctx, frame,
 					  SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1)
@@ -1810,11 +1810,11 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 		goto exit;
 	}
 
-	frame = trash.str; trash.len = 0;
+	frame = trash.area; trash.data = 0;
 	ret = spoe_recv_frame(appctx, frame,
 			      SPOE_APPCTX(appctx)->max_frame_size);
 	if (ret > 1) {
-		trash.len = ret + 4;
+		trash.data = ret + 4;
 		ret = spoe_handle_agentdiscon_frame(appctx, frame, ret);
 	}
 
@@ -1846,8 +1846,8 @@ spoe_handle_disconnecting_appctx(struct appctx *appctx)
 
   next:
 	/* Do not forget to remove processed frame from the output buffer */
-	if (trash.len)
-		co_skip(si_oc(appctx->owner), trash.len);
+	if (trash.data)
+		co_skip(si_oc(appctx->owner), trash.data);
 
 	return 0;
   stop:
@@ -4141,12 +4141,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->var_on_error) {
 		struct arg arg;
 
-		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+		trash.data = snprintf(trash.area, trash.size, "txn.%s.%s",
 				     curagent->var_pfx, curagent->var_on_error);
 
 		arg.type = ARGT_STR;
-		arg.data.str.str = trash.str;
-		arg.data.str.len = trash.len;
+		arg.data.str.area = trash.area;
+		arg.data.str.data = trash.data;
 		if (!vars_check_arg(&arg, err)) {
 			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
 				  curagent->id, curagent->var_pfx, curagent->var_on_error, *err);
@@ -4157,12 +4157,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->var_t_process) {
 		struct arg arg;
 
-		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+		trash.data = snprintf(trash.area, trash.size, "txn.%s.%s",
 				     curagent->var_pfx, curagent->var_t_process);
 
 		arg.type = ARGT_STR;
-		arg.data.str.str = trash.str;
-		arg.data.str.len = trash.len;
+		arg.data.str.area = trash.area;
+		arg.data.str.data = trash.data;
 		if (!vars_check_arg(&arg, err)) {
 			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
 				  curagent->id, curagent->var_pfx, curagent->var_t_process, *err);
@@ -4173,12 +4173,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	if (curagent->var_t_total) {
 		struct arg arg;
 
-		trash.len = snprintf(trash.str, trash.size, "txn.%s.%s",
+		trash.data = snprintf(trash.area, trash.size, "txn.%s.%s",
 				     curagent->var_pfx, curagent->var_t_total);
 
 		arg.type = ARGT_STR;
-		arg.data.str.str = trash.str;
-		arg.data.str.len = trash.len;
+		arg.data.str.area = trash.area;
+		arg.data.str.data = trash.data;
 		if (!vars_check_arg(&arg, err)) {
 			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
 				  curagent->id, curagent->var_pfx, curagent->var_t_process, *err);
@@ -4378,12 +4378,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	list_for_each_entry_safe(vph, vphback, &curvars, list) {
 		struct arg arg;
 
-		trash.len = snprintf(trash.str, trash.size, "proc.%s.%s",
+		trash.data = snprintf(trash.area, trash.size, "proc.%s.%s",
 				     curagent->var_pfx, vph->name);
 
 		arg.type = ARGT_STR;
-		arg.data.str.str = trash.str;
-		arg.data.str.len = trash.len;
+		arg.data.str.area = trash.area;
+		arg.data.str.data = trash.data;
 		if (!vars_check_arg(&arg, err)) {
 			memprintf(err, "SPOE agent '%s': failed to register variable %s.%s (%s)",
 				  curagent->id, curagent->var_pfx, vph->name, *err);

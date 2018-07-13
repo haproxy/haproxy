@@ -1232,8 +1232,8 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 					if (!tmp)
 						goto sw_failed;
 
-					if (build_logline(s, tmp->str, tmp->size, &rule->be.expr))
-						backend = proxy_be_by_name(tmp->str);
+					if (build_logline(s, tmp->area, tmp->size, &rule->be.expr))
+						backend = proxy_be_by_name(tmp->area);
 
 					free_trash_chunk(tmp);
 					tmp = NULL;
@@ -2381,7 +2381,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				      s->uniq_id, s->be->id,
 			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
+			shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
 		}
 
 		if (si_f->state == SI_ST_CLO &&
@@ -2390,7 +2390,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				      s->uniq_id, s->be->id,
 			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
+			shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
 		}
 	}
 
@@ -2477,7 +2477,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			      s->uniq_id, s->be->id,
 		              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 		              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
+		shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
