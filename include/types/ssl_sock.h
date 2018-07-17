@@ -59,6 +59,7 @@ struct tls_keys_ref {
 	struct list list; /* Used to chain refs. */
 	char *filename;
 	int unique_id; /* Each pattern reference have unique id. */
+	int refcount;  /* number of users of this tls_keys_ref. */
 	struct tls_sess_key *tlskeys;
 	int tls_ticket_enc_index;
 	__decl_hathreads(HA_RWLOCK_T lock); /* lock used to protect the ref */

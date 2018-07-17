@@ -4823,7 +4823,7 @@ void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)
 	ssl_sock_free_ssl_conf(&bind_conf->ssl_conf);
 	free(bind_conf->ca_sign_file);
 	free(bind_conf->ca_sign_pass);
-	if (bind_conf->keys_ref) {
+	if (bind_conf->keys_ref && !--bind_conf->keys_ref->refcount) {
 		free(bind_conf->keys_ref->filename);
 		free(bind_conf->keys_ref->tlskeys);
 		LIST_DEL(&bind_conf->keys_ref->list);
@@ -7672,7 +7672,8 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	}
 
 	keys_ref = tlskeys_ref_lookup(args[cur_arg + 1]);
-	if(keys_ref) {
+	if (keys_ref) {
+		keys_ref->refcount++;
 		conf->keys_ref = keys_ref;
 		return 0;
 	}
@@ -7719,6 +7720,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	i -= 2;
 	keys_ref->tls_ticket_enc_index = i < 0 ? 0 : i % TLS_TICKETS_NO;
 	keys_ref->unique_id = -1;
+	keys_ref->refcount = 1;
 	HA_RWLOCK_INIT(&keys_ref->lock);
 	conf->keys_ref = keys_ref;
 
