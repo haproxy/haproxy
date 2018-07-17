@@ -128,6 +128,13 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		conn->mux->send(conn);
+		while (!LIST_ISEMPTY(&conn->send_wait_list)) {
+			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			tasklet_wakeup(sw->task);
+		}
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -321,6 +328,22 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
  fail:
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH | CO_FL_ERROR;
 	return ret;
+}
+
+int conn_subscribe(struct connection *conn, int event_type, void *param)
+{
+	struct wait_list *sw;
+
+	switch (event_type) {
+	case SUB_CAN_SEND:
+		sw = param;
+		if (LIST_ISEMPTY(&sw->list))
+			LIST_ADDQ(&conn->send_wait_list, &sw->list);
+		return 0;
+	default:
+		break;
+	}
+	return (-1);
 }
 
 /* Drains possibly pending incoming data on the file descriptor attached to the

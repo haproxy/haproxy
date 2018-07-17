@@ -120,6 +120,7 @@ struct h2c {
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
+	struct list send_wait_list;  /* list of tasks to wake when we're ready to send */
 };
 
 /* H2 stream state, in h2s->st */
@@ -379,6 +380,7 @@ static int h2c_frt_init(struct connection *conn)
 	if (t)
 		task_queue(t);
 	conn_xprt_want_recv(conn);
+	LIST_INIT(&h2c->send_wait_list);
 
 	/* mux->wake will be called soon to complete the operation */
 	return 0;
@@ -2228,6 +2230,19 @@ static void h2_send(struct connection *conn)
 		/* output closed, nothing to send, clear the buffer to release it */
 		b_reset(&h2c->mbuf);
 	}
+	/* We're not full anymore, so we can wake any task that are waiting
+	 * for us.
+	 */
+	if (!(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))) {
+		while (!LIST_ISEMPTY(&h2c->send_wait_list)) {
+			struct wait_list *sw = LIST_ELEM(h2c->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			tasklet_wakeup(sw->task);
+		}
+
+	}
 }
 
 /* callback called on any event by the connection handler.
@@ -3369,6 +3384,26 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	return total;
 }
 
+/* Called from the upper layer, to subscribe to events, such as being able to send */
+static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
+{
+	struct wait_list *sw;
+	struct h2s *h2s = cs->ctx;
+
+	switch (event_type) {
+	case SUB_CAN_SEND:
+		sw = param;
+		if (LIST_ISEMPTY(&h2s->list) && LIST_ISEMPTY(&sw->list))
+			LIST_ADDQ(&h2s->h2c->send_wait_list, &sw->list);
+		return 0;
+	default:
+		break;
+	}
+	return -1;
+
+
+}
+
 /* Called from the upper layer, to send data */
 static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_t count, int flags)
 {
@@ -3545,6 +3580,7 @@ const struct mux_ops h2_ops = {
 	.update_poll = h2_update_poll,
 	.rcv_buf = h2_rcv_buf,
 	.snd_buf = h2_snd_buf,
+	.subscribe = h2_subscribe,
 	.attach = h2_attach,
 	.detach = h2_detach,
 	.shutr = h2_shutr,

@@ -424,6 +424,7 @@ static size_t raw_sock_from_buf(struct connection *conn, const struct buffer *bu
 static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
 	.rcv_buf  = raw_sock_to_buf,
+	.subscribe = conn_subscribe,
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,

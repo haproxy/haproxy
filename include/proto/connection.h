@@ -29,6 +29,7 @@
 #include <types/listener.h>
 #include <proto/fd.h>
 #include <proto/obj_type.h>
+#include <proto/task.h>
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
@@ -49,6 +50,7 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
+int conn_subscribe(struct connection *conn, int event_type, void *param);
 /* receive a NetScaler Client IP insertion header over a connection */
 int conn_recv_netscaler_cip(struct connection *conn, int flag);
 
@@ -596,6 +598,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 {
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
+	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
 }
 
@@ -621,6 +624,7 @@ static inline void conn_init(struct connection *conn)
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
+	LIST_INIT(&conn->send_wait_list);
 }
 
 /* sets <owner> as the connection's owner */
