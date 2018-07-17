@@ -121,6 +121,7 @@ struct h2c {
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct list send_wait_list;  /* list of tasks to wake when we're ready to send */
+	struct wait_list wait_list;  /* We're in a wait list, to send */
 };
 
 /* H2 stream state, in h2s->st */
@@ -217,6 +218,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 };
 
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
+static struct task *h2_send(struct task *t, void *ctx, unsigned short state);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -347,6 +349,12 @@ static int h2c_frt_init(struct connection *conn)
 		t->expire = tick_add(now_ms, h2c->timeout);
 	}
 
+	h2c->wait_list.task = tasklet_new();
+	if (!h2c->wait_list.task)
+		goto fail;
+	h2c->wait_list.task->process = h2_send;
+	h2c->wait_list.task->context = conn;
+
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
 	if (!h2c->ddht)
 		goto fail;
@@ -381,12 +389,15 @@ static int h2c_frt_init(struct connection *conn)
 		task_queue(t);
 	conn_xprt_want_recv(conn);
 	LIST_INIT(&h2c->send_wait_list);
+	LIST_INIT(&h2c->wait_list.list);
 
 	/* mux->wake will be called soon to complete the operation */
 	return 0;
  fail:
 	if (t)
 		task_free(t);
+	if (h2c->wait_list.task)
+		tasklet_free(h2c->wait_list.task);
 	pool_free(pool_head_h2c, h2c);
 	return -1;
 }
@@ -445,6 +456,8 @@ static void h2_release(struct connection *conn)
 			task_wakeup(h2c->task, TASK_WOKEN_OTHER);
 			h2c->task = NULL;
 		}
+		if (h2c->wait_list.task)
+			tasklet_free(h2c->wait_list.task);
 
 		pool_free(pool_head_h2c, h2c);
 	}
@@ -2049,7 +2062,6 @@ static int h2_process_mux(struct h2c *h2c)
 		h2s->flags &= ~H2_SF_BLK_ANY;
 
 		if (h2s->cs) {
-			h2s->cs->data_cb->send(h2s->cs);
 			h2s->cs->data_cb->wake(h2s->cs);
 		} else {
 			h2s_send_rst_stream(h2c, h2s);
@@ -2091,7 +2103,6 @@ static int h2_process_mux(struct h2c *h2c)
 		h2s->flags &= ~H2_SF_BLK_ANY;
 
 		if (h2s->cs) {
-			h2s->cs->data_cb->send(h2s->cs);
 			h2s->cs->data_cb->wake(h2s->cs);
 		} else {
 			h2s_send_rst_stream(h2c, h2s);
@@ -2167,18 +2178,19 @@ static void h2_recv(struct connection *conn)
 	return;
 }
 
-/* callback called on send event by the connection handler */
-static void h2_send(struct connection *conn)
+/* Try to send data if possible */
+static struct task *h2_send(struct task *t, void *ctx, unsigned short state)
 {
+	struct connection *conn = ctx;
 	struct h2c *h2c = conn->mux_ctx;
 	int done;
 
 	if (conn->flags & CO_FL_ERROR)
-		return;
+		return NULL;
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
 		/* a handshake was requested */
-		return;
+		return NULL;
 	}
 
 	/* This loop is quite simple : it tries to fill as much as it can from
@@ -2243,6 +2255,13 @@ static void h2_send(struct connection *conn)
 		}
 
 	}
+	/* We're done, no more to send */
+	if (!b_data(&h2c->mbuf))
+		return NULL;
+schedule:
+	if (LIST_ISEMPTY(&h2c->wait_list.list))
+		conn->xprt->subscribe(conn, SUB_CAN_SEND, &h2c->wait_list);
+	return NULL;
 }
 
 /* callback called on any event by the connection handler.
@@ -2349,6 +2368,8 @@ static int h2_wake(struct connection *conn)
 		else
 			h2c->task->expire = TICK_ETERNITY;
 	}
+
+	h2_send(NULL, conn, 0);
 	return 0;
 }
 
@@ -3474,8 +3495,6 @@ static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_
 	else if (LIST_ISEMPTY(&h2s->list)) {
 		if (h2s->flags & H2_SF_BLK_MFCTL)
 			LIST_ADDQ(&h2s->h2c->fctl_list, &h2s->list);
-		else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM))
-			LIST_ADDQ(&h2s->h2c->send_list, &h2s->list);
 	}
 
 	return total;
@@ -3575,7 +3594,6 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 const struct mux_ops h2_ops = {
 	.init = h2_init,
 	.recv = h2_recv,
-	.send = h2_send,
 	.wake = h2_wake,
 	.update_poll = h2_update_poll,
 	.rcv_buf = h2_rcv_buf,

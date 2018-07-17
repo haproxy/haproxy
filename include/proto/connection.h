@@ -598,6 +598,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 {
 	cs->obj_type = OBJ_TYPE_CS;
 	cs->flags = CS_FL_NONE;
+	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
 }
@@ -663,6 +664,8 @@ static inline struct connection *conn_new()
 /* Releases a conn_stream previously allocated by cs_new() */
 static inline void cs_free(struct conn_stream *cs)
 {
+	if (cs->wait_list.task)
+		tasklet_free(cs->wait_list.task);
 	pool_free(pool_head_connstream, cs);
 }
 
@@ -681,6 +684,11 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 	if (!likely(cs))
 		return NULL;
 
+	cs->wait_list.task = tasklet_new();
+	if (!likely(cs->wait_list.task)) {
+		cs_free(cs);
+		return NULL;
+	}
 	if (!conn) {
 		conn = conn_new();
 		if (!likely(conn)) {

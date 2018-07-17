@@ -307,7 +307,6 @@ struct xprt_ops {
 struct mux_ops {
 	int  (*init)(struct connection *conn);        /* early initialization */
 	void (*recv)(struct connection *conn);        /* mux-layer recv callback */
-	void (*send)(struct connection *conn);        /* mux-layer send callback */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
 	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
@@ -334,7 +333,6 @@ struct mux_ops {
  */
 struct data_cb {
 	void (*recv)(struct conn_stream *cs);  /* data-layer recv callback */
-	void (*send)(struct conn_stream *cs);  /* data-layer send callback */
 	int  (*wake)(struct conn_stream *cs);  /* data-layer callback to report activity */
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
 	char name[8];                           /* data layer name, zero-terminated */
@@ -370,6 +368,7 @@ struct conn_stream {
 	enum obj_type obj_type;              /* differentiates connection from applet context */
 	unsigned int flags;                  /* CS_FL_* */
 	struct connection *conn;             /* xprt-level connection */
+	struct wait_list wait_list;          /* We're in a wait list for send */
 	struct list send_wait_list;          /* list of tasks to wake when we're ready to send */
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */

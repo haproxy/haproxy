@@ -64,6 +64,7 @@ void conn_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
 	unsigned int flags;
+	int can_send = 0;
 
 	if (unlikely(!conn)) {
 		activity[tid].conn_dead++;
@@ -127,7 +128,7 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		conn->mux->send(conn);
+		can_send = LIST_ISEMPTY(&conn->send_wait_list);
 		while (!LIST_ISEMPTY(&conn->send_wait_list)) {
 			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
 			    struct wait_list *, list);
@@ -195,9 +196,9 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
+	if ((can_send || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
-	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED)) &&
+	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
 	    conn->mux->wake(conn) < 0)
 		return;
 

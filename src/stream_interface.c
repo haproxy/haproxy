@@ -52,10 +52,10 @@ static void stream_int_shutw_applet(struct stream_interface *si);
 static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
 static void si_cs_recv_cb(struct conn_stream *cs);
-static void si_cs_send_cb(struct conn_stream *cs);
 static int si_cs_wake_cb(struct conn_stream *cs);
 static int si_idle_conn_wake_cb(struct conn_stream *cs);
 static void si_idle_conn_null_cb(struct conn_stream *cs);
+static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -85,14 +85,12 @@ struct si_ops si_applet_ops = {
 
 struct data_cb si_conn_cb = {
 	.recv    = si_cs_recv_cb,
-	.send    = si_cs_send_cb,
 	.wake    = si_cs_wake_cb,
 	.name    = "STRM",
 };
 
 struct data_cb si_idle_conn_cb = {
 	.recv    = si_idle_conn_null_cb,
-	.send    = si_idle_conn_null_cb,
 	.wake    = si_idle_conn_wake_cb,
 	.name    = "IDLE",
 };
@@ -462,6 +460,10 @@ void stream_int_notify(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
+	/* If we have data to send, try it now */
+	if (!channel_is_empty(oc) && objt_cs(si->end))
+		si_cs_send(NULL, objt_cs(si->end), 0);
+
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
 		struct connection *conn = objt_cs(si->end) ? objt_cs(si->end)->conn : NULL;
@@ -632,20 +634,42 @@ static int si_cs_wake_cb(struct conn_stream *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-static void si_cs_send(struct conn_stream *cs)
+static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 {
+	struct conn_stream *cs = ctx;
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
 	struct channel *oc = si_oc(si);
 	int ret;
+	int did_send = 0;
+
+	/* We're already waiting to be able to send, give up */
+	if (!LIST_ISEMPTY(&cs->wait_list.list))
+		return NULL;
+
+	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		return NULL;
+
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		/* a handshake was requested */
+		/* Schedule ourself to be woken up once the handshake is done */
+		LIST_ADDQ(&conn->send_wait_list, &cs->wait_list.list);
+		return NULL;
+	}
+
+	/* we might have been called just after an asynchronous shutw */
+	if (si_oc(si)->flags & CF_SHUTW)
+		return NULL;
 
 	/* ensure it's only set if a write attempt has succeeded */
 	oc->flags &= ~CF_WRITE_PARTIAL;
 
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(cs, oc->pipe);
-		if (ret > 0)
+		if (ret > 0) {
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
+			did_send = 1;
+		}
 
 		if (!oc->pipe->data) {
 			put_pipe(oc->pipe);
@@ -653,14 +677,14 @@ static void si_cs_send(struct conn_stream *cs)
 		}
 
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-			return;
+			return NULL;
 	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
 	if (!co_data(oc))
-		return;
+		goto wake_others;
 
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -691,6 +715,7 @@ static void si_cs_send(struct conn_stream *cs)
 
 		ret = conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
+			did_send = 1;
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
 
 			co_set_data(oc, co_data(oc) - ret);
@@ -706,6 +731,26 @@ static void si_cs_send(struct conn_stream *cs)
 			 */
 		}
 	}
+	/* We couldn't send all of our data, let the mux know we'd like to send more */
+	if (co_data(oc)) {
+		if (!cs->wait_list.task->process) {
+			cs->wait_list.task->process = si_cs_send;
+			cs->wait_list.task->context = ctx;
+		}
+		conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+	}
+wake_others:
+	/* Maybe somebody was waiting for this conn_stream, wake them */
+	if (did_send) {
+		while (!LIST_ISEMPTY(&cs->send_wait_list)) {
+			struct wait_list *sw = LIST_ELEM(cs->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			tasklet_wakeup(sw->task);
+		}
+	}
+	return NULL;
 }
 
 /* This function is designed to be called from within the stream handler to
@@ -995,7 +1040,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	__cs_want_send(cs);
 
-	si_cs_send(cs);
+	si_cs_send(NULL, cs, 0);
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		__cs_stop_both(cs);
@@ -1309,34 +1354,6 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 	if (ic->flags & CF_AUTO_CLOSE)
 		channel_shutw_now(ic);
 	stream_sock_read0(si);
-	return;
-}
-
-/*
- * This is the callback which is called by the connection layer to send data
- * from the buffer to the connection. It iterates over the transport layer's
- * snd_buf function.
- */
-static void si_cs_send_cb(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-	struct stream_interface *si = cs->data;
-
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		return;
-
-	if (conn->flags & CO_FL_HANDSHAKE)
-		/* a handshake was requested */
-		return;
-
-	/* we might have been called just after an asynchronous shutw */
-	if (si_oc(si)->flags & CF_SHUTW)
-		return;
-
-	/* OK there are data waiting to be sent */
-	si_cs_send(cs);
-
-	/* OK all done */
 	return;
 }
 

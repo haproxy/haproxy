@@ -69,6 +69,7 @@ static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
 static int tcpcheck_main(struct check *);
+static void __event_srv_chk_w(struct conn_stream *cs);
 
 static struct pool_head *pool_head_email_alert   = NULL;
 static struct pool_head *pool_head_tcpcheck_rule = NULL;
@@ -709,23 +710,42 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
  * the connection acknowledgement. If the proxy requires L7 health-checks,
  * it sends the request. In other cases, it calls set_server_check_status()
  * to set check->status, check->duration and check->result.
+ */
+static struct task *event_srv_chk_w(struct task *task, void *ctx, unsigned short state)
+{
+	struct conn_stream *cs = ctx;
+	struct check __maybe_unused *check = cs->data;
+
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	__event_srv_chk_w(cs);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	return NULL;
+}
+
+/* same as above but protected by the server lock.
  *
  * Please do NOT place any return statement in this function and only leave
- * via the out_unlock label.
+ * via the out label. NOTE THAT THIS FUNCTION DOESN'T LOCK, YOU PROBABLY WANT
+ * TO USE event_srv_chk_w() instead.
  */
-static void event_srv_chk_w(struct conn_stream *cs)
+static void __event_srv_chk_w(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct check *check = cs->data;
 	struct server *s = check->server;
 	struct task *t = check->task;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE)
-		goto out_unlock;
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		if (cs->wait_list.task->process != event_srv_chk_w) {
+			cs->wait_list.task->process = event_srv_chk_w;
+			cs->wait_list.task->context = cs;
+		}
+		LIST_ADDQ(&conn->send_wait_list, &cs->wait_list.list);
+		goto out;
+	}
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
@@ -748,19 +768,24 @@ static void event_srv_chk_w(struct conn_stream *cs)
 
 	/* wake() will take care of calling tcpcheck_main() */
 	if (check->type == PR_O2_TCPCHK_CHK)
-		goto out_unlock;
+		goto out;
 
 	if (b_data(&check->bo)) {
 		b_del(&check->bo, conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0));
 		b_realign_if_empty(&check->bo);
-
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
 			__cs_stop_both(cs);
 			goto out_wakeup;
 		}
-		if (b_data(&check->bo))
-			goto out_unlock;
+		if (b_data(&check->bo)) {
+			if (!cs->wait_list.task->process) {
+				cs->wait_list.task->process = event_srv_chk_w;
+				cs->wait_list.task->context = cs;
+			}
+			conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+			goto out;
+		}
 	}
 
 	/* full request sent, we allow up to <timeout.check> if nonzero for a response */
@@ -774,8 +799,8 @@ static void event_srv_chk_w(struct conn_stream *cs)
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
 	__cs_stop_send(cs);   /* nothing more to write */
- out_unlock:
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+ out:
+	return;
 }
 
 /*
@@ -1390,7 +1415,8 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = tcpcheck_main(check);
 		cs = check->cs;
 		conn = cs_conn(cs);
-	}
+	} else if (LIST_ISEMPTY(&cs->wait_list.list))
+		__event_srv_chk_w(cs);
 
 	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
@@ -1433,7 +1459,6 @@ static int wake_srv_chk(struct conn_stream *cs)
 
 struct data_cb check_conn_cb = {
 	.recv = event_srv_chk_r,
-	.send = event_srv_chk_w,
 	.wake = wake_srv_chk,
 	.name = "CHCK",
 };
