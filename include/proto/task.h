@@ -205,6 +205,8 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
+	if (!LIST_ISEMPTY(&tl->list))
+		return;
 	LIST_ADDQ(&task_list[tid], &tl->list);
 	task_list_size[tid]++;
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
