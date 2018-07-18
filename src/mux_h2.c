@@ -2920,11 +2920,11 @@ static int h2_frt_transfer_data(struct h2s *h2s, struct buffer *buf, int count)
  * caller is responsible for never asking for more data than what is available
  * in the buffer.
  */
-static int h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, int count)
+static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count)
 {
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
-	int ret = 0;
+	size_t ret = 0;
 
 	if (h2c->st0 != H2_CS_FRAME_P)
 		return 0; // no pre-parsed frame yet
