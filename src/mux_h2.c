@@ -3128,7 +3128,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	int es_now = 0;
 	int size = 0;
 	const char *blk1, *blk2;
-	int len1, len2;
+	size_t len1, len2;
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;

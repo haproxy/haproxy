@@ -352,7 +352,7 @@ static inline size_t b_getblk(const struct buffer *buf, char *blk, size_t len, s
  *   =0 : not enough data available. <blk*> are left undefined.
  * The buffer is left unaffected. Unused buffers are left in an undefined state.
  */
-static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, int *len1, const char **blk2, int *len2, size_t ofs, size_t max)
+static inline size_t b_getblk_nc(const struct buffer *buf, const char **blk1, size_t *len1, const char **blk2, size_t *len2, size_t ofs, size_t max)
 {
 	size_t l1;
 

@@ -1736,12 +1736,12 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	int wanted = lua_tointeger(L, 2);
 	struct hlua *hlua = hlua_gethlua(L);
 	struct appctx *appctx;
-	int len;
+	size_t len;
 	int nblk;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 	int skip_at_end = 0;
 	struct channel *oc;
 	struct stream_interface *si;
@@ -2774,8 +2774,8 @@ static inline int _hlua_channel_dup(struct channel *chn, lua_State *L)
 {
 	char *blk1;
 	char *blk2;
-	int len1;
-	int len2;
+	size_t len1;
+	size_t len2;
 	int ret;
 	luaL_Buffer b;
 
@@ -2862,9 +2862,9 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 {
 	char *blk1;
 	char *blk2;
-	int len1;
-	int len2;
-	int len;
+	size_t len1;
+	size_t len2;
+	size_t len;
 	struct channel *chn;
 	int ret;
 	luaL_Buffer b;
@@ -3634,9 +3634,9 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	struct stream_interface *si = appctx->appctx->owner;
 	int ret;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 
 	/* Read the maximum amount of data avalaible. */
 	ret = co_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
@@ -3686,12 +3686,12 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stream_interface *si = appctx->appctx->owner;
-	int len = MAY_LJMP(luaL_checkinteger(L, 2));
+	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 
 	/* Read the maximum amount of data avalaible. */
 	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
@@ -4097,9 +4097,9 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	struct channel *chn = si_ic(si);
 	int ret;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
@@ -4183,9 +4183,9 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	struct channel *chn = si_ic(si);
 	int ret;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
@@ -6627,9 +6627,9 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	struct proxy *px = strm->be;
 	struct hlua *hlua = ctx->ctx.hlua_apphttp.hlua;
 	const char *blk1;
-	int len1;
+	size_t len1;
 	const char *blk2;
-	int len2;
+	size_t len2;
 	int ret;
 
 	/* If the stream is disconnect or closed, ldo nothing. */

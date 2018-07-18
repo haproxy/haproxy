@@ -48,13 +48,13 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 int ci_putblk(struct channel *chn, const char *str, int len);
 struct buffer *ci_swpbuf(struct channel *chn, struct buffer *buf);
 int ci_putchr(struct channel *chn, char c);
-int ci_getline_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
-int ci_getblk_nc(const struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int ci_getline_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
+int ci_getblk_nc(const struct channel *chn, char **blk1, size_t *len1, char **blk2, size_t *len2);
 int co_inject(struct channel *chn, const char *msg, int len);
 int co_getline(const struct channel *chn, char *str, int len);
 int co_getblk(const struct channel *chn, char *blk, int len, int offset);
-int co_getline_nc(const struct channel *chn, const char **blk1, int *len1, const char **blk2, int *len2);
-int co_getblk_nc(const struct channel *chn, const char **blk1, int *len1, const char **blk2, int *len2);
+int co_getline_nc(const struct channel *chn, const char **blk1, size_t *len1, const char **blk2, size_t *len2);
+int co_getblk_nc(const struct channel *chn, const char **blk1, size_t *len1, const char **blk2, size_t *len2);
 
 
 /* returns a pointer to the stream the channel belongs to */
