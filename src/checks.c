@@ -779,11 +779,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 			goto out_wakeup;
 		}
 		if (b_data(&check->bo)) {
-			if (!cs->wait_list.task->process) {
-				cs->wait_list.task->process = event_srv_chk_w;
-				cs->wait_list.task->context = cs;
-			}
-			conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+			conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, event_srv_chk_w, cs));
 			goto out;
 		}
 	}

@@ -773,6 +773,15 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 	cs->data = data;
 }
 
+static inline struct wait_list *wl_set_waitcb(struct wait_list *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
+{
+	if (!wl->task->process) {
+		wl->task->process = cb;
+		wl->task->context = ctx;
+	}
+	return wl;
+}
+
 /* Installs the connection's mux layer for upper context <ctx>.
  * Returns < 0 on error.
  */

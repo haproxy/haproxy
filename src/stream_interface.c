@@ -732,13 +732,9 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 		}
 	}
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
-	if (co_data(oc)) {
-		if (!cs->wait_list.task->process) {
-			cs->wait_list.task->process = si_cs_send;
-			cs->wait_list.task->context = ctx;
-		}
-		conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
-	}
+	if (co_data(oc))
+		conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, si_cs_send, ctx));
+
 wake_others:
 	/* Maybe somebody was waiting for this conn_stream, wake them */
 	if (did_send) {
