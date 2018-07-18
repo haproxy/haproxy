@@ -6459,9 +6459,6 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 	case HLUA_E_OK:
 		ctx->ctx.hlua_apptcp.flags |= APPLET_DONE;
 
-		/* log time */
-		strm->logs.tv_request = now;
-
 		/* eat the whole request */
 		co_skip(si_oc(si), co_data(si_oc(si)));
 		res->flags |= CF_READ_NULL;
@@ -6790,9 +6787,8 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 
 		/* close the connection. */
 
-		/* status / log */
+		/* status */
 		strm->txn->status = ctx->ctx.hlua_apphttp.status;
-		strm->logs.tv_request = now;
 
 		/* eat the whole request */
 		co_skip(si_oc(si), co_data(si_oc(si)));
