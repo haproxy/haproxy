@@ -28,13 +28,15 @@
 #ifndef _COMMON_BUF_H
 #define _COMMON_BUF_H
 
+#include <stdint.h>
+
 
 /* Structure defining a buffer's head */
 struct buffer {
 	char *p;                    /* buffer's start pointer, separates in and out data */
-	unsigned int size;          /* buffer size in bytes */
-	unsigned int i;             /* number of input bytes pending for analysis in the buffer */
-	unsigned int o;             /* number of out bytes the sender can consume from this buffer */
+	size_t size;                /* buffer size in bytes */
+	size_t i;                   /* number of input bytes pending for analysis in the buffer */
+	size_t o;                   /* number of out bytes the sender can consume from this buffer */
 	char data[0];               /* <size> bytes of stored data */
 };
 

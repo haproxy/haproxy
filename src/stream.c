@@ -2974,15 +2974,15 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%d p=%d req.next=%d i=%d size=%d\n",
+			     "      buf=%p data=%p o=%u p=%d req.next=%d i=%u size=%u\n",
 			     strm->req.wex ?
 			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->req.buf,
-			     strm->req.buf->data, strm->req.buf->o,
+			     strm->req.buf->data, (unsigned int)strm->req.buf->o,
 			     (int)(strm->req.buf->p - strm->req.buf->data),
-			     strm->txn ? strm->txn->req.next : 0, strm->req.buf->i,
-			     strm->req.buf->size);
+			     strm->txn ? strm->txn->req.next : 0, (unsigned int)strm->req.buf->i,
+			     (unsigned int)strm->req.buf->size);
 
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
@@ -3003,15 +3003,15 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%d p=%d rsp.next=%d i=%d size=%d\n",
+			     "      buf=%p data=%p o=%u p=%d rsp.next=%d i=%u size=%u\n",
 			     strm->res.wex ?
 			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->res.buf,
-			     strm->res.buf->data, strm->res.buf->o,
+			     strm->res.buf->data, (unsigned int)strm->res.buf->o,
 			     (int)(strm->res.buf->p - strm->res.buf->data),
-			     strm->txn ? strm->txn->rsp.next : 0, strm->res.buf->i,
-			     strm->res.buf->size);
+			     strm->txn ? strm->txn->rsp.next : 0, (unsigned int)strm->res.buf->i,
+			     (unsigned int)strm->res.buf->size);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_applet_cant_put(si);
@@ -3158,9 +3158,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     curr_strm->task->calls);
 
 			chunk_appendf(&trash,
-				     " rq[f=%06xh,i=%d,an=%02xh,rx=%s",
+				     " rq[f=%06xh,i=%u,an=%02xh,rx=%s",
 				     curr_strm->req.flags,
-				     curr_strm->req.buf->i,
+				     (unsigned int)curr_strm->req.buf->i,
 				     curr_strm->req.analysers,
 				     curr_strm->req.rex ?
 				     human_time(TICKS_TO_MS(curr_strm->req.rex - now_ms),
@@ -3179,9 +3179,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
-				     " rp[f=%06xh,i=%d,an=%02xh,rx=%s",
+				     " rp[f=%06xh,i=%u,an=%02xh,rx=%s",
 				     curr_strm->res.flags,
-				     curr_strm->res.buf->i,
+				     (unsigned int)curr_strm->res.buf->i,
 				     curr_strm->res.analysers,
 				     curr_strm->res.rex ?
 				     human_time(TICKS_TO_MS(curr_strm->res.rex - now_ms),

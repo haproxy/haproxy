@@ -211,9 +211,9 @@ void buffer_slow_realign(struct buffer *buf)
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "            data=%p o=%d i=%d p=%p\n"
+	fprintf(o, "            data=%p o=%u i=%u p=%p\n"
                    "            relative:   p=0x%04x\n",
-		b->data, b->o, b->i, b->p, (unsigned int)(b->p - b->data));
+		b->data, (unsigned int)b->o, (unsigned int)b->i, b->p, (unsigned int)(b->p - b->data));
 
 	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
 	fprintf(o, "         0  1  2  3  4  5  6  7    8  9  a  b  c  d  e  f\n");

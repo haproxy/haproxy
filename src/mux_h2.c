@@ -3357,7 +3357,7 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	}
 
  end:
-	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%d in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) buf->o=%d", h2c->st0, h2s->id, size+9, total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, buf->o);
+	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%d in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) buf->o=%u", h2c->st0, h2s->id, size+9, total, h1_msg_state_str(h1m->state), h1m->err_pos, h1_msg_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)buf->o);
 	return total;
 }
 
@@ -3472,7 +3472,7 @@ static void h2_show_fd(struct chunk *msg, struct connection *conn)
 	}
 
 	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
-		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, h2c->dbuf->i, h2c->dbuf->size, h2c->mbuf->o, h2c->mbuf->size);
+		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, (unsigned int)h2c->dbuf->i, (unsigned int)h2c->dbuf->size, (unsigned int)h2c->mbuf->o, (unsigned int)h2c->mbuf->size);
 }
 
 /*******************************************************/

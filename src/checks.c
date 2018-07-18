@@ -2854,8 +2854,8 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			if (check->current_step->string_len >= check->bo->size) {
-				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%d) at step %d",
-					     check->current_step->string_len, check->bo->size,
+				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
+					     check->current_step->string_len, (unsigned int)check->bo->size,
 					     tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 				goto out_end_tcpcheck;

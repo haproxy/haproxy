@@ -298,8 +298,8 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 	if (msg->flags & HTTP_MSGF_TE_CHNK) {
 		ret = http_compression_buffer_add_data(st, tmpbuf, zbuf, tmpbuf->i);
 		if (ret != tmpbuf->i) {
-			ha_warning("HTTP compression failed: Must consume %d bytes but only %d bytes consumed\n",
-				   tmpbuf->i, ret);
+			ha_warning("HTTP compression failed: Must consume %u bytes but only %d bytes consumed\n",
+				   (unsigned int)tmpbuf->i, ret);
 			return -1;
 		}
 	}
