@@ -5337,10 +5337,10 @@ reneg_ok:
  * avoiding the call if inappropriate. The function does not call the
  * connection's polling update function, so the caller is responsible for this.
  */
-static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int count)
+static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_t count)
 {
-	int ret, done = 0;
-	int try;
+	ssize_t ret;
+	size_t try, done = 0;
 
 	conn_refresh_polling_flags(conn);
 

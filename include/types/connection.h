@@ -268,7 +268,7 @@ enum {
  * and the other ones are used to setup and release the transport layer.
  */
 struct xprt_ops {
-	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
+	size_t (*rcv_buf)(struct connection *conn, struct buffer *buf, size_t count); /* recv callback */
 	size_t (*snd_buf)(struct connection *conn, const struct buffer *buf, size_t count, int flags); /* send callback */
 	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */

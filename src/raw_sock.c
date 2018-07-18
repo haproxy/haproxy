@@ -250,10 +250,10 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
  * errno is cleared before starting so that the caller knows that if it spots an
  * error without errno, it's pending and can be retrieved via getsockopt(SO_ERROR).
  */
-static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int count)
+static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_t count)
 {
-	int ret, done = 0;
-	int try;
+	ssize_t ret;
+	size_t try, done = 0;
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
