@@ -3455,8 +3455,8 @@ static void h2_show_fd(struct chunk *msg, struct connection *conn)
 		node = eb32_next(node);
 	}
 
-	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d",
-		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt);
+	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
+		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, h2c->dbuf->i, h2c->dbuf->size, h2c->mbuf->o, h2c->mbuf->size);
 }
 
 /*******************************************************/
