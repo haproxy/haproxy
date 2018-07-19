@@ -113,7 +113,7 @@ struct h2c {
 	int timeout;        /* idle timeout duration in ticks */
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
 	unsigned int nb_streams;  /* number of streams in the tree */
-	/* 32 bit hole here */
+	unsigned int nb_cs;       /* number of attached conn_streams */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
@@ -352,6 +352,7 @@ static int h2c_frt_init(struct connection *conn)
 	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
+	h2c->nb_cs = 0;
 
 	h2c->dbuf = &buf_empty;
 	h2c->dsi = -1;
@@ -632,6 +633,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 
 	h2s->cs = cs;
 	cs->ctx = h2s;
+	h2c->nb_cs++;
 
 	if (stream_create_from_cs(cs) < 0)
 		goto out_free_cs;
@@ -640,6 +642,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	return h2s;
 
  out_free_cs:
+	h2c->nb_cs--;
 	cs_free(cs);
  out_close:
 	h2s_destroy(h2s);
@@ -2441,6 +2444,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
+	h2c->nb_cs--;
 
 	/* this stream may be blocked waiting for some data to leave (possibly
 	 * an ES or RST frame), so orphan it in this case.
@@ -3431,8 +3435,8 @@ static void h2_show_fd(struct chunk *msg, struct connection *conn)
 		node = eb32_next(node);
 	}
 
-	chunk_appendf(msg, " st0=%d flg=0x%08x fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d",
-		      h2c->st0, h2c->flags, fctl_cnt, send_cnt, tree_cnt, orph_cnt);
+	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d",
+		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt);
 }
 
 /*******************************************************/
