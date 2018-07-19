@@ -159,14 +159,15 @@ if [ -z "$AUTO" ]; then
 fi
 
 echo "Archiving sources for version $NEW ..."
-rm -f "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"{,.md5}
+rm -f "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"{,.md5,.sha256}
 if ! git archive --format=tar --prefix="haproxy-${NEW}/" "v$NEW" | \
      gzip -9 > "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"; then
 	die "Failed to produce the tar.gz archive"
 fi
 
 ( cd "$TARGET_DIR/src${DEVEL}" ; \
-  md5sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.md5 )
+  md5sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.md5 ; \
+  sha256sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.sha256 )
 
 echo "Extracting doc ..."
 git show "v$NEW:CHANGELOG" > "$TARGET_DIR/src/CHANGELOG"
@@ -178,6 +179,6 @@ done
 
 echo "Done : ls -l ${TARGET_DIR}"
 ( cd "$TARGET_DIR" ;
-  ls -l src/CHANGELOG "src${DEVEL}/haproxy-${NEW}".tar.gz{,.md5} $(for i in "${DOC[@]}"; do echo "doc/${i#doc/}"{,.gz}; done)
+  ls -l src/CHANGELOG "src${DEVEL}/haproxy-${NEW}".tar.gz{,.md5,.sha256} $(for i in "${DOC[@]}"; do echo "doc/${i#doc/}"{,.gz}; done)
 )
 echo
