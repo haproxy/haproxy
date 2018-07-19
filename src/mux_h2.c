@@ -53,12 +53,13 @@ static struct pool_head *pool_head_h2s;
 #define H2_CF_DEM_MROOM         0x00000020  // demux blocked on lack of room in mux buffer
 #define H2_CF_DEM_SALLOC        0x00000040  // demux blocked on lack of stream's request buffer
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
-#define H2_CF_DEM_BLOCK_ANY     0x000000F0  // aggregate of the demux flags above except DALLOC/DFULL
+#define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some conn_streams to leave
+#define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
 
 /* other flags */
-#define H2_CF_GOAWAY_SENT       0x00000100  // a GOAWAY frame was successfully sent
-#define H2_CF_GOAWAY_FAILED     0x00000200  // a GOAWAY frame failed to be sent
-#define H2_CF_WAIT_FOR_HS       0x00000400  // We did check that at least a stream was waiting for handshake
+#define H2_CF_GOAWAY_SENT       0x00001000  // a GOAWAY frame was successfully sent
+#define H2_CF_GOAWAY_FAILED     0x00002000  // a GOAWAY frame failed to be sent
+#define H2_CF_WAIT_FOR_HS       0x00004000  // We did check that at least a stream was waiting for handshake
 
 
 /* H2 connection state, in h2c->st0 */
@@ -249,6 +250,12 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 		return 1;
 
 	return 0;
+}
+
+/* returns true if the connection has too many conn_streams attached */
+static inline int h2_has_too_many_cs(const struct h2c *h2c)
+{
+	return h2c->nb_cs >= h2_settings_max_concurrent_streams;
 }
 
 /* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
@@ -639,6 +646,8 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 		goto out_free_cs;
 
 	/* OK done, the stream lives its own life now */
+	if (h2_has_too_many_cs(h2c))
+		h2c->flags |= H2_CF_DEM_TOOMANY;
 	return h2s;
 
  out_free_cs:
@@ -1545,6 +1554,9 @@ static int h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->dbuf->i < h2c->dfl && h2c->dbuf->i < h2c->dbuf->size)
 		return 0; // incomplete frame
 
+	if (h2c->flags & H2_CF_DEM_TOOMANY)
+		return 0; // too many cs still present
+
 	/* now either the frame is complete or the buffer is complete */
 	if (h2s->st != H2_SS_IDLE) {
 		/* FIXME: stream already exists, this is only allowed for
@@ -2445,6 +2457,14 @@ static void h2_detach(struct conn_stream *cs)
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
 	h2c->nb_cs--;
+	if (h2c->flags & H2_CF_DEM_TOOMANY &&
+	    !h2_has_too_many_cs(h2c)) {
+		h2c->flags &= ~H2_CF_DEM_TOOMANY;
+		if (h2_recv_allowed(h2c)) {
+			__conn_xprt_want_recv(h2c->conn);
+			conn_xprt_want_send(h2c->conn);
+		}
+	}
 
 	/* this stream may be blocked waiting for some data to leave (possibly
 	 * an ES or RST frame), so orphan it in this case.
