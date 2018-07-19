@@ -3302,6 +3302,14 @@ static int h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf)
 	/* we may need to add END_STREAM */
 	/* FIXME: we should also detect shutdown(w) below, but how ? Maybe we
 	 * could rely on the MSG_MORE flag as a hint for this ?
+	 *
+	 * FIXME: what we do here is not correct because we send end_stream
+	 * before knowing if we'll have to send a HEADERS frame for the
+	 * trailers. More importantly we're not consuming the trailing CRLF
+	 * after the end of trailers, so it will be left to the caller to
+	 * eat it. The right way to do it would be to measure trailers here
+	 * and to send ES only if there are no trailers.
+	 *
 	 */
 	if (((h1m->flags & H1_MF_CLEN) && !(h1m->curr_len - size)) ||
 	    !h1m->curr_len || h1m->state >= HTTP_MSG_DONE)
@@ -3402,6 +3410,13 @@ static int h2_snd_buf(struct conn_stream *cs, struct buffer *buf, int flags)
 			cs->flags |= CS_FL_ERROR;
 			break;
 		}
+	}
+
+	if (h2s->st >= H2_SS_ERROR) {
+		/* trim any possibly pending data after we close (extra CR-LF,
+		 * unprocessed trailers, abnormal extra data, ...)
+		 */
+		bo_del(buf, buf->o);
 	}
 
 	/* RST are sent similarly to frame acks */
