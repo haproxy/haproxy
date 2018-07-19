@@ -273,6 +273,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->nice = -32768;
 	t->calls = 0;
 	t->state = 0;
+	t->process = NULL;
 	LIST_INIT(&t->list);
 }
 
