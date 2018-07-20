@@ -2264,7 +2264,7 @@ spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 		    agent->id, __FUNCTION__, s,
 		    ((ctx->flags & SPOE_CTX_FL_FRAGMENTED) ? "last fragment of" : "unfragmented"),
 		    ctx->spoe_appctx, (agent->rt[tid].frame_size - FRAME_HDR_SIZE),
-		    p - ctx->buffer->p);
+		    p - b_head(&ctx->buffer));
 
 	b_set_data(&ctx->buffer, p - b_head(&ctx->buffer));
 	ctx->frag_ctx.curmsg = NULL;

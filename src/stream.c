@@ -851,13 +851,13 @@ static void sess_update_stream_int(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 
-	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
+	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%lu rqt=%lu rph=%lu rpt=%lu cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
 		req, &s->res,
 		req->rex, s->res.wex,
 		req->flags, s->res.flags,
-		req->buf->i, req->buf->o, s->res.buf.i, s->res.buf.o, s->si[0].state, s->si[1].state);
+		ci_data(req), co_data(req), ci_data(&s->res), co_data(&s->res), s->si[0].state, s->si[1].state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -1046,13 +1046,13 @@ static void sess_prepare_conn_req(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 
-	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
+	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%lu rqt=%lu rph=%lu rpt=%lu cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
 		&s->req, &s->res,
 		s->req.rex, s->res.wex,
 		s->req.flags, s->res.flags,
-		s->req.buf.i, s->req.buf.o, s->res.buf.i, s->res.buf.o, s->si[0].state, s->si[1].state);
+		ci_data(&s->req), co_data(&s->req), ci_data(&s->res), co_data(&s->res), s->si[0].state, s->si[1].state);
 
 	if (si->state != SI_ST_REQ)
 		return;
@@ -1195,13 +1195,13 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		ci_data(req),
 		req->analysers);
 
 	/* now check whether we have some switching rules for this request */
@@ -1320,13 +1320,13 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 	struct session *sess = s->sess;
 	struct server_rule *rule;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i + req->buf->o,
+		c_data(req),
 		req->analysers);
 
 	if (!(s->flags & SF_ASSIGNED)) {
@@ -1370,13 +1370,13 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 	struct session *sess  = s->sess;
 	struct sticking_rule  *rule;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		ci_data(req),
 		req->analysers);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
@@ -1471,13 +1471,13 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	int i;
 	int nbreq = s->store_count;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->buf->i,
+		ci_data(rep),
 		rep->analysers);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
@@ -1800,14 +1800,14 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	/* Check for connection closure */
 
 	DPRINTF(stderr,
-		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
+		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%lu rqt=%lu rph=%lu rpt=%lu cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
 		now_ms, __FUNCTION__, __LINE__,
 		t,
 		s, s->flags,
 		req, res,
 		req->rex, res->wex,
 		req->flags, res->flags,
-		req->buf->i, req->buf->o, res->buf->i, res->buf->o, si_f->state, si_b->state,
+		ci_data(req), co_data(req), ci_data(res), co_data(res), si_f->state, si_b->state,
 		si_f->err_type, si_b->err_type,
 		si_b->conn_retries);
 

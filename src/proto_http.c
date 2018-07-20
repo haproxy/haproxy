@@ -1613,13 +1613,13 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		ci_data(req),
 		req->analysers);
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
@@ -3477,13 +3477,13 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		goto return_prx_yield;
 	}
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		ci_data(req),
 		req->analysers);
 
 	/* just in case we have some per-backend tracking */
@@ -3749,13 +3749,13 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		return 0;
 	}
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		ci_data(req),
 		req->analysers);
 
 	/*
@@ -4909,13 +4909,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &s->txn->req;
 	int ret;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		ci_data(req),
 		req->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
@@ -5145,7 +5145,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	int cur_idx;
 	int n;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -5777,7 +5777,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	struct cond_wordlist *wl;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -6126,13 +6126,13 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	struct http_msg *msg = &s->txn->rsp;
 	int ret;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		res,
 		res->rex, res->wex,
 		res->flags,
-		res->buf.i,
+		ci_data(res),
 		res->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))

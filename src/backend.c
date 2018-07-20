@@ -1399,13 +1399,13 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	uint32_t addr;
 	char *p;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		ci_data(req),
 		req->analysers);
 
 	if (s->flags & SF_ASSIGNED)

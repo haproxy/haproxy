@@ -103,13 +103,13 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	int partial;
 	int act_flags = 0;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf->i,
+		ci_data(req),
 		req->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -279,13 +279,13 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	int partial;
 	int act_flags = 0;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->buf->i,
+		ci_data(rep),
 		rep->analysers);
 
 	/* We don't know whether we have enough data, so must proceed

@@ -764,9 +764,9 @@ static void cli_io_handler(struct appctx *appctx)
 	}
 
  out:
-	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
+	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%lu, rqs=%lu, rh=%lu, rs=%lu\n",
 		__FUNCTION__, __LINE__,
-		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
+		si->state, req->flags, res->flags, ci_data(req), co_data(req), ci_data(res), co_data(res));
 }
 
 /* This is called when the stream interface is closed. For instance, upon an
