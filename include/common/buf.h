@@ -486,29 +486,31 @@ static inline void b_putchr(struct buffer *b, char c)
 	b->data++;
 }
 
+/* __b_putblk() : tries to append <len> bytes from block <blk> to the end of
+ * buffer <b> without checking for free space (it's up to the caller to do it).
+ * Supports wrapping. It must not be called with len == 0.
+ */
+static inline void __b_putblk(struct buffer *b, const char *blk, size_t len)
+{
+	size_t half = b_contig_space(b);
+
+	memcpy(b_tail(b), blk, half);
+
+	if (len > half)
+		memcpy(b_peek(b, b_data(b) + half), blk + half, len - half);
+	b->data += len;
+}
+
 /* b_putblk() : tries to append block <blk> at the end of buffer <b>. Supports
  * wrapping. Data are truncated if buffer is too short. It returns the number
  * of bytes copied.
  */
 static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 {
-	size_t half;
-
 	if (len > b_room(b))
 		len = b_room(b);
-	if (!len)
-		return 0;
-
-	half = b_contig_space(b);
-	if (half > len)
-		half = len;
-
-	memcpy(b_tail(b), blk, half);
-	b->data += half;
-	if (len > half) {
-		memcpy(b_tail(b), blk + half, len - half);
-		b->data += len - half;
-	}
+	if (len)
+		__b_putblk(b, blk, len);
 	return len;
 }
 
