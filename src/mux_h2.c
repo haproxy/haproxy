@@ -2273,6 +2273,7 @@ static int h2_wake(struct connection *conn)
 	struct h2c *h2c = conn->mux_ctx;
 	struct session *sess = conn->owner;
 
+	h2_send(NULL, conn, 0);
 	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
 
@@ -2369,7 +2370,6 @@ static int h2_wake(struct connection *conn)
 			h2c->task->expire = TICK_ETERNITY;
 	}
 
-	h2_send(NULL, conn, 0);
 	return 0;
 }
 
