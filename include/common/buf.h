@@ -517,7 +517,9 @@ static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 /* b_xfer() : transfers at most <count> bytes from buffer <src> to buffer <dst>
  * and returns the number of bytes copied. The bytes are removed from <src> and
  * added to <dst>. The caller is responsible for ensuring that <count> is not
- * larger than b_room(dst).
+ * larger than b_room(dst). Whenever possible (if the destination is empty and
+ * at least as much as the source was requested), the buffers are simply
+ * swapped instead of copied.
  */
 static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count)
 {
@@ -533,6 +535,13 @@ static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count
 
 	if (ret > count)
 		ret = count;
+	else if (!b_data(dst)) {
+		/* zero copy is possible by just swapping buffers */
+		struct buffer tmp = *dst;
+		*dst = *src;
+		*src = tmp;
+		goto leave;
+	}
 
 	block1 = b_contig_data(src, 0);
 	if (block1 > ret)
