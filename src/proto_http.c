@@ -3526,7 +3526,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		    ci_head(&s->req), &txn->hdr_idx, &ctx)) {
 			if (unlikely(http_header_add_tail2(&txn->req,
 			    &txn->hdr_idx, "Early-Data: 1",
-			    strlen("Early-Data: 1"))) < 0) {
+			    strlen("Early-Data: 1")) < 0)) {
 				goto return_bad_req;
 			 }
 		}
