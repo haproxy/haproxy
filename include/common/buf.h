@@ -300,21 +300,28 @@ static inline size_t b_contig_data(const struct buffer *b, size_t start)
 }
 
 /* b_contig_space() : returns the amount of bytes that can be appended to the
- * buffer at once.
+ * buffer at once. We have 8 possible cases :
+ *
+ * [____________________]  return size
+ * [______|_____________]  return size - tail_ofs
+ * [XXXXXX|_____________]  return size - tail_ofs
+ * [___|XXXXXX|_________]  return size - tail_ofs
+ * [______________XXXXXX]  return head_ofs
+ * [XXXX|___________|XXX]  return head_ofs - tail_ofs
+ * [XXXXXXXXXX|XXXXXXXXX]  return 0
+ * [XXXXXXXXXXXXXXXXXXXX]  return 0
  */
 static inline size_t b_contig_space(const struct buffer *b)
 {
-	const char *left, *right;
+	size_t left, right;
 
-	right = b_head(b);
+	right = b_head_ofs(b);
 	left  = right + b_data(b);
 
-	if (left >= b_wrap(b))
-		left -= b_size(b);
-	else
-		right = b_wrap(b);
-
-	return right - left;
+	left = b_size(b) - left;
+	if ((ssize_t)left <= 0)
+		left += right;
+	return left;
 }
 
 /* b_getblk() : gets one full block of data at once from a buffer, starting
