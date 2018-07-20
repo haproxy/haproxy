@@ -514,6 +514,42 @@ static inline size_t b_putblk(struct buffer *b, const char *blk, size_t len)
 	return len;
 }
 
+/* b_xfer() : transfers at most <count> bytes from buffer <src> to buffer <dst>
+ * and returns the number of bytes copied. The bytes are removed from <src> and
+ * added to <dst>. The caller is responsible for ensuring that <count> is not
+ * larger than b_room(dst).
+ */
+static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count)
+{
+	size_t ret, block1, block2;
+
+	ret = 0;
+	if (!count)
+		goto leave;
+
+	ret = b_data(src);
+	if (!ret)
+		goto leave;
+
+	if (ret > count)
+		ret = count;
+
+	block1 = b_contig_data(src, 0);
+	if (block1 > ret)
+		block1 = ret;
+	block2 = ret - block1;
+
+	if (block1)
+		__b_putblk(dst, b_head(src), block1);
+
+	if (block2)
+		__b_putblk(dst, b_peek(src, block1), block2);
+
+	b_del(src, ret);
+ leave:
+	return ret;
+}
+
 /* b_rep_blk() : writes the block <blk> at position <pos> which must be in
  * buffer <b>, and moves the part between <end> and the buffer's tail just
  * after the end of the copy of <blk>. This effectively replaces the part

@@ -459,6 +459,13 @@ b_rep_blk()         | buffer *buf      | writes the block <blk> at position
                     |                  | done. If <len> is null, the <blk>
                     |                  | pointer is allowed to be null, in
                     |                  | order to erase a block
+--------------------+------------------+---------------------------------------
+b_xfer()            | buffer *src      | transfers at most <count> bytes from
+                    | buffer *dst      | buffer <src> to buffer <dst> and
+                    | size_t cout      | returns the number of bytes copied.
+                    | ret: size_t      | The bytes are removed from <src> and
+                    |                  | added to <dst>. The caller guarantees
+                    |                  | that <count> is <= b_room(dst)
 ====================+==================+=======================================
 
 
