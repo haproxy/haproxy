@@ -260,7 +260,7 @@ void thread_exit_sync(void);
 int  thread_no_sync(void);
 int  thread_need_sync(void);
 
-extern unsigned long all_threads_mask;
+extern volatile unsigned long all_threads_mask;
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
 

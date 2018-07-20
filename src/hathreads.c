@@ -31,7 +31,7 @@ void thread_sync_io_handler(int fd)
 static HA_SPINLOCK_T sync_lock;
 static int           threads_sync_pipe[2];
 static unsigned long threads_want_sync = 0;
-unsigned long all_threads_mask  = 0;
+volatile unsigned long all_threads_mask  = 0;
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 struct lock_stat lock_stats[LOCK_LABELS];
@@ -106,7 +106,7 @@ static inline void thread_sync_barrier(volatile unsigned long *barrier)
 
 	HA_ATOMIC_CAS(barrier, &old, 0);
 	HA_ATOMIC_OR(barrier, tid_bit);
-	while (*barrier != all_threads_mask)
+	while ((*barrier & all_threads_mask) != all_threads_mask)
 		pl_cpu_relax();
 }
 
