@@ -102,3 +102,172 @@ Both operations should return a composite status :
   - number of bytes transfered
   - status flags (shutr, shutw, reset, empty, full, ...)
 
+
+2018-07-23 - Update after merging rxbuf
+---------------------------------------
+
+It becomes visible that the mux will not always be welcome to decode incoming
+data because it will sometimes imply extra memory copies and/or usage for no
+benefit.
+
+Ideally, when when a stream is instanciated based on incoming data, these
+incoming data should be passed and the upper layers called, but it should then
+be up these upper layers to peek more data in certain circumstances. Typically
+if the pending connection data are larger than what is expected to be passed
+above, it means some data may cause head-of-line blocking (HOL) to other
+streams, and needs to be pushed up through the layers to let other streams
+continue to work. Similarly very large H2 data frames after header frames
+should probably not be passed as they may require copies that could be avoided
+if passed later. However if the decoded frame fits into the conn_stream's
+buffer, there is an opportunity to use a single buffer for the conn_stream
+and the channel. The H2 demux could set a blocking flag indicating it's waiting
+for the upper stream to take over demuxing. This flag would be purged once the
+upper stream would start reading, or when extra data come and change the
+conditions.
+
+Forcing structured headers and raw data to coexist within a single buffer is
+quite challenging for many code parts. For example it's perfectly possible to
+see a fragmented buffer containing series of headers, then a small data chunk
+that was received at the same time, then a few other headers added by request
+processing, then another data block received afterwards, then possibly yet
+another header added by option http-send-name-header, and yet another data
+block. This causes some pain for compression which still needs to know where
+compressed and uncompressed data start/stop. It also makes it very difficult
+to account the exact bytes to pass through the various layers.
+
+One solution consists in thinking about buffers using 3 representations :
+
+  - a structured message, which is used for the internal HTTP representation.
+    This message may only be atomically processed. It has no clear byte count,
+    it's a message.
+
+  - a raw stream, consisting in sequences of bytes. That's typically what
+    happens in data sequences or in tunnel.
+
+  - a pipe, which contains data to be forwarded, and that haproxy cannot have
+    access to.
+
+The processing efficiency decreases with the higher complexity above, but the
+capabilities increase. The structured message can contain anything including
+serialized data blocks to be processed or forwarded. The raw stream contains
+data blocks to be processed or forwarded. The pipe only contains data blocks
+to be forwarded. The the latter ones are only an optimization of the former
+ones.
+
+Thus ideally a channel should have access to all such 3 storage areas at once,
+depending on the use case :
+  (1) a structured message,
+  (2) a raw stream,
+  (3) a pipe
+
+Right now a channel only has (2) and (3) but after the native HTTP rework, it
+will only have (1) and (3). Placing a raw stream exclusively in (1) comes with
+some performance drawbacks which are not easily recovered, and with some quite
+difficult management still involving the reserve to ensure that a data block
+doesn't prevent headers from being appended. But during header processing, the
+payload may be necessary so we cannot decide to drop this option.
+
+A long-term approach would consist in ensuring that a single channel may have
+access to all 3 representations at once, and to enumerate priority rules to
+define how they interact together. That's exactly what is currently being done
+with the pipe and the raw buffer right now. Doing so would also save the need
+for storing payload in the structured message and void the requirement for the
+reserve. But it would cost more memory to process POST data and server
+responses. Thus an intermediary step consists in keeping this model in mind but
+not implementing everything yet.
+
+Short term proposal : a channel has access to a buffer and a pipe. A non-empty
+buffer is either in structured message format OR raw stream format. Only the
+channel knows. However a structured buffer MAY contain raw data in a properly
+formated way (using the envelope defined by the structured message format).
+
+By default, when a demux writes to a CS rxbuf, it will try to use the lowest
+possible level for what is being done (i.e. splice if possible, otherwise raw
+stream, otherwise structured message). If the buffer already contains a
+structured message, then this format is exclusive. From this point the MUX has
+two options : either encode the incoming data to match the structured message
+format, or refrain from receiving into the CS's rxbuf and wait until the upper
+layer request those data.
+
+This opens a simplified option which could be suited even for the long term :
+  - cs_recv() will take one or two flags to indicate if a buffer already
+    contains a structured message or not ; the upper layer knows it.
+
+  - cs_recv() will take two flags to indicate what the upper layer is willing
+    to take :
+      - structured message only
+      - raw stream only
+      - any of them
+
+    From this point the mux can decide to either pass anything or refrain from
+    doing so.
+
+  - the demux stores the knowledge it has from the contents into some CS flags
+    to indicate whether or not some structured message are still available, and
+    whether or not some raw data are still available. Thus the caller knows
+    whether or not extra data are available.
+
+  - when the demux works on its own, it refrains from passing structured data
+    to a non-empty buffer, unless these data are causing trouble to other
+    streams (HOL).
+
+  - when a demux has to encapsulate raw data into a structured message, it will
+    always have to respect a configured reserve so that extra header processing
+    can be done on the structured message inside the buffer, regardless of the
+    supposed available room. In addition, the upper layer may indicate using an
+    extra recv() flag whether it wants the demux to defragment serialized data
+    (for example by moving trailing headers apart) or if it's not necessary.
+    This flag will be set by the stream interface if compression is required or
+    if the http-buffer-request option is set for example. Probably that using
+    to_forward==0 is a stronger indication that the reserve must be respected.
+
+  - cs_recv() and cs_send() when fed with a message, should not return byte
+    counts but message counts (i.e. 0 or 1). This implies that a single call to
+    either of these functions cannot mix raw data and structured messages at
+    the same time.
+
+At this point it looks like the conn_stream will have some encapsulation work
+to do for the payload if it needs to be encapsulated into a message. This
+further magnifies the importance of *not* decoding DATA frames into the CS's
+rxbuf until really needed.
+
+The CS will probably need to hold indication of what is available at the mux
+level, not only in the CS. Eg: we know that payload is still available.
+
+Using these elements, it should be possible to ensure that full header frames
+may be received without enforcing any reserve, that too large frames that do
+not fit will be detected because they return 0 message and indicate that such
+a message is still pending, and that data availability is correctly detected
+(later we may expect that the stream-interface allocates a larger or second
+buffer to place the payload).
+
+Regarding the ability for the channel to forward data, it looks like having a
+new function "cs_xfer(src_cs, dst_cs, count)" could be very productive in
+optimizing the forwarding to make use of splicing when available. It is not yet
+totally clear whether it will split into "cs_xfer_in(src_cs, pipe, count)"
+followed by "cs_xfer_out(dst_cs, pipe, count)" or anything different, and it
+still needs to be studied. The general idea seems to be that the receiver might
+have to call the sender directly once they agree on how to transfer data (pipe
+or buffer). If the transfer is incomplete, the cs_xfer() return value and/or
+flags will indicate the current situation (src empty, dst full, etc) so that
+the caller may register for notifications on the appropriate event and wait to
+be called again to continue.
+
+Short term implementation :
+  1) add new CS flags to qualify what the buffer contains and what we expect
+     to read into it;
+
+  2) set these flags to pretend we have a structured message when receiving
+     headers (after all, H1 is an atomic header as well) and see what it
+     implies for the code; for H1 it's unclear whether it makes sense to try
+     to set it without the H1 mux.
+
+  3) use these flags to refrain from sending DATA frames after HEADERS frames
+     in H2.
+
+  4) flush the flags at the stream interface layer when performing a cs_send().
+
+  5) use the flags to enforce receipt of data only when necessary
+
+We should be able to end up with sequencial receipt in H2 modelling what is
+needed for other protocols without interfering with the native H1 devs.
