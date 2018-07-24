@@ -1937,7 +1937,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			goto out;
 		}
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_ALERT | ERR_FATAL;
+			err_code |= ERR_WARN;
 
 		/* There is no mandatory first arguments for default server. */
 		if (srv) {
