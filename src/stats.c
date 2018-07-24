@@ -3148,7 +3148,15 @@ static void http_stats_io_handler(struct appctx *appctx)
 		}
 	}
  out:
-	/* just to make gcc happy */ ;
+	/* we have left the request in the buffer for the case where we
+	 * process a POST, and this automatically re-enables activity on
+	 * read. It's better to indicate that we want to stop reading when
+	 * we're sending, so that we know there's at most one direction
+	 * deciding to wake the applet up. It saves it from looping when
+	 * emitting large blocks into small TCP windows.
+	 */
+	if (!channel_is_empty(res))
+		si_applet_stop_get(si);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
