@@ -3524,8 +3524,12 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 		node = eb32_next(node);
 	}
 
-	chunk_appendf(msg, " st0=%d flg=0x%08x nbst=%u nbcs=%u fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
-		      h2c->st0, h2c->flags, h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt, (unsigned int)b_data(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf), (unsigned int)b_data(&h2c->mbuf), (unsigned int)b_size(&h2c->mbuf));
+	chunk_appendf(msg, " st0=%d err=%d maxid=%d lastid=%d flg=0x%08x nbst=%u nbcs=%u"
+		      " fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
+		      h2c->st0, h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
+		      h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
+		      (unsigned int)b_data(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
+		      (unsigned int)b_data(&h2c->mbuf), (unsigned int)b_size(&h2c->mbuf));
 }
 
 /*******************************************************/
