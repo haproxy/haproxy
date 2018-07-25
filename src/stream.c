@@ -799,6 +799,7 @@ static void sess_establish(struct stream *s)
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
 		if (!LIST_ISEMPTY(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
+			/* note: no pend_pos here, session is established */
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
 		}
@@ -910,6 +911,9 @@ static void sess_update_stream_int(struct stream *s)
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
+			/* we may need to know the position in the queue for logging */
+			pendconn_cond_unlink(s->pend_pos);
+
 			/* no stream was ever accounted for this server */
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
@@ -950,6 +954,10 @@ static void sess_update_stream_int(struct stream *s)
 			/* ... and timeout expired */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
+			/* we may need to know the position in the queue for logging */
+			pendconn_cond_unlink(s->pend_pos);
+
 			if (srv)
 				HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
 			HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
@@ -967,6 +975,10 @@ static void sess_update_stream_int(struct stream *s)
 		/* Connection remains in queue, check if we have to abort it */
 		if (check_req_may_abort(req, s)) {
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
+			/* we may need to know the position in the queue for logging */
+			pendconn_cond_unlink(s->pend_pos);
+
 			si->err_type |= SI_ET_QUEUE_ABRT;
 			goto abort_connection;
 		}
@@ -2503,6 +2515,8 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	if (!LIST_ISEMPTY(&sess->fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SF_MONITOR) &&
 	    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
+		/* we may need to know the position in the queue */
+		pendconn_free(s);
 		s->do_log(s);
 	}
 
