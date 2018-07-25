@@ -386,44 +386,6 @@ int pendconn_dequeue(struct stream *strm)
 	return 0;
 }
 
-/* Release the pending connection <p>, and decreases the pending count if
- * needed. The connection might have been queued to a specific server as well as
- * to the proxy. The stream also gets marked unqueued. <p> must always be
- * defined here. So it is the caller responsibility to check its existance.
- *
- * This function must be called by the stream itself, so in the context of
- * process_stream.
- */
-void pendconn_free(struct pendconn *p)
-{
-	struct stream *strm = p->strm;
-
-	HA_SPIN_LOCK(PENDCONN_LOCK, &p->lock);
-
-	/* The pendconn was already unlinked, just release it. */
-	if (LIST_ISEMPTY(&p->list))
-		goto release;
-
-	if (p->srv) {
-		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
-		p->srv->nbpend--;
-		LIST_DEL(&p->list);
-		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
-	}
-	else {
-		HA_SPIN_LOCK(PROXY_LOCK, &p->px->lock);
-		p->px->nbpend--;
-		LIST_DEL(&p->list);
-		HA_SPIN_UNLOCK(PROXY_LOCK, &p->px->lock);
-	}
-	HA_ATOMIC_SUB(&p->px->totpend, 1);
-
-  release:
-	strm->pend_pos = NULL;
-	HA_SPIN_UNLOCK(PENDCONN_LOCK, &p->lock);
-	pool_free(pool_head_pendconn, p);
-}
-
 /*
  * Local variables:
  *  c-indent-level: 8

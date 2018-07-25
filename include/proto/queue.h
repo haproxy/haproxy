@@ -39,7 +39,6 @@ extern struct pool_head *pool_head_pendconn;
 int init_pendconn();
 struct pendconn *pendconn_add(struct stream *strm);
 int pendconn_dequeue(struct stream *strm);
-void pendconn_free(struct pendconn *p);
 void process_srv_queue(struct server *s);
 unsigned int srv_dynamic_maxconn(const struct server *s);
 int pendconn_redistribute(struct server *s);
@@ -55,6 +54,26 @@ static inline void pendconn_cond_unlink(struct pendconn *p)
 {
 	if (p && !LIST_ISEMPTY(&p->list))
 		pendconn_unlink(p);
+}
+
+/* Releases the pendconn associated to stream <s> if it has any, and decreases
+ * the pending count if needed. The connection might have been queued to a
+ * specific server as well as to the proxy. The stream also gets marked
+ * unqueued.
+ *
+ * This function must be called by the stream itself, so in the context of
+ * process_stream, without any lock held among the pendconn, the server's queue
+ * nor the proxy's queue.
+ */
+static inline void pendconn_free(struct stream *s)
+{
+	struct pendconn *p = s->pend_pos;
+
+	if (p) {
+		pendconn_cond_unlink(p);
+		s->pend_pos = NULL;
+		pool_free(pool_head_pendconn, p);
+	}
 }
 
 /* Returns 0 if all slots are full on a server, or 1 if there are slots available. */

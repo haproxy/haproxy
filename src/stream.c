@@ -304,8 +304,7 @@ static void stream_free(struct stream *s)
 	int must_free_sess;
 	int i;
 
-	if (s->pend_pos)
-		pendconn_free(s->pend_pos);
+	pendconn_free(s);
 
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
 		if (s->flags & SF_CURR_SESS) {

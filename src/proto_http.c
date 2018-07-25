@@ -4429,8 +4429,7 @@ void http_end_txn_clean_session(struct stream *s)
 	s->logs.bytes_in = s->req.total = ci_data(&s->req);
 	s->logs.bytes_out = s->res.total = ci_data(&s->res);
 
-	if (s->pend_pos)
-		pendconn_free(s->pend_pos);
+	pendconn_free(s);
 
 	if (objt_server(s->target)) {
 		if (s->flags & SF_CURR_SESS) {
