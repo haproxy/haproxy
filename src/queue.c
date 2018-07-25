@@ -69,7 +69,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
  * The caller must own the lock on the pendconn _AND_ the queue containing the
  * pendconn. The pendconn must still be queued.
  */
-static void pendconn_unlink(struct pendconn *p)
+static void __pendconn_unlink(struct pendconn *p)
 {
 	if (p->srv)
 		p->srv->nbpend--;
@@ -78,6 +78,38 @@ static void pendconn_unlink(struct pendconn *p)
 	HA_ATOMIC_SUB(&p->px->totpend, 1);
 	LIST_DEL(&p->list);
 	LIST_INIT(&p->list);
+}
+
+/* Removes the pendconn from the server/proxy queue. At this stage, the
+ * connection is not really dequeued. It will be done during process_stream().
+ * This function takes all the required locks for the operation. The caller is
+ * responsible for ensuring that <p> is valid and still in the queue. Use
+ * pendconn_cond_unlink() if unsure. When the locks are already held, please
+ * use __pendconn_unlink() instead.
+ */
+void pendconn_unlink(struct pendconn *p)
+{
+	struct server __maybe_unused *sv;
+	struct proxy __maybe_unused *px;
+
+	HA_SPIN_LOCK(PENDCONN_LOCK, &p->lock);
+
+	px = p->px;
+	sv = p->srv;
+
+	if (sv)
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
+	else
+		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+
+	__pendconn_unlink(p);
+
+	if (sv)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+	else
+		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+
+	HA_SPIN_UNLOCK(PENDCONN_LOCK, &p->lock);
 }
 
 /* Process the next pending connection from either a server or a proxy, and
@@ -142,7 +174,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 		return 0;
 
   pendconn_found:
-	pendconn_unlink(p);
+	__pendconn_unlink(p);
 	p->strm_flags |= SF_ASSIGNED;
 	p->srv = srv;
 
@@ -259,7 +291,7 @@ int pendconn_redistribute(struct server *s)
 			continue;
 
 		/* it's left to the dispatcher to choose a server */
-		pendconn_unlink(p);
+		__pendconn_unlink(p);
 		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 
 		remote |= !(p->strm->task->thread_mask & tid_bit);
@@ -296,7 +328,7 @@ int pendconn_grab_from_px(struct server *s)
 		if (HA_SPIN_TRYLOCK(PENDCONN_LOCK, &p->lock))
 			continue;
 
-		pendconn_unlink(p);
+		__pendconn_unlink(p);
 		p->srv = s;
 
 		remote |= !(p->strm->task->thread_mask & tid_bit);
