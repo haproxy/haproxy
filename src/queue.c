@@ -10,6 +10,72 @@
  *
  */
 
+/* Short explanation on the locking, which is far from being trivial : a
+ * pendconn is a list element which necessarily is associated with an existing
+ * stream. It has pendconn->strm always valid. A pendconn may only be in one of
+ * these three states :
+ *   - unlinked : in this case it is an empty list head ;
+ *   - linked into the server's queue ;
+ *   - linked into the proxy's queue.
+ *
+ * A stream does not necessarily have such a pendconn. Thus the pendconn is
+ * designated by the stream->pend_pos pointer. This results in some properties :
+ *   - pendconn->strm->pend_pos is never NULL for any valid pendconn
+ *   - if LIST_ISEMPTY(pendconn->list) is true, the element is unlinked,
+ *     otherwise it necessarily belongs to one of the other lists ; this may
+ *     not be atomically checked under threads though ;
+ *   - pendconn->px is never NULL if pendconn->list is not empty
+ *   - pendconn->sv is never NULL if pendconn->list is in the server's queue,
+ *     and is always NULL if pendconn->list is in the backend's queue or empty.
+ *
+ * Threads complicate the design a little bit but rules remain simple :
+ *   - a lock is present in the pendconn (pendconn->lock). This lock is
+ *     used to protect pendconn->list when accessing from the pendconn,
+ *     and to ensure srv/px are not changing at the same time. This lock
+ *     must be held while adding/removing the pendconn to/from a queue.
+ *
+ *   - the server's queue lock must be held at least when manipulating the
+ *     server's queue, which is when adding a pendconn to the queue and when
+ *     removing a pendconn from the queue. It protects the queue's integrity.
+ *
+ *   - the proxy's queue lock must be held at least when manipulating the
+ *     proxy's queue, which is when adding a pendconn to the queue and when
+ *     removing a pendconn from the queue. It protects the queue's integrity.
+ *
+ *   - all three locks are compatible and may be held at the same time.
+ *
+ *   - a pendconn_add() is only performed by the stream which will own the
+ *     pendconn ; the pendconn is allocated at this moment and returned ; it is
+ *     added to either the server or the proxy's queue while holding this
+ *     queue's lock. The pendconn lock is never taken here since the pendconn
+ *     is new and cannot be met by another thread before being inserted.
+ *
+ *   - the pendconn is then met by a thread walking over the proxy or server's
+ *     queue with the respective lock held. This lock is exclusive and the
+ *     pendconn can only appear in one queue so by definition a single thread
+ *     may find this pendconn at a time.
+ *
+ *   - the pendconn is unlinked either by its own stream upon success/abort/
+ *     free, or by another one offering it its server slot. This is achieved by
+ *     pendconn_process_next_strm() under either the server or proxy's lock,
+ *     pendconn_redistribute() under the server's lock, pendconn_grab_from_px()
+ *     under the proxy's lock, or pendconn_unlink() under either the proxy's or
+ *     the server's lock depending on the queue the pendconn is attached to.
+ *
+ *   - no single operation except the pendconn initialisation prior to the
+ *     insertion are performed without a queue lock held.
+ *
+ *   - pendconn_grab_from_px() and pendconn_process_next_strm() assign ->srv so
+ *     that the stream knows what server to work with (via pendconn_dequeue()).
+ *     It's worth noting that this assignment complicates the detection of the
+ *     queue to be locked/unlocked.
+ *
+ *   - a pendconn doesn't switch between queues, it stays where it is.
+ *
+ *   - strm->pend_pos is assigned late so pendconn->strm->pend_pos could be met
+ *     uninitialized by another thread and must not be relied on.
+ */
+
 #include <common/config.h>
 #include <common/memory.h>
 #include <common/time.h>
