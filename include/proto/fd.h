@@ -45,6 +45,8 @@ extern unsigned long fd_cache_mask; // Mask of threads with events in the cache
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
 
+extern int poller_wr_pipe[MAX_THREADS];
+
 __decl_hathreads(extern HA_RWLOCK_T   __attribute__((aligned(64))) fdcache_lock);    /* global lock to protect fd_cache array */
 
 /* Deletes an FD from the fdsets.
@@ -59,6 +61,8 @@ void fd_remove(int fd);
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name);
+
+void poller_pipe_io_handler(int fd);
 
 /*
  * Initialize the pollers till the best one is found.
@@ -514,6 +518,13 @@ static inline void hap_fd_clr(int fd, unsigned int *evts)
 static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)
 {
 	return evts[fd / (8*sizeof(*evts))] & (1U << (fd & (8*sizeof(*evts) - 1)));
+}
+
+static inline void wake_thread(int tid)
+{
+	char c = 'c';
+
+	shut_your_big_mouth_gcc(write(poller_wr_pipe[tid], &c, 1));
 }
 
 

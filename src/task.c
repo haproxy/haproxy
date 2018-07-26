@@ -23,6 +23,7 @@
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/task.h>
+#include <proto/fd.h>
 
 struct pool_head *pool_head_task;
 struct pool_head *pool_head_tasklet;
@@ -70,6 +71,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 {
 	void *expected = NULL;
 	int *rq_size;
+	unsigned long old_active_mask;
 
 #ifdef USE_THREAD
 	if (root == &rqueue) {
@@ -125,6 +127,7 @@ redo:
 		__ha_barrier_store();
 	}
 #endif
+	old_active_mask = active_tasks_mask;
 	HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
 	t->rq.key = HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
@@ -152,6 +155,13 @@ redo:
 
 		rqueue_size[nb]++;
 	}
+	/* If all threads that are supposed to handle this task are sleeping,
+	 * wake one.
+	 */
+	if ((((t->thread_mask & all_threads_mask) & sleeping_thread_mask) ==
+	    (t->thread_mask & all_threads_mask)) &&
+	    !(t->thread_mask & old_active_mask))
+		wake_thread(my_ffsl((t->thread_mask & all_threads_mask) &~ tid_bit) - 1);
 	return;
 }
 

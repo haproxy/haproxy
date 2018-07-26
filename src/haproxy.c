@@ -123,6 +123,7 @@ int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
 unsigned long pid_bit = 1;      /* bit corresponding to the process id */
 
+volatile unsigned long sleeping_thread_mask; /* Threads that are about to sleep in poll() */
 /* global options */
 struct global global = {
 	.hard_stop_after = TICK_ETERNITY,
@@ -2427,11 +2428,20 @@ static void run_poll_loop()
 			activity[tid].wake_tasks++;
 		else if (signal_queue_len && tid == 0)
 			activity[tid].wake_signal++;
-		else
-			exp = next;
+		else {
+			HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
+			__ha_barrier_store();
+			if (active_tasks_mask & tid_bit) {
+				activity[tid].wake_tasks++;
+				HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+			} else
+				exp = next;
+		}
 
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, exp);
+		if (sleeping_thread_mask & tid_bit)
+			HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 		fd_process_cached_events();
 
 
