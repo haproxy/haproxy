@@ -34,6 +34,7 @@ struct pool_head *pool_head_notification;
 
 unsigned int nb_tasks = 0;
 unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
+unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int tasks_run_queue = 0;
 unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
@@ -118,6 +119,12 @@ redo:
 		return;
 	}
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
+#ifdef USE_THREAD
+	if (root == &rqueue) {
+		HA_ATOMIC_OR(&global_tasks_mask, t->thread_mask);
+		__ha_barrier_store();
+	}
+#endif
 	HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
 	t->rq.key = HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
@@ -281,8 +288,10 @@ void process_runnable_tasks()
 				 * of the tree now.
 				 */
 				rq_next = eb32sc_first(&rqueue, tid_bit);
-				if (!rq_next)
+				if (!rq_next) {
+					HA_ATOMIC_AND(&global_tasks_mask, ~tid_bit);
 					break;
+				}
 			}
 
 			t = eb32sc_entry(rq_next, struct task, rq);
@@ -302,7 +311,6 @@ void process_runnable_tasks()
 			return;
 		}
 	}
-	HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
 	/* Get some tasks from the run queue, make sure we don't
 	 * get too much in the task list, but put a bit more than
 	 * the max that will be run, to give a bit more fairness
@@ -336,6 +344,12 @@ void process_runnable_tasks()
 		rqueue_size[tid]--;
 		/* And add it to the local task list */
 		task_insert_into_tasklet_list(t);
+	}
+	if (!(global_tasks_mask & tid_bit) && rqueue_size[tid] == 0) {
+		HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
+		__ha_barrier_load();
+		if (global_tasks_mask & tid_bit)
+			HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	}
 	while (max_processed > 0 && !LIST_ISEMPTY(&task_list[tid])) {
 		struct task *t;
