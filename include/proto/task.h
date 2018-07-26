@@ -95,8 +95,11 @@ extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
 extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
 #ifdef USE_THREAD
 extern struct eb_root rqueue;      /* tree constituting the run queue */
+extern int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
+
 extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
+extern int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
 extern struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
 extern int task_list_size[MAX_THREADS]; /* Number of task sin the task_list */
 
@@ -180,9 +183,14 @@ static inline struct task *task_unlink_wq(struct task *t)
 static inline struct task *__task_unlink_rq(struct task *t)
 {
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
-	eb32sc_delete(&t->rq);
-	if (t->state & TASK_GLOBAL)
+#ifdef USE_THREAD
+	if (t->state & TASK_GLOBAL) {
 		HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+		global_rqueue_size--;
+	} else
+#endif
+		rqueue_size[tid]--;
+	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
 		HA_ATOMIC_SUB(&niced_tasks, 1);
 	return t;

@@ -52,10 +52,10 @@ __decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lo
 static struct eb_root timers;      /* sorted timers tree */
 #ifdef USE_THREAD
 struct eb_root rqueue;      /* tree constituting the run queue */
-static int global_rqueue_size; /* Number of element sin the global runqueue */
+int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
 struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
-static int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
+int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
 static unsigned int rqueue_ticks;  /* insertion count */
 
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
@@ -297,7 +297,6 @@ void process_runnable_tasks()
 
 			t = eb32sc_entry(rq_next, struct task, rq);
 			rq_next = eb32sc_next(rq_next, tid_bit);
-			global_rqueue_size--;
 
 			/* detach the task from the queue */
 			__task_unlink_rq(t);
@@ -342,7 +341,6 @@ void process_runnable_tasks()
 
 		/* detach the task from the queue */
 		__task_unlink_rq(t);
-		rqueue_size[tid]--;
 		/* And add it to the local task list */
 		task_insert_into_tasklet_list(t);
 	}
