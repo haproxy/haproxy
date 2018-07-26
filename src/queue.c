@@ -144,6 +144,30 @@ static void __pendconn_unlink(struct pendconn *p)
 	LIST_INIT(&p->list);
 }
 
+/* Locks the queue the pendconn element belongs to. This relies on both p->px
+ * and p->srv to be properly initialized (which is always the case once the
+ * element has been added).
+ */
+static inline void pendconn_queue_lock(struct pendconn *p)
+{
+	if (p->srv)
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
+	else
+		HA_SPIN_LOCK(PROXY_LOCK, &p->px->lock);
+}
+
+/* Unlocks the queue the pendconn element belongs to. This relies on both p->px
+ * and p->srv to be properly initialized (which is always the case once the
+ * element has been added).
+ */
+static inline void pendconn_queue_unlock(struct pendconn *p)
+{
+	if (p->srv)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
+	else
+		HA_SPIN_UNLOCK(PROXY_LOCK, &p->px->lock);
+}
+
 /* Removes the pendconn from the server/proxy queue. At this stage, the
  * connection is not really dequeued. It will be done during process_stream().
  * This function takes all the required locks for the operation. The caller is
@@ -153,25 +177,13 @@ static void __pendconn_unlink(struct pendconn *p)
  */
 void pendconn_unlink(struct pendconn *p)
 {
-	struct server __maybe_unused *sv;
-	struct proxy __maybe_unused *px;
-
 	HA_SPIN_LOCK(PENDCONN_LOCK, &p->lock);
 
-	px = p->px;
-	sv = p->srv;
-
-	if (sv)
-		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
-	else
-		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	pendconn_queue_lock(p);
 
 	__pendconn_unlink(p);
 
-	if (sv)
-		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
-	else
-		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	pendconn_queue_unlock(p);
 
 	HA_SPIN_UNLOCK(PENDCONN_LOCK, &p->lock);
 }
@@ -299,37 +311,39 @@ struct pendconn *pendconn_add(struct stream *strm)
 	if (!p)
 		return NULL;
 
-	srv = objt_server(strm->target);
-	px  = strm->be;
+	if (strm->flags & SF_ASSIGNED)
+		srv = objt_server(strm->target);
+	else
+		srv = NULL;
 
+	px            = strm->be;
 	p->target     = NULL;
-	p->srv        = NULL;
+	p->srv        = srv;
 	p->px         = px;
 	p->strm       = strm;
 	p->strm_flags = strm->flags;
 	HA_SPIN_INIT(&p->lock);
 
-	if ((strm->flags & SF_ASSIGNED) && srv) {
-		p->srv = srv;
-		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+	pendconn_queue_lock(p);
+
+	if (srv) {
 		srv->nbpend++;
 		strm->logs.srv_queue_size += srv->nbpend;
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
 		LIST_ADDQ(&srv->pendconns, &p->list);
-		strm->pend_pos = p;
-		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 	else {
-		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
 		px->nbpend++;
 		strm->logs.prx_queue_size += px->nbpend;
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
 		LIST_ADDQ(&px->pendconns, &p->list);
-		strm->pend_pos = p;
-		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 	}
+	strm->pend_pos = p;
+
+	pendconn_queue_unlock(p);
+
 	HA_ATOMIC_ADD(&px->totpend, 1);
 	return p;
 }
