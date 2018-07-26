@@ -200,7 +200,6 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 {
 	struct pendconn *p = NULL;
 	struct server   *rsrv;
-	int remote;
 
 	rsrv = srv->track;
 	if (!rsrv)
@@ -240,11 +239,9 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 		px->lbprm.server_take_conn(srv);
 	__stream_add_srv_conn(p->strm, srv);
 
-	remote = !(p->strm->task->thread_mask & tid_bit);
 	task_wakeup(p->strm->task, TASK_WOKEN_RES);
 
-	/* Returns 1 if the current thread can process the stream, otherwise returns 2. */
-	return remote ? 2 : 1;
+	return 1;
 }
 
 /* Manages a server's connection queue. This function will try to dequeue as
@@ -253,7 +250,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 void process_srv_queue(struct server *s)
 {
 	struct proxy  *p = s->proxy;
-	int maxconn, remote = 0;
+	int maxconn;
 
 	HA_SPIN_LOCK(PROXY_LOCK,  &p->lock);
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
@@ -262,13 +259,9 @@ void process_srv_queue(struct server *s)
 		int ret = pendconn_process_next_strm(s, p);
 		if (!ret)
 			break;
-		remote |= (ret == 2);
 	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
-
-	if (remote)
-		THREAD_WANT_SYNC();
 }
 
 /* Adds the stream <strm> to the pending connection list of server <strm>->srv
@@ -333,7 +326,6 @@ int pendconn_redistribute(struct server *s)
 {
 	struct pendconn *p, *pback;
 	int xferred = 0;
-	int remote = 0;
 
 	/* The REDISP option was specified. We will ignore cookie and force to
 	 * balance or use the dispatcher. */
@@ -349,13 +341,9 @@ int pendconn_redistribute(struct server *s)
 		__pendconn_unlink(p);
 		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 
-		remote |= !(p->strm->task->thread_mask & tid_bit);
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-
-	if (remote)
-		THREAD_WANT_SYNC();
 	return xferred;
 }
 
@@ -368,7 +356,6 @@ int pendconn_grab_from_px(struct server *s)
 {
 	struct pendconn *p, *pback;
 	int maxconn, xferred = 0;
-	int remote = 0;
 
 	if (!srv_currently_usable(s))
 		return 0;
@@ -382,14 +369,10 @@ int pendconn_grab_from_px(struct server *s)
 		__pendconn_unlink(p);
 		p->target = s;
 
-		remote |= !(p->strm->task->thread_mask & tid_bit);
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
 	HA_SPIN_UNLOCK(PROXY_LOCK, &s->proxy->lock);
-
-	if (remote)
-		THREAD_WANT_SYNC();
 	return xferred;
 }
 
