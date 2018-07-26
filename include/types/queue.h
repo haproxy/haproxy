@@ -37,7 +37,6 @@ struct pendconn {
 	struct server *srv;        /* the server we are waiting for, may be NULL if don't care */
 	struct server *target;     /* the server that was assigned, = srv except if srv==NULL */
 	struct list    list;       /* next pendconn */
-	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
 #endif /* _TYPES_QUEUE_H */
