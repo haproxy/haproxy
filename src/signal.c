@@ -89,7 +89,7 @@ void __signal_process_queue()
 				if ((sh->flags & SIG_F_TYPE_FCT) && sh->handler)
 					((void (*)(struct sig_handler *))sh->handler)(sh);
 				else if ((sh->flags & SIG_F_TYPE_TASK) && sh->handler)
-					task_wakeup(sh->handler, sh->arg | TASK_WOKEN_SIGNAL);
+					task_wakeup(sh->handler, TASK_WOKEN_SIGNAL);
 			}
 			desc->count = 0;
 		}
