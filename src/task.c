@@ -333,6 +333,7 @@ void process_runnable_tasks()
 
 		/* detach the task from the queue */
 		__task_unlink_rq(t);
+		rqueue_size[tid]--;
 		/* And add it to the local task list */
 		task_insert_into_tasklet_list(t);
 	}
@@ -349,7 +350,6 @@ void process_runnable_tasks()
 
 		ctx = t->context;
 		process = t->process;
-		rqueue_size[tid]--;
 		t->calls++;
 		curr_task = (struct task *)t;
 		if (likely(process == process_stream))
