@@ -71,9 +71,6 @@
  *     queue to be locked/unlocked.
  *
  *   - a pendconn doesn't switch between queues, it stays where it is.
- *
- *   - strm->pend_pos is assigned late so pendconn->strm->pend_pos could be met
- *     uninitialized by another thread and must not be relied on.
  */
 
 #include <common/config.h>
@@ -318,6 +315,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
 		LIST_ADDQ(&srv->pendconns, &p->list);
+		strm->pend_pos = p;
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
 	else {
@@ -327,10 +325,10 @@ struct pendconn *pendconn_add(struct stream *strm)
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
 		LIST_ADDQ(&px->pendconns, &p->list);
+		strm->pend_pos = p;
 		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 	}
 	HA_ATOMIC_ADD(&px->totpend, 1);
-	strm->pend_pos = p;
 	return p;
 }
 
