@@ -34,7 +34,8 @@ struct pendconn {
 	int            strm_flags; /* stream flags */
 	struct stream *strm;
 	struct proxy  *px;
-	struct server *srv;        /* the server we are waiting for, may be NULL */
+	struct server *srv;        /* the server we are waiting for, may be NULL if don't care */
+	struct server *target;     /* the server that was assigned, = srv except if srv==NULL */
 	struct list    list;       /* next pendconn */
 	__decl_hathreads(HA_SPINLOCK_T lock);
 };

@@ -25,8 +25,10 @@
  *     otherwise it necessarily belongs to one of the other lists ; this may
  *     not be atomically checked under threads though ;
  *   - pendconn->px is never NULL if pendconn->list is not empty
- *   - pendconn->sv is never NULL if pendconn->list is in the server's queue,
+ *   - pendconn->srv is never NULL if pendconn->list is in the server's queue,
  *     and is always NULL if pendconn->list is in the backend's queue or empty.
+ *   - pendconn->target is NULL while the element is queued, and points to the
+ *     assigned server when the pendconn is picked.
  *
  * Threads complicate the design a little bit but rules remain simple :
  *   - a lock is present in the pendconn (pendconn->lock). This lock is
@@ -65,10 +67,9 @@
  *   - no single operation except the pendconn initialisation prior to the
  *     insertion are performed without a queue lock held.
  *
- *   - pendconn_grab_from_px() and pendconn_process_next_strm() assign ->srv so
- *     that the stream knows what server to work with (via pendconn_dequeue()).
- *     It's worth noting that this assignment complicates the detection of the
- *     queue to be locked/unlocked.
+ *   - pendconn_grab_from_px() and pendconn_process_next_strm() assign ->target
+ *     so that the stream knows what server to work with (via
+ *     pendconn_dequeue() which sets it on strm->target).
  *
  *   - a pendconn doesn't switch between queues, it stays where it is.
  */
@@ -239,7 +240,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
   pendconn_found:
 	__pendconn_unlink(p);
 	p->strm_flags |= SF_ASSIGNED;
-	p->srv = srv;
+	p->target = srv;
 
 	HA_ATOMIC_ADD(&srv->served, 1);
 	HA_ATOMIC_ADD(&srv->proxy->served, 1);
@@ -301,6 +302,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	srv = objt_server(strm->target);
 	px  = strm->be;
 
+	p->target     = NULL;
 	p->srv        = NULL;
 	p->px         = px;
 	p->strm       = strm;
@@ -393,7 +395,7 @@ int pendconn_grab_from_px(struct server *s)
 			continue;
 
 		__pendconn_unlink(p);
-		p->srv = s;
+		p->target = s;
 
 		remote |= !(p->strm->task->thread_mask & tid_bit);
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
@@ -439,8 +441,8 @@ int pendconn_dequeue(struct stream *strm)
 	}
 
 	/* the pendconn must be dequeued now */
-	if (p->srv)
-		strm->target = &p->srv->obj_type;
+	if (p->target)
+		strm->target = &p->target->obj_type;
 
 	strm->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 	strm->flags |= p->strm_flags & (SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
