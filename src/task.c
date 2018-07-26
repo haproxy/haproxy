@@ -34,7 +34,7 @@ struct pool_head *pool_head_notification;
 
 unsigned int nb_tasks = 0;
 volatile unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
-unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
+volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int tasks_run_queue = 0;
 unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
