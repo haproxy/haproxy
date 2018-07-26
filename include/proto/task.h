@@ -181,6 +181,8 @@ static inline struct task *__task_unlink_rq(struct task *t)
 {
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	eb32sc_delete(&t->rq);
+	if (t->state & TASK_GLOBAL)
+		HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
 	if (likely(t->nice))
 		HA_ATOMIC_SUB(&niced_tasks, 1);
 	return t;

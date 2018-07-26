@@ -143,6 +143,7 @@ redo:
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		global_rqueue_size++;
+		HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	} else
 #endif

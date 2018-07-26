@@ -32,6 +32,7 @@
 /* values for task->state */
 #define TASK_SLEEPING     0x0000  /* task sleeping */
 #define TASK_RUNNING      0x0001  /* the task is currently running */
+#define TASK_GLOBAL       0x0002  /* The task is currently in the global runqueue */
 
 #define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
 #define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */
