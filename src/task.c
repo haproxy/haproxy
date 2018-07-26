@@ -251,9 +251,6 @@ void process_runnable_tasks()
 {
 	struct task *t;
 	int max_processed;
-#ifdef USE_THREAD
-	uint64_t average = 0;
-#endif
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -268,15 +265,12 @@ void process_runnable_tasks()
 		}
 
 #ifdef USE_THREAD
-		average = tasks_run_queue / global.nbthread;
-
 		/* Get some elements from the global run queue and put it in the
 		 * local run queue. To try to keep a bit of fairness, just get as
 		 * much elements from the global list as to have a bigger local queue
 		 * than the average.
 		 */
-		while ((task_list_size[tid] + rqueue_size[tid]) <= average) {
-
+		while ((task_list_size[tid] + rqueue_size[tid]) * global.nbthread <= tasks_run_queue) {
 			/* we have to restart looking up after every batch */
 			rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!rq_next)) {
