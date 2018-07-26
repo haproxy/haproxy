@@ -118,7 +118,7 @@ redo:
 		return;
 	}
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
-	active_tasks_mask |= t->thread_mask;
+	HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
 	t->rq.key = HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
 	if (likely(t->nice)) {
@@ -302,7 +302,7 @@ void process_runnable_tasks()
 			return;
 		}
 	}
-	active_tasks_mask &= ~tid_bit;
+	HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
 	/* Get some tasks from the run queue, make sure we don't
 	 * get too much in the task list, but put a bit more than
 	 * the max that will be run, to give a bit more fairness
@@ -381,7 +381,7 @@ void process_runnable_tasks()
 
 		max_processed--;
 		if (max_processed <= 0) {
-			active_tasks_mask |= tid_bit;
+			HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 			activity[tid].long_rq++;
 			break;
 		}
