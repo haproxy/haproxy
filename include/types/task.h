@@ -30,26 +30,21 @@
 #include <eb32tree.h>
 
 /* values for task->state */
-#define TASK_SLEEPING     0x00  /* task sleeping */
-#define TASK_RUNNING      0x01  /* the task is currently running */
-#define TASK_WOKEN_INIT   0x02  /* woken up for initialisation purposes */
-#define TASK_WOKEN_TIMER  0x04  /* woken up because of expired timer */
-#define TASK_WOKEN_IO     0x08  /* woken up because of completed I/O */
-#define TASK_WOKEN_SIGNAL 0x10  /* woken up by a system signal */
-#define TASK_WOKEN_MSG    0x20  /* woken up by another task's message */
-#define TASK_WOKEN_RES    0x40  /* woken up because of available resource */
-#define TASK_WOKEN_OTHER  0x80  /* woken up for an unspecified reason */
+#define TASK_SLEEPING     0x0000  /* task sleeping */
+#define TASK_RUNNING      0x0001  /* the task is currently running */
+
+#define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
+#define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */
+#define TASK_WOKEN_IO     0x0400  /* woken up because of completed I/O */
+#define TASK_WOKEN_SIGNAL 0x0800  /* woken up by a system signal */
+#define TASK_WOKEN_MSG    0x1000  /* woken up by another task's message */
+#define TASK_WOKEN_RES    0x2000  /* woken up because of available resource */
+#define TASK_WOKEN_OTHER  0x4000  /* woken up for an unspecified reason */
 
 /* use this to check a task state or to clean it up before queueing */
 #define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
                            TASK_WOKEN_IO|TASK_WOKEN_SIGNAL|TASK_WOKEN_MSG| \
                            TASK_WOKEN_RES)
-
-/* Additional wakeup info may be passed in the state by lef-shifting the value
- * by this number of bits. Not more than 8 bits are guaranteed to be delivered.
- * System signals may use that too.
- */
-#define TASK_REASON_SHIFT 8
 
 struct notification {
 	struct list purge_me; /* Part of the list of signals to be purged in the
