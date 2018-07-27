@@ -252,7 +252,7 @@ static inline void __ha_barrier_full(void)
 #define THREAD_NO_SYNC()      thread_no_sync()
 #define THREAD_NEED_SYNC()    thread_need_sync()
 
-int  thread_sync_init(unsigned long mask);
+int  thread_sync_init(int nbthread);
 void thread_sync_enable(void);
 void thread_want_sync(void);
 void thread_enter_sync(void);

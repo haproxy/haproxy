@@ -37,11 +37,11 @@ volatile unsigned long all_threads_mask  = 0;
 struct lock_stat lock_stats[LOCK_LABELS];
 #endif
 
-/* Initializes the sync point. It creates a pipe used by threads to wakup all
- * others when a sync is requested. It also initialize the mask of all create
+/* Initializes the sync point. It creates a pipe used by threads to wake up all
+ * others when a sync is requested. It also initializes the mask of all created
  * threads. It returns 0 on success and -1 if an error occurred.
  */
-int thread_sync_init(unsigned long mask)
+int thread_sync_init(int nbthread)
 {
 	int rfd;
 
@@ -52,7 +52,9 @@ int thread_sync_init(unsigned long mask)
 	fcntl(rfd, F_SETFL, O_NONBLOCK);
 	fd_insert(rfd, thread_sync_io_handler, thread_sync_io_handler, MAX_THREADS_MASK);
 
-	all_threads_mask = mask;
+	/* we proceed like this to be sure never to overflow the left shift */
+	all_threads_mask = 1UL << (nbthread - 1);
+	all_threads_mask |= all_threads_mask - 1;
 	return 0;
 }
 
