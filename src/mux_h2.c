@@ -3415,7 +3415,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 }
 
 /* Called from the upper layer, to send data */
-static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_t count, int flags)
+static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
 	size_t total = 0;
@@ -3486,6 +3486,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, const struct buffer *buf, size_
 			LIST_ADDQ(&h2s->h2c->fctl_list, &h2s->list);
 	}
 
+	b_del(buf, total);
 	return total;
 }
 
