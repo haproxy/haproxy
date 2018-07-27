@@ -4117,6 +4117,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		int myidx = 1;
 		struct proxy *other;
 
+		if (curproxy == &defproxy) {
+			ha_alert("parsing [%s:%d] : 'stick-table' is not supported in 'defaults' section.\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		other = proxy_tbl_by_name(curproxy->id);
 		if (other) {
 			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
