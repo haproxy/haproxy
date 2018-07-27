@@ -71,7 +71,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 {
 	void *expected = NULL;
 	int *rq_size;
-	unsigned long old_active_mask;
+	unsigned long __maybe_unused old_active_mask;
 
 #ifdef USE_THREAD
 	if (root == &rqueue) {
@@ -155,6 +155,7 @@ redo:
 
 		rqueue_size[nb]++;
 	}
+#ifdef USE_THREAD
 	/* If all threads that are supposed to handle this task are sleeping,
 	 * wake one.
 	 */
@@ -162,6 +163,7 @@ redo:
 	    (t->thread_mask & all_threads_mask)) &&
 	    !(t->thread_mask & old_active_mask))
 		wake_thread(my_ffsl((t->thread_mask & all_threads_mask) &~ tid_bit) - 1);
+#endif
 	return;
 }
 
