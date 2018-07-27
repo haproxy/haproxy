@@ -7581,6 +7581,29 @@ int check_config_validity()
 			} /* HTTP && bufsize < 16384 */
 #endif
 
+			/* detect and address thread affinity inconsistencies */
+			nbproc = 0;
+			if (bind_conf->bind_proc)
+				nbproc = my_ffsl(bind_conf->bind_proc);
+
+			mask = bind_conf->bind_thread[nbproc - 1];
+			if (mask && !(mask & (all_threads_mask ? all_threads_mask : 1UL))) {
+				unsigned long new_mask = 0;
+
+				while (mask) {
+					new_mask |= mask & (all_threads_mask ? all_threads_mask : 1UL);
+					mask >>= global.nbthread;
+				}
+
+				for (nbproc = 0; nbproc < LONGBITS; nbproc++) {
+					if (!bind_conf->bind_proc || (bind_conf->bind_proc & (1UL << nbproc)))
+						bind_conf->bind_thread[nbproc] = new_mask;
+				}
+				ha_warning("Proxy '%s': the thread range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
+					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
+			}
+
+			/* detect process and nbproc affinity inconsistencies */
 			if (!bind_conf->bind_proc)
 				continue;
 
