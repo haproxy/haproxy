@@ -106,8 +106,20 @@ static inline void thread_sync_barrier(volatile unsigned long *barrier)
 
 	HA_ATOMIC_CAS(barrier, &old, 0);
 	HA_ATOMIC_OR(barrier, tid_bit);
-	while ((*barrier & all_threads_mask) != all_threads_mask)
+
+	/* Note below: we need to wait for all threads to join here, but in
+	 * case several threads are scheduled on the same CPU, busy polling
+	 * will instead degrade the performance, forcing other threads to
+	 * wait longer (typically in epoll_wait()). Let's use sched_yield()
+	 * when available instead.
+	 */
+	while ((*barrier & all_threads_mask) != all_threads_mask) {
+#if _POSIX_PRIORITY_SCHEDULING
+		sched_yield();
+#else
 		pl_cpu_relax();
+#endif
+	}
 }
 
 /* Enter into the sync point and lock it if the current thread has requested a
