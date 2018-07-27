@@ -964,73 +964,71 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
 {
 	int ret = 0;
+	char * protocol;
+	char src_str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+	char dst_str[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+	in_port_t src_port;
+	in_port_t dst_port;
 
-	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
-		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP4 ");
-		if (ret >= buf_len)
-			return 0;
-
-		/* IPv4 src */
-		if (!inet_ntop(src->ss_family, &((struct sockaddr_in *)src)->sin_addr, buf + ret, buf_len - ret))
-			return 0;
-
-		ret += strlen(buf + ret);
-		if (ret >= buf_len)
-			return 0;
-
-		buf[ret++] = ' ';
-
-		/* IPv4 dst */
-		if (!inet_ntop(dst->ss_family, &((struct sockaddr_in *)dst)->sin_addr, buf + ret, buf_len - ret))
-			return 0;
-
-		ret += strlen(buf + ret);
-		if (ret >= buf_len)
-			return 0;
-
-		/* source and destination ports */
-		ret += snprintf(buf + ret, buf_len - ret, " %u %u\r\n",
-				ntohs(((struct sockaddr_in *)src)->sin_port),
-				ntohs(((struct sockaddr_in *)dst)->sin_port));
-		if (ret >= buf_len)
-			return 0;
-	}
-	else if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
-		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP6 ");
-		if (ret >= buf_len)
-			return 0;
-
-		/* IPv6 src */
-		if (!inet_ntop(src->ss_family, &((struct sockaddr_in6 *)src)->sin6_addr, buf + ret, buf_len - ret))
-			return 0;
-
-		ret += strlen(buf + ret);
-		if (ret >= buf_len)
-			return 0;
-
-		buf[ret++] = ' ';
-
-		/* IPv6 dst */
-		if (!inet_ntop(dst->ss_family, &((struct sockaddr_in6 *)dst)->sin6_addr, buf + ret, buf_len - ret))
-			return 0;
-
-		ret += strlen(buf + ret);
-		if (ret >= buf_len)
-			return 0;
-
-		/* source and destination ports */
-		ret += snprintf(buf + ret, buf_len - ret, " %u %u\r\n",
-				ntohs(((struct sockaddr_in6 *)src)->sin6_port),
-				ntohs(((struct sockaddr_in6 *)dst)->sin6_port));
-		if (ret >= buf_len)
-			return 0;
-	}
-	else {
+	if (   !src
+	    || !dst
+	    || (src->ss_family != AF_INET && src->ss_family != AF_INET6)
+	    || (dst->ss_family != AF_INET && dst->ss_family != AF_INET6)) {
 		/* unknown family combination */
 		ret = snprintf(buf, buf_len, "PROXY UNKNOWN\r\n");
 		if (ret >= buf_len)
 			return 0;
+
+		return ret;
 	}
+
+	/* IPv4 for both src and dst */
+	if (src->ss_family == AF_INET && dst->ss_family == AF_INET) {
+		protocol = "TCP4";
+		if (!inet_ntop(AF_INET, &((struct sockaddr_in *)src)->sin_addr, src_str, sizeof(src_str)))
+			return 0;
+		src_port = ((struct sockaddr_in *)src)->sin_port;
+		if (!inet_ntop(AF_INET, &((struct sockaddr_in *)dst)->sin_addr, dst_str, sizeof(dst_str)))
+			return 0;
+		dst_port = ((struct sockaddr_in *)dst)->sin_port;
+	}
+	/* IPv6 for at least one of src and dst */
+	else {
+		struct in6_addr tmp;
+
+		protocol = "TCP6";
+
+		if (src->ss_family == AF_INET) {
+			/* Convert src to IPv6 */
+			v4tov6(&tmp, &((struct sockaddr_in *)src)->sin_addr);
+			src_port = ((struct sockaddr_in *)src)->sin_port;
+		}
+		else {
+			tmp = ((struct sockaddr_in6 *)src)->sin6_addr;
+			src_port = ((struct sockaddr_in6 *)src)->sin6_port;
+		}
+
+		if (!inet_ntop(AF_INET6, &tmp, src_str, sizeof(src_str)))
+			return 0;
+
+		if (dst->ss_family == AF_INET) {
+			/* Convert dst to IPv6 */
+			v4tov6(&tmp, &((struct sockaddr_in *)dst)->sin_addr);
+			dst_port = ((struct sockaddr_in *)dst)->sin_port;
+		}
+		else {
+			tmp = ((struct sockaddr_in6 *)dst)->sin6_addr;
+			dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
+		}
+
+		if (!inet_ntop(AF_INET6, &tmp, dst_str, sizeof(dst_str)))
+			return 0;
+	}
+
+	ret = snprintf(buf, buf_len, "PROXY %s %s %s %u %u\r\n", protocol, src_str, dst_str, ntohs(src_port), ntohs(dst_port));
+	if (ret >= buf_len)
+		return 0;
+
 	return ret;
 }
 
@@ -1071,34 +1069,59 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		dst = &remote->addr.to;
 	}
 
-	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
-		if (buf_len < PP2_HDR_LEN_INET)
-			return 0;
-		hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
-		hdr->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
-		hdr->addr.ip4.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
-		hdr->addr.ip4.dst_addr = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
-		hdr->addr.ip4.src_port = ((struct sockaddr_in *)src)->sin_port;
-		hdr->addr.ip4.dst_port = ((struct sockaddr_in *)dst)->sin_port;
-		ret = PP2_HDR_LEN_INET;
-	}
-	else if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
-		if (buf_len < PP2_HDR_LEN_INET6)
-			return 0;
-		hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
-		hdr->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
-		memcpy(hdr->addr.ip6.src_addr, &((struct sockaddr_in6 *)src)->sin6_addr, 16);
-		memcpy(hdr->addr.ip6.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
-		hdr->addr.ip6.src_port = ((struct sockaddr_in6 *)src)->sin6_port;
-		hdr->addr.ip6.dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
-		ret = PP2_HDR_LEN_INET6;
-	}
-	else {
+	/* At least one of src or dst is not of AF_INET or AF_INET6 */
+	if (  !src
+	   || !dst
+	   || (src->ss_family != AF_INET && src->ss_family != AF_INET6)
+	   || (dst->ss_family != AF_INET && dst->ss_family != AF_INET6)) {
 		if (buf_len < PP2_HDR_LEN_UNSPEC)
 			return 0;
 		hdr->ver_cmd = PP2_VERSION | PP2_CMD_LOCAL;
 		hdr->fam = PP2_FAM_UNSPEC | PP2_TRANS_UNSPEC;
 		ret = PP2_HDR_LEN_UNSPEC;
+	}
+	else {
+		/* IPv4 for both src and dst */
+		if (src->ss_family == AF_INET && dst->ss_family == AF_INET) {
+			if (buf_len < PP2_HDR_LEN_INET)
+				return 0;
+			hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
+			hdr->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
+			hdr->addr.ip4.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
+			hdr->addr.ip4.src_port = ((struct sockaddr_in *)src)->sin_port;
+			hdr->addr.ip4.dst_addr = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
+			hdr->addr.ip4.dst_port = ((struct sockaddr_in *)dst)->sin_port;
+			ret = PP2_HDR_LEN_INET;
+		}
+		/* IPv6 for at least one of src and dst */
+		else {
+			struct in6_addr tmp;
+
+			if (buf_len < PP2_HDR_LEN_INET6)
+				return 0;
+			hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
+			hdr->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
+			if (src->ss_family == AF_INET) {
+				v4tov6(&tmp, &((struct sockaddr_in *)src)->sin_addr);
+				memcpy(hdr->addr.ip6.src_addr, &tmp, 16);
+				hdr->addr.ip6.src_port = ((struct sockaddr_in *)src)->sin_port;
+			}
+			else {
+				memcpy(hdr->addr.ip6.src_addr, &((struct sockaddr_in6 *)src)->sin6_addr, 16);
+				hdr->addr.ip6.src_port = ((struct sockaddr_in6 *)src)->sin6_port;
+			}
+			if (dst->ss_family == AF_INET) {
+				v4tov6(&tmp, &((struct sockaddr_in *)dst)->sin_addr);
+				memcpy(hdr->addr.ip6.dst_addr, &tmp, 16);
+				hdr->addr.ip6.src_port = ((struct sockaddr_in *)src)->sin_port;
+			}
+			else {
+				memcpy(hdr->addr.ip6.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
+				hdr->addr.ip6.dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
+			}
+
+			ret = PP2_HDR_LEN_INET6;
+		}
 	}
 
 	if (srv->pp_opts & SRV_PP_V2_CRC32C) {
