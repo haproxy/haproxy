@@ -1190,18 +1190,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		global.nbthread = atol(args[1]);
-#ifndef USE_THREAD
-		if (global.nbthread > 1) {
-			ha_alert("HAProxy is not compiled with threads support, please check build options for USE_THREAD.\n");
-			global.nbthread = 1;
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-#endif
-		if (global.nbthread < 1 || global.nbthread > MAX_THREADS) {
-			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
-				 file, linenum, args[0], MAX_THREADS, global.nbthread);
+		global.nbthread = parse_nbthread(args[1], &errmsg);
+		if (!global.nbthread) {
+			ha_alert("parsing [%s:%d] : '%s' %s.\n",
+				 file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
