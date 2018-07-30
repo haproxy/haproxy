@@ -132,7 +132,7 @@ dump_commit_matrix() {
 		done
 		line="${line} |"
 		if [ -z "$MISSING" -o $missing -gt 0 ]; then
-			[ $((count++)) -gt 0 ] || echo $title
+			[ $((count++)) -gt 0 ] || echo "$title"
 			[ "$QUIET" != "" -o $count -lt 20 ] || count=0
 			if [ -z "$UPSTREAM" -o "$upstream" = "none" -o -z "$upstream" ]; then
 				echo "$(short $ref) $line"
@@ -235,7 +235,7 @@ dump_commit_matrix | column -t | \
 			echo "---- Subject ----"
 		else
 			# doing it this way prevents git from abusing the terminal
-			echo $(git log -1 --pretty="%s" "$1")
+			echo "$(git log -1 --pretty="%s" "$1")"
 			left_commits[${#left_commits[@]}]="$1"
 			comm=""
 			while [ -n "$1" -a "$1" != "-" -a "$1" != "|" ]; do
