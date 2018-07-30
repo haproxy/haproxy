@@ -121,7 +121,7 @@
 #define offsetof(type, field)  __builtin_offsetof(type, field)
 #else
 #define offsetof(type, field) \
-        ((__size_t)(__uintptr_t)((const volatile void *)&((type *)0)->field))
+        ((size_t)(uintptr_t)((const volatile void *)&((type *)0)->field))
 #endif
 #endif
 
