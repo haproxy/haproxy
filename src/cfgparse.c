@@ -7587,11 +7587,11 @@ int check_config_validity()
 				nbproc = my_ffsl(bind_conf->bind_proc);
 
 			mask = bind_conf->bind_thread[nbproc - 1];
-			if (mask && !(mask & (all_threads_mask ? all_threads_mask : 1UL))) {
+			if (mask && !(mask & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
 				while (mask) {
-					new_mask |= mask & (all_threads_mask ? all_threads_mask : 1UL);
+					new_mask |= mask & all_threads_mask;
 					mask >>= global.nbthread;
 				}
 

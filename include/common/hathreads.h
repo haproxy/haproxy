@@ -24,10 +24,6 @@
 
 #include <common/config.h>
 
-#define MAX_THREADS_MASK ((unsigned long)-1)
-extern THREAD_LOCAL unsigned int tid;     /* The thread id */
-extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
-
 /* Note about all_threads_mask :
  *    - with threads support disabled, this symbol is defined as zero (0UL).
  *    - with threads enabled, this variable is never zero, it contains the mask
@@ -37,7 +33,14 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 #ifndef USE_THREAD
 
 #define MAX_THREADS 1
-#define all_threads_mask 0UL
+#define MAX_THREADS_MASK 1
+
+/* Only way found to replace variables with constants that are optimized away
+ * at build time.
+ */
+enum { all_threads_mask = 1UL };
+enum { tid_bit = 1UL };
+enum { tid = 0 };
 
 #define __decl_hathreads(decl)
 
@@ -116,6 +119,9 @@ extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the threa
 
 #define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
 
+static inline void ha_set_tid(unsigned int tid)
+{
+}
 
 static inline void __ha_barrier_load(void)
 {
@@ -138,6 +144,7 @@ static inline void __ha_barrier_full(void)
 #include <import/plock.h>
 
 #define MAX_THREADS LONGBITS
+#define MAX_THREADS_MASK ((unsigned long)-1)
 
 #define __decl_hathreads(decl) decl
 
@@ -266,9 +273,18 @@ void thread_exit_sync(void);
 int  thread_no_sync(void);
 int  thread_need_sync(void);
 
+extern THREAD_LOCAL unsigned int tid;     /* The thread id */
+extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern volatile unsigned long all_threads_mask;
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
+
+/* sets the thread ID and the TID bit for the current thread */
+static inline void ha_set_tid(unsigned int data)
+{
+	tid     = data;
+	tid_bit = (1UL << tid);
+}
 
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)

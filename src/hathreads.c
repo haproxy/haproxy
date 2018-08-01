@@ -19,8 +19,6 @@
 #include <common/standard.h>
 #include <proto/fd.h>
 
-THREAD_LOCAL unsigned int tid      = 0;
-THREAD_LOCAL unsigned long tid_bit = (1UL << 0);
 
 /* Dummy I/O handler used by the sync pipe.*/
 void thread_sync_io_handler(int fd)
@@ -33,6 +31,9 @@ static HA_SPINLOCK_T sync_lock;
 static int           threads_sync_pipe[2];
 static unsigned long threads_want_sync = 0;
 volatile unsigned long all_threads_mask  = 1; // nbthread 1 assumed by default
+THREAD_LOCAL unsigned int  tid           = 0;
+THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
+
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 struct lock_stat lock_stats[LOCK_LABELS];
@@ -127,7 +128,7 @@ void thread_enter_sync()
 {
 	static volatile unsigned long barrier = 0;
 
-	if (!all_threads_mask)
+	if (!(all_threads_mask & (all_threads_mask - 1)))
 		return;
 
 	thread_sync_barrier(&barrier);
@@ -143,7 +144,7 @@ void thread_exit_sync()
 {
 	static volatile unsigned long barrier = 0;
 
-	if (!all_threads_mask)
+	if (!(all_threads_mask & (all_threads_mask - 1)))
 		return;
 
 	if (threads_want_sync & tid_bit)
