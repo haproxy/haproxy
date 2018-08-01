@@ -106,6 +106,9 @@ extern int task_list_size[MAX_THREADS]; /* Number of task sin the task_list */
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
 
+
+static inline void task_insert_into_tasklet_list(struct task *t);
+
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
 {
@@ -215,6 +218,10 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
+	if (!TASK_IS_TASKLET(tl)) {
+		task_insert_into_tasklet_list((struct task *)tl);
+		return;
+	}
 	if (!LIST_ISEMPTY(&tl->list))
 		return;
 	LIST_ADDQ(&task_list[tid], &tl->list);
