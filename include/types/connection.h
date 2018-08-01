@@ -44,9 +44,15 @@ struct buffer;
 struct server;
 struct pipe;
 
+enum sub_event_type {
+	SUB_CAN_SEND        = 0x00000001,  /* Schedule the tasklet when we can send more */
+	SUB_CAN_RECV        = 0x00000002,  /* Schedule the tasklet when we can recv more */
+};
+
 struct wait_list {
 	struct tasklet *task;
 	struct list list;
+	int wait_reason;
 };
 
 /* A connection handle is how we differenciate two connections on the lower
@@ -90,9 +96,6 @@ enum cs_shw_mode {
 	CS_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
 };
 
-enum sub_event_type {
-	SUB_CAN_SEND        = 0x00000001,  /* Schedule the tasklet when we can send more */
-};
 /* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
  * indicates if read or write is desired in that direction for the respective
  * layers. The current status corresponding to the current layer being used is

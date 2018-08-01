@@ -134,6 +134,7 @@ void conn_fd_handler(int fd)
 			    struct wait_list *, list);
 			LIST_DEL(&sw->list);
 			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
 	}
@@ -338,8 +339,10 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 	switch (event_type) {
 	case SUB_CAN_SEND:
 		sw = param;
-		if (LIST_ISEMPTY(&sw->list))
+		if (!(sw->wait_reason & SUB_CAN_SEND)) {
+			sw->wait_reason |= SUB_CAN_SEND;
 			LIST_ADDQ(&conn->send_wait_list, &sw->list);
+		}
 		return 0;
 	default:
 		break;

@@ -601,6 +601,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
+	cs->wait_list.wait_reason = 0;
 }
 
 /* Initializes all required fields for a new connection. Note that it does the

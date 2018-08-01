@@ -369,6 +369,7 @@ static int h2c_frt_init(struct connection *conn)
 		goto fail;
 	h2c->wait_list.task->process = h2_send;
 	h2c->wait_list.task->context = conn;
+	h2c->wait_list.wait_reason = 0;
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
 	if (!h2c->ddht)
@@ -2289,6 +2290,7 @@ static struct task *h2_send(struct task *t, void *ctx, unsigned short state)
 			    struct wait_list *, list);
 			LIST_DEL(&sw->list);
 			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
 
@@ -3409,8 +3411,11 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	switch (event_type) {
 	case SUB_CAN_SEND:
 		sw = param;
-		if (LIST_ISEMPTY(&h2s->list) && LIST_ISEMPTY(&sw->list))
+		if (LIST_ISEMPTY(&h2s->list) &&
+		    !(sw->wait_reason & SUB_CAN_SEND)) {
 			LIST_ADDQ(&h2s->h2c->send_wait_list, &sw->list);
+			sw->wait_reason |= SUB_CAN_SEND;
+		}
 		return 0;
 	default:
 		break;

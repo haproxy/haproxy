@@ -652,7 +652,7 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 	int did_send = 0;
 
 	/* We're already waiting to be able to send, give up */
-	if (!LIST_ISEMPTY(&cs->wait_list.list))
+	if (cs->wait_list.wait_reason & SUB_CAN_SEND)
 		return NULL;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
@@ -661,7 +661,7 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 	if (conn->flags & CO_FL_HANDSHAKE) {
 		/* a handshake was requested */
 		/* Schedule ourself to be woken up once the handshake is done */
-		LIST_ADDQ(&conn->send_wait_list, &cs->wait_list.list);
+		conn->xprt->subscribe(conn, SUB_CAN_SEND,  wl_set_waitcb(&cs->wait_list, si_cs_send, ctx));
 		return NULL;
 	}
 
@@ -751,6 +751,7 @@ wake_others:
 			    struct wait_list *, list);
 			LIST_DEL(&sw->list);
 			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
 	}
