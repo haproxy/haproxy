@@ -55,7 +55,7 @@ static void si_cs_recv_cb(struct conn_stream *cs);
 static int si_cs_wake_cb(struct conn_stream *cs);
 static int si_idle_conn_wake_cb(struct conn_stream *cs);
 static void si_idle_conn_null_cb(struct conn_stream *cs);
-static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state);
+static struct task * si_cs_send(struct conn_stream *cs);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -462,7 +462,7 @@ void stream_int_notify(struct stream_interface *si)
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && objt_cs(si->end))
-		si_cs_send(NULL, objt_cs(si->end), 0);
+		si_cs_send(objt_cs(si->end));
 
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
@@ -642,9 +642,8 @@ static int si_cs_wake_cb(struct conn_stream *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
+static struct task * si_cs_send(struct conn_stream *cs)
 {
-	struct conn_stream *cs = ctx;
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
 	struct channel *oc = si_oc(si);
@@ -661,7 +660,7 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 	if (conn->flags & CO_FL_HANDSHAKE) {
 		/* a handshake was requested */
 		/* Schedule ourself to be woken up once the handshake is done */
-		conn->xprt->subscribe(conn, SUB_CAN_SEND,  wl_set_waitcb(&cs->wait_list, si_cs_send, ctx));
+		conn->xprt->subscribe(conn, SUB_CAN_SEND,  wl_set_waitcb(&cs->wait_list, si_cs_io_cb, cs));
 		return NULL;
 	}
 
@@ -741,7 +740,7 @@ static struct task * si_cs_send(struct task *t, void *ctx, unsigned short state)
 	}
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (co_data(oc))
-		conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, si_cs_send, ctx));
+		conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, si_cs_io_cb, cs));
 
 wake_others:
 	/* Maybe somebody was waiting for this conn_stream, wake them */
@@ -756,6 +755,12 @@ wake_others:
 		}
 	}
 	return NULL;
+}
+
+struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
+{
+	si_cs_send(ctx);
+	return (NULL);
 }
 
 /* This function is designed to be called from within the stream handler to
@@ -1045,7 +1050,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	__cs_want_send(cs);
 
-	si_cs_send(NULL, cs, 0);
+	si_cs_send(cs);
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		__cs_stop_both(cs);

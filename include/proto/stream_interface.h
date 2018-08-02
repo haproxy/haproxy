@@ -53,6 +53,7 @@ void stream_int_update(struct stream_interface *si);
 void stream_int_update_conn(struct stream_interface *si);
 void stream_int_update_applet(struct stream_interface *si);
 void stream_int_notify(struct stream_interface *si);
+struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state);
 
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
