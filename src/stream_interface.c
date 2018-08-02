@@ -651,7 +651,7 @@ static struct task * si_cs_send(struct conn_stream *cs)
 	int did_send = 0;
 
 	/* We're already waiting to be able to send, give up */
-	if (cs->wait_list.wait_reason & SUB_CAN_SEND)
+	if (si->wait_list.wait_reason & SUB_CAN_SEND)
 		return NULL;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
@@ -660,7 +660,7 @@ static struct task * si_cs_send(struct conn_stream *cs)
 	if (conn->flags & CO_FL_HANDSHAKE) {
 		/* a handshake was requested */
 		/* Schedule ourself to be woken up once the handshake is done */
-		conn->xprt->subscribe(conn, SUB_CAN_SEND,  wl_set_waitcb(&cs->wait_list, si_cs_io_cb, cs));
+		conn->xprt->subscribe(conn, SUB_CAN_SEND,  &si->wait_list);
 		return NULL;
 	}
 
@@ -740,7 +740,7 @@ static struct task * si_cs_send(struct conn_stream *cs)
 	}
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (co_data(oc))
-		conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, si_cs_io_cb, cs));
+		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_list);
 
 wake_others:
 	/* Maybe somebody was waiting for this conn_stream, wake them */
@@ -759,7 +759,9 @@ wake_others:
 
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 {
-	si_cs_send(ctx);
+	struct stream_interface *si = ctx;
+	if (!(si->wait_list.wait_reason & SUB_CAN_SEND))
+		si_cs_send(__objt_cs(si->end));
 	return (NULL);
 }
 

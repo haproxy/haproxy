@@ -192,7 +192,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	vars_init(&s->vars_reqres, SCOPE_REQ);
 
 	/* this part should be common with other protocols */
-	si_reset(&s->si[0]);
+	if (si_reset(&s->si[0]) < 0)
+		goto out_fail_alloc;
 	si_set_state(&s->si[0], SI_ST_EST);
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
@@ -211,7 +212,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
-	si_reset(&s->si[1]);
+	if (si_reset(&s->si[1]) < 0)
+		goto out_fail_alloc_si1;
 	s->si[1].hcto = TICK_ETERNITY;
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
@@ -288,6 +290,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
  out_fail_accept:
 	flt_stream_release(s, 0);
 	task_free(t);
+	tasklet_free(s->si[1].wait_list.task);
+out_fail_alloc_si1:
+	tasklet_free(s->si[0].wait_list.task);
  out_fail_alloc:
 	LIST_DEL(&s->list);
 	pool_free(pool_head_stream, s);
@@ -403,6 +408,8 @@ static void stream_free(struct stream *s)
 	if (must_free_sess)
 		session_free(sess);
 
+	tasklet_free(s->si[0].wait_list.task);
+	tasklet_free(s->si[1].wait_list.task);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */

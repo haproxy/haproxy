@@ -101,6 +101,7 @@ struct stream_interface {
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	int conn_retries;	/* number of connect retries left */
 	unsigned int hcto;      /* half-closed timeout (0 = unset) */
+	struct wait_list wait_list; /* We're in a wait list */
 };
 
 /* operations available on a stream-interface */

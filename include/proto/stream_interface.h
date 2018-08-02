@@ -116,7 +116,7 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
  * any endpoint and only keeps its side which is expected to have already been
  * set.
  */
-static inline void si_reset(struct stream_interface *si)
+static inline int si_reset(struct stream_interface *si)
 {
 	si->err_type       = SI_ET_NONE;
 	si->conn_retries   = 0;  /* used for logging too */
@@ -125,6 +125,14 @@ static inline void si_reset(struct stream_interface *si)
 	si->end            = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
+	si->wait_list.task = tasklet_new();
+	if (!si->wait_list.task)
+		return -1;
+	si->wait_list.task->process    = si_cs_io_cb;
+	si->wait_list.task->context = si;
+	si->wait_list.wait_reason = 0;
+	LIST_INIT(&si->wait_list.list);
+	return 0;
 }
 
 /* sets the current and previous state of a stream interface to <state>. This
