@@ -2675,7 +2675,6 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
 static void srv_register_update(struct server *srv)
 {
 	if (LIST_ISEMPTY(&srv->update_status)) {
-		THREAD_WANT_SYNC();
 		HA_SPIN_LOCK(UPDATED_SERVERS_LOCK, &updated_servers_lock);
 		if (LIST_ISEMPTY(&srv->update_status))
 			LIST_ADDQ(&updated_servers, &srv->update_status);

@@ -2375,6 +2375,16 @@ void mworker_pipe_register()
 	fd_want_recv(mworker_pipe[0]);
 }
 
+/* verifies if some servers' statuses need to be updated and call the update */
+static inline void servers_check_for_updates()
+{
+	if (!LIST_ISEMPTY(&updated_servers)) {
+		thread_isolate();
+		servers_update_status();
+		thread_release();
+	}
+}
+
 static int sync_poll_loop()
 {
 	int stop = 0;
@@ -2387,12 +2397,6 @@ static int sync_poll_loop()
 	if (!THREAD_NEED_SYNC())
 		goto exit;
 
-	/* *** { */
-	/* Put here all sync functions */
-
-	servers_update_status(); /* Commit server status changes */
-
-	/* *** } */
   exit:
 	stop = (jobs == 0); /* stop when there's nothing left to do */
 	THREAD_EXIT_SYNC();
@@ -2446,6 +2450,8 @@ static void run_poll_loop()
 			HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 		fd_process_cached_events();
 
+		/* check for server status updates */
+		servers_check_for_updates();
 
 		/* Synchronize all polling loops */
 		if (sync_poll_loop())
