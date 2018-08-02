@@ -847,10 +847,14 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		void *ctx = NULL;
 		uint32_t conn_flags = 0;
 
+		thread_isolate();
+
 		fdt = fdtab[fd];
 
-		if (!fdt.owner)
+		if (!fdt.owner) {
+			thread_release();
 			goto skip; // closed
+		}
 
 		if (fdt.iocb == conn_fd_handler) {
 			conn_flags = ((struct connection *)fdt.owner)->flags;
@@ -915,6 +919,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			              listener_state_str(li),
 			              li->bind_conf->frontend->id);
 		}
+
+		thread_release();
 
 		chunk_appendf(&trash, "\n");
 
