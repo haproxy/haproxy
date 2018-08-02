@@ -30,6 +30,8 @@ void thread_sync_io_handler(int fd)
 static HA_SPINLOCK_T sync_lock;
 static int           threads_sync_pipe[2];
 static unsigned long threads_want_sync = 0;
+volatile unsigned long threads_want_rdv_mask = 0;
+volatile unsigned long threads_harmless_mask = 0;
 volatile unsigned long all_threads_mask  = 1; // nbthread 1 assumed by default
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
@@ -160,6 +162,68 @@ void thread_exit_sync()
 	thread_sync_barrier(&barrier);
 }
 
+/* Marks the thread as harmless until the last thread using the rendez-vous
+ * point quits. Given that we can wait for a long time, sched_yield() is used
+ * when available to offer the CPU resources to competing threads if needed.
+ */
+void thread_harmless_till_end()
+{
+		HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+		while (threads_want_rdv_mask & all_threads_mask) {
+#if _POSIX_PRIORITY_SCHEDULING
+			sched_yield();
+#else
+			pl_cpu_relax();
+#endif
+		}
+}
+
+/* Isolates the current thread : request the ability to work while all other
+ * threads are harmless. Only returns once all of them are harmless, with the
+ * current thread's bit in threads_harmless_mask cleared. Needs to be completed
+ * using thread_release().
+ */
+void thread_isolate()
+{
+	unsigned long old;
+
+	HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+	__ha_barrier_store();
+	HA_ATOMIC_OR(&threads_want_rdv_mask, tid_bit);
+
+	/* wait for all threads to become harmless */
+	old = threads_harmless_mask;
+	while (1) {
+		if (unlikely((old & all_threads_mask) != all_threads_mask))
+			old = threads_harmless_mask;
+		else if (HA_ATOMIC_CAS(&threads_harmless_mask, &old, old & ~tid_bit))
+			break;
+
+#if _POSIX_PRIORITY_SCHEDULING
+		sched_yield();
+#else
+		pl_cpu_relax();
+#endif
+	}
+	/* one thread gets released at a time here, with its harmess bit off.
+	 * The loss of this bit makes the other one continue to spin while the
+	 * thread is working alone.
+	 */
+}
+
+/* Cancels the effect of thread_isolate() by releasing the current thread's bit
+ * in threads_want_rdv_mask and by marking this thread as harmless until the
+ * last worker finishes.
+ */
+void thread_release()
+{
+	while (1) {
+		HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
+		if (!(threads_want_rdv_mask & all_threads_mask))
+			break;
+		thread_harmless_till_end();
+	}
+}
 
 __attribute__((constructor))
 static void __hathreads_init(void)

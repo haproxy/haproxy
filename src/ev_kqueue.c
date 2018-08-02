@@ -19,6 +19,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/hathreads.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <common/tools.h>
@@ -112,6 +113,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		changes = _update_fd(fd, changes);
 	}
 
+	thread_harmless_now();
+
 	if (changes) {
 #ifdef EV_RECEIPT
 		kev[0].flags |= EV_RECEIPT;
@@ -153,6 +156,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			&timeout); // const struct timespec *timeout
 	tv_update_date(delta_ms, status);
 	measure_idle();
+
+	thread_harmless_end();
 
 	for (count = 0; count < status; count++) {
 		unsigned int n = 0;

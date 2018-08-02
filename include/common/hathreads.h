@@ -135,6 +135,27 @@ static inline void __ha_barrier_full(void)
 {
 }
 
+static inline void thread_harmless_now()
+{
+}
+
+static inline void thread_harmless_end()
+{
+}
+
+static inline void thread_isolate()
+{
+}
+
+static inline void thread_release()
+{
+}
+
+static inline unsigned long thread_isolated()
+{
+	return 1;
+}
+
 #else /* USE_THREAD */
 
 #include <stdio.h>
@@ -272,10 +293,34 @@ void thread_enter_sync(void);
 void thread_exit_sync(void);
 int  thread_no_sync(void);
 int  thread_need_sync(void);
+void thread_harmless_till_end();
+void thread_isolate();
+void thread_release();
 
 extern THREAD_LOCAL unsigned int tid;     /* The thread id */
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
 extern volatile unsigned long all_threads_mask;
+extern volatile unsigned long threads_want_rdv_mask;
+extern volatile unsigned long threads_harmless_mask;
+
+/* explanation for threads_want_rdv_mask and threads_harmless_mask :
+ * - threads_want_rdv_mask is a bit field indicating all threads that have
+ *   requested a rendez-vous of other threads using thread_isolate().
+ * - threads_harmless_mask is a bit field indicating all threads that are
+ *   currently harmless in that they promise not to access a shared resource.
+ *
+ * For a given thread, its bits in want_rdv and harmless can be translated like
+ * this :
+ *
+ *  ----------+----------+----------------------------------------------------
+ *   want_rdv | harmless | description
+ *  ----------+----------+----------------------------------------------------
+ *       0    |     0    | thread not interested in RDV, possibly harmful
+ *       0    |     1    | thread not interested in RDV but harmless
+ *       1    |     1    | thread interested in RDV and waiting for its turn
+ *       1    |     0    | thread currently working isolated from others
+ *  ----------+----------+----------------------------------------------------
+ */
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
 
@@ -284,6 +329,38 @@ static inline void ha_set_tid(unsigned int data)
 {
 	tid     = data;
 	tid_bit = (1UL << tid);
+}
+
+/* Marks the thread as harmless. Note: this must be true, i.e. the thread must
+ * not be touching any unprotected shared resource during this period. Usually
+ * this is called before poll(), but it may also be placed around very slow
+ * calls (eg: some crypto operations). Needs to be terminated using
+ * thread_harmless_end().
+ */
+static inline void thread_harmless_now()
+{
+	HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+}
+
+/* Ends the harmless period started by thread_harmless_now(). Usually this is
+ * placed after the poll() call. If it is discovered that a job was running and
+ * is relying on the thread still being harmless, the thread waits for the
+ * other one to finish.
+ */
+static inline void thread_harmless_end()
+{
+	while (1) {
+		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
+		if (likely((threads_want_rdv_mask & all_threads_mask) == 0))
+			break;
+		thread_harmless_till_end();
+	}
+}
+
+/* an isolated thread has harmless cleared and want_rdv set */
+static inline unsigned long thread_isolated()
+{
+	return threads_want_rdv_mask & ~threads_harmless_mask & tid_bit;
 }
 
 
