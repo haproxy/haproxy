@@ -2461,7 +2461,6 @@ static void *run_thread_poll_loop(void *data)
 	}
 
 	protocol_enable_all();
-	THREAD_SYNC_ENABLE();
 	run_poll_loop();
 
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
@@ -3013,8 +3012,6 @@ int main(int argc, char **argv)
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
 		sigset_t     blocked_sig, old_sig;
-
-		THREAD_SYNC_INIT();
 
 		/* Init tids array */
 		for (i = 0; i < global.nbthread; i++)

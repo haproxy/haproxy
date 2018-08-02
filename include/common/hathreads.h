@@ -94,14 +94,6 @@ enum { tid = 0 };
 
 #define HA_BARRIER() do { } while (0)
 
-#define THREAD_SYNC_INIT()   do { /* do nothing */ } while(0)
-#define THREAD_SYNC_ENABLE() do { /* do nothing */ } while(0)
-#define THREAD_WANT_SYNC()   do { /* do nothing */ } while(0)
-#define THREAD_ENTER_SYNC()  do { /* do nothing */ } while(0)
-#define THREAD_EXIT_SYNC()   do { /* do nothing */ } while(0)
-#define THREAD_NO_SYNC()     ({ 0; })
-#define THREAD_NEED_SYNC()   ({ 1; })
-
 #define HA_SPIN_INIT(l)         do { /* do nothing */ } while(0)
 #define HA_SPIN_DESTROY(l)      do { /* do nothing */ } while(0)
 #define HA_SPIN_LOCK(lbl, l)    do { /* do nothing */ } while(0)
@@ -278,21 +270,6 @@ static inline unsigned long thread_isolated()
 
 #define HA_BARRIER() pl_barrier()
 
-#define THREAD_SYNC_INIT()    thread_sync_init()
-#define THREAD_SYNC_ENABLE()  thread_sync_enable()
-#define THREAD_WANT_SYNC()    thread_want_sync()
-#define THREAD_ENTER_SYNC()   thread_enter_sync()
-#define THREAD_EXIT_SYNC()    thread_exit_sync()
-#define THREAD_NO_SYNC()      thread_no_sync()
-#define THREAD_NEED_SYNC()    thread_need_sync()
-
-int  thread_sync_init();
-void thread_sync_enable(void);
-void thread_want_sync(void);
-void thread_enter_sync(void);
-void thread_exit_sync(void);
-int  thread_no_sync(void);
-int  thread_need_sync(void);
 void thread_harmless_till_end();
 void thread_isolate();
 void thread_release();
@@ -368,7 +345,6 @@ static inline unsigned long thread_isolated()
 
 /* WARNING!!! if you update this enum, please also keep lock_label() up to date below */
 enum lock_label {
-	THREAD_SYNC_LOCK = 0,
 	FD_LOCK,
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
@@ -485,7 +461,6 @@ struct ha_rwlock {
 static inline const char *lock_label(enum lock_label label)
 {
 	switch (label) {
-	case THREAD_SYNC_LOCK:     return "THREAD_SYNC";
 	case FD_LOCK:              return "FD";
 	case TASK_RQ_LOCK:         return "TASK_RQ";
 	case TASK_WQ_LOCK:         return "TASK_WQ";
@@ -974,8 +949,6 @@ static inline void __ha_compiler_barrier(void)
 	__asm __volatile("" ::: "memory");
 }
 
-/* Dummy I/O handler used by the sync pipe.*/
-void thread_sync_io_handler(int fd);
 int parse_nbthread(const char *arg, char **err);
 
 #endif /* _COMMON_HATHREADS_H */
