@@ -375,6 +375,8 @@ struct conn_stream {
 	struct connection *conn;             /* xprt-level connection */
 	struct wait_list wait_list;          /* We're in a wait list for send */
 	struct list send_wait_list;          /* list of tasks to wake when we're ready to send */
+	struct list recv_wait_list;          /* list of tasks to wake when we're ready to recv */
+	struct list sendrecv_wait_list;      /* list of tasks to wake when we're ready to either send or recv */
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */
@@ -406,6 +408,8 @@ struct connection {
 
 	/* second cache line */
 	struct list send_wait_list;   /* list of tasks to wake when we're ready to send */
+	struct list recv_wait_list;          /* list of tasks to wake when we're ready to recv */
+	struct list sendrecv_wait_list;      /* list of tasks to wake when we're ready to either send or recv */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	int tmp_early_data;           /* 1st byte of early data, if any */

@@ -752,6 +752,16 @@ wake_others:
 			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
+		while (!(LIST_ISEMPTY(&cs->sendrecv_wait_list))) {
+			struct wait_list *sw = LIST_ELEM(cs->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			LIST_ADDQ(&cs->recv_wait_list, &sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
+			tasklet_wakeup(sw->task);
+		}
+
 	}
 	return NULL;
 }

@@ -121,6 +121,8 @@ struct h2c {
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct list send_wait_list;  /* list of tasks to wake when we're ready to send */
+	struct list recv_wait_list;          /* list of tasks to wake when we're ready to recv */
+	struct list sendrecv_wait_list;      /* list of tasks to wake when we're ready to either send or recv */
 	struct wait_list wait_list;  /* We're in a wait list, to send */
 };
 
@@ -406,6 +408,8 @@ static int h2c_frt_init(struct connection *conn)
 		task_queue(t);
 	conn_xprt_want_recv(conn);
 	LIST_INIT(&h2c->send_wait_list);
+	LIST_INIT(&h2c->recv_wait_list);
+	LIST_INIT(&h2c->sendrecv_wait_list);
 	LIST_INIT(&h2c->wait_list.list);
 
 	/* mux->wake will be called soon to complete the operation */
@@ -2333,6 +2337,16 @@ static void h2_send(struct h2c *h2c)
 			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
+		while (!(LIST_ISEMPTY(&h2c->sendrecv_wait_list))) {
+			struct wait_list *sw = LIST_ELEM(h2c->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			LIST_ADDQ(&h2c->recv_wait_list, &sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
+			tasklet_wakeup(sw->task);
+		}
+
 
 	}
 	/* We're done, no more to send */
@@ -3456,14 +3470,37 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_list *sw;
 	struct h2s *h2s = cs->ctx;
+	struct h2c *h2c = h2s->h2c;
 
 	switch (event_type) {
+	case SUB_CAN_RECV:
+		sw = param;
+		if (!(sw->wait_reason & SUB_CAN_RECV)) {
+			sw->wait_reason |= SUB_CAN_RECV;
+			/* If we're already subscribed for send(), move it
+			 * to the send+recv list
+			 */
+			if (sw->wait_reason & SUB_CAN_SEND) {
+				LIST_DEL(&sw->list);
+				LIST_INIT(&sw->list);
+				LIST_ADDQ(&h2c->sendrecv_wait_list, &sw->list);
+			} else
+				LIST_ADDQ(&h2c->recv_wait_list, &sw->list);
+		}
+		return 0;
 	case SUB_CAN_SEND:
 		sw = param;
-		if (LIST_ISEMPTY(&h2s->list) &&
-		    !(sw->wait_reason & SUB_CAN_SEND)) {
-			LIST_ADDQ(&h2s->h2c->send_wait_list, &sw->list);
+		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
+			/* If we're already subscribed for recv(), move it
+			 * to the send+recv list
+			 */
+			if (sw->wait_reason & SUB_CAN_RECV) {
+				LIST_DEL(&sw->list);
+				LIST_INIT(&sw->list);
+				LIST_ADDQ(&h2c->sendrecv_wait_list, &sw->list);
+			} else
+				LIST_ADDQ(&h2c->send_wait_list, &sw->list);
 		}
 		return 0;
 	default:

@@ -137,6 +137,15 @@ void conn_fd_handler(int fd)
 			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
+		while (!(LIST_ISEMPTY(&conn->sendrecv_wait_list))) {
+			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			LIST_ADDQ(&conn->recv_wait_list, &sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
+			tasklet_wakeup(sw->task);
+		}
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -334,11 +343,34 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 	struct wait_list *sw;
 
 	switch (event_type) {
+	case SUB_CAN_RECV:
+		sw = param;
+		if (!(sw->wait_reason & SUB_CAN_RECV)) {
+			sw->wait_reason |= SUB_CAN_RECV;
+			/* If we're already subscribed for send(), move it
+			 * to the send+recv list
+			 */
+			if (sw->wait_reason & SUB_CAN_SEND) {
+				LIST_DEL(&sw->list);
+				LIST_INIT(&sw->list);
+				LIST_ADDQ(&conn->sendrecv_wait_list, &sw->list);
+			} else
+				LIST_ADDQ(&conn->recv_wait_list, &sw->list);
+		}
+		return 0;
 	case SUB_CAN_SEND:
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
-			LIST_ADDQ(&conn->send_wait_list, &sw->list);
+			/* If we're already subscribed for recv(), move it
+			 * to the send+recv list
+			 */
+			if (sw->wait_reason & SUB_CAN_RECV) {
+				LIST_DEL(&sw->list);
+				LIST_INIT(&sw->list);
+				LIST_ADDQ(&conn->sendrecv_wait_list, &sw->list);
+			} else
+				LIST_ADDQ(&conn->send_wait_list, &sw->list);
 		}
 		return 0;
 	default:

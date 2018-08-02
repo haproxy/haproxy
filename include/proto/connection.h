@@ -602,6 +602,8 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	cs->flags = CS_FL_NONE;
 	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
+	LIST_INIT(&cs->recv_wait_list);
+	LIST_INIT(&cs->sendrecv_wait_list);
 	cs->conn = conn;
 	cs->wait_list.wait_reason = 0;
 }
@@ -629,6 +631,8 @@ static inline void conn_init(struct connection *conn)
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
 	LIST_INIT(&conn->send_wait_list);
+	LIST_INIT(&conn->recv_wait_list);
+	LIST_INIT(&conn->sendrecv_wait_list);
 }
 
 /* sets <owner> as the connection's owner */
@@ -711,8 +715,19 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	LIST_DEL(&conn->send_wait_list);
-	LIST_INIT(&conn->send_wait_list);
+	struct wait_list *sw, *sw_back;
+	list_for_each_entry_safe(sw, sw_back, &conn->recv_wait_list, list) {
+		LIST_DEL(&sw->list);
+		LIST_INIT(&sw->list);
+	}
+	list_for_each_entry_safe(sw, sw_back, &conn->send_wait_list, list) {
+		LIST_DEL(&sw->list);
+		LIST_INIT(&sw->list);
+	}
+	list_for_each_entry_safe(sw, sw_back, &conn->sendrecv_wait_list, list) {
+		LIST_DEL(&sw->list);
+		LIST_INIT(&sw->list);
+	}
 	pool_free(pool_head_connection, conn);
 }
 
