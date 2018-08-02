@@ -91,7 +91,7 @@ void srv_dump_kws(char **out);
  * and the proxy's algorihtm. To be used after updating sv->uweight. The warmup
  * state is automatically disabled if the time is elapsed.
  */
-void server_recalc_eweight(struct server *sv);
+void server_recalc_eweight(struct server *sv, int must_update);
 
 /* returns the current server throttle rate between 0 and 100% */
 static inline unsigned int server_throttle_rate(struct server *sv)

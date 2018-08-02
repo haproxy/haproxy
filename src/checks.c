@@ -1475,7 +1475,7 @@ static struct task *server_warmup(struct task *t, void *context, unsigned short 
 		return t;
 
 	/* recalculate the weights and update the state */
-	server_recalc_eweight(s);
+	server_recalc_eweight(s, 1);
 
 	/* probably that we can refill this server with a bit more connections */
 	pendconn_grab_from_px(s);
