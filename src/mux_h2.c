@@ -219,7 +219,8 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 };
 
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
-static struct task *h2_send(struct task *t, void *ctx, unsigned short state);
+static void h2_send(struct h2c *h2c);
+static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2_frt_decode_headers(struct h2s *h2s);
 static int h2_frt_transfer_data(struct h2s *h2s);
@@ -367,8 +368,8 @@ static int h2c_frt_init(struct connection *conn)
 	h2c->wait_list.task = tasklet_new();
 	if (!h2c->wait_list.task)
 		goto fail;
-	h2c->wait_list.task->process = h2_send;
-	h2c->wait_list.task->context = conn;
+	h2c->wait_list.task->process = h2_io_cb;
+	h2c->wait_list.task->context = h2c;
 	h2c->wait_list.wait_reason = 0;
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
@@ -2218,18 +2219,17 @@ static void h2_recv(struct connection *conn)
 }
 
 /* Try to send data if possible */
-static struct task *h2_send(struct task *t, void *ctx, unsigned short state)
+static void h2_send(struct h2c *h2c)
 {
-	struct connection *conn = ctx;
-	struct h2c *h2c = conn->mux_ctx;
+	struct connection *conn = h2c->conn;
 	int done;
 
 	if (conn->flags & CO_FL_ERROR)
-		return NULL;
+		return;
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
 		/* a handshake was requested */
-		return NULL;
+		return;
 	}
 
 	/* This loop is quite simple : it tries to fill as much as it can from
@@ -2297,10 +2297,19 @@ static struct task *h2_send(struct task *t, void *ctx, unsigned short state)
 	}
 	/* We're done, no more to send */
 	if (!b_data(&h2c->mbuf))
-		return NULL;
+		return;
 schedule:
 	if (LIST_ISEMPTY(&h2c->wait_list.list))
 		conn->xprt->subscribe(conn, SUB_CAN_SEND, &h2c->wait_list);
+	return;
+}
+
+static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
+{
+	struct h2c *h2c = ctx;
+
+	if (!(h2c->wait_list.wait_reason & SUB_CAN_SEND))
+		h2_send(h2c);
 	return NULL;
 }
 
@@ -2313,7 +2322,7 @@ static int h2_wake(struct connection *conn)
 	struct h2c *h2c = conn->mux_ctx;
 	struct session *sess = conn->owner;
 
-	h2_send(NULL, conn, 0);
+	h2_send(h2c);
 	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
 
