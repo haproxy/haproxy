@@ -311,7 +311,6 @@ struct server {
 		int nb_low;
 		int nb_high;
 	} tmpl_info;
-	struct list update_status;		/* to attach to list of servers chnaging status */
 	struct {
 		long duration;
 		short status, code;

@@ -50,9 +50,6 @@ void srv_compute_all_admin_states(struct proxy *px);
 int srv_set_addr_via_libc(struct server *srv, int *err_code);
 int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
-void servers_update_status(void);
-
-extern struct list updated_servers;
 
 /* functions related to server name resolution */
 int snr_update_srv_status(struct server *s, int has_no_ip);

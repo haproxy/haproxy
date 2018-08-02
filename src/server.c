@@ -44,9 +44,6 @@
 #include <proto/dns.h>
 #include <netinet/tcp.h>
 
-struct list updated_servers = LIST_HEAD_INIT(updated_servers);
-__decl_hathreads(HA_SPINLOCK_T updated_servers_lock);
-
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
@@ -1617,8 +1614,6 @@ static struct server *new_server(struct proxy *proxy)
 		LIST_INIT(&srv->idle_conns[i]);
 		LIST_INIT(&srv->safe_conns[i]);
 	}
-
-	LIST_INIT(&srv->update_status);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -4522,7 +4517,6 @@ static struct cli_kw_list cli_kws = {{ },{
 __attribute__((constructor))
 static void __server_init(void)
 {
-	HA_SPIN_INIT(&updated_servers_lock);
 	cli_register_kw(&cli_kws);
 }
 
@@ -5059,22 +5053,6 @@ static void srv_update_status(struct server *s)
 
 	/* Re-set log strings to empty */
 	*s->adm_st_chg_cause = 0;
-}
-/*
- * This function loops on servers registered for asynchronous
- * status changes
- *
- * NOTE: No needs to lock <updated_servers> list because it is called inside the
- * sync point.
- */
-void servers_update_status(void) {
-	struct server *s, *stmp;
-
-	list_for_each_entry_safe(s, stmp, &updated_servers, update_status) {
-		srv_update_status(s);
-		LIST_DEL(&s->update_status);
-		LIST_INIT(&s->update_status);
-	}
 }
 
 /*
