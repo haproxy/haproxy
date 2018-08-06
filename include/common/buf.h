@@ -472,7 +472,7 @@ static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
 	memcpy(b_orig(b), swap, b_data(b) - output);
 	memcpy(b_wrap(b) - output, swap + b_size(b) - output, output);
 
-	b->head = b_size(b) - output;
+	b->head = (output ? b_size(b) - output : 0);
 }
 
 /* b_putchar() : tries to append char <c> at the end of buffer <b>. Supports
