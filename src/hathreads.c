@@ -70,7 +70,7 @@ void thread_sync_enable(void)
  */
 void thread_want_sync()
 {
-	if (all_threads_mask) {
+	if (all_threads_mask & (all_threads_mask - 1)) {
 		if (threads_want_sync & tid_bit)
 			return;
 		if (HA_ATOMIC_OR(&threads_want_sync, tid_bit) == tid_bit)
