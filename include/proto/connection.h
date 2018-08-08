@@ -1068,14 +1068,21 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 {
 	struct server *srv = objt_server(conn->target);
+	struct proxy  *prx = objt_proxy(conn->target);
 	const struct mux_ops *mux_ops;
 
-	if (srv->mux_proto)
+	if (srv)
+		prx = srv->proxy;
+
+	if (!prx) // target must be either proxy or server
+		return -1;
+
+	if (srv && srv->mux_proto)
 		mux_ops = srv->mux_proto->mux;
 	else {
 		int mode;
 
-		mode = (1 << (srv->proxy->mode == PR_MODE_HTTP));
+		mode = (1 << (prx->mode == PR_MODE_HTTP));
 		mux_ops = conn_get_best_mux(conn, ist(NULL), PROTO_SIDE_BE, mode);
 		if (!mux_ops)
 			return -1;
