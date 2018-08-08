@@ -962,10 +962,9 @@ static inline void unregister_mux_proto(struct mux_proto_list *list)
 	LIST_INIT(&list->list);
 }
 
-static inline struct mux_proto_list *get_mux_proto(char *str, int len)
+static inline struct mux_proto_list *get_mux_proto(const struct ist proto)
 {
 	struct mux_proto_list *item;
-	struct ist proto = ist2(str, len);
 
 	list_for_each_entry(item, &mux_proto_list.list, list) {
 		if (isteq(proto, item->token))
