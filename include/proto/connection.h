@@ -980,7 +980,8 @@ static inline void list_mux_proto(FILE *out)
 	struct ist proto;
 	char *mode, *side;
 
-	fprintf(out, "Available multiplexer protocols :\n");
+	fprintf(out, "Available multiplexer protocols :\n"
+		"(protocols markes as <default> cannot be specified using 'proto' keyword)\n");
 	list_for_each_entry(item, &mux_proto_list.list, list) {
 		proto = item->token;
 
@@ -1003,7 +1004,7 @@ static inline void list_mux_proto(FILE *out)
 			side = "NONE";
 
 		fprintf(out, " %15s : mode=%-10s side=%s\n",
-			(proto.len ? proto.ptr : "pass-through"), mode, side);
+			(proto.len ? proto.ptr : "<default>"), mode, side);
 	}
 }
 
