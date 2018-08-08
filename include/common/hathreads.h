@@ -468,7 +468,6 @@ static inline const char *lock_label(enum lock_label label)
 	case LISTENER_QUEUE_LOCK:  return "LISTENER_QUEUE";
 	case PROXY_LOCK:           return "PROXY";
 	case SERVER_LOCK:          return "SERVER";
-	case UPDATED_SERVERS_LOCK: return "UPDATED_SERVERS";
 	case LBPRM_LOCK:           return "LBPRM";
 	case SIGNALS_LOCK:         return "SIGNALS";
 	case STK_TABLE_LOCK:       return "STK_TABLE";
