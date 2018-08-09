@@ -70,6 +70,7 @@ static char * tcpcheck_get_step_comment(struct check *, int);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
+static void __event_srv_chk_r(struct conn_stream *cs);
 
 static struct pool_head *pool_head_email_alert   = NULL;
 static struct pool_head *pool_head_tcpcheck_rule = NULL;
@@ -709,9 +710,15 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
 {
 	struct conn_stream *cs = ctx;
+	struct check *check = cs->data;
 
 	if (!(cs->wait_list.wait_reason & SUB_CAN_SEND))
 		wake_srv_chk(cs);
+	if (!(cs->wait_list.wait_reason & SUB_CAN_RECV)) {
+		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+		__event_srv_chk_r(cs);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	}
 	return NULL;
 }
 
@@ -803,9 +810,11 @@ static void __event_srv_chk_w(struct conn_stream *cs)
  * etc.
  *
  * Please do NOT place any return statement in this function and only leave
- * via the out_unlock label.
+ * via the out label.
+ *
+ * This must be called with the server lock held.
  */
-static void event_srv_chk_r(struct conn_stream *cs)
+static void __event_srv_chk_r(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct check *check = cs->data;
@@ -815,17 +824,17 @@ static void event_srv_chk_r(struct conn_stream *cs)
 	int done;
 	unsigned short msglen;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE)
-		goto out_unlock;
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
+		goto out;
+	}
 
 	/* wake() will take care of calling tcpcheck_main() */
 	if (check->type == PR_O2_TCPCHK_CHK)
-		goto out_unlock;
+		goto out;
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
@@ -1372,13 +1381,13 @@ static void event_srv_chk_r(struct conn_stream *cs)
 		conn->flags |= CO_FL_ERROR;
 
 	task_wakeup(t, TASK_WOKEN_IO);
- out_unlock:
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+out:
 	return;
 
  wait_more_data:
 	__cs_want_recv(cs);
-        goto out_unlock;
+	cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
+        goto out;
 }
 
 /*
@@ -1443,7 +1452,6 @@ static int wake_srv_chk(struct conn_stream *cs)
 }
 
 struct data_cb check_conn_cb = {
-	.recv = event_srv_chk_r,
 	.wake = wake_srv_chk,
 	.name = "CHCK",
 };
@@ -2172,8 +2180,10 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 				t->expire = tick_first(t->expire, t_con);
 			}
 
-			if (check->type)
+			if (check->type) {
 				cs_want_recv(cs);   /* prepare for reading a possible reply */
+				__event_srv_chk_r(cs);
+			}
 
 			task_set_affinity(t, tid_bit);
 			goto reschedule;
@@ -2928,8 +2938,10 @@ static int tcpcheck_main(struct check *check)
 						goto out_end_tcpcheck;
 					}
 				}
-				else
+				else {
+					conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
 					break;
+				}
 			}
 
 			/* mark the step as started */
@@ -3091,8 +3103,10 @@ static int tcpcheck_main(struct check *check)
 		__cs_want_send(cs);
 
 	if (&check->current_step->list != head &&
-	    check->current_step->action == TCPCHK_ACT_EXPECT)
+	    check->current_step->action == TCPCHK_ACT_EXPECT) {
 		__cs_want_recv(cs);
+		__event_srv_chk_r(cs);
+	}
 	goto out;
 
  out_end_tcpcheck:

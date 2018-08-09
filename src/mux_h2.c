@@ -121,8 +121,6 @@ struct h2c {
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct list send_wait_list;  /* list of tasks to wake when we're ready to send */
-	struct list recv_wait_list;          /* list of tasks to wake when we're ready to recv */
-	struct list sendrecv_wait_list;      /* list of tasks to wake when we're ready to either send or recv */
 	struct wait_list wait_list;  /* We're in a wait list, to send */
 };
 
@@ -186,6 +184,7 @@ struct h2s {
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
+	struct wait_list *recv_wait_list; /* Somebody subscribed to be waken up on recv */
 };
 
 /* descriptor for an h2 frame header */
@@ -222,6 +221,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
 static void h2_send(struct h2c *h2c);
+static void h2_recv(struct h2c *h2c);
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2_frt_decode_headers(struct h2s *h2s);
@@ -280,8 +280,10 @@ static int h2_buf_available(void *target)
 
 	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
-		if (h2_recv_allowed(h2c))
+		if (h2_recv_allowed(h2c)) {
 			conn_xprt_want_recv(h2c->conn);
+			h2_recv(h2c);
+		}
 		return 1;
 	}
 
@@ -292,8 +294,10 @@ static int h2_buf_available(void *target)
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
 			h2c->flags &= ~H2_CF_DEM_MROOM;
-			if (h2_recv_allowed(h2c))
+			if (h2_recv_allowed(h2c)) {
 				conn_xprt_want_recv(h2c->conn);
+				h2_recv(h2c);
+			}
 		}
 		return 1;
 	}
@@ -302,8 +306,10 @@ static int h2_buf_available(void *target)
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
 	    b_alloc_margin(&h2s->rxbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
-		if (h2_recv_allowed(h2c))
+		if (h2_recv_allowed(h2c)) {
 			conn_xprt_want_recv(h2c->conn);
+			h2_recv(h2c);
+		}
 		return 1;
 	}
 
@@ -408,11 +414,10 @@ static int h2c_frt_init(struct connection *conn)
 		task_queue(t);
 	conn_xprt_want_recv(conn);
 	LIST_INIT(&h2c->send_wait_list);
-	LIST_INIT(&h2c->recv_wait_list);
-	LIST_INIT(&h2c->sendrecv_wait_list);
 	LIST_INIT(&h2c->wait_list.list);
 
-	/* mux->wake will be called soon to complete the operation */
+	/* Try to read, if nothing is available yet we'll just subscribe */
+	h2_recv(h2c);
 	return 0;
  fail:
 	if (t)
@@ -2228,16 +2233,15 @@ static int h2_process_mux(struct h2c *h2c)
 }
 
 
-/*********************************************************/
-/* functions below are I/O callbacks from the connection */
-/*********************************************************/
-
-/* callback called on recv event by the connection handler */
-static void h2_recv(struct connection *conn)
+/* Attempt to read data, and subscribe if none available */
+static void h2_recv(struct h2c *h2c)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct connection *conn = h2c->conn;
 	struct buffer *buf;
 	int max;
+
+	if (h2c->wait_list.wait_reason & SUB_CAN_RECV)
+		return;
 
 	if (!h2_recv_allowed(h2c))
 		return;
@@ -2253,6 +2257,7 @@ static void h2_recv(struct connection *conn)
 		conn->xprt->rcv_buf(conn, buf, max, 0);
 
 	if (!b_data(buf)) {
+		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_list);
 		h2_release_buf(h2c, &h2c->dbuf);
 		return;
 	}
@@ -2337,17 +2342,6 @@ static void h2_send(struct h2c *h2c)
 			sw->wait_reason &= ~SUB_CAN_SEND;
 			tasklet_wakeup(sw->task);
 		}
-		while (!(LIST_ISEMPTY(&h2c->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(h2c->send_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			LIST_ADDQ(&h2c->recv_wait_list, &sw->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
-			tasklet_wakeup(sw->task);
-		}
-
-
 	}
 	/* We're done, no more to send */
 	if (!b_data(&h2c->mbuf))
@@ -2364,6 +2358,8 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 
 	if (!(h2c->wait_list.wait_reason & SUB_CAN_SEND))
 		h2_send(h2c);
+	if (!(h2c->wait_list.wait_reason & SUB_CAN_RECV))
+		h2_recv(h2c);
 	return NULL;
 }
 
@@ -2377,6 +2373,9 @@ static int h2_wake(struct connection *conn)
 	struct session *sess = conn->owner;
 
 	h2_send(h2c);
+	if (h2_recv_allowed(h2c))
+		h2_recv(h2c);
+
 	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
 
@@ -2436,11 +2435,11 @@ static int h2_wake(struct connection *conn)
 		h2_release_buf(h2c, &h2c->dbuf);
 
 	/* stop being notified of incoming data if we can't process them */
-	if (!h2_recv_allowed(h2c)) {
+	if (!h2_recv_allowed(h2c))
 		__conn_xprt_stop_recv(conn);
-	}
 	else {
 		__conn_xprt_want_recv(conn);
+		h2_recv(h2c);
 	}
 
 	/* adjust output polling */
@@ -2554,6 +2553,7 @@ static void h2_update_poll(struct conn_stream *cs)
 		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
 		if (h2s->h2c->dsi == h2s->id) {
 			conn_xprt_want_recv(cs->conn);
+			h2_recv(h2s->h2c);
 			conn_xprt_want_send(cs->conn);
 		}
 	}
@@ -2605,6 +2605,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
 		if (h2_recv_allowed(h2c)) {
 			__conn_xprt_want_recv(h2c->conn);
+			h2_recv(h2c);
 			conn_xprt_want_send(h2c->conn);
 		}
 	}
@@ -2625,6 +2626,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2c->flags &= ~H2_CF_DEM_BLOCK_ANY;
 		h2c->flags &= ~H2_CF_MUX_BLOCK_ANY;
 		conn_xprt_want_recv(cs->conn);
+		h2_recv(h2c);
 		conn_xprt_want_send(cs->conn);
 	}
 
@@ -3477,30 +3479,14 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_RECV)) {
 			sw->wait_reason |= SUB_CAN_RECV;
-			/* If we're already subscribed for send(), move it
-			 * to the send+recv list
-			 */
-			if (sw->wait_reason & SUB_CAN_SEND) {
-				LIST_DEL(&sw->list);
-				LIST_INIT(&sw->list);
-				LIST_ADDQ(&h2c->sendrecv_wait_list, &sw->list);
-			} else
-				LIST_ADDQ(&h2c->recv_wait_list, &sw->list);
+			h2s->recv_wait_list = sw;
 		}
 		return 0;
 	case SUB_CAN_SEND:
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
-			/* If we're already subscribed for recv(), move it
-			 * to the send+recv list
-			 */
-			if (sw->wait_reason & SUB_CAN_RECV) {
-				LIST_DEL(&sw->list);
-				LIST_INIT(&sw->list);
-				LIST_ADDQ(&h2c->sendrecv_wait_list, &sw->list);
-			} else
-				LIST_ADDQ(&h2c->send_wait_list, &sw->list);
+			LIST_ADDQ(&h2c->send_wait_list, &sw->list);
 		}
 		return 0;
 	default:
@@ -3710,7 +3696,6 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 /* The mux operations */
 const struct mux_ops h2_ops = {
 	.init = h2_init,
-	.recv = h2_recv,
 	.wake = h2_wake,
 	.update_poll = h2_update_poll,
 	.snd_buf = h2_snd_buf,

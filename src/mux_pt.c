@@ -85,21 +85,6 @@ static void mux_pt_update_poll(struct conn_stream *cs)
 	conn_cond_update_xprt_polling(conn);
 }
 
-/* callback to be used by default for the pass-through mux. It simply calls the
- * data layer recv() callback much must be set.
- */
-static void mux_pt_recv(struct connection *conn)
-{
-	struct conn_stream *cs = conn->mux_ctx;
-
-	if (conn->flags & CO_FL_ERROR)
-		cs->flags |= CS_FL_ERROR;
-	if (conn_xprt_read0_pending(conn))
-		cs->flags |= CS_FL_EOS;
-	cs->data_cb->recv(cs);
-	cs_update_mux_polling(cs);
-}
-
 /*
  * Attach a new stream to a connection
  * (Used for outgoing connections)
@@ -200,7 +185,6 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 /* The mux operations */
 const struct mux_ops mux_pt_ops = {
 	.init = mux_pt_init,
-	.recv = mux_pt_recv,
 	.wake = mux_pt_wake,
 	.update_poll = mux_pt_update_poll,
 	.rcv_buf = mux_pt_rcv_buf,

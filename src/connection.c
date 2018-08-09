@@ -64,7 +64,7 @@ void conn_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
 	unsigned int flags;
-	int can_send = 0;
+	int io_available = 0;
 
 	if (unlikely(!conn)) {
 		activity[tid].conn_dead++;
@@ -128,7 +128,8 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		can_send = LIST_ISEMPTY(&conn->send_wait_list);
+		io_available = (LIST_ISEMPTY(&conn->send_wait_list) &&
+		    LIST_ISEMPTY(&conn->sendrecv_wait_list));;
 		while (!LIST_ISEMPTY(&conn->send_wait_list)) {
 			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
 			    struct wait_list *, list);
@@ -138,7 +139,7 @@ void conn_fd_handler(int fd)
 			tasklet_wakeup(sw->task);
 		}
 		while (!(LIST_ISEMPTY(&conn->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
+			struct wait_list *sw = LIST_ELEM(conn->sendrecv_wait_list.n,
 			    struct wait_list *, list);
 			LIST_DEL(&sw->list);
 			LIST_INIT(&sw->list);
@@ -159,7 +160,26 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		conn->mux->recv(conn);
+		io_available |= (LIST_ISEMPTY(&conn->recv_wait_list) &&
+		    LIST_ISEMPTY(&conn->sendrecv_wait_list));
+		while (!LIST_ISEMPTY(&conn->recv_wait_list)) {
+			struct wait_list *sw = LIST_ELEM(conn->recv_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+		}
+		while (!(LIST_ISEMPTY(&conn->sendrecv_wait_list))) {
+			struct wait_list *sw = LIST_ELEM(conn->sendrecv_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			LIST_ADDQ(&conn->send_wait_list, &sw->list);
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+		}
+
 	}
 
 	/* It may happen during the data phase that a handshake is
@@ -206,7 +226,7 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((can_send || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
+	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
 	    conn->mux->wake(conn) < 0)

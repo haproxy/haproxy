@@ -51,10 +51,9 @@ static void stream_int_shutr_applet(struct stream_interface *si);
 static void stream_int_shutw_applet(struct stream_interface *si);
 static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
-static void si_cs_recv_cb(struct conn_stream *cs);
+static void si_cs_recv(struct conn_stream *cs);
 static int si_cs_wake_cb(struct conn_stream *cs);
 static int si_idle_conn_wake_cb(struct conn_stream *cs);
-static void si_idle_conn_null_cb(struct conn_stream *cs);
 static struct task * si_cs_send(struct conn_stream *cs);
 
 /* stream-interface operations for embedded tasks */
@@ -84,13 +83,11 @@ struct si_ops si_applet_ops = {
 };
 
 struct data_cb si_conn_cb = {
-	.recv    = si_cs_recv_cb,
 	.wake    = si_cs_wake_cb,
 	.name    = "STRM",
 };
 
 struct data_cb si_idle_conn_cb = {
-	.recv    = si_idle_conn_null_cb,
 	.wake    = si_idle_conn_wake_cb,
 	.name    = "IDLE",
 };
@@ -417,15 +414,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 }
 
 
-/* Tiny I/O callback called on recv/send I/O events on idle connections.
- * It simply sets the CO_FL_SOCK_RD_SH flag so that si_idle_conn_wake_cb()
- * is notified and can kill the connection.
- */
-static void si_idle_conn_null_cb(struct conn_stream *cs)
-{
-	conn_sock_drain(cs->conn);
-}
-
 /* Callback to be used by connection I/O handlers when some activity is detected
  * on an idle server connection. Its main purpose is to kill the connection once
  * a close was detected on it. It returns 0 if it did nothing serious, or -1 if
@@ -438,6 +426,8 @@ static int si_idle_conn_wake_cb(struct conn_stream *cs)
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
+
+	conn_sock_drain(conn);
 
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 		/* warning, we can't do anything on <conn> after this call ! */
@@ -582,8 +572,8 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	 * for recv() (received only an empty response).
 	 */
 	if (!(cs->flags & CS_FL_EOS) &&
-	    (cs->flags & (CS_FL_DATA_RD_ENA|CS_FL_REOS|CS_FL_RCV_MORE)) > CS_FL_DATA_RD_ENA)
-		si_cs_recv_cb(cs);
+	    (cs->flags & (CS_FL_DATA_RD_ENA)))
+		si_cs_recv(cs);
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && objt_cs(si->end))
@@ -753,7 +743,7 @@ wake_others:
 			tasklet_wakeup(sw->task);
 		}
 		while (!(LIST_ISEMPTY(&cs->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(cs->send_wait_list.n,
+			struct wait_list *sw = LIST_ELEM(cs->sendrecv_wait_list.n,
 			    struct wait_list *, list);
 			LIST_DEL(&sw->list);
 			LIST_INIT(&sw->list);
@@ -1148,7 +1138,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
  * into the buffer from the connection. It iterates over the mux layer's
  * rcv_buf function.
  */
-static void si_cs_recv_cb(struct conn_stream *cs)
+static void si_cs_recv(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
@@ -1363,6 +1353,26 @@ static void si_cs_recv_cb(struct conn_stream *cs)
 			ic->xfer_large = 0;
 		}
 		ic->last_read = now_ms;
+	}
+	if (cur_read > 0) {
+		while (!LIST_ISEMPTY(&cs->recv_wait_list)) {
+			struct wait_list *sw = LIST_ELEM(cs->recv_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+		}
+		while (!(LIST_ISEMPTY(&cs->sendrecv_wait_list))) {
+			struct wait_list *sw = LIST_ELEM(cs->sendrecv_wait_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			LIST_ADDQ(&cs->send_wait_list, &sw->list);
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+		}
+
 	}
 
  end_recv:
