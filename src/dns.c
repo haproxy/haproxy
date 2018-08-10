@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <common/cfgparse.h>
 #include <common/errors.h>
 #include <common/time.h>
 #include <common/ticks.h>
@@ -2056,7 +2057,7 @@ static void __dns_init(void)
 	dns_answer_item_pool = create_pool("dns_answer_item", sizeof(struct dns_answer_item), MEM_F_SHARED);
 	dns_resolution_pool  = create_pool("dns_resolution",  sizeof(struct dns_resolution),  MEM_F_SHARED);
 
-	hap_register_post_check(dns_finalize_config);
+	cfg_register_postparser("dns runtime resolver", dns_finalize_config);
 	hap_register_post_deinit(dns_deinit);
 
 	cli_register_kw(&cli_kws);
