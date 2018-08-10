@@ -11,10 +11,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     stream interface changes. This would result in a single analyser to wait
     for the end of data transfer in HTTP.
 
-  - support for time-ordered priority queues with ability to add an offset
-    based on request matching. Each session will have one ebtree node to be
-    attached to whatever queue the session is waiting in.
-
   - make it possible to condition a timeout on an ACL (dynamic timeouts)
 
   - forwardfor/originalto except with IPv6
