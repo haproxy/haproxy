@@ -13857,6 +13857,17 @@ nbsrv([<backend>]) : integer
   to handle some load. It is useful to report a failure when combined with
   "monitor fail".
 
+prio_class : integer
+  Returns the priority class of the current session for http mode or connection
+  for tcp mode. The value will be that set by the last call to "http-request
+  set-priority-class" or "tcp-request content set-priority-class".
+
+prio_offset : integer
+  Returns the priority offset of the current session for http mode or
+  connection for tcp mode. The value will be that set by the last call to
+  "http-request set-priority-offset" or "tcp-request content
+  set-priority-offset".
+
 proc : integer
   Returns an integer value corresponding to the position of the process calling
   the function, between 1 and global.nbproc. This is useful for logging and
