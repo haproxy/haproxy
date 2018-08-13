@@ -10541,7 +10541,7 @@ accept-proxy
   setting of which client is allowed to use the protocol.
 
 allow-0rtt
-  Allow receiving early data when using TLS 1.3. This is disabled by default,
+  Allow receiving early data when using TLSv1.3. This is disabled by default,
   due to security considerations.
 
 alpn <protocols>

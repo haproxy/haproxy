@@ -1996,7 +1996,7 @@ static void ctx_set_TLSv12_func(SSL_CTX *ctx, set_context_func c) {
 		: SSL_CTX_set_ssl_version(ctx, TLSv1_2_client_method());
 #endif
 }
-/* TLS 1.2 is the last supported version in this context. */
+/* TLSv1.2 is the last supported version in this context. */
 static void ctx_set_TLSv13_func(SSL_CTX *ctx, set_context_func c) {}
 /* Unusable in this context. */
 static void ssl_set_SSLv3_func(SSL *ssl, set_context_func c) {}
@@ -2197,7 +2197,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				break;
 		}
 	} else {
-		/* without TLSEXT_TYPE_signature_algorithms extension (< TLS 1.2) */
+		/* without TLSEXT_TYPE_signature_algorithms extension (< TLSv1.2) */
 		has_rsa = 1;
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
