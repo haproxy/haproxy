@@ -705,20 +705,16 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	return;
 }
 
-/*
- * This function is used only for server health-checks. It handles
- * the connection acknowledgement. If the proxy requires L7 health-checks,
- * it sends the request. In other cases, it calls set_server_check_status()
- * to set check->status, check->duration and check->result.
- */
-static struct task *event_srv_chk_w(struct task *task, void *ctx, unsigned short state)
+/* This function checks if any I/O is wanted, and if so, attempts to do so */
+static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
 {
 	struct conn_stream *cs = ctx;
-	struct check __maybe_unused *check = cs->data;
-
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-	__event_srv_chk_w(cs);
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	struct check *check = cs->data;
+	if (!(cs->wait_list.wait_reason & SUB_CAN_SEND)) {
+		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+		__event_srv_chk_w(cs);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	}
 	return NULL;
 }
 
@@ -739,11 +735,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		if (cs->wait_list.task->process != event_srv_chk_w) {
-			cs->wait_list.task->process = event_srv_chk_w;
-			cs->wait_list.task->context = cs;
-		}
-		LIST_ADDQ(&conn->send_wait_list, &cs->wait_list.list);
+		cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
 		goto out;
 	}
 
@@ -779,7 +771,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 			goto out_wakeup;
 		}
 		if (b_data(&check->bo)) {
-			conn->mux->subscribe(cs, SUB_CAN_SEND, wl_set_waitcb(&cs->wait_list, event_srv_chk_w, cs));
+			conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
 			goto out;
 		}
 	}
@@ -1584,6 +1576,8 @@ static int connect_conn_chk(struct task *t)
 	cs = check->cs = cs_new(NULL);
 	if (!check->cs)
 		return SF_ERR_RESOURCE;
+	cs->wait_list.task->process = event_srv_chk_io;
+	cs->wait_list.task->context = cs;
 	conn = cs->conn;
 
 	if (is_addr(&check->addr)) {
@@ -2762,6 +2756,8 @@ static int tcpcheck_main(struct check *check)
 				check->current_step = NULL;
 				goto out;
 			}
+			cs->wait_list.task->process = event_srv_chk_io;
+			cs->wait_list.task->context = cs;
 
 			if (check->cs)
 				cs_destroy(check->cs);
