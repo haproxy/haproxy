@@ -1707,7 +1707,8 @@ set server <backend>/<server> weight <weight>[%]
   equivalent of the "set weight" command below.
 
 set server <backend>/<server> fqdn <FQDN>
-  Change a server's FQDN to the value passed in argument.
+  Change a server's FQDN to the value passed in argument. This requires the
+  internal run-time DNS resolver to be configured and enabled for this server.
 
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
