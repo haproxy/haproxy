@@ -44,9 +44,6 @@ int init_connection();
  */
 void conn_fd_handler(int fd);
 
-/* conn_stream functions */
-size_t __cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
-
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote);
@@ -301,17 +298,6 @@ static inline void cs_update_mux_polling(struct conn_stream *cs)
 
 	if (conn->mux && conn->mux->update_poll)
 		conn->mux->update_poll(cs);
-}
-
-/* conn_stream send function. Uses mux->snd_buf() if defined, otherwise
- * falls back to __cs_send().
- */
-static inline size_t cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
-{
-	if (cs->conn->mux->snd_buf)
-		return cs->conn->mux->snd_buf(cs, buf, count, flags);
-	else
-		return __cs_send(cs, buf, count, flags);
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
@@ -615,7 +601,6 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
-	cs->txbuf = BUF_NULL;
 }
 
 /* Initializes all required fields for a new connection. Note that it does the
@@ -676,17 +661,6 @@ static inline struct connection *conn_new()
 	return conn;
 }
 
-/* Releases the conn_stream's tx buf if it exists. The buffer is automatically
- * replaced with a pointer to the empty buffer.
- */
-static inline void cs_drop_txbuf(struct conn_stream *cs)
-{
-	if (b_size(&cs->txbuf)) {
-		b_free(&cs->txbuf);
-		offer_buffers(NULL, tasks_run_queue);
-	}
-}
-
 /* Releases a conn_stream previously allocated by cs_new(), as well as any
  * buffer it would still hold.
  */
@@ -695,7 +669,6 @@ static inline void cs_free(struct conn_stream *cs)
 	if (cs->wait_list.task)
 		tasklet_free(cs->wait_list.task);
 
-	cs_drop_txbuf(cs);
 	pool_free(pool_head_connstream, cs);
 }
 

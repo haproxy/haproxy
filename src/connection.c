@@ -384,17 +384,6 @@ int conn_sock_drain(struct connection *conn)
 }
 
 /*
- * default cs send() : this one is used when mux->snd_buf == NULL. It puts up to
- * <count> bytes from <buf> into cs->txbuf. The number of bytes transferred is
- * returned. Here we don't care if cs->txbuf is allocated or not. If not, it
- * will be swapped with <buf>.
- */
-size_t __cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
-{
-	return b_xfer(&cs->txbuf, buf, count);
-}
-
-/*
  * Get data length from tlv
  */
 static int get_tlv_length(const struct tlv *src)
