@@ -388,7 +388,7 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 {
 	struct session *sess = context;
 
-	if (!(t->state & TASK_WOKEN_TIMER))
+	if (!(state & TASK_WOKEN_TIMER))
 		return t;
 
 	session_kill_embryonic(sess);
