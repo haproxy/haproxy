@@ -3491,7 +3491,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						ssl_sock_load_multi_cert(fp, bind_conf, NULL, NULL, 0, err);
+						cfgerr += ssl_sock_load_multi_cert(fp, bind_conf, NULL, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
