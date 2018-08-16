@@ -5138,7 +5138,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
-#ifdef OPENSSL_NO_HEARTBEATS  /* BoringSSL */
+#ifdef OPENSSL_IS_BORINGSSL /* BoringSSL */
 					conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 					int empty_handshake;
@@ -5222,7 +5222,7 @@ check_error:
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 			if (!conn->err_code) {
-#ifdef OPENSSL_NO_HEARTBEATS  /* BoringSSL */
+#ifdef OPENSSL_IS_BORINGSSL  /* BoringSSL */
 				conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 				int empty_handshake;
