@@ -395,7 +395,8 @@ void process_runnable_tasks()
 			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (state)
 #ifdef USE_THREAD
-				__task_wakeup(t, (t->thread_mask == tid_bit) ?
+				__task_wakeup(t, (t->thread_mask == tid_bit ||
+				    global.nbthread == 1) ?
 				    &rqueue_local[tid] : &rqueue);
 #else
 				__task_wakeup(t, &rqueue_local[tid]);
