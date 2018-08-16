@@ -45,7 +45,6 @@ int init_connection();
 void conn_fd_handler(int fd);
 
 /* conn_stream functions */
-size_t __cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
 size_t __cs_send(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
 
 /* receive a PROXY protocol header over a connection */
@@ -616,7 +615,6 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	LIST_INIT(&cs->wait_list.list);
 	LIST_INIT(&cs->send_wait_list);
 	cs->conn = conn;
-	cs->rxbuf = BUF_NULL;
 	cs->txbuf = BUF_NULL;
 }
 
@@ -678,17 +676,6 @@ static inline struct connection *conn_new()
 	return conn;
 }
 
-/* Releases the conn_stream's rx buf if it exists. The buffer is automatically
- * replaced with a pointer to the empty buffer.
- */
-static inline void cs_drop_rxbuf(struct conn_stream *cs)
-{
-	if (b_size(&cs->rxbuf)) {
-		b_free(&cs->rxbuf);
-		offer_buffers(NULL, tasks_run_queue);
-	}
-}
-
 /* Releases the conn_stream's tx buf if it exists. The buffer is automatically
  * replaced with a pointer to the empty buffer.
  */
@@ -708,7 +695,6 @@ static inline void cs_free(struct conn_stream *cs)
 	if (cs->wait_list.task)
 		tasklet_free(cs->wait_list.task);
 
-	cs_drop_rxbuf(cs);
 	cs_drop_txbuf(cs);
 	pool_free(pool_head_connstream, cs);
 }

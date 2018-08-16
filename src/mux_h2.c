@@ -183,6 +183,7 @@ struct h2s {
 	int mws;             /* mux window size for this stream */
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
+	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 };
 
 /* descriptor for an h2 frame header */
@@ -296,7 +297,7 @@ static int h2_buf_available(void *target)
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
-	    b_alloc_margin(&h2s->cs->rxbuf, 0)) {
+	    b_alloc_margin(&h2s->rxbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
 		if (h2_recv_allowed(h2c))
 			conn_xprt_want_recv(h2c->conn);
@@ -634,6 +635,10 @@ static void h2s_destroy(struct h2s *h2s)
 	LIST_DEL(&h2s->list);
 	LIST_INIT(&h2s->list);
 	eb32_delete(&h2s->by_id);
+	if (b_size(&h2s->rxbuf)) {
+		b_free(&h2s->rxbuf);
+		offer_buffers(NULL, tasks_run_queue);
+	}
 	pool_free(pool_head_h2s, h2s);
 }
 
@@ -654,6 +659,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->flags     = H2_SF_NONE;
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
+	h2s->rxbuf     = BUF_NULL;
 	h1m_init(&h2s->req);
 	h1m_init(&h2s->res);
 	h2s->by_id.key = h2s->id = id;
@@ -1811,7 +1817,7 @@ static void h2_process_demux(struct h2c *h2c)
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
 
-		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
+		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->rxbuf)) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
@@ -2048,7 +2054,7 @@ static void h2_process_demux(struct h2c *h2c)
 
  fail:
 	/* we can go here on missing data, blocked response or error */
-	if (h2s && h2s->cs && b_data(&h2s->cs->rxbuf)) {
+	if (h2s && h2s->cs && b_data(&h2s->rxbuf)) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
@@ -2746,7 +2752,7 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 		goto fail;
 	}
 
-	csbuf = h2_get_buf(h2c, &h2s->cs->rxbuf);
+	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
 	if (!csbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		goto fail;
@@ -2850,7 +2856,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 		h2c->dff &= ~H2_F_DATA_PADDED;
 	}
 
-	csbuf = h2_get_buf(h2c, &h2s->cs->rxbuf);
+	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
 	if (!csbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		goto fail;
@@ -3417,18 +3423,22 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 /* Called from the upper layer, to receive data */
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
+	struct h2s *h2s = cs->ctx;
 	size_t ret = 0;
 
 	/* transfer possibly pending data to the upper layer */
-	ret = b_xfer(buf, &cs->rxbuf, count);
+	ret = b_xfer(buf, &h2s->rxbuf, count);
 
-	if (b_data(&cs->rxbuf))
+	if (b_data(&h2s->rxbuf))
 		cs->flags |= CS_FL_RCV_MORE;
 	else {
 		cs->flags &= ~CS_FL_RCV_MORE;
 		if (cs->flags & CS_FL_REOS)
 			cs->flags |= CS_FL_EOS;
-		cs_drop_rxbuf(cs);
+		if (b_size(&h2s->rxbuf)) {
+			b_free(&h2s->rxbuf);
+			offer_buffers(NULL, tasks_run_queue);
+		}
 	}
 
 	return ret;
