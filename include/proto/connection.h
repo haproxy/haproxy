@@ -304,17 +304,6 @@ static inline void cs_update_mux_polling(struct conn_stream *cs)
 		conn->mux->update_poll(cs);
 }
 
-/* conn_stream receive function. Uses mux->rcv_buf() if defined, otherwise
- * falls back to __cs_recv().
- */
-static inline size_t cs_recv(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
-{
-	if (cs->conn->mux->rcv_buf)
-		return cs->conn->mux->rcv_buf(cs, buf, count, flags);
-	else
-		return __cs_recv(cs, buf, count, flags);
-}
-
 /* conn_stream send function. Uses mux->snd_buf() if defined, otherwise
  * falls back to __cs_send().
  */

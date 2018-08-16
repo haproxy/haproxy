@@ -3414,6 +3414,26 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 
 }
 
+/* Called from the upper layer, to receive data */
+static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	size_t ret = 0;
+
+	/* transfer possibly pending data to the upper layer */
+	ret = b_xfer(buf, &cs->rxbuf, count);
+
+	if (b_data(&cs->rxbuf))
+		cs->flags |= CS_FL_RCV_MORE;
+	else {
+		cs->flags &= ~CS_FL_RCV_MORE;
+		if (cs->flags & CS_FL_REOS)
+			cs->flags |= CS_FL_EOS;
+		cs_drop_rxbuf(cs);
+	}
+
+	return ret;
+}
+
 /* Called from the upper layer, to send data */
 static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
@@ -3591,6 +3611,7 @@ const struct mux_ops h2_ops = {
 	.wake = h2_wake,
 	.update_poll = h2_update_poll,
 	.snd_buf = h2_snd_buf,
+	.rcv_buf = h2_rcv_buf,
 	.subscribe = h2_subscribe,
 	.attach = h2_attach,
 	.detach = h2_detach,
