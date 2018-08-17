@@ -109,7 +109,7 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
  */
 static inline void updt_fd_polling(const int fd)
 {
-	if (fdtab[fd].thread_mask == tid_bit) {
+	if ((fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
 		unsigned int oldupdt;
 
 		/* note: we don't have a test-and-set yet in hathreads */
