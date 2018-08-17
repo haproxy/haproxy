@@ -220,8 +220,8 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 };
 
 static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
-static void h2_send(struct h2c *h2c);
-static void h2_recv(struct h2c *h2c);
+static int h2_send(struct h2c *h2c);
+static int h2_recv(struct h2c *h2c);
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2_frt_decode_headers(struct h2s *h2s);
@@ -2234,22 +2234,22 @@ static int h2_process_mux(struct h2c *h2c)
 
 
 /* Attempt to read data, and subscribe if none available */
-static void h2_recv(struct h2c *h2c)
+static int h2_recv(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
 	struct buffer *buf;
 	int max;
 
 	if (h2c->wait_list.wait_reason & SUB_CAN_RECV)
-		return;
+		return 0;
 
 	if (!h2_recv_allowed(h2c))
-		return;
+		return 0;
 
 	buf = h2_get_buf(h2c, &h2c->dbuf);
 	if (!buf) {
 		h2c->flags |= H2_CF_DEM_DALLOC;
-		return;
+		return 0;
 	}
 
 	max = buf->size - b_data(buf);
@@ -2259,26 +2259,27 @@ static void h2_recv(struct h2c *h2c)
 	if (!b_data(buf)) {
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_list);
 		h2_release_buf(h2c, &h2c->dbuf);
-		return;
+		return 0;
 	}
 
 	if (b_data(buf) == buf->size)
 		h2c->flags |= H2_CF_DEM_DFULL;
-	return;
+	return 1;
 }
 
 /* Try to send data if possible */
-static void h2_send(struct h2c *h2c)
+static int h2_send(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
 	int done;
+	int sent = 0;
 
 	if (conn->flags & CO_FL_ERROR)
-		return;
+		return 0;
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
 		/* a handshake was requested */
-		return;
+		goto schedule;
 	}
 
 	/* This loop is quite simple : it tries to fill as much as it can from
@@ -2318,6 +2319,7 @@ static void h2_send(struct h2c *h2c)
 			int ret = conn->xprt->snd_buf(conn, &h2c->mbuf, b_data(&h2c->mbuf), flags);
 			if (!ret)
 				break;
+			sent = 1;
 			b_del(&h2c->mbuf, ret);
 			b_realign_if_empty(&h2c->mbuf);
 		}
@@ -2345,11 +2347,11 @@ static void h2_send(struct h2c *h2c)
 	}
 	/* We're done, no more to send */
 	if (!b_data(&h2c->mbuf))
-		return;
+		return sent;
 schedule:
 	if (LIST_ISEMPTY(&h2c->wait_list.list))
 		conn->xprt->subscribe(conn, SUB_CAN_SEND, &h2c->wait_list);
-	return;
+	return sent;
 }
 
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
