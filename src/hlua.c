@@ -2574,10 +2574,19 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
+	s->sess->fe->timeout.connect = tmout;
 	s->req.rto = tmout;
 	s->req.wto = tmout;
 	s->res.rto = tmout;
 	s->res.wto = tmout;
+	s->req.rex = tick_add_ifset(now_ms, tmout);
+	s->req.wex = tick_add_ifset(now_ms, tmout);
+	s->res.rex = tick_add_ifset(now_ms, tmout);
+	s->res.wex = tick_add_ifset(now_ms, tmout);
+
+	s->task->expire = tick_add_ifset(now_ms, tmout);
+	task_queue(s->task);
+
 	xref_unlock(&socket->xref, peer);
 
 	lua_pushinteger(L, 1);
