@@ -2256,8 +2256,9 @@ static int h2_recv(struct h2c *h2c)
 	if (max)
 		conn->xprt->rcv_buf(conn, buf, max, 0);
 
-	if (!b_data(buf)) {
+	if (h2_recv_allowed(h2c))
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_list);
+	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
 		return 0;
 	}
