@@ -226,6 +226,7 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 		return;
 	LIST_ADDQ(&task_list[tid], &tl->list);
 	task_list_size[tid]++;
+	HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
 
 }
