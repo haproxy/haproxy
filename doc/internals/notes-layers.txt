@@ -271,3 +271,60 @@ Short term implementation :
 
 We should be able to end up with sequencial receipt in H2 modelling what is
 needed for other protocols without interfering with the native H1 devs.
+
+
+2018-08-17 - Considerations after killing cs_recv()
+---------------------------------------------------
+
+With the ongoing reorganisation of the I/O layers, it's visible that cs_recv()
+will have to transfer data between the cs' rxbuf and the channel's buffer while
+not being aware of the data format. Moreover, in case there's no data there, it
+needs to recursively call the mux's rcv_buf() to trigger a decoding, while this
+function is sometimes replaced with cs_recv(). All this shows that cs_recv() is
+in fact needed while data are pushed upstream from the lower layers, and is not
+suitable for the "pull" mode. Thus it was decided to remove this function and
+put its code back into h2_rcv_buf(). The H1 mux's rcv_buf() already couldn't be
+replaced with cs_recv() since it is the only one knowing about the buffer's
+format.
+
+This opportunity simplified something : if the cs's rxbuf is only read by the
+mux's rcv_buf() method, then it doesn't need to be located into the CS and is
+well placed into the mux's representation of the stream. This has an important
+impact for H2 as it offers more freedom to the mux to allocate/free/reallocate
+this buffer, and it ensures the mux always has access to it.
+
+Furthermore, the conn_stream's txbuf experienced the same fate. Indeed, the H1
+mux has already uncovered the difficulty related to the channel shutting down
+on output, with data stuck into the CS's txbuf. Since the CS is tightly coupled
+to the stream and the stream can close immediately once its buffers are empty,
+it required a way to support orphaned CS with pending data in their txbuf. This
+is something that the H2 mux already has to deal with, by carefully leaving the
+data in the channel's buffer. But due to the snd_buf() call being top-down, it
+is always possible to push the stream's data via the mux's snd_buf() call
+without requiring a CS txbuf anymore. Thus the txbuf (when needed) is only
+implemented in the mux and attached to the mux's representation of the stream,
+and doing so allows to immediately release the channel once the data are safe
+in the mux's buffer.
+
+This is an important change which clarifies the roles and responsibilities of
+each layer in the chain : when receiving data from a mux, it's the mux's
+responsibility to make sure it can correctly decode the incoming data and to
+buffer the possible excess of data it cannot pass to the requester. This means
+that decoding an H2 frame, which is not retryable since it has an impact on the
+HPACK decompression context, and which cannot be reordered for the same reason,
+simply needs to be performed to the H2 stream's rxbuf which will then be passed
+to the stream when this one calls h2_rcv_buf(), even if it reads one byte at a
+time. Similarly when calling h2_snd_buf(), it's the mux's responsibility to
+read as much as it needs to be able to restart later, possibly by buffering
+some data into a local buffer. And it's only once all the output data has been
+consumed by snd_buf() that the stream is free to disappear.
+
+This model presents the nice benefit of being infinitely stackable and solving
+the last identified showstoppers to move towards a structured message internal
+representation, as it will give full power to the rcv_buf() and snd_buf() to
+process what they need.
+
+For now the conn_stream's flags indicating whether a shutdown has been seen in
+any direction or if an end of stream was seen will remain in the conn_stream,
+though it's likely that some of them will move to the mux's representation of
+the stream after structured messages are implemented.
