@@ -2545,17 +2545,19 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
-	/* round up for inputs that are fractions and convert to millis */
-	dtmout = (0.5 + MAY_LJMP(luaL_checknumber(L, 2))) * 1000;
+	/* convert the timeout to millis */
+	dtmout = MAY_LJMP(luaL_checknumber(L, 2)) * 1000;
 
 	/* Check for negative values */
 	if (dtmout < 0)
 		WILL_LJMP(luaL_error(L, "settimeout: cannot set negatives values"));
 
 	if (dtmout > INT_MAX) /* overflow check */
-		WILL_LJMP(luaL_error(L, "settimeout: cannot set values larger than %d", INT_MAX));
+		WILL_LJMP(luaL_error(L, "settimeout: cannot set values larger than %d ms", INT_MAX));
 
 	tmout = MS_TO_TICKS((int)dtmout);
+	if (tmout == 0)
+		tmout++; /* very small timeouts are adjusted to a minium of 1ms */
 
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
