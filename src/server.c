@@ -109,6 +109,9 @@ static inline void srv_check_for_dup_dyncookie(struct server *s)
 
 }
 
+/*
+ * Must be called with the server lock held.
+ */
 void srv_set_dyncookie(struct server *s)
 {
 	struct proxy *p = s->proxy;
@@ -832,6 +835,8 @@ static int srv_parse_track(char **args, int *cur_arg,
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
+ *
+ * Must be called with the server lock held.
  */
 void srv_shutdown_streams(struct server *srv, int why)
 {
@@ -845,6 +850,8 @@ void srv_shutdown_streams(struct server *srv, int why)
 /* Shutdown all connections of all backup servers of a proxy. The caller must
  * pass a termination code in <why>, which must be one of SF_ERR_* indicating
  * the reason for the shutdown.
+ *
+ * Must be called with the server lock held.
  */
 void srv_shutdown_backup_streams(struct proxy *px, int why)
 {
@@ -864,6 +871,8 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
  * using the check results stored into the struct server if present.
  * If <xferred> is non-negative, some information about requeued sessions are
  * provided.
+ *
+ * Must be called with the server lock held.
  */
 void srv_append_status(struct buffer *msg, struct server *s,
 		       struct check *check, int xferred, int forced)
@@ -929,6 +938,8 @@ void srv_append_status(struct buffer *msg, struct server *s,
  * a sync point. Maintenance servers are ignored. It stores the <reason> if
  * non-null as the reason for going down or the available data from the check
  * struct to recompute this reason later.
+ *
+ * Must be called with the server lock held.
  */
 void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 {
@@ -968,6 +979,8 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
  * proxy at a sync point. Maintenance servers are ignored. It stores the
  * <reason> if non-null as the reason for going down or the available data
  * from the check struct to recompute this reason later.
+ *
+ * Must be called with the server lock held.
  */
 void srv_set_running(struct server *s, const char *reason, struct check *check)
 {
@@ -1015,6 +1028,8 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
  * from the check struct to recompute this reason later.
  * up. Note that it makes use of the trash to build the log strings, so <reason>
  * must not be placed there.
+ *
+ * Must be called with the server lock held.
  */
 void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 {
@@ -1058,6 +1073,8 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
  * checks). When either the flag is already set or no flag is passed, nothing
  * is done. If <cause> is non-null, it will be displayed at the end of the log
  * lines to justify the state change.
+ *
+ * Must be called with the server lock held.
  */
 void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause)
 {
@@ -1102,6 +1119,8 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
  * than one flag at once. The equivalent "inherited" flag is propagated to all
  * tracking servers. Leaving maintenance mode re-enables health checks. When
  * either the flag is already cleared or no flag is passed, nothing is done.
+ *
+ * Must be called with the server lock held.
  */
 void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 {
@@ -1222,6 +1241,8 @@ static void __listener_init(void)
  * and the proxy's algorihtm. To be used after updating sv->uweight. The warmup
  * state is automatically disabled if the time is elapsed. If <must_update> is
  * not zero, the update will be propagated immediately.
+ *
+ * Must be called with the server lock held.
  */
 void server_recalc_eweight(struct server *sv, int must_update)
 {
@@ -1255,6 +1276,8 @@ void server_recalc_eweight(struct server *sv, int must_update)
 /*
  * Parses weight_str and configures sv accordingly.
  * Returns NULL on success, error message string otherwise.
+ *
+ * Must be called with the server lock held.
  */
 const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str)
@@ -1304,6 +1327,8 @@ const char *server_parse_weight_change_request(struct server *sv,
  * Returns:
  *  - error string on error
  *  - NULL on success
+ *
+ * Must be called with the server lock held.
  */
 const char *server_parse_addr_change_request(struct server *sv,
                                              const char *addr_str, const char *updater)
@@ -1322,6 +1347,9 @@ const char *server_parse_addr_change_request(struct server *sv,
 	return "Could not understand IP address format.\n";
 }
 
+/*
+ * Must be called with the server lock held.
+ */
 const char *server_parse_maxconn_change_request(struct server *sv,
                                                 const char *maxconn_str)
 {
@@ -2717,7 +2745,10 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
 	return NULL;
 }
 
-/* Update a server state using the parameters available in the params list */
+/* Update a server state using the parameters available in the params list.
+ *
+ * Grabs the server lock during operation.
+ */
 static void srv_update_state(struct server *srv, int version, char **params)
 {
 	char *p;
@@ -3056,6 +3087,8 @@ static void srv_update_state(struct server *srv, int version, char **params)
  *
  * If the running backend uuid or id differs from the state file, then HAProxy reports
  * a warning.
+ *
+ * Grabs the server's lock via srv_update_state().
  */
 void apply_server_state(void)
 {
@@ -3368,6 +3401,8 @@ fileclose:
  * updater is used if not NULL.
  *
  * A log line and a stderr warning message is generated based on server's backend options.
+ *
+ * Must be called with the server lock held.
  */
 int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
 {
@@ -3443,6 +3478,8 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
  *     - if switch to port map (SRV_F_MAPPORTS), ensure health check have their own ports
  * - applies required changes to both ADDR and PORT if both 'required' and 'allowed'
  *   conditions are met
+ *
+ * Must be called with the server lock held.
  */
 const char *update_server_addr_port(struct server *s, const char *addr, const char *port, char *updater)
 {
@@ -3603,6 +3640,8 @@ out:
  * returns:
  *  0 if server status is updated
  *  1 if server status has not changed
+ *
+ * Must be called with the server lock held.
  */
 int snr_update_srv_status(struct server *s, int has_no_ip)
 {
@@ -3798,6 +3837,8 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
  * returns:
  *  0 on error
  *  1 when no error or safe ignore
+ *
+ * Grabs the server's lock.
  */
 int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
 {
@@ -3891,6 +3932,8 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
 
 /* Set the server's FDQN (->hostname) from <hostname>.
  * Returns -1 if failed, 0 if not.
+ *
+ * Must be called with the server lock held.
  */
 int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 {
@@ -4067,6 +4110,9 @@ int srv_init_addr(void)
 	return return_code;
 }
 
+/*
+ * Must be called with the server lock held.
+ */
 const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked)
 {
 
@@ -4151,6 +4197,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 }
 
 
+/* grabs the server lock */
 static int cli_parse_set_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4373,6 +4420,9 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 	return 1;
 }
 
+/*
+ * Must be called with the server lock held.
+ */
 static int cli_parse_set_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4394,7 +4444,10 @@ static int cli_parse_set_weight(char **args, char *payload, struct appctx *appct
 	return 1;
 }
 
-/* parse a "set maxconn server" command. It always returns 1. */
+/* parse a "set maxconn server" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_set_maxconn_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4416,7 +4469,10 @@ static int cli_parse_set_maxconn_server(char **args, char *payload, struct appct
 	return 1;
 }
 
-/* parse a "disable agent" command. It always returns 1. */
+/* parse a "disable agent" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_disable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4432,7 +4488,10 @@ static int cli_parse_disable_agent(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
-/* parse a "disable health" command. It always returns 1. */
+/* parse a "disable health" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_disable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4448,7 +4507,10 @@ static int cli_parse_disable_health(char **args, char *payload, struct appctx *a
 	return 1;
 }
 
-/* parse a "disable server" command. It always returns 1. */
+/* parse a "disable server" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_disable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4464,7 +4526,10 @@ static int cli_parse_disable_server(char **args, char *payload, struct appctx *a
 	return 1;
 }
 
-/* parse a "enable agent" command. It always returns 1. */
+/* parse a "enable agent" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_enable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4487,7 +4552,10 @@ static int cli_parse_enable_agent(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
-/* parse a "enable health" command. It always returns 1. */
+/* parse a "enable health" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_enable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4503,7 +4571,10 @@ static int cli_parse_enable_health(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
-/* parse a "enable server" command. It always returns 1. */
+/* parse a "enable server" command. It always returns 1.
+ *
+ * Must be called with the server lock held.
+ */
 static int cli_parse_enable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
@@ -4549,6 +4620,7 @@ static void __server_init(void)
  * This function applies server's status changes, it is
  * is designed to be called asynchronously.
  *
+ * Must be called with the server lock held.
  */
 static void srv_update_status(struct server *s)
 {
