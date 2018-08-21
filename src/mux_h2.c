@@ -3531,6 +3531,8 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	b_del(buf, total);
+	if (total > 0)
+		conn_xprt_want_send(h2s->h2c->conn);
 	return total;
 }
 
