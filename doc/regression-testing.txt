@@ -64,7 +64,9 @@ The VTC files for haproxy must also contain a "feature ignore_unknown_macro" lin
 if any macro is used for haproxy in this file. This is due to the fact that
 varnishtest parser code for haproxy commands generates macros the varnishtest
 parser code for varnish has no knowledge of. This line prevents varnishtest from
-failing in such cases.
+failing in such cases. Since bbc34e2 varnish commit, as a "cli" macro is
+automatically generated, this "feature ignore_unknown_macro" is mandatory
+for each VTC file for haproxy.
 
 To make varnishtest capable of testing haproxy, two new VTC commands have been
 implemented: "haproxy" and "syslog". "haproxy" is used to start haproxy processus.
