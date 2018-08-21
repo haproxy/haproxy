@@ -409,7 +409,9 @@ static void stream_free(struct stream *s)
 		session_free(sess);
 
 	tasklet_free(s->si[0].wait_list.task);
+	LIST_DEL(&s->si[0].wait_list.list);
 	tasklet_free(s->si[1].wait_list.task);
+	LIST_DEL(&s->si[1].wait_list.list);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
