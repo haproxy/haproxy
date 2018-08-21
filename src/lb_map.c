@@ -24,7 +24,10 @@
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
 
-/* this function updates the map according to server <srv>'s new state */
+/* this function updates the map according to server <srv>'s new state.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
+ */
 static void map_set_server_status_down(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
@@ -36,14 +39,19 @@ static void map_set_server_status_down(struct server *srv)
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
  out_update_state:
 	srv_lb_commit_status(srv);
 }
 
-/* This function updates the map according to server <srv>'s new state */
+/* This function updates the map according to server <srv>'s new state.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
+ */
 static void map_set_server_status_up(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
@@ -55,9 +63,11 @@ static void map_set_server_status_up(struct server *srv)
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
  out_update_state:
 	srv_lb_commit_status(srv);
 }
@@ -66,6 +76,8 @@ static void map_set_server_status_up(struct server *srv)
  * px->lbprm.tot_wact, tot_wbck, tot_used, tot_weight, so it must be
  * called after recount_servers(). It also expects px->lbprm.map.srv
  * to be allocated with the largest size needed. It updates tot_weight.
+ *
+ * The lbprm's lock must be held.
  */
 void recalc_server_map(struct proxy *px)
 {
@@ -202,6 +214,8 @@ void init_server_map(struct proxy *p)
  * the proxy <px> following the round-robin method.
  * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
+ *
+ * The lbprm's lock will be used.
  */
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 {
@@ -250,12 +264,18 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
  * pointed to by the result of a modulo operation on <hash>. The server map may
  * be recomputed if required before being looked up. If any server is found, it
  * will be returned.  If no valid server is found, NULL is returned.
+ *
+ * The lbprm's lock will be used.
  */
 struct server *map_get_server_hash(struct proxy *px, unsigned int hash)
 {
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+	struct server *srv = NULL;
+
+	HA_SPIN_LOCK(LBPRM_LOCK, &px->lbprm.lock);
+	if (px->lbprm.tot_weight)
+		srv = px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	return srv;
 }
 
 

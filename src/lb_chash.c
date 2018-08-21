@@ -66,6 +66,8 @@ static inline void chash_dequeue_srv(struct server *s)
  * as many times as its weight indicates it. If it's there too often, we remove
  * the last occurrences. If it's not there enough, we add more occurrences. To
  * remove a server from the tree, normally call this with eweight=0.
+ *
+ * The server's lock and the lbprm's lock must be held.
  */
 static inline void chash_queue_dequeue_srv(struct server *s)
 {
@@ -112,6 +114,8 @@ static inline void chash_queue_dequeue_srv(struct server *s)
  * It is not important whether the server was already down or not. It is not
  * important either that the new state is completely down (the caller may not
  * know all the variables of a server's state).
+ *
+ * The server's lock must be held. The lbprm lock will be used.
  */
 static void chash_set_server_status_down(struct server *srv)
 {
@@ -119,6 +123,8 @@ static void chash_set_server_status_down(struct server *srv)
 
 	if (!srv_lb_status_changed(srv))
                return;
+
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
@@ -155,6 +161,8 @@ out_update_backend:
 	update_backend_weight(p);
  out_update_state:
 	srv_lb_commit_status(srv);
+
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -163,6 +171,8 @@ out_update_backend:
  * important either that the new state is completely UP (the caller may not
  * know all the variables of a server's state). This function will not change
  * the weight of a server which was already up.
+ *
+ * The server's lock must be held. The lbprm lock will be used.
  */
 static void chash_set_server_status_up(struct server *srv)
 {
@@ -170,6 +180,8 @@ static void chash_set_server_status_up(struct server *srv)
 
 	if (!srv_lb_status_changed(srv))
                return;
+
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
@@ -211,10 +223,14 @@ static void chash_set_server_status_up(struct server *srv)
 	update_backend_weight(p);
  out_update_state:
 	srv_lb_commit_status(srv);
+
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /* This function must be called after an update to server <srv>'s effective
  * weight. It may be called after a state change too.
+ *
+ * The server's lock must be held. The lbprm lock may be used.
  */
 static void chash_update_server_weight(struct server *srv)
 {
@@ -248,6 +264,8 @@ static void chash_update_server_weight(struct server *srv)
 		return;
 	}
 
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+
 	/* only adjust the server's presence in the tree */
 	chash_queue_dequeue_srv(srv);
 
@@ -258,6 +276,8 @@ static void chash_update_server_weight(struct server *srv)
 
 	update_backend_weight(p);
 	srv_lb_commit_status(srv);
+
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /*
@@ -303,21 +323,29 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	unsigned int dn, dp;
 	int loop;
 
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
-	else if (p->lbprm.fbck)
-		return p->lbprm.fbck;
+	else if (p->lbprm.fbck) {
+		nsrv = p->lbprm.fbck;
+		goto out;
+	}
 	else if (p->srv_bck)
 		root = &p->lbprm.chash.bck;
-	else
-		return NULL;
+	else {
+		nsrv = NULL;
+		goto out;
+	}
 
 	/* find the node after and the node before */
 	next = eb32_lookup_ge(root, hash);
 	if (!next)
 		next = eb32_first(root);
-	if (!next)
-		return NULL; /* tree is empty */
+	if (!next) {
+		nsrv = NULL; /* tree is empty */
+		goto out;
+	}
 
 	prev = eb32_prev(next);
 	if (!prev)
@@ -349,6 +377,8 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 		nsrv = eb32_entry(next, struct tree_occ, node)->server;
 	}
 
+ out:
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return nsrv;
 }
 

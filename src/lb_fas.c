@@ -31,13 +31,18 @@
 /* Remove a server from a tree. It must have previously been dequeued. This
  * function is meant to be called when a server is going down or has its
  * weight disabled.
+ *
+ * The server's lock and the lbprm's lock must be held.
  */
 static inline void fas_remove_from_tree(struct server *s)
 {
 	s->lb_tree = NULL;
 }
 
-/* simply removes a server from a tree */
+/* simply removes a server from a tree.
+ *
+ * The server's lock and the lbprm's lock must be held.
+ */
 static inline void fas_dequeue_srv(struct server *s)
 {
 	eb32_delete(&s->lb_node);
@@ -48,6 +53,8 @@ static inline void fas_dequeue_srv(struct server *s)
  * available server in declaration order (or ID order) until its maxconn is
  * reached. It is important to understand that the server weight is not used
  * here.
+ *
+ * The server's lock and the lbprm's lock must be held.
  */
 static inline void fas_queue_srv(struct server *s)
 {
@@ -58,6 +65,8 @@ static inline void fas_queue_srv(struct server *s)
 /* Re-position the server in the FS tree after it has been assigned one
  * connection or after it has released one. Note that it is possible that
  * the server has been moved out of the tree due to failed health-checks.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
  */
 static void fas_srv_reposition(struct server *s)
 {
@@ -75,6 +84,8 @@ static void fas_srv_reposition(struct server *s)
  * It is not important whether the server was already down or not. It is not
  * important either that the new state is completely down (the caller may not
  * know all the variables of a server's state).
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
  */
 static void fas_set_server_status_down(struct server *srv)
 {
@@ -85,6 +96,8 @@ static void fas_set_server_status_down(struct server *srv)
 
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
+
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (!srv_currently_usable(srv))
 		/* server was already down */
@@ -117,6 +130,8 @@ static void fas_set_server_status_down(struct server *srv)
  out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+
  out_update_state:
 	srv_lb_commit_status(srv);
 }
@@ -127,6 +142,8 @@ static void fas_set_server_status_down(struct server *srv)
  * important either that the new state is completely UP (the caller may not
  * know all the variables of a server's state). This function will not change
  * the weight of a server which was already up.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
  */
 static void fas_set_server_status_up(struct server *srv)
 {
@@ -137,6 +154,8 @@ static void fas_set_server_status_up(struct server *srv)
 
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
+
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv_currently_usable(srv))
 		/* server was already up */
@@ -175,12 +194,16 @@ static void fas_set_server_status_up(struct server *srv)
  out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+
  out_update_state:
 	srv_lb_commit_status(srv);
 }
 
 /* This function must be called after an update to server <srv>'s effective
  * weight. It may be called after a state change too.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
  */
 static void fas_update_server_weight(struct server *srv)
 {
@@ -214,6 +237,8 @@ static void fas_update_server_weight(struct server *srv)
 		return;
 	}
 
+	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+
 	if (srv->lb_tree)
 		fas_dequeue_srv(srv);
 
@@ -228,6 +253,8 @@ static void fas_update_server_weight(struct server *srv)
 	fas_queue_srv(srv);
 
 	update_backend_weight(p);
+	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+
 	srv_lb_commit_status(srv);
 }
 
@@ -269,6 +296,8 @@ void fas_init_server_tree(struct proxy *p)
 
 /* Return next server from the FS tree in backend <p>. If the tree is empty,
  * return NULL. Saturated servers are skipped.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
  */
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {
