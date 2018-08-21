@@ -395,7 +395,8 @@ struct pendconn *pendconn_add(struct stream *strm)
 }
 
 /* Redistribute pending connections when a server goes down. The number of
- * connections redistributed is returned.
+ * connections redistributed is returned. It must be called with the server
+ * lock held.
  */
 int pendconn_redistribute(struct server *s)
 {
@@ -408,7 +409,6 @@ int pendconn_redistribute(struct server *s)
 	if ((s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
 		return 0;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	for (node = eb32_first(&s->pendconns); node; node = eb32_next(node)) {
 		p = eb32_entry(&node, struct pendconn, node);
 		if (p->strm_flags & SF_FORCE_PRST)
@@ -420,7 +420,6 @@ int pendconn_redistribute(struct server *s)
 
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 	}
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	return xferred;
 }
 
