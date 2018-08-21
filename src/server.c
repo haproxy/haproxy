@@ -950,16 +950,16 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 		s->op_st_chg.duration = check->duration;
 	}
 
+	/* propagate changes */
+	thread_isolate();
+	srv_update_status(s);
+	thread_release();
+
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopped(srv, NULL, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
-
-	/* propagate changes */
-	thread_isolate();
-	srv_update_status(s);
-	thread_release();
 }
 
 /* Marks server <s> up regardless of its checks' statuses and provided it isn't
@@ -995,16 +995,16 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 	if (s->slowstart <= 0)
 		s->next_state = SRV_ST_RUNNING;
 
+	/* propagate changes */
+	thread_isolate();
+	srv_update_status(s);
+	thread_release();
+
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_running(srv, NULL, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
-
-	/* propagate changes */
-	thread_isolate();
-	srv_update_status(s);
-	thread_release();
 }
 
 /* Marks server <s> stopping regardless of its checks' statuses and provided it
@@ -1039,16 +1039,16 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 		s->op_st_chg.duration = check->duration;
 	}
 
+	/* propagate changes */
+	thread_isolate();
+	srv_update_status(s);
+	thread_release();
+
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		srv_set_stopping(srv, NULL, NULL);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
-
-	/* propagate changes */
-	thread_isolate();
-	srv_update_status(s);
-	thread_release();
 }
 
 /* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -1074,10 +1074,15 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 	if (cause)
 		strlcpy2(s->adm_st_chg_cause, cause, sizeof(s->adm_st_chg_cause));
 
+	/* propagate changes */
+	thread_isolate();
+	srv_update_status(s);
+	thread_release();
+
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
 	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & ~mode & SRV_ADMF_DRAIN)))
-		goto end;
+		return;
 
 	/* compute the inherited flag to propagate */
 	if (mode & SRV_ADMF_MAINT)
@@ -1090,12 +1095,6 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		srv_set_admin_flag(srv, mode, cause);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
-
- end:
-	/* propagate changes */
-	thread_isolate();
-	srv_update_status(s);
-	thread_release();
 }
 
 /* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
@@ -1117,10 +1116,15 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 
 	s->next_admin &= ~mode;
 
+	/* propagate changes */
+	thread_isolate();
+	srv_update_status(s);
+	thread_release();
+
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
 	    ((mode & SRV_ADMF_DRAIN) && (s->next_admin & SRV_ADMF_DRAIN)))
-		goto end;
+		return;
 
 	if (mode & SRV_ADMF_MAINT)
 		mode = SRV_ADMF_IMAINT;
@@ -1132,12 +1136,6 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 		srv_clr_admin_flag(srv, mode);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	}
-
- end:
-	/* propagate changes */
-	thread_isolate();
-	srv_update_status(s);
-	thread_release();
 }
 
 /* principle: propagate maint and drain to tracking servers. This is useful
