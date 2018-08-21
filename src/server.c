@@ -3980,6 +3980,10 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	char                  *hostname_dn;
 	int                    hostname_len, hostname_dn_len;
 
+	/* Note that the server lock is already held. */
+	if (!srv->resolvers)
+		return -1;
+
 	if (!dns_locked)
 		HA_SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
 	/* run time DNS resolution was not active for this server

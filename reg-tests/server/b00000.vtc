@@ -1,0 +1,29 @@
+varnishtest "Set server FQDN via CLI crash"
+
+feature ignore_unknown_macro
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend myfrontend
+        bind "fd@${my_fe}"
+        default_backend test
+
+    backend test
+        server www1 ${s1_addr}:${s1_port}
+} -start
+
+haproxy h1 -cli {
+    send "set server test/www1 fqdn foo.fqdn"
+    expect ~ "could not update test/www1 FQDN by 'stats socket command'"
+    send "show servers state test"
+    expect ~ "test 1 www1 ${s1_addr} .* - ${s1_port}"
+} -wait
