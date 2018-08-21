@@ -709,6 +709,8 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
+	LIST_DEL(&conn->send_wait_list);
+	LIST_INIT(&conn->send_wait_list);
 	pool_free(pool_head_connection, conn);
 }
 
