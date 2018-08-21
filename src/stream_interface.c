@@ -764,8 +764,10 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 
 	if (!cs)
 		return NULL;
-	if (!(si->wait_list.wait_reason & SUB_CAN_SEND))
+	if (!(si->wait_list.wait_reason & SUB_CAN_SEND)) {
 		si_cs_send(cs);
+		si_cs_wake_cb(cs);
+	}
 	return (NULL);
 }
 
