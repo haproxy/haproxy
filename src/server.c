@@ -962,9 +962,7 @@ void srv_set_stopped(struct server *s, const char *reason, struct check *check)
 	}
 
 	/* propagate changes */
-	thread_isolate();
 	srv_update_status(s);
-	thread_release();
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1009,9 +1007,7 @@ void srv_set_running(struct server *s, const char *reason, struct check *check)
 		s->next_state = SRV_ST_RUNNING;
 
 	/* propagate changes */
-	thread_isolate();
 	srv_update_status(s);
-	thread_release();
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1055,9 +1051,7 @@ void srv_set_stopping(struct server *s, const char *reason, struct check *check)
 	}
 
 	/* propagate changes */
-	thread_isolate();
 	srv_update_status(s);
-	thread_release();
 
 	for (srv = s->trackers; srv; srv = srv->tracknext) {
 		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
@@ -1092,9 +1086,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode, const char *cause
 		strlcpy2(s->adm_st_chg_cause, cause, sizeof(s->adm_st_chg_cause));
 
 	/* propagate changes */
-	thread_isolate();
 	srv_update_status(s);
-	thread_release();
 
 	/* stop going down if the equivalent flag was already present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & ~mode & SRV_ADMF_MAINT)) ||
@@ -1136,9 +1128,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 	s->next_admin &= ~mode;
 
 	/* propagate changes */
-	thread_isolate();
 	srv_update_status(s);
-	thread_release();
 
 	/* stop going down if the equivalent flag is still present (forced or inherited) */
 	if (((mode & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) ||
@@ -1266,11 +1256,8 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	sv->next_eweight = (sv->uweight * w + px->lbprm.wmult - 1) / px->lbprm.wmult;
 
 	/* propagate changes only if needed (i.e. not recursively) */
-	if (must_update) {
-		thread_isolate();
+	if (must_update)
 		srv_update_status(sv);
-		thread_release();
-	}
 }
 
 /*
