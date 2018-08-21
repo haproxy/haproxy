@@ -229,7 +229,7 @@ void conn_fd_handler(int fd)
 	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
-	    conn->mux->wake(conn) < 0)
+	    conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
 
 	/* commit polling changes */
