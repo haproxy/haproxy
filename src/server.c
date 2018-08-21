@@ -4420,8 +4420,9 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 	return 1;
 }
 
-/*
- * Must be called with the server lock held.
+/* Parse a "set weight" command.
+ *
+ * Grabs the server lock.
  */
 static int cli_parse_set_weight(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4435,18 +4436,23 @@ static int cli_parse_set_weight(char **args, char *payload, struct appctx *appct
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
+
 	warning = server_parse_weight_change_request(sv, args[3]);
 	if (warning) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = warning;
 		appctx->st0 = CLI_ST_PRINT;
 	}
+
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+
 	return 1;
 }
 
 /* parse a "set maxconn server" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_set_maxconn_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4460,18 +4466,23 @@ static int cli_parse_set_maxconn_server(char **args, char *payload, struct appct
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
+
 	warning = server_parse_maxconn_change_request(sv, args[4]);
 	if (warning) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = warning;
 		appctx->st0 = CLI_ST_PRINT;
 	}
+
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+
 	return 1;
 }
 
 /* parse a "disable agent" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_disable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4484,13 +4495,15 @@ static int cli_parse_disable_agent(char **args, char *payload, struct appctx *ap
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->agent.state &= ~CHK_ST_ENABLED;
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
 /* parse a "disable health" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_disable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4503,13 +4516,15 @@ static int cli_parse_disable_health(char **args, char *payload, struct appctx *a
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->check.state &= ~CHK_ST_ENABLED;
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
 /* parse a "disable server" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_disable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4522,13 +4537,15 @@ static int cli_parse_disable_server(char **args, char *payload, struct appctx *a
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	srv_adm_set_maint(sv);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
 /* parse a "enable agent" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_enable_agent(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4548,13 +4565,15 @@ static int cli_parse_enable_agent(char **args, char *payload, struct appctx *app
 		return 1;
 	}
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->agent.state |= CHK_ST_ENABLED;
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
 /* parse a "enable health" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_enable_health(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4567,13 +4586,15 @@ static int cli_parse_enable_health(char **args, char *payload, struct appctx *ap
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->check.state |= CHK_ST_ENABLED;
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
 /* parse a "enable server" command. It always returns 1.
  *
- * Must be called with the server lock held.
+ * Grabs the server lock.
  */
 static int cli_parse_enable_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -4586,11 +4607,13 @@ static int cli_parse_enable_server(char **args, char *payload, struct appctx *ap
 	if (!sv)
 		return 1;
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	srv_adm_set_ready(sv);
 	if (!(sv->flags & SRV_F_COOKIESET)
 	    && (sv->proxy->ck_opts & PR_CK_DYNAMIC) &&
 	    sv->cookie)
 		srv_check_for_dup_dyncookie(sv);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
 
