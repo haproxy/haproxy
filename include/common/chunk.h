@@ -117,7 +117,7 @@ static inline int chunk_memcpy(struct buffer *chk, const char *src,
 static inline int chunk_memcat(struct buffer *chk, const char *src,
 			       size_t len)
 {
-	if (unlikely(chk->data < 0 || chk->data + len >= chk->size))
+	if (unlikely(chk->data + len >= chk->size))
 		return 0;
 
 	memcpy(chk->area + chk->data, src, len);
@@ -152,7 +152,7 @@ static inline int chunk_strcat(struct buffer *chk, const char *str)
 
 	len = strlen(str);
 
-	if (unlikely(chk->data < 0 || chk->data + len >= chk->size))
+	if (unlikely(chk->data + len >= chk->size))
 		return 0;
 
 	memcpy(chk->area + chk->data, str, len + 1);
@@ -165,7 +165,7 @@ static inline int chunk_strcat(struct buffer *chk, const char *str)
  */
 static inline int chunk_strncat(struct buffer *chk, const char *str, int nb)
 {
-	if (unlikely(chk->data < 0 || chk->data + nb >= chk->size))
+	if (unlikely(chk->data + nb >= chk->size))
 		return 0;
 
 	memcpy(chk->area + chk->data, str, nb);
@@ -187,7 +187,7 @@ static inline int chunk_strncat(struct buffer *chk, const char *str, int nb)
  */
 static inline char *chunk_newstr(struct buffer *chk)
 {
-	if (chk->data < 0 || chk->data + 1 >= chk->size)
+	if (chk->data + 1 >= chk->size)
 		return NULL;
 
 	chk->area[chk->data++] = 0;
@@ -219,7 +219,7 @@ static inline void chunk_destroy(struct buffer *chk)
  */
 static inline char *chunk_dup(struct buffer *dst, const struct buffer *src)
 {
-	if (!dst || !src || src->data < 0 || !src->area)
+	if (!dst || !src || !src->area)
 		return NULL;
 
 	if (dst->size)
