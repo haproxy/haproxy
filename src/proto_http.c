@@ -2421,20 +2421,18 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg,
 
 	while (http_find_hdr_func(name, name_len, buf, idx, &ctx)) {
 		struct hdr_idx_elem *hdr = idx->v + ctx.idx;
-		int delta;
+		int delta, len;
 		char *val = ctx.line + ctx.val;
 		char* val_end = val + ctx.vlen;
 
 		if (!regex_exec_match2(re, val, val_end-val, MAX_MATCH, pmatch, 0))
 			continue;
 
-		output->data = exp_replace(output->area, output->size, val,
-					  str, pmatch);
-		if (output->data == -1)
+		len = exp_replace(output->area, output->size, val, str, pmatch);
+		if (len == -1)
 			return -1;
 
-		delta = b_rep_blk(&msg->chn->buf, val, val_end, output->area,
-				  output->data);
+		delta = b_rep_blk(&msg->chn->buf, val, val_end, output->area, len);
 
 		hdr->len += delta;
 		http_msg_move_end(msg, delta);
@@ -6524,7 +6522,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 	int cur_idx, old_idx, last_hdr;
 	struct http_txn *txn = s->txn;
 	struct hdr_idx_elem *cur_hdr;
-	int delta;
+	int delta, len;
 
 	last_hdr = 0;
 
@@ -6571,14 +6569,14 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				break;
 
 			case ACT_REPLACE:
-				trash.data = exp_replace(trash.area,
-							trash.size, cur_ptr,
-							exp->replace, pmatch);
-				if (trash.data < 0)
+				len = exp_replace(trash.area,
+				                  trash.size, cur_ptr,
+				                  exp->replace, pmatch);
+				if (len < 0)
 					return -1;
 
-				delta = b_rep_blk(&req->buf, cur_ptr, cur_end,
-						  trash.area, trash.data);
+				delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.area, len);
+
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -6625,7 +6623,7 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 	char *cur_ptr, *cur_end;
 	int done;
 	struct http_txn *txn = s->txn;
-	int delta;
+	int delta, len;
 
 	if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
 		return 1;
@@ -6662,13 +6660,13 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			break;
 
 		case ACT_REPLACE:
-			trash.data = exp_replace(trash.area, trash.size,
-						cur_ptr, exp->replace, pmatch);
-			if (trash.data < 0)
+			len = exp_replace(trash.area, trash.size,
+			                  cur_ptr, exp->replace, pmatch);
+			if (len < 0)
 				return -1;
 
-			delta = b_rep_blk(&req->buf, cur_ptr, cur_end,
-					  trash.area, trash.data);
+			delta = b_rep_blk(&req->buf, cur_ptr, cur_end, trash.area, len);
+
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
@@ -7271,7 +7269,7 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 	int cur_idx, old_idx, last_hdr;
 	struct http_txn *txn = s->txn;
 	struct hdr_idx_elem *cur_hdr;
-	int delta;
+	int delta, len;
 
 	last_hdr = 0;
 
@@ -7312,14 +7310,14 @@ int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct h
 				break;
 
 			case ACT_REPLACE:
-				trash.data = exp_replace(trash.area,
-							trash.size, cur_ptr,
-							exp->replace, pmatch);
-				if (trash.data < 0)
+				len = exp_replace(trash.area,
+				                  trash.size, cur_ptr,
+				                  exp->replace, pmatch);
+				if (len < 0)
 					return -1;
 
-				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end,
-						  trash.area, trash.data);
+				delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.area, len);
+
 				/* FIXME: if the user adds a newline in the replacement, the
 				 * index will not be recalculated for now, and the new line
 				 * will not be counted as a new header.
@@ -7364,8 +7362,7 @@ int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_e
 	char *cur_ptr, *cur_end;
 	int done;
 	struct http_txn *txn = s->txn;
-	int delta;
-
+	int delta, len;
 
 	if (unlikely(txn->flags & TX_SVDENY))
 		return 1;
@@ -7396,13 +7393,13 @@ int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_e
 			break;
 
 		case ACT_REPLACE:
-			trash.data = exp_replace(trash.area, trash.size,
-						cur_ptr, exp->replace, pmatch);
-			if (trash.data < 0)
+			len = exp_replace(trash.area, trash.size,
+			                  cur_ptr, exp->replace, pmatch);
+			if (len < 0)
 				return -1;
 
-			delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end,
-					  trash.area, trash.data);
+			delta = b_rep_blk(&rtr->buf, cur_ptr, cur_end, trash.area, len);
+
 			/* FIXME: if the user adds a newline in the replacement, the
 			 * index will not be recalculated for now, and the new line
 			 * will not be counted as a new header.
