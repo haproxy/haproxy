@@ -999,6 +999,11 @@ update-version:
 	echo "$(SUBVERS)" > SUBVERS
 	echo "$(VERDATE)" > VERDATE
 
+# Target to run the regression testing script files.
+# LEVEL 1 scripts are dedicated to pure haproxy compliance tests (prefixed with 'h' letter).
+# LEVEL 2 scripts are slow scripts (prefixed with 's' letter).
+# LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter).
+# LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter).
 reg-tests:
 	@if [ ! -x "$(VARNISHTEST_PROGRAM)" ]; then \
 		echo "Please make the VARNISHTEST_PROGRAM variable point to the location of the varnishtest program."; \
@@ -1011,6 +1016,8 @@ reg-tests:
 	   EXPR='s*.vtc'; \
 	elif [ $$LEVEL = 3 ] ; then \
 	   EXPR='l*.vtc'; \
+	elif [ $$LEVEL = 4 ] ; then \
+	   EXPR='b*.vtc'; \
 	fi ; \
 	if [ -n "$$EXPR" ] ; then \
 	   find reg-tests -type f -name "$$EXPR" -print0 | \
