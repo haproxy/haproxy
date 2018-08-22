@@ -8572,6 +8572,7 @@ static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *app
 static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct tls_keys_ref *ref;
+	int ret;
 
 	/* Expect two parameters: the filename and the new new TLS key in encoding */
 	if (!*args[3] || !*args[4]) {
@@ -8589,14 +8590,14 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 		return 1;
 	}
 
-	trash.data = base64dec(args[4], strlen(args[4]), trash.area,
-			      trash.size);
-	if (trash.data != sizeof(struct tls_sess_key)) {
+	ret = base64dec(args[4], strlen(args[4]), trash.area, trash.size);
+	if (ret != sizeof(struct tls_sess_key)) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
+	trash.data = ret;
 	ssl_sock_update_tlskey_ref(ref, &trash);
 	appctx->ctx.cli.severity = LOG_INFO;
 	appctx->ctx.cli.msg = "TLS ticket key updated!\n";
@@ -8610,7 +8611,7 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 	char *err = NULL;
-	int i, j;
+	int i, j, ret;
 
 	if (!payload)
 		payload = args[3];
@@ -8631,14 +8632,15 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 	}
 	payload[j] = 0;
 
-	trash.data = base64dec(payload, j, trash.area, trash.size);
-	if (trash.data < 0) {
+	ret = base64dec(payload, j, trash.area, trash.size);
+	if (ret < 0) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
+	trash.data = ret;
 	if (ssl_sock_update_ocsp_response(&trash, &err)) {
 		if (err) {
 			memprintf(&err, "%s.\n", err);
