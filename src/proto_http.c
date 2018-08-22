@@ -62,6 +62,7 @@
 #include <proto/h1.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/hlua.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
@@ -4459,6 +4460,9 @@ void http_end_txn_clean_session(struct stream *s)
 	s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_ADDR_SET|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 	s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 	s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
+
+	hlua_ctx_destroy(s->hlua);
+	s->hlua = NULL;
 
 	s->txn->meth = 0;
 	http_reset_txn(s);

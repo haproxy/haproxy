@@ -1,0 +1,31 @@
+varnishtest "Lua: txn:get_priv() scope"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/h00001.lua
+
+    frontend fe1
+        mode http
+        bind "fd@${fe1}"
+        default_backend b1
+
+        http-response lua.bug
+
+    backend b1
+        mode http
+        http-request use-service lua.fakeserv
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 201
+    txreq -url "/"
+    rxresp
+    expect resp.status == 201
+}
+
+client c0 -start
+
+client c0 -wait
