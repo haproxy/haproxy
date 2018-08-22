@@ -11827,6 +11827,8 @@ expect_comma:
 /* This fetch url-decode any input string. */
 static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void *private)
 {
+	int len;
+
 	/* If the constant flag is set or if not size is avalaible at
 	 * the end of the buffer, copy the string in other buffer
 	  * before decoding.
@@ -11841,8 +11843,11 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 
 	/* Add final \0 required by url_decode(), and convert the input string. */
 	smp->data.u.str.area[smp->data.u.str.data] = '\0';
-	smp->data.u.str.data = url_decode(smp->data.u.str.area);
-	return (smp->data.u.str.data >= 0);
+	len = url_decode(smp->data.u.str.area);
+	if (len < 0)
+		return 0;
+	smp->data.u.str.data = len;
+	return 1;
 }
 
 static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void *private)
