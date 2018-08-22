@@ -424,6 +424,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	const char v2sig[] = PP2_SIGNATURE;
 	int tlv_length = 0;
 	int tlv_offset = 0;
+	int ret;
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
@@ -436,9 +437,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		return 0;
 
 	do {
-		trash.data = recv(conn->handle.fd, trash.area, trash.size,
-				 MSG_PEEK);
-		if (trash.data < 0) {
+		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
+		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
@@ -447,6 +447,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 			goto recv_abort;
 		}
+		trash.data = ret;
 	} while (0);
 
 	if (!trash.data) {
@@ -738,6 +739,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	char *line;
 	uint32_t hdr_len;
 	uint8_t ip_v;
+	int ret;
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
@@ -750,9 +752,8 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		return 0;
 
 	do {
-		trash.data = recv(conn->handle.fd, trash.area, trash.size,
-				 MSG_PEEK);
-		if (trash.data < 0) {
+		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
+		if (ret < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
@@ -761,6 +762,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			}
 			goto recv_abort;
 		}
+		trash.data = ret;
 	} while (0);
 
 	if (!trash.data) {
