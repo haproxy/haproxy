@@ -1674,20 +1674,20 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	list_for_each_entry(res, &resolvers->resolutions.curr, list) {
-		int ret;
+		int ret, len;
 
 		if (res->nb_queries == resolvers->nb_nameservers)
 			continue;
 
-		trash.data = dns_build_query(res->query_id, res->query_type,
-					    resolvers->accepted_payload_size,
-					    res->hostname_dn, res->hostname_dn_len,
-					    trash.area, trash.size);
-		if (trash.data == -1)
+		len = dns_build_query(res->query_id, res->query_type,
+		                      resolvers->accepted_payload_size,
+		                      res->hostname_dn, res->hostname_dn_len,
+		                      trash.area, trash.size);
+		if (len == -1)
 			goto snd_error;
 
-		ret = send(fd, trash.area, trash.data, 0);
-		if (ret != trash.data)
+		ret = send(fd, trash.area, len, 0);
+		if (ret != len)
 			goto snd_error;
 
 		ns->counters.sent++;
