@@ -92,8 +92,7 @@ int smp_is_safe(struct sample *smp)
 		/* Fall through */
 
 	case SMP_T_STR:
-		if ((smp->data.u.str.data < 0) ||
-		    (smp->data.u.str.size && smp->data.u.str.data >= smp->data.u.str.size))
+		if (smp->data.u.str.size && smp->data.u.str.data >= smp->data.u.str.size)
 			return 0;
 
 		if (smp->data.u.str.area[smp->data.u.str.data] == 0)
@@ -106,8 +105,7 @@ int smp_is_safe(struct sample *smp)
 		return 1;
 
 	case SMP_T_BIN:
-		return (smp->data.u.str.data >= 0) &&
-		       (!smp->data.u.str.size || smp->data.u.str.data <= smp->data.u.str.size);
+		return !smp->data.u.str.size || smp->data.u.str.data <= smp->data.u.str.size;
 
 	default:
 		return 1;
@@ -145,7 +143,6 @@ int smp_is_rw(struct sample *smp)
 
 	case SMP_T_STR:
 		if (!smp->data.u.str.size ||
-		    smp->data.u.str.data < 0 ||
 		    smp->data.u.str.data >= smp->data.u.str.size)
 			return 0;
 
@@ -155,7 +152,6 @@ int smp_is_rw(struct sample *smp)
 
 	case SMP_T_BIN:
 		return smp->data.u.str.size &&
-		       smp->data.u.str.data >= 0 &&
 		       smp->data.u.str.data <= smp->data.u.str.size;
 
 	default:
