@@ -186,6 +186,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 			/* In the regm case, merge the sample with the input. */
 			if ((long)private == PAT_MATCH_REGM) {
 				struct buffer *tmptrash;
+				int len;
 
 				/* Copy the content of the sample because it could
 				   be scratched by incoming get_trash_chunk */
@@ -201,12 +202,14 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 				tmptrash->area[tmptrash->data] = 0;
 
 				str = get_trash_chunk();
-				str->data = exp_replace(str->area, str->size,
-				                        tmptrash->area,
-				                        pat->data->u.str.area,
-				                        (regmatch_t *)smp->ctx.a[0]);
-				if (str->data == -1)
+				len = exp_replace(str->area, str->size,
+				                  tmptrash->area,
+				                  pat->data->u.str.area,
+				                  (regmatch_t *)smp->ctx.a[0]);
+				if (len == -1)
 					return 0;
+
+				str->data = len;
 				smp->data.u.str = *str;
 				return 1;
 			}
