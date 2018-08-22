@@ -3845,8 +3845,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	if (sess->fe->header_unique_id && s->unique_id) {
-		chunk_printf(&trash, "%s: %s", sess->fe->header_unique_id, s->unique_id);
-		if (trash.data < 0)
+		if (chunk_printf(&trash, "%s: %s", sess->fe->header_unique_id, s->unique_id) < 0)
 			goto return_bad_req;
 		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, trash.data) < 0))
 		   goto return_bad_req;

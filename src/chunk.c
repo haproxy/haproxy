@@ -149,10 +149,9 @@ int chunk_printf(struct buffer *chk, const char *fmt, ...)
 	va_start(argp, fmt);
 	ret = vsnprintf(chk->area, chk->size, fmt, argp);
 	va_end(argp);
-	chk->data = ret;
 
 	if (ret >= chk->size)
-		ret = -1;
+		return -1;
 
 	chk->data = ret;
 	return chk->data;
