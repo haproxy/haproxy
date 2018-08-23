@@ -1,0 +1,80 @@
+# commit 7b6cc52784526c32efda44b873a4258d3ae0b8c7
+# BUG/MINOR: lua: Bad HTTP client request duration.
+#
+# HTTP LUA applet callback should not update the date on which the HTTP client requests
+# arrive. This was done just after the LUA applet has completed its job.
+#
+# This patch simply removes the affected statement. The same fixe has been applied
+# to TCP LUA applet callback.
+#
+# To reproduce this issue, as reported by Patrick Hemmer, implement an HTTP LUA applet
+# which sleeps a bit before replying:
+#
+#   core.register_service("foo", "http", function(applet)
+#       core.msleep(100)
+#       applet:set_status(200)
+#       applet:start_response()
+#   end)
+#
+# This had as a consequence to log %TR field with approximatively the same value as
+# the LUA sleep time.
+
+varnishtest "LUA bug"
+
+feature ignore_unknown_macro
+
+syslog Slog {
+    recv notice
+    expect ~ "haproxy\\[[0-9]*\\]: Proxy f1 started"
+
+    recv notice
+    expect ~ "haproxy\\[[0-9]*\\]: Proxy f2 started"
+
+    recv info
+    expect ~ "haproxy\\[[0-9]*\\]: Ta=[0-9]* Tc=[0-9]* Td=[0-9]* Th=[0-9]* Ti=[0-9]* Tq=[0-9]* TR=[0-9]* Tr=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
+
+    recv info
+    expect ~ "haproxy\\[[0-9]*\\]: Tc=[0-9]* Td=[0-9]* Th=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
+} -start
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/b00001.lua
+
+    defaults
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+
+    frontend f1
+        mode http
+        bind "fd@${f1}"
+        log ${Slog_addr}:${Slog_port} daemon
+        log-format Ta=%Ta\ Tc=%Tc\ Td=%Td\ Th=%Th\ Ti=%Ti\ Tq=%Tq\ TR=%TR\ Tr=%Tr\ Tt=%Tt\ Tw=%Tw
+        default_backend b1
+
+    backend b1
+        mode http
+        http-request use-service lua.foo.http
+
+    frontend f2
+        mode tcp
+        bind "fd@${f2}"
+        log ${Slog_addr}:${Slog_port} daemon
+        log-format Tc=%Tc\ Td=%Td\ Th=%Th\ Tt=%Tt\ Tw=%Tw
+
+        tcp-request inspect-delay 1s
+        tcp-request content use-service lua.foo.tcp
+} -start
+
+client c1 -connect "${h1_f1_sock}" {
+    txreq
+    rxresp
+} -run
+
+client c2 -connect "${h1_f2_sock}" {
+    txreq
+    rxresp
+} -run
+
+syslog Slog -wait
