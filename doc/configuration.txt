@@ -16416,7 +16416,7 @@ Please refer to the table below for currently defined variables :
   |   | %t   | date_time      (with millisecond resolution)  | date        |
   | H | %tr  | date_time of HTTP request                     | date        |
   | H | %trg | gmt_date_time of start of HTTP request        | date        |
-  | H | %trl | locla_date_time of start of HTTP request      | date        |
+  | H | %trl | local_date_time of start of HTTP request      | date        |
   |   | %ts  | termination_state                             | string      |
   | H | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+
