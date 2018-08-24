@@ -1,0 +1,61 @@
+#commit b406b87
+# BUG/MEDIUM: connection: don't store recv() result into trash.data
+#
+# Cyril Bonté discovered that the proxy protocol randomly fails since
+# commit 843b7cb ("MEDIUM: chunks: make the chunk struct's fields match
+# the buffer struct"). This is because we used to store recv()'s return
+# code into trash.data which is now unsigned, so it never compares as
+# negative against 0. Let's clean this up and test the result itself
+# without storing it first.
+
+varnishtest "PROXY protocol random failures"
+
+feature ignore_unknown_macro
+
+syslog Slog_1 -repeat 8 -level info {
+    recv
+    expect ~ "Connect from .* to ${h1_ssl_addr}:${h1_ssl_port}"
+    recv
+    expect ~ "ssl-offload-http/http .* \"POST /[1-8] HTTP/1\\.1\""
+} -start
+
+haproxy h1 -conf {
+    global
+        nbproc 4
+        nbthread 4
+        tune.ssl.default-dh-param 2048
+        stats bind-process 1
+        log ${Slog_1_addr}:${Slog_1_port} len 2048 local0 debug err
+
+    defaults
+        mode http
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+        log global
+
+    listen http
+        bind-process 1
+        bind abns@http accept-proxy name ssl-offload-http
+        option forwardfor
+
+    listen ssl-offload-http
+        option httplog
+        bind-process 2-4
+        bind "fd@${ssl}" ssl crt ${testdir}/common.pem ssl no-sslv3 alpn h2,http/1.1
+        server http abns@http send-proxy
+} -start
+
+
+shell {
+    HOST=${h1_ssl_addr}
+    if [ "$HOST" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+    for i in 1 2 3 4 5 6 7 8 ; do
+        urls="$urls https://$HOST:${h1_ssl_port}/$i"
+    done
+    curl -i -k -d 'x=x' $urls & wait $!
+}
+
+syslog Slog_1 -wait
