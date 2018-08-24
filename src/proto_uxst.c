@@ -42,6 +42,7 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/protocol.h>
+#include <proto/proto_tcp.h>
 #include <proto/task.h>
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
@@ -71,6 +72,7 @@ static struct protocol proto_unix = {
 	.disable_all = disable_all_listeners,
 	.get_src = uxst_get_src,
 	.get_dst = uxst_get_dst,
+	.drain = tcp_drain,
 	.pause = uxst_pause_listener,
 	.add = uxst_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
