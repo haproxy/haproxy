@@ -83,7 +83,6 @@ static struct protocol proto_tcpv4 = {
 	.enable_all = enable_all_listeners,
 	.get_src = tcp_get_src,
 	.get_dst = tcp_get_dst,
-	.drain = tcp_drain,
 	.pause = tcp_pause_listener,
 	.add = tcpv4_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_tcpv4.listeners),
@@ -107,7 +106,6 @@ static struct protocol proto_tcpv6 = {
 	.enable_all = enable_all_listeners,
 	.get_src = tcp_get_src,
 	.get_dst = tcp_get_dst,
-	.drain = tcp_drain,
 	.pause = tcp_pause_listener,
 	.add = tcpv6_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
@@ -614,49 +612,6 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 #endif
 		return ret;
 	}
-}
-
-/* Tries to drain any pending incoming data from the socket to reach the
- * receive shutdown. Returns positive if the shutdown was found, negative
- * if EAGAIN was hit, otherwise zero. This is useful to decide whether we
- * can close a connection cleanly are we must kill it hard.
- */
-int tcp_drain(int fd)
-{
-	int turns = 2;
-	int len;
-
-	while (turns) {
-#ifdef MSG_TRUNC_CLEARS_INPUT
-		len = recv(fd, NULL, INT_MAX, MSG_DONTWAIT | MSG_NOSIGNAL | MSG_TRUNC);
-		if (len == -1 && errno == EFAULT)
-#endif
-			len = recv(fd, trash.area, trash.size,
-				   MSG_DONTWAIT | MSG_NOSIGNAL);
-
-		if (len == 0) {
-			/* cool, shutdown received */
-			fdtab[fd].linger_risk = 0;
-			return 1;
-		}
-
-		if (len < 0) {
-			if (errno == EAGAIN) {
-				/* connection not closed yet */
-				fd_cant_recv(fd);
-				return -1;
-			}
-			if (errno == EINTR)  /* oops, try again */
-				continue;
-			/* other errors indicate a dead connection, fine. */
-			fdtab[fd].linger_risk = 0;
-			return 1;
-		}
-		/* OK we read some data, let's try again once */
-		turns--;
-	}
-	/* some data are still present, give up */
-	return 0;
 }
 
 /* This is the callback which is set when a connection establishment is pending

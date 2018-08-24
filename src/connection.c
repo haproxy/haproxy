@@ -359,29 +359,61 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
  */
 int conn_sock_drain(struct connection *conn)
 {
+	int turns = 2;
+	int len;
+
 	if (!conn_ctrl_ready(conn))
 		return 1;
 
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
 		return 1;
 
-	if (fdtab[conn->handle.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) {
-		fdtab[conn->handle.fd].linger_risk = 0;
-	}
-	else {
-		if (!fd_recv_ready(conn->handle.fd))
-			return 0;
+	if (fdtab[conn->handle.fd].ev & (FD_POLL_ERR|FD_POLL_HUP))
+		goto shut;
 
-		/* disable draining if we were called and have no drain function */
-		if (!conn->ctrl->drain) {
-			__conn_xprt_stop_recv(conn);
-			return 0;
-		}
+	if (!fd_recv_ready(conn->handle.fd))
+		return 0;
 
+	if (conn->ctrl->drain) {
 		if (conn->ctrl->drain(conn->handle.fd) <= 0)
 			return 0;
+		goto shut;
 	}
 
+	/* no drain function defined, use the generic one */
+
+	while (turns) {
+#ifdef MSG_TRUNC_CLEARS_INPUT
+		len = recv(conn->handle.fd, NULL, INT_MAX, MSG_DONTWAIT | MSG_NOSIGNAL | MSG_TRUNC);
+		if (len == -1 && errno == EFAULT)
+#endif
+			len = recv(conn->handle.fd, trash.area, trash.size,
+				   MSG_DONTWAIT | MSG_NOSIGNAL);
+
+		if (len == 0)
+			goto shut;
+
+		if (len < 0) {
+			if (errno == EAGAIN) {
+				/* connection not closed yet */
+				fd_cant_recv(conn->handle.fd);
+				break;
+			}
+			if (errno == EINTR)  /* oops, try again */
+				continue;
+			/* other errors indicate a dead connection, fine. */
+			goto shut;
+		}
+		/* OK we read some data, let's try again once */
+		turns--;
+	}
+
+	/* some data are still present, give up */
+	return 0;
+
+ shut:
+	/* we're certain the connection was shut down */
+	fdtab[conn->handle.fd].linger_risk = 0;
 	conn->flags |= CO_FL_SOCK_RD_SH;
 	return 1;
 }
