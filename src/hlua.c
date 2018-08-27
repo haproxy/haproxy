@@ -6391,7 +6391,6 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 			error = "critical error";
 		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name, error);
-		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
 
