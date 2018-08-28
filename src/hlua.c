@@ -6446,8 +6446,11 @@ static void hlua_applet_tcp_fct(struct appctx *ctx)
 	struct hlua *hlua = ctx->ctx.hlua_apptcp.hlua;
 
 	/* The applet execution is already done. */
-	if (ctx->ctx.hlua_apptcp.flags & APPLET_DONE)
+	if (ctx->ctx.hlua_apptcp.flags & APPLET_DONE) {
+		/* eat the whole request */
+		co_skip(si_oc(si), co_data(si_oc(si)));
 		return;
+	}
 
 	/* If the stream is disconnect or closed, ldo nothing. */
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
