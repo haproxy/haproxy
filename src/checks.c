@@ -70,6 +70,7 @@ static int tcpcheck_get_step_id(struct check *);
 static char * tcpcheck_get_step_comment(struct check *, int);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
+static int wake_srv_chk(struct conn_stream *cs);
 
 static struct pool_head *pool_head_email_alert   = NULL;
 static struct pool_head *pool_head_tcpcheck_rule = NULL;
@@ -709,12 +710,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
 {
 	struct conn_stream *cs = ctx;
-	struct check *check = cs->data;
-	if (!(cs->wait_list.wait_reason & SUB_CAN_SEND)) {
-		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-		__event_srv_chk_w(cs);
-		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-	}
+
+	if (!(cs->wait_list.wait_reason & SUB_CAN_SEND))
+		wake_srv_chk(cs);
 	return NULL;
 }
 
@@ -2703,6 +2701,10 @@ static int tcpcheck_main(struct check *check)
 					goto out_end_tcpcheck;
 				}
 				break;
+			}
+			if (b_data(&check->bo)) {
+				cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+				goto out;
 			}
 		}
 
