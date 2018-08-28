@@ -460,10 +460,6 @@ void stream_int_notify(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
-	/* If we have data to send, try it now */
-	if (!channel_is_empty(oc) && objt_cs(si->end))
-		si_cs_send(objt_cs(si->end));
-
 	/* process consumer side */
 	if (channel_is_empty(oc)) {
 		struct connection *conn = objt_cs(si->end) ? objt_cs(si->end)->conn : NULL;
@@ -589,6 +585,9 @@ static int si_cs_wake_cb(struct conn_stream *cs)
 	    (cs->flags & (CS_FL_DATA_RD_ENA|CS_FL_REOS|CS_FL_RCV_MORE)) > CS_FL_DATA_RD_ENA)
 		si_cs_recv_cb(cs);
 
+	/* If we have data to send, try it now */
+	if (!channel_is_empty(oc) && objt_cs(si->end))
+		si_cs_send(objt_cs(si->end));
 	/* First step, report to the stream-int what was detected at the
 	 * connection layer : errors and connection establishment.
 	 */
