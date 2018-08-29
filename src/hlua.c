@@ -7519,6 +7519,17 @@ int hlua_post_init()
 		fprintf(stderr, "Lua post-init: %s.\n", error);
 		exit(1);
 	}
+
+#if USE_OPENSSL
+	/* Initialize SSL server. */
+	if (socket_ssl.xprt->prepare_srv) {
+		int saved_used_backed = global.ssl_used_backend;
+		// don't affect maxconn automatic computation
+		socket_ssl.xprt->prepare_srv(&socket_ssl);
+		global.ssl_used_backend = saved_used_backed;
+	}
+#endif
+
 	hlua_fcn_post_init(gL.T);
 	RESET_SAFE_LJMP(gL.T);
 
@@ -8143,14 +8154,6 @@ void hlua_init(void)
 			}
 			idx += kw->skip;
 		}
-	}
-
-	/* Initialize SSL server. */
-	if (socket_ssl.xprt->prepare_srv) {
-		int saved_used_backed = global.ssl_used_backend;
-		// don't affect maxconn automatic computation
-		socket_ssl.xprt->prepare_srv(&socket_ssl);
-		global.ssl_used_backend = saved_used_backed;
 	}
 #endif
 
