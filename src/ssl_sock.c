@@ -2101,7 +2101,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	struct bind_conf *s;
 	const uint8_t *extension_data;
 	size_t extension_len;
-	int has_rsa = 0, has_ecdsa = 0, has_ecdsa_sig = 0;
+	int has_rsa_sig = 0, has_ecdsa_sig = 0;
 
 	char *wildp = NULL;
 	const uint8_t *servername;
@@ -2185,7 +2185,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			sign = *extension_data++;
 			switch (sign) {
 			case TLSEXT_signature_rsa:
-				has_rsa = 1;
+				has_rsa_sig = 1;
 				break;
 			case TLSEXT_signature_ecdsa:
 				has_ecdsa_sig = 1;
@@ -2193,17 +2193,18 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			default:
 				continue;
 			}
-			if (has_ecdsa_sig && has_rsa)
+			if (has_ecdsa_sig && has_rsa_sig)
 				break;
 		}
 	} else {
 		/* without TLSEXT_TYPE_signature_algorithms extension (< TLSv1.2) */
-		has_rsa = 1;
+		has_rsa_sig = 1;
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
 		const SSL_CIPHER *cipher;
 		size_t len;
 		const uint8_t *cipher_suites;
+		has_ecdsa_sig = 0;
 #ifdef OPENSSL_IS_BORINGSSL
 		len = ctx->cipher_suites_len;
 		cipher_suites = ctx->cipher_suites;
@@ -2220,7 +2221,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			cipher = SSL_CIPHER_find(ssl, cipher_suites);
 #endif
 			if (cipher && SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
-				has_ecdsa = 1;
+				has_ecdsa_sig = 1;
 				break;
 			}
 		}
@@ -2241,17 +2242,12 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		if (!container_of(n, struct sni_ctx, name)->neg) {
 			switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
 			case TLSEXT_signature_ecdsa:
-				if (has_ecdsa) {
+				if (!node_ecdsa)
 					node_ecdsa = n;
-					goto find_one;
-				}
 				break;
 			case TLSEXT_signature_rsa:
-				if (has_rsa && !node_rsa) {
+				if (!node_rsa)
 					node_rsa = n;
-					if (!has_ecdsa)
-						goto find_one;
-				}
 				break;
 			default: /* TLSEXT_signature_anonymous|dsa */
 				if (!node_anonymous)
@@ -2267,17 +2263,12 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			if (!container_of(n, struct sni_ctx, name)->neg) {
 				switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
 				case TLSEXT_signature_ecdsa:
-					if (has_ecdsa) {
+					if (!node_ecdsa)
 						node_ecdsa = n;
-						goto find_one;
-					}
 					break;
 				case TLSEXT_signature_rsa:
-					if (has_rsa && !node_rsa) {
+					if (!node_rsa)
 						node_rsa = n;
-						if (!has_ecdsa)
-							goto find_one;
-					}
 					break;
 				default: /* TLSEXT_signature_anonymous|dsa */
 					if (!node_anonymous)
@@ -2287,10 +2278,13 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			}
 		}
 	}
- find_one:
 	/* select by key_signature priority order */
-	node = node_ecdsa ? node_ecdsa : (node_rsa ? node_rsa : node_anonymous);
-
+	node = (has_ecdsa_sig && node_ecdsa) ? node_ecdsa
+		: ((has_rsa_sig && node_rsa) ? node_rsa
+		   : (node_anonymous ? node_anonymous
+		      : (node_ecdsa ? node_ecdsa      /* no ecdsa signature case (< TLSv1.2) */
+			 : node_rsa                   /* no rsa signature case (far far away) */
+			 )));
 	if (node) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
