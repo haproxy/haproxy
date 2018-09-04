@@ -1,0 +1,52 @@
+# commit 70d318c
+# BUG/MEDIUM: lua: possible CLOSE-WAIT state with '\n' headers
+#
+# The Lua parser doesn't takes in account end-of-headers containing
+# only '\n'. It expects always '\r\n'. If a '\n' is processes the Lua
+# parser considers it miss 1 byte, and wait indefinitely for new data.
+#
+# When the client reaches their timeout, it closes the connection.
+# This close is not detected and the connection keep in CLOSE-WAIT
+# state.
+#
+# I guess that this patch fix only a visible part of the problem.
+# If the Lua HTTP parser wait for data, the timeout server or the
+# connectio closed by the client may stop the applet.
+
+varnishtest "possible CLOSE-WAIT with '\n' headers"
+
+feature ignore_unknown_macro
+
+syslog Slog -level info -repeat 100 {
+    recv info
+    expect ~ "haproxy\\[${h1_pid}\\]: Ta=[0-9]* Tc=[0-9]* Td=-1 Th=[0-9]* Ti=[0-9]* Tq=[0-9]* TR=[0-9] Tr=-1 Tt=[0-9]* Tw=[0-9]*"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        timeout client  1s
+        timeout connect 1s
+
+    global
+        lua-load ${testdir}/b00003.lua
+        nbthread 4
+
+    frontend frt
+        log ${Slog_addr}:${Slog_port} local0 debug err
+        log-format Ta=%Ta\ Tc=%Tc\ Td=%Td\ Th=%Th\ Ti=%Ti\ Tq=%Tq\ TR=%TR\ Tr=%Tr\ Tt=%Tt\ Tw=%Tw
+        mode http
+        bind "fd@${frt}"
+        http-request use-service lua.donothing
+} -start
+
+
+client c1 -connect ${h1_frt_sock} -repeat 100  {
+    send "GET / HTTP/1.1\n\n"
+} -run
+
+syslog Slog -wait
+
+shell {
+    ss -pt | grep CLOSE-WAIT.*haproxy
+    exit $((!$?))
+}
