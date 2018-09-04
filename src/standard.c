@@ -2801,7 +2801,7 @@ const char *monthname[12] = {
  * without using sprintf. return a pointer to the last char written (\0) or
  * NULL if there isn't enough space.
  */
-char *date2str_log(char *dst, struct tm *tm, struct timeval *date, size_t size)
+char *date2str_log(char *dst, const struct tm *tm, const struct timeval *date, size_t size)
 {
 
 	if (size < 25) /* the size is fixed: 24 chars + \0 */

@@ -1072,7 +1072,7 @@ extern const char *monthname[];
  * without using sprintf. return a pointer to the last char written (\0) or
  * NULL if there isn't enough space.
  */
-char *date2str_log(char *dest, struct tm *tm, struct timeval *date, size_t size);
+char *date2str_log(char *dest, const struct tm *tm, const struct timeval *date, size_t size);
 
 /* Return the GMT offset for a specific local time.
  * Both t and tm must represent the same time.
