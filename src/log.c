@@ -1571,7 +1571,7 @@ void deinit_log_buffers()
 int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
 	struct proxy *fe = sess->fe;
-	struct proxy *be = s->be;
+	struct proxy *be = s ? s->be : fe;
 	struct http_txn *txn = s->txn;
 	struct buffer chunk;
 	char *uri;
@@ -1995,7 +1995,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TD: // %Td
-				if (s->be->mode == PR_MODE_HTTP)
+				if (be->mode == PR_MODE_HTTP)
 					ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_close - s->logs.t_data : -1,
 					             tmplog, dst + maxsize - tmplog);
 				else
