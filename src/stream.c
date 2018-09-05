@@ -152,7 +152,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
-	s->uniq_id = global.req_count++;
+	s->uniq_id = HA_ATOMIC_XADD(&global.req_count, 1);
 
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
 	LIST_INIT(&s->back_refs);
