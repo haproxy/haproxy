@@ -1913,7 +1913,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVER: // %s
-				switch (obj_type(s->target)) {
+				switch (obj_type(s ? s->target : NULL)) {
 				case OBJ_TYPE_SERVER:
 					src = objt_server(s->target)->id;
 					break;
@@ -2109,7 +2109,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
-				ret = ultoa_o(objt_server(s->target) ?
+				ret = ultoa_o(objt_server(s ? s->target : NULL) ?
 				                 objt_server(s->target)->cur_sess :
 				                 0, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
