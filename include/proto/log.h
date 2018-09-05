@@ -34,6 +34,8 @@
 #include <types/proxy.h>
 #include <types/stream.h>
 
+#include <proto/stream.h>
+
 extern struct pool_head *pool_head_requri;
 extern struct pool_head *pool_head_uniqueid;
 
@@ -63,7 +65,13 @@ void deinit_log_buffers();
 /*
  * Builds a log line.
  */
-int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format);
+int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format);
+
+static inline int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
+{
+	return sess_build_logline(strm_sess(s), s, dst, maxsize, list_format);
+}
+
 
 /*
  * send a log for the stream when we have enough info about it.

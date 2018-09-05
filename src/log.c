@@ -1566,11 +1566,10 @@ void deinit_log_buffers()
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
- * is not zero.
+ * is not zero. It requires a session and a stream.
  */
-int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
+int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
-	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = s->txn;
