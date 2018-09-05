@@ -1573,6 +1573,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s ? s->be : fe;
 	struct http_txn *txn = s ? s->txn : NULL;
+	const struct strm_logs *logs = s ? &s->logs : NULL;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
@@ -1592,8 +1593,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 
 	t_request = -1;
-	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
-		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
+	if (tv_isge(&logs->tv_request, &logs->tv_accept))
+		t_request = tv_ms_elapsed(&logs->tv_accept, &logs->tv_request);
 
 	tmplog = dst;
 
@@ -1762,9 +1763,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_DATE: // %t = accept date
-				get_localtime(s->logs.accept_date.tv_sec, &tm);
-				ret = date2str_log(tmplog, &tm, &(s->logs.accept_date),
-						   dst + maxsize - tmplog);
+				get_localtime(logs->accept_date.tv_sec, &tm);
+				ret = date2str_log(tmplog, &tm, &logs->accept_date, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1773,7 +1773,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_tr: // %tr = start of request date
 				/* Note that the timers are valid if we get here */
-				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
 				ret = date2str_log(tmplog, &tm, &tv, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1783,7 +1783,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_DATEGMT: // %T = accept date, GMT
-				get_gmtime(s->logs.accept_date.tv_sec, &tm);
+				get_gmtime(logs->accept_date.tv_sec, &tm);
 				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1792,7 +1792,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_trg: // %trg = start of request date, GMT
-				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_gmtime(tv.tv_sec, &tm);
 				ret = gmt2str_log(tmplog, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1802,8 +1802,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_DATELOCAL: // %Tl = accept date, local
-				get_localtime(s->logs.accept_date.tv_sec, &tm);
-				ret = localdate2str_log(tmplog, s->logs.accept_date.tv_sec, &tm, dst + maxsize - tmplog);
+				get_localtime(logs->accept_date.tv_sec, &tm);
+				ret = localdate2str_log(tmplog, logs->accept_date.tv_sec, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1811,7 +1811,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_trl: // %trl = start of request date, local
-				tv_ms_add(&tv, &s->logs.accept_date, s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0);
+				tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
 				get_localtime(tv.tv_sec, &tm);
 				ret = localdate2str_log(tmplog, tv.tv_sec, &tm, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1821,15 +1821,15 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TS: // %Ts
-				get_gmtime(s->logs.accept_date.tv_sec, &tm);
+				get_gmtime(logs->accept_date.tv_sec, &tm);
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)s->logs.accept_date.tv_sec);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", (unsigned int)logs->accept_date.tv_sec);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(s->logs.accept_date.tv_sec, tmplog, dst + maxsize - tmplog);
+					ret = ltoa_o(logs->accept_date.tv_sec, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -1839,7 +1839,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_MS: // %ms
 			if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X",(unsigned int)s->logs.accept_date.tv_usec/1000);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%02X",(unsigned int)logs->accept_date.tv_usec/1000);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
@@ -1847,7 +1847,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			} else {
 				if ((dst + maxsize - tmplog) < 4)
 					goto out;
-				ret = utoa_pad((unsigned int)s->logs.accept_date.tv_usec/1000,
+				ret = utoa_pad((unsigned int)logs->accept_date.tv_usec/1000,
 				               tmplog, 4);
 				if (ret == NULL)
 					goto out;
@@ -1935,7 +1935,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_Th: // %Th = handshake time
-				ret = ltoa_o(s->logs.t_handshake, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(logs->t_handshake, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1943,7 +1943,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_Ti: // %Ti = HTTP idle time
-				ret = ltoa_o(s->logs.t_idle, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(logs->t_idle, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1951,7 +1951,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TR: // %TR = HTTP request time
-				ret = ltoa_o((t_request >= 0) ? t_request - s->logs.t_idle - s->logs.t_handshake : -1,
+				ret = ltoa_o((t_request >= 0) ? t_request - logs->t_idle - logs->t_handshake : -1,
 				             tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1968,7 +1968,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TW: // %Tw
-				ret = ltoa_o((s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,
+				ret = ltoa_o((logs->t_queue >= 0) ? logs->t_queue - t_request : -1,
 						tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1977,7 +1977,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TC: // %Tc
-				ret = ltoa_o((s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
+				ret = ltoa_o((logs->t_connect >= 0) ? logs->t_connect - logs->t_queue : -1,
 						tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1986,7 +1986,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_Tr: // %Tr
-				ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
+				ret = ltoa_o((logs->t_data >= 0) ? logs->t_data - logs->t_connect : -1,
 						tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1996,10 +1996,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_TD: // %Td
 				if (be->mode == PR_MODE_HTTP)
-					ret = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_close - s->logs.t_data : -1,
+					ret = ltoa_o((logs->t_data >= 0) ? logs->t_close - logs->t_data : -1,
 					             tmplog, dst + maxsize - tmplog);
 				else
-					ret = ltoa_o((s->logs.t_connect >= 0) ? s->logs.t_close - s->logs.t_connect : -1,
+					ret = ltoa_o((logs->t_connect >= 0) ? logs->t_close - logs->t_connect : -1,
 					             tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -2010,7 +2010,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_Ta:  // %Ta = active time = Tt - Th - Ti
 				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
-				ret = ltoa_o(s->logs.t_close - (s->logs.t_idle >= 0 ? s->logs.t_idle + s->logs.t_handshake : 0),
+				ret = ltoa_o(logs->t_close - (logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0),
 					     tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -2021,7 +2021,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_TT:  // %Tt = total time
 				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
-				ret = ltoa_o(s->logs.t_close, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(logs->t_close, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -2039,7 +2039,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_BYTES: // %B
 				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
-				ret = lltoa(s->logs.bytes_out, tmplog, dst + maxsize - tmplog);
+				ret = lltoa(logs->bytes_out, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -2047,7 +2047,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BYTES_UP: // %U
-				ret = lltoa(s->logs.bytes_in, tmplog, dst + maxsize - tmplog);
+				ret = lltoa(logs->bytes_in, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -2134,7 +2134,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SRVQUEUE: // %sq
-				ret = ltoa_o(s->logs.srv_queue_pos, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(logs->srv_queue_pos, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -2142,7 +2142,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BCKQUEUE:  // %bq
-				ret = ltoa_o(s->logs.prx_queue_pos, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(logs->prx_queue_pos, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
