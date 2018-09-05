@@ -494,6 +494,9 @@ static inline void __b_putblk(struct buffer *b, const char *blk, size_t len)
 {
 	size_t half = b_contig_space(b);
 
+	if (half > len)
+		half = len;
+
 	memcpy(b_tail(b), blk, half);
 
 	if (len > half)
