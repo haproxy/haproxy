@@ -1572,7 +1572,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 {
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s ? s->be : fe;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s ? s->txn : NULL;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
