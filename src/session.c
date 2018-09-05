@@ -52,6 +52,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
+		sess->t_handshake = -1; /* handshake not done yet */
 		HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.conn_max,
 				     HA_ATOMIC_ADD(&fe->feconn, 1));
 		if (li)
@@ -404,6 +405,8 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 static int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
+
+	sess->t_handshake = tv_ms_elapsed(&sess->tv_accept, &now);
 
 	conn_clear_xprt_done_cb(conn);
 

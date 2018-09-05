@@ -46,6 +46,7 @@ struct session {
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters for tcp-connection */
 	struct vars vars;               /* list of variables for the session scope. */
 	struct task *task;              /* handshake timeout processing */
+	long t_handshake;               /* handshake duration, -1 = not completed */
 };
 
 #endif /* _TYPES_SESSION_H */

@@ -649,6 +649,7 @@ static void h2s_destroy(struct h2s *h2s)
  */
 static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 {
+	struct session *sess = h2c->conn->owner;
 	struct conn_stream *cs;
 	struct h2s *h2s;
 
@@ -683,6 +684,15 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 
 	if (stream_create_from_cs(cs) < 0)
 		goto out_free_cs;
+
+	/* We want the accept date presented to the next stream to be the one
+	 * we have now, the handshake time to be null (since the next stream
+	 * is not delayed by a handshake), and the idle time to count since
+	 * right now.
+	 */
+	sess->accept_date = date;
+	sess->tv_accept   = now;
+	sess->t_handshake = 0;
 
 	/* OK done, the stream lives its own life now */
 	if (h2_has_too_many_cs(h2c))
