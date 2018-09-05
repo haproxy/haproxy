@@ -1566,17 +1566,18 @@ void deinit_log_buffers()
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
- * is not zero. It requires a session and a stream.
+ * is not zero. It requires a valid session and optionally a stream. If the
+ * stream is NULL, default values will be assumed for the stream part.
  */
 int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
 	struct proxy *fe = sess->fe;
-	struct proxy *be = s ? s->be : fe;
-	struct http_txn *txn = s ? s->txn : NULL;
-	const struct strm_logs *logs = s ? &s->logs : NULL;
-	const struct connection *be_conn = s ? cs_conn(objt_cs(s->si[1].end)) : NULL;
-	unsigned int s_flags = s ? s->flags : 0;
-	unsigned int uniq_id = s ? s->uniq_id : 0;
+	struct proxy *be;
+	struct http_txn *txn;
+	const struct strm_logs *logs;
+	const struct connection *be_conn;
+	unsigned int s_flags;
+	unsigned int uniq_id;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
@@ -1592,8 +1593,48 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	int iret;
 	struct logformat_node *tmp;
 	struct timeval tv;
+	struct strm_logs tmp_strm_log;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
+
+	if (likely(s)) {
+		be = s->be;
+		txn = s->txn;
+		be_conn = cs_conn(objt_cs(s->si[1].end));
+		s_flags = s->flags;
+		uniq_id = s->uniq_id;
+		logs = &s->logs;
+	} else {
+		/* we have no stream so we first need to initialize a few
+		 * things that are needed later. We do increment the request
+		 * ID so that it's uniquely assigned to this request just as
+		 * if the request had reached the point of being processed.
+		 * A request error is reported as it's the only element we have
+		 * here and which justifies emitting such a log.
+		 */
+		be = fe;
+		txn = NULL;
+		be_conn = NULL;
+		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
+		uniq_id = HA_ATOMIC_XADD(&global.req_count, 1);
+
+		/* prepare a valid log structure */
+		tmp_strm_log.tv_accept = sess->tv_accept;
+		tmp_strm_log.accept_date = sess->accept_date;
+		tmp_strm_log.t_handshake = sess->t_handshake;
+		tmp_strm_log.t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
+		tv_zero(&tmp_strm_log.tv_request);
+		tmp_strm_log.t_queue = -1;
+		tmp_strm_log.t_connect = -1;
+		tmp_strm_log.t_data = -1;
+		tmp_strm_log.t_close = tv_ms_elapsed(&sess->tv_accept, &now);
+		tmp_strm_log.bytes_in = 0;
+		tmp_strm_log.bytes_out = 0;
+		tmp_strm_log.prx_queue_pos = 0;
+		tmp_strm_log.srv_queue_pos = 0;
+
+		logs = &tmp_strm_log;
+	}
 
 	t_request = -1;
 	if (tv_isge(&logs->tv_request, &logs->tv_accept))
