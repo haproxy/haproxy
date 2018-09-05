@@ -2148,7 +2148,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HDRREQUEST: // %hr
 				/* request header */
-				if (fe->nb_req_cap && s->req_cap) {
+				if (fe->nb_req_cap && s && s->req_cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
@@ -2172,7 +2172,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HDRREQUESTLIST: // %hrl
 				/* request header list */
-				if (fe->nb_req_cap && s->req_cap) {
+				if (fe->nb_req_cap && s && s->req_cap) {
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
@@ -2196,7 +2196,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HDRRESPONS: // %hs
 				/* response header */
-				if (fe->nb_rsp_cap && s->res_cap) {
+				if (fe->nb_rsp_cap && s && s->res_cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
@@ -2220,7 +2220,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_HDRRESPONSLIST: // %hsl
 				/* response header list */
-				if (fe->nb_rsp_cap && s->res_cap) {
+				if (fe->nb_rsp_cap && s && s->res_cap) {
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
