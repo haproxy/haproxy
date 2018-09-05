@@ -47,6 +47,13 @@ enum { tid = 0 };
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
 #define HA_ATOMIC_ADD(val, i)        ({*(val) += (i);})
 #define HA_ATOMIC_SUB(val, i)        ({*(val) -= (i);})
+#define HA_ATOMIC_XADD(val, i)						\
+	({								\
+		typeof((val)) __p_xadd = (val);				\
+		typeof(*(val)) __old_xadd = *__p_xadd;			\
+		*__p_xadd += i;						\
+		__old_xadd;						\
+	})
 #define HA_ATOMIC_AND(val, flags)    ({*(val) &= (flags);})
 #define HA_ATOMIC_OR(val, flags)     ({*(val) |= (flags);})
 #define HA_ATOMIC_XCHG(val, new)					\
@@ -169,6 +176,7 @@ static inline unsigned long thread_isolated()
 
 #define HA_ATOMIC_ADD(val, i)        __sync_add_and_fetch(val, i)
 #define HA_ATOMIC_SUB(val, i)        __sync_sub_and_fetch(val, i)
+#define HA_ATOMIC_XADD(val, i)       __sync_fetch_and_add(val, i)
 #define HA_ATOMIC_AND(val, flags)    __sync_and_and_fetch(val, flags)
 #define HA_ATOMIC_OR(val, flags)     __sync_or_and_fetch(val,  flags)
 
@@ -230,6 +238,7 @@ static inline unsigned long thread_isolated()
 /* gcc >= 4.7 */
 #define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, 0, 0)
 #define HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, 0)
+#define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, 0)
 #define HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, 0)
 #define HA_ATOMIC_AND(val, flags)    __atomic_and_fetch(val, flags, 0)
 #define HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, 0)
