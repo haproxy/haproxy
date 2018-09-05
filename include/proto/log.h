@@ -150,19 +150,19 @@ int get_log_facility(const char *fac);
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct logformat_node *node);
+char *lf_text_len(char *dst, const const char *src, size_t len, size_t size, const struct logformat_node *node);
 
 /*
  * Write a IP adress to the log string
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
-char *lf_ip(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node);
+char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
 
 /*
  * Write a port to the log
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
-char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node);
+char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
 
 
 #endif /* _PROTO_LOG_H */

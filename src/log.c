@@ -1053,7 +1053,7 @@ static char *lf_encode_chunk(char *start, char *stop,
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct logformat_node *node)
+char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
 {
 	if (size < 2)
 		return NULL;
@@ -1097,7 +1097,7 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lo
 	return dst;
 }
 
-static inline char *lf_text(char *dst, const char *src, size_t size, struct logformat_node *node)
+static inline char *lf_text(char *dst, const char *src, size_t size, const struct logformat_node *node)
 {
 	return lf_text_len(dst, src, size, size, node);
 }
@@ -1106,7 +1106,7 @@ static inline char *lf_text(char *dst, const char *src, size_t size, struct logf
  * Write a IP adress to the log string
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
-char *lf_ip(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node)
+char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {
 	char *ret = dst;
 	int iret;
@@ -1131,7 +1131,7 @@ char *lf_ip(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_
  * Write a port to the log
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
-char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node)
+char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {
 	char *ret = dst;
 	int iret;
