@@ -1575,6 +1575,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct http_txn *txn = s ? s->txn : NULL;
 	const struct strm_logs *logs = s ? &s->logs : NULL;
 	const struct connection *be_conn = s ? cs_conn(objt_cs(s->si[1].end)) : NULL;
+	unsigned int s_flags = s ? s->flags : 0;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
@@ -2070,15 +2071,15 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_TERMSTATE: // %ts
-				LOGCHAR(sess_term_cond[(s->flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s->flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
+				LOGCHAR(sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
+				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				*tmplog = '\0';
 				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
-				LOGCHAR(sess_term_cond[(s->flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s->flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
+				LOGCHAR(sess_term_cond[(s_flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
+				LOGCHAR(sess_fin_state[(s_flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
 				LOGCHAR((txn && (be->ck_opts & PR_CK_ANY)) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
 				last_isspace = 0;
@@ -2119,7 +2120,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_RETRIES:  // %rq
-				if (s->flags & SF_REDISP)
+				if (s_flags & SF_REDISP)
 					LOGCHAR('+');
 				ret = ltoa_o((s && s->si[1].conn_retries > 0) ?
 				                (be->conn_retries - s->si[1].conn_retries) :
