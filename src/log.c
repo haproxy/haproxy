@@ -2504,7 +2504,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_UNIQUEID: // %ID
 				ret = NULL;
-				src = s->unique_id;
+				src = s ? s->unique_id : NULL;
 				ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
 				if (ret == NULL)
 					goto out;
