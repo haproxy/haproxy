@@ -2746,7 +2746,7 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 		if (h2c->dpl >= flen) {
 			/* RFC7540#6.2 : pad length = length of frame payload or greater */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			return 0;
+			goto fail;
 		}
 		flen -= h2c->dpl + 1;
 		hdrs += 1; // skip Pad Length
@@ -2757,7 +2757,7 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 		if (read_n32(hdrs) == h2s->id) {
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			return 0;//goto fail_stream;
+			goto fail;
 		}
 
 		hdrs += 5; // stream dep = 4, weight = 1
