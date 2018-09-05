@@ -1574,6 +1574,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct proxy *be = s ? s->be : fe;
 	struct http_txn *txn = s ? s->txn : NULL;
 	const struct strm_logs *logs = s ? &s->logs : NULL;
+	const struct connection *be_conn = s ? cs_conn(objt_cs(s->si[1].end)) : NULL;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
@@ -1711,9 +1712,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
-				conn = cs_conn(objt_cs(s->si[1].end));
-				if (conn)
-					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
+				if (be_conn)
+					ret = lf_ip(tmplog, (const struct sockaddr *)&be_conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
 
@@ -1724,9 +1724,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
-				conn = cs_conn(objt_cs(s->si[1].end));
-				if (conn)
-					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
+				if (be_conn)
+					ret = lf_port(tmplog, (struct sockaddr *)&be_conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
 
@@ -1737,9 +1736,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
-				conn = cs_conn(objt_cs(s->si[1].end));
-				if (conn)
-					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
+				if (be_conn)
+					ret = lf_ip(tmplog, (struct sockaddr *)&be_conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
 
@@ -1750,9 +1748,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
-				conn = cs_conn(objt_cs(s->si[1].end));
-				if (conn)
-					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
+				if (be_conn)
+					ret = lf_port(tmplog, (struct sockaddr *)&be_conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
 
