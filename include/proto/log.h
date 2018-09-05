@@ -78,6 +78,7 @@ static inline int build_logline(struct stream *s, char *dst, size_t maxsize, str
  * Will not log if the frontend has no log defined.
  */
 void strm_log(struct stream *s);
+void sess_log(struct session *sess);
 
 /*
  * add to the logformat linked list

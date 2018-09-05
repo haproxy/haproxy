@@ -2620,6 +2620,39 @@ void strm_log(struct stream *s)
 	}
 }
 
+/*
+ * send a minimalist log for the session. Will not log if the frontend has no
+ * log defined. It is assumed that this is only used to report anomalies that
+ * cannot lead to the creation of a regular stream. Because of this the log
+ * level is LOG_INFO or LOG_ERR depending on the "log-separate-error" setting
+ * in the frontend. The caller must simply know that it should not call this
+ * function to report unimportant events.
+ */
+void sess_log(struct session *sess)
+{
+	int size, level;
+	int sd_size = 0;
+
+	if (LIST_ISEMPTY(&sess->fe->logsrvs))
+		return;
+
+	level = LOG_INFO;
+	if (sess->fe->options2 & PR_O2_LOGERRORS)
+		level = LOG_ERR;
+
+	if (!LIST_ISEMPTY(&sess->fe->logformat_sd)) {
+		sd_size = sess_build_logline(sess, NULL,
+		                             logline_rfc5424, global.max_syslog_len,
+		                             &sess->fe->logformat_sd);
+	}
+
+	size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
+	if (size > 0) {
+		HA_ATOMIC_ADD(&sess->fe->log_count, 1);
+		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
+	}
+}
+
 static int cli_io_handler_show_startup_logs(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
