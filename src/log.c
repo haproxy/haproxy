@@ -1576,6 +1576,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	const struct strm_logs *logs = s ? &s->logs : NULL;
 	const struct connection *be_conn = s ? cs_conn(objt_cs(s->si[1].end)) : NULL;
 	unsigned int s_flags = s ? s->flags : 0;
+	unsigned int uniq_id = s ? s->uniq_id : 0;
 	struct buffer chunk;
 	char *uri;
 	char *spc;
@@ -2448,13 +2449,13 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_COUNTER: // %rt
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", s->uniq_id);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", uniq_id);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(s->uniq_id, tmplog, dst + maxsize - tmplog);
+					ret = ltoa_o(uniq_id, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
