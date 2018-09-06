@@ -151,7 +151,7 @@ int get_log_facility(const char *fac);
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text_len(char *dst, const const char *src, size_t len, size_t size, const struct logformat_node *node);
+char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node);
 
 /*
  * Write a IP adress to the log string
