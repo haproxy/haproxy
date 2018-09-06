@@ -457,11 +457,10 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	enum h1_state state;       /* updated only when leaving the FSM */
 	register const char *ptr, *end; /* request pointers, to avoid dereferences */
-	char *input = (char *)ci_head(msg->chn);
-	struct buffer *buf;
+	struct buffer *buf = &msg->chn->buf;
+	char *input = b_head(buf);
 
 	state = msg->msg_state;
-	buf = &msg->chn->buf;
 	ptr = input + msg->next;
 	end = b_stop(buf);
 
@@ -486,6 +485,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				b_del(buf, ptr - input);
+				input = b_head(buf);
 			}
 			msg->sol = 0;
 			msg->sl.st.l = 0; /* used in debug mode */
@@ -554,6 +554,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				b_del(buf, ptr - input);
+				input = b_head(buf);
 			}
 			msg->sol = 0;
 			msg->sl.rq.l = 0; /* used in debug mode */
