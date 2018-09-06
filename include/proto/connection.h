@@ -988,6 +988,15 @@ static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 
 }
 
+/* returns 0 if the connection is valid and is a frontend connection, otherwise
+ * returns 1 indicating it's a backend connection. And uninitialized connection
+ * also returns 1 to better handle the usage in the middle of initialization.
+ */
+static inline int conn_is_back(const struct connection *conn)
+{
+	return !objt_listener(conn->target);
+}
+
 /* returns a pointer to the proxy associated with this connection. For a front
  * connection it returns a pointer to the frontend ; for a back connection, it
  * returns a pointer to the backend.
