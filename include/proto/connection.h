@@ -988,6 +988,28 @@ static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 
 }
 
+/* returns a pointer to the proxy associated with this connection. For a front
+ * connection it returns a pointer to the frontend ; for a back connection, it
+ * returns a pointer to the backend.
+ */
+static inline struct proxy *conn_get_proxy(const struct connection *conn)
+{
+	struct listener *l;
+	struct server *s;
+
+	/* check if it's a frontend connection */
+	l = objt_listener(conn->target);
+	if (l)
+		return l->bind_conf->frontend;
+
+	/* check if it's a backend connection */
+	s = objt_server(conn->target);
+	if (s)
+		return s->proxy;
+
+	return objt_proxy(conn->target);
+}
+
 /* installs the best mux for incoming connection <conn> using the upper context
  * <ctx>. If the mux protocol is forced, we use it to find the best
  * mux. Otherwise we use the ALPN name, if any. Returns < 0 on error.
