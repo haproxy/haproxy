@@ -1969,12 +1969,13 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (unlikely((cs = cs_new(conn)) == NULL))
 		goto out_free_conn;
 
+	conn->target = s->target = &s->be->obj_type;
+	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
+
 	conn_prepare(conn, peer->proto, peer->xprt);
 	conn_install_mux(conn, &mux_pt_ops, cs);
 	si_attach_cs(&s->si[1], cs);
 
-	conn->target = s->target = &s->be->obj_type;
-	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 	s->do_log = NULL;
 	s->uniq_id = 0;
 

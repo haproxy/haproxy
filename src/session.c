@@ -135,14 +135,13 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (unlikely((cli_conn = conn_new()) == NULL))
 		goto out_close;
 
-	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
-
 	cli_conn->handle.fd = cfd;
 	cli_conn->addr.from = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->target = &l->obj_type;
 	cli_conn->proxy_netns = l->netns;
 
+	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
 	conn_ctrl_init(cli_conn);
 
 	/* wait for a PROXY protocol header */

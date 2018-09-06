@@ -579,7 +579,9 @@ static inline int conn_xprt_read0_pending(struct connection *c)
 
 /* prepares a connection to work with protocol <proto> and transport <xprt>.
  * The transport's is initialized as well, and the mux and its context are
- * cleared.
+ * cleared. The target is not reinitialized and it is recommended that it is
+ * set prior to calling this function so that the function may make use of it
+ * in the future to refine the mux choice if needed.
  */
 static inline void conn_prepare(struct connection *conn, const struct protocol *proto, const struct xprt_ops *xprt)
 {

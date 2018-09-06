@@ -1588,13 +1588,9 @@ static int connect_conn_chk(struct task *t)
 	}
 
 	proto = protocol_by_family(conn->addr.to.ss_family);
-
-	conn_prepare(conn, proto, check->xprt);
-	conn_install_mux(conn, &mux_pt_ops, cs);
-	cs_attach(cs, check, &check_conn_cb);
 	conn->target = &s->obj_type;
 
-       if ((conn->addr.to.ss_family == AF_INET) || (conn->addr.to.ss_family == AF_INET6)) {
+	if ((conn->addr.to.ss_family == AF_INET) || (conn->addr.to.ss_family == AF_INET6)) {
 		int i = 0;
 
 		i = srv_check_healthcheck_port(check);
@@ -1606,6 +1602,10 @@ static int connect_conn_chk(struct task *t)
 
 	/* no client address */
 	clear_addr(&conn->addr.from);
+
+	conn_prepare(conn, proto, check->xprt);
+	conn_install_mux(conn, &mux_pt_ops, cs);
+	cs_attach(cs, check, &check_conn_cb);
 
 	/* only plain tcp-check supports quick ACK */
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
@@ -2766,7 +2766,6 @@ static int tcpcheck_main(struct check *check)
 
 			check->cs = cs;
 			conn = cs->conn;
-			cs_attach(cs, check, &check_conn_cb);
 			conn->target = &s->obj_type;
 
 			/* no client address */
@@ -2796,8 +2795,10 @@ static int tcpcheck_main(struct check *check)
 			else {
 				xprt = xprt_get(XPRT_RAW);
 			}
+
 			conn_prepare(conn, proto, xprt);
 			conn_install_mux(conn, &mux_pt_ops, cs);
+			cs_attach(cs, check, &check_conn_cb);
 
 			ret = SF_ERR_INTERNAL;
 			if (proto->connect)
