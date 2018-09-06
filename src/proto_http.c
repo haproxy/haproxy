@@ -8024,10 +8024,10 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	int len1, len2;
 
 	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
-	es->len = MIN(ci_data(chn), global.tune.bufsize);
+	es->buf_len = MIN(ci_data(chn), global.tune.bufsize);
 	len1 = b_wrap(&chn->buf) - ci_head(chn);
-	len1 = MIN(len1, es->len);
-	len2 = es->len - len1; /* remaining data if buffer wraps */
+	len1 = MIN(len1, es->buf_len);
+	len2 = es->buf_len - len1; /* remaining data if buffer wraps */
 
 	if (!es->buf)
 		es->buf = malloc(global.tune.bufsize);
@@ -8039,12 +8039,11 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	}
 
 	if (msg->err_pos >= 0)
-		es->pos = msg->err_pos;
+		es->buf_err = msg->err_pos;
 	else
-		es->pos = msg->next;
+		es->buf_err = msg->next;
 
 	es->when = date; // user-visible date
-	es->sid  = s->uniq_id;
 	es->srv  = objt_server(s->target);
 	es->oe   = other_end;
 	if (objt_conn(sess->origin))
@@ -8052,17 +8051,20 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	else
 		memset(&es->src, 0, sizeof(es->src));
 
-	es->state = state;
 	es->ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
-	es->b_flags = chn->flags;
-	es->s_flags = s->flags;
-	es->t_flags = s->txn->flags;
-	es->m_flags = msg->flags;
-	es->b_out = co_data(chn);
-	es->b_wrap = b_wrap(&chn->buf) - ci_head(chn);
-	es->b_tot = chn->total;
-	es->m_clen = msg->chunk_len;
-	es->m_blen = msg->body_len;
+	es->buf_wrap = b_wrap(&chn->buf) - ci_head(chn);
+	es->buf_out  = co_data(chn);
+	es->buf_ofs  = chn->total;
+
+	/* http-specific part now */
+	es->ctx.http.sid  = s->uniq_id;
+	es->ctx.http.state = state;
+	es->ctx.http.b_flags = chn->flags;
+	es->ctx.http.s_flags = s->flags;
+	es->ctx.http.t_flags = s->txn->flags;
+	es->ctx.http.m_flags = msg->flags;
+	es->ctx.http.m_clen = msg->chunk_len;
+	es->ctx.http.m_blen = msg->body_len;
 	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
 }
 
@@ -12772,11 +12774,12 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				     "  pending %d bytes, wrapping at %d, error at position %d:\n \n",
 				     es->srv ? es->srv->id : "<NONE>", es->srv ? es->srv->puid : -1,
 				     es->ev_id,
-				     pn, port, es->sid, es->s_flags,
-				     h1_msg_state_str(es->state), es->state, es->m_flags, es->t_flags,
-				     es->m_clen, es->m_blen,
-				     es->b_flags, es->b_out, es->b_tot,
-				     es->len, es->b_wrap, es->pos);
+				     pn, port, es->ctx.http.sid, es->ctx.http.s_flags,
+				     h1_msg_state_str(es->ctx.http.state), es->ctx.http.state,
+			             es->ctx.http.m_flags, es->ctx.http.t_flags,
+				     es->ctx.http.m_clen, es->ctx.http.m_blen,
+				     es->ctx.http.b_flags, es->buf_out, es->buf_ofs,
+				     es->buf_len, es->buf_wrap, es->buf_err);
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
@@ -12799,12 +12802,12 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (es->buf && appctx->ctx.errors.ptr < es->len && appctx->ctx.errors.ptr < global.tune.bufsize) {
+		while (es->buf && appctx->ctx.errors.ptr < es->buf_len && appctx->ctx.errors.ptr < global.tune.bufsize) {
 			int newptr;
 			int newline;
 
 			newline = appctx->ctx.errors.bol;
-			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->len, &newline, appctx->ctx.errors.ptr);
+			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, appctx->ctx.errors.ptr);
 			if (newptr == appctx->ctx.errors.ptr)
 				return 0;
 

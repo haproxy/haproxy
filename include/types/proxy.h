@@ -205,26 +205,43 @@ enum PR_SRV_STATE_FILE {
 
 struct stream;
 
-struct error_snapshot {
-	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
-	unsigned int len;		/* original length of the last invalid request/response */
-	unsigned int pos;		/* position of the first invalid character */
+struct http_snapshot {
 	unsigned int sid;		/* ID of the faulty stream */
-	unsigned int ev_id;		/* event number (counter incremented for each capture) */
 	unsigned int state;		/* message state before the error (when saved) */
 	unsigned int b_flags;		/* buffer flags */
 	unsigned int s_flags;		/* stream flags */
+
 	unsigned int t_flags;		/* transaction flags */
 	unsigned int m_flags;		/* message flags */
-	unsigned int b_out;		/* pending output bytes */
-	unsigned int b_wrap;		/* position where the buffer is expected to wrap */
-	unsigned long long b_tot;	/* total bytes transferred via this buffer */
 	unsigned long long m_clen;	/* chunk len for this message */
 	unsigned long long m_blen;	/* body len for this message */
-	struct server *srv;		/* server associated with the error (or NULL) */
-	struct proxy *oe;		/* other end = frontend or backend involved */
-	struct sockaddr_storage src;	/* client's address */
-	char *buf;			/* copy of the beginning of the message (may be NULL) */
+};
+
+union error_snapshot_ctx {
+	struct http_snapshot http;
+};
+
+struct error_snapshot {
+	/**** common part ****/
+	struct timeval when;            /* date of this event, (tv_sec == 0) means "never" */
+	/* @16 */
+	char *buf;                      /* copy of the beginning of the message (may be NULL) */
+	unsigned long long buf_ofs;     /* relative position of the buffer's input inside its container */
+	/* @32 */
+	unsigned int buf_out;           /* pending output bytes _before_ the buffer's input (0..buf->data-1) */
+	unsigned int buf_len;           /* original length of the last invalid request/response (0..buf->data-1-buf_out) */
+	unsigned int buf_err;           /* buffer-relative position where the error was detected (0..len-1) */
+	unsigned int buf_wrap;          /* buffer-relative position where the buffer is expected to wrap (1..buf_size) */
+	/* @48 */
+	struct proxy *oe;               /* other end = frontend or backend involved */
+	struct server *srv;             /* server associated with the error (or NULL) */
+	/* @64 */
+	unsigned int ev_id;             /* event number (counter incremented for each capture) */
+	/* @68: 4 bytes hole here */
+	struct sockaddr_storage src;    /* client's address */
+
+	/**** protocol-specific part ****/
+	union error_snapshot_ctx ctx;
 };
 
 struct email_alert {
