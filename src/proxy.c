@@ -1356,15 +1356,21 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	struct error_snapshot *es;
 	unsigned int buf_len;
 	int len1, len2;
+	unsigned int ev_id;
+
+	ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
+
+	es = malloc(sizeof(*es));
+	if (!es)
+		return;
+
+	es->ev_id    = ev_id;
 
 	buf_len = b_data(buf) - buf_out;
 	len1 = b_size(buf) - buf_len;
 	if (len1 > buf_len)
 		len1 = buf_len;
 	len2 = buf_len - len1;
-
-	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
-	es = is_back ? &proxy->invalid_rep : &proxy->invalid_req;
 
 	es->buf_len = buf_len;
 
@@ -1386,7 +1392,6 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	else
 		memset(&es->src, 0, sizeof(es->src));
 
-	es->ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
 	es->buf_wrap = b_wrap(buf) - b_peek(buf, buf_out);
 	es->buf_out  = buf_out;
 	es->buf_ofs  = buf_ofs;
@@ -1403,6 +1408,17 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	else
 		memset(&es->ctx, 0, sizeof(es->ctx));
 	es->show = show;
+
+	/* note: we still lock since we have to be certain that nobody is
+	 * dumping the output while we free.
+	 */
+	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
+	if (is_back) {
+		es = HA_ATOMIC_XCHG(&proxy->invalid_rep, es);
+	} else {
+		es = HA_ATOMIC_XCHG(&proxy->invalid_req, es);
+	}
+	free(es);
 	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
 }
 
@@ -2012,17 +2028,17 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		HA_SPIN_LOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
 
 		if ((appctx->ctx.errors.flag & 1) == 0) {
-			es = &appctx->ctx.errors.px->invalid_req;
+			es = appctx->ctx.errors.px->invalid_req;
 			if (appctx->ctx.errors.flag & 2) // skip req
 				goto next;
 		}
 		else {
-			es = &appctx->ctx.errors.px->invalid_rep;
+			es = appctx->ctx.errors.px->invalid_rep;
 			if (appctx->ctx.errors.flag & 4) // skip resp
 				goto next;
 		}
 
-		if (!es->when.tv_sec)
+		if (!es)
 			goto next;
 
 		if (appctx->ctx.errors.iid >= 0 &&

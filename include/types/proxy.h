@@ -410,7 +410,7 @@ struct proxy {
 
 	/* warning: these structs are huge, keep them at the bottom */
 	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */
-	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
+	struct error_snapshot *invalid_req, *invalid_rep; /* captures of last errors */
 
 	/* used only during configuration parsing */
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
