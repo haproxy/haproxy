@@ -1360,25 +1360,22 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 
 	ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
 
-	es = malloc(sizeof(*es));
+	buf_len = b_data(buf) - buf_out;
+
+	es = malloc(sizeof(*es) + buf_len);
 	if (!es)
 		return;
 
-	es->ev_id    = ev_id;
+	es->buf_len = buf_len;
+	es->ev_id   = ev_id;
 
-	buf_len = b_data(buf) - buf_out;
 	len1 = b_size(buf) - buf_len;
 	if (len1 > buf_len)
 		len1 = buf_len;
-	len2 = buf_len - len1;
 
-	es->buf_len = buf_len;
-
-	if (!es->buf)
-		es->buf = malloc(global.tune.bufsize);
-
-	if (es->buf) {
+	if (len1) {
 		memcpy(es->buf, b_peek(buf, buf_out), len1);
+		len2 = buf_len - len1;
 		if (len2)
 			memcpy(es->buf + len1, b_orig(buf), len2);
 	}
@@ -2119,7 +2116,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (es->buf && appctx->ctx.errors.ptr < es->buf_len && appctx->ctx.errors.ptr < global.tune.bufsize) {
+		while (appctx->ctx.errors.ptr < es->buf_len && appctx->ctx.errors.ptr < global.tune.bufsize) {
 			int newptr;
 			int newline;
 

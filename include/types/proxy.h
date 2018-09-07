@@ -225,7 +225,7 @@ struct error_snapshot {
 	/**** common part ****/
 	struct timeval when;            /* date of this event, (tv_sec == 0) means "never" */
 	/* @16 */
-	char *buf;                      /* copy of the beginning of the message (may be NULL) */
+	void (*show)(struct buffer *, const struct error_snapshot *); /* dump function */
 	unsigned long long buf_ofs;     /* relative position of the buffer's input inside its container */
 	/* @32 */
 	unsigned int buf_out;           /* pending output bytes _before_ the buffer's input (0..buf->data-1) */
@@ -239,10 +239,10 @@ struct error_snapshot {
 	unsigned int ev_id;             /* event number (counter incremented for each capture) */
 	/* @68: 4 bytes hole here */
 	struct sockaddr_storage src;    /* client's address */
-	void (*show)(struct buffer *, const struct error_snapshot *); /* dump function */
 
 	/**** protocol-specific part ****/
 	union error_snapshot_ctx ctx;
+	char buf[0];                    /* copy of the beginning of the message for bufsize bytes */
 };
 
 struct email_alert {
