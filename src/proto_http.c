@@ -12784,10 +12784,10 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				return 0;
 			}
 			appctx->ctx.errors.ptr = 0;
-			appctx->ctx.errors.sid = es->sid;
+			appctx->ctx.errors.ev_id = es->ev_id;
 		}
 
-		if (appctx->ctx.errors.sid != es->sid) {
+		if (appctx->ctx.errors.ev_id != es->ev_id) {
 			/* the snapshot changed while we were dumping it */
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
