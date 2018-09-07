@@ -8056,6 +8056,12 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 	es->buf_out  = co_data(chn);
 	es->buf_ofs  = chn->total;
 
+	/* be sure to indicate the offset of the first IN byte */
+	if (es->buf_ofs >= es->buf_len)
+		es->buf_ofs -= es->buf_len;
+	else
+		es->buf_ofs = 0;
+
 	/* http-specific part now */
 	es->ctx.http.sid  = s->uniq_id;
 	es->ctx.http.state = state;
@@ -12766,20 +12772,24 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			}
 
 			chunk_appendf(&trash,
-				     ", server %s (#%d), event #%u\n"
-				     "  src %s:%d, session #%d, session flags 0x%08x\n"
-				     "  HTTP msg state %s(%d), msg flags 0x%08x, tx flags 0x%08x\n"
-				     "  HTTP chunk len %lld bytes, HTTP body len %lld bytes\n"
-				     "  buffer flags 0x%08x, out %d bytes, total %lld bytes\n"
-				     "  pending %d bytes, wrapping at %d, error at position %d:\n \n",
-				     es->srv ? es->srv->id : "<NONE>", es->srv ? es->srv->puid : -1,
-				     es->ev_id,
-				     pn, port, es->ctx.http.sid, es->ctx.http.s_flags,
-				     h1_msg_state_str(es->ctx.http.state), es->ctx.http.state,
-			             es->ctx.http.m_flags, es->ctx.http.t_flags,
-				     es->ctx.http.m_clen, es->ctx.http.m_blen,
-				     es->ctx.http.b_flags, es->buf_out, es->buf_ofs,
-				     es->buf_len, es->buf_wrap, es->buf_err);
+			              ", server %s (#%d), event #%u, src %s:%d\n"
+			              "  buffer starts at %llu (including %u out), %u free,\n"
+			              "  len %u, wraps at %u, error at position %u\n",
+			              es->srv ? es->srv->id : "<NONE>",
+			              es->srv ? es->srv->puid : -1,
+			              es->ev_id, pn, port,
+			              es->buf_ofs, es->buf_out,
+			              global.tune.bufsize - es->buf_out - es->buf_len,
+			              es->buf_len, es->buf_wrap, es->buf_err);
+
+			chunk_appendf(&trash,
+			              "  stream #%d, stream flags 0x%08x, tx flags 0x%08x\n"
+			              "  HTTP msg state %s(%d), msg flags 0x%08x\n"
+			              "  HTTP chunk len %lld bytes, HTTP body len %lld bytes, channel flags 0x%08x :\n  \n",
+			              es->ctx.http.sid, es->ctx.http.s_flags, es->ctx.http.t_flags,
+			              h1_msg_state_str(es->ctx.http.state), es->ctx.http.state,
+			              es->ctx.http.m_flags, es->ctx.http.m_clen,
+			              es->ctx.http.m_blen, es->ctx.http.b_flags);
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
