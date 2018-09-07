@@ -99,7 +99,7 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg, const char
 void inet_set_tos(int fd, const struct sockaddr_storage *from, int tos);
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void http_return_srv_error(struct stream *s, struct stream_interface *si);
-void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, struct stream *s,
+void http_capture_bad_message(struct proxy *proxy, struct stream *s,
                               struct http_msg *msg,
 			      enum h1_state state, struct proxy *other_end);
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
