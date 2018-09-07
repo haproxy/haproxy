@@ -8008,6 +8008,22 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 	return 1;
 }
 
+/* Append the description of what is present in error snapshot <es> into <out>.
+ * The description must be small enough to always fit in a trash. The output
+ * buffer may be the trash so the trash must not be used inside this function.
+ */
+void http_show_error_snapshot(struct buffer *out, const struct error_snapshot *es)
+{
+	chunk_appendf(&trash,
+	              "  stream #%d, stream flags 0x%08x, tx flags 0x%08x\n"
+	              "  HTTP msg state %s(%d), msg flags 0x%08x\n"
+	              "  HTTP chunk len %lld bytes, HTTP body len %lld bytes, channel flags 0x%08x :\n",
+	              es->ctx.http.sid, es->ctx.http.s_flags, es->ctx.http.t_flags,
+	              h1_msg_state_str(es->ctx.http.state), es->ctx.http.state,
+	              es->ctx.http.m_flags, es->ctx.http.m_clen,
+	              es->ctx.http.m_blen, es->ctx.http.b_flags);
+}
+
 /*
  * Capture a bad request or response and archive it in the proxy's structure.
  * By default it tries to report the error position as msg->err_pos. However if
@@ -8063,6 +8079,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 		es->buf_ofs = 0;
 
 	/* http-specific part now */
+	es->show = http_show_error_snapshot;
 	es->ctx.http.sid  = s->uniq_id;
 	es->ctx.http.state = state;
 	es->ctx.http.b_flags = chn->flags;
@@ -12782,14 +12799,10 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			              global.tune.bufsize - es->buf_out - es->buf_len,
 			              es->buf_len, es->buf_wrap, es->buf_err);
 
-			chunk_appendf(&trash,
-			              "  stream #%d, stream flags 0x%08x, tx flags 0x%08x\n"
-			              "  HTTP msg state %s(%d), msg flags 0x%08x\n"
-			              "  HTTP chunk len %lld bytes, HTTP body len %lld bytes, channel flags 0x%08x :\n  \n",
-			              es->ctx.http.sid, es->ctx.http.s_flags, es->ctx.http.t_flags,
-			              h1_msg_state_str(es->ctx.http.state), es->ctx.http.state,
-			              es->ctx.http.m_flags, es->ctx.http.m_clen,
-			              es->ctx.http.m_blen, es->ctx.http.b_flags);
+			if (es->show)
+				es->show(&trash, es);
+
+			chunk_appendf(&trash, "  \n");
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */

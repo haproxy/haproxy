@@ -239,6 +239,7 @@ struct error_snapshot {
 	unsigned int ev_id;             /* event number (counter incremented for each capture) */
 	/* @68: 4 bytes hole here */
 	struct sockaddr_storage src;    /* client's address */
+	void (*show)(struct buffer *, const struct error_snapshot *); /* dump function */
 
 	/**** protocol-specific part ****/
 	union error_snapshot_ctx ctx;
