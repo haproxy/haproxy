@@ -8053,7 +8053,7 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
 		memset(&es->src, 0, sizeof(es->src));
 
 	es->state = state;
-	es->ev_id = error_snapshot_id++;
+	es->ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
 	es->b_flags = chn->flags;
 	es->s_flags = s->flags;
 	es->t_flags = s->txn->flags;
