@@ -1933,6 +1933,209 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	return 1;
 }
 
+/* "show errors" handler for the CLI. Returns 0 if wants to continue, 1 to stop
+ * now.
+ */
+static int cli_parse_show_errors(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (*args[2]) {
+		struct proxy *px;
+
+		px = proxy_find_by_name(args[2], 0, 0);
+		if (px)
+			appctx->ctx.errors.iid = px->uuid;
+		else
+			appctx->ctx.errors.iid = atoi(args[2]);
+
+		if (!appctx->ctx.errors.iid) {
+			appctx->ctx.cli.severity = LOG_ERR;
+			appctx->ctx.cli.msg = "No such proxy.\n";
+			appctx->st0 = CLI_ST_PRINT;
+			return 1;
+		}
+	}
+	else
+		appctx->ctx.errors.iid	= -1; // dump all proxies
+
+	appctx->ctx.errors.flag = 0;
+	if (strcmp(args[3], "request") == 0)
+		appctx->ctx.errors.flag |= 4; // ignore response
+	else if (strcmp(args[3], "response") == 0)
+		appctx->ctx.errors.flag |= 2; // ignore request
+	appctx->ctx.errors.px = NULL;
+	return 0;
+}
+
+/* This function dumps all captured errors onto the stream interface's
+ * read buffer. It returns 0 if the output buffer is full and it needs
+ * to be called again, otherwise non-zero.
+ */
+static int cli_io_handler_show_errors(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	extern const char *monthname[12];
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+	if (!appctx->ctx.errors.px) {
+		/* the function had not been called yet, let's prepare the
+		 * buffer for a response.
+		 */
+		struct tm tm;
+
+		get_localtime(date.tv_sec, &tm);
+		chunk_appendf(&trash, "Total events captured on [%02d/%s/%04d:%02d:%02d:%02d.%03d] : %u\n",
+			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
+			     error_snapshot_id);
+
+		if (ci_putchk(si_ic(si), &trash) == -1) {
+			/* Socket buffer full. Let's try again later from the same point */
+			si_applet_cant_put(si);
+			return 0;
+		}
+
+		appctx->ctx.errors.px = proxies_list;
+		appctx->ctx.errors.bol = 0;
+		appctx->ctx.errors.ptr = -1;
+	}
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	while (appctx->ctx.errors.px) {
+		struct error_snapshot *es;
+
+		if ((appctx->ctx.errors.flag & 1) == 0) {
+			es = &appctx->ctx.errors.px->invalid_req;
+			if (appctx->ctx.errors.flag & 2) // skip req
+				goto next;
+		}
+		else {
+			es = &appctx->ctx.errors.px->invalid_rep;
+			if (appctx->ctx.errors.flag & 4) // skip resp
+				goto next;
+		}
+
+		if (!es->when.tv_sec)
+			goto next;
+
+		if (appctx->ctx.errors.iid >= 0 &&
+		    appctx->ctx.errors.px->uuid != appctx->ctx.errors.iid &&
+		    es->oe->uuid != appctx->ctx.errors.iid)
+			goto next;
+
+		if (appctx->ctx.errors.ptr < 0) {
+			/* just print headers now */
+
+			char pn[INET6_ADDRSTRLEN];
+			struct tm tm;
+			int port;
+
+			get_localtime(es->when.tv_sec, &tm);
+			chunk_appendf(&trash, " \n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
+				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
+
+			switch (addr_to_str(&es->src, pn, sizeof(pn))) {
+			case AF_INET:
+			case AF_INET6:
+				port = get_host_port(&es->src);
+				break;
+			default:
+				port = 0;
+			}
+
+			switch (appctx->ctx.errors.flag & 1) {
+			case 0:
+				chunk_appendf(&trash,
+					     " frontend %s (#%d): invalid request\n"
+					     "  backend %s (#%d)",
+					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
+					     (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
+					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1);
+				break;
+			case 1:
+				chunk_appendf(&trash,
+					     " backend %s (#%d): invalid response\n"
+					     "  frontend %s (#%d)",
+					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
+					     es->oe->id, es->oe->uuid);
+				break;
+			}
+
+			chunk_appendf(&trash,
+			              ", server %s (#%d), event #%u, src %s:%d\n"
+			              "  buffer starts at %llu (including %u out), %u free,\n"
+			              "  len %u, wraps at %u, error at position %u\n",
+			              es->srv ? es->srv->id : "<NONE>",
+			              es->srv ? es->srv->puid : -1,
+			              es->ev_id, pn, port,
+			              es->buf_ofs, es->buf_out,
+			              global.tune.bufsize - es->buf_out - es->buf_len,
+			              es->buf_len, es->buf_wrap, es->buf_err);
+
+			if (es->show)
+				es->show(&trash, es);
+
+			chunk_appendf(&trash, "  \n");
+
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				/* Socket buffer full. Let's try again later from the same point */
+				si_applet_cant_put(si);
+				return 0;
+			}
+			appctx->ctx.errors.ptr = 0;
+			appctx->ctx.errors.ev_id = es->ev_id;
+		}
+
+		if (appctx->ctx.errors.ev_id != es->ev_id) {
+			/* the snapshot changed while we were dumping it */
+			chunk_appendf(&trash,
+				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				si_applet_cant_put(si);
+				return 0;
+			}
+			goto next;
+		}
+
+		/* OK, ptr >= 0, so we have to dump the current line */
+		while (es->buf && appctx->ctx.errors.ptr < es->buf_len && appctx->ctx.errors.ptr < global.tune.bufsize) {
+			int newptr;
+			int newline;
+
+			newline = appctx->ctx.errors.bol;
+			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, appctx->ctx.errors.ptr);
+			if (newptr == appctx->ctx.errors.ptr)
+				return 0;
+
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				/* Socket buffer full. Let's try again later from the same point */
+				si_applet_cant_put(si);
+				return 0;
+			}
+			appctx->ctx.errors.ptr = newptr;
+			appctx->ctx.errors.bol = newline;
+		};
+	next:
+		appctx->ctx.errors.bol = 0;
+		appctx->ctx.errors.ptr = -1;
+		appctx->ctx.errors.flag ^= 1;
+		if (!(appctx->ctx.errors.flag & 1))
+			appctx->ctx.errors.px = appctx->ctx.errors.px->next;
+	}
+
+	/* dump complete */
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "frontend",  NULL }, "disable frontend : temporarily disable specific frontend", cli_parse_disable_frontend, NULL, NULL },
@@ -1944,6 +2147,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "dynamic-cookie-key", "backend", NULL }, "set dynamic-cookie-key backend : change a backend secret key for dynamic cookies", cli_parse_set_dyncookie_key_backend, NULL },
 	{ { "enable", "dynamic-cookie", "backend", NULL }, "enable dynamic-cookie backend : enable dynamic cookies on a specific backend", cli_parse_enable_dyncookie_backend, NULL },
 	{ { "disable", "dynamic-cookie", "backend", NULL }, "disable dynamic-cookie backend : disable dynamic cookies on a specific backend", cli_parse_disable_dyncookie_backend, NULL },
+	{ { "show", "errors", NULL }, "show errors    : report last request and response errors for each proxy", cli_parse_show_errors, cli_io_handler_show_errors, NULL },
 	{{},}
 }};
 
