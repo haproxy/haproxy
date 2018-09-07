@@ -1326,6 +1326,88 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	return 1;
 }
 
+/* Capture a bad request or response and archive it in the proxy's structure.
+ * It is relatively protocol-agnostic so it requires that a number of elements
+ * are passed :
+ *  - <proxy> is the proxy where the error was detected and where the snapshot
+ *    needs to be stored
+ *  - <is_back> indicates that the error happend when receiving the response
+ *  - <other_end> is a pointer to the proxy on the other side when known
+ *  - <target> is the target of the connection, usually a server or a proxy
+ *  - <sess> is the session which experienced the error
+ *  - <ctx> may be NULL or should contain any info relevant to the protocol
+ *  - <buf> is the buffer containing the offending data
+ *  - <buf_ofs> is the position of this buffer's input data in the input
+ *    stream, starting at zero. It may be passed as zero if unknown.
+ *  - <buf_out> is the portion of <buf->data> which was already forwarded and
+ *    which precedes the buffer's input. The buffer's input starts at
+ *    buf->head + buf_out.
+ *  - <err_pos> is the pointer to the faulty byte in the buffer's input.
+ *  - <show> is the callback to use to display <ctx>. It may be NULL.
+ */
+void proxy_capture_error(struct proxy *proxy, int is_back,
+			 struct proxy *other_end, enum obj_type *target,
+			 const struct session *sess,
+			 const struct buffer *buf, long buf_ofs,
+			 unsigned int buf_out, unsigned int err_pos,
+			 const union error_snapshot_ctx *ctx,
+			 void (*show)(struct buffer *, const struct error_snapshot *))
+{
+	struct error_snapshot *es;
+	unsigned int buf_len;
+	int len1, len2;
+
+	buf_len = b_data(buf) - buf_out;
+	len1 = b_size(buf) - buf_len;
+	if (len1 > buf_len)
+		len1 = buf_len;
+	len2 = buf_len - len1;
+
+	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
+	es = is_back ? &proxy->invalid_rep : &proxy->invalid_req;
+
+	es->buf_len = buf_len;
+
+	if (!es->buf)
+		es->buf = malloc(global.tune.bufsize);
+
+	if (es->buf) {
+		memcpy(es->buf, b_peek(buf, buf_out), len1);
+		if (len2)
+			memcpy(es->buf + len1, b_orig(buf), len2);
+	}
+
+	es->buf_err = err_pos;
+	es->when    = date; // user-visible date
+	es->srv     = objt_server(target);
+	es->oe      = other_end;
+	if (objt_conn(sess->origin))
+		es->src  = __objt_conn(sess->origin)->addr.from;
+	else
+		memset(&es->src, 0, sizeof(es->src));
+
+	es->ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
+	es->buf_wrap = b_wrap(buf) - b_peek(buf, buf_out);
+	es->buf_out  = buf_out;
+	es->buf_ofs  = buf_ofs;
+
+	/* be sure to indicate the offset of the first IN byte */
+	if (es->buf_ofs >= es->buf_len)
+		es->buf_ofs -= es->buf_len;
+	else
+		es->buf_ofs = 0;
+
+	/* protocol-specific part now */
+	if (ctx)
+		es->ctx = *ctx;
+	else
+		memset(&es->ctx, 0, sizeof(es->ctx));
+	es->show = show;
+	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
+}
+
+/* Config keywords below */
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "hard-stop-after", proxy_parse_hard_stop_after },
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },

@@ -58,6 +58,13 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
 int get_backend_server(const char *bk_name, const char *sv_name,
 		       struct proxy **bk, struct server **sv);
+void proxy_capture_error(struct proxy *proxy, int is_back,
+			 struct proxy *other_end, enum obj_type *target,
+			 const struct session *sess,
+			 const struct buffer *buf, long buf_ofs,
+			 unsigned int buf_out, unsigned int err_pos,
+			 const union error_snapshot_ctx *ctx,
+			 void (*show)(struct buffer *, const struct error_snapshot *));
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 
