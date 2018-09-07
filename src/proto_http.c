@@ -8035,60 +8035,29 @@ void http_capture_bad_message(struct proxy *proxy, struct error_snapshot *es, st
                               struct http_msg *msg,
 			      enum h1_state state, struct proxy *other_end)
 {
-	struct session *sess = strm_sess(s);
-	struct channel *chn = msg->chn;
-	int len1, len2;
-
-	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
-	es->buf_len = MIN(ci_data(chn), global.tune.bufsize);
-	len1 = b_wrap(&chn->buf) - ci_head(chn);
-	len1 = MIN(len1, es->buf_len);
-	len2 = es->buf_len - len1; /* remaining data if buffer wraps */
-
-	if (!es->buf)
-		es->buf = malloc(global.tune.bufsize);
-
-	if (es->buf) {
-		memcpy(es->buf, ci_head(chn), len1);
-		if (len2)
-			memcpy(es->buf + len1, b_orig(&chn->buf), len2);
-	}
-
-	if (msg->err_pos >= 0)
-		es->buf_err = msg->err_pos;
-	else
-		es->buf_err = msg->next;
-
-	es->when = date; // user-visible date
-	es->srv  = objt_server(s->target);
-	es->oe   = other_end;
-	if (objt_conn(sess->origin))
-		es->src  = __objt_conn(sess->origin)->addr.from;
-	else
-		memset(&es->src, 0, sizeof(es->src));
-
-	es->ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
-	es->buf_wrap = b_wrap(&chn->buf) - ci_head(chn);
-	es->buf_out  = co_data(chn);
-	es->buf_ofs  = chn->total;
-
-	/* be sure to indicate the offset of the first IN byte */
-	if (es->buf_ofs >= es->buf_len)
-		es->buf_ofs -= es->buf_len;
-	else
-		es->buf_ofs = 0;
+	union error_snapshot_ctx ctx;
+	long ofs;
 
 	/* http-specific part now */
-	es->show = http_show_error_snapshot;
-	es->ctx.http.sid  = s->uniq_id;
-	es->ctx.http.state = state;
-	es->ctx.http.b_flags = chn->flags;
-	es->ctx.http.s_flags = s->flags;
-	es->ctx.http.t_flags = s->txn->flags;
-	es->ctx.http.m_flags = msg->flags;
-	es->ctx.http.m_clen = msg->chunk_len;
-	es->ctx.http.m_blen = msg->body_len;
-	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
+	ctx.http.sid     = s->uniq_id;
+	ctx.http.state   = state;
+	ctx.http.b_flags = msg->chn->flags;
+	ctx.http.s_flags = s->flags;
+	ctx.http.t_flags = s->txn->flags;
+	ctx.http.m_flags = msg->flags;
+	ctx.http.m_clen  = msg->chunk_len;
+	ctx.http.m_blen  = msg->body_len;
+
+	ofs = msg->chn->total - ci_data(msg->chn);
+	if (ofs < 0)
+		ofs = 0;
+
+	proxy_capture_error(proxy, es == &proxy->invalid_rep,
+	                    other_end, s->target,
+	                    strm_sess(s), &msg->chn->buf,
+	                    ofs, co_data(msg->chn),
+	                    (msg->err_pos >= 0) ? msg->err_pos : msg->next,
+	                    &ctx, http_show_error_snapshot);
 }
 
 /* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
