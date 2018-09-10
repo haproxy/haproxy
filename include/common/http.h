@@ -110,10 +110,20 @@ extern const int http_err_codes[HTTP_ERR_SIZE];
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
+
+const struct ist HTTP_100;
+extern const char *HTTP_301;
 extern const char *HTTP_302;
 extern const char *HTTP_303;
+extern const char *HTTP_307;
+extern const char *HTTP_308;
+extern const char *HTTP_401_fmt;
+extern const char *HTTP_407_fmt;
 
+int init_http(char **err);
 enum http_meth_t find_http_meth(const char *str, const int len);
+const int http_get_status_idx(unsigned int status);
+const char *http_get_reason(unsigned int status);
 struct ist http_get_path(const struct ist uri);
 
 #endif /* _COMMON_HTTP_H */

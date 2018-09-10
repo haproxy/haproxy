@@ -154,8 +154,6 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 #define APPLET_LAST_CHK 0x10 /* Last chunk sent. */
 #define APPLET_HTTP11   0x20 /* Last chunk sent. */
 
-#define HTTP_100C "HTTP/1.1 100 Continue\r\n\r\n"
-
 /* The main Lua execution context. */
 struct hlua gL;
 
@@ -4121,7 +4119,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = ci_putblk(chn, HTTP_100C, strlen(HTTP_100C));
+		ret = ci_putblk(chn, HTTP_100.ptr, HTTP_100.len);
 		/* if ret == -2 or -3 the channel closed or the message si too
 		 * big for the buffers. We cant send anything. So, we ignoring
 		 * the error, considers that the 100-continue is sent, and try
@@ -4207,7 +4205,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 	/* Maybe we cant send a 100-continue ? */
 	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = ci_putblk(chn, HTTP_100C, strlen(HTTP_100C));
+		ret = ci_putblk(chn, HTTP_100.ptr, HTTP_100.len);
 		/* if ret == -2 or -3 the channel closed or the message si too
 		 * big for the buffers. We cant send anything. So, we ignoring
 		 * the error, considers that the 100-continue is sent, and try
@@ -4490,7 +4488,7 @@ __LJMP static int hlua_applet_http_start_response(lua_State *L)
 	const char *reason = appctx->appctx->ctx.hlua_apphttp.reason;
 
 	if (reason == NULL)
-		reason = get_reason(appctx->appctx->ctx.hlua_apphttp.status);
+		reason = http_get_reason(appctx->appctx->ctx.hlua_apphttp.status);
 
 	/* Use the same http version than the request. */
 	chunk_appendf(tmp, "HTTP/1.%c %d %s\r\n",

@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <common/config.h>
 #include <common/http.h>
+#include <common/standard.h>
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
  * table than to perform a boolean AND or OR between two tests. Refer to
@@ -154,6 +155,178 @@ const unsigned char http_char_classes[256] = {
 	[127] = HTTP_FLG_CTL,
 };
 
+/* We must put the messages here since GCC cannot initialize consts depending
+ * on strlen().
+ */
+struct buffer http_err_chunks[HTTP_ERR_SIZE];
+
+const struct ist HTTP_100 = IST("HTTP/1.1 100 Continue\r\n\r\n");
+
+/* Warning: no "connection" header is provided with the 3xx messages below */
+const char *HTTP_301 =
+	"HTTP/1.1 301 Moved Permanently\r\n"
+	"Content-length: 0\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+const char *HTTP_302 =
+	"HTTP/1.1 302 Found\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* same as 302 except that the browser MUST retry with the GET method */
+const char *HTTP_303 =
+	"HTTP/1.1 303 See Other\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* same as 302 except that the browser MUST retry with the same method */
+const char *HTTP_307 =
+	"HTTP/1.1 307 Temporary Redirect\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* same as 301 except that the browser MUST retry with the same method */
+const char *HTTP_308 =
+	"HTTP/1.1 308 Permanent Redirect\r\n"
+	"Content-length: 0\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* Warning: this one is an sprintf() fmt string, with <realm> as its only argument */
+const char *HTTP_401_fmt =
+	"HTTP/1.0 401 Unauthorized\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"WWW-Authenticate: Basic realm=\"%s\"\r\n"
+	"\r\n"
+	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
+
+const char *HTTP_407_fmt =
+	"HTTP/1.0 407 Unauthorized\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"Proxy-Authenticate: Basic realm=\"%s\"\r\n"
+	"\r\n"
+	"<html><body><h1>407 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
+
+const int http_err_codes[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
+	[HTTP_ERR_400] = 400,
+	[HTTP_ERR_403] = 403,
+	[HTTP_ERR_405] = 405,
+	[HTTP_ERR_408] = 408,
+	[HTTP_ERR_421] = 421,
+	[HTTP_ERR_425] = 425,
+	[HTTP_ERR_429] = 429,
+	[HTTP_ERR_500] = 500,
+	[HTTP_ERR_502] = 502,
+	[HTTP_ERR_503] = 503,
+	[HTTP_ERR_504] = 504,
+};
+
+static const char *http_err_msgs[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_200] =
+	"HTTP/1.0 200 OK\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>200 OK</h1>\nService ready.\n</body></html>\n",
+
+	[HTTP_ERR_400] =
+	"HTTP/1.0 400 Bad request\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n",
+
+	[HTTP_ERR_403] =
+	"HTTP/1.0 403 Forbidden\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n",
+
+	[HTTP_ERR_405] =
+	"HTTP/1.0 405 Method Not Allowed\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>405 Method Not Allowed</h1>\nA request was made of a resource using a request method not supported by that resource\n</body></html>\n",
+
+	[HTTP_ERR_408] =
+	"HTTP/1.0 408 Request Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n",
+
+	[HTTP_ERR_421] =
+	"HTTP/1.0 421 Misdirected Request\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>421 Misdirected Request</h1>\nRequest sent to a non-authoritative server.\n</body></html>\n",
+
+	[HTTP_ERR_425] =
+	"HTTP/1.0 425 Too Early\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>425 Too Early</h1>\nYour browser sent early data.\n</body></html>\n",
+
+	[HTTP_ERR_429] =
+	"HTTP/1.0 429 Too Many Requests\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>429 Too Many Requests</h1>\nYou have sent too many requests in a given amount of time.\n</body></html>\n",
+
+	[HTTP_ERR_500] =
+	"HTTP/1.0 500 Internal Server Error\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
+
+	[HTTP_ERR_502] =
+	"HTTP/1.0 502 Bad Gateway\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n",
+
+	[HTTP_ERR_503] =
+	"HTTP/1.0 503 Service Unavailable\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n",
+
+	[HTTP_ERR_504] =
+	"HTTP/1.0 504 Gateway Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n",
+
+};
+
 const struct ist http_known_methods[HTTP_METH_OTHER] = {
 	[HTTP_METH_OPTIONS] = IST("OPTIONS"),
 	[HTTP_METH_GET]     = IST("GET"),
@@ -182,6 +355,114 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 	else if (isteq(m, ist("DELETE")))  return HTTP_METH_DELETE;
 	else if (isteq(m, ist("TRACE")))   return HTTP_METH_TRACE;
 	else                               return HTTP_METH_OTHER;
+}
+
+/* This function returns HTTP_ERR_<num> (enum) matching http status code.
+ * Returned value should match codes from http_err_codes.
+ */
+const int http_get_status_idx(unsigned int status)
+{
+	switch (status) {
+	case 200: return HTTP_ERR_200;
+	case 400: return HTTP_ERR_400;
+	case 403: return HTTP_ERR_403;
+	case 405: return HTTP_ERR_405;
+	case 408: return HTTP_ERR_408;
+	case 421: return HTTP_ERR_421;
+	case 425: return HTTP_ERR_425;
+	case 429: return HTTP_ERR_429;
+	case 500: return HTTP_ERR_500;
+	case 502: return HTTP_ERR_502;
+	case 503: return HTTP_ERR_503;
+	case 504: return HTTP_ERR_504;
+	default: return HTTP_ERR_500;
+	}
+}
+
+/* This function returns a reason associated with the HTTP status.
+ * This function never fails, a message is always returned.
+ */
+const char *http_get_reason(unsigned int status)
+{
+	switch (status) {
+	case 100: return "Continue";
+	case 101: return "Switching Protocols";
+	case 102: return "Processing";
+	case 200: return "OK";
+	case 201: return "Created";
+	case 202: return "Accepted";
+	case 203: return "Non-Authoritative Information";
+	case 204: return "No Content";
+	case 205: return "Reset Content";
+	case 206: return "Partial Content";
+	case 207: return "Multi-Status";
+	case 210: return "Content Different";
+	case 226: return "IM Used";
+	case 300: return "Multiple Choices";
+	case 301: return "Moved Permanently";
+	case 302: return "Moved Temporarily";
+	case 303: return "See Other";
+	case 304: return "Not Modified";
+	case 305: return "Use Proxy";
+	case 307: return "Temporary Redirect";
+	case 308: return "Permanent Redirect";
+	case 310: return "Too many Redirects";
+	case 400: return "Bad Request";
+	case 401: return "Unauthorized";
+	case 402: return "Payment Required";
+	case 403: return "Forbidden";
+	case 404: return "Not Found";
+	case 405: return "Method Not Allowed";
+	case 406: return "Not Acceptable";
+	case 407: return "Proxy Authentication Required";
+	case 408: return "Request Time-out";
+	case 409: return "Conflict";
+	case 410: return "Gone";
+	case 411: return "Length Required";
+	case 412: return "Precondition Failed";
+	case 413: return "Request Entity Too Large";
+	case 414: return "Request-URI Too Long";
+	case 415: return "Unsupported Media Type";
+	case 416: return "Requested range unsatisfiable";
+	case 417: return "Expectation failed";
+	case 418: return "I'm a teapot";
+	case 421: return "Misdirected Request";
+	case 422: return "Unprocessable entity";
+	case 423: return "Locked";
+	case 424: return "Method failure";
+	case 425: return "Too Early";
+	case 426: return "Upgrade Required";
+	case 428: return "Precondition Required";
+	case 429: return "Too Many Requests";
+	case 431: return "Request Header Fields Too Large";
+	case 449: return "Retry With";
+	case 450: return "Blocked by Windows Parental Controls";
+	case 451: return "Unavailable For Legal Reasons";
+	case 456: return "Unrecoverable Error";
+	case 499: return "client has closed connection";
+	case 500: return "Internal Server Error";
+	case 501: return "Not Implemented";
+	case 502: return "Bad Gateway or Proxy Error";
+	case 503: return "Service Unavailable";
+	case 504: return "Gateway Time-out";
+	case 505: return "HTTP Version not supported";
+	case 506: return "Variant also negociate";
+	case 507: return "Insufficient storage";
+	case 508: return "Loop detected";
+	case 509: return "Bandwidth Limit Exceeded";
+	case 510: return "Not extended";
+	case 511: return "Network authentication required";
+	case 520: return "Web server is returning an unknown error";
+	default:
+		switch (status) {
+		case 100 ... 199: return "Informational";
+		case 200 ... 299: return "Success";
+		case 300 ... 399: return "Redirection";
+		case 400 ... 499: return "Client Error";
+		case 500 ... 599: return "Server Error";
+		default:          return "Other";
+		}
+	}
 }
 
 /* Parse the URI from the given transaction (which is assumed to be in request
@@ -232,4 +513,23 @@ struct ist http_get_path(const struct ist uri)
 
  not_found:
 	return ist2(NULL, 0);
+}
+
+/* post-initializes the HTTP parts. Returns non-zero on error, with <err>
+ * pointing to the error message.
+ */
+int init_http(char **err)
+{
+	int msg;
+
+	for (msg = 0; msg < HTTP_ERR_SIZE; msg++) {
+		if (!http_err_msgs[msg]) {
+			memprintf(err, "Internal error: no message defined for HTTP return code %d", msg);
+			return 0;
+		}
+
+		http_err_chunks[msg].area = (char *)http_err_msgs[msg];
+		http_err_chunks[msg].data = strlen(http_err_msgs[msg]);
+	}
+	return 1;
 }
