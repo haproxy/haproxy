@@ -80,6 +80,9 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
  * exclusively to the macros.
  */
 fd_set rfc5424_escape_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
 
 #else
 #error "Check if your OS uses bitfields for fd_sets"
@@ -1511,6 +1514,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 void init_log()
 {
 	char *tmp;
+	int i;
 
 	/* Initialize the escape map for the RFC5424 structured-data : '"\]'
 	 * inside PARAM-VALUE should be escaped with '\' as prefix.
@@ -1524,6 +1528,60 @@ void init_log()
 		FD_SET(*tmp, rfc5424_escape_map);
 		tmp++;
 	}
+
+	/* initialize the log header encoding map : '{|}"#' should be encoded with
+	 * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
+	 * URL encoding only requires '"', '#' to be encoded as well as non-
+	 * printable characters above.
+	 */
+	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
+	memset(url_encode_map, 0, sizeof(url_encode_map));
+	for (i = 0; i < 32; i++) {
+		FD_SET(i, hdr_encode_map);
+		FD_SET(i, url_encode_map);
+	}
+	for (i = 127; i < 256; i++) {
+		FD_SET(i, hdr_encode_map);
+		FD_SET(i, url_encode_map);
+	}
+
+	tmp = "\"#{|}";
+	while (*tmp) {
+		FD_SET(*tmp, hdr_encode_map);
+		tmp++;
+	}
+
+	tmp = "\"#";
+	while (*tmp) {
+		FD_SET(*tmp, url_encode_map);
+		tmp++;
+	}
+
+	/* initialize the http header encoding map. The draft httpbis define the
+	 * header content as:
+	 *
+	 *    HTTP-message   = start-line
+	 *                     *( header-field CRLF )
+	 *                     CRLF
+	 *                     [ message-body ]
+	 *    header-field   = field-name ":" OWS field-value OWS
+	 *    field-value    = *( field-content / obs-fold )
+	 *    field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+	 *    obs-fold       = CRLF 1*( SP / HTAB )
+	 *    field-vchar    = VCHAR / obs-text
+	 *    VCHAR          = %x21-7E
+	 *    obs-text       = %x80-FF
+	 *
+	 * All the chars are encoded except "VCHAR", "obs-text", SP and HTAB.
+	 * The encoded chars are form 0x00 to 0x08, 0x0a to 0x1f and 0x7f. The
+	 * "obs-fold" is volontary forgotten because haproxy remove this.
+	 */
+	memset(http_encode_map, 0, sizeof(http_encode_map));
+	for (i = 0x00; i <= 0x08; i++)
+		FD_SET(i, http_encode_map);
+	for (i = 0x0a; i <= 0x1f; i++)
+		FD_SET(i, http_encode_map);
+	FD_SET(0x7f, http_encode_map);
 }
 
 static int init_log_buffers_per_thread()

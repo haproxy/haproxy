@@ -101,23 +101,6 @@ struct action_kw_list http_res_keywords = {
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct hdr_ctx static_hdr_ctx;
 
-#define FD_SETS_ARE_BITFIELDS
-#ifdef FD_SETS_ARE_BITFIELDS
-/*
- * This map is used with all the FD_* macros to check whether a particular bit
- * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
- * which should be encoded. When FD_ISSET() returns non-zero, it means that the
- * byte should be encoded. Be careful to always pass bytes from 0 to 255
- * exclusively to the macros.
- */
-fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-
-#else
-#error "Check if your OS uses bitfields for fd_sets"
-#endif
-
 static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 
 static inline int http_msg_forward_body(struct stream *s, struct http_msg *msg);
@@ -125,64 +108,6 @@ static inline int http_msg_forward_chunked_body(struct stream *s, struct http_ms
 
 void init_proto_http()
 {
-	int i;
-	char *tmp;
-
-	/* initialize the log header encoding map : '{|}"#' should be encoded with
-	 * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
-	 * URL encoding only requires '"', '#' to be encoded as well as non-
-	 * printable characters above.
-	 */
-	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
-	memset(url_encode_map, 0, sizeof(url_encode_map));
-	memset(http_encode_map, 0, sizeof(url_encode_map));
-	for (i = 0; i < 32; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
-	}
-	for (i = 127; i < 256; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
-	}
-
-	tmp = "\"#{|}";
-	while (*tmp) {
-		FD_SET(*tmp, hdr_encode_map);
-		tmp++;
-	}
-
-	tmp = "\"#";
-	while (*tmp) {
-		FD_SET(*tmp, url_encode_map);
-		tmp++;
-	}
-
-	/* initialize the http header encoding map. The draft httpbis define the
-	 * header content as:
-	 *
-	 *    HTTP-message   = start-line
-	 *                     *( header-field CRLF )
-	 *                     CRLF
-	 *                     [ message-body ]
-	 *    header-field   = field-name ":" OWS field-value OWS
-	 *    field-value    = *( field-content / obs-fold )
-	 *    field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-	 *    obs-fold       = CRLF 1*( SP / HTAB )
-	 *    field-vchar    = VCHAR / obs-text
-	 *    VCHAR          = %x21-7E
-	 *    obs-text       = %x80-FF
-	 *
-	 * All the chars are encoded except "VCHAR", "obs-text", SP and HTAB.
-	 * The encoded chars are form 0x00 to 0x08, 0x0a to 0x1f and 0x7f. The
-	 * "obs-fold" is volontary forgotten because haproxy remove this.
-	 */
-	memset(http_encode_map, 0, sizeof(http_encode_map));
-	for (i = 0x00; i <= 0x08; i++)
-		FD_SET(i, http_encode_map);
-	for (i = 0x0a; i <= 0x1f; i++)
-		FD_SET(i, http_encode_map);
-	FD_SET(0x7f, http_encode_map);
-
 	/* memory allocations */
 	pool_head_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
 	pool_head_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
