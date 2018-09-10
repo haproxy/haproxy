@@ -1425,7 +1425,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
 
-	/* stream_int_notify may pass throught checksnd and released some
+	/* stream_int_notify may pass through checksnd and released some
 	 * WAIT_ROOM flags. The process_stream will consider those flags
 	 * to wakeup the appctx but in the case the task is not in runqueue
 	 * we may have to wakeup the appctx immediately.

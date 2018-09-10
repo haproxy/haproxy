@@ -41,7 +41,7 @@ static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigne
  * - BREAK_EXECUTION must be used to break the loop and set the filter from
  *   which to resume the next time.
  *
- *  Here is an exemple:
+ *  Here is an example:
  *
  *    RESUME_FILTER_LOOP(stream, channel) {
  *        ...
