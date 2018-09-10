@@ -114,6 +114,7 @@ extern const char *HTTP_302;
 extern const char *HTTP_303;
 
 enum http_meth_t find_http_meth(const char *str, const int len);
+struct ist http_get_path(const struct ist uri);
 
 #endif /* _COMMON_HTTP_H */
 

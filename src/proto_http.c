@@ -914,87 +914,13 @@ http_reply_and_close(struct stream *s, short status, struct buffer *msg)
  * phase) and look for the "/" beginning the PATH. If not found, return NULL.
  * It is returned otherwise.
  */
-char *http_get_path(struct http_txn *txn)
+char *http_txn_get_path(const struct http_txn *txn)
 {
-	char *ptr, *end;
+	struct ist ret;
 
-	ptr = ci_head(txn->req.chn) + txn->req.sl.rq.u;
-	end = ptr + txn->req.sl.rq.u_l;
+	ret = http_get_path(ist2(ci_head(txn->req.chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l));
 
-	if (ptr >= end)
-		return NULL;
-
-	/* RFC7230, par. 2.7 :
-	 * Request-URI = "*" | absuri | abspath | authority
-	 */
-
-	if (*ptr == '*')
-		return NULL;
-
-	if (isalpha((unsigned char)*ptr)) {
-		/* this is a scheme as described by RFC3986, par. 3.1 */
-		ptr++;
-		while (ptr < end &&
-		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
-			ptr++;
-		/* skip '://' */
-		if (ptr == end || *ptr++ != ':')
-			return NULL;
-		if (ptr == end || *ptr++ != '/')
-			return NULL;
-		if (ptr == end || *ptr++ != '/')
-			return NULL;
-	}
-	/* skip [user[:passwd]@]host[:[port]] */
-
-	while (ptr < end && *ptr != '/')
-		ptr++;
-
-	if (ptr == end)
-		return NULL;
-
-	/* OK, we got the '/' ! */
-	return ptr;
-}
-
-/* Parse the URI from the given string and look for the "/" beginning the PATH.
- * If not found, return NULL. It is returned otherwise.
- */
-static char *
-http_get_path_from_string(char *str)
-{
-	char *ptr = str;
-
-	/* RFC2616, par. 5.1.2 :
-	 * Request-URI = "*" | absuri | abspath | authority
-	 */
-
-	if (*ptr == '*')
-		return NULL;
-
-	if (isalpha((unsigned char)*ptr)) {
-		/* this is a scheme as described by RFC3986, par. 3.1 */
-		ptr++;
-		while (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.')
-			ptr++;
-		/* skip '://' */
-		if (*ptr == '\0' || *ptr++ != ':')
-			return NULL;
-		if (*ptr == '\0' || *ptr++ != '/')
-			return NULL;
-		if (*ptr == '\0' || *ptr++ != '/')
-			return NULL;
-	}
-	/* skip [user[:passwd]@]host[:[port]] */
-
-	while (*ptr != '\0' && *ptr != ' ' && *ptr != '/')
-		ptr++;
-
-	if (*ptr == '\0' || *ptr == ' ')
-		return NULL;
-
-	/* OK, we got the '/' ! */
-	return ptr;
+	return ret.ptr;
 }
 
 /* Returns a 302 for a redirectable request that reaches a server working in
@@ -1032,7 +958,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	txn = s->txn;
 	c_rew(&s->req, rewind = http_hdr_rewind(&txn->req));
 
-	path = http_get_path(txn);
+	path = http_txn_get_path(txn);
 	len = b_dist(&s->req.buf, path, c_ptr(&s->req, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
 
 	c_adv(&s->req, rewind);
@@ -3159,7 +3085,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			hostlen = ctx.vlen;
 		}
 
-		path = http_get_path(txn);
+		path = http_txn_get_path(txn);
 		/* build message using path */
 		if (path) {
 			pathlen = req->sl.rq.u_l + (ci_head(req->chn) + req->sl.rq.u) - path;
@@ -3226,7 +3152,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		const char *path;
 		int pathlen;
 
-		path = http_get_path(txn);
+		path = http_txn_get_path(txn);
 		/* build message using path */
 		if (path) {
 			pathlen = req->sl.rq.u_l + (ci_head(req->chn) + req->sl.rq.u) - path;
@@ -3718,7 +3644,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			return 0;
 		}
 
-		path = http_get_path(txn);
+		path = http_txn_get_path(txn);
 		if (url2sa(ci_head(req) + msg->sl.rq.u,
 			   path ? path - (ci_head(req) + msg->sl.rq.u) : msg->sl.rq.u_l,
 			   &conn->addr.to, NULL) == -1)
@@ -10323,7 +10249,7 @@ smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	txn = smp->strm->txn;
 	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-	ptr = http_get_path(txn);
+	ptr = http_txn_get_path(txn);
 	if (!ptr)
 		return 0;
 
@@ -10370,7 +10296,7 @@ smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void 
 
 	/* now retrieve the path */
 	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-	beg = http_get_path(txn);
+	beg = http_txn_get_path(txn);
 	if (!beg)
 		beg = end;
 
@@ -10417,7 +10343,7 @@ smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, voi
 
 	/* now retrieve the path */
 	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-	beg = http_get_path(txn);
+	beg = http_txn_get_path(txn);
 	if (!beg)
 		beg = end;
 
@@ -10758,9 +10684,9 @@ smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const c
 static int
 smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct buffer *temp;
 	struct http_txn *txn = smp->strm->txn;
-	char *ptr;
+	struct ist path;
+	const char *ptr;
 
 	if (!txn || !txn->uri)
 		return 0;
@@ -10775,15 +10701,12 @@ smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char
 
 	ptr++;  /* skip the space */
 
-	temp = get_trash_chunk();
-	ptr = temp->area = http_get_path_from_string(ptr);
-	if (!ptr)
+	path = http_get_path(ist(ptr));
+	if (!path.ptr)
 		return 0;
-	while (*ptr != ' ' && *ptr != '\0')  /* find space after URI */
-		ptr++;
 
-	smp->data.u.str = *temp;
-	smp->data.u.str.data = ptr - temp->area;
+	smp->data.u.str.area = path.ptr;
+	smp->data.u.str.data = path.len;
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 
@@ -11467,7 +11390,7 @@ smp_fetch_url32(const struct arg *args, struct sample *smp, const char *kw, void
 
 	/* now retrieve the path */
 	end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-	beg = http_get_path(txn);
+	beg = http_txn_get_path(txn);
 	if (!beg)
 		beg = end;
 
@@ -11895,7 +11818,7 @@ int http_replace_req_line(int action, const char *replace, int len,
 		break;
 
 	case 1: // path
-		cur_ptr = http_get_path(txn);
+		cur_ptr = http_txn_get_path(txn);
 		if (!cur_ptr)
 			cur_ptr = ci_head(&s->req) + txn->req.sl.rq.u;
 

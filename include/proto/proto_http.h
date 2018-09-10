@@ -100,7 +100,7 @@ void http_capture_bad_message(struct proxy *proxy, struct stream *s,
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, size_t *vlen);
-char *http_get_path(struct http_txn *txn);
+char *http_txn_get_path(const struct http_txn *txn);
 const char *get_reason(unsigned int status);
 
 struct http_txn *http_alloc_txn(struct stream *s);

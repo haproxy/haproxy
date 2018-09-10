@@ -183,3 +183,53 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 	else if (isteq(m, ist("TRACE")))   return HTTP_METH_TRACE;
 	else                               return HTTP_METH_OTHER;
 }
+
+/* Parse the URI from the given transaction (which is assumed to be in request
+ * phase) and look for the "/" beginning the PATH. If not found, ist2(0,0) is
+ * returned. Otherwise the pointer and length are returned.
+ */
+struct ist http_get_path(const struct ist uri)
+{
+	const char *ptr, *end;
+
+	if (!uri.len)
+		goto not_found;
+
+	ptr = uri.ptr;
+	end = ptr + uri.len;
+
+	/* RFC7230, par. 2.7 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*')
+		goto not_found;
+
+	if (isalpha((unsigned char)*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1 */
+		ptr++;
+		while (ptr < end &&
+		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+			ptr++;
+		/* skip '://' */
+		if (ptr == end || *ptr++ != ':')
+			goto not_found;
+		if (ptr == end || *ptr++ != '/')
+			goto not_found;
+		if (ptr == end || *ptr++ != '/')
+			goto not_found;
+	}
+	/* skip [user[:passwd]@]host[:[port]] */
+
+	while (ptr < end && *ptr != '/')
+		ptr++;
+
+	if (ptr == end)
+		goto not_found;
+
+	/* OK, we got the '/' ! */
+	return ist2(ptr, end - ptr);
+
+ not_found:
+	return ist2(NULL, 0);
+}

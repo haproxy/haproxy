@@ -3945,7 +3945,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	lua_settable(L, -3);
 
 	/* Get path and qs */
-	path = http_get_path(txn);
+	path = http_txn_get_path(txn);
 	if (path) {
 		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		p = path;
