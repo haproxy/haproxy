@@ -29,6 +29,7 @@
 
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/http.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/tools.h>
@@ -45,7 +46,6 @@
 #include <types/listener.h>
 #include <types/log.h>
 #include <types/obj_type.h>
-#include <types/proto_http.h>
 #include <types/sample.h>
 #include <types/server.h>
 #include <types/stick_table.h>

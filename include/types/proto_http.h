@@ -22,8 +22,9 @@
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
 
-#include <common/chunk.h>
+#include <common/buf.h>
 #include <common/config.h>
+#include <common/http.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 
@@ -31,7 +32,7 @@
 #include <types/h1.h>
 #include <types/hdr_idx.h>
 #include <types/filters.h>
-#include <types/sample.h>
+//#include <types/sample.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -170,13 +171,6 @@ enum {
 	PERSIST_TYPE_IGNORE,            /* ignore-persist */
 };
 
-enum ht_auth_m {
-	HTTP_AUTH_WRONG		= -1,		/* missing or unknown */
-	HTTP_AUTH_UNKNOWN	= 0,
-	HTTP_AUTH_BASIC,
-	HTTP_AUTH_DIGEST,
-} __attribute__((packed));
-
 /* final results for http-request rules */
 enum rule_result {
 	HTTP_RULE_RES_CONT = 0,  /* nothing special, continue rules evaluation */
@@ -186,25 +180,6 @@ enum rule_result {
 	HTTP_RULE_RES_ABRT,      /* abort request, msg already sent (eg: auth) */
 	HTTP_RULE_RES_DONE,      /* processing done, stop processing (eg: redirect) */
 	HTTP_RULE_RES_BADREQ,    /* bad request */
-};
-
-/*
- * All implemented return codes
- */
-enum {
-	HTTP_ERR_200 = 0,
-	HTTP_ERR_400,
-	HTTP_ERR_403,
-	HTTP_ERR_405,
-	HTTP_ERR_408,
-	HTTP_ERR_421,
-	HTTP_ERR_425,
-	HTTP_ERR_429,
-	HTTP_ERR_500,
-	HTTP_ERR_502,
-	HTTP_ERR_503,
-	HTTP_ERR_504,
-	HTTP_ERR_SIZE
 };
 
 /* status codes available for the stats admin page */
@@ -298,13 +273,6 @@ struct http_msg {
 	unsigned long long body_len;           /* total known length of the body, excluding encoding */
 };
 
-struct http_auth_data {
-	enum ht_auth_m method;                /* one of HTTP_AUTH_* */
-	/* 7 bytes unused here */
-	struct buffer method_data;             /* points to the creditial part from 'Authorization:' header */
-	char *user, *pass;                    /* extracted username & password */
-};
-
 struct proxy;
 struct http_txn;
 struct stream;
@@ -349,15 +317,8 @@ struct hdr_ctx {
 	int  prev; /* index of previous header */
 };
 
-struct http_method_name {
-	char *name;
-	int len;
-};
-
 extern struct action_kw_list http_req_keywords;
 extern struct action_kw_list http_res_keywords;
-
-extern const struct http_method_name http_known_methods[HTTP_METH_OTHER];
 
 extern struct pool_head *pool_head_http_txn;
 

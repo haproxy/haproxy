@@ -13,6 +13,7 @@
 #include <common/config.h>
 #include <common/buffer.h>
 #include <common/debug.h>
+#include <common/http.h>
 #include <common/memory.h>
 
 #include <types/global.h>
@@ -21,7 +22,6 @@
 #include <proto/connection.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/stream.h>

@@ -44,11 +44,6 @@
  *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
  */
 
-extern const int http_err_codes[HTTP_ERR_SIZE];
-extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
-extern const char *HTTP_302;
-extern const char *HTTP_303;
-
 int process_cli(struct stream *s);
 int process_srv_data(struct stream *s);
 int process_srv_conn(struct stream *s);
@@ -125,8 +120,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
                                                const char **args, char **errmsg, int use_fmt, int dir);
 int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private);
 int smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, void *private);
-
-enum http_meth_t find_http_meth(const char *str, const int len);
 
 struct action_kw *action_http_req_custom(const char *kw);
 struct action_kw *action_http_res_custom(const char *kw);

@@ -26,7 +26,7 @@
 #include <types/proxy.h>
 #include <types/stats.h>
 
-#include <proto/proto_http.h>
+#include <proto/h1.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/stats.h>

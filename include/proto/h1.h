@@ -25,13 +25,12 @@
 #include <common/buffer.h>
 #include <common/compiler.h>
 #include <common/config.h>
+#include <common/http.h>
 #include <common/http-hdr.h>
 #include <common/standard.h>
 #include <types/h1.h>
-#include <types/proto_http.h>
 #include <proto/hdr_idx.h>
 
-extern const uint8_t h1_char_classes[256];
 const char *http_parse_reqline(struct http_msg *msg,
                                enum h1_state state, const char *ptr, const char *end,
                                unsigned int *ret_ptr, enum h1_state *ret_state);
@@ -44,25 +43,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
                            struct h1m *h1m);
 int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max);
-
-#define H1_FLG_CTL  0x01
-#define H1_FLG_SEP  0x02
-#define H1_FLG_LWS  0x04
-#define H1_FLG_SPHT 0x08
-#define H1_FLG_CRLF 0x10
-#define H1_FLG_TOK  0x20
-#define H1_FLG_VER  0x40
-#define H1_FLG_DIG  0x80
-
-#define HTTP_IS_CTL(x)       (h1_char_classes[(uint8_t)(x)] & H1_FLG_CTL)
-#define HTTP_IS_SEP(x)       (h1_char_classes[(uint8_t)(x)] & H1_FLG_SEP)
-#define HTTP_IS_LWS(x)       (h1_char_classes[(uint8_t)(x)] & H1_FLG_LWS)
-#define HTTP_IS_SPHT(x)      (h1_char_classes[(uint8_t)(x)] & H1_FLG_SPHT)
-#define HTTP_IS_CRLF(x)      (h1_char_classes[(uint8_t)(x)] & H1_FLG_CRLF)
-#define HTTP_IS_TOKEN(x)     (h1_char_classes[(uint8_t)(x)] & H1_FLG_TOK)
-#define HTTP_IS_VER_TOKEN(x) (h1_char_classes[(uint8_t)(x)] & H1_FLG_VER)
-#define HTTP_IS_DIGIT(x)     (h1_char_classes[(uint8_t)(x)] & H1_FLG_DIG)
-
 
 /* Macros used in the HTTP/1 parser, to check for the expected presence of
  * certain bytes (ef: LF) or to skip to next byte and yield in case of failure.

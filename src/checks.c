@@ -49,7 +49,6 @@
 #include <proto/mux_pt.h>
 #include <proto/queue.h>
 #include <proto/port_range.h>
-#include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/protocol.h>
 #include <proto/proxy.h>

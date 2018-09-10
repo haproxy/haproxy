@@ -29,6 +29,7 @@
 #define _COMMON_BUF_H
 
 #include <stdint.h>
+#include <string.h>
 
 /* Structure defining a buffer's head */
 struct buffer {

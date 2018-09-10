@@ -488,55 +488,6 @@ void init_proto_http()
 }
 
 /*
- * We have 26 list of methods (1 per first letter), each of which can have
- * up to 3 entries (2 valid, 1 null).
- */
-struct http_method_desc {
-	enum http_meth_t meth;
-	int len;
-	const char text[8];
-};
-
-const struct http_method_desc http_methods[26][3] = {
-	['C' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_CONNECT , .len=7, .text="CONNECT" },
-	},
-	['D' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_DELETE  , .len=6, .text="DELETE"  },
-	},
-	['G' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_GET     , .len=3, .text="GET"     },
-	},
-	['H' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_HEAD    , .len=4, .text="HEAD"    },
-	},
-	['O' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_OPTIONS , .len=7, .text="OPTIONS" },
-	},
-	['P' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_POST    , .len=4, .text="POST"    },
-		[1] = {	.meth = HTTP_METH_PUT     , .len=3, .text="PUT"     },
-	},
-	['T' - 'A'] = {
-		[0] = {	.meth = HTTP_METH_TRACE   , .len=5, .text="TRACE"   },
-	},
-	/* rest is empty like this :
-	 *      [0] = {	.meth = HTTP_METH_OTHER   , .len=0, .text=""        },
-	 */
-};
-
-const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
-	[HTTP_METH_OPTIONS] = { "OPTIONS",  7 },
-	[HTTP_METH_GET]     = { "GET",      3 },
-	[HTTP_METH_HEAD]    = { "HEAD",     4 },
-	[HTTP_METH_POST]    = { "POST",     4 },
-	[HTTP_METH_PUT]     = { "PUT",      3 },
-	[HTTP_METH_DELETE]  = { "DELETE",   6 },
-	[HTTP_METH_TRACE]   = { "TRACE",    5 },
-	[HTTP_METH_CONNECT] = { "CONNECT",  7 },
-};
-
-/*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
  * the last CRLF.
  * The header is also automatically added to the index <hdr_idx>, and the end
@@ -957,28 +908,6 @@ http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 	FLT_STRM_CB(s, flt_http_reply(s, status, msg));
 	stream_int_retnclose(&s->si[0], msg);
-}
-
-/*
- * returns a known method among HTTP_METH_* or HTTP_METH_OTHER for all unknown
- * ones.
- */
-enum http_meth_t find_http_meth(const char *str, const int len)
-{
-	unsigned char m;
-	const struct http_method_desc *h;
-
-	m = ((unsigned)*str - 'A');
-
-	if (m < 26) {
-		for (h = http_methods[m]; h->len > 0; h++) {
-			if (unlikely(h->len != len))
-				continue;
-			if (likely(memcmp(str, h->text, h->len) == 0))
-				return h->meth;
-		};
-	}
-	return HTTP_METH_OTHER;
 }
 
 /* Parse the URI from the given transaction (which is assumed to be in request

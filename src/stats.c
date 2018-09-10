@@ -28,6 +28,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/http.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -57,7 +58,6 @@
 #include <proto/pipe.h>
 #include <proto/listener.h>
 #include <proto/map.h>
-#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>

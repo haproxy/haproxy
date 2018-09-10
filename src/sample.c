@@ -20,6 +20,7 @@
 
 #include <common/chunk.h>
 #include <common/hash.h>
+#include <common/http.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <common/base64.h>
@@ -27,7 +28,6 @@
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stick_table.h>
@@ -749,7 +749,7 @@ static int c_meth2str(struct sample *smp)
 	else if (smp->data.u.meth.meth < HTTP_METH_OTHER) {
 		/* The method is known, copy the pointer containing the string. */
 		meth = smp->data.u.meth.meth;
-		smp->data.u.str.area = http_known_methods[meth].name;
+		smp->data.u.str.area = http_known_methods[meth].ptr;
 		smp->data.u.str.data = http_known_methods[meth].len;
 		smp->flags |= SMP_F_CONST;
 		smp->data.type = SMP_T_STR;

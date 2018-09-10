@@ -37,7 +37,6 @@
 #include <proto/acl.h>
 #include <proto/compression.h>
 #include <proto/freq_ctr.h>
-#include <proto/proto_http.h>
 #include <proto/stream.h>
 
 

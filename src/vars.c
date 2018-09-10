@@ -1,6 +1,7 @@
 #include <ctype.h>
 
 #include <common/cfgparse.h>
+#include <common/http.h>
 #include <common/mini-clist.h>
 
 #include <types/vars.h>
