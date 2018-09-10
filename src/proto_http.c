@@ -144,32 +144,6 @@ int http_header_add_tail2(struct http_msg *msg,
 	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
 }
 
-/*
- * Checks if <hdr> is exactly <name> for <len> chars, and ends with a colon.
- * If so, returns the position of the first non-space character relative to
- * <hdr>, or <end>-<hdr> if not found before. If no value is found, it tries
- * to return a pointer to the place after the first space. Returns 0 if the
- * header name does not match. Checks are case-insensitive.
- */
-int http_header_match2(const char *hdr, const char *end,
-		       const char *name, int len)
-{
-	const char *val;
-
-	if (hdr + len >= end)
-		return 0;
-	if (hdr[len] != ':')
-		return 0;
-	if (strncasecmp(hdr, name, len) != 0)
-		return 0;
-	val = hdr + len + 1;
-	while (val < end && HTTP_IS_SPHT(*val))
-		val++;
-	if ((val >= end) && (len + 2 <= end - hdr))
-		return len + 2; /* we may replace starting from second space */
-	return val - hdr;
-}
-
 /* Find the first or next occurrence of header <name> in message buffer <sol>
  * using headers index <idx>, and return it in the <ctx> structure. This
  * structure holds everything necessary to use the header and find next
@@ -303,46 +277,6 @@ int http_find_next_header(char *sol, struct hdr_idx *idx, struct hdr_ctx *ctx)
 	return 0;
 }
 
-/* Find the end of the header value contained between <s> and <e>. See RFC7230,
- * par 3.2 for more information. Note that it requires a valid header to return
- * a valid result. This works for headers defined as comma-separated lists.
- */
-char *find_hdr_value_end(char *s, const char *e)
-{
-	int quoted, qdpair;
-
-	quoted = qdpair = 0;
-
-#if defined(__x86_64__) ||						\
-    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
-    defined(__ARM_ARCH_7A__)
-	/* speedup: skip everything not a comma nor a double quote */
-	for (; s <= e - sizeof(int); s += sizeof(int)) {
-		unsigned int c = *(int *)s; // comma
-		unsigned int q = c;         // quote
-
-		c ^= 0x2c2c2c2c; // contains one zero on a comma
-		q ^= 0x22222222; // contains one zero on a quote
-
-		c = (c - 0x01010101) & ~c; // contains 0x80 below a comma
-		q = (q - 0x01010101) & ~q; // contains 0x80 below a quote
-
-		if ((c | q) & 0x80808080)
-			break; // found a comma or a quote
-	}
-#endif
-	for (; s < e; s++) {
-		if (qdpair)                    qdpair = 0;
-		else if (quoted) {
-			if (*s == '\\')        qdpair = 1;
-			else if (*s == '"')    quoted = 0;
-		}
-		else if (*s == '"')            quoted = 1;
-		else if (*s == ',')            return s;
-	}
-	return s;
-}
-
 /* Find the first or next occurrence of header <name> in message buffer <sol>
  * using headers index <idx>, and return it in the <ctx> structure. This
  * structure holds everything necessary to use the header and find next
@@ -413,7 +347,7 @@ int http_find_header2(const char *name, int len,
 			ctx->idx  = cur_idx;
 			ctx->val  = sov - sol;
 
-			eol = find_hdr_value_end(sov, eol);
+			eol = http_find_hdr_value_end(sov, eol);
 			ctx->tws = 0;
 			while (eol > sov && HTTP_IS_LWS(*(eol - 1))) {
 				eol--;
@@ -967,41 +901,6 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 		http_header_add_tail2(msg, &txn->hdr_idx, hdr_val, hdr_len);
 	}
 	return;
-}
-
-/* Parses a qvalue and returns it multipled by 1000, from 0 to 1000. If the
- * value is larger than 1000, it is bound to 1000. The parser consumes up to
- * 1 digit, one dot and 3 digits and stops on the first invalid character.
- * Unparsable qvalues return 1000 as "q=1.000".
- */
-int parse_qvalue(const char *qvalue, const char **end)
-{
-	int q = 1000;
-
-	if (!isdigit((unsigned char)*qvalue))
-		goto out;
-	q = (*qvalue++ - '0') * 1000;
-
-	if (*qvalue++ != '.')
-		goto out;
-
-	if (!isdigit((unsigned char)*qvalue))
-		goto out;
-	q += (*qvalue++ - '0') * 100;
-
-	if (!isdigit((unsigned char)*qvalue))
-		goto out;
-	q += (*qvalue++ - '0') * 10;
-
-	if (!isdigit((unsigned char)*qvalue))
-		goto out;
-	q += (*qvalue++ - '0') * 1;
- out:
-	if (q > 1000)
-		q = 1000;
-	if (end)
-		*end = qvalue;
-	return q;
 }
 
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
@@ -6237,28 +6136,6 @@ int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy
 }
 
 
-/* Find the end of a cookie value contained between <s> and <e>. It works the
- * same way as with headers above except that the semi-colon also ends a token.
- * See RFC2965 for more information. Note that it requires a valid header to
- * return a valid result.
- */
-char *find_cookie_value_end(char *s, const char *e)
-{
-	int quoted, qdpair;
-
-	quoted = qdpair = 0;
-	for (; s < e; s++) {
-		if (qdpair)                    qdpair = 0;
-		else if (quoted) {
-			if (*s == '\\')        qdpair = 1;
-			else if (*s == '"')    quoted = 0;
-		}
-		else if (*s == '"')            quoted = 1;
-		else if (*s == ',' || *s == ';') return s;
-	}
-	return s;
-}
-
 /* Delete a value in a header between delimiters <from> and <next> in buffer
  * <buf>. The number of characters displaced is returned, and the pointer to
  * the first delimiter is updated if required. The function tries as much as
@@ -6432,7 +6309,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 					val_beg++;
 
 				/* find the end of the value, respecting quotes */
-				next = find_cookie_value_end(val_beg, hdr_end);
+				next = http_find_cookie_value_end(val_beg, hdr_end);
 
 				/* make val_end point to the first white space or delimitor after the value */
 				val_end = next;
@@ -7098,7 +6975,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					val_beg++;
 
 				/* find the end of the value, respecting quotes */
-				next = find_cookie_value_end(val_beg, hdr_end);
+				next = http_find_cookie_value_end(val_beg, hdr_end);
 
 				/* make val_end point to the first white space or delimitor after the value */
 				val_end = next;
@@ -7116,7 +6993,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 				 * commas are permitted in values, skip to the end.
 				 */
 				if (is_cookie2)
-					next = find_hdr_value_end(next, hdr_end);
+					next = http_find_hdr_value_end(next, hdr_end);
 				else
 					next = hdr_end;
 			}
@@ -10132,101 +10009,6 @@ smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *
 	return 1;
 }
 
-/* Try to find the next occurrence of a cookie name in a cookie header value.
- * The lookup begins at <hdr>. The pointer and size of the next occurrence of
- * the cookie value is returned into *value and *value_l, and the function
- * returns a pointer to the next pointer to search from if the value was found.
- * Otherwise if the cookie was not found, NULL is returned and neither value
- * nor value_l are touched. The input <hdr> string should first point to the
- * header's value, and the <hdr_end> pointer must point to the first character
- * not part of the value. <list> must be non-zero if value may represent a list
- * of values (cookie headers). This makes it faster to abort parsing when no
- * list is expected.
- */
-char *
-extract_cookie_value(char *hdr, const char *hdr_end,
-		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, size_t *value_l)
-{
-	char *equal, *att_end, *att_beg, *val_beg, *val_end;
-	char *next;
-
-	/* we search at least a cookie name followed by an equal, and more
-	 * generally something like this :
-	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
-	 */
-	for (att_beg = hdr; att_beg + cookie_name_l + 1 < hdr_end; att_beg = next + 1) {
-		/* Iterate through all cookies on this line */
-
-		while (att_beg < hdr_end && HTTP_IS_SPHT(*att_beg))
-			att_beg++;
-
-		/* find att_end : this is the first character after the last non
-		 * space before the equal. It may be equal to hdr_end.
-		 */
-		equal = att_end = att_beg;
-
-		while (equal < hdr_end) {
-			if (*equal == '=' || *equal == ';' || (list && *equal == ','))
-				break;
-			if (HTTP_IS_SPHT(*equal++))
-				continue;
-			att_end = equal;
-		}
-
-		/* here, <equal> points to '=', a delimitor or the end. <att_end>
-		 * is between <att_beg> and <equal>, both may be identical.
-		 */
-
-		/* look for end of cookie if there is an equal sign */
-		if (equal < hdr_end && *equal == '=') {
-			/* look for the beginning of the value */
-			val_beg = equal + 1;
-			while (val_beg < hdr_end && HTTP_IS_SPHT(*val_beg))
-				val_beg++;
-
-			/* find the end of the value, respecting quotes */
-			next = find_cookie_value_end(val_beg, hdr_end);
-
-			/* make val_end point to the first white space or delimitor after the value */
-			val_end = next;
-			while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
-				val_end--;
-		} else {
-			val_beg = val_end = next = equal;
-		}
-
-		/* We have nothing to do with attributes beginning with '$'. However,
-		 * they will automatically be removed if a header before them is removed,
-		 * since they're supposed to be linked together.
-		 */
-		if (*att_beg == '$')
-			continue;
-
-		/* Ignore cookies with no equal sign */
-		if (equal == next)
-			continue;
-
-		/* Now we have the cookie name between att_beg and att_end, and
-		 * its value between val_beg and val_end.
-		 */
-
-		if (att_end - att_beg == cookie_name_l &&
-		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
-			/* let's return this value and indicate where to go on from */
-			*value = val_beg;
-			*value_l = val_end - val_beg;
-			return next + 1;
-		}
-
-		/* Set-Cookie headers only have the name in the first attr=value part */
-		if (!list)
-			break;
-	}
-
-	return NULL;
-}
-
 /* Fetch a captured HTTP request header. The index is the position of
  * the "capture" option in the configuration file
  */
@@ -10466,12 +10248,10 @@ int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw,
 
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
-						 args->data.str.area,
-						 args->data.str.data,
-						 (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						 &smp->data.u.str.area,
-						 &smp->data.u.str.data);
+		smp->ctx.a[0] = http_extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
+		                                         args->data.str.area, args->data.str.data,
+		                                         (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
+		                                         &smp->data.u.str.area, &smp->data.u.str.data);
 		if (smp->ctx.a[0]) {
 			found = 1;
 			if (occ >= 0) {
@@ -10546,11 +10326,10 @@ smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw,
 
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		while ((val_beg = extract_cookie_value(val_beg, val_end,
-						       args->data.str.area, args->data.str.data,
-						       (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
-						       &smp->data.u.str.area,
-						       &smp->data.u.str.data))) {
+		while ((val_beg = http_extract_cookie_value(val_beg, val_end,
+		                                            args->data.str.area, args->data.str.data,
+		                                            (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
+		                                            &smp->data.u.str.area, &smp->data.u.str.data))) {
 			cnt++;
 		}
 	}
@@ -10582,220 +10361,6 @@ smp_fetch_cookie_val(const struct arg *args, struct sample *smp, const char *kw,
 /*           The code below is dedicated to sample fetches              */
 /************************************************************************/
 
-/*
- * Given a path string and its length, find the position of beginning of the
- * query string. Returns NULL if no query string is found in the path.
- *
- * Example: if path = "/foo/bar/fubar?yo=mama;ye=daddy", and n = 22:
- *
- * find_query_string(path, n, '?') points to "yo=mama;ye=daddy" string.
- */
-static inline char *find_param_list(char *path, size_t path_l, char delim)
-{
-	char *p;
-
-	p = memchr(path, delim, path_l);
-	return p ? p + 1 : NULL;
-}
-
-static inline int is_param_delimiter(char c, char delim)
-{
-	return c == '&' || c == ';' || c == delim;
-}
-
-/* after increasing a pointer value, it can exceed the first buffer
- * size. This function transform the value of <ptr> according with
- * the expected position. <chunks> is an array of the one or two
- * avalaible chunks. The first value is the start of the first chunk,
- * the second value if the end+1 of the first chunks. The third value
- * is NULL or the start of the second chunk and the fourth value is
- * the end+1 of the second chunk. The function returns 1 if does a
- * wrap, else returns 0.
- */
-static inline int fix_pointer_if_wrap(const char **chunks, const char **ptr)
-{
-	if (*ptr < chunks[1])
-		return 0;
-	if (!chunks[2])
-		return 0;
-	*ptr = chunks[2] + ( *ptr - chunks[1] );
-	return 1;
-}
-
-/*
- * Given a url parameter, find the starting position of the first occurence,
- * or NULL if the parameter is not found.
- *
- * Example: if query_string is "yo=mama;ye=daddy" and url_param_name is "ye",
- * the function will return query_string+8.
- *
- * Warning: this function returns a pointer that can point to the first chunk
- * or the second chunk. The caller must be check the position before using the
- * result.
- */
-static const char *
-find_url_param_pos(const char **chunks,
-                   const char* url_param_name, size_t url_param_name_l,
-                   char delim)
-{
-	const char *pos, *last, *equal;
-	const char **bufs = chunks;
-	int l1, l2;
-
-
-	pos  = bufs[0];
-	last = bufs[1];
-	while (pos < last) {
-		/* Check the equal. */
-		equal = pos + url_param_name_l;
-		if (fix_pointer_if_wrap(chunks, &equal)) {
-			if (equal >= chunks[3])
-				return NULL;
-		} else {
-			if (equal >= chunks[1])
-				return NULL;
-		}
-		if (*equal == '=') {
-			if (pos + url_param_name_l > last) {
-				/* process wrap case, we detect a wrap. In this case, the
-				 * comparison is performed in two parts.
-				 */
-
-				/* This is the end, we dont have any other chunk. */
-				if (bufs != chunks || !bufs[2])
-					return NULL;
-
-				/* Compute the length of each part of the comparison. */
-				l1 = last - pos;
-				l2 = url_param_name_l - l1;
-
-				/* The second buffer is too short to contain the compared string. */
-				if (bufs[2] + l2 > bufs[3])
-					return NULL;
-
-				if (memcmp(pos,     url_param_name,    l1) == 0 &&
-				    memcmp(bufs[2], url_param_name+l1, l2) == 0)
-					return pos;
-
-				/* Perform wrapping and jump the string who fail the comparison. */
-				bufs += 2;
-				pos = bufs[0] + l2;
-				last = bufs[1];
-
-			} else {
-				/* process a simple comparison. */
-				if (memcmp(pos, url_param_name, url_param_name_l) == 0)
-					return pos;
-				pos += url_param_name_l + 1;
-				if (fix_pointer_if_wrap(chunks, &pos))
-					last = bufs[2];
-			}
-		}
-
-		while (1) {
-			/* Look for the next delimiter. */
-			while (pos < last && !is_param_delimiter(*pos, delim))
-				pos++;
-			if (pos < last)
-				break;
-			/* process buffer wrapping. */
-			if (bufs != chunks || !bufs[2])
-				return NULL;
-			bufs += 2;
-			pos = bufs[0];
-			last = bufs[1];
-		}
-		pos++;
-	}
-	return NULL;
-}
-
-/*
- * Given a url parameter name and a query string, find the next value.
- * An empty url_param_name matches the first available parameter.
- * If the parameter is found, 1 is returned and *vstart / *vend are updated to
- * respectively provide a pointer to the value and its end.
- * Otherwise, 0 is returned and vstart/vend are not modified.
- */
-static int
-find_next_url_param(const char **chunks,
-                    const char* url_param_name, size_t url_param_name_l,
-                    const char **vstart, const char **vend, char delim)
-{
-	const char *arg_start, *qs_end;
-	const char *value_start, *value_end;
-
-	arg_start = chunks[0];
-	qs_end = chunks[1];
-	if (url_param_name_l) {
-		/* Looks for an argument name. */
-		arg_start = find_url_param_pos(chunks,
-		                               url_param_name, url_param_name_l,
-		                               delim);
-		/* Check for wrapping. */
-		if (arg_start >= qs_end)
-			qs_end = chunks[3];
-	}
-	if (!arg_start)
-		return 0;
-
-	if (!url_param_name_l) {
-		while (1) {
-			/* looks for the first argument. */
-			value_start = memchr(arg_start, '=', qs_end - arg_start);
-			if (!value_start) {
-				/* Check for wrapping. */
-				if (arg_start >= chunks[0] &&
-				    arg_start < chunks[1] &&
-				    chunks[2]) {
-					arg_start = chunks[2];
-					qs_end = chunks[3];
-					continue;
-				}
-				return 0;
-			}
-			break;
-		}
-		value_start++;
-	}
-	else {
-		/* Jump the argument length. */
-		value_start = arg_start + url_param_name_l + 1;
-
-		/* Check for pointer wrapping. */
-		if (fix_pointer_if_wrap(chunks, &value_start)) {
-			/* Update the end pointer. */
-			qs_end = chunks[3];
-
-			/* Check for overflow. */
-			if (value_start >= qs_end)
-				return 0;
-		}
-	}
-
-	value_end = value_start;
-
-	while (1) {
-		while ((value_end < qs_end) && !is_param_delimiter(*value_end, delim))
-			value_end++;
-		if (value_end < qs_end)
-			break;
-		/* process buffer wrapping. */
-		if (value_end >= chunks[0] &&
-		    value_end < chunks[1] &&
-		    chunks[2]) {
-			value_end = chunks[2];
-			qs_end = chunks[3];
-			continue;
-		}
-		break;
-	}
-
-	*vstart = value_start;
-	*vend = value_end;
-	return 1;
-}
-
 /* This scans a URL-encoded query string. It takes an optionally wrapping
  * string whose first contigous chunk has its beginning in ctx->a[0] and end
  * in ctx->a[1], and the optional second part in (ctx->a[2]..ctx->a[3]). The
@@ -10808,10 +10373,8 @@ smp_fetch_param(char delim, const char *name, int name_len, const struct arg *ar
 	struct buffer *temp;
 	const char **chunks = (const char **)smp->ctx.a;
 
-	if (!find_next_url_param(chunks,
-	                         name, name_len,
-	                         &vstart, &vend,
-	                         delim))
+	if (!http_find_next_url_param(chunks, name, name_len,
+	                         &vstart, &vend, delim))
 		return 0;
 
 	/* Create sample. If the value is contiguous, return the pointer as CONST,
@@ -10883,8 +10446,8 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 
 		msg = &smp->strm->txn->req;
 
-		smp->ctx.a[0] = find_param_list(ci_head(msg->chn) + msg->sl.rq.u,
-		                                msg->sl.rq.u_l, delim);
+		smp->ctx.a[0] = http_find_param_list(ci_head(msg->chn) + msg->sl.rq.u,
+		                                     msg->sl.rq.u_l, delim);
 		if (!smp->ctx.a[0])
 			return 0;
 
@@ -11261,7 +10824,7 @@ look_for_q:
 			goto process_value;
 
 		/* Parse the q value. */
-		qvalue = parse_qvalue(al, &al);
+		qvalue = http_parse_qvalue(al, &al);
 
 process_value:
 

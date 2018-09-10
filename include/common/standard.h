@@ -1190,6 +1190,24 @@ static inline void shut_your_big_mouth_gcc(int r)
 /* same as strstr() but case-insensitive */
 const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2);
 
+/* after increasing a pointer value, it can exceed the first buffer
+ * size. This function transform the value of <ptr> according with
+ * the expected position. <chunks> is an array of the one or two
+ * avalaible chunks. The first value is the start of the first chunk,
+ * the second value if the end+1 of the first chunks. The third value
+ * is NULL or the start of the second chunk and the fourth value is
+ * the end+1 of the second chunk. The function returns 1 if does a
+ * wrap, else returns 0.
+ */
+static inline int fix_pointer_if_wrap(const char **chunks, const char **ptr)
+{
+	if (*ptr < chunks[1])
+		return 0;
+	if (!chunks[2])
+		return 0;
+	*ptr = chunks[2] + ( *ptr - chunks[1] );
+	return 1;
+}
 
 /************************* Composite address manipulation *********************
  * Composite addresses are simply unsigned long data in which the higher bits

@@ -414,7 +414,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s,
 			}
 
 			/* here we have qval pointing to the first "q=" attribute or NULL if not found */
-			q = qval ? parse_qvalue(qval + 2, NULL) : 1000;
+			q = qval ? http_parse_qvalue(qval + 2, NULL) : 1000;
 
 			if (q <= best_q)
 				continue;

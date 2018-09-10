@@ -125,6 +125,42 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 const int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
 struct ist http_get_path(const struct ist uri);
+int http_header_match2(const char *hdr, const char *end,
+                       const char *name, int len);
+char *http_find_hdr_value_end(char *s, const char *e);
+char *http_find_cookie_value_end(char *s, const char *e);
+char *http_extract_cookie_value(char *hdr, const char *hdr_end,
+                                char *cookie_name, size_t cookie_name_l,
+                                int list, char **value, size_t *value_l);
+int http_parse_qvalue(const char *qvalue, const char **end);
+const char *http_find_url_param_pos(const char **chunks,
+                                    const char* url_param_name,
+                                    size_t url_param_name_l, char delim);
+int http_find_next_url_param(const char **chunks,
+                             const char* url_param_name, size_t url_param_name_l,
+                             const char **vstart, const char **vend, char delim);
+
+/*
+ * Given a path string and its length, find the position of beginning of the
+ * query string. Returns NULL if no query string is found in the path.
+ *
+ * Example: if path = "/foo/bar/fubar?yo=mama;ye=daddy", and n = 22:
+ *
+ * find_query_string(path, n, '?') points to "yo=mama;ye=daddy" string.
+ */
+static inline char *http_find_param_list(char *path, size_t path_l, char delim)
+{
+	char *p;
+
+	p = memchr(path, delim, path_l);
+	return p ? p + 1 : NULL;
+}
+
+static inline int http_is_param_delimiter(char c, char delim)
+{
+	return c == '&' || c == ';' || c == delim;
+}
+
 
 #endif /* _COMMON_HTTP_H */
 
