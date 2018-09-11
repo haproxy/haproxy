@@ -48,6 +48,8 @@ static struct bind_kw_list bind_keywords = {
 	.list = LIST_HEAD_INIT(bind_keywords.list)
 };
 
+extern int master;
+
 struct xfer_sock_list *xfer_sock_list = NULL;
 
 /* This function adds the specified listener's file descriptor to the polling
@@ -80,6 +82,12 @@ static void enable_listener(struct listener *listener)
 		else {
 			listener->state = LI_FULL;
 		}
+	}
+	/* if this listener is supposed to be only in the master, close it in the workers */
+	if ((global.mode & MODE_MWORKER) &&
+	    (listener->options & LI_O_MWORKER) &&
+	    master == 0) {
+		do_unbind_listener(listener, 1);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
