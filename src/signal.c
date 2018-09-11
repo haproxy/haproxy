@@ -109,19 +109,6 @@ int signal_init()
 	memset(signal_queue, 0, sizeof(signal_queue));
 	memset(signal_state, 0, sizeof(signal_state));
 
-	/* Ensure signals are not blocked. Some shells or service managers may
-	 * accidently block all of our signals unfortunately, causing lots of
-	 * zombie processes to remain in the background during reloads.
-	 */
-	sigemptyset(&blocked_sig);
-	/* Ensure that SIGUSR2 is blocked until the end of configuration
-	 * parsing We don't want the process to be killed by an unregistered
-	 * USR2 signal when the master-worker is reloading */
-	sigaddset(&blocked_sig, SIGUSR2);
-	sigaddset(&blocked_sig, SIGCHLD);
-
-	ha_sigmask(SIG_SETMASK, &blocked_sig, NULL);
-
 	sigfillset(&blocked_sig);
 	sigdelset(&blocked_sig, SIGPROF);
 	/* man sigprocmask: If SIGBUS, SIGFPE, SIGILL, or SIGSEGV are
@@ -137,6 +124,21 @@ int signal_init()
 
 	pool_head_sig_handlers = create_pool("sig_handlers", sizeof(struct sig_handler), MEM_F_SHARED);
 	return pool_head_sig_handlers != NULL;
+}
+
+/*
+ * This function should be called to unblock all signals
+ */
+void haproxy_unblock_signals()
+{
+	sigset_t set;
+
+	/* Ensure signals are not blocked. Some shells or service managers may
+	 * accidently block all of our signals unfortunately, causing lots of
+	 * zombie processes to remain in the background during reloads.
+	 */
+	sigemptyset(&set);
+	ha_sigmask(SIG_SETMASK, &set, NULL);
 }
 
 /* releases all registered signal handlers */

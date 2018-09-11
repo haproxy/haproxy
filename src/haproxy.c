@@ -497,14 +497,7 @@ static void mworker_block_signals()
 
 static void mworker_unblock_signals()
 {
-	sigset_t set;
-
-	sigemptyset(&set);
-	sigaddset(&set, SIGUSR1);
-	sigaddset(&set, SIGUSR2);
-	sigaddset(&set, SIGHUP);
-	sigaddset(&set, SIGCHLD);
-	ha_sigmask(SIG_UNBLOCK, &set, NULL);
+	haproxy_unblock_signals();
 }
 
 /*
@@ -3040,7 +3033,7 @@ int main(int argc, char **argv)
 #endif /* !USE_CPU_AFFINITY */
 
 		/* when multithreading we need to let only the thread 0 handle the signals */
-		pthread_sigmask(SIG_SETMASK, &old_sig, NULL);
+		haproxy_unblock_signals();
 
 		/* Finally, start the poll loop for the first thread */
 		run_thread_poll_loop(&tids[0]);
@@ -3057,7 +3050,7 @@ int main(int argc, char **argv)
 #endif
 	}
 #else /* ! USE_THREAD */
-
+	haproxy_unblock_signals();
 	run_thread_poll_loop((int []){0});
 
 #endif
