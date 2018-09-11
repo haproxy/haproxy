@@ -666,7 +666,8 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
-	deinit_pollers(); /* we don't want to leak the poller fd */
+	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL)
+		deinit_pollers(); /* we don't want to leak the poller fd */
 
 	ha_warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
