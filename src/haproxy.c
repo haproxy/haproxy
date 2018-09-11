@@ -213,6 +213,8 @@ struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
 static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state);
 
+static void *run_thread_poll_loop(void *data);
+
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
 
@@ -481,11 +483,6 @@ int current_child(int pid)
 	return 0;
 }
 
-static void mworker_signalhandler(int signum)
-{
-	caught_signal = signum;
-}
-
 static void mworker_block_signals()
 {
 	sigset_t set;
@@ -681,6 +678,8 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
+	deinit_pollers(); /* we don't want to leak the poller fd */
+
 	ha_warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
 
@@ -692,51 +691,41 @@ alloc_error:
 	return;
 }
 
+/*
+ * When called, this function reexec haproxy with -sf followed by current
+ * children PIDs and possibily old children PIDs if they didn't leave yet.
+ */
+static void mworker_catch_sighup(struct sig_handler *sh)
+{
+	mworker_reload();
+}
+
+static void mworker_catch_sigterm(struct sig_handler *sh)
+{
+	int sig = sh->arg;
+
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD) {
+		sd_notify(0, "STOPPING=1");
+	}
+#endif
+	ha_warning("Exiting Master process...\n");
+	mworker_kill(sig);
+}
 
 /*
  * Wait for every children to exit
  */
 
-static void mworker_wait()
+static void mworker_catch_sigchld(struct sig_handler *sh)
 {
 	int exitpid = -1;
 	int status = 0;
 
 restart_wait:
 
-#if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD)
-		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
-#endif
-
-	mworker_unblock_signals();
-
-	while (1) {
-
-		while (((exitpid = wait(&status)) == -1) && errno == EINTR) {
-			int sig = caught_signal;
-			if (sig == SIGUSR2 || sig == SIGHUP) {
-				mworker_reload();
-				/* should reach there only if it fail */
-				goto restart_wait;
-			} else {
-#if defined(USE_SYSTEMD)
-				if ((global.tune.options & GTUNE_USE_SYSTEMD) && (sig == SIGUSR1 || sig == SIGTERM)) {
-					sd_notify(0, "STOPPING=1");
-				}
-#endif
-				ha_warning("Exiting Master process...\n");
-				mworker_kill(sig);
-			}
-			caught_signal = 0;
-		}
-
-		if (exitpid == -1 && errno == ECHILD) {
-			ha_warning("All workers exited. Exiting... (%d)\n", status);
-			atexit_flag = 0;
-			exit(status); /* parent must leave using the latest status code known */
-		}
-
+	exitpid = waitpid(-1, &status, WNOHANG);
+	if (exitpid > 0) {
 		if (WIFEXITED(status))
 			status = WEXITSTATUS(status);
 		else if (WIFSIGNALED(status))
@@ -762,9 +751,47 @@ restart_wait:
 				delete_oldpid(exitpid);
 			}
 		}
+		/* do it again to check if it was the last worker */
+		goto restart_wait;
 	}
+	/* Better rely on the system than on a list of process to check if it was the last one */
+	else if (exitpid == -1 && errno == ECHILD) {
+		ha_warning("All workers exited. Exiting... (%d)\n", status);
+		atexit_flag = 0;
+		exit(status); /* parent must leave using the latest status code known */
+	}
+
 }
 
+static void mworker_loop()
+{
+
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
+#endif
+
+	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
+	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
+	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
+	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
+	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);
+	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
+
+	mworker_unblock_signals();
+	mworker_cleanlisteners();
+
+	global.nbthread = 1;
+	relative_pid = 1;
+	pid_bit = 1;
+
+	jobs++; /* this is the "master" job, we want to take care of the
+		signals even if there is no listener so the poll loop don't
+		leave */
+
+	fork_poller();
+	run_thread_poll_loop((int []){0});
+}
 
 /*
  * Reexec the process in failure mode, instead of exiting
@@ -1501,7 +1528,7 @@ static void init(int argc, char **argv)
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_WAIT_ONLY") != NULL)) {
 
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
-		mworker_wait();
+		mworker_loop();
 	}
 
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
@@ -2822,8 +2849,6 @@ int main(int argc, char **argv)
 
 		if (proc == global.nbproc) {
 			if (global.mode & MODE_MWORKER) {
-				mworker_cleanlisteners();
-				deinit_pollers();
 
 				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
 					(global.mode & MODE_DAEMON)) {
@@ -2835,7 +2860,7 @@ int main(int argc, char **argv)
 					global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 				}
 
-				mworker_wait();
+				mworker_loop();
 				/* should never get there */
 				exit(EXIT_FAILURE);
 			}
