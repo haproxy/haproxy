@@ -44,7 +44,7 @@ static int _update_fd(int fd, int start)
 	if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
 		if (!(polled_mask[fd] & tid_bit)) {
 			/* fd was not watched, it's still not */
-			return 0;
+			return changes;
 		}
 		/* fd totally removed from poll list */
 		EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
