@@ -140,6 +140,7 @@ enum h1m_state {
 #define H1_MF_NONE              0x00000000
 #define H1_MF_CLEN              0x00000001 // content-length present
 #define H1_MF_CHNK              0x00000002 // chunk present, exclusive with c-l
+#define H1_MF_RESP              0x00000004 // this message is the response message
 
 
 /* basic HTTP/1 message state for use in parsers */
