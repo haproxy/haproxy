@@ -486,21 +486,6 @@ static void mworker_signalhandler(int signum)
 	caught_signal = signum;
 }
 
-static void mworker_register_signals()
-{
-	struct sigaction sa;
-	/* Here we are not using the haproxy async way
-	for signals because it does not exists in
-	the master */
-	memset(&sa, 0, sizeof(struct sigaction));
-	sa.sa_handler = &mworker_signalhandler;
-	sigaction(SIGHUP, &sa, NULL);
-	sigaction(SIGUSR1, &sa, NULL);
-	sigaction(SIGUSR2, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-}
-
 static void mworker_block_signals()
 {
 	sigset_t set;
@@ -525,15 +510,6 @@ static void mworker_unblock_signals()
 	sigaddset(&set, SIGINT);
 	sigaddset(&set, SIGTERM);
 	ha_sigmask(SIG_UNBLOCK, &set, NULL);
-}
-
-static void mworker_unregister_signals()
-{
-	signal(SIGINT, SIG_DFL);
-	signal(SIGTERM, SIG_DFL);
-	signal(SIGHUP,  SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
-	signal(SIGUSR2, SIG_IGN);
 }
 
 /*
@@ -661,7 +637,6 @@ static void mworker_reload()
 	char *msg = NULL;
 
 	mworker_block_signals();
-	mworker_unregister_signals();
 #if defined(USE_SYSTEMD)
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notify(0, "RELOADING=1");
@@ -734,7 +709,6 @@ restart_wait:
 		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
 #endif
 
-	mworker_register_signals();
 	mworker_unblock_signals();
 
 	while (1) {
@@ -753,7 +727,6 @@ restart_wait:
 #endif
 				ha_warning("Exiting Master process...\n");
 				mworker_kill(sig);
-				mworker_unregister_signals();
 			}
 			caught_signal = 0;
 		}
