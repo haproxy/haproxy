@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <types/protocol.h>
 
-extern struct protocol *__protocol_by_family[AF_MAX];
+extern struct protocol *__protocol_by_family[AF_CUST_MAX];
 
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto);
@@ -56,7 +56,7 @@ int protocol_enable_all(void);
 /* returns the protocol associated to family <family> or NULL if not found */
 static inline struct protocol *protocol_by_family(int family)
 {
-	if (family >= 0 && family < AF_MAX)
+	if (family >= 0 && family < AF_CUST_MAX)
 		return __protocol_by_family[family];
 	return NULL;
 }

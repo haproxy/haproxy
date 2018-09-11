@@ -22,13 +22,13 @@
 
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
-struct protocol *__protocol_by_family[AF_MAX] = { };
+struct protocol *__protocol_by_family[AF_CUST_MAX] = { };
 
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto)
 {
 	LIST_ADDQ(&protocols, &proto->list);
-	if (proto->sock_domain >= 0 && proto->sock_domain < AF_MAX)
+	if (proto->sock_domain >= 0 && proto->sock_domain < AF_CUST_MAX)
 		__protocol_by_family[proto->sock_domain] = proto;
 }
 

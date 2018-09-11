@@ -33,6 +33,23 @@
 struct listener;
 struct connection;
 
+/*
+ * Custom network family for str2sa parsing.  Should be ok to do this since
+ * sa_family_t is standardized as an unsigned integer
+ */
+
+#define AF_CUST_SOCKPAIR     (AF_MAX + 1)
+#define AF_CUST_MAX          (AF_MAX + 2)
+
+/*
+ * Test in case AF_CUST_MAX overflows the sa_family_t (unsigned int)
+ */
+#if (AF_CUST_MAX < AF_MAX)
+# error "Can't build on the target system, AF_CUST_MAX overflow"
+#endif
+
+
+
 /* max length of a protcol name, including trailing zero */
 #define PROTO_NAME_LEN 16
 
