@@ -2561,6 +2561,10 @@ bind /<path> [, ...] [param*]
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
+                    - 'sockpair@<n>'-> like fd@ but you must use the fd of a
+                      connected unix socket or of a socketpair. The bind waits
+                      to receive a FD over the unix socket and uses it as if it
+                      was the FD of an accept(). Should be used carefully.
                   You may want to reference some environment variables in the
                   address parameter, see section 2.3 about environment
                   variables.
@@ -7746,6 +7750,12 @@ server <name> <address>[:[port]] [param*]
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only)
+                    - 'sockpair@' -> address is the FD of a connected unix
+                      socket or of a socketpair. During a connection, the
+                      backend creates a pair of connected sockets, and passes
+                      one of them over the FD. The bind part will use the
+                      received socket as the client FD. Should be used
+                      carefully.
               You may want to reference some environment variables in the
               address parameter, see section 2.3 about environment
               variables. The "init-addr" setting can be used to modify the way

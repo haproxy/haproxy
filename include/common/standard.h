@@ -38,6 +38,7 @@
 #include <common/namespace.h>
 #include <eb32tree.h>
 #include <eb32sctree.h>
+#include <types/protocol.h>
 
 #ifndef LLONG_MAX
 # define LLONG_MAX 9223372036854775807LL
@@ -956,7 +957,7 @@ static inline int is_inet_addr(const struct sockaddr_storage *addr)
  */
 static inline int is_addr(const struct sockaddr_storage *addr)
 {
-	if (addr->ss_family == AF_UNIX)
+	if (addr->ss_family == AF_UNIX || addr->ss_family == AF_CUST_SOCKPAIR)
 		return 1;
 	else
 		return is_inet_addr(addr);

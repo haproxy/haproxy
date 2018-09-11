@@ -894,7 +894,22 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else
 		ss.ss_family = AF_UNSPEC;
 
-	if (ss.ss_family == AF_UNSPEC && strncmp(str2, "fd@", 3) == 0) {
+	if (ss.ss_family == AF_UNSPEC && strncmp(str2, "sockpair@", 9) == 0) {
+		char *endptr;
+
+		str2 += 9;
+
+		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
+
+		if (!*str2 || *endptr) {
+			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
+			goto out;
+		}
+
+		ss.ss_family = AF_CUST_SOCKPAIR;
+
+	}
+	else if (ss.ss_family == AF_UNSPEC && strncmp(str2, "fd@", 3) == 0) {
 		char *endptr;
 
 		str2 += 3;

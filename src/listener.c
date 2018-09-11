@@ -36,6 +36,7 @@
 #include <proto/log.h>
 #include <proto/listener.h>
 #include <proto/protocol.h>
+#include <proto/proto_sockpair.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 #include <proto/task.h>
@@ -540,6 +541,12 @@ void listener_accept(int fd)
 			limit_listener(l, &p->listener_queue);
 			goto end;
 		}
+
+		/* with sockpair@ we don't want to do an accept */
+		if (unlikely(l->addr.ss_family == AF_CUST_SOCKPAIR)) {
+			if ((cfd = recv_fd_uxst(fd)) != -1)
+				fcntl(cfd, F_SETFL, O_NONBLOCK);
+		} else
 
 #ifdef USE_ACCEPT4
 		/* only call accept4() if it's known to be safe, otherwise

@@ -876,7 +876,8 @@ OBJS = src/proto_http.o src/cfgparse.o src/server.o src/stream.o        \
        src/sha1.o src/hpack-tbl.o src/hpack-enc.o src/uri_auth.o        \
        src/time.o src/proto_udp.o src/arg.o src/signal.o                \
        src/protocol.o src/lru.o src/hdr_idx.o src/hpack-huff.o          \
-       src/mailers.o src/h2.o src/base64.o src/hash.o src/http.o
+       src/mailers.o src/h2.o src/base64.o src/hash.o src/http.o	\
+       src/proto_sockpair.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

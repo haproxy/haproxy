@@ -295,6 +295,20 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			}
 
 			port = end = get_host_port(ss2);
+
+		} else if (ss2->ss_family == AF_CUST_SOCKPAIR) {
+			socklen_t addr_len;
+			inherited = 1;
+
+			fd = ((struct sockaddr_in *)ss2)->sin_addr.s_addr;
+			addr_len = sizeof(*ss2);
+			if (getsockname(fd, (struct sockaddr *)ss2, &addr_len) == -1) {
+				memprintf(err, "cannot use file descriptor '%d' : %s.\n", fd, strerror(errno));
+				goto fail;
+			}
+
+			ss2->ss_family = AF_CUST_SOCKPAIR; /* reassign AF_CUST_SOCKPAIR because of getsockname */
+			port = end = 0;
 		}
 
 		/* OK the address looks correct */
