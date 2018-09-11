@@ -665,7 +665,9 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  * whose last entry will have an empty name and an empty value. If <hdr_num> is
  * too small to represent the whole message, an error is returned. Some
  * protocol elements such as content-length and transfer-encoding will be
- * parsed and stored into h1m as well.
+ * parsed and stored into h1m as well. <hdr> may be null, in which case only
+ * the parsing state will be updated. This may be used to restart the parsing
+ * where it stopped for example.
  *
  * For now it's limited to the response. If the header block is incomplete,
  * 0 is returned, waiting to be called again with more data to try it again.
@@ -710,11 +712,16 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	unsigned int sov = 0;  /* start of value */
 	unsigned int skip = 0; /* number of bytes skipped at the beginning */
 	union h1_sl sl;
+	int skip_update = 0;
 	struct ist n, v;       /* header name and value during parsing */
 
 	sl.st.status = 0;
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
+
+	/* don't update output if hdr is NULL */
+	if (!hdr)
+		skip_update = 1;
 
 	switch (state)	{
 	case H1_MSG_RPBEFORE:
@@ -823,11 +830,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 * to the caller which will be able to register it.
 		 */
 
-		if (unlikely(hdr_count >= hdr_num)) {
-			state = H1_MSG_RPREASON;
-			goto http_output_full;
+		if (likely(!skip_update)) {
+			if (unlikely(hdr_count >= hdr_num)) {
+				state = H1_MSG_RPREASON;
+				goto http_output_full;
+			}
+			http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + sl.st.c, sl.st.c_l));
 		}
-		http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + sl.st.c, sl.st.c_l));
 		if (h1m)
 			h1m->status = sl.st.status;
 
@@ -991,14 +1000,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		n = ist2(start + sol, col - sol);
 		v = ist2(start + sov, eol - sov);
 
-		if (unlikely(hdr_count >= hdr_num)) {
-			state = H1_MSG_HDR_L2_LWS;
-			goto http_output_full;
-		}
-		http_set_hdr(&hdr[hdr_count++], n, v);
-
-		if (h1m) {
+		if (likely(!skip_update)) {
 			long long cl;
+
+			if (unlikely(hdr_count >= hdr_num)) {
+				state = H1_MSG_HDR_L2_LWS;
+				goto http_output_full;
+			}
+
+			http_set_hdr(&hdr[hdr_count++], n, v);
 
 			if (h1m->status >= 100 && h1m->status < 200)
 				h1m->curr_len = h1m->body_len = 0;
@@ -1034,11 +1044,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 * still points to the first of either CR or LF of the empty
 		 * line ending the headers block.
 		 */
-		if (unlikely(hdr_count >= hdr_num)) {
-			state = H1_MSG_LAST_LF;
-			goto http_output_full;
+		if (likely(!skip_update)) {
+			if (unlikely(hdr_count >= hdr_num)) {
+				state = H1_MSG_LAST_LF;
+				goto http_output_full;
+			}
+			http_set_hdr(&hdr[hdr_count++], ist(""), ist(""));
 		}
-		http_set_hdr(&hdr[hdr_count++], ist(""), ist(""));
 		state = H1_MSG_BODY;
 		break;
 
@@ -1050,7 +1062,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	/* reaching here, we've parsed the whole message and the state is
 	 * H1_MSG_BODY.
 	 */
-	if (slp)
+	if (slp && !skip_update)
 		*slp = sl;
 
 	h1m->state = state;
@@ -1059,7 +1071,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
  http_msg_ood:
 	/* out of data at <ptr> during state <state> */
-	if (slp)
+	if (slp && !skip_update)
 		*slp = sl;
 
 	h1m->state = state;
@@ -1068,7 +1080,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
  http_msg_invalid:
 	/* invalid message, error at <ptr> */
-	if (slp)
+	if (slp && !skip_update)
 		*slp = sl;
 
 	h1m->err_state = h1m->state = state;
@@ -1077,7 +1089,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
  http_output_full:
 	/* no more room to store the current header, error at <ptr> */
-	if (slp)
+	if (slp && !skip_update)
 		*slp = sl;
 
 	h1m->err_state = h1m->state = state;
