@@ -174,7 +174,7 @@ enum h2_ss {
 struct h2s {
 	struct conn_stream *cs;
 	struct h2c *h2c;
-	struct h1m req, res;      /* request and response parser state for H1 */
+	struct h1m h1m;         /* request or response parser state for H1 */
 	struct eb32_node by_id; /* place in h2c's streams_by_id */
 	int32_t id; /* stream ID */
 	uint32_t flags;      /* H2_SF_* */
@@ -690,8 +690,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
 	h2s->rxbuf     = BUF_NULL;
-	h1m_init_req(&h2s->req);
-	h1m_init_res(&h2s->res);
+	h1m_init_res(&h2s->h1m);
 	h2s->by_id.key = h2s->id = id;
 	h2c->max_id    = id;
 
@@ -3081,7 +3080,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 {
 	struct http_hdr list[MAX_HTTP_HDR];
 	struct h2c *h2c = h2s->h2c;
-	struct h1m *h1m = &h2s->res;
+	struct h1m *h1m = &h2s->h1m;
 	struct buffer outbuf;
 	int es_now = 0;
 	int ret = 0;
@@ -3250,7 +3249,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, size_t ofs, size_t max)
 {
 	struct h2c *h2c = h2s->h2c;
-	struct h1m *h1m = &h2s->res;
+	struct h1m *h1m = &h2s->h1m;
 	struct buffer outbuf;
 	int ret = 0;
 	size_t total = 0;
@@ -3564,14 +3563,14 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
-	while (h2s->res.state < H1_MSG_DONE && count) {
-		if (h2s->res.state < H1_MSG_BODY) {
+	while (h2s->h1m.state < H1_MSG_DONE && count) {
+		if (h2s->h1m.state < H1_MSG_BODY) {
 			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
 		}
-		else if (h2s->res.state < H1_MSG_TRAILERS) {
+		else if (h2s->h1m.state < H1_MSG_TRAILERS) {
 			ret = h2s_frt_make_resp_data(h2s, buf, total, count);
 		}
-		else if (h2s->res.state == H1_MSG_TRAILERS) {
+		else if (h2s->h1m.state == H1_MSG_TRAILERS) {
 			/* consume the trailers if any (we don't forward them for now) */
 			ret = h1_measure_trailers(buf, total, count);
 
@@ -3583,7 +3582,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			// trim any possibly pending data (eg: extra CR-LF, ...)
 			total += count;
 			count  = 0;
-			h2s->res.state = H1_MSG_DONE;
+			h2s->h1m.state = H1_MSG_DONE;
 			break;
 		}
 		else {
