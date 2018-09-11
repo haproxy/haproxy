@@ -735,7 +735,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	end   = stop;
 	state = h1m->state;
 
-	if (state != H1_MSG_RPBEFORE)
+	if (state != H1_MSG_RQBEFORE && state != H1_MSG_RPBEFORE)
 		restarting = 1;
 
 	if (unlikely(ptr >= end))
@@ -746,6 +746,200 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		skip_update = 1;
 
 	switch (state)	{
+	case H1_MSG_RQBEFORE:
+	http_msg_rqbefore:
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			/* we have a start of message, we may have skipped some
+			 * heading CRLF. Skip them now.
+			 */
+			skip += ptr - start;
+			start = ptr;
+
+			sol = 0;
+			sl.rq.m = skip;
+			hdr_count = 0;
+			state = H1_MSG_RQMETH;
+			goto http_msg_rqmeth;
+		}
+
+		if (unlikely(!HTTP_IS_CRLF(*ptr))) {
+			state = H1_MSG_RQBEFORE;
+			goto http_msg_invalid;
+		}
+
+		if (unlikely(*ptr == '\n'))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqbefore, http_msg_ood, state, H1_MSG_RQBEFORE);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqbefore_cr, http_msg_ood, state, H1_MSG_RQBEFORE_CR);
+		/* stop here */
+
+	case H1_MSG_RQBEFORE_CR:
+	http_msg_rqbefore_cr:
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, H1_MSG_RQBEFORE_CR);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqbefore, http_msg_ood, state, H1_MSG_RQBEFORE);
+		/* stop here */
+
+	case H1_MSG_RQMETH:
+	http_msg_rqmeth:
+		if (likely(HTTP_IS_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth, http_msg_ood, state, H1_MSG_RQMETH);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			sl.rq.m_l = ptr - start;
+			sl.rq.meth = find_http_meth(start, sl.rq.m_l);
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth_sp, http_msg_ood, state, H1_MSG_RQMETH_SP);
+		}
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* HTTP 0.9 request */
+			sl.rq.m_l = ptr - start;
+			sl.rq.meth = find_http_meth(start, sl.rq.m_l);
+		http_msg_req09_uri:
+			sl.rq.u = ptr - start + skip;
+		http_msg_req09_uri_e:
+			sl.rq.u_l = ptr - start + skip - sl.rq.u;
+		http_msg_req09_ver:
+			sl.rq.v = ptr - start + skip;
+			sl.rq.v_l = 0;
+			goto http_msg_rqline_eol;
+		}
+		state = H1_MSG_RQMETH;
+		goto http_msg_invalid;
+
+	case H1_MSG_RQMETH_SP:
+	http_msg_rqmeth_sp:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			sl.rq.u = ptr - start + skip;
+			goto http_msg_rquri;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth_sp, http_msg_ood, state, H1_MSG_RQMETH_SP);
+		/* so it's a CR/LF, meaning an HTTP 0.9 request */
+		goto http_msg_req09_uri;
+
+	case H1_MSG_RQURI:
+	http_msg_rquri:
+#if defined(__x86_64__) ||						\
+    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+    defined(__ARM_ARCH_7A__)
+		/* speedup: skip bytes not between 0x21 and 0x7e inclusive */
+		while (ptr <= end - sizeof(int)) {
+			int x = *(int *)ptr - 0x21212121;
+			if (x & 0x80808080)
+				break;
+
+			x -= 0x5e5e5e5e;
+			if (!(x & 0x80808080))
+				break;
+
+			ptr += sizeof(int);
+		}
+#endif
+		if (ptr >= end) {
+			state = H1_MSG_RQURI;
+			goto http_msg_ood;
+		}
+	http_msg_rquri2:
+		if (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri2, http_msg_ood, state, H1_MSG_RQURI);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			sl.rq.u_l = ptr - start + skip - sl.rq.u;
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri_sp, http_msg_ood, state, H1_MSG_RQURI_SP);
+		}
+		if (likely((unsigned char)*ptr >= 128)) {
+			/* non-ASCII chars are forbidden unless option
+			 * accept-invalid-http-request is enabled in the frontend.
+			 * In any case, we capture the faulty char.
+			 */
+			if (h1m->err_pos < -1)
+				goto invalid_char;
+			if (h1m->err_pos == -1)
+				h1m->err_pos = ptr - start + skip;
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri, http_msg_ood, state, H1_MSG_RQURI);
+		}
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* so it's a CR/LF, meaning an HTTP 0.9 request */
+			goto http_msg_req09_uri_e;
+		}
+
+		/* OK forbidden chars, 0..31 or 127 */
+	invalid_char:
+		state = H1_MSG_RQURI;
+		goto http_msg_invalid;
+
+	case H1_MSG_RQURI_SP:
+	http_msg_rquri_sp:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			sl.rq.v = ptr - start + skip;
+			goto http_msg_rqver;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri_sp, http_msg_ood, state, H1_MSG_RQURI_SP);
+		/* so it's a CR/LF, meaning an HTTP 0.9 request */
+		goto http_msg_req09_ver;
+
+
+	case H1_MSG_RQVER:
+	http_msg_rqver:
+		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqver, http_msg_ood, state, H1_MSG_RQVER);
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			sl.rq.v_l = ptr - start + skip - sl.rq.v;
+		http_msg_rqline_eol:
+			/* We have seen the end of line. Note that we do not
+			 * necessarily have the \n yet, but at least we know that we
+			 * have EITHER \r OR \n, otherwise the request would not be
+			 * complete. We can then record the request length and return
+			 * to the caller which will be able to register it.
+			 */
+
+			if (likely(!skip_update)) {
+				if (unlikely(hdr_count >= hdr_num)) {
+					state = H1_MSG_RQVER;
+					goto http_output_full;
+				}
+				http_set_hdr(&hdr[hdr_count++], ist(":method"), ist2(start + sl.rq.m, sl.rq.m_l));
+
+				if (unlikely(hdr_count >= hdr_num)) {
+					state = H1_MSG_RQVER;
+					goto http_output_full;
+				}
+				http_set_hdr(&hdr[hdr_count++], ist(":path"), ist2(start + sl.rq.u, sl.rq.u_l));
+			}
+
+			sol = ptr - start;
+			if (likely(*ptr == '\r'))
+				EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqline_end, http_msg_ood, state, H1_MSG_RQLINE_END);
+			goto http_msg_rqline_end;
+		}
+
+		/* neither an HTTP_VER token nor a CRLF */
+		state = H1_MSG_RQVER;
+		goto http_msg_invalid;
+
+	case H1_MSG_RQLINE_END:
+	http_msg_rqline_end:
+		/* check for HTTP/0.9 request : no version information
+		 * available. sol must point to the first of CR or LF. However
+		 * since we don't save these elements between calls, if we come
+		 * here from a restart, we don't necessarily know. Thus in this
+		 * case we simply start over.
+		 */
+		if (restarting)
+			goto restart;
+
+		if (unlikely(sl.rq.v_l == 0))
+			goto http_msg_last_lf;
+
+		EXPECT_LF_HERE(ptr, http_msg_invalid, state, H1_MSG_RQLINE_END);
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_first, http_msg_ood, state, H1_MSG_HDR_FIRST);
+		/* stop here */
+
+	/*
+	 * Common states below
+	 */
 	case H1_MSG_RPBEFORE:
 	http_msg_rpbefore:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
@@ -1133,7 +1327,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
  restart:
 	h1m->next  = 0;
-	h1m->state = H1_MSG_RPBEFORE;
+	if (h1m->flags & H1_MF_RESP)
+		h1m->state = H1_MSG_RPBEFORE;
+	else
+		h1m->state = H1_MSG_RQBEFORE;
 	goto try_again;
 }
 
