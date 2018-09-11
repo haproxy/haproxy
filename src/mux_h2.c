@@ -181,6 +181,7 @@ struct h2s {
 	int mws;             /* mux window size for this stream */
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
+	uint16_t status;     /* HTTP response status */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 	struct wait_list wait_list; /* Wait list, when we're attempting to send a RST but we can't send */
 	struct wait_list *recv_wait_list; /* Address of the wait_list the conn_stream associated is waiting on */
@@ -689,6 +690,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->flags     = H2_SF_NONE;
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
+	h2s->status    = 0;
 	h2s->rxbuf     = BUF_NULL;
 	h1m_init_res(&h2s->h1m);
 	h2s->h1m.err_pos = -1; // don't care about errors on the response path
@@ -3083,6 +3085,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	struct h2c *h2c = h2s->h2c;
 	struct h1m *h1m = &h2s->h1m;
 	struct buffer outbuf;
+	union h1_sl sl;
 	int es_now = 0;
 	int ret = 0;
 	int hdr;
@@ -3106,7 +3109,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	h1m->state = H1_MSG_RPBEFORE;
 	h1m->next  = 0;
 	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
-	                             list, sizeof(list)/sizeof(list[0]), h1m, NULL);
+	                             list, sizeof(list)/sizeof(list[0]), h1m, &sl);
 	if (ret <= 0) {
 		/* incomplete or invalid response, this is abnormal coming from
 		 * haproxy and may only result in a bad errorfile or bad Lua code
@@ -3121,6 +3124,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		goto end;
 	}
 
+	h2s->status = sl.st.status;
 	chunk_reset(&outbuf);
 
 	while (1) {
@@ -3147,9 +3151,9 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	outbuf.data = 9;
 
 	/* encode status, which necessarily is the first one */
-	if (outbuf.data < outbuf.size && h1m->status == 200)
+	if (outbuf.data < outbuf.size && h2s->status == 200)
 		outbuf.area[outbuf.data++] = 0x88; // indexed field : idx[08]=(":status", "200")
-	else if (outbuf.data < outbuf.size && h1m->status == 304)
+	else if (outbuf.data < outbuf.size && h2s->status == 304)
 		outbuf.area[outbuf.data++] = 0x8b; // indexed field : idx[11]=(":status", "304")
 	else if (unlikely(list[0].v.len != 3)) {
 		/* this is an unparsable response */
@@ -3231,7 +3235,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		else
 			h2s_close(h2s);
 	}
-	else if (h1m->status >= 100 && h1m->status < 200) {
+	else if (h2s->status >= 100 && h2s->status < 200) {
 		/* we'll let the caller check if it has more headers to send */
 		h1m_init_res(h1m);
 		h1m->err_pos = -1; // don't care about errors on the response path
