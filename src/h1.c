@@ -672,7 +672,15 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  * For now it's limited to the response. If the header block is incomplete,
  * 0 is returned, waiting to be called again with more data to try it again.
  * The caller is responsible for initializing h1m->state to H1_MSG_RPBEFORE,
- * and h1m->next to zero.
+ * and h1m->next to zero on the first call, the parser will do the rest. If
+ * an incomplete message is seen, the caller only needs to present h1m->state
+ * and h1m->next again, with an empty header list so that the parser can start
+ * again. In this case, it will detect that it interrupted a previous session
+ * and will first look for the end of the message before reparsing it again and
+ * indexing it at the same time. This ensures that incomplete messages fed 1
+ * character at a time are never processed entirely more than exactly twice,
+ * and that there is no need to store all the internal state and pre-parsed
+ * headers or start line between calls.
  *
  * A pointer to a start line descriptor may be passed in <slp>, in which case
  * the parser will fill it with whatever it found.
@@ -702,25 +710,39 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
                            struct h1m *h1m, union h1_sl *slp)
 {
-	enum h1m_state state = h1m->state;
-	register char *ptr  = start + h1m->next;
-	register const char *end  = stop;
-	unsigned int hdr_count = 0;
-	unsigned int sol = 0;  /* start of line */
-	unsigned int col = 0;  /* position of the colon */
-	unsigned int eol = 0;  /* end of line */
-	unsigned int sov = 0;  /* start of value */
-	unsigned int skip = 0; /* number of bytes skipped at the beginning */
+	enum h1m_state state;
+	register char *ptr;
+	register const char *end;
+	unsigned int hdr_count;
+	unsigned int skip; /* number of bytes skipped at the beginning */
+	unsigned int sol;  /* start of line */
+	unsigned int col;  /* position of the colon */
+	unsigned int eol;  /* end of line */
+	unsigned int sov;  /* start of value */
 	union h1_sl sl;
-	int skip_update = 0;
+	int skip_update;
+	int restarting;
 	struct ist n, v;       /* header name and value during parsing */
 
+	skip = 0; // do it only once to keep track of the leading CRLF.
+
+ try_again:
+	hdr_count = sol = col = eol = sov = 0;
 	sl.st.status = 0;
+	skip_update = restarting = 0;
+
+	ptr   = start + h1m->next;
+	end   = stop;
+	state = h1m->state;
+
+	if (state != H1_MSG_RPBEFORE)
+		restarting = 1;
+
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
 
-	/* don't update output if hdr is NULL */
-	if (!hdr)
+	/* don't update output if hdr is NULL or if we're restarting */
+	if (!hdr || restarting)
 		skip_update = 1;
 
 	switch (state)	{
@@ -1060,8 +1082,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	}
 
 	/* reaching here, we've parsed the whole message and the state is
-	 * H1_MSG_BODY.
+	 * H1_MSG_BODY. We may discover that we were already continuing an
+	 * interrupted parsing session, thus we were silently looking for
+	 * the end of message before deciding to parse it fully at once.
+	 * We won't come there again since restarting will turn zero.
 	 */
+	if (restarting)
+		goto restart;
+
 	if (slp && !skip_update)
 		*slp = sl;
 
@@ -1095,6 +1123,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	h1m->err_state = h1m->state = state;
 	h1m->err_pos   = h1m->next  = ptr - start + skip;
 	return -2;
+
+ restart:
+	h1m->next  = 0;
+	h1m->state = H1_MSG_RPBEFORE;
+	goto try_again;
 }
 
 /* This function performs a very minimal parsing of the trailers block present
