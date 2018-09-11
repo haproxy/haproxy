@@ -41,7 +41,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 int http_forward_trailers(struct http_msg *msg);
 int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
-                           struct h1m *h1m);
+                           struct h1m *h1m, union h1_sl *slp);
 int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max);
 
 /* Macros used in the HTTP/1 parser, to check for the expected presence of

@@ -3104,7 +3104,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	 * having to realign the buffer.
 	 */
 	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
-	                             list, sizeof(list)/sizeof(list[0]), h1m);
+	                             list, sizeof(list)/sizeof(list[0]), h1m, NULL);
 	if (ret <= 0) {
 		/* incomplete or invalid response, this is abnormal coming from
 		 * haproxy and may only result in a bad errorfile or bad Lua code

@@ -22,6 +22,8 @@
 #ifndef _TYPES_H1_H
 #define _TYPES_H1_H
 
+#include <common/http.h>
+
 /* Legacy version of the HTTP/1 message state, used by the channels, should
  * ultimately be removed.
  */
@@ -159,6 +161,22 @@ struct h1m {
 	uint32_t next;              // next byte to parse, relative to buffer's head
 	int err_pos;                // position in the byte stream of the first error (H1 or H2)
 	int err_state;              // state where the first error was met (H1 or H2)
+};
+
+/* basic H1 start line, describes either the request and the response */
+union h1_sl {                          /* useful start line pointers, relative to ->sol */
+	struct {
+		int m, m_l;            /* METHOD, length */
+		int u, u_l;            /* URI, length */
+		int v, v_l;            /* VERSION, length */
+		enum http_meth_t meth; /* method */
+	} rq;                          /* request line : field, length */
+	struct {
+		int v, v_l;            /* VERSION, length */
+		int c, c_l;            /* CODE, length */
+		int r, r_l;            /* REASON, length */
+		uint16_t status;       /* status code */
+	} st;                          /* status line : field, length */
 };
 
 #endif /* _TYPES_H1_H */

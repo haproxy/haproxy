@@ -670,6 +670,9 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  * For now it's limited to the response. If the header block is incomplete,
  * 0 is returned, waiting to be called again with more data to try it again.
  *
+ * A pointer to a start line descriptor may be passed in <slp>, in which case
+ * the parser will fill it with whatever it found.
+ *
  * The code derived from the main HTTP/1 parser above but was simplified and
  * optimized to process responses produced or forwarded by haproxy. The caller
  * is responsible for ensuring that the message doesn't wrap, and should ensure
@@ -693,22 +696,21 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  */
 int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
-                           struct h1m *h1m)
+                           struct h1m *h1m, union h1_sl *slp)
 {
 	enum h1m_state state = H1_MSG_RPBEFORE;
 	register char *ptr  = start;
 	register const char *end  = stop;
 	unsigned int hdr_count = 0;
-	unsigned int code = 0; /* status code, ASCII form */
-	unsigned int st_c;     /* beginning of status code, relative to msg_start */
-	unsigned int st_c_l;   /* length of status code */
 	unsigned int sol = 0;  /* start of line */
 	unsigned int col = 0;  /* position of the colon */
 	unsigned int eol = 0;  /* end of line */
 	unsigned int sov = 0;  /* start of value */
 	unsigned int skip = 0; /* number of bytes skipped at the beginning */
+	union h1_sl sl;
 	struct ist n, v;       /* header name and value during parsing */
 
+	sl.st.status = 0;
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
 
@@ -723,6 +725,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			start = ptr;
 
 			sol = 0;
+			sl.st.v = skip;
 			hdr_count = 0;
 			state = H1_MSG_RPVER;
 			goto http_msg_rpver;
@@ -750,7 +753,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver, http_msg_ood, state, H1_MSG_RPVER);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			/* version length = ptr - start */
+			sl.st.v_l = ptr - start;
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver_sp, http_msg_ood, state, H1_MSG_RPVER_SP);
 		}
 		state = H1_MSG_RPVER;
@@ -759,8 +762,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RPVER_SP:
 	http_msg_rpver_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			code = 0;
-			st_c = ptr - start;
+			sl.st.status = 0;
+			sl.st.c = ptr - start + skip;
 			goto http_msg_rpcode;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -772,7 +775,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RPCODE:
 	http_msg_rpcode:
 		if (likely(HTTP_IS_DIGIT(*ptr))) {
-			code = code * 10 + *ptr - '0';
+			sl.st.status = sl.st.status * 10 + *ptr - '0';
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode, http_msg_ood, state, H1_MSG_RPCODE);
 		}
 
@@ -782,22 +785,22 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		}
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			st_c_l = ptr - start - st_c;
+			sl.st.c_l = ptr - start + skip - sl.st.c;
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode_sp, http_msg_ood, state, H1_MSG_RPCODE_SP);
 		}
 
 		/* so it's a CR/LF, so there is no reason phrase */
-		st_c_l = ptr - start - st_c;
+		sl.st.c_l = ptr - start + skip - sl.st.c;
 
 	http_msg_rsp_reason:
-		/* reason = ptr - start; */
-		/* reason length = 0 */
+		sl.st.r = ptr - start + skip;
+		sl.st.r_l = 0;
 		goto http_msg_rpline_eol;
 
 	case H1_MSG_RPCODE_SP:
 	http_msg_rpcode_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			/* reason = ptr - start */
+			sl.st.r = ptr - start + skip;
 			goto http_msg_rpreason;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -809,7 +812,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	http_msg_rpreason:
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpreason, http_msg_ood, state, H1_MSG_RPREASON);
-		/* reason length = ptr - start - reason */
+		sl.st.r_l = ptr - start + skip - sl.st.r;
 	http_msg_rpline_eol:
 		/* We have seen the end of line. Note that we do not
 		 * necessarily have the \n yet, but at least we know that we
@@ -822,9 +825,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			state = H1_MSG_RPREASON;
 			goto http_output_full;
 		}
-		http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + st_c, st_c_l));
+		http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + sl.st.c, sl.st.c_l));
 		if (h1m)
-			h1m->status = code;
+			h1m->status = sl.st.status;
 
 		sol = ptr - start;
 		if (likely(*ptr == '\r'))
@@ -1045,10 +1048,16 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	/* reaching here, we've parsed the whole message and the state is
 	 * H1_MSG_BODY.
 	 */
+	if (slp)
+		*slp = sl;
+
 	return ptr - start + skip;
 
  http_msg_ood:
 	/* out of data at <ptr> during state <state> */
+	if (slp)
+		*slp = sl;
+
 	return 0;
 
  http_msg_invalid:
@@ -1057,6 +1066,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		h1m->err_state = state;
 		h1m->err_pos = ptr - start + skip;
 	}
+
+	if (slp)
+		*slp = sl;
+
 	return -1;
 
  http_output_full:
@@ -1065,6 +1078,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		h1m->err_state = state;
 		h1m->err_pos = ptr - start + skip;
 	}
+
+	if (slp)
+		*slp = sl;
+
 	return -2;
 }
 
