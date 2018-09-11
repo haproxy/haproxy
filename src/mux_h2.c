@@ -3222,7 +3222,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		// trim any possibly pending data (eg: inconsistent content-length)
 		ret += max;
 
-		h1m->state = HTTP_MSG_DONE;
+		h1m->state = H1_MSG_DONE;
 		h2s->flags |= H2_SF_ES_SENT;
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HLOC;
@@ -3231,13 +3231,13 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 	else if (h1m->status >= 100 && h1m->status < 200) {
 		/* we'll let the caller check if it has more headers to send */
-		h1m->state = HTTP_MSG_RPBEFORE;
+		h1m->state = H1_MSG_RPBEFORE;
 		h1m->status = 0;
 		h1m->flags = 0;
 		goto end;
 	}
 	else
-		h1m->state = (h1m->flags & H1_MF_CHNK) ? HTTP_MSG_CHUNK_SIZE : HTTP_MSG_BODY;
+		h1m->state = (h1m->flags & H1_MF_CHNK) ? H1_MSG_CHUNK_SIZE : H1_MSG_BODY;
 
  end:
 	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1_msg_state_str(h1m->err_state));
@@ -3311,7 +3311,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 			size = h1m->curr_len;
 		break;
 	default:          /* te:chunked : parse chunks */
-		if (h1m->state == HTTP_MSG_CHUNK_CRLF) {
+		if (h1m->state == H1_MSG_CHUNK_CRLF) {
 			ret = h1_skip_chunk_crlf(buf, ofs, ofs + max);
 			if (!ret)
 				goto end;
@@ -3325,10 +3325,10 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 			max -= ret;
 			ofs += ret;
 			total += ret;
-			h1m->state = HTTP_MSG_CHUNK_SIZE;
+			h1m->state = H1_MSG_CHUNK_SIZE;
 		}
 
-		if (h1m->state == HTTP_MSG_CHUNK_SIZE) {
+		if (h1m->state == H1_MSG_CHUNK_SIZE) {
 			unsigned int chunk;
 			ret = h1_parse_chunk_size(buf, ofs, ofs + max, &chunk);
 			if (!ret)
@@ -3347,7 +3347,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 			max -= ret;
 			ofs += ret;
 			total += ret;
-			h1m->state = size ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
+			h1m->state = size ? H1_MSG_DATA : H1_MSG_TRAILERS;
 			if (!size)
 				goto send_empty;
 		}
@@ -3447,7 +3447,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	 *
 	 */
 	if (((h1m->flags & H1_MF_CLEN) && !(h1m->curr_len - size)) ||
-	    !h1m->curr_len || h1m->state >= HTTP_MSG_DONE)
+	    !h1m->curr_len || h1m->state >= H1_MSG_DONE)
 		es_now = 1;
 
 	/* update the frame's size */
@@ -3469,7 +3469,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		h2c->mws -= size;
 
 		if (size && !h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
-			h1m->state = HTTP_MSG_CHUNK_CRLF;
+			h1m->state = H1_MSG_CHUNK_CRLF;
 			goto new_frame;
 		}
 	}
@@ -3486,7 +3486,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 			ofs += max;
 			max = 0;
 
-			h1m->state = HTTP_MSG_DONE;
+			h1m->state = H1_MSG_DONE;
 		}
 
 		h2s->flags |= H2_SF_ES_SENT;
@@ -3566,14 +3566,14 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
-	while (h2s->res.state < HTTP_MSG_DONE && count) {
-		if (h2s->res.state < HTTP_MSG_BODY) {
+	while (h2s->res.state < H1_MSG_DONE && count) {
+		if (h2s->res.state < H1_MSG_BODY) {
 			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
 		}
-		else if (h2s->res.state < HTTP_MSG_TRAILERS) {
+		else if (h2s->res.state < H1_MSG_TRAILERS) {
 			ret = h2s_frt_make_resp_data(h2s, buf, total, count);
 		}
-		else if (h2s->res.state == HTTP_MSG_TRAILERS) {
+		else if (h2s->res.state == H1_MSG_TRAILERS) {
 			/* consume the trailers if any (we don't forward them for now) */
 			ret = h1_measure_trailers(buf, total, count);
 
@@ -3585,7 +3585,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			// trim any possibly pending data (eg: extra CR-LF, ...)
 			total += count;
 			count  = 0;
-			h2s->res.state = HTTP_MSG_DONE;
+			h2s->res.state = H1_MSG_DONE;
 			break;
 		}
 		else {

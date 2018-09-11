@@ -74,7 +74,7 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 		}                                                         \
 	} while (0)
 
-/* for debugging, reports the HTTP/1 message state name */
+/* for debugging, reports the HTTP/1 message state name (legacy version) */
 static inline const char *h1_msg_state_str(enum h1_state msg_state)
 {
 	switch (msg_state) {
@@ -117,6 +117,52 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
 	case HTTP_MSG_CLOSED:      return "MSG_CLOSED";
 	case HTTP_MSG_TUNNEL:      return "MSG_TUNNEL";
 	default:                   return "MSG_??????";
+	}
+}
+
+/* for debugging, reports the HTTP/1 message state name */
+static inline const char *h1m_state_str(enum h1_state msg_state)
+{
+	switch (msg_state) {
+	case H1_MSG_RQBEFORE:    return "MSG_RQBEFORE";
+	case H1_MSG_RQBEFORE_CR: return "MSG_RQBEFORE_CR";
+	case H1_MSG_RQMETH:      return "MSG_RQMETH";
+	case H1_MSG_RQMETH_SP:   return "MSG_RQMETH_SP";
+	case H1_MSG_RQURI:       return "MSG_RQURI";
+	case H1_MSG_RQURI_SP:    return "MSG_RQURI_SP";
+	case H1_MSG_RQVER:       return "MSG_RQVER";
+	case H1_MSG_RQLINE_END:  return "MSG_RQLINE_END";
+	case H1_MSG_RPBEFORE:    return "MSG_RPBEFORE";
+	case H1_MSG_RPBEFORE_CR: return "MSG_RPBEFORE_CR";
+	case H1_MSG_RPVER:       return "MSG_RPVER";
+	case H1_MSG_RPVER_SP:    return "MSG_RPVER_SP";
+	case H1_MSG_RPCODE:      return "MSG_RPCODE";
+	case H1_MSG_RPCODE_SP:   return "MSG_RPCODE_SP";
+	case H1_MSG_RPREASON:    return "MSG_RPREASON";
+	case H1_MSG_RPLINE_END:  return "MSG_RPLINE_END";
+	case H1_MSG_HDR_FIRST:   return "MSG_HDR_FIRST";
+	case H1_MSG_HDR_NAME:    return "MSG_HDR_NAME";
+	case H1_MSG_HDR_COL:     return "MSG_HDR_COL";
+	case H1_MSG_HDR_L1_SP:   return "MSG_HDR_L1_SP";
+	case H1_MSG_HDR_L1_LF:   return "MSG_HDR_L1_LF";
+	case H1_MSG_HDR_L1_LWS:  return "MSG_HDR_L1_LWS";
+	case H1_MSG_HDR_VAL:     return "MSG_HDR_VAL";
+	case H1_MSG_HDR_L2_LF:   return "MSG_HDR_L2_LF";
+	case H1_MSG_HDR_L2_LWS:  return "MSG_HDR_L2_LWS";
+	case H1_MSG_LAST_LF:     return "MSG_LAST_LF";
+	case H1_MSG_ERROR:       return "MSG_ERROR";
+	case H1_MSG_BODY:        return "MSG_BODY";
+	case H1_MSG_100_SENT:    return "MSG_100_SENT";
+	case H1_MSG_CHUNK_SIZE:  return "MSG_CHUNK_SIZE";
+	case H1_MSG_DATA:        return "MSG_DATA";
+	case H1_MSG_CHUNK_CRLF:  return "MSG_CHUNK_CRLF";
+	case H1_MSG_TRAILERS:    return "MSG_TRAILERS";
+	case H1_MSG_ENDING:      return "MSG_ENDING";
+	case H1_MSG_DONE:        return "MSG_DONE";
+	case H1_MSG_CLOSING:     return "MSG_CLOSING";
+	case H1_MSG_CLOSED:      return "MSG_CLOSED";
+	case H1_MSG_TUNNEL:      return "MSG_TUNNEL";
+	default:                 return "MSG_??????";
 	}
 }
 
@@ -262,7 +308,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 /* initializes an H1 message */
 static inline struct h1m *h1m_init(struct h1m *h1m)
 {
-	h1m->state = HTTP_MSG_RQBEFORE;
+	h1m->state = H1_MSG_RQBEFORE;
 	h1m->status = 0;
 	h1m->flags = 0;
 	h1m->curr_len = 0;
