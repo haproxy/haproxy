@@ -488,6 +488,8 @@ static void h2_release(struct connection *conn)
 		}
 		if (h2c->wait_list.task)
 			tasklet_free(h2c->wait_list.task);
+		LIST_DEL(&h2c->wait_list.list);
+		LIST_INIT(&h2c->wait_list.list);
 
 		pool_free(pool_head_h2c, h2c);
 	}
@@ -652,6 +654,8 @@ static void h2s_destroy(struct h2s *h2s)
 		b_free(&h2s->rxbuf);
 		offer_buffers(NULL, tasks_run_queue);
 	}
+	LIST_DEL(&h2s->wait_list.list);
+	LIST_INIT(&h2s->wait_list.list);
 	tasklet_free(h2s->wait_list.task);
 	pool_free(pool_head_h2s, h2s);
 }
@@ -1112,7 +1116,12 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		}
 
 		h2s->cs->flags |= flags;
-		h2s->cs->data_cb->wake(h2s->cs);
+		if (h2s->recv_wait_list) {
+			struct wait_list *sw = h2s->recv_wait_list;
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+			h2s->recv_wait_list = NULL;
+		}
 
 		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -1584,7 +1593,13 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->cs) {
 		h2s->cs->flags |= CS_FL_REOS | CS_FL_ERROR;
-		h2s->cs->data_cb->wake(h2s->cs);
+		if (h2s->recv_wait_list) {
+			struct wait_list *sw = h2s->recv_wait_list;
+
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(sw->task);
+			h2s->recv_wait_list = NULL;
+		}
 	}
 
 	h2s->flags |= H2_SF_RST_RCVD;
@@ -1869,12 +1884,11 @@ static void h2_process_demux(struct h2c *h2c)
 		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->rxbuf)) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
-			if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
-				/* cs has just been destroyed, we have to kill h2s. */
-				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
-				goto strm_err;
+			if (h2s->recv_wait_list) {
+				h2s->recv_wait_list->wait_reason &= ~SUB_CAN_RECV;
+				tasklet_wakeup(h2s->recv_wait_list->task);
+				h2s->recv_wait_list = NULL;
 			}
-
 			if (h2c->st0 >= H2_CS_ERROR)
 				goto strm_err;
 
@@ -2114,10 +2128,10 @@ static void h2_process_demux(struct h2c *h2c)
 	if (h2s && h2s->cs && b_data(&h2s->rxbuf)) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
-		if (h2s->cs->data_cb->wake(h2s->cs) < 0) {
-			/* cs has just been destroyed, we have to kill h2s. */
-			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
-			h2c_send_rst_stream(h2c, h2s);
+		if (h2s->recv_wait_list) {
+				h2s->recv_wait_list->wait_reason &= ~SUB_CAN_RECV;
+				tasklet_wakeup(h2s->recv_wait_list->task);
+				h2s->recv_wait_list = NULL;
 		}
 	}
 	return;
@@ -2393,8 +2407,13 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if (h2s->cs->flags & CS_FL_WAIT_FOR_HS)
-				h2s->cs->data_cb->wake(h2s->cs);
+			if ((h2s->cs->flags & CS_FL_WAIT_FOR_HS) &&
+			    h2s->recv_wait_list) {
+				struct wait_list *sw = h2s->recv_wait_list;
+				sw->wait_reason &= ~SUB_CAN_RECV;
+				tasklet_wakeup(sw->task);
+				h2s->recv_wait_list = NULL;
+			}
 			node = eb32_next(node);
 		}
 	}

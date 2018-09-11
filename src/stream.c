@@ -1655,6 +1655,10 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_f = &s->si[0];
 	si_b = &s->si[1];
 
+	/* First, attempd to do I/Os */
+	si_cs_io_cb(NULL, si_f, 0);
+	si_cs_io_cb(NULL, si_b, 0);
+
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
 
@@ -2484,6 +2488,9 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 #endif
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
+		/* We may have free'd some space in buffers, or have more to send/recv, try again */
+		si_cs_io_cb(NULL, si_f, 0);
+		si_cs_io_cb(NULL, si_b, 0);
 		return t; /* nothing more to do */
 	}
 

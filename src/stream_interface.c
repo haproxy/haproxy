@@ -52,7 +52,7 @@ static void stream_int_shutw_applet(struct stream_interface *si);
 static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
 static int si_cs_recv(struct conn_stream *cs);
-static int si_cs_wake_cb(struct conn_stream *cs);
+static int si_cs_process(struct conn_stream *cs);
 static int si_idle_conn_wake_cb(struct conn_stream *cs);
 static int si_cs_send(struct conn_stream *cs);
 
@@ -83,7 +83,6 @@ struct si_ops si_applet_ops = {
 };
 
 struct data_cb si_conn_cb = {
-	.wake    = si_cs_wake_cb,
 	.name    = "STRM",
 };
 
@@ -554,26 +553,18 @@ void stream_int_notify(struct stream_interface *si)
 }
 
 
-/* Callback to be used by connection I/O handlers upon completion. It propagates
+/* Called by I/O handlers after completion.. It propagates
  * connection flags to the stream interface, updates the stream (which may or
  * may not take this opportunity to try to forward data), then update the
  * connection's polling based on the channels and stream interface's final
  * states. The function always returns 0.
  */
-static int si_cs_wake_cb(struct conn_stream *cs)
+static int si_cs_process(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
-
-	/* if the CS's input buffer already has data available, let's try to
-	 * receive now. The new muxes do this. The CS_FL_REOS is another cause
-	 * for recv() (received only an empty response).
-	 */
-	if (!(cs->flags & CS_FL_EOS) &&
-	    (cs->flags & (CS_FL_DATA_RD_ENA)))
-		si_cs_recv(cs);
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && objt_cs(si->end))
@@ -644,7 +635,7 @@ static int si_cs_send(struct conn_stream *cs)
 		return 0;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		return 0;
+		return 1;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
 		/* a handshake was requested */
@@ -655,7 +646,7 @@ static int si_cs_send(struct conn_stream *cs)
 
 	/* we might have been called just after an asynchronous shutw */
 	if (si_oc(si)->flags & CF_SHUTW)
-		return 0;
+		return 1;
 
 	/* ensure it's only set if a write attempt has succeeded */
 	oc->flags &= ~CF_WRITE_PARTIAL;
@@ -728,8 +719,10 @@ static int si_cs_send(struct conn_stream *cs)
 		}
 	}
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
-	if (co_data(oc))
+	if (co_data(oc)) {
+		cs_want_send(cs);
 		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_list);
+	}
 
 wake_others:
 	/* Maybe somebody was waiting for this conn_stream, wake them */
@@ -764,12 +757,13 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 
 	if (!cs)
 		return NULL;
+redo:
 	if (!(si->wait_list.wait_reason & SUB_CAN_SEND))
 		ret = si_cs_send(cs);
 	if (!(si->wait_list.wait_reason & SUB_CAN_RECV))
 		ret |= si_cs_recv(cs);
 	if (ret != 0)
-		si_cs_wake_cb(cs);
+		si_cs_process(cs);
 
 	return (NULL);
 }
@@ -1015,8 +1009,9 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 
 	if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
 		/* stop reading */
-		if (!(ic->flags & CF_DONT_READ)) /* full */
+		if (!(ic->flags & CF_DONT_READ)) /* full */ {
 			si->flags |= SI_FL_WAIT_ROOM;
+		}
 		__cs_stop_recv(cs);
 	}
 	else {
@@ -1157,7 +1152,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	 * which rejects it before reading it all.
 	 */
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		return 0;
+		return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
 
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
@@ -1167,7 +1162,7 @@ static int si_cs_recv(struct conn_stream *cs)
 
 	/* maybe we were called immediately after an asynchronous shutr */
 	if (ic->flags & CF_SHUTR)
-		return 0;
+		return 1;
 
 	/* stop here if we reached the end of data */
 	if (cs->flags & CS_FL_EOS)
@@ -1226,7 +1221,7 @@ static int si_cs_recv(struct conn_stream *cs)
 			goto out_shutdown_r;
 
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-			return cur_read != 0;
+			return 1;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
 			/* the pipe is full or we have read enough data that it
@@ -1385,7 +1380,7 @@ static int si_cs_recv(struct conn_stream *cs)
 
  end_recv:
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		return cur_read != 0;
+		return 1;
 
 	if (cs->flags & CS_FL_EOS)
 		/* connection closed */
@@ -1402,7 +1397,7 @@ static int si_cs_recv(struct conn_stream *cs)
 	if (ic->flags & CF_AUTO_CLOSE)
 		channel_shutw_now(ic);
 	stream_sock_read0(si);
-	return cur_read != 0;
+	return 1;
 }
 
 /*
