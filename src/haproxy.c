@@ -770,6 +770,8 @@ static void mworker_loop()
 	mworker_unblock_signals();
 	mworker_cleanlisteners();
 
+	tid = 0;
+
 	global.nbthread = 1;
 	relative_pid = 1;
 	pid_bit = 1;
@@ -780,6 +782,40 @@ static void mworker_loop()
 
 	fork_poller();
 	run_thread_poll_loop((int []){0});
+}
+
+/*
+ * This function initialize haproxy for the master wait mode, it won't fork any
+ * new process and won't parse the configuration
+ */
+static int mworker_wait_mode()
+{
+
+	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
+
+	if (!(global.tune.options & GTUNE_USE_KQUEUE))
+		disable_poller("kqueue");
+
+	if (!(global.tune.options & GTUNE_USE_EPOLL))
+		disable_poller("epoll");
+
+	if (!(global.tune.options & GTUNE_USE_POLL))
+		disable_poller("poll");
+
+	if (!(global.tune.options & GTUNE_USE_SELECT))
+		disable_poller("select");
+
+	if (global.tune.maxpollevents <= 0)
+		global.tune.maxpollevents = MAX_POLL_EVENTS;
+
+	init_pollers();
+
+
+	mworker_loop();
+
+	/* should never be there */
+
+	return -1;
 }
 
 /*
@@ -1517,7 +1553,7 @@ static void init(int argc, char **argv)
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_WAIT_ONLY") != NULL)) {
 
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
-		mworker_loop();
+		mworker_wait_mode();
 	}
 
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
