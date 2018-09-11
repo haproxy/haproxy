@@ -550,17 +550,15 @@ static void mworker_cleanlisteners()
 		curpeers->peers_fe = NULL;
 	}
 
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 			/* does not close if the FD is inherited with fd@
 			 * from the parent process */
-			if (!(l->options & LI_O_INHERITED)) {
-				close(l->fd);
-				LIST_DEL(&l->by_fe);
-				LIST_DEL(&l->by_bind);
-				free(l->name);
-				free(l->counters);
-				free(l);
-			}
+			if (!(l->options & LI_O_INHERITED))
+				unbind_listener(l);
+			/* remove the listener, but we might want to keep some
+			 * for the master in the future... */
+			delete_listener(l);
 		}
 	}
 }
