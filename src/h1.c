@@ -663,12 +663,14 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  * and ending before <stop>, at once, and converts it a list of (name,value)
  * pairs representing header fields into the array <hdr> of size <hdr_num>,
  * whose last entry will have an empty name and an empty value. If <hdr_num> is
- * too small to represent the whole message, an error is returned. If <h1m> is
- * not NULL, some protocol elements such as content-length and transfer-encoding
- * will be parsed and stored there as well.
+ * too small to represent the whole message, an error is returned. Some
+ * protocol elements such as content-length and transfer-encoding will be
+ * parsed and stored into h1m as well.
  *
  * For now it's limited to the response. If the header block is incomplete,
  * 0 is returned, waiting to be called again with more data to try it again.
+ * The caller is responsible for initializing h1m->state to H1_MSG_RPBEFORE,
+ * and h1m->next to zero.
  *
  * A pointer to a start line descriptor may be passed in <slp>, in which case
  * the parser will fill it with whatever it found.
@@ -698,8 +700,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
                            struct h1m *h1m, union h1_sl *slp)
 {
-	enum h1m_state state = H1_MSG_RPBEFORE;
-	register char *ptr  = start;
+	enum h1m_state state = h1m->state;
+	register char *ptr  = start + h1m->next;
 	register const char *end  = stop;
 	unsigned int hdr_count = 0;
 	unsigned int sol = 0;  /* start of line */
@@ -1051,37 +1053,35 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	if (slp)
 		*slp = sl;
 
-	return ptr - start + skip;
+	h1m->state = state;
+	h1m->next  = ptr - start + skip;
+	return h1m->next;
 
  http_msg_ood:
 	/* out of data at <ptr> during state <state> */
 	if (slp)
 		*slp = sl;
 
+	h1m->state = state;
+	h1m->next  = ptr - start + skip;
 	return 0;
 
  http_msg_invalid:
 	/* invalid message, error at <ptr> */
-	if (h1m) {
-		h1m->err_state = state;
-		h1m->err_pos = ptr - start + skip;
-	}
-
 	if (slp)
 		*slp = sl;
 
+	h1m->err_state = h1m->state = state;
+	h1m->err_pos   = h1m->next  = ptr - start + skip;
 	return -1;
 
  http_output_full:
 	/* no more room to store the current header, error at <ptr> */
-	if (h1m) {
-		h1m->err_state = state;
-		h1m->err_pos = ptr - start + skip;
-	}
-
 	if (slp)
 		*slp = sl;
 
+	h1m->err_state = h1m->state = state;
+	h1m->err_pos   = h1m->next  = ptr - start + skip;
 	return -2;
 }
 
