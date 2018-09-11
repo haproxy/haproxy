@@ -497,6 +497,8 @@ static void deinit_pollers_per_thread()
 {
 	free(fd_updt);
 	fd_updt = NULL;
+	close(poller_rd_pipe);
+	close(poller_wr_pipe[tid]);
 }
 
 /*
