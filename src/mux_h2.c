@@ -690,8 +690,8 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
 	h2s->rxbuf     = BUF_NULL;
-	h1m_init(&h2s->req);
-	h1m_init(&h2s->res);
+	h1m_init_req(&h2s->req);
+	h1m_init_res(&h2s->res);
 	h2s->by_id.key = h2s->id = id;
 	h2c->max_id    = id;
 
@@ -3231,9 +3231,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 	else if (h1m->status >= 100 && h1m->status < 200) {
 		/* we'll let the caller check if it has more headers to send */
-		h1m->state = H1_MSG_RPBEFORE;
-		h1m->status = 0;
-		h1m->flags = 0;
+		h1m_init_res(h1m);
 		goto end;
 	}
 	else

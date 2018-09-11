@@ -300,10 +300,24 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	return -stop;
 }
 
-/* initializes an H1 message */
-static inline struct h1m *h1m_init(struct h1m *h1m)
+/* initializes an H1 message for a request */
+static inline struct h1m *h1m_init_req(struct h1m *h1m)
 {
 	h1m->state = H1_MSG_RQBEFORE;
+	h1m->next = 0;
+	h1m->status = 0;
+	h1m->flags = 0;
+	h1m->curr_len = 0;
+	h1m->body_len = 0;
+	h1m->err_pos = 0;
+	h1m->err_state = 0;
+	return h1m;
+}
+
+/* initializes an H1 message for a response */
+static inline struct h1m *h1m_init_res(struct h1m *h1m)
+{
+	h1m->state = H1_MSG_RPBEFORE;
 	h1m->next = 0;
 	h1m->status = 0;
 	h1m->flags = 0;
