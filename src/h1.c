@@ -859,8 +859,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			}
 			http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + sl.st.c, sl.st.c_l));
 		}
-		if (h1m)
-			h1m->status = sl.st.status;
 
 		sol = ptr - start;
 		if (likely(*ptr == '\r'))
@@ -1032,9 +1030,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 			http_set_hdr(&hdr[hdr_count++], n, v);
 
-			if (h1m->status >= 100 && h1m->status < 200)
+			if (sl.st.status >= 100 && sl.st.status < 200)
 				h1m->curr_len = h1m->body_len = 0;
-			else if (h1m->status == 304 || h1m->status == 204) {
+			else if (sl.st.status == 304 || sl.st.status == 204) {
 				/* no contents, claim c-len is present and set to zero */
 				h1m->flags |= H1_MF_CLEN;
 				h1m->curr_len = h1m->body_len = 0;
