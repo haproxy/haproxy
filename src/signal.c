@@ -118,6 +118,8 @@ int signal_init()
 	 * parsing We don't want the process to be killed by an unregistered
 	 * USR2 signal when the master-worker is reloading */
 	sigaddset(&blocked_sig, SIGUSR2);
+	sigaddset(&blocked_sig, SIGCHLD);
+
 	ha_sigmask(SIG_SETMASK, &blocked_sig, NULL);
 
 	sigfillset(&blocked_sig);
