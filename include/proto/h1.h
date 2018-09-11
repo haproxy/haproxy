@@ -309,6 +309,7 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 static inline struct h1m *h1m_init(struct h1m *h1m)
 {
 	h1m->state = H1_MSG_RQBEFORE;
+	h1m->next = 0;
 	h1m->status = 0;
 	h1m->flags = 0;
 	h1m->curr_len = 0;

@@ -158,6 +158,7 @@ struct h1m {
 	uint32_t flags;             // H1 message flags (H1_MF_*)
 	uint64_t curr_len;          // content-length or last chunk length
 	uint64_t body_len;          // total known size of the body length
+	uint32_t next;              // next byte to parse, relative to buffer's head
 	int err_pos;                // position in the byte stream of the first error (H1 or H2)
 	int err_state;              // state where the first error was met (H1 or H2)
 };
