@@ -150,17 +150,12 @@ static inline const char *h1m_state_str(enum h1_state msg_state)
 	case H1_MSG_HDR_L2_LF:   return "MSG_HDR_L2_LF";
 	case H1_MSG_HDR_L2_LWS:  return "MSG_HDR_L2_LWS";
 	case H1_MSG_LAST_LF:     return "MSG_LAST_LF";
-	case H1_MSG_ERROR:       return "MSG_ERROR";
 	case H1_MSG_BODY:        return "MSG_BODY";
-	case H1_MSG_100_SENT:    return "MSG_100_SENT";
 	case H1_MSG_CHUNK_SIZE:  return "MSG_CHUNK_SIZE";
 	case H1_MSG_DATA:        return "MSG_DATA";
 	case H1_MSG_CHUNK_CRLF:  return "MSG_CHUNK_CRLF";
 	case H1_MSG_TRAILERS:    return "MSG_TRAILERS";
-	case H1_MSG_ENDING:      return "MSG_ENDING";
 	case H1_MSG_DONE:        return "MSG_DONE";
-	case H1_MSG_CLOSING:     return "MSG_CLOSING";
-	case H1_MSG_CLOSED:      return "MSG_CLOSED";
 	case H1_MSG_TUNNEL:      return "MSG_TUNNEL";
 	default:                 return "MSG_??????";
 	}
