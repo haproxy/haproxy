@@ -740,8 +740,13 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
-	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL)
+	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
+		struct per_thread_deinit_fct *ptdf;
+
+		list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+			ptdf->fct();
 		deinit_pollers(); /* we don't want to leak the poller fd */
+	}
 
 	ha_warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
