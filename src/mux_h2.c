@@ -3123,8 +3123,6 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	 * block does not wrap and we can safely read it this way without
 	 * having to realign the buffer.
 	 */
-	h1m->state = H1_MSG_RPBEFORE;
-	h1m->next  = 0;
 	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
 	                             list, sizeof(list)/sizeof(list[0]), h1m, &sl);
 	if (ret <= 0) {
@@ -3155,12 +3153,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
 	}
 
-	if (outbuf.size < 9) {
-		h2c->flags |= H2_CF_MUX_MFULL;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		ret = 0;
-		goto end;
-	}
+	if (outbuf.size < 9)
+		goto full;
 
 	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4 */
 	memcpy(outbuf.area, "\x00\x00\x00\x01\x04", 5);
@@ -3189,11 +3183,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	else {
 		if (b_space_wraps(&h2c->mbuf))
 			goto realign_again;
-
-		h2c->flags |= H2_CF_MUX_MFULL;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		ret = 0;
-		goto end;
+		goto full;
 	}
 
 	/* encode all headers, stop at empty name */
@@ -3213,11 +3203,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 			/* output full */
 			if (b_space_wraps(&h2c->mbuf))
 				goto realign_again;
-
-			h2c->flags |= H2_CF_MUX_MFULL;
-			h2s->flags |= H2_SF_BLK_MROOM;
-			ret = 0;
-			goto end;
+			goto full;
 		}
 	}
 
@@ -3265,6 +3251,13 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
  end:
 	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1_msg_state_str(h1m->err_state));
 	return ret;
+ full:
+	h1m_init_res(h1m);
+	h1m->err_pos = -1; // don't care about errors on the response path
+	h2c->flags |= H2_CF_MUX_MFULL;
+	h2s->flags |= H2_SF_BLK_MROOM;
+	ret = 0;
+	goto end;
 }
 
 /* Try to send a DATA frame matching HTTP/1 response present at offset <ofs>
