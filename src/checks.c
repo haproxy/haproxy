@@ -709,12 +709,12 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 /* This function checks if any I/O is wanted, and if so, attempts to do so */
 static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
 {
-	struct conn_stream *cs = ctx;
-	struct check *check = cs->data;
+	struct check *check = ctx;
+	struct conn_stream *cs = check->cs;
 
-	if (!(cs->wait_list.wait_reason & SUB_CAN_SEND))
+	if (!(check->wait_list.wait_reason & SUB_CAN_SEND))
 		wake_srv_chk(cs);
-	if (!(cs->wait_list.wait_reason & SUB_CAN_RECV)) {
+	if (!(check->wait_list.wait_reason & SUB_CAN_RECV)) {
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 		__event_srv_chk_r(cs);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
@@ -739,7 +739,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+		cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
 		goto out;
 	}
 
@@ -775,7 +775,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 			goto out_wakeup;
 		}
 		if (b_data(&check->bo)) {
-			conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+			conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
 			goto out;
 		}
 	}
@@ -828,7 +828,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
+		cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
 		goto out;
 	}
 
@@ -1386,7 +1386,7 @@ out:
 
  wait_more_data:
 	__cs_want_recv(cs);
-	cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
+	cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
         goto out;
 }
 
@@ -1409,7 +1409,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = tcpcheck_main(check);
 		cs = check->cs;
 		conn = cs_conn(cs);
-	} else if (LIST_ISEMPTY(&cs->wait_list.list))
+	} else if (!(check->wait_list.wait_reason & SUB_CAN_SEND))
 		__event_srv_chk_w(cs);
 
 	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
@@ -1581,9 +1581,9 @@ static int connect_conn_chk(struct task *t)
 	cs = check->cs = cs_new(NULL);
 	if (!check->cs)
 		return SF_ERR_RESOURCE;
-	cs->wait_list.task->process = event_srv_chk_io;
-	cs->wait_list.task->context = cs;
 	conn = cs->conn;
+	/* Maybe there were an older connection we were waiting on */
+	check->wait_list.wait_reason = 0;
 
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
@@ -2712,7 +2712,7 @@ static int tcpcheck_main(struct check *check)
 				break;
 			}
 			if (b_data(&check->bo)) {
-				cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &cs->wait_list);
+				cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
 				goto out;
 			}
 		}
@@ -2767,14 +2767,14 @@ static int tcpcheck_main(struct check *check)
 				check->current_step = NULL;
 				goto out;
 			}
-			cs->wait_list.task->process = event_srv_chk_io;
-			cs->wait_list.task->context = cs;
 
 			if (check->cs)
 				cs_destroy(check->cs);
 
 			check->cs = cs;
 			conn = cs->conn;
+			/* Maybe there were an older connection we were waiting on */
+			check->wait_list.wait_reason = 0;
 			conn->target = &s->obj_type;
 
 			/* no client address */
@@ -2939,7 +2939,7 @@ static int tcpcheck_main(struct check *check)
 					}
 				}
 				else {
-					conn->mux->subscribe(cs, SUB_CAN_RECV, &cs->wait_list);
+					conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
 					break;
 				}
 			}
@@ -3139,6 +3139,13 @@ const char *init_check(struct check *check, int type)
 	if (!check->bi.area || !check->bo.area)
 		return "out of memory while allocating check buffer";
 
+	check->wait_list.task = tasklet_new();
+	if (!check->wait_list.task)
+		return "out of memroy while allocating check tasklet";
+	LIST_INIT(&check->wait_list.list);
+	check->wait_list.wait_reason = 0;
+	check->wait_list.task->process = event_srv_chk_io;
+	check->wait_list.task->context = check;
 	return NULL;
 }
 
