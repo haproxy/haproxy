@@ -1,6 +1,207 @@
 ChangeLog :
 ===========
 
+2018/09/12 : 1.9-dev2
+    - BUG/MINOR: buffers: Fix b_slow_realign when a buffer is realign without output
+    - BUG/MEDIUM: threads: fix the no-thread case after the change to the sync point
+    - BUG/MEDIUM: servers: check the queues once enabling a server
+    - BUG/MEDIUM: queue: prevent a backup server from draining the proxy's connections
+    - MEDIUM: mux: Remove const on the buffer in mux->snd_buf()
+    - CLEANUP: backend: Move mux install to call it at only one place
+    - MINOR: conn_stream: add an tx buffer to the conn_stream
+    - MINOR: conn_stream: add cs_send() as a default snd_buf() function
+    - MINOR: backend: Try to find the best mux for outgoing connections
+    - MEDIUM: backend: don't rely on mux_pt_ops in connect_server()
+    - MINOR: mux: Add info about the supported side in alpn_mux_list structure
+    - MINOR: mux: Unlink ALPN and multiplexers to rather speak of mux protocols
+    - MINOR: mux: Print the list of existing mux protocols during HA startup
+    - MEDIUM: checks: use the new rendez-vous point to spread check result
+    - MEDIUM: haproxy: don't use sync_poll_loop() anymore in the main loop
+    - MINOR: threads: remove the previous synchronization point
+    - MAJOR: server: make server state changes synchronous again
+    - CLEANUP: server: remove the update list and the update lock
+    - BUG/MINOR: threads: Remove the unexisting lock label "UPDATED_SERVERS_LOCK"
+    - BUG/MEDIUM: stream_int: Don't check CO_FL_SOCK_RD_SH flag to trigger cs receive
+    - MINOR: mux: Change get_mux_proto to get an ist as parameter
+    - MINOR: mux: Improve the message with the list of existing mux protocols
+    - MINOR: mux/frontend: Add 'proto' keyword to force the mux protocol
+    - MINOR: mux/server: Add 'proto' keyword to force the multiplexer's protocol
+    - MEDIUM: mux: Use the mux protocol specified on bind/server lines
+    - BUG/MEDIUM: connection/mux: take care of serverless proxies
+    - MINOR: queue: make sure the pendconn is released before logging
+    - MINOR: stream: rename {srv,prx}_queue_size to *_queue_pos
+    - MINOR: queue: store the queue index in the stream when enqueuing
+    - MINOR: queue: replace the linked list with a tree
+    - MEDIUM: add set-priority-class and set-priority-offset
+    - MEDIUM: queue: adjust position based on priority-class and priority-offset
+    - DOC: update the roadmap about priority queues
+    - BUG/MINOR: ssl: empty connections reported as errors.
+    - MINOR: connections: Make rcv_buf mandatory and nuke cs_recv().
+    - MINOR: connections: Move rxbuf from the conn_stream to the h2s.
+    - MINOR: connections: Get rid of txbuf.
+    - MINOR: tasks: Allow tasklet_wakeup() to wakeup a task.
+    - MINOR: connections/mux: Add the wait reason(s) to wait_list.
+    - MINOR: stream_interface: Don't use si_cs_send() as a task handler.
+    - MINOR: stream_interface: Give stream_interface its own wait_list.
+    - MINOR: mux_h2: Don't use h2_send() as a callback.
+    - MINOR: checks: Add event_srv_chk_io().
+    - BUG/MEDIUM: tasks: Don't insert in the global rqueue if nbthread == 1
+    - BUG/MEDIUM: sessions: Don't use t->state.
+    - BUG/MEDIUM: ssl: fix missing error loading a keytype cert from a bundle.
+    - BUG/MEDIUM: ssl: loading dh param from certifile causes unpredictable error.
+    - BUG/MINOR: map: fix map_regm with backref
+    - DOC: dns: explain set server ... fqdn requires resolver
+    - DOC: add documentation for prio_class and prio_offset sample fetches.
+    - DOC: ssl: Use consistent naming for TLS protocols
+    - DOC: update the layering design notes
+    - MINOR: tasks: Don't special-case when nbthreads == 1
+    - MINOR: fd cache: And the thread_mask with all_threads_mask.
+    - BUG/MEDIUM: lua: socket timeouts are not applied
+    - BUG/MINOR: lua: fix extra 500ms added to socket timeouts
+    - BUG/MEDIUM: server: update our local state before propagating changes
+    - BUG/MEDIUM: cli/threads: protect all "proxy" commands against concurrent updates
+    - DOC: server/threads: document which functions need to be called with/without locks
+    - BUG/MEDIUM: cli/threads: protect some server commands against concurrent operations
+    - BUG/MEDIUM: streams: Don't forget to remove the si from the wait list.
+    - BUG/MEDIUM: tasklets: Add the thread as active when waking a tasklet.
+    - BUG/MEDIUM: stream-int: Check if the conn_stream exist in si_cs_io_cb.
+    - BUG/MEDIUM: H2: Activate polling after successful h2_snd_buf().
+    - BUG/MEDIUM: stream_interface: Call the wake callback after sending.
+    - BUG/MAJOR: queue/threads: make pendconn_redistribute not lock the server
+    - BUG/MEDIUM: connection: don't forget to always delete the list's head
+    - BUG/MEDIUM: lb/threads: always properly lock LB algorithms on maintenance operations
+    - BUG/MEDIUM: check/threads: do not involve the rendez-vous point for status updates
+    - BUG/MINOR: chunks: do not store -1 into chunk_printf() in case of error
+    - BUG/MEDIUM: http: don't store exp_replace() result in the trash's length
+    - BUG/MEDIUM: http: don't store url_decode() result in the samples's length
+    - BUG/MEDIUM: dns: don't store dns_build_query() result in the trash's length
+    - BUG/MEDIUM: map: don't store exp_replace() result in the trash's length
+    - BUG/MEDIUM: connection: don't store recv() result into trash.data
+    - BUG/MEDIUM: cli/ssl: don't store base64dec() result in the trash's length
+    - MINOR: chunk: remove impossible tests on negative chunk->data
+    - MINOR: sample: remove impossible tests on negative smp->data.u.str.data
+    - DOC: Fix spelling error in configuration doc
+    - REGTEST/MINOR: Missing mandatory "ignore_unknown_macro".
+    - REGTEST/MINOR: Add a new class of regression testing files.
+    - BUG/MEDIUM: unix: provide a ->drain() function
+    - MINOR: connection: make conn_sock_drain() work for all socket families
+    - BUG/MINOR: lua: Bad HTTP client request duration.
+    - REGEST/MINOR: Add reg testing files.
+    - BUG/MEDIUM: mux_pt: dereference the connection with care in mux_pt_wake()
+    - REGTEST/MINOR: Add a reg testing file for b406b87 commit.
+    - BUG/MEDIUM: lua: reset lua transaction between http requests
+    - MINOR: add be_conn_free sample fetch
+    - MINOR: Add srv_conn_free sample fetch
+    - BUG/MEDIUM: hlua: Make sure we drain the output buffer when done.
+    - MINOR: checks: Call wake_srv_chk() when we can finally send data.
+    - BUG/MEDIUM: stream_interface: try to call si_cs_send() earlier.
+    - BUG/MAJOR: thread: lua: Wrong SSL context initialization.
+    - REGTEST/MINOR: Add a reg testing file for 3e60b11.
+    - BUG/MEDIUM: hlua: Don't call RESET_SAFE_LJMP if SET_SAFE_LJMP returns 0.
+    - REGTEST/MINOR: lua: Add reg testing files for 70d318c.
+    - BUG/MEDIUM: dns/server: fix incomatibility between SRV resolution and server state file
+    - BUG/MEDIUM: ECC cert should work with TLS < v1.2 and openssl >= 1.1.1
+    - MINOR: tools: make date2str_log() take some consts
+    - MINOR: thread: implement HA_ATOMIC_XADD()
+    - BUG/MINOR: stream: use atomic increments for the request counter
+    - BUG/MEDIUM: session: fix reporting of handshake processing time in the logs
+    - BUG/MEDIUM: h2: fix risk of memory leak on malformated wrapped frames
+    - BUG/MAJOR: buffer: fix incorrect check in __b_putblk()
+    - MINOR: log: move the log code to sess_build_logline() to add extra arguments
+    - MINOR: log: make the backend fall back to the frontend when there's no stream
+    - MINOR: log: make sess_build_logline() not dereference a NULL stream for txn
+    - MINOR: log: don't unconditionally pick log info from s->logs
+    - CLEANUP: log: make the low_level lf_{ip,port,text,text_len} functions take consts
+    - MINOR: log: keep a copy of the backend connection early in sess_build_logline()
+    - MINOR: log: do not dereference a null stream to access captures
+    - MINOR: log: be sure not to dereference a null stream for a target
+    - MINOR: log: don't check the stream-int's conn_retries if the stream is NULL
+    - MINOR: log: use NULL for the unique_id if there is no stream
+    - MINOR: log: keep a copy of s->flags early to avoid a dereference
+    - MINOR: log: use zero as the request counter if there is no stream
+    - MEDIUM: log: make sess_build_logline() support being called with no stream
+    - MINOR: log: provide a function to emit a log for a session
+    - MEDIUM: h2: produce some logs on early errors that prevent streams from being created
+    - BUG/MINOR: h1: fix buffer shift after realignment
+    - MINOR: connection: make the initialization more consistent
+    - MINOR: connection: add new function conn_get_proxy()
+    - MINOR: connection: add new function conn_is_back()
+    - MINOR: log: One const should be enough.
+    - BUG/MINOR: dns: check and link servers' resolvers right after config parsing
+    - BUG/MINOR: http/threads: atomically increment the error snapshot ID
+    - MINOR: snapshot: restart on the event ID and not the stream ID
+    - MINOR: snapshot: split the error snapshots into common and proto-specific parts
+    - MEDIUM: snapshot: start to reorder the HTTP snapshot output a little bit
+    - MEDIUM: snapshot: implement a show() callback and use it for HTTP
+    - MINOR: proxy: add a new generic proxy_capture_error()
+    - MINOR: http: make the HTTP error capture rely on the generic proxy code
+    - MINOR: http: remove the pointer to the error snapshot in http_capture_bad_message()
+    - REORG: cli: move the "show errors" handler from http to proxy
+    - BUG/MEDIUM: snapshot: take the proxy's lock while dumping errors
+    - MEDIUM: snapshots: dynamically allocate the snapshots
+    - MEDIUM: snapshot: merge the captured data after the descriptor
+    - MEDIUM: mworker: remove register/unregister signal functions
+    - MEDIUM: mworker: use the haproxy poll loop
+    - BUG/MINOR: mworker: no need to stop peers for each proxy
+    - MINOR: mworker: mworker_cleanlisteners() delete the listeners
+    - MEDIUM: mworker: block SIGCHLD until the master is ready
+    - MEDIUM: mworker: never block SIG{TERM,INT} during reload
+    - MEDIUM: startup: unify signal init between daemon and mworker mode
+    - MINOR: mworker: don't deinit the poller fd when in wait mode
+    - MEDIUM: mworker: master wait mode use its own initialization
+    - MEDIUM: mworker: replace the master pipe by socketpairs
+    - MINOR: mworker: keep and clean the listeners
+    - MEDIUM: threads: close the thread-waker pipe during deinit
+    - MEDIUM: mworker: call per_thread deinit in mworker_reload()
+    - REORG: http: move the HTTP semantics definitions to http.h/http.c
+    - REORG: http: move http_get_path() to http.c
+    - REORG: http: move error codes production and processing to http.c
+    - REORG: http: move the log encoding tables to log.c
+    - REORG: http: move some header value processing functions to http.c
+    - BUG/MAJOR: kqueue: Don't reset the changes number by accident.
+    - MEDIUM: protocol: use a custom AF_MAX to help protocol parser
+    - MEDIUM: protocol: sockpair protocol
+    - TESTS: add a python wrapper for sockpair@
+    - BUG/MINOR: server: Crash when setting FQDN via CLI.
+    - BUG/MINOR: h2: report asynchronous end of stream on closed connections
+    - BUILD: fix build without thread
+    - BUG/MEDIUM: tasks: Don't forget to decrement task_list_size in tasklet_free().
+    - MEDIUM: connections: Don't reset the polling flags in conn_fd_handler().
+    - MEDIUM: connections/mux: Add a recv and a send+recv wait list.
+    - MEDIUM: connections: Get rid of the recv() method.
+    - MINOR: h2: Let user of h2_recv() and h2_send() know xfer has been done.
+    - MEDIUM: h2: always subscribe to receive if allowed.
+    - MEDIUM: h2: Don't use a wake() method anymore.
+    - MEDIUM: stream_interface: Make recv() subscribe when more data is needed.
+    - MINOR: connections: Add a "handle" field to wait_list.
+    - MEDIUM: mux_h2: Revamp the send path when blocking.
+    - MEDIUM: stream_interfaces: Starts receiving from the upper layers.
+    - MINOR: checks: Give checks their own wait_list.
+    - MINOR: conn_streams: Remove wait_list from conn_streams.
+    - REORG: h1: create a new h1m_state
+    - MINOR: h1: add the restart offsets into struct h1m
+    - MINOR: h1: remove the unused states from h1m_state
+    - MINOR: h1: provide a distinct init() function for request and response
+    - MINOR: h1: add a message flag to indicate that a message carries a response
+    - MINOR: h2: make sure h1m->err_pos field is correct on chunk error
+    - MINOR: h1: properly pre-initialize err_pos to -2
+    - MINOR: mux_h2: replace the req,res h1 messages with a single h1 message
+    - MINOR: h2: pre-initialize h1m->err_pos to -1 on the output path
+    - MEDIUM: h1: consider err_pos before deciding to accept a header name or not
+    - MEDIUM: h1: make the parser support a pointer to a start line
+    - MEDIUM: h1: let the caller pass the initial parser's state
+    - MINOR: h1: make the message parser support a null <hdr> argument
+    - MEDIUM: h1: support partial message parsing
+    - MEDIUM: h1: remove the useless H1_MSG_BODY state
+    - MINOR: h2: store the HTTP status into the H2S, not the H1M
+    - MINOR: h1: remove the HTTP status from the H1M struct
+    - MEDIUM: h1: implement the request parser as well
+    - MINOR: h1: add H1_MF_TOLOWER to decide when to turn header names to lower case
+    - MINOR: connection: pass the proxy when creating a connection
+    - BUG/MEDIUM: h2: Don't forget to empty the wait lists on destroy.
+    - BUG/MEDIUM: h2: Don't forget to set recv_wait_list to NULL in h2_detach.
+    - BUG/MAJOR: h2: reset the parser's state on mux buffer full
+
 2018/08/02 : 1.9-dev1
     - BUG/MEDIUM: kqueue: Don't bother closing the kqueue after fork.
     - DOC: cache: update sections and fix some typos
