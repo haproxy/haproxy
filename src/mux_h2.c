@@ -1062,8 +1062,8 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 
 /* wake the streams attached to the connection, whose id is greater than <last>,
  * and assign their conn_stream the CS_FL_* flags <flags> in addition to
- * CS_FL_ERROR in case of error and CS_FL_EOS in case of closed connection. The
- * stream's state is automatically updated accordingly.
+ * CS_FL_ERROR in case of error and CS_FL_REOS in case of closed connection.
+ * The stream's state is automatically updated accordingly.
  */
 static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 {
@@ -1074,7 +1074,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		flags |= CS_FL_ERROR;
 
 	if (conn_xprt_read0_pending(h2c->conn))
-		flags |= CS_FL_EOS;
+		flags |= CS_FL_REOS;
 
 	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
 	while (node) {
@@ -1094,9 +1094,9 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
-		else if (flags & CS_FL_EOS && h2s->st == H2_SS_OPEN)
+		else if (flags & CS_FL_REOS && h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
-		else if (flags & CS_FL_EOS && h2s->st == H2_SS_HLOC)
+		else if (flags & CS_FL_REOS && h2s->st == H2_SS_HLOC)
 			h2s_close(h2s);
 	}
 }
@@ -1568,7 +1568,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s_close(h2s);
 
 	if (h2s->cs) {
-		h2s->cs->flags |= CS_FL_EOS | CS_FL_ERROR;
+		h2s->cs->flags |= CS_FL_REOS | CS_FL_ERROR;
 		h2s->cs->data_cb->wake(h2s->cs);
 	}
 
