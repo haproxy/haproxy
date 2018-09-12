@@ -347,6 +347,8 @@ static inline void task_free(struct task *t)
 
 static inline void tasklet_free(struct tasklet *tl)
 {
+	if (!LIST_ISEMPTY(&tl->list))
+		task_list_size[tid]--;
 	LIST_DEL(&tl->list);
 
 	pool_free(pool_head_tasklet, tl);
