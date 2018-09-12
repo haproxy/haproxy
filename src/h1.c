@@ -1073,7 +1073,21 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			}
 			http_set_hdr(&hdr[hdr_count++], ist(""), ist(""));
 		}
-		state = H1_MSG_BODY;
+
+		/* reaching here we've parsed the whole message. We may detect
+		 * that we were already continuing an interrupted parsing pass
+		 * so we were silently looking for the end of message not
+		 * updating anything before deciding to parse it fully at once.
+		 * It's guaranteed that we won't match this test twice in a row
+		 * since restarting will turn zero.
+		 */
+		if (restarting)
+			goto restart;
+
+		if (h1m->flags & H1_MF_CHNK)
+			state = H1_MSG_CHUNK_SIZE;
+		else
+			state = H1_MSG_DATA;
 		break;
 
 	default:
@@ -1081,14 +1095,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		goto http_msg_invalid;
 	}
 
-	/* reaching here, we've parsed the whole message and the state is
-	 * H1_MSG_BODY. We may discover that we were already continuing an
-	 * interrupted parsing session, thus we were silently looking for
-	 * the end of message before deciding to parse it fully at once.
-	 * We won't come there again since restarting will turn zero.
+	/* Now we've left the headers state and are either in H1_MSG_DATA or
+	 * H1_MSG_CHUNK_SIZE.
 	 */
-	if (restarting)
-		goto restart;
 
 	if (slp && !skip_update)
 		*slp = sl;

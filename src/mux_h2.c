@@ -3237,8 +3237,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		h1m->err_pos = -1; // don't care about errors on the response path
 		goto end;
 	}
-	else
-		h1m->state = (h1m->flags & H1_MF_CHNK) ? H1_MSG_CHUNK_SIZE : H1_MSG_BODY;
+
+	/* now the h1m state is either H1_MSG_CHUNK_SIZE or H1_MSG_DATA */
 
  end:
 	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1_msg_state_str(h1m->err_state));
@@ -3568,7 +3568,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
 	while (h2s->h1m.state < H1_MSG_DONE && count) {
-		if (h2s->h1m.state < H1_MSG_BODY) {
+		if (h2s->h1m.state <= H1_MSG_LAST_LF) {
 			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
 		}
 		else if (h2s->h1m.state < H1_MSG_TRAILERS) {

@@ -120,21 +120,17 @@ enum h1m_state {
 	H1_MSG_HDR_L2_LF    = 23, // parsing header LWS (LF) inside/after value
 	H1_MSG_HDR_L2_LWS   = 24, // checking whether it's a new header or an LWS
 
-	H1_MSG_LAST_LF      = 25, // parsing last LF
+	H1_MSG_LAST_LF      = 25, // parsing last LF, last state for headers
 
-	/* Body processing.
-	 * The state H1_MSG_BODY is a delimiter to know if we're waiting for headers
-	 * or body. All the sub-states below also indicate we're processing the body,
-	 * with some additional information.
-	 */
-	H1_MSG_BODY         = 26, // parsing body at end of headers
-	H1_MSG_CHUNK_SIZE   = 27, // parsing the chunk size (RFC7230 #4.1)
-	H1_MSG_DATA         = 28, // skipping data chunk / content-length data
-	H1_MSG_CHUNK_CRLF   = 29, // skipping CRLF after data chunk
-	H1_MSG_TRAILERS     = 30, // trailers (post-data entity headers)
+	/* Body processing. */
+
+	H1_MSG_CHUNK_SIZE   = 26, // parsing the chunk size (RFC7230 #4.1)
+	H1_MSG_DATA         = 27, // skipping data chunk / content-length data
+	H1_MSG_CHUNK_CRLF   = 28, // skipping CRLF after data chunk
+	H1_MSG_TRAILERS     = 29, // trailers (post-data entity headers)
 	/* we enter this state when we've received the end of the current message */
-	H1_MSG_DONE         = 31, // message end received, waiting for resync or close
-	H1_MSG_TUNNEL       = 32, // tunneled data after DONE
+	H1_MSG_DONE         = 30, // message end received, waiting for resync or close
+	H1_MSG_TUNNEL       = 31, // tunneled data after DONE
 } __attribute__((packed));
 
 
