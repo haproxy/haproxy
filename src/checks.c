@@ -1611,7 +1611,7 @@ static int connect_conn_chk(struct task *t)
 	clear_addr(&conn->addr.from);
 
 	conn_prepare(conn, proto, check->xprt);
-	conn_install_mux(conn, &mux_pt_ops, cs);
+	conn_install_mux(conn, &mux_pt_ops, cs, s->proxy);
 	cs_attach(cs, check, &check_conn_cb);
 
 	/* only plain tcp-check supports quick ACK */
@@ -2806,7 +2806,7 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			conn_prepare(conn, proto, xprt);
-			conn_install_mux(conn, &mux_pt_ops, cs);
+			conn_install_mux(conn, &mux_pt_ops, cs, s->proxy);
 			cs_attach(cs, check, &check_conn_cb);
 
 			ret = SF_ERR_INTERNAL;

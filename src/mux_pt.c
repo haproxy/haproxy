@@ -19,7 +19,7 @@
  * incoming ones, in which case one will be allocated and a new stream will be
  * instanciated). Returns < 0 on error.
  */
-static int mux_pt_init(struct connection *conn)
+static int mux_pt_init(struct connection *conn, struct proxy *prx)
 {
 	struct conn_stream *cs = conn->mux_ctx;
 

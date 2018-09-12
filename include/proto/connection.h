@@ -796,11 +796,12 @@ static inline struct wait_list *wl_set_waitcb(struct wait_list *wl, struct task 
 /* Installs the connection's mux layer for upper context <ctx>.
  * Returns < 0 on error.
  */
-static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux, void *ctx)
+static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux,
+                                   void *ctx, struct proxy *prx)
 {
 	conn->mux = mux;
 	conn->mux_ctx = ctx;
-	return mux->init ? mux->init(conn) : 0;
+	return mux->init ? mux->init(conn, prx) : 0;
 }
 
 /* returns a human-readable error code for conn->err_code, or NULL if the code
@@ -1045,7 +1046,7 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 		if (!mux_ops)
 			return -1;
 	}
-	return conn_install_mux(conn, mux_ops, ctx);
+	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend);
 }
 
 /* installs the best mux for outgoing connection <conn> using the upper context
@@ -1074,7 +1075,7 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 		if (!mux_ops)
 			return -1;
 	}
-	return conn_install_mux(conn, mux_ops, ctx);
+	return conn_install_mux(conn, mux_ops, ctx, prx);
 }
 
 #endif /* _PROTO_CONNECTION_H */

@@ -438,7 +438,7 @@ static int h2c_frt_init(struct connection *conn)
  * connections from the fact that the context is still NULL. Returns < 0 on
  * error.
  */
-static int h2_init(struct connection *conn)
+static int h2_init(struct connection *conn, struct proxy *prx)
 {
 	if (conn->mux_ctx) {
 		/* we don't support outgoing connections for now */

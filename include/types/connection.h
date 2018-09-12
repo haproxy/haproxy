@@ -41,6 +41,7 @@
 struct connection;
 struct conn_stream;
 struct buffer;
+struct proxy;
 struct server;
 struct pipe;
 
@@ -310,7 +311,7 @@ struct xprt_ops {
  * layer is not ready yet.
  */
 struct mux_ops {
-	int  (*init)(struct connection *conn);        /* early initialization */
+	int  (*init)(struct connection *conn, struct proxy *prx);  /* early initialization */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
 	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
