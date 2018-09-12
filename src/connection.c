@@ -203,9 +203,6 @@ void conn_fd_handler(int fd)
 	    conn->mux->wake(conn) < 0)
 		return;
 
-	/* remove the events before leaving */
-	fdtab[fd].ev &= FD_POLL_STICKY;
-
 	/* commit polling changes */
 	conn->flags &= ~CO_FL_WILL_UPDATE;
 	conn_cond_update_polling(conn);
