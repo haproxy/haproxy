@@ -1082,7 +1082,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		/* assumes sol points to the first char */
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			/* turn it to lower case if needed */
-			if (isupper((unsigned char)*ptr))
+			if (isupper((unsigned char)*ptr) && h1m->flags & H1_MF_TOLOWER)
 				*ptr = tolower(*ptr);
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, H1_MSG_HDR_NAME);
 		}
@@ -1231,11 +1231,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				h1m->flags |= H1_MF_CLEN;
 				h1m->curr_len = h1m->body_len = 0;
 			}
-			else if (isteq(n, ist("transfer-encoding"))) {
+			else if (isteqi(n, ist("transfer-encoding"))) {
 				h1m->flags &= ~H1_MF_CLEN;
 				h1m->flags |= H1_MF_CHNK;
 			}
-			else if (isteq(n, ist("content-length")) && !(h1m->flags & H1_MF_CHNK)) {
+			else if (isteqi(n, ist("content-length")) && !(h1m->flags & H1_MF_CHNK)) {
 				h1m->flags |= H1_MF_CLEN;
 				strl2llrc(v.ptr, v.len, &cl);
 				h1m->curr_len = h1m->body_len = cl;

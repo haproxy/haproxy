@@ -694,6 +694,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->rxbuf     = BUF_NULL;
 	h1m_init_res(&h2s->h1m);
 	h2s->h1m.err_pos = -1; // don't care about errors on the response path
+	h2s->h1m.flags |= H1_MF_TOLOWER;
 	h2s->by_id.key = h2s->id = id;
 	h2c->max_id    = id;
 
@@ -3239,6 +3240,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		/* we'll let the caller check if it has more headers to send */
 		h1m_init_res(h1m);
 		h1m->err_pos = -1; // don't care about errors on the response path
+		h2s->h1m.flags |= H1_MF_TOLOWER;
 		goto end;
 	}
 
