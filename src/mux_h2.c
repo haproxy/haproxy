@@ -491,6 +491,19 @@ static void h2_release(struct connection *conn)
 			tasklet_free(h2c->wait_list.task);
 		LIST_DEL(&h2c->wait_list.list);
 		LIST_INIT(&h2c->wait_list.list);
+		while (!LIST_ISEMPTY(&h2c->send_list)) {
+			struct wait_list *sw = LIST_ELEM(h2c->send_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+		}
+		while (!LIST_ISEMPTY(&h2c->fctl_list)) {
+			struct wait_list *sw = LIST_ELEM(h2c->fctl_list.n,
+			    struct wait_list *, list);
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+		}
+
 
 		pool_free(pool_head_h2c, h2c);
 	}
