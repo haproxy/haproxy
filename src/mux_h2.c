@@ -2606,6 +2606,9 @@ static void h2_detach(struct conn_stream *cs)
 		return;
 
 	h2c = h2s->h2c;
+	/* If the stream we're detaching waited for more data, unsubscribe it now */
+	if (h2s->recv_wait_list && !((long)h2s->recv_wait_list->handle & 3))
+		h2s->recv_wait_list = NULL;
 	h2s->cs = NULL;
 	h2c->nb_cs--;
 	if (h2c->flags & H2_CF_DEM_TOOMANY &&
