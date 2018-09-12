@@ -671,7 +671,7 @@ static int si_cs_send(struct conn_stream *cs)
 	 * in the normal buffer.
 	 */
 	if (!co_data(oc))
-		goto wake_others;
+		return did_send;
 
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -722,29 +722,6 @@ static int si_cs_send(struct conn_stream *cs)
 	if (co_data(oc)) {
 		cs_want_send(cs);
 		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_list);
-	}
-
-wake_others:
-	/* Maybe somebody was waiting for this conn_stream, wake them */
-	if (did_send) {
-		while (!LIST_ISEMPTY(&cs->send_wait_list)) {
-			struct wait_list *sw = LIST_ELEM(cs->send_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
-			tasklet_wakeup(sw->task);
-		}
-		while (!(LIST_ISEMPTY(&cs->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(cs->sendrecv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			LIST_ADDQ(&cs->recv_wait_list, &sw->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
-			tasklet_wakeup(sw->task);
-		}
-
 	}
 	return did_send;
 }
@@ -1356,26 +1333,6 @@ static int si_cs_recv(struct conn_stream *cs)
 			ic->xfer_large = 0;
 		}
 		ic->last_read = now_ms;
-	}
-	if (cur_read > 0) {
-		while (!LIST_ISEMPTY(&cs->recv_wait_list)) {
-			struct wait_list *sw = LIST_ELEM(cs->recv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			sw->wait_reason &= ~SUB_CAN_RECV;
-			tasklet_wakeup(sw->task);
-		}
-		while (!(LIST_ISEMPTY(&cs->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(cs->sendrecv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			LIST_ADDQ(&cs->send_wait_list, &sw->list);
-			sw->wait_reason &= ~SUB_CAN_RECV;
-			tasklet_wakeup(sw->task);
-		}
-
 	}
 
  end_recv:
