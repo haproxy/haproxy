@@ -864,16 +864,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, H1_MSG_HDR_L1_SP);
 		}
 
-		if (HTTP_IS_LWS(*ptr)) {
+		if (likely(h1m->err_pos < -1) || *ptr == '\n') {
 			state = H1_MSG_HDR_NAME;
 			goto http_msg_invalid;
 		}
 
-		/* now we have a non-token character in the header field name,
-		 * it's up to the H1 layer to have decided whether or not it
-		 * was acceptable. If we find it here, it was considered
-		 * acceptable due to configuration rules so we obey.
-		 */
+		if (h1m->err_pos == -1) /* capture the error pointer */
+			h1m->err_pos = ptr - start + skip; /* >= 0 now */
+
+		/* and we still accept this non-token character */
 		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, H1_MSG_HDR_NAME);
 
 	case H1_MSG_HDR_L1_SP:
