@@ -867,8 +867,6 @@ static void mworker_loop()
 	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
 				     some SIGCHLD were lost */
 
-	tid = 0;
-
 	global.nbthread = 1;
 	relative_pid = 1;
 	pid_bit = 1;
