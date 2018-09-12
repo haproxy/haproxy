@@ -309,7 +309,7 @@ static inline struct h1m *h1m_init_req(struct h1m *h1m)
 	h1m->flags = H1_MF_NONE;
 	h1m->curr_len = 0;
 	h1m->body_len = 0;
-	h1m->err_pos = 0;
+	h1m->err_pos = -2;
 	h1m->err_state = 0;
 	return h1m;
 }
@@ -323,7 +323,7 @@ static inline struct h1m *h1m_init_res(struct h1m *h1m)
 	h1m->flags = H1_MF_RESP;
 	h1m->curr_len = 0;
 	h1m->body_len = 0;
-	h1m->err_pos = 0;
+	h1m->err_pos = -2;
 	h1m->err_state = 0;
 	return h1m;
 }

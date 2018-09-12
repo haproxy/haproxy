@@ -143,7 +143,12 @@ enum h1m_state {
 #define H1_MF_RESP              0x00000004 // this message is the response message
 
 
-/* basic HTTP/1 message state for use in parsers */
+/* basic HTTP/1 message state for use in parsers. The err_pos field is special,
+ * it is pre-set to a negative value (-1 or -2), and once non-negative it contains
+ * the relative position in the message of the first parse error. -2 is used to tell
+ * the parser that we want to block the invalid message. -1 is used to only perform
+ * a silent capture.
+ */
 struct h1m {
 	enum h1m_state state;       // H1 message state (H1_MSG_*)
 	/* 8 bits available here */
