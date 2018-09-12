@@ -3316,7 +3316,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 			if (ret < 0) {
 				/* FIXME: bad contents. how to proceed here when we're in H2 ? */
-				h1m->err_pos = ret;
+				h1m->err_pos = ofs + max + ret;
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				goto end;
 			}
@@ -3334,7 +3334,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 			if (ret < 0) {
 				/* FIXME: bad contents. how to proceed here when we're in H2 ? */
-				h1m->err_pos = ret;
+				h1m->err_pos = ofs + max + ret;
 				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 				goto end;
 			}
