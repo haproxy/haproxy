@@ -1224,14 +1224,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 			http_set_hdr(&hdr[hdr_count++], n, v);
 
-			if (sl.st.status >= 100 && sl.st.status < 200)
-				h1m->curr_len = h1m->body_len = 0;
-			else if (sl.st.status == 304 || sl.st.status == 204) {
-				/* no contents, claim c-len is present and set to zero */
-				h1m->flags |= H1_MF_CLEN;
-				h1m->curr_len = h1m->body_len = 0;
-			}
-			else if (isteqi(n, ist("transfer-encoding"))) {
+			if (isteqi(n, ist("transfer-encoding"))) {
 				h1m->flags &= ~H1_MF_CLEN;
 				h1m->flags |= H1_MF_CHNK;
 			}

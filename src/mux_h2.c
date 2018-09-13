@@ -3140,6 +3140,21 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 
 	h2s->status = sl.st.status;
+
+	/* certain statuses have no body or an empty one, regardless of
+	 * what the headers say.
+	 */
+	if (sl.st.status >= 100 && sl.st.status < 200) {
+		h1m->flags &= ~(H1_MF_CLEN | H1_MF_CHNK);
+		h1m->curr_len = h1m->body_len = 0;
+	}
+	else if (sl.st.status == 204 || sl.st.status == 304) {
+		/* no contents, claim c-len is present and set to zero */
+		h1m->flags &= ~H1_MF_CHNK;
+		h1m->flags |=  H1_MF_CLEN;
+		h1m->curr_len = h1m->body_len = 0;
+	}
+
 	chunk_reset(&outbuf);
 
 	while (1) {
