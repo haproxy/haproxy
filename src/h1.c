@@ -659,6 +659,44 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	return;
 }
 
+
+/* Parse the Connection: header of an HTTP/1 request, looking for "close",
+ * "keep-alive", and "upgrade" values, and updating h1m->flags according to
+ * what was found there. Note that flags are only added, not removed, so the
+ * function is safe for being called multiple times if multiple occurrences
+ * are found.
+ */
+void h1_parse_connection_header(struct h1m *h1m, struct ist value)
+{
+	char *e, *n;
+	struct ist word;
+
+	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
+	e = value.ptr + value.len;
+
+	while (++word.ptr < e) {
+		/* skip leading delimitor and blanks */
+		if (HTTP_IS_LWS(*word.ptr))
+			continue;
+
+		n = http_find_hdr_value_end(word.ptr, e); // next comma or end of line
+		word.len = n - word.ptr;
+
+		/* trim trailing blanks */
+		while (word.len && HTTP_IS_LWS(word.ptr[word.len-1]))
+			word.len--;
+
+		if (isteqi(word, ist("keep-alive")))
+			h1m->flags |= H1_MF_CONN_KAL;
+		else if (isteqi(word, ist("close")))
+			h1m->flags |= H1_MF_CONN_CLO;
+		else if (isteqi(word, ist("upgrade")))
+			h1m->flags |= H1_MF_CONN_UPG;
+
+		word.ptr = n;
+	}
+}
+
 /* This function parses a contiguous HTTP/1 headers block starting at <start>
  * and ending before <stop>, at once, and converts it a list of (name,value)
  * pairs representing header fields into the array <hdr> of size <hdr_num>,
@@ -1243,6 +1281,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				h1m->flags |= H1_MF_CLEN;
 				strl2llrc(v.ptr, v.len, &cl);
 				h1m->curr_len = h1m->body_len = cl;
+			}
+			else if (isteqi(n, ist("connection"))) {
+				h1_parse_connection_header(h1m, v);
 			}
 		}
 

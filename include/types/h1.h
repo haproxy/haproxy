@@ -141,6 +141,18 @@ enum h1m_state {
 #define H1_MF_RESP              0x00000004 // this message is the response message
 #define H1_MF_TOLOWER           0x00000008 // turn the header names to lower case
 #define H1_MF_VER_11            0x00000010 // message indicates version 1.1 or above
+#define H1_MF_CONN_CLO          0x00000020 // message contains "connection: close"
+#define H1_MF_CONN_KAL          0x00000040 // message contains "connection: keep-alive"
+#define H1_MF_CONN_UPG          0x00000080 // message contains "connection: upgrade"
+
+/* Note: for a connection to be persistent, we need this for the request :
+ *   - one of CLEN or CHNK
+ *   - version 1.0 and KAL and not CLO
+ *   - or version 1.1 and not CLO
+ * For the response it's the same except that UPG must not appear either.
+ * So in short, for a request it's (CLEN|CHNK) > 0 && !CLO && (VER_11 || KAL)
+ * and for a response it's (CLEN|CHNK) > 0 && !(CLO|UPG) && (VER_11 || KAL)
+ */
 
 
 /* basic HTTP/1 message state for use in parsers. The err_pos field is special,
