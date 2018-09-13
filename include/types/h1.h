@@ -140,6 +140,7 @@ enum h1m_state {
 #define H1_MF_CHNK              0x00000002 // chunk present, exclusive with c-l
 #define H1_MF_RESP              0x00000004 // this message is the response message
 #define H1_MF_TOLOWER           0x00000008 // turn the header names to lower case
+#define H1_MF_VER_11            0x00000010 // message indicates version 1.1 or above
 
 
 /* basic HTTP/1 message state for use in parsers. The err_pos field is special,

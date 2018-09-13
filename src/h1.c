@@ -896,6 +896,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			 */
 
 			if (likely(!skip_update)) {
+				if ((sl.rq.v_l == 8) &&
+				    ((start[sl.rq.v + 5] > '1') ||
+				     ((start[sl.rq.v + 5] == '1') && (start[sl.rq.v + 7] >= '1'))))
+					h1m->flags |= H1_MF_VER_11;
+
 				if (unlikely(hdr_count >= hdr_num)) {
 					state = H1_MSG_RQVER;
 					goto http_output_full;
@@ -979,6 +984,12 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			sl.st.v_l = ptr - start;
+
+			if ((sl.st.v_l == 8) &&
+			    ((start[sl.st.v + 5] > '1') ||
+			     ((start[sl.st.v + 5] == '1') && (start[sl.st.v + 7] >= '1'))))
+				h1m->flags |= H1_MF_VER_11;
+
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver_sp, http_msg_ood, state, H1_MSG_RPVER_SP);
 		}
 		state = H1_MSG_RPVER;
