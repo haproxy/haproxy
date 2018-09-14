@@ -288,6 +288,9 @@ struct server {
 			int allocated_size;
 		} * reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+		char *ciphersuites;			/* TLS 1.3 cipher suite to use if non-null */
+#endif
 		int options;			/* ssl options */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
 		struct tls_version_filter methods;	/* ssl methods */

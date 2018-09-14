@@ -129,6 +129,9 @@ struct ssl_bind_conf {
 	char *ca_file;             /* CAfile to use on verify */
 	char *crl_file;            /* CRLfile to use on verify */
 	char *ciphers;             /* cipher suite to use if non-null */
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	char *ciphersuites;        /* TLS 1.3 cipher suite to use if non-null */
+#endif
 	char *curves;	           /* curves suite to use for ECDHE */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	struct tls_version_filter ssl_methods; /* ssl methods */

@@ -239,9 +239,19 @@
 #define CONNECT_DEFAULT_CIPHERS NULL
 #endif
 
+/* ciphers used as defaults on TLS 1.3 connect */
+#ifndef CONNECT_DEFAULT_CIPHERSUITES
+#define CONNECT_DEFAULT_CIPHERSUITES NULL
+#endif
+
 /* ciphers used as defaults on listeners */
 #ifndef LISTEN_DEFAULT_CIPHERS
 #define LISTEN_DEFAULT_CIPHERS NULL
+#endif
+
+/* cipher suites used as defaults on TLS 1.3 listeners */
+#ifndef LISTEN_DEFAULT_CIPHERSUITES
+#define LISTEN_DEFAULT_CIPHERSUITES NULL
 #endif
 
 /* named curve used as defaults for ECDHE ciphers */

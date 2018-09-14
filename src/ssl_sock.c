@@ -171,6 +171,10 @@ static struct {
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	char *listen_default_ciphersuites;
+	char *connect_default_ciphersuites;
+#endif
 	int listen_default_ssloptions;
 	int connect_default_ssloptions;
 	struct tls_version_filter listen_default_sslmethods;
@@ -188,6 +192,14 @@ static struct {
 #endif
 #ifdef CONNECT_DEFAULT_CIPHERS
 	.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS,
+#endif
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#ifdef LISTEN_DEFAULT_CIPHERSUITES
+	.listen_default_ciphersuites = LISTEN_DEFAULT_CIPHERSUITES,
+#endif
+#ifdef CONNECT_DEFAULT_CIPHERSUITES
+	.connect_default_ciphersuites = CONNECT_DEFAULT_CIPHERSUITES,
+#endif
 #endif
 	.listen_default_ssloptions = BC_SSL_O_NONE,
 	.connect_default_ssloptions = SRV_SSL_O_NONE,
@@ -3548,6 +3560,10 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 		conf->crl_file = NULL;
 		free(conf->ciphers);
 		conf->ciphers = NULL;
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+		free(conf->ciphersuites);
+		conf->ciphersuites = NULL;
+#endif
 		free(conf->curves);
 		conf->curves = NULL;
 		free(conf->ecdhe);
@@ -4082,6 +4098,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	int verify = SSL_VERIFY_NONE;
 	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
 	const char *conf_ciphers;
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	const char *conf_ciphersuites;
+#endif
 	const char *conf_curves = NULL;
 
 	if (ssl_conf) {
@@ -4180,6 +4199,16 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			 curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr++;
 	}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	conf_ciphersuites = (ssl_conf && ssl_conf->ciphersuites) ? ssl_conf->ciphersuites : bind_conf->ssl_conf.ciphersuites;
+	if (conf_ciphersuites &&
+	    !SSL_CTX_set_ciphersuites(ctx, conf_ciphersuites)) {
+		ha_alert("Proxy '%s': unable to set TLS 1.3 cipher suites to '%s' for bind '%s' at [%s:%d].\n",
+			 curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
+		cfgerr++;
+	}
+#endif
 
 #ifndef OPENSSL_NO_DH
 	/* If tune.ssl.default-dh-param has not been set,
@@ -4662,6 +4691,16 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
 		cfgerr++;
 	}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (srv->ssl_ctx.ciphersuites &&
+		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
+		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
+			 curproxy->id, srv->id,
+			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphersuites);
+		cfgerr++;
+	}
+#endif
 
 	return cfgerr;
 }
@@ -7243,6 +7282,26 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 {
 	return ssl_bind_parse_ciphers(args, cur_arg, px, &conf->ssl_conf, err);
 }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+/* parse the "ciphersuites" bind keyword */
+static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing cipher suite", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(conf->ciphersuites);
+	conf->ciphersuites = strdup(args[cur_arg + 1]);
+	return 0;
+}
+static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	return ssl_bind_parse_ciphersuites(args, cur_arg, px, &conf->ssl_conf, err);
+}
+#endif
+
 /* parse the "crt" bind keyword */
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -7634,6 +7693,10 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (global_ssl.listen_default_ciphersuites && !conf->ssl_conf.ciphersuites)
+		conf->ssl_conf.ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
+#endif
 	conf->ssl_options |= global_ssl.listen_default_ssloptions;
 	conf->ssl_conf.ssl_methods.flags |= global_ssl.listen_default_sslmethods.flags;
 	if (!conf->ssl_conf.ssl_methods.min)
@@ -7831,6 +7894,10 @@ static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, stru
 	newsrv->check.use_ssl = 1;
 	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
+		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
+#endif
 	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
 	newsrv->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
 	if (!newsrv->ssl_ctx.methods.min)
@@ -7853,6 +7920,21 @@ static int srv_parse_ciphers(char **args, int *cur_arg, struct proxy *px, struct
 	newsrv->ssl_ctx.ciphers = strdup(args[*cur_arg + 1]);
 	return 0;
 }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+/* parse the "ciphersuites" server keyword */
+static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing cipher suite", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->ssl_ctx.ciphersuites);
+	newsrv->ssl_ctx.ciphersuites = strdup(args[*cur_arg + 1]);
+	return 0;
+}
+#endif
 
 /* parse the "crl-file" server keyword */
 static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -7995,6 +8077,10 @@ static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct ser
 	newsrv->use_ssl = 1;
 	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
+		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
+#endif
 	return 0;
 }
 
@@ -8233,6 +8319,32 @@ static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy 
 	*target = strdup(args[1]);
 	return 0;
 }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+/* parse the "ssl-default-bind-ciphersuites" / "ssl-default-server-ciphersuites" keywords
+ * in global section. Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_ciphersuites(char **args, int section_type, struct proxy *curpx,
+                                    struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	char **target;
+
+	target = (args[0][12] == 'b') ? &global_ssl.listen_default_ciphersuites : &global_ssl.connect_default_ciphersuites;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a cipher suite as an argument.", args[0]);
+		return -1;
+	}
+
+	free(*target);
+	*target = strdup(args[1]);
+	return 0;
+}
+#endif
 
 /* parse various global tune.ssl settings consisting in positive integers.
  * Returns <0 on alert, >0 on warning, 0 on success.
@@ -8773,6 +8885,9 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process verify on client cert */
 	{ "ciphers",               ssl_bind_parse_ciphers,          1 }, /* set SSL cipher suite */
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	{ "ciphersuites",          ssl_bind_parse_ciphersuites,     1 }, /* set TLS 1.3 cipher suite */
+#endif
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificat revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
@@ -8792,6 +8907,9 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "ca-sign-file",          bind_parse_ca_sign_file,       1 }, /* set CAFile used to generate and sign server certs */
 	{ "ca-sign-pass",          bind_parse_ca_sign_pass,       1 }, /* set CAKey passphrase */
 	{ "ciphers",               bind_parse_ciphers,            1 }, /* set SSL cipher suite */
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	{ "ciphersuites",          bind_parse_ciphersuites,       1 }, /* set TLS 1.3 cipher suite */
+#endif
 	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,                1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ingore on verify depth == 0 */
@@ -8835,6 +8953,9 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1 }, /* select the cipher suite */
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1 }, /* select the cipher suite */
+#endif
 	{ "crl-file",                srv_parse_crl_file,           1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,                1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1 }, /* force SSLv3 */
@@ -8890,6 +9011,10 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },
+	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },
+#endif
 	{ 0, NULL, NULL },
 }};
 
@@ -8971,6 +9096,12 @@ static void __ssl_sock_init(void)
 		global_ssl.listen_default_ciphers = strdup(global_ssl.listen_default_ciphers);
 	if (global_ssl.connect_default_ciphers)
 		global_ssl.connect_default_ciphers = strdup(global_ssl.connect_default_ciphers);
+#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (global_ssl.listen_default_ciphersuites)
+		global_ssl.listen_default_ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
+	if (global_ssl.connect_default_ciphersuites)
+		global_ssl.connect_default_ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
+#endif
 
 	xprt_register(XPRT_SSL, &ssl_sock);
 	SSL_library_init();
