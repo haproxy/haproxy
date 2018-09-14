@@ -47,4 +47,21 @@ static inline void http_set_hdr(struct http_hdr *hdr, const struct ist n, const 
 	hdr->v = v;
 }
 
+/* removes all occurrences of header name <n> in list <hdr> and returns the new count. The
+ * list must be terminated by the empty header.
+ */
+static inline int http_del_hdr(struct http_hdr *hdr, const struct ist n)
+{
+	int src = 0, dst = 0;
+
+	do {
+		if (!isteqi(hdr[src].n, n)) {
+			if (src != dst)
+				hdr[dst] = hdr[src];
+			dst++;
+		}
+	} while (hdr[src++].n.len);
+
+	return dst;
+}
 #endif /* _COMMON_HTTP_HDR_H */
