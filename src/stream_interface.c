@@ -83,6 +83,7 @@ struct si_ops si_applet_ops = {
 };
 
 struct data_cb si_conn_cb = {
+	.wake    = si_cs_process,
 	.name    = "STRM",
 };
 

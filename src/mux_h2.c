@@ -1137,7 +1137,8 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 			sw->wait_reason &= ~SUB_CAN_RECV;
 			tasklet_wakeup(sw->task);
 			h2s->recv_wait_list = NULL;
-		}
+		} else if (h2s->cs->data_cb->wake != NULL)
+			h2s->cs->data_cb->wake(h2s->cs);
 
 		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -2483,6 +2484,14 @@ static int h2_process(struct h2c *h2c)
 	return 0;
 }
 
+static int h2_wake(struct connection *conn)
+{
+	struct h2c *h2c = conn->mux_ctx;
+
+	return (h2_process(h2c));
+}
+
+
 /* Connection timeout management. The principle is that if there's no receipt
  * nor sending for a certain amount of time, the connection is closed. If the
  * MUX buffer still has lying data or is not allocatable, the connection is
@@ -3756,6 +3765,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 /* The mux operations */
 const struct mux_ops h2_ops = {
 	.init = h2_init,
+	.wake = h2_wake,
 	.update_poll = h2_update_poll,
 	.snd_buf = h2_snd_buf,
 	.rcv_buf = h2_rcv_buf,
