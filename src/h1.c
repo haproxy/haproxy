@@ -660,6 +660,78 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 }
 
 
+/* Parse the Content-Length header field of an HTTP/1 request. The function
+ * checks all possible occurrences of a comma-delimited value, and verifies
+ * if any of them doesn't match a previous value. It returns <0 if a value
+ * differs, 0 if the whole header can be dropped (i.e. already known), or >0
+ * if the value can be indexed (first one). In the last case, the value might
+ * be adjusted and the caller must only add the updated value.
+ */
+int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
+{
+	char *e, *n;
+	long long cl;
+	int not_first = !!(h1m->flags & H1_MF_CLEN);
+	struct ist word;
+
+	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
+	e = value->ptr + value->len;
+
+	while (++word.ptr < e) {
+		/* skip leading delimitor and blanks */
+		if (unlikely(HTTP_IS_LWS(*word.ptr)))
+			continue;
+
+		/* digits only now */
+		for (cl = 0, n = word.ptr; n < e; n++) {
+			unsigned int c = *n - '0';
+			if (unlikely(c > 9)) {
+				/* non-digit */
+				if (unlikely(n == word.ptr)) // spaces only
+					goto fail;
+				break;
+			}
+			if (unlikely(cl > ULLONG_MAX / 10ULL))
+				goto fail; /* multiply overflow */
+			cl = cl * 10ULL;
+			if (unlikely(cl + c < cl))
+				goto fail; /* addition overflow */
+			cl = cl + c;
+		}
+
+		/* keep a copy of the exact cleaned value */
+		word.len = n - word.ptr;
+
+		/* skip trailing LWS till next comma or EOL */
+		for (; n < e; n++) {
+			if (!HTTP_IS_LWS(*n)) {
+				if (unlikely(*n != ','))
+					goto fail;
+				break;
+			}
+		}
+
+		/* if duplicate, must be equal */
+		if (h1m->flags & H1_MF_CLEN && cl != h1m->body_len)
+			goto fail;
+
+		/* OK, store this result as the one to be indexed */
+		h1m->flags |= H1_MF_CLEN;
+		h1m->curr_len = h1m->body_len = cl;
+		*value = word;
+		word.ptr = n;
+	}
+	/* here we've reached the end with a single value or a series of
+	 * identical values, all matching previous series if any. The last
+	 * parsed value was sent back into <value>. We just have to decide
+	 * if this occurrence has to be indexed (it's the first one) or
+	 * silently skipped (it's not the first one)
+	 */
+	return !not_first;
+ fail:
+	return -1;
+}
+
 /* Parse the Transfer-Encoding: header field of an HTTP/1 request, looking for
  * "chunked" being the last value, and setting H1_MF_CHNK in h1m->flags only in
  * this case. Any other token found or any empty header field found will reset
@@ -1301,8 +1373,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		n = ist2(start + sol, col - sol);
 		v = ist2(start + sov, eol - sov);
 
-		if (likely(!skip_update)) {
-			long long cl;
+		if (likely(!skip_update)) do {
+			int ret;
 
 			if (unlikely(hdr_count >= hdr_num)) {
 				state = H1_MSG_HDR_L2_LWS;
@@ -1312,17 +1384,24 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			if (isteqi(n, ist("transfer-encoding"))) {
 				h1_parse_xfer_enc_header(h1m, v);
 			}
-			else if (isteqi(n, ist("content-length")) && !(h1m->flags & H1_MF_CHNK)) {
-				h1m->flags |= H1_MF_CLEN;
-				strl2llrc(v.ptr, v.len, &cl);
-				h1m->curr_len = h1m->body_len = cl;
+			else if (isteqi(n, ist("content-length"))) {
+				ret = h1_parse_cont_len_header(h1m, &v);
+
+				if (ret < 0) {
+					state = H1_MSG_HDR_L2_LWS;
+					goto http_msg_invalid;
+				}
+				else if (ret == 0) {
+					/* skip it */
+					break;
+				}
 			}
 			else if (isteqi(n, ist("connection"))) {
 				h1_parse_connection_header(h1m, v);
 			}
 
 			http_set_hdr(&hdr[hdr_count++], n, v);
-		}
+		} while (0);
 
 		sol = ptr - start;
 		if (likely(!HTTP_IS_CRLF(*ptr)))
