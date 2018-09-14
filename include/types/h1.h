@@ -144,6 +144,7 @@ enum h1m_state {
 #define H1_MF_CONN_CLO          0x00000020 // message contains "connection: close"
 #define H1_MF_CONN_KAL          0x00000040 // message contains "connection: keep-alive"
 #define H1_MF_CONN_UPG          0x00000080 // message contains "connection: upgrade"
+#define H1_MF_XFER_LEN          0x00000100 // message xfer size can be determined
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
