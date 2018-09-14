@@ -660,6 +660,44 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 }
 
 
+/* Parse the Transfer-Encoding: header field of an HTTP/1 request, looking for
+ * "chunked" being the last value, and setting H1_MF_CHNK in h1m->flags only in
+ * this case. Any other token found or any empty header field found will reset
+ * this flag, so that it accurately represents the token's presence at the last
+ * position. The H1_MF_XFER_ENC flag is always set. Note that transfer codings
+ * are case-insensitive (cf RFC7230#4).
+ */
+void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
+{
+	char *e, *n;
+	struct ist word;
+
+	h1m->flags |= H1_MF_XFER_ENC;
+	h1m->flags &= ~H1_MF_CHNK;
+
+	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
+	e = value.ptr + value.len;
+
+	while (++word.ptr < e) {
+		/* skip leading delimitor and blanks */
+		if (HTTP_IS_LWS(*word.ptr))
+			continue;
+
+		n = http_find_hdr_value_end(word.ptr, e); // next comma or end of line
+		word.len = n - word.ptr;
+
+		/* trim trailing blanks */
+		while (word.len && HTTP_IS_LWS(word.ptr[word.len-1]))
+			word.len--;
+
+		h1m->flags &= ~H1_MF_CHNK;
+		if (isteqi(word, ist("chunked")))
+			h1m->flags |= H1_MF_CHNK;
+
+		word.ptr = n;
+	}
+}
+
 /* Parse the Connection: header of an HTTP/1 request, looking for "close",
  * "keep-alive", and "upgrade" values, and updating h1m->flags according to
  * what was found there. Note that flags are only added, not removed, so the
@@ -1272,8 +1310,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			}
 
 			if (isteqi(n, ist("transfer-encoding"))) {
-				h1m->flags &= ~H1_MF_CLEN;
-				h1m->flags |= H1_MF_CHNK;
+				h1_parse_xfer_enc_header(h1m, v);
 			}
 			else if (isteqi(n, ist("content-length")) && !(h1m->flags & H1_MF_CHNK)) {
 				h1m->flags |= H1_MF_CLEN;
@@ -1321,10 +1358,23 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (restarting)
 			goto restart;
 
-		if (h1m->flags & H1_MF_CHNK)
-			state = H1_MSG_CHUNK_SIZE;
-		else
-			state = H1_MSG_DATA;
+		state = H1_MSG_DATA;
+		if (h1m->flags & H1_MF_XFER_ENC) {
+			if (h1m->flags & H1_MF_CLEN) {
+				h1m->flags &= ~H1_MF_CLEN;
+				hdr_count = http_del_hdr(hdr, ist("content-length"));
+			}
+
+			if (h1m->flags & H1_MF_CHNK)
+				state = H1_MSG_CHUNK_SIZE;
+			else if (!(h1m->flags & H1_MF_RESP)) {
+				/* cf RFC7230#3.3.3 : transfer-encoding in
+				 * request without chunked encoding is invalid.
+				 */
+				goto http_msg_invalid;
+			}
+		}
+
 		break;
 
 	default:
