@@ -1271,8 +1271,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				goto http_output_full;
 			}
 
-			http_set_hdr(&hdr[hdr_count++], n, v);
-
 			if (isteqi(n, ist("transfer-encoding"))) {
 				h1m->flags &= ~H1_MF_CLEN;
 				h1m->flags |= H1_MF_CHNK;
@@ -1285,6 +1283,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			else if (isteqi(n, ist("connection"))) {
 				h1_parse_connection_header(h1m, v);
 			}
+
+			http_set_hdr(&hdr[hdr_count++], n, v);
 		}
 
 		sol = ptr - start;
