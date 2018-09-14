@@ -2016,7 +2016,7 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 	smp->data.u.sint = !!stkctr;
 
 	/* release the ref count */
-	if ((stkctr == &tmpstkctr))
+	if (stkctr == &tmpstkctr)
 		stktable_release(stkctr->table, stkctr_entry(stkctr));
 
 	return 1;
