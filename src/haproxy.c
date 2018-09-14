@@ -204,7 +204,6 @@ int shut_your_big_mouth_gcc_int = 0;
 
 int *children = NULL; /* store PIDs of children in master workers mode */
 
-static volatile sig_atomic_t caught_signal = 0;
 static char **next_argv = NULL;
 
 struct list proc_list = LIST_HEAD_INIT(proc_list);
