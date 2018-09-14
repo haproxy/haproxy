@@ -1646,6 +1646,8 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	unsigned int req_ana_back;
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
+	struct conn_stream *cs;
+	int ret;
 
 	activity[tid].stream++;
 
@@ -1656,8 +1658,16 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_b = &s->si[1];
 
 	/* First, attempd to do I/Os */
-	si_cs_io_cb(NULL, si_f, 0);
-	si_cs_io_cb(NULL, si_b, 0);
+	cs = objt_cs(si_f->end);
+	if (cs) {
+		si_cs_send(cs);
+		si_cs_recv(cs);
+	}
+	cs = objt_cs(si_b->end);
+	if (cs) {
+		si_cs_send(cs);
+		si_cs_recv(cs);
+	}
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
@@ -2489,8 +2499,22 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 		/* We may have free'd some space in buffers, or have more to send/recv, try again */
-		si_cs_io_cb(NULL, si_f, 0);
-		si_cs_io_cb(NULL, si_b, 0);
+		cs = objt_cs(si_f->end);
+		ret = 0;
+		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
+			ret |= si_cs_send(cs);
+			si_cs_recv(cs);
+			ret |= (ci_data(si_ic(si_f)) != 0 ) | (cs->conn->flags & CO_FL_ERROR);
+		}
+		cs = objt_cs(si_b->end);
+		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
+			ret |= si_cs_send(cs);
+			si_cs_recv(cs);
+			ret |= (ci_data(si_ic(si_b)) != 0 ) | (cs->conn->flags & CO_FL_ERROR);
+
+		}
+		if (ret)
+			task_wakeup(t, TASK_WOKEN_IO);
 		return t; /* nothing more to do */
 	}
 

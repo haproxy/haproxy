@@ -51,10 +51,10 @@ static void stream_int_shutr_applet(struct stream_interface *si);
 static void stream_int_shutw_applet(struct stream_interface *si);
 static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
-static int si_cs_recv(struct conn_stream *cs);
+int si_cs_recv(struct conn_stream *cs);
 static int si_cs_process(struct conn_stream *cs);
 static int si_idle_conn_wake_cb(struct conn_stream *cs);
-static int si_cs_send(struct conn_stream *cs);
+int si_cs_send(struct conn_stream *cs);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -622,7 +622,7 @@ static int si_cs_process(struct conn_stream *cs)
  * caller to commit polling changes. The caller should check conn->flags
  * for errors.
  */
-static int si_cs_send(struct conn_stream *cs)
+int si_cs_send(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
@@ -1114,7 +1114,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
  * into the buffer from the connection. It iterates over the mux layer's
  * rcv_buf function.
  */
-static int si_cs_recv(struct conn_stream *cs)
+int si_cs_recv(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct stream_interface *si = cs->data;
@@ -1128,6 +1128,8 @@ static int si_cs_recv(struct conn_stream *cs)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
+	if (!conn_xprt_ready(conn))
+		return 0;
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
 
