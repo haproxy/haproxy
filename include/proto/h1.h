@@ -121,7 +121,7 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
 }
 
 /* for debugging, reports the HTTP/1 message state name */
-static inline const char *h1m_state_str(enum h1_state msg_state)
+static inline const char *h1m_state_str(enum h1m_state msg_state)
 {
 	switch (msg_state) {
 	case H1_MSG_RQBEFORE:    return "MSG_RQBEFORE";
