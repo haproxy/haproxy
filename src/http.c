@@ -973,7 +973,7 @@ int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, str
 }
 
 
-/* post-initializes the HTTP parts. Returns non-zero on error, with <err>
+/* post-initializes the HTTP parts. Returns zero on error, with <err>
  * pointing to the error message.
  */
 int init_http(char **err)
