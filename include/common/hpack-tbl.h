@@ -155,7 +155,7 @@ static inline const struct hpack_dte *hpack_get_dte(const struct hpack_dht *dht,
 }
 
 /* returns non-zero if <idx> is valid for table <dht> */
-static inline int hpack_valid_idx(const struct hpack_dht *dht, uint16_t idx)
+static inline int hpack_valid_idx(const struct hpack_dht *dht, uint32_t idx)
 {
 	return idx < dht->used + HPACK_SHT_SIZE;
 }
@@ -181,7 +181,7 @@ static inline struct ist hpack_get_value(const struct hpack_dht *dht, const stru
 }
 
 /* takes an idx, returns the associated name */
-static inline struct ist hpack_idx_to_name(const struct hpack_dht *dht, int idx)
+static inline struct ist hpack_idx_to_name(const struct hpack_dht *dht, uint32_t idx)
 {
 	const struct hpack_dte *dte;
 
@@ -196,7 +196,7 @@ static inline struct ist hpack_idx_to_name(const struct hpack_dht *dht, int idx)
 }
 
 /* takes an idx, returns the associated value */
-static inline struct ist hpack_idx_to_value(const struct hpack_dht *dht, int idx)
+static inline struct ist hpack_idx_to_value(const struct hpack_dht *dht, uint32_t idx)
 {
 	const struct hpack_dte *dte;
 

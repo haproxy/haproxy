@@ -114,7 +114,7 @@ static inline int hpack_idx_to_phdr(uint32_t idx)
  * allocated there. In case of allocation failure, returns a string whose
  * pointer is NULL.
  */
-static inline struct ist hpack_alloc_string(struct buffer *store, int idx,
+static inline struct ist hpack_alloc_string(struct buffer *store, uint32_t idx,
 					    struct ist in)
 {
 	struct ist out;

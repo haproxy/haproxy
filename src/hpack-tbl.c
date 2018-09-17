@@ -113,7 +113,7 @@ static inline unsigned int hpack_dht_get_tail(const struct hpack_dht *dht)
 /* dump the whole dynamic header table */
 static void hpack_dht_dump(FILE *out, const struct hpack_dht *dht)
 {
-	int i;
+	unsigned int i;
 	unsigned int slot;
 	char name[4096], value[4096];
 
