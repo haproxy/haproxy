@@ -18,7 +18,6 @@
 #include <common/chunk.h>
 #include <common/hpack-dec.h>
 #include <common/mini-clist.h>
-#include <proto/h1.h>
 
 #define MAX_RQ_SIZE 65536
 #define MAX_HDR_NUM 1000
