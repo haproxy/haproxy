@@ -2067,10 +2067,8 @@ int pat_ref_add(struct pat_ref *ref,
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 {
 	struct pattern_expr *expr;
-	char *err = NULL;
 	struct pat_ref_elt *elt, *safe;
 	struct bref *bref, *back;
-	struct sample_data *data;
 	struct pattern pattern;
 
 
@@ -2105,6 +2103,9 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 	list_for_each_entry(expr, &ref->pat, list) {
 		expr->pat_head->prune(expr);
 		list_for_each_entry(elt, &ref->head, list) {
+			char *err = NULL;
+			struct sample_data *data = NULL;
+
 			/* Create sample */
 			if (elt->sample && expr->pat_head->parse_smp) {
 				/* New sample. */
@@ -2122,8 +2123,6 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 				}
 
 			}
-			else
-				data = NULL;
 
 			/* initialise pattern */
 			memset(&pattern, 0, sizeof(pattern));
