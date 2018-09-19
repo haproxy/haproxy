@@ -1240,9 +1240,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	http_msg_hdr_name:
 		/* assumes sol points to the first char */
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-			/* turn it to lower case if needed */
-			if (isupper((unsigned char)*ptr) && h1m->flags & H1_MF_TOLOWER)
-				*ptr = tolower(*ptr);
+			if (!skip_update) {
+				/* turn it to lower case if needed */
+				if (isupper((unsigned char)*ptr) && h1m->flags & H1_MF_TOLOWER)
+					*ptr = tolower(*ptr);
+			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, H1_MSG_HDR_NAME);
 		}
 
@@ -1287,9 +1289,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_HDR_L1_LWS:
 	http_msg_hdr_l1_lws:
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			/* replace HT,CR,LF with spaces */
-			for (; start + sov < ptr; sov++)
-				start[sov] = ' ';
+			if (!skip_update) {
+				/* replace HT,CR,LF with spaces */
+				for (; start + sov < ptr; sov++)
+					start[sov] = ' ';
+			}
 			goto http_msg_hdr_l1_sp;
 		}
 		/* we had a header consisting only in spaces ! */
@@ -1348,9 +1352,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_HDR_L2_LWS:
 	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
-			/* LWS: replace HT,CR,LF with spaces */
-			for (; start + eol < ptr; eol++)
-				start[eol] = ' ';
+			if (!skip_update) {
+				/* LWS: replace HT,CR,LF with spaces */
+				for (; start + eol < ptr; eol++)
+					start[eol] = ' ';
+			}
 			goto http_msg_hdr_val;
 		}
 	http_msg_complete_header:
@@ -1363,47 +1369,50 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 * adjusting <eol> and <sov> which are no more used after this.
 		 * We can add the header field to the list.
 		 */
-		while (sov < eol && HTTP_IS_LWS(start[sov]))
-			sov++;
+		if (likely(!skip_update)) {
+			while (sov < eol && HTTP_IS_LWS(start[sov]))
+				sov++;
 
-		while (eol - 1 > sov && HTTP_IS_LWS(start[eol - 1]))
-			eol--;
+			while (eol - 1 > sov && HTTP_IS_LWS(start[eol - 1]))
+				eol--;
 
 
-		n = ist2(start + sol, col - sol);
-		v = ist2(start + sov, eol - sov);
+			n = ist2(start + sol, col - sol);
+			v = ist2(start + sov, eol - sov);
 
-		if (likely(!skip_update)) do {
-			int ret;
+			do {
+				int ret;
 
-			if (unlikely(hdr_count >= hdr_num)) {
-				state = H1_MSG_HDR_L2_LWS;
-				goto http_output_full;
-			}
-
-			if (isteqi(n, ist("transfer-encoding"))) {
-				h1_parse_xfer_enc_header(h1m, v);
-			}
-			else if (isteqi(n, ist("content-length"))) {
-				ret = h1_parse_cont_len_header(h1m, &v);
-
-				if (ret < 0) {
+				if (unlikely(hdr_count >= hdr_num)) {
 					state = H1_MSG_HDR_L2_LWS;
-					goto http_msg_invalid;
+					goto http_output_full;
 				}
-				else if (ret == 0) {
-					/* skip it */
-					break;
-				}
-			}
-			else if (isteqi(n, ist("connection"))) {
-				h1_parse_connection_header(h1m, v);
-			}
 
-			http_set_hdr(&hdr[hdr_count++], n, v);
-		} while (0);
+				if (isteqi(n, ist("transfer-encoding"))) {
+					h1_parse_xfer_enc_header(h1m, v);
+				}
+				else if (isteqi(n, ist("content-length"))) {
+					ret = h1_parse_cont_len_header(h1m, &v);
+
+					if (ret < 0) {
+						state = H1_MSG_HDR_L2_LWS;
+						goto http_msg_invalid;
+					}
+					else if (ret == 0) {
+						/* skip it */
+						break;
+					}
+				}
+				else if (isteqi(n, ist("connection"))) {
+					h1_parse_connection_header(h1m, v);
+				}
+
+				http_set_hdr(&hdr[hdr_count++], n, v);
+			} while (0);
+		}
 
 		sol = ptr - start;
+
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			goto http_msg_hdr_name;
 
