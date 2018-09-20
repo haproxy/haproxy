@@ -153,8 +153,19 @@ SPEC_CFLAGS += $(call cc-opt,-fwrapv)
 SPEC_CFLAGS += $(call cc-opt,-fno-strict-overflow)
 SPEC_CFLAGS += $(call cc-nowarn,format-truncation)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
-SPEC_CFLAGS += $(call cc-nowarn,null-dereference)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
+SPEC_CFLAGS += $(call cc-nowarn,sign-compare)
+SPEC_CFLAGS += $(call cc-nowarn,unused-parameter)
+SPEC_CFLAGS += $(call cc-nowarn,old-style-declaration)
+SPEC_CFLAGS += $(call cc-nowarn,ignored-qualifiers)
+SPEC_CFLAGS += $(call cc-nowarn,clobbered)
+SPEC_CFLAGS += $(call cc-nowarn,missing-field-initializers)
+SPEC_CFLAGS += $(call cc-nowarn,implicit-fallthrough)
+SPEC_CFLAGS += $(call cc-opt,-Wtype-limits)
+SPEC_CFLAGS += $(call cc-opt,-Wshift-negative-value)
+SPEC_CFLAGS += $(call cc-opt,-Wshift-overflow=2)
+SPEC_CFLAGS += $(call cc-opt,-Wduplicated-cond)
+SPEC_CFLAGS += $(call cc-opt,-Wnull-dereference)
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
@@ -806,7 +817,7 @@ EBTREE_DIR := ebtree
 
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
-COPTS  = -Iinclude -I$(EBTREE_DIR) -Wall
+COPTS  = -Iinclude -I$(EBTREE_DIR) -Wall -Wextra
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
