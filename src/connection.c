@@ -862,7 +862,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
-	if (ntohl(*(uint32_t *)line) != objt_listener(conn->target)->bind_conf->ns_cip_magic)
+	if (ntohl(*(uint32_t *)line) != __objt_listener(conn->target)->bind_conf->ns_cip_magic)
 		goto bad_magic;
 
 	/* Legacy CIP protocol */

@@ -1029,7 +1029,7 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
  */
 static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 {
-	struct bind_conf     *bind_conf = objt_listener(conn->target)->bind_conf;
+	struct bind_conf     *bind_conf = __objt_listener(conn->target)->bind_conf;
 	const struct mux_ops *mux_ops;
 
 	if (bind_conf->mux_proto)
