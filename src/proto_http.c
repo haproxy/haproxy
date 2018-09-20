@@ -5763,6 +5763,13 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 	 * HTTP_MSG_DATA, HTTP_MSG_CHUNK_SIZE, HTTP_MSG_CHUNK_CRLF,
 	 * HTTP_MSG_TRAILERS or HTTP_MSG_ENDING. */
 
+	if (msg->msg_state == HTTP_MSG_ENDING)
+		goto ending;
+
+	/* Don't parse chunks if there is no input data */
+	if (!ci_data(chn))
+		goto waiting;
+
   switch_states:
 	switch (msg->msg_state) {
 		case HTTP_MSG_DATA:
@@ -5835,9 +5842,6 @@ http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 			if (!ret)
 				goto missing_data_or_waiting;
 			break;
-
-		case HTTP_MSG_ENDING:
-			goto ending;
 
 		default:
 			/* This should no happen in this function */
