@@ -2016,10 +2016,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 			case LOG_FMT_SERVER: // %s
 				switch (obj_type(s ? s->target : NULL)) {
 				case OBJ_TYPE_SERVER:
-					src = objt_server(s->target)->id;
+					src = __objt_server(s->target)->id;
 					break;
 				case OBJ_TYPE_APPLET:
-					src = objt_applet(s->target)->name;
+					src = __objt_applet(s->target)->name;
 					break;
 				default:
 					src = "<NOSRV>";
