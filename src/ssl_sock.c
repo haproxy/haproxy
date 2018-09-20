@@ -830,7 +830,7 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 	int ret = -1; /* error by default */
 
 	conn = SSL_get_ex_data(s, ssl_app_data_index);
-	ref  = objt_listener(conn->target)->bind_conf->keys_ref;
+	ref  = __objt_listener(conn->target)->bind_conf->keys_ref;
 	HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 
 	keys = ref->tlskeys;
@@ -1452,7 +1452,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 			conn->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
-		if (objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err)) {
+		if (__objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err)) {
 			ssl_sock_dump_errors(conn);
 			ERR_clear_error();
 			return 1;
@@ -1466,7 +1466,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		conn->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
-	if (objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err)) {
+	if (__objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err)) {
 		ssl_sock_dump_errors(conn);
 		ERR_clear_error();
 		return 1;
@@ -1807,7 +1807,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 SSL_CTX *
 ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key)
 {
-	struct bind_conf *bind_conf = objt_listener(conn->target)->bind_conf;
+	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
 
 	return ssl_sock_do_create_cert(servername, bind_conf, conn->xprt_ctx);
 }
@@ -3893,7 +3893,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	struct server *s;
 
-	s = objt_server(conn->target);
+	s = __objt_server(conn->target);
 
 	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
 		int len;
@@ -4398,7 +4398,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	servername = SSL_get_servername(conn->xprt_ctx, TLSEXT_NAMETYPE_host_name);
 	sni = servername;
 	if (!servername) {
-		servername = objt_server(conn->target)->ssl_ctx.verify_host;
+		servername = __objt_server(conn->target)->ssl_ctx.verify_host;
 		if (!servername)
 			return ok;
 	}
@@ -4939,7 +4939,7 @@ static int ssl_sock_init(struct connection *conn)
 
 	retry_connect:
 		/* Alloc a new SSL session ctx */
-		conn->xprt_ctx = SSL_new(objt_server(conn->target)->ssl_ctx.ctx);
+		conn->xprt_ctx = SSL_new(__objt_server(conn->target)->ssl_ctx.ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
 				pool_gc(NULL);
@@ -4974,13 +4974,13 @@ static int ssl_sock_init(struct connection *conn)
 		}
 
 		SSL_set_connect_state(conn->xprt_ctx);
-		if (objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
-			const unsigned char *ptr = objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
-			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
-			if(sess && !SSL_set_session(conn->xprt_ctx, sess)) {
+		if (__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+			const unsigned char *ptr = __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
+			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, __objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
+			if (sess && !SSL_set_session(conn->xprt_ctx, sess)) {
 				SSL_SESSION_free(sess);
-				free(objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
-				objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+				free(__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
+				__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
 			} else if (sess) {
 				SSL_SESSION_free(sess);
 			}
@@ -4998,7 +4998,7 @@ static int ssl_sock_init(struct connection *conn)
 
 	retry_accept:
 		/* Alloc a new SSL session ctx */
-		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->initial_ctx);
+		conn->xprt_ctx = SSL_new(__objt_listener(conn->target)->bind_conf->initial_ctx);
 		if (!conn->xprt_ctx) {
 			if (may_retry--) {
 				pool_gc(NULL);
@@ -5321,9 +5321,9 @@ reneg_ok:
 	ERR_clear_error();
 
 	/* free resumed session if exists */
-	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
-		free(objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
-		objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+	if (objt_server(conn->target) && __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
+		free(__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
+		__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
 	}
 
 	/* Fail on all other handshake errors */
