@@ -1441,7 +1441,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 
 						/* srv found in table */
 						HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-						ptr = stktable_data_ptr(rule->table.t, ts, STKTABLE_DT_SERVER_ID);
+						ptr = __stktable_data_ptr(rule->table.t, ts, STKTABLE_DT_SERVER_ID);
 						node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
 						HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 						if (node) {
@@ -1568,8 +1568,8 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		s->store[i].ts = NULL;
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-		ptr = stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
-		stktable_data_cast(ptr, server_id) = objt_server(s->target)->puid;
+		ptr = __stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
+		stktable_data_cast(ptr, server_id) = __objt_server(s->target)->puid;
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 		stktable_touch_local(s->store[i].table, ts, 1);
 	}
