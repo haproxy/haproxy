@@ -2951,7 +2951,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 {
 	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = objt_appctx(si->end);
+	struct appctx *appctx = __objt_appctx(si->end);
 
 	chunk_printf(&trash,
 		     "HTTP/1.1 200 OK\r\n"
@@ -2984,7 +2984,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
-	struct appctx *appctx = objt_appctx(si->end);
+	struct appctx *appctx = __objt_appctx(si->end);
 
 	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
