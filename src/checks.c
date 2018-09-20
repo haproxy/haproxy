@@ -1408,7 +1408,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	if (check->type == PR_O2_TCPCHK_CHK) {
 		ret = tcpcheck_main(check);
 		cs = check->cs;
-		conn = cs_conn(cs);
+		conn = cs->conn;
 	} else if (!(check->wait_list.wait_reason & SUB_CAN_SEND))
 		__event_srv_chk_w(cs);
 
