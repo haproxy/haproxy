@@ -1434,12 +1434,12 @@ void dns_unlink_resolution(struct dns_requester *requester)
 	/* Move hostname_dn related pointers to the next requester */
 	switch (obj_type(req->owner)) {
 		case OBJ_TYPE_SERVER:
-			res->hostname_dn     = objt_server(req->owner)->hostname_dn;
-			res->hostname_dn_len = objt_server(req->owner)->hostname_dn_len;
+			res->hostname_dn     = __objt_server(req->owner)->hostname_dn;
+			res->hostname_dn_len = __objt_server(req->owner)->hostname_dn_len;
 			break;
 		case OBJ_TYPE_SRVRQ:
-			res->hostname_dn     = objt_dns_srvrq(req->owner)->hostname_dn;
-			res->hostname_dn_len = objt_dns_srvrq(req->owner)->hostname_dn_len;
+			res->hostname_dn     = __objt_dns_srvrq(req->owner)->hostname_dn;
+			res->hostname_dn_len = __objt_dns_srvrq(req->owner)->hostname_dn_len;
 			break;
 		default:
 			res->hostname_dn     = NULL;
