@@ -795,8 +795,8 @@ int assign_server_address(struct stream *s)
 		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		srv_conn->addr.to = objt_server(s->target)->addr;
-		set_host_port(&srv_conn->addr.to, objt_server(s->target)->svc_port);
+		srv_conn->addr.to = __objt_server(s->target)->addr;
+		set_host_port(&srv_conn->addr.to, __objt_server(s->target)->svc_port);
 
 		if (!is_addr(&srv_conn->addr.to) && cli_conn) {
 			/* if the server has no address, we use the same address
@@ -815,7 +815,7 @@ int assign_server_address(struct stream *s)
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
+		if ((__objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
 			int base_port;
 
 			conn_get_to_addr(cli_conn);
@@ -1761,7 +1761,7 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = objt_server(smp->strm->target)->puid;
+	smp->data.u.sint = __objt_server(smp->strm->target)->puid;
 
 	return 1;
 }
