@@ -113,6 +113,14 @@ static inline int stktable_alloc_data_type(struct stktable *t, int type, const c
 	return PE_NONE;
 }
 
+/* return pointer for data type <type> in sticky session <ts> of table <t>, all
+ * of which must exist (otherwise use stktable_data_ptr() if unsure).
+ */
+static inline void *__stktable_data_ptr(struct stktable *t, struct stksess *ts, int type)
+{
+	return (void *)ts + t->data_ofs[type];
+}
+
 /* return pointer for data type <type> in sticky session <ts> of table <t>, or
  * NULL if either <ts> is NULL or the type is not stored.
  */
@@ -127,7 +135,7 @@ static inline void *stktable_data_ptr(struct stktable *t, struct stksess *ts, in
 	if (!ts)
 		return NULL;
 
-	return (void *)ts + t->data_ofs[type];
+	return __stktable_data_ptr(t, ts, type);
 }
 
 /* kill an entry if it's expired and its ref_cnt is zero */
