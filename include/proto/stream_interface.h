@@ -227,10 +227,10 @@ static inline void si_attach_appctx(struct stream_interface *si, struct appctx *
 	appctx->owner = si;
 }
 
-/* returns a pointer to the appctx being run in the SI or NULL if none */
+/* returns a pointer to the appctx being run in the SI, which must be valid */
 static inline struct appctx *si_appctx(struct stream_interface *si)
 {
-	return objt_appctx(si->end);
+	return __objt_appctx(si->end);
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */
@@ -238,7 +238,7 @@ static inline void si_applet_release(struct stream_interface *si)
 {
 	struct appctx *appctx;
 
-	appctx = si_appctx(si);
+	appctx = objt_appctx(si->end);
 	if (appctx && appctx->applet->release && si->state < SI_ST_DIS)
 		appctx->applet->release(appctx);
 }
