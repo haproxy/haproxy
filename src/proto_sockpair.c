@@ -382,7 +382,7 @@ int recv_fd_uxst(int sock)
 		return ret;
 
 	cmsg = CMSG_FIRSTHDR(&msghdr);
-	if (cmsg->cmsg_level == SOL_SOCKET &&
+	if (cmsg && cmsg->cmsg_level == SOL_SOCKET &&
 	    cmsg->cmsg_type == SCM_RIGHTS) {
 		size_t totlen = cmsg->cmsg_len -
 			CMSG_LEN(0);
