@@ -500,7 +500,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	trash.data = strlen(HTTP_302);
 	memcpy(trash.area, HTTP_302, trash.data);
 
-	srv = objt_server(s->target);
+	srv = __objt_server(s->target);
 
 	/* 2: add the server's prefix */
 	if (trash.data + srv->rdr_len > trash.size)
@@ -5367,7 +5367,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			goto return_bad_resp;
 
 		txn->flags &= ~TX_SCK_MASK;
-		if (objt_server(s->target)->cookie && (s->flags & SF_DIRECT))
+		if (__objt_server(s->target)->cookie && (s->flags & SF_DIRECT))
 			/* the server did not change, only the date was updated */
 			txn->flags |= TX_SCK_UPDATED;
 		else
