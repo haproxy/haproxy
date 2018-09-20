@@ -1376,10 +1376,17 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	int tot_fd_nb = 0;
 	struct proxy *px;
 	int i = 0;
-	int fd = remote->handle.fd;
+	int fd = -1;
 	int curoff = 0;
-	int old_fcntl;
+	int old_fcntl = -1;
 	int ret;
+
+	if (!remote) {
+		ha_warning("Only works on real connections\n");
+		goto out;
+	}
+
+	fd = remote->handle.fd;
 
 	/* Temporary set the FD in blocking mode, that will make our life easier */
 	old_fcntl = fcntl(fd, F_GETFL);
@@ -1529,7 +1536,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	}
 
 out:
-	if (old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1) {
+	if (fd >= 0 && old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1) {
 		ha_warning("Cannot make the unix socket non-blocking\n");
 		goto out;
 	}
