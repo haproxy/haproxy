@@ -2116,7 +2116,7 @@ option http-buffer-request           (*)  X          X         X         X
 option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
-option http-pretend-keepalive        (*)  X          X         X         X
+option http-pretend-keepalive        (*)  X          -         X         X
 option http-server-close             (*)  X          X         X         X
 option http-tunnel                   (*)  X          X         X         X
 option http-use-proxy-header         (*)  X          X         X         -
@@ -5898,7 +5898,7 @@ option http-pretend-keepalive
 no option http-pretend-keepalive
   Define whether haproxy will announce keepalive to the server or not
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
+                                 yes   |    no   |   yes  |   yes
   Arguments : none
 
   When running with "option http-server-close" or "option forceclose", haproxy
@@ -5925,11 +5925,12 @@ no option http-pretend-keepalive
   less work to do. So if haproxy is the bottleneck on the whole architecture,
   enabling this option might save a few CPU cycles.
 
-  This option may be set both in a frontend and in a backend. It is enabled if
-  at least one of the frontend or backend holding a connection has it enabled.
-  This option may be combined with "option httpclose", which will cause
-  keepalive to be announced to the server and close to be announced to the
-  client. This practice is discouraged though.
+  This option may be set in backend and listen sections. Using it in a frontend
+  section will be ignored and a warning will be reported during startup. It is
+  a backend related option, so there is no real reason to set it on a
+  frontend. This option may be combined with "option httpclose", which will
+  cause keepalive to be announced to the server and close to be announced to
+  the client. This practice is discouraged though.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
