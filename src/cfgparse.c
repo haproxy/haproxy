@@ -4761,6 +4761,10 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-tunnel") == 0) {
+			if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[1], NULL)) {
+				err_code |= ERR_WARN;
+				goto out;
+			}
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD) {

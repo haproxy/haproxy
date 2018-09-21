@@ -1994,7 +1994,8 @@ the backend's. HAProxy supports 5 connection modes :
   - TUN: tunnel ("option http-tunnel") : this was the default mode for versions
     1.0 to 1.5-dev21 : only the first request and response are processed, and
     everything else is forwarded with no analysis at all. This mode should not
-    be used as it creates lots of trouble with logging and HTTP processing.
+    be used as it creates lots of trouble with logging and HTTP processing. It
+    is supported only on frontends.
 
   - PCL: passive close ("option httpclose") : exactly the same as tunnel mode,
     but with "Connection: close" appended in both directions to try to make
@@ -2012,19 +2013,19 @@ frontend and a backend can be determined by both proxy modes according to the
 following matrix, but in short, the modes are symmetric, keep-alive is the
 weakest option and force close is the strongest.
 
-                          Backend mode
+                    Backend mode
 
-                | KAL | TUN | PCL | SCL | FCL
-            ----+-----+-----+-----+-----+----
-            KAL | KAL | TUN | PCL | SCL | FCL
-            ----+-----+-----+-----+-----+----
-            TUN | TUN | TUN | PCL | SCL | FCL
- Frontend   ----+-----+-----+-----+-----+----
-   mode     PCL | PCL | PCL | PCL | FCL | FCL
-            ----+-----+-----+-----+-----+----
-            SCL | SCL | SCL | FCL | SCL | FCL
-            ----+-----+-----+-----+-----+----
-            FCL | FCL | FCL | FCL | FCL | FCL
+                | KAL | PCL | SCL | FCL
+            ----+-----+-----+-----+----
+            KAL | KAL | PCL | SCL | FCL
+            ----+-----+-----+-----+----
+            TUN | TUN | PCL | SCL | FCL
+ Frontend   ----+-----+-----+-----+----
+   mode     PCL | PCL | PCL | FCL | FCL
+            ----+-----+-----+-----+----
+            SCL | SCL | FCL | SCL | FCL
+            ----+-----+-----+-----+----
+            FCL | FCL | FCL | FCL | FCL
 
 
 
@@ -2118,7 +2119,7 @@ option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          -         X         X
 option http-server-close             (*)  X          X         X         X
-option http-tunnel                   (*)  X          X         X         X
+option http-tunnel                   (*)  X          X         X         -
 option http-use-proxy-header         (*)  X          X         X         -
 option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
@@ -5989,7 +5990,7 @@ option http-tunnel
 no option http-tunnel
   Disable or enable HTTP connection processing after first transaction
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   no
   Arguments : none
 
   By default HAProxy operates in keep-alive mode with regards to persistent
@@ -6008,6 +6009,11 @@ no option http-tunnel
   everything which works at the HTTP level, including header parsing/addition,
   cookie processing or content switching will only work for the first request
   and will be ignored after the first response.
+
+  This option may be set on frontend and listen sections. Using it on a backend
+  section will be ignored and a warning will be reported during the startup. It
+  is a frontend related option, so there is no real reason to set it on a
+  backend.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
