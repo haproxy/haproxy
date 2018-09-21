@@ -181,13 +181,12 @@ start of a new request. When it receives HTTP/2 connections from a client, it
 processes all the requests in parallel and leaves the connection idling,
 waiting for new requests, just as if it was a keep-alive HTTP connection.
 
-HAProxy supports 5 connection modes :
+HAProxy supports 4 connection modes :
   - keep alive    : all requests and responses are processed (default)
   - tunnel        : only the first request and response are processed,
                     everything else is forwarded with no analysis.
-  - passive close : tunnel with "Connection: close" added in both directions.
   - server close  : the server-facing connection is closed after the response.
-  - forced close  : the connection is actively closed after end of response.
+  - close         : the connection is actively closed after end of response.
 
 For HTTP/2, the connection mode resembles more the "server close" mode : given
 the independence of all streams, there is currently no place to hook the idle
@@ -1985,7 +1984,7 @@ arbitrary criteria.
 
 In HTTP mode, the processing applied to requests and responses flowing over
 a connection depends in the combination of the frontend's HTTP options and
-the backend's. HAProxy supports 5 connection modes :
+the backend's. HAProxy supports 4 connection modes :
 
   - KAL : keep alive ("option http-keep-alive") which is the default mode : all
     requests and responses are processed, and connections remain open but idle
@@ -1997,35 +1996,29 @@ the backend's. HAProxy supports 5 connection modes :
     be used as it creates lots of trouble with logging and HTTP processing. It
     is supported only on frontends.
 
-  - PCL: passive close ("option httpclose") : exactly the same as tunnel mode,
-    but with "Connection: close" appended in both directions to try to make
-    both ends close after the first request/response exchange.
-
   - SCL: server close ("option http-server-close") : the server-facing
     connection is closed after the end of the response is received, but the
     client-facing connection remains open.
 
-  - FCL: forced close ("option forceclose") : the connection is actively closed
-    after the end of the response.
+  - CLO: close ("option httpclose"): the connection is closed after the end of
+    the response and "Connection: close" appended in both directions.
 
 The effective mode that will be applied to a connection passing through a
 frontend and a backend can be determined by both proxy modes according to the
 following matrix, but in short, the modes are symmetric, keep-alive is the
-weakest option and force close is the strongest.
+weakest option and close is the strongest.
 
-                    Backend mode
+                   Backend mode
 
-                | KAL | PCL | SCL | FCL
-            ----+-----+-----+-----+----
-            KAL | KAL | PCL | SCL | FCL
-            ----+-----+-----+-----+----
-            TUN | TUN | PCL | SCL | FCL
- Frontend   ----+-----+-----+-----+----
-   mode     PCL | PCL | PCL | FCL | FCL
-            ----+-----+-----+-----+----
-            SCL | SCL | FCL | SCL | FCL
-            ----+-----+-----+-----+----
-            FCL | FCL | FCL | FCL | FCL
+                | KAL | SCL | CLO
+            ----+-----+-----+----
+            KAL | KAL | SCL | CLO
+            ----+-----+-----+----
+            TUN | TUN | SCL | CLO
+ Frontend   ----+-----+-----+----
+   mode     SCL | SCL | SCL | CLO
+            ----+-----+-----+----
+            CLO | CLO | CLO | CLO
 
 
 
@@ -2110,7 +2103,7 @@ option clitcpka                      (*)  X          X         X         -
 option contstats                     (*)  X          X         X         -
 option dontlog-normal                (*)  X          X         X         -
 option dontlognull                   (*)  X          X         X         -
-option forceclose                    (*)  X          X         X         X
+option forceclose      (deprectated) (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
 option http-buffer-request           (*)  X          X         X         X
@@ -5655,32 +5648,9 @@ no option dontlognull
              section 8 about logging.
 
 
-option forceclose
-no option forceclose
-  Enable or disable active connection closing after response is transferred.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments : none
-
-  Some HTTP servers do not necessarily close the connections when they receive
-  the "Connection: close" set by "option httpclose", and if the client does not
-  close either, then the connection remains open till the timeout expires. This
-  causes high number of simultaneous connections on the servers and shows high
-  global session times in the logs.
-
-  When this happens, it is possible to use "option forceclose". It will
-  actively close the outgoing server channel as soon as the server has finished
-  to respond and release some resources earlier than with "option httpclose".
-
-  This option may also be combined with "option http-pretend-keepalive", which
-  will disable sending of the "Connection: close" header, but will still cause
-  the connection to be closed once the whole response is received.
-
-  This option disables and replaces any previous "option httpclose", "option
-  http-server-close", "option http-keep-alive", or "option http-tunnel".
-
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
+option forceclose (deprecated)
+no option forceclose (deprecated)
+  This is an alias for "option httpclose". Thus this option is deprecated.
 
   See also : "option httpclose" and "option http-pretend-keepalive"
 
@@ -5745,7 +5715,7 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
         option forwardfor header X-Client
 
   See also : "option httpclose", "option http-server-close",
-             "option forceclose", "option http-keep-alive"
+             "option http-keep-alive"
 
 
 option http-buffer-request
@@ -5813,11 +5783,11 @@ no option http-keep-alive
 
   By default HAProxy operates in keep-alive mode with regards to persistent
   connections: for each connection it processes each request and response, and
-  leaves the connection idle on both sides between the end of a response and the
-  start of a new request. This mode may be changed by several options such as
-  "option http-server-close", "option forceclose", "option httpclose" or
-  "option http-tunnel". This option allows to set back the keep-alive mode,
-  which can be useful when another mode was used in a defaults section.
+  leaves the connection idle on both sides between the end of a response and
+  the start of a new request. This mode may be changed by several options such
+  as "option http-server-close", "option httpclose" or "option http-tunnel".
+  This option allows to set back the keep-alive mode, which can be useful when
+  another mode was used in a defaults section.
 
   Setting "option http-keep-alive" enables HTTP keep-alive mode on the client-
   and server- sides. This provides the lowest latency on the client side (slow
@@ -5852,13 +5822,12 @@ no option http-keep-alive
   not set.
 
   This option disables and replaces any previous "option httpclose", "option
-  http-server-close", "option forceclose" or "option http-tunnel". When backend
-  and frontend options differ, all of these 4 options have precedence over
-  "option http-keep-alive".
+  http-server-close" or "option http-tunnel". When backend and frontend options
+  differ, all of these 4 options have precedence over "option http-keep-alive".
 
-  See also : "option forceclose", "option http-server-close",
+  See also : "option httpclose",, "option http-server-close",
              "option prefer-last-server", "option http-pretend-keepalive",
-             "option httpclose", and "1.1. The HTTP transaction model".
+	     and "1.1. The HTTP transaction model".
 
 
 option http-no-delay
@@ -5902,7 +5871,7 @@ no option http-pretend-keepalive
                                  yes   |    no   |   yes  |   yes
   Arguments : none
 
-  When running with "option http-server-close" or "option forceclose", haproxy
+  When running with "option http-server-close" or "option httpclose", haproxy
   adds a "Connection: close" header to the request forwarded to the server.
   Unfortunately, when some servers see this header, they automatically refrain
   from using the chunked encoding for responses of unknown length, while this
@@ -5915,7 +5884,7 @@ no option http-pretend-keepalive
   believe it will keep the connection alive. The server will then not fall back
   to the abnormal undesired above. When haproxy gets the whole response, it
   will close the connection with the server just as it would do with the
-  "forceclose" option. That way the client gets a normal response and the
+  "option httpclose". That way the client gets a normal response and the
   connection is correctly closed on the server side.
 
   It is recommended not to enable this option by default, because most servers
@@ -5936,7 +5905,7 @@ no option http-pretend-keepalive
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose", "option http-server-close", and
+  See also : "option httpclose", "option http-server-close", and
              "option http-keep-alive"
 
 
@@ -5951,18 +5920,17 @@ no option http-server-close
   connections: for each connection it processes each request and response, and
   leaves the connection idle on both sides between the end of a response and
   the start of a new request. This mode may be changed by several options such
-  as "option http-server-close", "option forceclose", "option httpclose" or
-  "option http-tunnel". Setting "option http-server-close" enables HTTP
-  connection-close mode on the server side while keeping the ability to support
-  HTTP keep-alive and pipelining on the client side. This provides the lowest
-  latency on the client side (slow network) and the fastest session reuse on
-  the server side to save server resources, similarly to "option forceclose".
-  It also permits non-keepalive capable servers to be served in keep-alive mode
-  to the clients if they conform to the requirements of RFC7230. Please note
-  that some servers do not always conform to those requirements when they see
-  "Connection: close" in the request. The effect will be that keep-alive will
-  never be used. A workaround consists in enabling "option
-  http-pretend-keepalive".
+  as "option http-server-close", "option httpclose" or "option http-tunnel".
+  Setting "option http-server-close" enables HTTP connection-close mode on the
+  server side while keeping the ability to support HTTP keep-alive and
+  pipelining on the client side. This provides the lowest latency on the client
+  side (slow network) and the fastest session reuse on the server side to save
+  server resources, similarly to "option httpclose".  It also permits
+  non-keepalive capable servers to be served in keep-alive mode to the clients
+  if they conform to the requirements of RFC7230. Please note that some servers
+  do not always conform to those requirements when they see "Connection: close"
+  in the request. The effect will be that keep-alive will never be used. A
+  workaround consists in enabling "option http-pretend-keepalive".
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -5973,17 +5941,15 @@ no option http-server-close
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  It disables and replaces any previous "option httpclose", "option forceclose",
-  "option http-tunnel" or "option http-keep-alive". Please check section 4
-  ("Proxies") to see how this option combines with others when frontend and
-  backend options differ.
+  It disables and replaces any previous "option httpclose", "option http-tunnel"
+  or "option http-keep-alive". Please check section 4 ("Proxies") to see how
+  this option combines with others when frontend and backend options differ.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose", "option http-pretend-keepalive",
-             "option httpclose", "option http-keep-alive", and
-             "1.1. The HTTP transaction model".
+  See also : "option httpclose", "option http-pretend-keepalive",
+             "option http-keep-alive", and "1.1. The HTTP transaction model".
 
 
 option http-tunnel
@@ -5997,8 +5963,7 @@ no option http-tunnel
   connections: for each connection it processes each request and response, and
   leaves the connection idle on both sides between the end of a response and
   the start of a new request. This mode may be changed by several options such
-  as "option http-server-close", "option forceclose", "option httpclose" or
-  "option http-tunnel".
+  as "option http-server-close", "option httpclose" or "option http-tunnel".
 
   Option "http-tunnel" disables any HTTP processing past the first request and
   the first response. This is the mode which was used by default in versions
@@ -6018,9 +5983,8 @@ no option http-tunnel
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose", "option http-server-close",
-             "option httpclose", "option http-keep-alive", and
-             "1.1. The HTTP transaction model".
+  See also : "option httpclose", "option http-server-close",
+             "option http-keep-alive", and "1.1. The HTTP transaction model".
 
 
 option http-use-proxy-header
@@ -6051,8 +6015,7 @@ no option http-use-proxy-header
 
   This option should normally never be used, except in front of a proxy.
 
-  See also : "option httpclose", "option forceclose" and "option
-             http-server-close".
+  See also : "option httpclose", and "option http-server-close".
 
 
 option httpchk
@@ -6106,7 +6069,7 @@ option httpchk <method> <uri> <version>
 
 option httpclose
 no option httpclose
-  Enable or disable passive HTTP connection closing
+  Enable or disable HTTP connection closing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
@@ -6115,38 +6078,29 @@ no option httpclose
   connections: for each connection it processes each request and response, and
   leaves the connection idle on both sides between the end of a response and
   the start of a new request. This mode may be changed by several options such
-  as "option http-server-close", "option forceclose", "option httpclose" or
-  "option http-tunnel".
+  as "option http-server-close", "option httpclose" or "option http-tunnel".
 
-  If "option httpclose" is set, HAProxy will work in HTTP tunnel mode and check
-  if a "Connection: close" header is already set in each direction, and will
-  add one if missing. Each end should react to this by actively closing the TCP
-  connection after each transfer, thus resulting in a switch to the HTTP close
-  mode. Any "Connection" header different from "close" will also be removed.
-  Note that this option is deprecated since what it does is very cheap but not
-  reliable. Using "option http-server-close" or "option forceclose" is strongly
-  recommended instead.
+  If "option httpclose" is set, HAProxy will close connections with the server
+  and the client as soon as the request and the response are received. It will
+  alos check if a "Connection: close" header is already set in each direction,
+  and will add one if missing. Any "Connection" header different from "close"
+  will also be removed.
 
-  It seldom happens that some servers incorrectly ignore this header and do not
-  close the connection even though they reply "Connection: close". For this
-  reason, they are not compatible with older HTTP 1.0 browsers. If this happens
-  it is possible to use the "option forceclose" which actively closes the
-  request connection once the server responds. Option "forceclose" also
-  releases the server connection earlier because it does not have to wait for
-  the client to acknowledge it.
+  This option may also be combined with "option http-pretend-keepalive", which
+  will disable sending of the "Connection: close" header, but will still cause
+  the connection to be closed once the whole response is received.
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
   It disables and replaces any previous "option http-server-close",
-  "option forceclose", "option http-keep-alive" or "option http-tunnel". Please
-  check section 4 ("Proxies") to see how this option combines with others when
-  frontend and backend options differ.
+  "option http-keep-alive" or "option http-tunnel". Please check section 4
+  ("Proxies") to see how this option combines with others when frontend and
+  backend options differ.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose", "option http-server-close" and
-             "1.1. The HTTP transaction model".
+  See also : "option http-server-close" and "1.1. The HTTP transaction model".
 
 
 option httplog [ clf ]
@@ -6490,8 +6444,7 @@ option originalto [ except <network> ] [ header <name> ]
         mode http
         option originalto header X-Client-Dst
 
-  See also : "option httpclose", "option http-server-close",
-             "option forceclose"
+  See also : "option httpclose", "option http-server-close".
 
 
 option persist

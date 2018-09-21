@@ -4704,30 +4704,16 @@ stats_error_parsing:
 		 * was this one (useful for cancelling options set in defaults
 		 * sections).
 		 */
-		if (strcmp(args[1], "httpclose") == 0) {
+		if (strcmp(args[1], "httpclose") == 0 || strcmp(args[1], "forceclose") == 0) {
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_PCL;
+				curproxy->options |= PR_O_HTTP_CLO;
 				goto out;
 			}
 			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
-					curproxy->options &= ~PR_O_HTTP_MODE;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "forceclose") == 0) {
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-			if (kwm == KWM_STD) {
-				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_FCL;
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
 					curproxy->options &= ~PR_O_HTTP_MODE;
 				goto out;
 			}

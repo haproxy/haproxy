@@ -794,28 +794,16 @@ void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_m
 	struct proxy *fe = strm_fe(s);
 	int tmp = TX_CON_WANT_KAL;
 
-	if (!((fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
-		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
-		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
-			tmp = TX_CON_WANT_TUN;
-
-		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
-			tmp = TX_CON_WANT_TUN;
-	}
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
+	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+		tmp = TX_CON_WANT_TUN;
 
 	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL) {
-		/* option httpclose + server_close => forceclose */
-		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
-			tmp = TX_CON_WANT_CLO;
-		else
+	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL)
 			tmp = TX_CON_WANT_SCL;
-	}
 
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL ||
-	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
+	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
 		tmp = TX_CON_WANT_CLO;
 
 	if ((txn->flags & TX_CON_WANT_MSK) < tmp)
@@ -3253,22 +3241,15 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * to deal with some servers bugs : some of them fail an Upgrade if anything but
 	 * "Upgrade" is present in the Connection header.
 	 */
-	if (!(txn->flags & TX_HDR_CONN_UPG) &&
-	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+	if (!(txn->flags & TX_HDR_CONN_UPG) && (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
 		unsigned int want_flags = 0;
 
 		if (msg->flags & HTTP_MSGF_VER_11) {
-			if (((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
-			     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-			      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)) &&
+			if ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
 			    !((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_CLO_SET;
 		} else {
-			if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-			     ((sess->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL &&
-			      (s->be->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL)) ||
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    ((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_KAL_SET;
 		}
@@ -4959,25 +4940,15 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * See doc/internals/connection-header.txt for the complete matrix.
 	 */
 	if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
-	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
 		int to_del = 0;
 
-		/* this situation happens when combining pretend-keepalive with httpclose. */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-		    ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
-			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-
 		/* on unknown transfer length, we must close */
-		if (!(msg->flags & HTTP_MSGF_XFER_LEN) &&
-		    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+		if (!(msg->flags & HTTP_MSGF_XFER_LEN))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* now adjust header transformations depending on current state */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN ||
-		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			to_del |= 2; /* remove "keep-alive" on any response */
 			if (!(msg->flags & HTTP_MSGF_VER_11))
 				to_del |= 1; /* remove "close" for HTTP/1.0 responses */
@@ -5312,9 +5283,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 * protocol.
 	 */
 	if ((txn->status != 101) && !(txn->flags & TX_HDR_CONN_UPG) &&
-	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
 		unsigned int want_flags = 0;
 
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
@@ -5325,7 +5294,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			if (!(txn->req.flags & msg->flags & HTTP_MSGF_VER_11))
 				want_flags |= TX_CON_KAL_SET;
 		}
-		else {
+		else { /* CLO */
 			/* we want a close response here. Close header required if
 			 * the server is 1.1, regardless of the client.
 			 */
