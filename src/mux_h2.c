@@ -284,8 +284,7 @@ static int h2_buf_available(void *target)
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
 		if (h2_recv_allowed(h2c)) {
 			conn_xprt_want_recv(h2c->conn);
-			if (h2_recv(h2c))
-				h2_process(h2c);
+			tasklet_wakeup(h2c->wait_list.task);
 		}
 		return 1;
 	}
@@ -299,8 +298,7 @@ static int h2_buf_available(void *target)
 			h2c->flags &= ~H2_CF_DEM_MROOM;
 			if (h2_recv_allowed(h2c)) {
 				conn_xprt_want_recv(h2c->conn);
-				if (h2_recv(h2c))
-					h2_process(h2c);
+				tasklet_wakeup(h2c->wait_list.task);
 			}
 		}
 		return 1;
@@ -312,8 +310,7 @@ static int h2_buf_available(void *target)
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
 		if (h2_recv_allowed(h2c)) {
 			conn_xprt_want_recv(h2c->conn);
-			if (h2_recv(h2c))
-				h2_process(h2c);
+			tasklet_wakeup(h2c->wait_list.task);
 		}
 		return 1;
 	}
@@ -2577,8 +2574,7 @@ static void h2_update_poll(struct conn_stream *cs)
 		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
 		if (h2s->h2c->dsi == h2s->id) {
 			conn_xprt_want_recv(cs->conn);
-			if (h2_recv(h2s->h2c))
-				h2_process(h2s->h2c);
+			tasklet_wakeup(h2s->h2c->wait_list.task);
 			conn_xprt_want_send(cs->conn);
 		}
 	}
@@ -2625,7 +2621,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
 		if (h2_recv_allowed(h2c)) {
 			__conn_xprt_want_recv(h2c->conn);
-			h2_recv(h2c);
+			tasklet_wakeup(h2c->wait_list.task);
 			conn_xprt_want_send(h2c->conn);
 		}
 	}
@@ -2646,7 +2642,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2c->flags &= ~H2_CF_DEM_BLOCK_ANY;
 		h2c->flags &= ~H2_CF_MUX_BLOCK_ANY;
 		conn_xprt_want_recv(cs->conn);
-		h2_recv(h2c);
+		tasklet_wakeup(h2c->wait_list.task);
 		conn_xprt_want_send(cs->conn);
 	}
 
