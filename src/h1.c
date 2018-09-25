@@ -1433,7 +1433,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				state = H1_MSG_LAST_LF;
 				goto http_output_full;
 			}
-			http_set_hdr(&hdr[hdr_count++], ist(""), ist(""));
+			http_set_hdr(&hdr[hdr_count++], ist2(start+sol, 0), ist(""));
 		}
 
 		/* reaching here we've parsed the whole message. We may detect
