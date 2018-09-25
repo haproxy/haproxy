@@ -4192,9 +4192,11 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current request. These rules
-      do not stop evaluation and do not change default action. Three sets of
-      counters may be simultaneously tracked by the same connection. The first
-      "track-sc0" rule executed enables tracking of the counters of the
+      do not stop evaluation and do not change default action. The number of
+      counters that may be simultaneously tracked by the same connection is set
+      in MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults
+      to 3, so the track-sc number is between 0 and (MAX_SESS_STCKTR-1). The
+      first "track-sc0" rule executed enables tracking of the counters of the
       specified table as the first set. The first "track-sc1" rule executed
       enables tracking of the counters of the specified table as the second
       set. The first "track-sc2" rule executed enables tracking of the
@@ -9274,16 +9276,18 @@ tcp-request connection <action> [{if | unless} <condition>]
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
-        rules do not stop evaluation and do not change default action. 3 sets
-        of counters may be simultaneously tracked by the same connection. The
-        first "track-sc0" rule executed enables tracking of the counters of the
-        specified table as the first set. The first "track-sc1" rule executed
-        enables tracking of the counters of the specified table as the second
-        set. The first "track-sc2" rule executed enables tracking of the
-        counters of the specified table as the third set. It is a recommended
-        practice to use the first set of counters for the per-frontend counters
-        and the second set for the per-backend ones. But this is just a
-        guideline, all may be used everywhere.
+        rules do not stop evaluation and do not change default action. The
+        number of counters that may be simultaneously tracked by the same
+        connection is set in MAX_SESS_STKCTR at build time (reported in
+        haproxy -vv) whichs defaults to 3, so the track-sc number is between 0
+        and (MAX_SESS_STCKTR-1). The first "track-sc0" rule executed enables
+        tracking of the counters of the specified table as the first set. The
+        first "track-sc1" rule executed enables tracking of the counters of the
+        specified table as the second set. The first "track-sc2" rule executed
+        enables tracking of the counters of the specified table as the third
+        set. It is a recommended practice to use the first set of counters for
+        the per-frontend counters and the second set for the per-backend ones.
+        But this is just a guideline, all may be used everywhere.
 
         These actions take one or two arguments :
           <key>   is mandatory, and is a sample expression rule as described
@@ -14011,10 +14015,13 @@ sets unless they require some future information. Those generally include
 TCP/IP addresses and ports, as well as elements from stick-tables related to
 the incoming connection. For retrieving a value from a sticky counters, the
 counter number can be explicitly set as 0, 1, or 2 using the pre-defined
-"sc0_", "sc1_", or "sc2_" prefix, or it can be specified as the first integer
-argument when using the "sc_" prefix. An optional table may be specified with
-the "sc*" form, in which case the currently tracked key will be looked up into
-this alternate table instead of the table currently being tracked.
+"sc0_", "sc1_", or "sc2_" prefix. These three pre-defined prefixes can only be
+used if MAX_SESS_STKCTR value does not exceed 3, otherwise the counter number
+can be specified as the first integer argument when using the "sc_" prefix.
+Starting from "sc_0" to "sc_N" where N is (MAX_SESS_STKCTR-1). An optional
+table may be specified with the "sc*" form, in which case the currently
+tracked key will be looked up into this alternate table instead of the table
+currently being tracked.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
