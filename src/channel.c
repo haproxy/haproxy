@@ -417,7 +417,7 @@ int ci_insert_line2(struct channel *c, int pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (b_tail(b) + delta >= b_wrap(b))
+	if (__b_tail(b) + delta >= b_wrap(b))
 		return 0;  /* no space left */
 
 	if (b_data(b) &&

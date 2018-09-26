@@ -578,7 +578,7 @@ static inline int b_rep_blk(struct buffer *b, char *pos, char *end, const char *
 
 	delta = len - (end - pos);
 
-	if (b_tail(b) + delta > b_wrap(b))
+	if (__b_tail(b) + delta > b_wrap(b))
 		return 0;  /* no space left */
 
 	if (b_data(b) &&
