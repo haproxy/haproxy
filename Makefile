@@ -78,9 +78,13 @@
 # Other variables :
 #   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
 #   DLMALLOC_THRES : should match PAGE_SIZE on every platform (default: 4096).
+#   PCRE_CONFIG    : force the binary path to get pcre config (by default
+#                                                              pcre-config)
 #   PCREDIR        : force the path to libpcre.
 #   PCRE_LIB       : force the lib path to libpcre (defaults to $PCREDIR/lib).
 #   PCRE_INC       : force the include path to libpcre ($PCREDIR/inc)
+#   PCRE2_CONFIG   : force the binary path to get pcre2 config (by default
+#                                                               pcre2-config)
 #   SSL_LIB        : force the lib path to libssl/libcrypto
 #   SSL_INC        : force the include path to libssl/libcrypto
 #   LUA_LIB        : force the lib path to lua
@@ -734,7 +738,8 @@ endif
 # Forcing PCREDIR to an empty string will let the compiler use the default
 # locations.
 
-PCREDIR	        := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
+PCRE_CONFIG    	:= pcre-config
+PCREDIR	        := $(shell $(PCRE_CONFIG) --prefix 2>/dev/null || echo /usr/local)
 ifneq ($(PCREDIR),)
 PCRE_INC        := $(PCREDIR)/include
 PCRE_LIB        := $(PCREDIR)/lib
@@ -759,7 +764,8 @@ endif
 endif
 
 ifneq ($(USE_PCRE2)$(USE_STATIC_PCRE2)$(USE_PCRE2_JIT),)
-PCRE2DIR	:= $(shell pcre2-config --prefix 2>/dev/null || echo /usr/local)
+PCRE2_CONFIG 	:= pcre2-config
+PCRE2DIR	:= $(shell $(PCRE2_CONFIG) --prefix 2>/dev/null || echo /usr/local)
 ifneq ($(PCRE2DIR),)
 PCRE2_INC       := $(PCRE2DIR)/include
 PCRE2_LIB       := $(PCRE2DIR)/lib
@@ -777,7 +783,7 @@ endif
 endif
 
 
-PCRE2_LDFLAGS	:= $(shell pcre2-config --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
+PCRE2_LDFLAGS	:= $(shell $(PCRE2_CONFIG) --libs$(PCRE2_WIDTH) 2>/dev/null || echo -L/usr/local/lib -lpcre2-$(PCRE2_WIDTH))
 
 ifeq ($(PCRE2_LDFLAGS),)
 $(error libpcre2-$(PCRE2_WIDTH) not found)
