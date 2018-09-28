@@ -2504,13 +2504,13 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
 			ret |= si_cs_send(cs);
 			si_cs_recv(cs);
-			ret |= (ci_data(si_ic(si_f)) != 0 ) | (cs->conn->flags & CO_FL_ERROR);
+			ret |= (si_ic(si_f)->flags & CF_READ_PARTIAL) | (cs->conn->flags & CO_FL_ERROR);
 		}
 		cs = objt_cs(si_b->end);
 		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
 			ret |= si_cs_send(cs);
 			si_cs_recv(cs);
-			ret |= (ci_data(si_ic(si_b)) != 0 ) | (cs->conn->flags & CO_FL_ERROR);
+			ret |= (si_ic(si_b)->flags & CF_READ_PARTIAL) | (cs->conn->flags & CO_FL_ERROR);
 
 		}
 		if (ret)
