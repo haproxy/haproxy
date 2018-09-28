@@ -425,6 +425,7 @@ static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
 	.rcv_buf  = raw_sock_to_buf,
 	.subscribe = conn_subscribe,
+	.unsubscribe = conn_unsubscribe,
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,

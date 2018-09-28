@@ -3541,16 +3541,16 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
 
-	switch (event_type) {
-	case SUB_CAN_RECV:
+	if (event_type & SUB_CAN_RECV) {
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_RECV)) {
 			sw->wait_reason |= SUB_CAN_RECV;
 			sw->handle = h2s;
 			h2s->recv_wait_list = sw;
 		}
-		return 0;
-	case SUB_CAN_SEND:
+		event_type &= ~SUB_CAN_RECV;
+	}
+	if (event_type & SUB_CAN_SEND) {
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
@@ -3560,14 +3560,37 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 			else
 				LIST_ADDQ(&h2c->send_list, &sw->list);
 		}
-		return 0;
-	default:
-		break;
+		event_type &= ~SUB_CAN_SEND;
 	}
-	return -1;
+	if (event_type != 0)
+		return -1;
+	return 0;
 
 
 }
+
+static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
+{
+	struct wait_list *sw;
+	struct h2s *h2s = cs->ctx;
+
+	if (event_type & SUB_CAN_RECV) {
+		sw = param;
+		if (h2s->recv_wait_list == sw) {
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			h2s->recv_wait_list = NULL;
+		}
+	}
+	if (event_type & SUB_CAN_SEND) {
+		sw = param;
+		if (sw->wait_reason & SUB_CAN_SEND) {
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+		}
+	}
+	return 0;
+}
+
 
 /* Called from the upper layer, to receive data */
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
@@ -3767,6 +3790,7 @@ const struct mux_ops h2_ops = {
 	.snd_buf = h2_snd_buf,
 	.rcv_buf = h2_rcv_buf,
 	.subscribe = h2_subscribe,
+	.unsubscribe = h2_unsubscribe,
 	.attach = h2_attach,
 	.detach = h2_detach,
 	.shutr = h2_shutr,

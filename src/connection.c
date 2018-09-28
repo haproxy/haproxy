@@ -358,12 +358,38 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	return ret;
 }
 
+int conn_unsubscribe(struct connection *conn, int event_type, void *param)
+{
+	struct wait_list *sw;
+
+	if (event_type & SUB_CAN_RECV) {
+		sw = param;
+		if (sw->wait_reason & SUB_CAN_RECV) {
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_RECV;
+			if (sw->wait_reason & SUB_CAN_SEND)
+				LIST_ADDQ(&conn->send_wait_list, &sw->list);
+		}
+	}
+	if (event_type & SUB_CAN_SEND) {
+		sw = param;
+		if (sw->wait_reason & SUB_CAN_SEND) {
+			LIST_DEL(&sw->list);
+			LIST_INIT(&sw->list);
+			sw->wait_reason &= ~SUB_CAN_SEND;
+			if (sw->wait_reason & SUB_CAN_RECV)
+				LIST_ADDQ(&conn->recv_wait_list, &sw->list);
+		}
+	}
+	return 0;
+}
+
 int conn_subscribe(struct connection *conn, int event_type, void *param)
 {
 	struct wait_list *sw;
 
-	switch (event_type) {
-	case SUB_CAN_RECV:
+	if (event_type & SUB_CAN_RECV) {
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_RECV)) {
 			sw->wait_reason |= SUB_CAN_RECV;
@@ -377,8 +403,9 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 			} else
 				LIST_ADDQ(&conn->recv_wait_list, &sw->list);
 		}
-		return 0;
-	case SUB_CAN_SEND:
+		event_type &= ~SUB_CAN_RECV;
+	}
+	if (event_type & SUB_CAN_SEND) {
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
@@ -392,11 +419,11 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 			} else
 				LIST_ADDQ(&conn->send_wait_list, &sw->list);
 		}
-		return 0;
-	default:
-		break;
+		event_type &= ~SUB_CAN_SEND;
 	}
-	return (-1);
+	if (event_type != 0)
+		return (-1);
+	return 0;
 }
 
 /* Drains possibly pending incoming data on the file descriptor attached to the

@@ -301,6 +301,7 @@ struct xprt_ops {
 	int  (*get_alpn)(const struct connection *conn, const char **str, int *len); /* get application layer name */
 	char name[8];                               /* transport layer name, zero-terminated */
 	int (*subscribe)(struct connection *conn, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
+	int (*unsubscribe)(struct connection *conn, int event_type, void *param); /* Unsubscribe to events */
 };
 
 /* mux_ops describes the mux operations, which are to be performed at the
@@ -325,6 +326,7 @@ struct mux_ops {
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
+	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
@@ -338,7 +340,6 @@ struct mux_ops {
  */
 struct data_cb {
 	int  (*wake)(struct conn_stream *cs);  /* data-layer callback to report activity */
-	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
 	char name[8];                           /* data layer name, zero-terminated */
 };
 

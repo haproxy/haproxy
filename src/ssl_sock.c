@@ -9023,6 +9023,7 @@ static struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
 	.rcv_buf  = ssl_sock_to_buf,
 	.subscribe = conn_subscribe,
+	.unsubscribe = conn_unsubscribe,
 	.rcv_pipe = NULL,
 	.snd_pipe = NULL,
 	.shutr    = NULL,
