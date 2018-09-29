@@ -1,6 +1,43 @@
 ChangeLog :
 ===========
 
+2018/09/29 : 1.9-dev3
+    - BUG/MINOR: h1: don't consider the status for each header
+    - MINOR: h1: report in the h1m struct if the HTTP version is 1.1 or above
+    - MINOR: h1: parse the Connection header field
+    - DOC: Fix typos in lua documentation
+    - MINOR: h1: Add H1_MF_XFER_LEN flag
+    - MINOR: http: add http_hdr_del() to remove a header from a list
+    - MINOR: h1: add headers to the list after controls, not before
+    - MEDIUM: h1: better handle transfer-encoding vs content-length
+    - MEDIUM: h1: deduplicate the content-length header
+    - BUG/MEDIUM: patterns: fix possible double free when reloading a pattern list
+    - BUG/MEDIUM: h1: Really skip all updates when incomplete messages are parsed
+    - CLEANUP/CONTRIB: hpack: remove some h1 build warnings
+    - BUG/MINOR: tools: fix set_net_port() / set_host_port() on IPv4
+    - BUG/MINOR: cli: make sure the "getsock" command is only called on connections
+    - MINOR: stktable: provide an unchecked version of stktable_data_ptr()
+    - MINOR: stream-int: make si_appctx() never fail
+    - BUILD: ssl_sock: remove build warnings on potential null-derefs
+    - BUILD: stats: remove build warnings on potential null-derefs
+    - BUILD: stream: address null-deref build warnings at -Wextra
+    - BUILD: http: address a couple of null-deref warnings at -Wextra
+    - BUILD: log: silent build warnings due to unchecked __objt_{server,applet}
+    - BUILD: dns: fix null-deref build warning at -Wextra
+    - BUILD: checks: silence a null-deref build warning at -Wextra
+    - BUILD: connection: silence a couple of null-deref build warnings at -Wextra
+    - BUILD: backend: fix 3 build warnings related to null-deref at -Wextra
+    - BUILD: sockpair: silence a build warning at -Wextra
+    - BUILD: build with -Wextra and sort out certain warnings
+    - BUG/CRITICAL: hpack: fix improper sign check on the header index value
+    - BUG/MEDIUM: http: Don't parse chunked body if there is no input data
+    - DOC: Update configuration doc about the maximum number of stick counters.
+    - BUG/MEDIUM: process_stream: Don't use si_cs_io_cb() in process_stream().
+    - MINOR: h2/stream_interface: Reintroduce te wake() method.
+    - BUG/MEDIUM: h2: Wake the task instead of calling h2_recv()/h2_process().
+    - BUG/MEDIUM: process_stream(): Don't wake the task if no new data was received.
+    - MEDIUM: lua: Add stick table support for Lua.
+
 2018/09/12 : 1.9-dev2
     - BUG/MINOR: buffers: Fix b_slow_realign when a buffer is realign without output
     - BUG/MEDIUM: threads: fix the no-thread case after the change to the sync point
