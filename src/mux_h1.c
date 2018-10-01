@@ -12,6 +12,9 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 
+#include <types/proxy.h>
+#include <types/session.h>
+
 #include <proto/connection.h>
 #include <proto/h1.h>
 #include <proto/log.h>
@@ -42,13 +45,21 @@
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
 #define H1C_F_CS_SHUTW       0x00004000 /* connection is already shut down */
 
+#define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
 
 /*
  * H1 Stream flags (32 bits)
  */
 #define H1S_F_NONE           0x00000000
 #define H1S_F_ERROR          0x00000001 /* An error occurred on the H1 stream */
-#define H1S_F_MSG_XFERED     0x00000002 /* current message was transferred to the data layer */
+#define H1S_F_REQ_ERROR      0x00000002 /* An error occurred during the request parsing/xfer */
+#define H1S_F_RES_ERROR      0x00000004 /* An error occurred during the response parsing/xfer */
+#define H1S_F_MSG_XFERED     0x00000008 /* current message was transferred to the data layer */
+#define H1S_F_WANT_KAL       0x00000010
+#define H1S_F_WANT_TUN       0x00000020
+#define H1S_F_WANT_CLO       0x00000040
+#define H1S_F_WANT_MSK       0x00000070
+#define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 
 
 /* H1 connection descriptor */
@@ -209,7 +220,7 @@ static int h1_avail_streams(struct connection *conn)
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
 /*****************************************************************/
-static struct h1s *h1s_create(struct h1c *h1c)
+static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs)
 {
 	struct h1s *h1s;
 
@@ -236,10 +247,21 @@ static struct h1s *h1s_create(struct h1c *h1c)
 	if (!conn_is_back(h1c->conn)) {
 		if (h1c->px->options2 & PR_O2_REQBUG_OK)
 			h1s->req.err_pos = -1;
+
+		if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
+			h1s->flags |= H1S_F_NOT_FIRST;
+		h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
+		h1c->http_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
 	}
 	else {
 		if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 			h1s->res.err_pos = -1;
+	}
+
+	/* If a conn_stream already exists, attach it to this H1S */
+	if (cs) {
+		cs->ctx = h1s;
+		h1s->cs = cs;
 	}
   end:
 	return h1s;
@@ -247,18 +269,49 @@ static struct h1s *h1s_create(struct h1c *h1c)
 
 static void h1s_destroy(struct h1s *h1s)
 {
-	struct h1c *h1c = h1s->h1c;
+	if (h1s) {
+		struct h1c *h1c = h1s->h1c;
 
-	h1c->h1s = NULL;
-	h1c->flags &= ~H1C_F_RX_FULL;
+		h1c->h1s = NULL;
+		h1c->flags &= ~(H1C_F_RX_FULL|H1C_F_RX_ALLOC);
 
-	if (h1s->recv_wait != NULL)
-		h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
-	if (h1s->send_wait != NULL)
-		h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		if (h1s->recv_wait != NULL)
+			h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		if (h1s->send_wait != NULL)
+			h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
 
-	h1_release_buf(h1c, &h1s->rxbuf);
-	pool_free(pool_head_h1s, h1s);
+		if (!conn_is_back(h1c->conn)) {
+			h1c->flags |= H1C_F_WAIT_NEXT_REQ;
+			h1c->http_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpka);
+		}
+
+		h1_release_buf(h1c, &h1s->rxbuf);
+		cs_free(h1s->cs);
+		pool_free(pool_head_h1s, h1s);
+	}
+}
+
+static struct conn_stream *h1s_new_cs(struct h1s *h1s)
+{
+	struct conn_stream *cs;
+
+	cs = cs_new(h1s->h1c->conn);
+	if (!cs)
+		goto err;
+	h1s->cs = cs;
+	cs->ctx = h1s;
+
+	if (h1s->flags & H1S_F_NOT_FIRST)
+		cs->flags |= CS_FL_NOT_FIRST;
+
+	if (stream_create_from_cs(cs) < 0)
+		goto err;
+	return cs;
+
+  err:
+	cs_free(cs);
+	h1s->cs = NULL;
+	return NULL;
 }
 
 /*
@@ -268,7 +321,6 @@ static void h1s_destroy(struct h1s *h1s)
  */
 static int h1_init(struct connection *conn, struct proxy *proxy)
 {
-	struct conn_stream *cs = conn->mux_ctx;
 	struct h1c *h1c;
 	struct task *t = NULL;
 
@@ -302,21 +354,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy)
 	h1c->wait_event.task->context = h1c;
 	h1c->wait_event.wait_reason   = 0;
 
-
-	/* For backend mux connection, the CS already exists. In such case,
-	 * create h1s and attached the cs to it.
-	 */
-	if (cs) {
-		struct h1s *h1s = cs->ctx;
-
-		if (!h1s) {
-			h1s = h1s_create(h1c);
-			if (!h1s)
-				goto fail;
-			cs->ctx = h1s;
-			h1s->cs = cs;
-		}
-	}
+	/* Always Create a new H1S */
+	if (!h1s_create(h1c, conn->mux_ctx))
+		goto fail;
 
 	conn->mux_ctx = h1c;
 	task_wakeup(t, TASK_WOKEN_INIT);
@@ -367,9 +407,7 @@ static void h1_release(struct connection *conn)
 		if (h1c->wait_event.task)
 			tasklet_free(h1c->wait_event.task);
 
-		if (h1c->h1s)
-			h1s_destroy(h1c->h1s);
-
+		h1s_destroy(h1c->h1s);
 		if (h1c->wait_event.wait_reason != 0)
 			conn->xprt->unsubscribe(conn, h1c->wait_event.wait_reason,
 			    &h1c->wait_event);
@@ -404,14 +442,242 @@ static void h1_cpy_error_message(struct h1c *h1c, struct buffer *dst, int status
 	b_putblk(dst, b_head(err), b_data(err));
 }
 
+/* Remove all "Connection:" headers from the buffer <buf>, using the array of
+ * parsed headers <hdrs>. It returns the number of bytes removed. This should
+ * happen just after the headers parsing, so the buffer should not wrap. At the
+ * ends, all entries of <hdrs> reamin valid.
+ */
+static int h1_remove_conn_hdrs(struct h1m *h1m, struct http_hdr *hdrs, struct buffer *buf)
+{
+	int src, dst, delta;
+
+	delta = 0;
+	for (src = 0, dst = 0; hdrs[src].n.len; src++) {
+
+		if (hdrs[src].n.ptr >= buf->area && hdrs[src].n.ptr < buf->area + buf->size)
+			hdrs[src].n.ptr += delta;
+		hdrs[src].v.ptr += delta;
+
+		if (!isteqi(hdrs[src].n, ist("Connection"))) {
+			if (src != dst)
+				hdrs[dst] = hdrs[src];
+			dst++;
+			continue;
+		}
+		delta += b_rep_blk(buf, hdrs[src].n.ptr, hdrs[src+1].n.ptr+delta, NULL, 0);
+	}
+
+	/* Don't forget to copy EOH */
+	hdrs[src].n.ptr += delta;
+	hdrs[dst] = hdrs[src];
+
+	h1m->flags &= ~(H1_MF_CONN_KAL|H1_MF_CONN_CLO);
+	return delta;
+}
+
+/* Add a "Connection:" header into the buffer <buf>. If <type> is 0, the header
+ * is set to "keep-alive", otherwise it is set to "close", It returns the number
+ * of bytes added. This should happen just after the headers parsing, so the
+ * buffer should not wrap. At the ends, all entries of <hdrs> reamin valid.
+ */
+static int h1_add_conn_hdrs(struct h1m *h1m, struct http_hdr *hdrs, struct buffer *buf,
+			    int type)
+{
+	const char *conn_hdr;
+	size_t nlen, vlen;
+	int i, delta;
+
+	if (type == 0) { /* keep-alive */
+		conn_hdr = "Connection: keep-alive\r\n";
+		nlen = 10; vlen = 10;
+	}
+	else { /* close */
+		conn_hdr = "Connection: close\r\n";
+		nlen = 10; vlen = 5;
+	}
+
+	/* Find EOH*/
+	for (i = 0; hdrs[i].n.len; i++);
+
+	/* Insert the "Connection: " header */
+	delta = b_rep_blk(buf, hdrs[i].n.ptr, hdrs[i].n.ptr, conn_hdr, nlen+vlen+4);
+
+	/* Update the header list */
+	http_set_hdr(&hdrs[i], ist2(hdrs[i].n.ptr, nlen), ist2(hdrs[i].n.ptr+nlen+2, vlen));
+	http_set_hdr(&hdrs[i+1], ist2(hdrs[i].n.ptr+delta, 0), ist(""));
+
+	return delta;
+}
+
+/* Deduce the connection mode of the client connection, depending on the
+ * configuration and the H1 message flags. This function is called twice, the
+ * first time when the request is parsed and the second time when the response
+ * is parsed.
+ */
+static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
+{
+	struct proxy *fe = h1s->h1c->px;
+	int flag = H1S_F_WANT_KAL; /* For client connection: server-close == keepalive */
+
+	/* Tunnel mode can only by set on the frontend */
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+		flag = H1S_F_WANT_TUN;
+	else if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
+		flag = H1S_F_WANT_CLO;
+
+	/* flags order: CLO > SCL > TUN > KAL */
+	if ((h1s->flags & H1S_F_WANT_MSK) < flag)
+		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | flag;
+
+	if (h1m->flags & H1_MF_RESP) {
+		/* Either we've established an explicit tunnel, or we're
+		 * switching the protocol. In both cases, we're very unlikely to
+		 * understand the next protocols. We have to switch to tunnel
+		 * mode, so that we transfer the request and responses then let
+		 * this protocol pass unmodified. When we later implement
+		 * specific parsers for such protocols, we'll want to check the
+		 * Upgrade header which contains information about that protocol
+		 * for responses with status 101 (eg: see RFC2817 about TLS).
+		 */
+		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
+		    h1s->status == 101)
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
+		else if (!(h1m->flags & H1_MF_XFER_LEN)) /* no length known => close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+	}
+	else {
+		if (h1s->flags & H1S_F_WANT_KAL &&
+		    (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
+		     h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+	}
+
+	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode */
+	if (h1s->flags & H1S_F_WANT_KAL && fe->state == PR_STSTOPPED)
+		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+}
+
+/* Deduce the connection mode of the client connection, depending on the
+ * configuration and the H1 message flags. This function is called twice, the
+ * first time when the request is parsed and the second time when the response
+ * is parsed.
+ */
+static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
+{
+	struct proxy *be = h1s->h1c->px;
+	struct proxy *fe = strm_fe(si_strm(h1s->cs->data));
+	int flag =  H1S_F_WANT_KAL;
+
+	/* Tunnel mode can only by set on the frontend */
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+		flag = H1S_F_WANT_TUN;
+
+	/* For the server connection: server-close == httpclose */
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+	    (fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
+	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
+		flag = H1S_F_WANT_CLO;
+
+	/* flags order: CLO > SCL > TUN > KAL */
+	if ((h1s->flags & H1S_F_WANT_MSK) < flag)
+		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | flag;
+
+	if (h1m->flags & H1_MF_RESP) {
+		/* Either we've established an explicit tunnel, or we're
+		 * switching the protocol. In both cases, we're very unlikely to
+		 * understand the next protocols. We have to switch to tunnel
+		 * mode, so that we transfer the request and responses then let
+		 * this protocol pass unmodified. When we later implement
+		 * specific parsers for such protocols, we'll want to check the
+		 * Upgrade header which contains information about that protocol
+		 * for responses with status 101 (eg: see RFC2817 about TLS).
+		 */
+		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
+		    h1s->status == 101)
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
+		else if (!(h1m->flags & H1_MF_XFER_LEN)) /* no length known => close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		else if (h1s->flags & H1S_F_WANT_KAL &&
+			 (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
+			  h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+	}
+
+	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
+	if (h1s->flags & H1S_F_WANT_KAL && be->state == PR_STSTOPPED)
+		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+
+	/* TODO: For now on the server-side, we disable keep-alive */
+	if (h1s->flags & H1S_F_WANT_KAL)
+		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+}
+
+static int h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
+				   struct http_hdr *hdrs, struct buffer *buf)
+{
+	struct proxy *px = h1s->h1c->px;
+	int ret = 0;
+
+	/* Don't update "Connection:" header in TUNNEL mode or if "Upgrage"
+	 * token is found
+	 */
+	if (h1s->flags & H1S_F_WANT_TUN || h1m->flags & H1_MF_CONN_UPG)
+		goto end;
+
+	if (h1s->flags & H1S_F_WANT_KAL || px->options2 & PR_O2_FAKE_KA) {
+		if (h1m->flags & H1_MF_CONN_CLO)
+			ret += h1_remove_conn_hdrs(h1m, hdrs, buf);
+		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)))
+			ret += h1_add_conn_hdrs(h1m, hdrs, buf, 0);
+	}
+	else { /* H1S_F_WANT_CLO && !PR_O2_FAKE_KA */
+		if (h1m->flags & H1_MF_CONN_KAL)
+			ret += h1_remove_conn_hdrs(h1m, hdrs, buf);
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_VER_11)
+			ret += h1_add_conn_hdrs(h1m, hdrs, buf, 1);
+	}
+
+  end:
+	return ret;
+}
+
+static int h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
+				   struct http_hdr *hdrs, struct buffer *buf)
+{
+	int ret = 0;
+
+	/* Don't update "Connection:" header in TUNNEL mode or if "Upgrage"
+	 * token is found
+	 */
+	if (h1s->flags & H1S_F_WANT_TUN || h1m->flags & H1_MF_CONN_UPG)
+		goto end;
+
+	if (h1s->flags & H1S_F_WANT_KAL) {
+		if (h1m->flags & H1_MF_CONN_CLO)
+			ret += h1_remove_conn_hdrs(h1m, hdrs, buf);
+		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)))
+			ret += h1_add_conn_hdrs(h1m, hdrs, buf, 0);
+	}
+	else { /* H1S_F_WANT_CLO */
+		if (h1m->flags & H1_MF_CONN_KAL)
+			ret += h1_remove_conn_hdrs(h1m, hdrs, buf);
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_VER_11)
+			ret += h1_add_conn_hdrs(h1m, hdrs, buf, 1);
+	}
+
+  end:
+	return ret;
+}
+
 /*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting H1S_F_ERROR flag
- * and filling h1s->err_pos and h1s->err_state fields. This functions is
+ * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
+ * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
  * responsibile to update the parser state <h1m>.
  */
 static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m,
-				 struct buffer *buf, size_t ofs, size_t max)
+				 struct buffer *buf, size_t *ofs, size_t max)
 {
 	struct http_hdr hdrs[MAX_HTTP_HDR];
 	union h1_sl sl;
@@ -421,18 +687,14 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m,
 	if (b_head(buf) + b_data(buf) > b_wrap(buf))
 		b_slow_realign(buf, trash.area, 0);
 
-	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
+	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_peek(buf, *ofs) + max,
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &sl);
 	if (ret <= 0) {
 		/* Incomplete or invalid message. If the buffer is full, it's an
 		 * error because headers are too large to be handled by the
 		 * parser. */
-		if (ret < 0 || (!ret && b_full(buf))) {
-			h1s->flags |= H1S_F_ERROR;
-			h1m->err_state = h1m->state;
-			h1m->err_pos = h1m->next;
-			ret = 0;
-		}
+		if (ret < 0 || (!ret && b_full(buf)))
+			goto error;
 		goto end;
 	}
 
@@ -441,13 +703,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m,
 	 */
 
 	/* Be sure to keep some space to do headers rewritting */
-	if (ret > (b_size(buf) - global.tune.maxrewrite)) {
-		h1s->flags    |= H1S_F_ERROR;
-		h1m->err_state = h1m->state;
-		h1m->err_pos   = h1m->next;
-		ret = 0;
-		goto end;
-	}
+	if (ret > (b_size(buf) - global.tune.maxrewrite))
+		goto error;
 
 	/* Save the request's method or the response's status and check if the
 	 * body length is known */
@@ -479,18 +736,36 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m,
 			h1m->state = H1_MSG_TUNNEL;
 	}
 
+	*ofs += ret;
+	if (!conn_is_back(h1s->h1c->conn)) {
+		h1_set_cli_conn_mode(h1s, h1m);
+		if (h1m->flags & H1_MF_RESP)
+			*ofs += h1_update_res_conn_hdr(h1s, h1m, hdrs, buf);
+	}
+	else {
+		h1_set_srv_conn_mode(h1s, h1m);
+		if (!(h1m->flags & H1_MF_RESP))
+			*ofs += h1_update_req_conn_hdr(h1s, h1m, hdrs, buf);
+	}
   end:
 	return ret;
+
+  error:
+	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+	h1m->err_state = h1m->state;
+	h1m->err_pos = h1m->next;
+	ret = 0;
+	goto end;
 }
 
 /*
- * Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting H1S_F_ERROR flag
+ * Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
+ * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag
  * and filling h1s->err_pos and h1s->err_state fields. This functions is
  * responsibile to update the parser state <h1m>.
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
-			      struct buffer *buf, size_t ofs, size_t max)
+			      struct buffer *buf, size_t *ofs, size_t max)
 {
 	size_t total = 0;
 	int ret = 0;
@@ -502,6 +777,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 			if ((uint64_t)ret > h1m->curr_len)
 				ret = h1m->curr_len;
 			h1m->curr_len -= ret;
+			*ofs += ret;
 			total += ret;
 			if (!h1m->curr_len)
 				h1m->state = H1_MSG_DONE;
@@ -510,11 +786,11 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 		  new_chunk:
 			/* te:chunked : parse chunks */
 			if (h1m->state == H1_MSG_CHUNK_CRLF) {
-				ret = h1_skip_chunk_crlf(buf, ofs, ofs + max);
+				ret = h1_skip_chunk_crlf(buf, *ofs, *ofs + max);
 				if (ret <= 0)
 					goto end;
 				max -= ret;
-				ofs += ret;
+				*ofs += ret;
 				total += ret;
 				h1m->state = H1_MSG_CHUNK_SIZE;
 			}
@@ -522,13 +798,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 			if (h1m->state == H1_MSG_CHUNK_SIZE) {
 				unsigned int chksz;
 
-				ret = h1_parse_chunk_size(buf, ofs, ofs + max, &chksz);
+				ret = h1_parse_chunk_size(buf, *ofs, *ofs + max, &chksz);
 				if (ret <= 0)
 					goto end;
 				h1m->curr_len  = chksz;
 				h1m->body_len += chksz;
 				max -= ret;
-				ofs += ret;
+				*ofs += ret;
 				total += ret;
 				h1m->state = (!chksz ? H1_MSG_TRAILERS : H1_MSG_DATA);
 			}
@@ -541,7 +817,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 					ret = h1m->curr_len;
 				h1m->curr_len -= ret;
 				max -= ret;
-				ofs += ret;
+				*ofs += ret;
 				total += ret;
 				if (h1m->curr_len)
 					goto end;
@@ -550,11 +826,11 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 			}
 
 			if (h1m->state == H1_MSG_TRAILERS) {
-				ret = h1_measure_trailers(buf, ofs, ofs + max);
+				ret = h1_measure_trailers(buf, *ofs, *ofs + max);
 				if (ret <= 0)
 					goto end;
 				max -= ret;
-				ofs += ret;
+				*ofs += ret;
 				total += ret;
 				h1m->state = H1_MSG_DONE;
 			}
@@ -568,14 +844,15 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
 	}
 	else {
 		/* no content length, read till SHUTW */
+		*ofs += max;
 		total = max;
 	}
 
   end:
 	if (ret < 0) {
-		h1s->flags |= H1S_F_ERROR;
+		h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
 		h1m->err_state = h1m->state;
-		h1m->err_pos = ofs + max + ret;
+		h1m->err_pos = *ofs + max + ret;
 		return 0;
 	}
 
@@ -590,27 +867,27 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m,
  */
 static void h1_sync_messages(struct h1c *h1c)
 {
-	if (!h1c->h1s)
+	struct h1s *h1s = h1c->h1s;
+
+	if (!h1s)
 		return;
 
-	if (h1c->h1s->res.state >= H1_MSG_DONE &&
-	    (h1c->h1s->status < 200 && (h1c->h1s->status == 100 || h1c->h1s->status >= 102)) &&
-	    ((conn_is_back(h1c->conn) && !b_data(&h1c->obuf)) || !b_data(&h1c->h1s->rxbuf))) {
+	if (h1s->res.state == H1_MSG_DONE &&
+	    (h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) &&
+	    ((conn_is_back(h1c->conn) && !b_data(&h1c->obuf)) || !b_data(&h1s->rxbuf))) {
 		/* For 100-Continue response or any other informational 1xx
 		 * response which is non-final, don't reset the request, the
 		 * transaction is not finished. We take care the response was
 		 * transferred before.
 		 */
-		h1m_init_res(&h1c->h1s->res);
+		h1m_init_res(&h1s->res);
 	}
-	else if (!b_data(&h1c->h1s->rxbuf) && !b_data(&h1c->obuf) &&
-		 h1c->h1s->req.state >= H1_MSG_DONE && h1c->h1s->res.state >= H1_MSG_DONE) {
-		h1m_init_req(&h1c->h1s->req);
-		h1m_init_res(&h1c->h1s->res);
-
-		// TODO: For now, the Keep-alive timeout is handled by the stream.
-		//if (h1c->task && !conn_is_back(h1c->conn))
-		//	h1c->http_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpka);
+	else if (!b_data(&h1s->rxbuf) && !b_data(&h1c->obuf) &&
+		 h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
+		if (h1s->flags & H1S_F_WANT_TUN) {
+			h1s->req.state = H1_MSG_TUNNEL;
+			h1s->res.state = H1_MSG_TUNNEL;
+		}
 	}
 }
 
@@ -621,20 +898,27 @@ static void h1_sync_messages(struct h1c *h1c)
  */
 static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count)
 {
-	struct h1s *h1s = h1c->h1s;
-	struct conn_stream *cs = NULL;
+	struct h1s *h1s = NULL;
 	struct h1m *h1m;
 	size_t total = 0;
 	size_t ret = 0;
+	size_t max;
+	int errflag;
 
 	if (h1c->flags & H1C_F_CS_ERROR)
 		goto end;
 
-	if (!h1s) {
-		h1s = h1s_create(h1c);
-		if (h1s == NULL)
-			goto err;
-	}
+	/* Create a new H1S without CS if not already done */
+	if (!h1c->h1s && !h1s_create(h1c, NULL))
+		goto err;
+	h1s = h1c->h1s;
+
+#if 0
+	// FIXME: Use a proxy option to enable early creation of the CS
+	/* Create the CS if not already attached to the H1S */
+	if (!h1s->cs && !h1s_new_cs(h1s))
+		goto err;
+#endif
 
 	if (!h1_get_buf(h1c, &h1s->rxbuf)) {
 		h1c->flags |= H1C_F_RX_ALLOC;
@@ -643,32 +927,28 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (count > b_room(&h1s->rxbuf))
 		count = b_room(&h1s->rxbuf);
+	max = count;
 
-	h1m   = (!conn_is_back(h1c->conn) ? &h1s->req : &h1s->res);
-	while (h1m->state < H1_MSG_DONE && count) {
+	if (!conn_is_back(h1c->conn)) {
+		h1m = &h1s->req;
+		errflag = H1S_F_REQ_ERROR;
+	}
+	else {
+		h1m = &h1s->res;
+		errflag = H1S_F_RES_ERROR;
+	}
+	while (!(h1s->flags & errflag) && max) {
 		if (h1m->state <= H1_MSG_LAST_LF) {
-			if (h1m->state == H1_MSG_RQBEFORE) {
-				if (h1c->task && !conn_is_back(h1c->conn))
-					if (!h1s->cs)
-						h1c->http_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
-			}
-			ret = h1_process_headers(h1s, h1m, buf, total, count);
+			ret = h1_process_headers(h1s, h1m, buf, &total, max);
 			if (!ret)
 				break;
 
-			/* Create the CS if not already attached to the H1S */
-			if (!h1s->cs) {
-				cs = cs_new(h1c->conn);
-				if (!cs)
-					goto err;
-				h1s->cs = cs;
-				cs->ctx = h1s;
-				if (stream_create_from_cs(cs) < 0)
-					goto err;
-			}
+			/* Reset request timeout */
+			h1s->h1c->http_exp = TICK_ETERNITY;
 
-			if (h1c->task && !conn_is_back(h1c->conn))
-				h1c->http_exp = TICK_ETERNITY;
+			/* Create the CS if not already attached to the H1S */
+			if (!h1s->cs && !h1s_new_cs(h1s))
+				goto err;
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
 			/* Do not parse the body if the header part is not yet
@@ -676,23 +956,26 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			 */
 			if (!(h1s->flags & H1S_F_MSG_XFERED))
 				break;
-			ret = h1_process_data(h1s, h1m, buf, total, count);
+			ret = h1_process_data(h1s, h1m, buf, &total, max);
 			if (!ret)
 				break;
 		}
+		else if (h1m->state == H1_MSG_DONE)
+			break;
+		else if (h1m->state == H1_MSG_TUNNEL) {
+			total += max;
+			max = 0;
+			break;
+		}
 		else {
-			h1s->flags |= H1S_F_ERROR;
+			h1s->flags |= errflag;
 			break;
 		}
 
-		total += ret;
-		count -= ret;
-
-		if ((h1s->flags & H1S_F_ERROR))
-			break;
+		max -= ret;
 	}
 
-	if (h1s->flags & H1S_F_ERROR) {
+	if (h1s->flags & errflag) {
 		/* For now, if an error occurred during the message parsing when
 		 * a stream is already attached to the mux, we transfer
 		 * everything to let the stream handle the error itself. We
@@ -707,25 +990,23 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			h1_cpy_error_message(h1c, &h1c->obuf, 400);
 			goto err;
 		}
-		total += count;
+		total += max;
+		max = 0;
 	}
 
-	ret = b_xfer(&h1s->rxbuf, buf, total);
+	b_xfer(&h1s->rxbuf, buf, total);
 
 	if (b_data(&h1s->rxbuf)) {
 		h1s->cs->flags |= CS_FL_RCV_MORE;
 		if (b_full(&h1s->rxbuf))
 			h1c->flags |= H1C_F_RX_FULL;
 	}
-
+	ret = count - max;
   end:
 	return ret;
 
   err:
-	if (cs)
-		cs_free(cs);
-	if (h1s)
-		h1s_destroy(h1s);
+	h1s_destroy(h1s);
 	h1c->flags |= H1C_F_CS_ERROR;
 	sess_log(h1c->conn->owner);
 	ret = 0;
@@ -741,8 +1022,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
+	size_t max;
 	size_t total = 0;
 	size_t ret = 0;
+	int errflag;
 
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
 		h1c->flags |= H1C_F_OUT_ALLOC;
@@ -751,42 +1034,54 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	if (count > b_room(&h1c->obuf))
 		count = b_room(&h1c->obuf);
 
-	h1m  = (!conn_is_back(h1c->conn) ? &h1s->res : &h1s->req);
-	while (h1m->state < H1_MSG_DONE && count) {
+	max = count;
+	if (!conn_is_back(h1c->conn)) {
+		h1m = &h1s->res;
+		errflag = H1S_F_RES_ERROR;
+	}
+	else {
+		h1m = &h1s->req;
+		errflag = H1S_F_REQ_ERROR;
+	}
+	while (!(h1s->flags & errflag) && max) {
 		if (h1m->state <= H1_MSG_LAST_LF) {
-			ret = h1_process_headers(h1s, h1m, buf, total, count);
+			ret = h1_process_headers(h1s, h1m, buf, &total, max);
 			if (!ret) {
 				/* incomplete or invalid response, this is abnormal coming from
 				 * haproxy and may only result in a bad errorfile or bad Lua code
 				 * so that won't be fixed, raise an error now.
 				 */
-				h1s->flags |= H1S_F_ERROR;
+				h1s->flags |= errflag;
 				break;
 			}
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
-			ret = h1_process_data(h1s, h1m, buf, total, count);
+			ret = h1_process_data(h1s, h1m, buf, &total, max);
 			if (!ret)
 				break;
 		}
+		else if (h1m->state == H1_MSG_DONE)
+			break;
+		else if (h1m->state == H1_MSG_TUNNEL) {
+			total += max;
+			max = 0;
+			break;
+		}
 		else {
-			h1s->flags |= H1S_F_ERROR;
+			h1s->flags |= errflag;
 			break;
 		}
 
-		total += ret;
-		count -= ret;
-
-		if ((h1s->flags & H1S_F_ERROR))
-			break;
+		max -= ret;
 	}
 
 	// TODO: Handle H1S errors
-	ret = b_xfer(&h1c->obuf, buf, total);
+	b_xfer(&h1c->obuf, buf, total);
 
 	if (b_full(&h1c->obuf))
 		h1c->flags |= H1C_F_OUT_FULL;
-  end:
+	ret = count - max;
+ end:
 	return ret;
 }
 
@@ -893,7 +1188,6 @@ static int h1_send(struct h1c *h1c)
 	if (ret > 0) {
 		h1c->flags &= ~H1C_F_OUT_FULL;
 		b_del(&h1c->obuf, ret);
-		h1_sync_messages(h1c);
 		sent = 1;
 	}
 
@@ -901,6 +1195,7 @@ static int h1_send(struct h1c *h1c)
 	/* We're done, no more to send */
 	if (!b_data(&h1c->obuf)) {
 		h1_release_buf(h1c, &h1c->obuf);
+		h1_sync_messages(h1c);
 		if (h1c->flags & H1C_F_CS_SHUTW_NOW)
 			h1_shutw_conn(conn);
 	}
@@ -976,13 +1271,20 @@ static int h1_process(struct h1c * h1c)
 		}
 	}
 
-	if (h1c->task && !conn_is_back(conn)) {
-		if (!h1c->h1s || !h1c->h1s->cs)
-			h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.client);
-		else
-			h1c->idle_exp =  TICK_ETERNITY;
-		h1c->task->expire = tick_first(h1c->http_exp, h1c->idle_exp);
+	/* If there is a stream attached to the mux, let it
+	 * handle the timeout.
+	 */
+	if (h1c->h1s && h1c->h1s->cs)
+		h1c->idle_exp = TICK_ETERNITY;
+	else {
+		int tout = (!conn_is_back(conn)
+			    ? h1c->px->timeout.client
+			    : h1c->px->timeout.server);
+		h1c->idle_exp = tick_add_ifset(now_ms, tout);
 	}
+	h1c->task->expire = tick_first(h1c->http_exp, h1c->idle_exp);
+	if (tick_isset(h1c->task->expire))
+		task_queue(h1c->task);
 	return 0;
 }
 
@@ -1021,27 +1323,44 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 		goto end;
 
 	if (!expired) {
-		/* For now, do not handle timeout for server-side mux */
-		if (!conn_is_back(h1c->conn))
-			t->expire = tick_first(t->expire, tick_first(h1c->idle_exp, h1c->http_exp));
+		t->expire = tick_first(t->expire, tick_first(h1c->idle_exp, h1c->http_exp));
 		return t;
 	}
 
-	if (!(h1c->px->options & PR_O_IGNORE_PRB) && h1_get_buf(h1c, &h1c->obuf)) {
-		// TODO: do not send error if ka timeout
-		h1_cpy_error_message(h1c, &h1c->obuf, 408);
-		h1c->flags   |= H1C_F_CS_ERROR;
-		h1c->idle_exp = TICK_ETERNITY;
-		h1c->http_exp = TICK_ETERNITY;
-		t->expire     = TICK_ETERNITY;
+	h1c->flags   |= H1C_F_CS_ERROR;
+	h1c->idle_exp = TICK_ETERNITY;
+	h1c->http_exp = TICK_ETERNITY;
+	t->expire     = TICK_ETERNITY;
+
+	/* Don't try send error message on the server-side */
+	if (conn_is_back(h1c->conn))
+		goto release;
+
+	/* Don't send error message if no input data is pending _AND_ if null
+	 * requests is ignored or it's not the first request.
+	 */
+	if (!b_data(&h1c->ibuf) && (h1c->px->options & PR_O_IGNORE_PRB ||
+				    h1c->flags & H1C_F_WAIT_NEXT_REQ))
+		goto release;
+
+	/* Try to allocate output buffer to store the error message. If
+	 * allocation fails, just go away.
+	 */
+	if (!h1_get_buf(h1c, &h1c->obuf))
+		goto release;
+
+	h1_cpy_error_message(h1c, &h1c->obuf, 408);
+	tasklet_wakeup(h1c->wait_event.task);
+	sess_log(h1c->conn->owner);
+	return t;
+
+  release:
+	if (h1c->h1s) {
 		tasklet_wakeup(h1c->wait_event.task);
-		sess_log(h1c->conn->owner);
 		return t;
 	}
-
 	h1c->task = NULL;
-	if (!h1c->h1s || !h1c->h1s->cs)
-		h1_release(h1c->conn);
+	h1_release(h1c->conn);
   end:
 	task_delete(t);
 	task_free(t);
@@ -1068,7 +1387,7 @@ static struct conn_stream *h1_attach(struct connection *conn)
 	if (!cs)
 		goto end;
 
-	h1s = h1s_create(h1c);
+	h1s = h1s_create(h1c, cs);
 	if (h1s == NULL)
 		goto end;
 
@@ -1133,6 +1452,9 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (!h1s)
 		return;
 
+	if ((h1s->flags & H1S_F_WANT_KAL) && !(cs->flags & (CS_FL_REOS|CS_FL_EOS)))
+		return;
+
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
 	if (cs->flags & CS_FL_SHR)
 		return;
@@ -1152,6 +1474,11 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	if (!h1s)
 		return;
 	h1c = h1s->h1c;
+
+	if ((h1s->flags & H1S_F_WANT_KAL) &&
+	    !(cs->flags & (CS_FL_REOS|CS_FL_EOS)) &&
+	    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
+		return;
 
 	h1c->flags |= H1C_F_CS_SHUTW_NOW;
 	if ((cs->flags & CS_FL_SHW) || b_data(&h1c->obuf))

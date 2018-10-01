@@ -790,6 +790,9 @@ void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_m
 	struct proxy *fe = strm_fe(s);
 	int tmp = TX_CON_WANT_KAL;
 
+	if (IS_HTX_STRM(s))
+		return htx_adjust_conn_mode(s, txn, msg);
+
 	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
 	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
 		tmp = TX_CON_WANT_TUN;
@@ -2562,6 +2565,9 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	const char *msg_fmt;
 	struct buffer *chunk;
 	int ret = 0;
+
+	if (IS_HTX_STRM(s))
+		return htx_apply_redirect_rule(rule, s, txn);
 
 	chunk = alloc_trash_chunk();
 	if (!chunk)
@@ -7657,8 +7663,11 @@ void http_init_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
 	struct proxy *fe = strm_fe(s);
+	struct conn_stream *cs = objt_cs(s->si[0].end);
 
-	txn->flags = 0;
+	txn->flags = ((cs && cs->flags & CS_FL_NOT_FIRST)
+		      ? (TX_NOT_FIRST|TX_WAIT_NEXT_RQ)
+		      : 0);
 	txn->status = -1;
 
 	txn->cookie_first_date = 0;

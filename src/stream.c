@@ -666,8 +666,11 @@ static int sess_update_st_con_tcp(struct stream *s)
 		return 1;
 	}
 
+	/* FIXME: Add CF_WROTE_DATA because data was already move in the mux in
+	 * h1. Without it, the SI remains in SI_ST_CON state.
+	 */
 	/* we need to wait a bit more if there was no activity either */
-	if (!(req->flags & CF_WRITE_ACTIVITY))
+	if (!(req->flags & (CF_WROTE_DATA|CF_WRITE_ACTIVITY)))
 		return 1;
 
 	/* OK, this means that a connection succeeded. The caller will be

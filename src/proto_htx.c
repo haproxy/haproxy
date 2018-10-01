@@ -30,6 +30,10 @@
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
 
+
+static void htx_end_request(struct stream *s);
+static void htx_end_response(struct stream *s);
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -132,7 +136,6 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		}
 	}
 
-
 	/*
 	 * Now we quickly check if we have found a full valid request.
 	 * If not so, we check the FD and buffer states before leaving.
@@ -148,7 +151,6 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a timeout or connection reset is not counted as an error. However
 	 * a bad request is.
 	 */
-
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/*
 		 * First, let's catch bad requests.
@@ -462,9 +464,6 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	      (ci_head(req)[msg->sl.rq.v + 7] >= '1'))))
 		msg->flags |= HTTP_MSGF_VER_11;
 
-	/* "connection" has not been parsed yet */
-	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL | TX_HDR_CONN_UPG);
-
 	/* if the frontend has "option http-use-proxy-header", we'll check if
 	 * we have what looks like a proxied connection instead of a connection,
 	 * and in this case set the TX_USE_PX_CONN flag to use Proxy-connection.
@@ -612,9 +611,8 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * one is non-null, or one of them is non-null and we are there for the first
 	 * time.
 	 */
-	if (!(txn->flags & TX_HDR_CONN_PRS) ||
-	    ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE)))
-		http_adjust_conn_mode(s, txn, msg);
+	if ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))
+		htx_adjust_conn_mode(s, txn, msg);
 
 	/* we may have to wait for the request's body */
 	if ((s->be->options & PR_O_WREQ_BODY) &&
@@ -846,7 +844,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 			if (!ret)
 				continue;
 		}
-		if (!http_apply_redirect_rule(rule, s, txn))
+		if (!htx_apply_redirect_rule(rule, s, txn))
 			goto return_bad_req;
 		goto done;
 	}
@@ -1205,29 +1203,6 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 		}
 	}
 
-	/* 11: add "Connection: close" or "Connection: keep-alive" if needed and not yet set.
-	 * If an "Upgrade" token is found, the header is left untouched in order not to have
-	 * to deal with some servers bugs : some of them fail an Upgrade if anything but
-	 * "Upgrade" is present in the Connection header.
-	 */
-	if (!(txn->flags & TX_HDR_CONN_UPG) && (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
-		unsigned int want_flags = 0;
-
-		if (msg->flags & HTTP_MSGF_VER_11) {
-			if ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
-			    !((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
-				want_flags |= TX_CON_CLO_SET;
-		} else {
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
-			    ((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
-				want_flags |= TX_CON_KAL_SET;
-		}
-
-		if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
-			http_change_connection_header(txn, msg, want_flags);
-	}
-
-
 	/* If we have no server assigned yet and we're balancing on url_param
 	 * with a POST request, we may be interested in checking the body for
 	 * that parameter. This will be done in another analyser.
@@ -1527,7 +1502,8 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		 */
 		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
-		http_resync_states(s);
+		htx_end_request(s);
+		htx_end_response(s);
 		return 1;
 	}
 
@@ -1586,8 +1562,9 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 		channel_dont_close(req);
 
-	http_resync_states(s);
+	htx_end_request(s);
 	if (!(req->analysers & an_bit)) {
+		htx_end_response(s);
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			if (req->flags & CF_SHUTW) {
 				/* request errors are most likely due to the
@@ -2054,9 +2031,6 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	     ((ci_head(rep)[5] == '1') && (ci_head(rep)[7] >= '1'))))
 		msg->flags |= HTTP_MSGF_VER_11;
 
-	/* "connection" has not been parsed yet */
-	txn->flags &= ~(TX_HDR_CONN_PRS|TX_HDR_CONN_CLO|TX_HDR_CONN_KAL|TX_HDR_CONN_UPG|TX_CON_CLO_SET|TX_CON_KAL_SET);
-
 	/* transfer length unknown*/
 	msg->flags &= ~HTTP_MSGF_XFER_LEN;
 
@@ -2226,7 +2200,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	    (txn->status >= 100 && txn->status < 200) ||
 	    txn->status == 204 || txn->status == 304) {
 		msg->flags |= HTTP_MSGF_XFER_LEN;
-		goto skip_content_length;
+		goto end;
 	}
 
 	use_close_only = 0;
@@ -2273,56 +2247,6 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		msg->flags |= HTTP_MSGF_CNT_LEN | HTTP_MSGF_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
-	}
-
- skip_content_length:
-	/* Now we have to check if we need to modify the Connection header.
-	 * This is more difficult on the response than it is on the request,
-	 * because we can have two different HTTP versions and we don't know
-	 * how the client will interprete a response. For instance, let's say
-	 * that the client sends a keep-alive request in HTTP/1.0 and gets an
-	 * HTTP/1.1 response without any header. Maybe it will bound itself to
-	 * HTTP/1.0 because it only knows about it, and will consider the lack
-	 * of header as a close, or maybe it knows HTTP/1.1 and can consider
-	 * the lack of header as a keep-alive. Thus we will use two flags
-	 * indicating how a request MAY be understood by the client. In case
-	 * of multiple possibilities, we'll fix the header to be explicit. If
-	 * ambiguous cases such as both close and keepalive are seen, then we
-	 * will fall back to explicit close. Note that we won't take risks with
-	 * HTTP/1.0 clients which may not necessarily understand keep-alive.
-	 * See doc/internals/connection-header.txt for the complete matrix.
-	 */
-	if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
-	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
-		int to_del = 0;
-
-		/* on unknown transfer length, we must close */
-		if (!(msg->flags & HTTP_MSGF_XFER_LEN))
-			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-
-		/* now adjust header transformations depending on current state */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
-			to_del |= 2; /* remove "keep-alive" on any response */
-			if (!(msg->flags & HTTP_MSGF_VER_11))
-				to_del |= 1; /* remove "close" for HTTP/1.0 responses */
-		}
-		else { /* SCL / KAL */
-			to_del |= 1; /* remove "close" on any response */
-			if (txn->req.flags & msg->flags & HTTP_MSGF_VER_11)
-				to_del |= 2; /* remove "keep-alive" on pure 1.1 responses */
-		}
-
-		/* Parse and remove some headers from the connection header */
-		http_parse_connection_header(txn, msg, to_del);
-
-		/* Some keep-alive responses are converted to Server-close if
-		 * the server wants to close.
-		 */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL) {
-			if ((txn->flags & TX_HDR_CONN_CLO) ||
-			    (!(txn->flags & TX_HDR_CONN_KAL) && !(msg->flags & HTTP_MSGF_VER_11)))
-				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
-		}
 	}
 
  end:
@@ -2384,7 +2308,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
 		rep->analysers &= ~an_bit;
 		rep->analyse_exp = TICK_ETERNITY;
-		goto skip_filters;
+		goto end;
 	}
 
 	/*
@@ -2502,7 +2426,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 
 	/* OK that's all we can do for 1xx responses */
 	if (unlikely(txn->status < 200 && txn->status != 101))
-		goto skip_header_mangling;
+		goto end;
 
 	/*
 	 * Now check for a server cookie.
@@ -2626,40 +2550,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		goto return_srv_prx_502;
 	}
 
- skip_filters:
-	/*
-	 * Adjust "Connection: close" or "Connection: keep-alive" if needed.
-	 * If an "Upgrade" token is found, the header is left untouched in order
-	 * not to have to deal with some client bugs : some of them fail an upgrade
-	 * if anything but "Upgrade" is present in the Connection header. We don't
-	 * want to touch any 101 response either since it's switching to another
-	 * protocol.
-	 */
-	if ((txn->status != 101) && !(txn->flags & TX_HDR_CONN_UPG) &&
-	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
-		unsigned int want_flags = 0;
-
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
-		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
-			/* we want a keep-alive response here. Keep-alive header
-			 * required if either side is not 1.1.
-			 */
-			if (!(txn->req.flags & msg->flags & HTTP_MSGF_VER_11))
-				want_flags |= TX_CON_KAL_SET;
-		}
-		else { /* CLO */
-			/* we want a close response here. Close header required if
-			 * the server is 1.1, regardless of the client.
-			 */
-			if (msg->flags & HTTP_MSGF_VER_11)
-				want_flags |= TX_CON_CLO_SET;
-		}
-
-		if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
-			http_change_connection_header(txn, msg, want_flags);
-	}
-
- skip_header_mangling:
+ end:
 	/* Always enter in the body analyzer */
 	rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 	rep->analysers |= AN_RES_HTTP_XFER_BODY;
@@ -2726,14 +2617,14 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		return 0;
 
 	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
-	    ((res->flags & CF_SHUTW) && (res->to_forward || co_data(res))) ||
-	     !s->req.analysers) {
+	    ((res->flags & CF_SHUTW) && (res->to_forward || co_data(res)))) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
 		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
-		http_resync_states(s);
+		htx_end_response(s);
+		htx_end_request(s);
 		return 1;
 	}
 
@@ -2763,13 +2654,9 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	}
 
 	/* other states, DONE...TUNNEL */
-	/* for keep-alive we don't want to forward closes on DONE */
-	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
-	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
-		channel_dont_close(res);
-
-	http_resync_states(s);
+	htx_end_response(s);
 	if (!(res->analysers & an_bit)) {
+		htx_end_request(s);
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			if (res->flags & CF_SHUTW) {
 				/* response errors are most likely due to the
@@ -2807,20 +2694,12 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		}
 	}
 
-	/* we need to obey the req analyser, so if it leaves, we must too */
-	if (!s->req.analysers)
-		goto return_bad_res;
-
 	/* When TE: chunked is used, we need to get there again to parse
 	 * remaining chunks even if the server has closed, so we don't want to
-	 * set CF_DONTCLOSE. Similarly, if keep-alive is set on the client side
-	 * or if there are filters registered on the stream, we don't want to
-	 * forward a close
+	 * set CF_DONTCLOSE. Similarly, if there are filters registered on the
+	 * stream, we don't want to forward a close
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) ||
-	    HAS_DATA_FILTERS(s, res) ||
-	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
-	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || HAS_DATA_FILTERS(s, res))
 		channel_dont_close(res);
 
 	/* We know that more data are expected, but we couldn't send more that
@@ -2876,6 +2755,534 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_D;
 	return 0;
+}
+
+void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
+{
+	struct proxy *fe = strm_fe(s);
+	int tmp = TX_CON_WANT_CLO;
+
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+		tmp = TX_CON_WANT_TUN;
+
+	if ((txn->flags & TX_CON_WANT_MSK) < tmp)
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+}
+
+/* Perform an HTTP redirect based on the information in <rule>. The function
+ * returns non-zero on success, or zero in case of a, irrecoverable error such
+ * as too large a request to build a valid response.
+ */
+int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
+{
+	struct http_msg *req = &txn->req;
+	struct http_msg *res = &txn->rsp;
+	const char *msg_fmt;
+	struct buffer *chunk;
+	int ret = 0;
+
+	chunk = alloc_trash_chunk();
+	if (!chunk)
+		goto leave;
+
+	/* build redirect message */
+	switch(rule->code) {
+	case 308:
+		msg_fmt = HTTP_308;
+		break;
+	case 307:
+		msg_fmt = HTTP_307;
+		break;
+	case 303:
+		msg_fmt = HTTP_303;
+		break;
+	case 301:
+		msg_fmt = HTTP_301;
+		break;
+	case 302:
+	default:
+		msg_fmt = HTTP_302;
+		break;
+	}
+
+	if (unlikely(!chunk_strcpy(chunk, msg_fmt)))
+		goto leave;
+
+	switch(rule->type) {
+	case REDIRECT_TYPE_SCHEME: {
+		const char *path;
+		const char *host;
+		struct hdr_ctx ctx;
+		int pathlen;
+		int hostlen;
+
+		host = "";
+		hostlen = 0;
+		ctx.idx = 0;
+		if (http_find_header2("Host", 4, ci_head(req->chn), &txn->hdr_idx, &ctx)) {
+			host = ctx.line + ctx.val;
+			hostlen = ctx.vlen;
+		}
+
+		path = http_txn_get_path(txn);
+		/* build message using path */
+		if (path) {
+			pathlen = req->sl.rq.u_l + (ci_head(req->chn) + req->sl.rq.u) - path;
+			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+				int qs = 0;
+				while (qs < pathlen) {
+					if (path[qs] == '?') {
+						pathlen = qs;
+						break;
+					}
+					qs++;
+				}
+			}
+		} else {
+			path = "/";
+			pathlen = 1;
+		}
+
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			/* check if we can add scheme + "://" + host + path */
+			if (chunk->data + rule->rdr_len + 3 + hostlen + pathlen > chunk->size - 4)
+				goto leave;
+
+			/* add scheme */
+			memcpy(chunk->area + chunk->data, rule->rdr_str,
+			       rule->rdr_len);
+			chunk->data += rule->rdr_len;
+		}
+		else {
+			/* add scheme with executing log format */
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
+
+			/* check if we can add scheme + "://" + host + path */
+			if (chunk->data + 3 + hostlen + pathlen > chunk->size - 4)
+				goto leave;
+		}
+		/* add "://" */
+		memcpy(chunk->area + chunk->data, "://", 3);
+		chunk->data += 3;
+
+		/* add host */
+		memcpy(chunk->area + chunk->data, host, hostlen);
+		chunk->data += hostlen;
+
+		/* add path */
+		memcpy(chunk->area + chunk->data, path, pathlen);
+		chunk->data += pathlen;
+
+		/* append a slash at the end of the location if needed and missing */
+		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
+		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+			if (chunk->data > chunk->size - 5)
+				goto leave;
+			chunk->area[chunk->data] = '/';
+			chunk->data++;
+		}
+
+		break;
+	}
+	case REDIRECT_TYPE_PREFIX: {
+		const char *path;
+		int pathlen;
+
+		path = http_txn_get_path(txn);
+		/* build message using path */
+		if (path) {
+			pathlen = req->sl.rq.u_l + (ci_head(req->chn) + req->sl.rq.u) - path;
+			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+				int qs = 0;
+				while (qs < pathlen) {
+					if (path[qs] == '?') {
+						pathlen = qs;
+						break;
+					}
+					qs++;
+				}
+			}
+		} else {
+			path = "/";
+			pathlen = 1;
+		}
+
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			if (chunk->data + rule->rdr_len + pathlen > chunk->size - 4)
+				goto leave;
+
+			/* add prefix. Note that if prefix == "/", we don't want to
+			 * add anything, otherwise it makes it hard for the user to
+			 * configure a self-redirection.
+			 */
+			if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+				memcpy(chunk->area + chunk->data,
+				       rule->rdr_str, rule->rdr_len);
+				chunk->data += rule->rdr_len;
+			}
+		}
+		else {
+			/* add prefix with executing log format */
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
+
+			/* Check length */
+			if (chunk->data + pathlen > chunk->size - 4)
+				goto leave;
+		}
+
+		/* add path */
+		memcpy(chunk->area + chunk->data, path, pathlen);
+		chunk->data += pathlen;
+
+		/* append a slash at the end of the location if needed and missing */
+		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
+		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+			if (chunk->data > chunk->size - 5)
+				goto leave;
+			chunk->area[chunk->data] = '/';
+			chunk->data++;
+		}
+
+		break;
+	}
+	case REDIRECT_TYPE_LOCATION:
+	default:
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			if (chunk->data + rule->rdr_len > chunk->size - 4)
+				goto leave;
+
+			/* add location */
+			memcpy(chunk->area + chunk->data, rule->rdr_str,
+			       rule->rdr_len);
+			chunk->data += rule->rdr_len;
+		}
+		else {
+			/* add location with executing log format */
+			chunk->data += build_logline(s,
+						    chunk->area + chunk->data,
+						    chunk->size - chunk->data,
+						    &rule->rdr_fmt);
+
+			/* Check left length */
+			if (chunk->data > chunk->size - 4)
+				goto leave;
+		}
+		break;
+	}
+
+	if (rule->cookie_len) {
+		memcpy(chunk->area + chunk->data, "\r\nSet-Cookie: ", 14);
+		chunk->data += 14;
+		memcpy(chunk->area + chunk->data, rule->cookie_str,
+		       rule->cookie_len);
+		chunk->data += rule->cookie_len;
+	}
+
+	/* add end of headers and the keep-alive/close status. */
+	txn->status = rule->code;
+	/* let's log the request time */
+	s->logs.tv_request = now;
+
+	if (((!(req->flags & HTTP_MSGF_TE_CHNK) && !req->body_len) || (req->msg_state == HTTP_MSG_DONE))) {
+		/* keep-alive possible */
+		if (!(req->flags & HTTP_MSGF_VER_11)) {
+			if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+				memcpy(chunk->area + chunk->data,
+				       "\r\nProxy-Connection: keep-alive", 30);
+				chunk->data += 30;
+			} else {
+				memcpy(chunk->area + chunk->data,
+				       "\r\nConnection: keep-alive", 24);
+				chunk->data += 24;
+			}
+		}
+		memcpy(chunk->area + chunk->data, "\r\n\r\n", 4);
+		chunk->data += 4;
+		FLT_STRM_CB(s, flt_http_reply(s, txn->status, chunk));
+		co_inject(res->chn, chunk->area, chunk->data);
+		/* "eat" the request */
+		b_del(&req->chn->buf, req->sov);
+		req->next -= req->sov;
+		req->sov = 0;
+		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_REQ_FLT_END);
+		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->res.analysers & AN_RES_FLT_END);
+		req->msg_state = HTTP_MSG_CLOSED;
+		res->msg_state = HTTP_MSG_DONE;
+		/* Trim any possible response */
+		b_set_data(&res->chn->buf, co_data(res->chn));
+		res->next = res->sov = 0;
+		/* let the server side turn to SI_ST_CLO */
+		channel_shutw_now(req->chn);
+	} else {
+		/* keep-alive not possible */
+		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+			memcpy(chunk->area + chunk->data,
+			       "\r\nProxy-Connection: close\r\n\r\n", 29);
+			chunk->data += 29;
+		} else {
+			memcpy(chunk->area + chunk->data,
+			       "\r\nConnection: close\r\n\r\n", 23);
+			chunk->data += 23;
+		}
+		http_reply_and_close(s, txn->status, chunk);
+		req->chn->analysers &= AN_REQ_FLT_END;
+	}
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+
+	ret = 1;
+ leave:
+	free_trash_chunk(chunk);
+	return ret;
+}
+
+/* This function terminates the request because it was completly analyzed or
+ * because an error was triggered during the body forwarding.
+ */
+static void htx_end_request(struct stream *s)
+{
+	struct channel *chn = &s->req;
+	struct http_txn *txn = s->txn;
+
+	DPRINTF(stderr,"[%u] %s: stream=%p states=%s,%s req->analysers=0x%08x res->analysers=0x%08x\n",
+		now_ms, __FUNCTION__, s,
+		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
+		s->req.analysers, s->res.analysers);
+
+	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR)) {
+		channel_abort(chn);
+		channel_truncate(chn);
+		goto end;
+	}
+
+	if (unlikely(txn->req.msg_state < HTTP_MSG_DONE))
+		return;
+
+	if (txn->req.msg_state == HTTP_MSG_DONE) {
+		if (txn->rsp.msg_state < HTTP_MSG_DONE) {
+			/* The server has not finished to respond, so we
+			 * don't want to move in order not to upset it.
+			 */
+			return;
+		}
+
+		/* No need to read anymore, the request was completely parsed.
+		 * We can shut the read side unless we want to abort_on_close,
+		 * or we have a POST request. The issue with POST requests is
+		 * that some browsers still send a CRLF after the request, and
+		 * this CRLF must be read so that it does not remain in the kernel
+		 * buffers, otherwise a close could cause an RST on some systems
+		 * (eg: Linux).
+		 */
+		if ((!(s->be->options & PR_O_ABRT_CLOSE) || (s->si[0].flags & SI_FL_CLEAN_ABRT)) &&
+		    txn->meth != HTTP_METH_POST)
+			channel_dont_read(chn);
+
+		/* if the server closes the connection, we want to immediately react
+		 * and close the socket to save packets and syscalls.
+		 */
+		s->si[1].flags |= SI_FL_NOHALF;
+
+		/* In any case we've finished parsing the request so we must
+		 * disable Nagle when sending data because 1) we're not going
+		 * to shut this side, and 2) the server is waiting for us to
+		 * send pending data.
+		 */
+		chn->flags |= CF_NEVER_WAIT;
+
+		/* When we get here, it means that both the request and the
+		 * response have finished receiving. Depending on the connection
+		 * mode, we'll have to wait for the last bytes to leave in either
+		 * direction, and sometimes for a close to be effective.
+		 */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+			/* Tunnel mode will not have any analyser so it needs to
+			 * poll for reads.
+			 */
+			channel_auto_read(chn);
+			txn->req.msg_state = HTTP_MSG_TUNNEL;
+		}
+		else {
+			/* we're not expecting any new data to come for this
+			 * transaction, so we can close it.
+			 * However, there is an exception if the response length
+			 * is undefined. In this case, we need to wait the close
+			 * from the server. The response will be switched in
+			 * TUNNEL mode until the end.
+			 */
+			if (!(txn->rsp.flags & HTTP_MSGF_XFER_LEN) &&
+			    txn->rsp.msg_state != HTTP_MSG_CLOSED)
+				return;
+
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+				channel_shutr_now(chn);
+				channel_shutw_now(chn);
+			}
+		}
+
+		goto check_channel_flags;
+	}
+
+	if (txn->req.msg_state == HTTP_MSG_CLOSING) {
+	  http_msg_closing:
+		/* nothing else to forward, just waiting for the output buffer
+		 * to be empty and for the shutw_now to take effect.
+		 */
+		if (channel_is_empty(chn)) {
+			txn->req.msg_state = HTTP_MSG_CLOSED;
+			goto http_msg_closed;
+		}
+		else if (chn->flags & CF_SHUTW) {
+			txn->req.err_state = txn->req.msg_state;
+			txn->req.msg_state = HTTP_MSG_ERROR;
+			goto end;
+		}
+		return;
+	}
+
+	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
+	  http_msg_closed:
+
+		/* if we don't know whether the server will close, we need to hard close */
+		if (txn->rsp.flags & HTTP_MSGF_XFER_LEN)
+			s->si[1].flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
+
+		/* see above in MSG_DONE why we only do this in these states */
+		if ((!(s->be->options & PR_O_ABRT_CLOSE) || (s->si[0].flags & SI_FL_CLEAN_ABRT)))
+			channel_dont_read(chn);
+		goto end;
+	}
+
+  check_channel_flags:
+	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
+	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		/* if we've just closed an output, let's switch */
+		txn->req.msg_state = HTTP_MSG_CLOSING;
+		goto http_msg_closing;
+	}
+
+  end:
+	chn->analysers &= AN_REQ_FLT_END;
+	if (txn->req.msg_state == HTTP_MSG_TUNNEL && HAS_REQ_DATA_FILTERS(s))
+			chn->analysers |= AN_REQ_FLT_XFER_DATA;
+	channel_auto_close(chn);
+	channel_auto_read(chn);
+}
+
+
+/* This function terminates the response because it was completly analyzed or
+ * because an error was triggered during the body forwarding.
+ */
+static void htx_end_response(struct stream *s)
+{
+	struct channel *chn = &s->res;
+	struct http_txn *txn = s->txn;
+
+	DPRINTF(stderr,"[%u] %s: stream=%p states=%s,%s req->analysers=0x%08x res->analysers=0x%08x\n",
+		now_ms, __FUNCTION__, s,
+		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
+		s->req.analysers, s->res.analysers);
+
+	if (unlikely(txn->rsp.msg_state == HTTP_MSG_ERROR)) {
+		channel_abort(chn);
+		channel_truncate(chn);
+		goto end;
+	}
+
+	if (unlikely(txn->rsp.msg_state < HTTP_MSG_DONE))
+		return;
+
+	if (txn->rsp.msg_state == HTTP_MSG_DONE) {
+		/* In theory, we don't need to read anymore, but we must
+		 * still monitor the server connection for a possible close
+		 * while the request is being uploaded, so we don't disable
+		 * reading.
+		 */
+		/* channel_dont_read(chn); */
+
+		if (txn->req.msg_state < HTTP_MSG_DONE) {
+			/* The client seems to still be sending data, probably
+			 * because we got an error response during an upload.
+			 * We have the choice of either breaking the connection
+			 * or letting it pass through. Let's do the later.
+			 */
+			return;
+		}
+
+		/* When we get here, it means that both the request and the
+		 * response have finished receiving. Depending on the connection
+		 * mode, we'll have to wait for the last bytes to leave in either
+		 * direction, and sometimes for a close to be effective.
+		 */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+			channel_auto_read(chn);
+			chn->flags |= CF_NEVER_WAIT;
+			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+		}
+		else {
+			/* we're not expecting any new data to come for this
+			 * transaction, so we can close it.
+			 */
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+				channel_shutr_now(chn);
+				channel_shutw_now(chn);
+			}
+		}
+		goto check_channel_flags;
+	}
+
+	if (txn->rsp.msg_state == HTTP_MSG_CLOSING) {
+	  http_msg_closing:
+		/* nothing else to forward, just waiting for the output buffer
+		 * to be empty and for the shutw_now to take effect.
+		 */
+		if (channel_is_empty(chn)) {
+			txn->rsp.msg_state = HTTP_MSG_CLOSED;
+			goto http_msg_closed;
+		}
+		else if (chn->flags & CF_SHUTW) {
+			txn->rsp.err_state = txn->rsp.msg_state;
+			txn->rsp.msg_state = HTTP_MSG_ERROR;
+			HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+			if (objt_server(s->target))
+				HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+			goto end;
+		}
+		return;
+	}
+
+	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
+	  http_msg_closed:
+		/* drop any pending data */
+		channel_truncate(chn);
+		channel_auto_close(chn);
+		channel_auto_read(chn);
+		goto end;
+	}
+
+  check_channel_flags:
+	/* Here, we are in HTTP_MSG_DONE or HTTP_MSG_TUNNEL */
+	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		/* if we've just closed an output, let's switch */
+		txn->rsp.msg_state = HTTP_MSG_CLOSING;
+		goto http_msg_closing;
+	}
+
+  end:
+	chn->analysers &= AN_RES_FLT_END;
+	if (txn->rsp.msg_state == HTTP_MSG_TUNNEL && HAS_RSP_DATA_FILTERS(s))
+		chn->analysers |= AN_RES_FLT_XFER_DATA;
+	channel_auto_close(chn);
+	channel_auto_read(chn);
 }
 
 __attribute__((constructor))
