@@ -1670,6 +1670,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	X509         *newcrt  = NULL;
 	EVP_PKEY     *pkey    = NULL;
 	SSL          *tmp_ssl = NULL;
+	CONF         *ctmp    = NULL;
 	X509_NAME    *name;
 	const EVP_MD *digest;
 	X509V3_CTX    ctx;
@@ -1727,11 +1728,12 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	X509_NAME_free(name);
 
 	/* Add x509v3 extensions as specified */
+	ctmp = NCONF_new(NULL);
 	X509V3_set_ctx(&ctx, cacert, newcrt, NULL, NULL, 0);
 	for (i = 0; i < X509V3_EXT_SIZE; i++) {
 		X509_EXTENSION *ext;
 
-		if (!(ext = X509V3_EXT_conf(NULL, &ctx, x509v3_ext_names[i], x509v3_ext_values[i])))
+		if (!(ext = X509V3_EXT_nconf(ctmp, &ctx, x509v3_ext_names[i], x509v3_ext_values[i])))
 			goto mkcert_error;
 		if (!X509_add_ext(newcrt, ext, -1)) {
 			X509_EXTENSION_free(ext);
@@ -1799,6 +1801,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	return ssl_ctx;
 
  mkcert_error:
+	if (ctmp) NCONF_free(ctmp);
 	if (tmp_ssl) SSL_free(tmp_ssl);
 	if (ssl_ctx) SSL_CTX_free(ssl_ctx);
 	if (newcrt)  X509_free(newcrt);
