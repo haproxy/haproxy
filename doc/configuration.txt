@@ -1660,7 +1660,7 @@ tune.ssl.cachesize <number>
   this value to 0 disables the SSL session cache.
 
 tune.ssl.force-private-cache
-  This boolean disables SSL session cache sharing between all processes. It
+  This option disables SSL session cache sharing between all processes. It
   should normally not be used since it will force many renegotiations due to
   clients hitting a random process. But it may be required on some operating
   systems where none of the SSL cache synchronization method may be used. In
@@ -6592,7 +6592,7 @@ option smtpchk <hello> <domain>
                                  yes   |    no    |   yes  |   yes
   Arguments :
     <hello>   is an optional argument. It is the "hello" command to use. It can
-              be either "HELO" (for SMTP) or "EHLO" (for ESTMP). All other
+              be either "HELO" (for SMTP) or "EHLO" (for ESMTP). All other
               values will be turned into the default command ("HELO").
 
     <domain>  is the domain name to present to the server. It may only be
