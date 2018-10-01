@@ -1753,7 +1753,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	else if (key_type == EVP_PKEY_EC)
 		digest = EVP_sha256();
 	else {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000000fL)
+#if (OPENSSL_VERSION_NUMBER >= 0x1000000fL) && !defined(OPENSSL_IS_BORINGSSL)
 		int nid;
 
 		if (EVP_PKEY_get_default_digest_nid(capkey, &nid) <= 0)

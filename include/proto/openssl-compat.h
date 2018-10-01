@@ -153,7 +153,6 @@ static inline const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 #endif
 
 #ifdef OPENSSL_IS_BORINGSSL
-#define SSL_NO_GENERATE_CERTIFICATES
 
 static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 {
