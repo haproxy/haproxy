@@ -83,6 +83,8 @@ enum {
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
 	CS_FL_REOS          = 0x00002000,  /* End of stream received (buffer not empty) */
 	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
+
+	CS_FL_NOT_FIRST     = 0x00100000,  /* This stream is not the first one */
 };
 
 /* cs_shutr() modes */
