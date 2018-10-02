@@ -356,7 +356,7 @@ static int h2c_frt_init(struct connection *conn)
 
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
-		goto fail;
+		goto fail_no_h2c;
 
 
 	h2c->shut_timeout = h2c->timeout = sess->fe->timeout.client;
@@ -420,12 +420,13 @@ static int h2c_frt_init(struct connection *conn)
 	conn_xprt_want_recv(conn);
 	tasklet_wakeup(h2c->wait_list.task);
 	return 0;
- fail:
+  fail:
 	if (t)
 		task_free(t);
 	if (h2c->wait_list.task)
 		tasklet_free(h2c->wait_list.task);
 	pool_free(pool_head_h2c, h2c);
+  fail_no_h2c:
 	return -1;
 }
 
