@@ -24,6 +24,7 @@
 #include <proto/proxy.h>
 #include <proto/hdr_idx.h>
 #include <proto/filters.h>
+#include <proto/http_rules.h>
 #include <proto/proto_http.h>
 #include <proto/log.h>
 #include <proto/stream.h>

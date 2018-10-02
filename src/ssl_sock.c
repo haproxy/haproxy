@@ -91,6 +91,7 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
+#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/openssl-compat.h>
 #include <proto/pattern.h>

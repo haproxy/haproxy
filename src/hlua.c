@@ -43,6 +43,7 @@
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>
+#include <proto/http_rules.h>
 #include <proto/map.h>
 #include <proto/obj_type.h>
 #include <proto/queue.h>

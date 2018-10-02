@@ -75,6 +75,7 @@
 #include <common/hathreads.h>
 #include <eb32tree.h>
 
+#include <proto/http_rules.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
 #include <proto/sample.h>

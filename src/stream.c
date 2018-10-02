@@ -43,6 +43,7 @@
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
+#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>

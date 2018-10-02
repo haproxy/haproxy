@@ -23,7 +23,6 @@
 #define _PROTO_PROTO_HTTP_H
 
 #include <common/config.h>
-#include <types/action.h>
 #include <types/proto_http.h>
 #include <types/stream.h>
 #include <types/task.h>
@@ -115,28 +114,8 @@ void http_reset_txn(struct stream *s);
 void http_end_txn_clean_session(struct stream *s);
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg);
 
-struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
-struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
-void free_http_req_rules(struct list *r);
-void free_http_res_rules(struct list *r);
 void http_reply_and_close(struct stream *s, short status, struct buffer *msg);
 struct buffer *http_error_message(struct stream *s);
-struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
-                                               const char **args, char **errmsg, int use_fmt, int dir);
-
-struct action_kw *action_http_req_custom(const char *kw);
-struct action_kw *action_http_res_custom(const char *kw);
-
-static inline void http_req_keywords_register(struct action_kw_list *kw_list)
-{
-	LIST_ADDQ(&http_req_keywords.list, &kw_list->list);
-}
-
-static inline void http_res_keywords_register(struct action_kw_list *kw_list)
-{
-	LIST_ADDQ(&http_res_keywords.list, &kw_list->list);
-}
-
 
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \

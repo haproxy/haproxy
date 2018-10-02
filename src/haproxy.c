@@ -99,6 +99,7 @@
 #include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
+#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/pattern.h>

@@ -66,6 +66,7 @@
 #include <proto/filters.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
+#include <proto/http_rules.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>

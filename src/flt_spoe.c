@@ -31,6 +31,7 @@
 #include <proto/filters.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
+#include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>

@@ -317,9 +317,6 @@ struct hdr_ctx {
 	int  prev; /* index of previous header */
 };
 
-extern struct action_kw_list http_req_keywords;
-extern struct action_kw_list http_res_keywords;
-
 extern struct pool_head *pool_head_http_txn;
 
 #endif /* _TYPES_PROTO_HTTP_H */

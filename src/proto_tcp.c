@@ -49,6 +49,7 @@
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
+#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/port_range.h>

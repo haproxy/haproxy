@@ -24,6 +24,7 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <types/action.h>
 #include <types/stream.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>

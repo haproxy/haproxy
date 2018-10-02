@@ -30,6 +30,7 @@
 
 #include <proto/acl.h>
 #include <proto/arg.h>
+#include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 
