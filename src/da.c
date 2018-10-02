@@ -2,6 +2,7 @@
 
 #include <common/cfgparse.h>
 #include <common/errors.h>
+#include <common/http.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
@@ -335,7 +336,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 			 * The cookie value, if it exists, is located between the current header's
 			 * value position and the next one
 			 */
-			if (extract_cookie_value(pval, eval, global_deviceatlas.cookiename,
+			if (http_extract_cookie_value(pval, eval, global_deviceatlas.cookiename,
 				global_deviceatlas.cookienamelen, 1, &p, &pl) == NULL) {
 				continue;
 			}

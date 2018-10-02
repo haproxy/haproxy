@@ -82,10 +82,6 @@ int http_find_header2(const char *name, int len,
 		      struct hdr_ctx *ctx);
 int http_find_next_header(char *sol, struct hdr_idx *idx,
                           struct hdr_ctx *ctx);
-char *find_hdr_value_end(char *s, const char *e);
-char *extract_cookie_value(char *hdr, const char *hdr_end, char *cookie_name,
-                           size_t cookie_name_l, int list, char **value, size_t *value_l);
-int http_header_match2(const char *hdr, const char *end, const char *name, int len);
 int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx);
 int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
 int http_replace_req_line(int action, const char *replace, int len, struct proxy *px, struct stream *s);
