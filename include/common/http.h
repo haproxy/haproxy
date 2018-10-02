@@ -161,6 +161,32 @@ static inline int http_is_param_delimiter(char c, char delim)
 	return c == '&' || c == ';' || c == delim;
 }
 
+/* Match language range with language tag. RFC2616 14.4:
+ *
+ *    A language-range matches a language-tag if it exactly equals
+ *    the tag, or if it exactly equals a prefix of the tag such
+ *    that the first tag character following the prefix is "-".
+ *
+ * Return 1 if the strings match, else return 0.
+ */
+static inline int http_language_range_match(const char *range, int range_len,
+                                            const char *tag, int tag_len)
+{
+	const char *end = range + range_len;
+	const char *tend = tag + tag_len;
+
+	while (range < end) {
+		if (*range == '-' && tag == tend)
+			return 1;
+		if (*range != *tag || tag == tend)
+			return 0;
+		range++;
+		tag++;
+	}
+	/* Return true only if the last char of the tag is matched. */
+	return tag == tend;
+}
+
 
 #endif /* _COMMON_HTTP_H */
 

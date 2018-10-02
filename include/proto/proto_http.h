@@ -44,6 +44,8 @@
  *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
  */
 
+extern struct pool_head *pool_head_uniqueid;
+
 int process_cli(struct stream *s);
 int process_srv_data(struct stream *s);
 int process_srv_conn(struct stream *s);
@@ -57,6 +59,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
 int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px);
 int http_request_forward_body(struct stream *s, struct channel *req, int an_bit);
 int http_response_forward_body(struct stream *s, struct channel *res, int an_bit);
+int http_upgrade_v09_to_v10(struct http_txn *txn);
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 void http_txn_reset_req(struct http_txn *txn);
 void http_txn_reset_res(struct http_txn *txn);
@@ -100,6 +103,9 @@ void http_capture_bad_message(struct proxy *proxy, struct stream *s,
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, size_t *vlen);
+unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hlen,
+			   struct hdr_idx *idx, int occ,
+			   struct hdr_ctx *ctx, char **vptr, size_t *vlen);
 char *http_txn_get_path(const struct http_txn *txn);
 
 struct http_txn *http_alloc_txn(struct stream *s);
@@ -117,31 +123,9 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg);
 struct buffer *http_error_message(struct stream *s);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt, int dir);
-int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private);
-int smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, void *private);
 
 struct action_kw *action_http_req_custom(const char *kw);
 struct action_kw *action_http_res_custom(const char *kw);
-int val_hdr(struct arg *arg, char **err_msg);
-
-int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
-                  const struct arg *args, struct sample *smp, int req_vol);
-
-enum act_return http_action_req_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                              struct session *sess, struct stream *s, int flags);
-enum act_return http_action_res_capture_by_id(struct act_rule *rule, struct proxy *px,
-                                              struct session *sess, struct stream *s, int flags);
-
-int parse_qvalue(const char *qvalue, const char **end);
-
-/* Note: these functions *do* modify the sample. Even in case of success, at
- * least the type and uint value are modified.
- */
-#define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 1); if (r <= 0) return r; } while (0)
-
-#define CHECK_HTTP_MESSAGE_FIRST_PERM() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 0); if (r <= 0) return r; } while (0)
 
 static inline void http_req_keywords_register(struct action_kw_list *kw_list)
 {

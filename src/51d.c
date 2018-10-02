@@ -5,6 +5,7 @@
 #include <common/buffer.h>
 #include <common/errors.h>
 #include <proto/arg.h>
+#include <proto/http_fetch.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/sample.h>
