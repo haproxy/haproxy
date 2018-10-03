@@ -864,6 +864,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
 
+	if (IS_HTX_STRM(s))
+		return htx_wait_for_request(s, req, an_bit);
+
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -2844,6 +2847,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	int deny_status = HTTP_ERR_403;
 	struct connection *conn = objt_conn(sess->origin);
 
+	if (IS_HTX_STRM(s))
+		return htx_process_req_common(s, req, an_bit, px);
+
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
 		goto return_prx_yield;
@@ -3114,6 +3120,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
 	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
+
+	if (IS_HTX_STRM(s))
+		return htx_process_request(s, req, an_bit);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3448,6 +3457,9 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = s->txn;
 
+	if (IS_HTX_STRM(s))
+		return htx_process_tarpit(s, req, an_bit);
+
 	/* This connection is being tarpitted. The CLIENT side has
 	 * already set the connect expiration date to the right
 	 * timeout. We just have to check that the client is still
@@ -3493,6 +3505,9 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->req;
+
+	if (IS_HTX_STRM(s))
+		return htx_wait_for_request_body(s, req, an_bit);
 
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
@@ -4272,6 +4287,9 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &s->txn->req;
 	int ret;
 
+	if (IS_HTX_STRM(s))
+		return htx_request_forward_body(s, req, an_bit);
+
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -4510,6 +4528,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	int n;
 
 	srv_conn = cs_conn(objt_cs(s->si[1].end));
+
+	if (IS_HTX_STRM(s))
+		return htx_wait_for_response(s, rep, an_bit);
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -5154,6 +5175,9 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	struct cond_wordlist *wl;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
+	if (IS_HTX_STRM(s))
+		return htx_process_res_common(s, rep, an_bit, px);
+
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -5500,6 +5524,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->rsp;
 	int ret;
+
+	if (IS_HTX_STRM(s))
+		return htx_response_forward_body(s, res, an_bit);
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,

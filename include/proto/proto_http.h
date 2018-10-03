@@ -52,6 +52,18 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 void http_txn_reset_req(struct http_txn *txn);
 void http_txn_reset_res(struct http_txn *txn);
 
+/* Export HTX analyzers */
+int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit);
+int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px);
+int htx_process_request(struct stream *s, struct channel *req, int an_bit);
+int htx_process_tarpit(struct stream *s, struct channel *req, int an_bit);
+int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit);
+int htx_send_name_header(struct http_txn *txn, struct proxy* be, const char* svr_name);
+int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
+int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px);
+int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit);
+int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit);
+
 void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end);
 int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp);
 int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_exp *exp);
