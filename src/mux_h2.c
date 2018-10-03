@@ -349,12 +349,20 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 /* functions below are dedicated to the mux setup and management */
 /*****************************************************************/
 
-/* tries to initialize the inbound h2c mux. Returns < 0 in case of failure. */
-static int h2c_frt_init(struct connection *conn)
+/* Initialize the mux once it's attached. For outgoing connections, the context
+ * is already initialized before installing the mux, so we detect incoming
+ * connections from the fact that the context is still NULL. Returns < 0 on
+ * error.
+ */
+static int h2_init(struct connection *conn, struct proxy *prx)
 {
 	struct h2c *h2c;
 	struct task *t = NULL;
 	struct session *sess = conn->owner;
+
+	/* we don't support outgoing connections for now */
+	if (conn->mux_ctx)
+		goto fail_no_h2c;
 
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
@@ -429,21 +437,6 @@ static int h2c_frt_init(struct connection *conn)
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
 	return -1;
-}
-
-/* Initialize the mux once it's attached. For outgoing connections, the context
- * is already initialized before installing the mux, so we detect incoming
- * connections from the fact that the context is still NULL. Returns < 0 on
- * error.
- */
-static int h2_init(struct connection *conn, struct proxy *prx)
-{
-	if (conn->mux_ctx) {
-		/* we don't support outgoing connections for now */
-		return -1;
-	}
-
-	return h2c_frt_init(conn);
 }
 
 /* returns the stream associated with id <id> or NULL if not found */
