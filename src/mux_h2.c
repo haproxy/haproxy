@@ -4369,9 +4369,14 @@ static const struct mux_ops h2_ops = {
 
 /* PROTO selection : this mux registers PROTO token "h2" */
 static struct mux_proto_list mux_proto_h2 =
-	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP | PROTO_MODE_HTX, .side = PROTO_SIDE_FE, .mux = &h2_ops };
+	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &h2_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
+
+static struct mux_proto_list mux_proto_h2_htx =
+	{ .token = IST("h2"), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &h2_ops };
+
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2_htx);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
