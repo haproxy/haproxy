@@ -87,29 +87,11 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_UNKN] = "UNKN",
 };
 
-
-static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
-
-static inline int http_msg_forward_body(struct stream *s, struct http_msg *msg);
-static inline int http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg);
-
 void init_proto_http()
 {
 	/* memory allocations */
 	pool_head_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
 	pool_head_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
-}
-
-/*
- * Adds a header and its CRLF at the tail of the message's buffer, just before
- * the last CRLF.
- * The header is also automatically added to the index <hdr_idx>, and the end
- * of headers is automatically adjusted. The number of bytes added is returned
- * on success, otherwise <0 is returned indicating an error.
- */
-static inline int http_header_add_tail(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text)
-{
-	return http_header_add_tail2(msg, hdr_idx, text, strlen(text));
 }
 
 /*
@@ -606,8 +588,8 @@ struct pool_head *pool_head_uniqueid;
  * Capture headers from message starting at <som> according to header list
  * <cap_hdr>, and fill the <cap> pointers appropriately.
  */
-void capture_headers(char *som, struct hdr_idx *idx,
-		     char **cap, struct cap_hdr *cap_hdr)
+void http_capture_headers(char *som, struct hdr_idx *idx,
+			  char **cap, struct cap_hdr *cap_hdr)
 {
 	char *eol, *sol, *col, *sov;
 	int cur_idx;
@@ -1315,8 +1297,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->req_cap))
-		capture_headers(ci_head(req), &txn->hdr_idx,
-				s->req_cap, sess->fe->req_cap);
+		http_capture_headers(ci_head(req), &txn->hdr_idx,
+				     s->req_cap, sess->fe->req_cap);
 
 	/* 6: determine the transfer-length according to RFC2616 #4.4, updated
 	 * by RFC7230#3.3.3 :
@@ -2123,7 +2105,7 @@ resume_execution:
  * deny rule. If *YIELD is returned, the caller must call again the function
  * with the same context.
  */
-static enum rule_result
+enum rule_result
 http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
@@ -2463,7 +2445,7 @@ resume_execution:
  * returns non-zero on success, or zero in case of a, irrecoverable error such
  * as too large a request to build a valid response.
  */
-static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
+int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
 	struct http_msg *req = &txn->req;
 	struct http_msg *res = &txn->rsp;
@@ -2871,7 +2853,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 				continue;
 		}
 
-		if (unlikely(http_header_add_tail(&txn->req, &txn->hdr_idx, wl->s) < 0))
+		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, wl->s, strlen(wl->s)) < 0))
 			goto return_bad_req;
 	}
 
@@ -4812,8 +4794,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	s->logs.logwait &= ~LW_RESP;
 	if (unlikely((s->logs.logwait & LW_RSPHDR) && s->res_cap))
-		capture_headers(ci_head(rep), &txn->hdr_idx,
-				s->res_cap, sess->fe->rsp_cap);
+		http_capture_headers(ci_head(rep), &txn->hdr_idx,
+				     s->res_cap, sess->fe->rsp_cap);
 
 	/* 4: determine the transfer-length according to RFC2616 #4.4, updated
 	 * by RFC7230#3.3.3 :
@@ -5175,7 +5157,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				if (!ret)
 					continue;
 			}
-			if (unlikely(http_header_add_tail(&txn->rsp, &txn->hdr_idx, wl->s) < 0))
+			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, wl->s, strlen(wl->s)) < 0))
 				goto return_bad_resp;
 		}
 
@@ -5575,8 +5557,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 }
 
 
-static inline int
-http_msg_forward_body(struct stream *s, struct http_msg *msg)
+int http_msg_forward_body(struct stream *s, struct http_msg *msg)
 {
 	struct channel *chn = msg->chn;
 	int ret;
@@ -5656,8 +5637,7 @@ http_msg_forward_body(struct stream *s, struct http_msg *msg)
 	return -1;
 }
 
-static inline int
-http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
+int http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg)
 {
 	struct channel *chn = msg->chn;
 	unsigned int chunk;

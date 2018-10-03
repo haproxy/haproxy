@@ -77,8 +77,16 @@ int http_transform_header_str(struct stream* s, struct http_msg *msg, const char
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
 void inet_set_tos(int fd, const struct sockaddr_storage *from, int tos);
+int http_handle_stats(struct stream *s, struct channel *req);
+enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules,
+					     struct stream *s, int *deny_status);
+enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules,
+					     struct stream *s);
+int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void http_return_srv_error(struct stream *s, struct stream_interface *si);
+void http_capture_headers(char *som, struct hdr_idx *idx,
+			  char **cap, struct cap_hdr *cap_hdr);
 void http_capture_bad_message(struct proxy *proxy, struct stream *s,
                               struct http_msg *msg,
 			      enum h1_state state, struct proxy *other_end);
@@ -95,7 +103,13 @@ void http_init_txn(struct stream *s);
 void http_end_txn(struct stream *s);
 void http_reset_txn(struct stream *s);
 void http_end_txn_clean_session(struct stream *s);
+void http_resync_states(struct stream *s);
+void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, int to_del);
+void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, int wanted);
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg);
+
+int http_msg_forward_body(struct stream *s, struct http_msg *msg);
+int http_msg_forward_chunked_body(struct stream *s, struct http_msg *msg);
 
 void http_reply_and_close(struct stream *s, short status, struct buffer *msg);
 struct buffer *http_error_message(struct stream *s);
