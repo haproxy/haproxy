@@ -36,14 +36,14 @@ haproxy h1 -conf {
 
     listen http
         bind-process 1
-        bind abns@http accept-proxy name ssl-offload-http
+        bind unix@${testdir}/http.socket accept-proxy name ssl-offload-http
         option forwardfor
 
     listen ssl-offload-http
         option httplog
         bind-process 2-4
         bind "fd@${ssl}" ssl crt ${testdir}/common.pem ssl no-sslv3 alpn h2,http/1.1
-        server http abns@http send-proxy
+        server http unix@${testdir}/http.socket send-proxy
 } -start
 
 
